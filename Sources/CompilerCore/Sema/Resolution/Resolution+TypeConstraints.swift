@@ -701,8 +701,15 @@ extension OverloadResolver {
         // Sequence declares `out T`). Without this projection, a generic
         // source-backed return such as Sequence<Int> cannot flow into
         // Sequence<Any> during type-variable solving.
-        let projectedSubArg = applyDeclarationVariance(subArg, declarationVariance: declarationVariance)
-        let projectedSuperArg = applyDeclarationVariance(superArg, declarationVariance: declarationVariance)
+        // Star projections carry their own variance, so projecting them would hide the
+        // dedicated star handling below and leave type variables unconstrained.
+        let involvesStar = isStarProjection(subArg) || isStarProjection(superArg)
+        let projectedSubArg = involvesStar
+            ? subArg
+            : applyDeclarationVariance(subArg, declarationVariance: declarationVariance)
+        let projectedSuperArg = involvesStar
+            ? superArg
+            : applyDeclarationVariance(superArg, declarationVariance: declarationVariance)
 
         switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
@@ -776,6 +783,11 @@ extension OverloadResolver {
             ))
             return fallback
         }
+    }
+
+    private func isStarProjection(_ arg: TypeArg) -> Bool {
+        if case .star = arg { return true }
+        return false
     }
 
     private func applyDeclarationVariance(

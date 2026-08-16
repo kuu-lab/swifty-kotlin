@@ -1159,6 +1159,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "Comparable"]]
         case "__bundled_kotlin/AutoCloseable.kt":
             [["kotlin", "AutoCloseable"]]
+        case "__bundled_kotlin/Comparator.kt":
+            [["kotlin", "Comparator"]]
         case "__bundled_kotlin/io/Closeable.kt":
             [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":

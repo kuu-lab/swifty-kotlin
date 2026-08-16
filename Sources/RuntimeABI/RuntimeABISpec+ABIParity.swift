@@ -134,10 +134,6 @@ public extension RuntimeABISpec {
             p("value", .intptr),
             p("continuation", .intptr),
         ]),
-        abiParitySpec("kk_char_fromCode", parameters: [
-            p("code", .intptr),
-            p("outThrown", .nullableIntptrPointer),
-        ]),
         abiParitySpec("kk_char_isISOControl", parameters: [
             p("value", .intptr),
         ]),
