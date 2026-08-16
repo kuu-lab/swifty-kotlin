@@ -188,3 +188,20 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 | 2026-08-14 CLEANUP-STUB-109 | `.synthetic` フラグ付き残留サーフェス | 3102 | `kotlin=2604`, `java=304`, `kotlinx=193`, `CancellationException=1` |
 
 `kotlin.io.FileWalkDirection` の enum と `TOP_DOWN`/`BOTTOM_UP` の synthetic symbol 3件を削除した。File IO/FileTreeWalk の別 surface は対象外として保持した。
+
+## 2026-08-14 CLEANUP-STUB-124（`java.net.URL` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-14 CLEANUP-STUB-124 | `.synthetic` フラグ付き残留サーフェス | 3397 | `kotlin=2566`, `java=271`, `kotlinx=187`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+この値は CLEANUP-STUB-123 後の master 上の削減を含むため、前回記録との差分を URL 単独の削減量としては扱わない。
+今回の対象では `java.net.URL` の synthetic shell、公開 URL exports、URL runtime/ABI exports を除去し、HTTP request builder 内部の URI handoff は保持した。

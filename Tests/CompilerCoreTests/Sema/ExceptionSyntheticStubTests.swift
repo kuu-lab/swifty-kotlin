@@ -237,7 +237,7 @@ struct ExceptionSyntheticStubTests {
             args: [],
             nullability: .nonNull
         )))
-        #expect(sema.symbols.propertyType(for: exceptionSymbol) == exceptionType)
+        #expect(!(sema.symbols.symbol(exceptionSymbol)?.flags.contains(.synthetic) ?? true))
 
         let nullableStringType = sema.types.makeNullable(sema.types.stringType)
         let constructorFQName = exceptionFQName + [interner.intern("<init>")]
@@ -245,8 +245,8 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "kk_array_index_out_of_bounds_exception_new"),
-            ([nullableStringType], "kk_array_index_out_of_bounds_exception_new_message"),
+            ([], "__kk_array_index_out_of_bounds_exception_new"),
+            ([nullableStringType], "__kk_array_index_out_of_bounds_exception_new_message"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
@@ -322,6 +322,9 @@ struct ExceptionSyntheticStubTests {
             ]),
             ("IndexOutOfBoundsException", "RuntimeException", [0, 1], [
                 "__kk_index_out_of_bounds_exception_new", "__kk_index_out_of_bounds_exception_new_message",
+            ]),
+            ("ArrayIndexOutOfBoundsException", "IndexOutOfBoundsException", [0, 1], [
+                "__kk_array_index_out_of_bounds_exception_new", "__kk_array_index_out_of_bounds_exception_new_message",
             ]),
             ("ConcurrentModificationException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_concurrent_modification_exception_new", "__kk_concurrent_modification_exception_new_message", "__kk_concurrent_modification_exception_new_message_cause", "__kk_concurrent_modification_exception_new_cause",

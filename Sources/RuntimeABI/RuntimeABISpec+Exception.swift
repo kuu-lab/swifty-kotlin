@@ -102,18 +102,20 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_index_out_of_bounds_exception_new",
+            name: "__kk_array_index_out_of_bounds_exception_new",
             parameters: [],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_index_out_of_bounds_exception_new_message",
+            name: "__kk_array_index_out_of_bounds_exception_new_message",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         // Per-type explicit constructor entry points (catch-clause sibling-type
         // discrimination fix). Each built-in exception class below gets its own
