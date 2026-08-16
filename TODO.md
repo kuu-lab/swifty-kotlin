@@ -284,7 +284,7 @@
 - [x] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。完了: PR #5060 で `buildString`/`buildStringBuilder` を `StringBuilder.kt` の source-backed API へ移設）
   - 実装: `builderDSLKind` の buildString 系分岐、`CallLowerer.swift` の append 引数ボクシング特例、旧 `kk_build_string*` の builder DSL 窓口を撤去。可変バッファに必要な `__kk_string_builder_*` 最小ブリッジは維持
   - 検証: KSP-311（PR #4996/#5060）、KSP-622（PR #5702）、KSP-CAP-008（PR #4991）の master 反映を確認。Sema/lowering/codegen、ABI、capacity/empty/chained append/nullable・primitive boxing/receiver lambda/nested builder の回帰、指定 diff 8 ケース、TODO-ID、`git diff --check` を実施
-- [ ] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`）
+- [x] KSP-631: Iterator.asSequence を**新規実装**する（前提: KSP-CAP-001/002 + KSP-441。参照: `kk_iterable_asSequence`。完了: bundled Kotlin の source-backed 実装、identity/lazy/one-shot/empty/partial-consumption 回帰、focused golden/diff/ABI 検証）
 - [x] KSP-687: primitive array（IntArray/LongArray/DoubleArray/FloatArray/CharArray 等）の HOF を Kotlin 化する（KSP-433 完了メモが「`kk_array_*` ブリッジ削除には primitive array HOF の Kotlin 化（**別タスク**）が前提」と明記したまま未起票だった — 2026-08-12 追補、2026-08-14 完了）
   - 対象: `RuntimeCollectionHOFArray.swift` の 40 関数（2026-08-12 実測。generic `Array<T>` 経路は KSP-433 で source 化済みだが、primitive レシーバは `CallTypeChecker+ArrayMemberFallback.swift` の合成フォールバック経由で今も全ブリッジへ到達する）と、`CollectionLiteralLoweringPass+LookupTables+Array.swift` / `CallLowerer+UnresolvedMemberCalls.swift` の未解決メンバ fallback 表の該当分
   - 併せて解消: `Array<T>.joinToString(..., transform)` が synthetic メンバ優先で `kk_array_joinToString_transform` に残る問題（KSP-433 記載・BUG-158 と共有）、fold アキュムレータの raw 表現規約（KSP-433 の同 PR 修正参照）の source 実装への引き継ぎ
