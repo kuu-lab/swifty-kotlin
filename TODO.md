@@ -10699,6 +10699,6 @@
 ## Runtime follow-up
 
 - [ ] KSP-1540: primitive 値を Number 型変数に代入した際の Number.to*() 仮想メソッド dispatch を実装する
-  - 背景: KSP-747 で `kotlin.Number` を bundled stdlib ソース化したが、`val n: Number = 42` のように primitive を Number 型で受けた場合、`n.toDouble()` 等が正しく primitive 値に dispatch されていない
-  - 再現ケース: `Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt`（SKIP-DIFF 中）
-  - 完了条件: 上記 diff ケースの `SKIP-DIFF` を解除し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt` が green になること
+  - 背景: KSP-747 で `kotlin.Number` を bundled stdlib ソース化したが、`val n: Number = 42` のように primitive を Number 型で受けた場合や `fun <T : Number> sumOf(a: T, b: T)` のような上限境界経由で primitive を受けた場合、`n.toDouble()` / `a.toDouble()` 等が正しく primitive 値に dispatch されていない
+  - 再現ケース: `Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt`（SKIP-DIFF 中）、`Scripts/diff_cases/stdlib_kotlin_n_Number_primitive_generic.kt`（SKIP-DIFF 中）
+  - 完了条件: 上記 diff ケースの `SKIP-DIFF` を解除し、`DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt Scripts/diff_cases/stdlib_kotlin_n_Number_primitive_generic.kt` が green になること
