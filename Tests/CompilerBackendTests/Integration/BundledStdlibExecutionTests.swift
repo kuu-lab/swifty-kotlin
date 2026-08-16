@@ -487,6 +487,85 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    /// KSP-644: one-bit operations are implemented by bundled Kotlin source for both
+    /// Int and Long, including zero, negative values, sign boundaries, and mixed bits.
+    @Test
+    func testOneBitFunctionsExecuteThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            fun printIntOneBitOperations(value: Int) {
+                println(value.highestOneBit())
+                println(value.lowestOneBit())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun printLongOneBitOperations(value: Long) {
+                println(value.highestOneBit())
+                println(value.lowestOneBit())
+                println(value.takeHighestOneBit())
+                println(value.takeLowestOneBit())
+            }
+
+            fun main() {
+                printIntOneBitOperations(0)
+                printIntOneBitOperations(-1)
+                printIntOneBitOperations(Int.MAX_VALUE)
+                printIntOneBitOperations(Int.MIN_VALUE)
+                printIntOneBitOperations(0x12345678)
+                printLongOneBitOperations(0L)
+                printLongOneBitOperations(-1L)
+                printLongOneBitOperations(Long.MAX_VALUE)
+                printLongOneBitOperations(Long.MIN_VALUE)
+                printLongOneBitOperations(0x12345678L)
+            }
+            """,
+            expectedOutput: """
+            0
+            0
+            0
+            0
+            -2147483648
+            1
+            -2147483648
+            1
+            1073741824
+            1
+            1073741824
+            1
+            -2147483648
+            -2147483648
+            -2147483648
+            -2147483648
+            268435456
+            8
+            268435456
+            8
+            0
+            0
+            0
+            0
+            -9223372036854775808
+            1
+            -9223372036854775808
+            1
+            4611686018427387904
+            1
+            4611686018427387904
+            1
+            -9223372036854775808
+            -9223372036854775808
+            -9223372036854775808
+            -9223372036854775808
+            268435456
+            8
+            268435456
+            8
+
+            """
+        )
+    }
+
     /// KSP-635: Exercise the bundled Kotlin abs/sign/min/max and PI/E
     /// implementations across overflow, NaN, and signed-zero edge cases.
     @Test
@@ -985,6 +1064,66 @@ struct BundledStdlibExecutionTests {
             true
 
             """
+        )
+    }
+
+    // KSP-641 regression: generic Comparable coercion and the
+    // ClosedFloatingPointRange overload must be source-backed and executable.
+    @Test
+    func testComparableCoercionExecutesThroughBundledKotlin() throws {
+        try compileAndRunKotlin(
+            """
+            class Score(val value: Int) : Comparable<Score> {
+                override fun compareTo(other: Score): Int = value.compareTo(other.value)
+            }
+
+            fun catchesIllegalArgument(action: () -> Unit): Boolean {
+                return try {
+                    action()
+                    false
+                } catch (e: IllegalArgumentException) {
+                    true
+                }
+            }
+
+            fun main() {
+                println(Score(5).coerceIn(null, Score(3)).value)
+                println(Score(5).coerceIn(Score(7), null).value)
+                println(Score(5).coerceIn(null, null).value)
+                println(Score(5).coerceIn(Score(1), Score(10)).value)
+                println(catchesIllegalArgument { Score(5).coerceIn(Score(10), Score(1)) })
+
+                println(9.9.coerceIn(1.0..10.0))
+                println(0.0.coerceIn(1.0..10.0))
+                println(10.0.coerceIn(1.0..10.0))
+                println(Double.NaN.coerceIn(1.0..10.0).isNaN())
+                println(catchesIllegalArgument { 9.9.coerceIn(1.0..Double.NaN) })
+                println(catchesIllegalArgument { 9.9.coerceIn(10.0..1.0) })
+                println(0.0f.coerceIn(1.0f..10.0f))
+                println(Float.NaN.coerceIn(1.0f..10.0f).isNaN())
+                println(catchesIllegalArgument { 9.9f.coerceIn(1.0f..Float.NaN) })
+                println(catchesIllegalArgument { 9.9f.coerceIn(10.0f..1.0f) })
+            }
+            """,
+            expectedOutput: """
+            3
+            7
+            5
+            5
+            true
+            9.9
+            1.0
+            10.0
+            true
+            true
+            true
+            1.0
+            true
+            true
+            true
+
+            """,
+            moduleName: "ComparableCoercion"
         )
     }
 }

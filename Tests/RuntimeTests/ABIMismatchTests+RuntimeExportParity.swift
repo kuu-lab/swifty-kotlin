@@ -79,7 +79,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_regex_create_with_options",
             "kk_string_toByte",
             "kk_string_toByte_radix",
-            "kk_string_toCharArray",
             "kk_string_toRegex_with_option",
             "kk_string_toRegex_with_options",
             "kk_string_toShort",

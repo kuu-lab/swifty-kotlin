@@ -661,6 +661,10 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
+    if runtimeSequenceBox(from: rangeRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
@@ -789,8 +793,8 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_hasNext(iterRaw)
     }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_hasNext(iterRaw)
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_hasNext(iterRaw)
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0) {
         return objectResult
@@ -812,8 +816,8 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_next(iterRaw)
     }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_next(iterRaw)
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_next(iterRaw)
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1) {
         return objectResult

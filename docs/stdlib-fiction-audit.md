@@ -171,3 +171,20 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 
 この値は CLEANUP-STUB-102 以降の master 上の削減を含むため、前回記録の 5099 との差分を URI 単独の削減量としては扱わない。
 今回の対象では `java.net.URI` の synthetic shell、公開 URI exports、Path/URL の URI 変換を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-14 CLEANUP-STUB-109（`kotlin.io.FileWalkDirection` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更前後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 変更前 | `.synthetic` フラグ付き残留サーフェス | 3105 | `kotlin=2607`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+| 2026-08-14 CLEANUP-STUB-109 | `.synthetic` フラグ付き残留サーフェス | 3102 | `kotlin=2604`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+
+`kotlin.io.FileWalkDirection` の enum と `TOP_DOWN`/`BOTTOM_UP` の synthetic symbol 3件を削除した。File IO/FileTreeWalk の別 surface は対象外として保持した。

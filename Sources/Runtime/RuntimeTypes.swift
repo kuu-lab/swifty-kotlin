@@ -653,28 +653,6 @@ final class RuntimeListIteratorBox {
     }
 }
 
-/// Iterator box for `String` iteration via `for (c in str)` (STDLIB-189).
-final class RuntimeStringIteratorBox {
-    let charRaws: [Int]
-    var index: Int
-
-    init(charRaws: [Int]) {
-        self.charRaws = charRaws
-        index = 0
-    }
-}
-
-/// Lazy iterable view for `String.asIterable()` (STDLIB-317).
-/// Stores the immutable string payload; characters are yielded on demand when
-/// the iterable is consumed (e.g. via `iterator()`, `toList()`, or `for-in`).
-final class RuntimeStringIterableBox {
-    let source: String
-
-    init(source: String) {
-        self.source = source
-    }
-}
-
 /// Iterator box for `Map` iteration via `for (entry in map)`.
 final class RuntimeMapIteratorBox {
     let keys: [Int]

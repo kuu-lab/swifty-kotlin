@@ -967,51 +967,6 @@ extension NativeEmitter {
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),
-                "kk_string_toList_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toList_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCharArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCharArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toTypedArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toTypedArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toSortedSet_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toSortedSet_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCollection_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCollection_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_withIndex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_withIndex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_iterator_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_iterator_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asIterable_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asIterable_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asSequence_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_string_split_flat",
                     stringArgumentCount: 2,
@@ -3279,10 +3234,6 @@ extension NativeEmitter {
         case "__floatRoundToInt": "kk_float_roundToInt"
         case "__doubleRoundToLong": "kk_double_roundToLong"
         case "__floatRoundToLong": "kk_float_roundToLong"
-        case "__intHighestOneBit": "kk_int_highestOneBit"
-        case "__intLowestOneBit": "kk_int_lowestOneBit"
-        case "__longHighestOneBit": "kk_long_highestOneBit"
-        case "__longLowestOneBit": "kk_long_lowestOneBit"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil

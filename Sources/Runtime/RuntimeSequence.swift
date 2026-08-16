@@ -65,6 +65,7 @@ private func runtimeIteratorMethodCall(
 private func runtimeTraverseSourceSequenceObject(
     _ rawValue: Int,
     outThrown: UnsafeMutablePointer<Int>?,
+    iterator: ((Int) -> Void)? = nil,
     yield: (Int) -> Bool
 ) -> Bool {
     let iteratorFnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeSequenceInterfaceTypeID), 0)
@@ -77,6 +78,7 @@ private func runtimeTraverseSourceSequenceObject(
     )
     var thrown: Int = 0
     let iterRaw = iteratorFn(rawValue, &thrown)
+    iterator?(iterRaw)
     if thrown != 0 {
         if let outThrown {
             outThrown.pointee = thrown
@@ -163,10 +165,16 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: nil,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
         return nil
@@ -230,10 +238,16 @@ private func runtimeSequenceSourceValuesOrThrow(
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: outThrown,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
     }
@@ -2641,6 +2655,7 @@ public func kk_sequence_findLast(
     }
     return hasMatch ? found : runtimeNullSentinelInt
 }
+
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

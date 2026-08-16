@@ -285,7 +285,6 @@ extension CollectionLiteralLoweringSupport {
         // KSP-441〜447: Sequence ファクトリは source 化済み。runtime sequence handle として追跡しない。
         // if let result,
         //    callee == lookup.sequenceOfName || callee == lookup.generateSequenceName
-        //     || callee == lookup.kkStringAsSequenceName
         // {
         //     sequenceExprIDs.insert(result.rawValue)
         // }
@@ -348,7 +347,6 @@ extension CollectionLiteralLoweringSupport {
         if lookup.listFactoryNames.contains(callee) || lookup.mutableListConstructorNames.contains(callee)
             || callee == lookup.kkListOfName
             || callee == lookup.kkStringSplitName
-            || callee == lookup.kkStringAsIterableName
             || callee == lookup.kkArrayToListName
         {
             listExprIDs.insert(result.rawValue)
@@ -429,7 +427,6 @@ extension CollectionLiteralLoweringSupport {
         stringExprIDs: inout Set<Int32>
     ) {
         if callee == lookup.asSequenceName
-            || callee == lookup.kkStringAsSequenceName
         {
             if let result {
                 let isSourceBacked = {
@@ -443,7 +440,6 @@ extension CollectionLiteralLoweringSupport {
             return
         }
         if callee == lookup.kkStringSplitName
-            || callee == lookup.kkStringAsIterableName
         {
             if let result { listExprIDs.insert(result.rawValue) }
             return

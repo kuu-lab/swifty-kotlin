@@ -364,26 +364,12 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toDoubleOrNull_flat")
         case ("toFloatOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toFloatOrNull_flat")
-        case ("toList", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toList_flat")
-        case ("toMutableList", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toMutableList")
-        case ("toSortedSet", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toSortedSet_flat")
-        case ("asIterable", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asIterable_flat")
-        case ("toCharArray", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCharArray_flat")
         case ("toRegex", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toRegex_flat")
         case ("firstOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_firstOrNull_flat")
         case ("lastOrNull", 0):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_lastOrNull_flat")
-        case ("asSequence", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_asSequence_flat")
-        case ("withIndex", 0):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_withIndex_flat")
         case ("get", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_get_flat")
         case ("compareTo", 1):
@@ -394,8 +380,6 @@ enum MemberRuntimeDispatch {
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_encodeToByteArray_charset_flat")
         case ("toByteArray", 1):
             return MemberRuntimeCallSpec(runtimeLinkName: "__kk_string_toByteArray_charset_flat")
-        case ("toCollection", 1):
-            return MemberRuntimeCallSpec(runtimeLinkName: "kk_string_toCollection_flat")
 
         default:
             return nil

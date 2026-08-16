@@ -48,6 +48,79 @@ struct StdlibArtifactRegressionTests {
         return artifactPath
     }
 
+    private static let abstractCollectionSource = """
+    import kotlin.collections.AbstractCollection
+    import kotlin.collections.Iterator
+
+    class EmptyIntIterator : Iterator<Int> {
+        override fun hasNext(): Boolean = false
+        override fun next(): Int = 0
+    }
+
+    class EvenNumbers : AbstractCollection<Int>() {
+        override val size: Int
+            get() = 0
+
+        override fun iterator(): Iterator<Int> = EmptyIntIterator()
+    }
+
+    fun main() {
+        println(EvenNumbers().size)
+    }
+    """
+
+    /// BUG-200: bundled source and precompiled stdlib metadata must agree on
+    /// abstract member modality and on the owner's type argument in overrides.
+    @Test
+    func testAbstractCollectionOverrideThroughBundledSource() throws {
+        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "Bug200Source",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: true
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "0\n")
+        }
+    }
+
+    /// BUG-200: the same source must compile and run when AbstractCollection
+    /// and its members come from a stdlib library artifact.
+    @Test
+    func testAbstractCollectionOverrideThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        try withTemporaryFile(contents: Self.abstractCollectionSource) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "Bug200Artifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "0\n")
+        }
+    }
+
     @Test
     func testUuidBasicSharedPathPrintsOk() throws {
         let artifactPath = try Self.buildStdlibArtifact()
