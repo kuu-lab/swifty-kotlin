@@ -198,14 +198,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticAnnotationClass(
-            named: "MustUseReturnValues",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -649,22 +641,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let mustUseReturnValuesSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("MustUseReturnValues")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.FILE",
-                        "AnnotationTarget.CLASS",
-                    ]
-                ),
-                to: mustUseReturnValuesSymbol,
-                symbols: symbols
             )
         }
 
