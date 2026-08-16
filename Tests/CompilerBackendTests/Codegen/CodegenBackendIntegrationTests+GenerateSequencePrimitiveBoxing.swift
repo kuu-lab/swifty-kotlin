@@ -123,6 +123,21 @@ struct CodegenBackendGenerateSequencePrimitiveBoxingTests {
     }
 
     @Test
+    func testGenerateSequenceZeroSeedIsNotNull() throws {
+        let source = """
+        fun main() {
+            println(generateSequence(0) { null }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenerateSequenceZero",
+            expected: "[0]\n"
+        )
+    }
+
+    @Test
     func testGenerateSequenceEnumBoxesSeedAndNullableNextResult() throws {
         let source = """
         enum class Direction { NORTH }

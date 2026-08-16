@@ -200,9 +200,6 @@ struct CollectionLiteralLookupTables {
     var kkIteratorBuilderBuildName: InternedString { sequenceLookup.kkIteratorBuilderBuildName }
     var kkIteratorBuilderHasNextName: InternedString { sequenceLookup.kkIteratorBuilderHasNextName }
     var kkIteratorBuilderNextName: InternedString { sequenceLookup.kkIteratorBuilderNextName }
-    var kkSequenceOfName: InternedString { sequenceLookup.kkSequenceOfName }
-    var kkSequenceGenerateName: InternedString { sequenceLookup.kkSequenceGenerateName }
-    var kkSequenceGenerateNoArgName: InternedString { sequenceLookup.kkSequenceGenerateNoArgName }
     var kkSequenceForEachName: InternedString { sequenceLookup.kkSequenceForEachName }
     var kkSequenceFlatMapName: InternedString { sequenceLookup.kkSequenceFlatMapName }
     var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
@@ -258,8 +255,6 @@ struct CollectionLiteralLookupTables {
     var iteratorBuilderName: InternedString { sequenceLookup.iteratorBuilderName }
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
-    var sequenceOfName: InternedString { sequenceLookup.sequenceOfName }
-    var generateSequenceName: InternedString { sequenceLookup.generateSequenceName }
 
     // MARK: - Array lookup names (see CollectionLiteralLoweringPass+LookupTables+Array.swift)
 

@@ -213,6 +213,31 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "GenerateSequenceNullTermination", expected: "[1, 2, 3, 4]\n")
     }
 
+    @Test
+    func testSourceBackedSequenceFactoriesResolveSeedFunctionOverload() throws {
+        let source = """
+        fun main() {
+            val repeated = generateSequence({
+                10
+            }) { if (it > 1) it / 2 else null }
+            println(repeated.toList())
+
+            val nullSeed: Int? = null
+            println(generateSequence(nullSeed) { it + 1 }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SourceBackedSequenceFactories",
+            expected:
+                """
+                [10, 5, 2, 1]
+                []
+                """ + "\n"
+        )
+    }
+
     // KSP-500: generateSequence's seed and every element produced by nextFunction
     // must be boxed when the sequence is used as Sequence<Any>, matching how
     // sequenceOf(...)/listOf(...) already box their elements. A plain

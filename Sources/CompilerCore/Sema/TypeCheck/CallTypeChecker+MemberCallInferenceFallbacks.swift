@@ -449,43 +449,7 @@ extension CallTypeChecker {
             return directElementType
         }
         switch receiverExpr {
-        case let .call(calleeExpr, _, args, _):
-            guard let callee = ctx.ast.arena.expr(calleeExpr),
-                  case let .nameRef(name, _) = callee
-            else {
-                return directElementType
-            }
-            let sequenceOfName = interner.intern("sequenceOf")
-            if name == sequenceOfName {
-                let elementTypes = args.map { argument in
-                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: nil)
-                }
-                guard !elementTypes.isEmpty else {
-                    return sema.types.anyType
-                }
-                let hasNullableElement = elementTypes.contains { inferredType in
-                    inferredType == sema.types.nullableNothingType
-                        || sema.types.makeNonNullable(inferredType) != inferredType
-                }
-                let concreteTypes = elementTypes.compactMap { inferredType -> TypeID? in
-                    if inferredType == sema.types.nullableNothingType {
-                        return nil
-                    }
-                    return sema.types.makeNonNullable(inferredType)
-                }
-                let baseType = concreteTypes.isEmpty ? sema.types.anyType : sema.types.lub(concreteTypes)
-                return hasNullableElement ? sema.types.makeNullable(baseType) : baseType
-            }
-            let generateSequenceName = interner.intern("generateSequence")
-            if name == generateSequenceName, let firstArg = args.first {
-                let firstArgType = driver.inferExpr(firstArg.expr, ctx: ctx, locals: &locals, expectedType: nil)
-                if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(firstArgType)),
-                   functionType.params.isEmpty
-                {
-                    return sema.types.makeNonNullable(functionType.returnType)
-                }
-                return firstArgType
-            }
+        case .call:
             return directElementType
         default:
             return directElementType

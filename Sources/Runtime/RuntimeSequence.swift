@@ -1566,8 +1566,8 @@ public func kk_sequence_from_list(_ listRaw: Int) -> Int {
 
 // MARK: - emptySequence (STDLIB-277)
 
-@_cdecl("kk_empty_sequence")
-public func kk_empty_sequence() -> Int {
+@_cdecl("__kk_empty_sequence")
+public func __kk_empty_sequence() -> Int {
     let seq = RuntimeSequenceBox(steps: [.source(elements: [])])
     return registerRuntimeObject(seq)
 }
@@ -1575,7 +1575,7 @@ public func kk_empty_sequence() -> Int {
 @_cdecl("kk_sequence_orEmpty")
 public func kk_sequence_orEmpty(_ seqRaw: Int) -> Int {
     if seqRaw == runtimeNullSentinelInt || seqRaw == 0 {
-        return kk_empty_sequence()
+        return __kk_empty_sequence()
     }
     return seqRaw
 }
@@ -1603,12 +1603,19 @@ public func kk_sequence_ifEmpty(
     return seqRaw
 }
 
-@_cdecl("kk_sequence_of")
-public func kk_sequence_of(_ arrayRaw: Int) -> Int {
-    guard let arr = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_of expected RuntimeArrayBox")
+@_cdecl("__kk_sequence_of")
+public func __kk_sequence_of(_ arrayRaw: Int) -> Int {
+    let elements: [Int]
+    if let arr = runtimeArrayBox(from: arrayRaw) {
+        elements = Array(arr.elements)
+    } else if let list = runtimeListBox(from: arrayRaw) {
+        // Source-backed vararg functions are normalized to a list at their
+        // public call boundary; accept that representation while preserving
+        // the packed-array ABI used by direct bridge calls.
+        elements = Array(list.elements)
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_of expected RuntimeArrayBox or RuntimeListBox")
     }
-    let elements = Array(arr.elements)
     let seq = RuntimeSequenceBox(steps: [.source(elements: elements)])
     return registerRuntimeObject(seq)
 }
@@ -1623,16 +1630,16 @@ public func kk_sequence_of_single(_ element: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_generate")
-public func kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate")
+public func __kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.generator(seed: seed, fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
 
 /// STDLIB-SEQ-002: 1-arg form `generateSequence(nextFunction: () -> T?)`.
 /// Calls `nextFunction` (no-arg closure) repeatedly; stops when null is returned.
-@_cdecl("kk_sequence_generate_noarg")
-public func kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate_noarg")
+public func __kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.nullableGenerator(fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
