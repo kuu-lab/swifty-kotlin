@@ -1,0 +1,5 @@
+symbol fq=golden.sema.MyMarker kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.useMarker kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_n_RequiresOptIn package=golden.sema
+  decl golden.sema.MyMarker class MyMarker sym=golden.sema.MyMarker
+  decl golden.sema.useMarker fun useMarker sym=golden.sema.useMarker
