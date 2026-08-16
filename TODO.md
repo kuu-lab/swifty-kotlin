@@ -776,7 +776,7 @@
   - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
   - 前提: KSP-747, KSP-748
 
-- [ ] KSP-750: `UByte` の数値変換メンバを Kotlin 化する
+- [ ] KSP-1539: `UByte` の数値変換メンバを Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UByte 受け手分）
   - 実装先: KSP-748 と同じ実装先ファイル
   - 削除/降格 kk_*: `kk_ubyte_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_uint`, `_to_ulong`, `_to_ushort`（10件）
@@ -956,13 +956,13 @@
 
 ---
 
-## Stdlib gap audit 2.3.10 実装タスク（KSP-719+）
+## Stdlib gap audit 2.3.10 実装タスク（KSP-1503+）
 
 > 公式 Kotlin/Native 2.3.10 `klib dump-abi`（`official_native_stdlib_abi.txt`）を正典として、KSwiftK バンドル Kotlin ソース（`Sources/CompilerCore/Stdlib/kotlin/`）と比較した機械監査結果から生成。`kotlin.jvm` / `kotlin.internal` / `kotlin.native.internal` / `kotlin.test` / `kotlinx` / `java` / `javax` / wasm・web-only sourceset は除外。
 > 1タスク = 原則 1 PR。粒度は（package, receiver）単位または 30 件を超える場合は関数名 prefix ファミリー単位。完全な未実装リストは `docs/stdlib-gap-audit-2.3.10/gap_v2.tsv`（本倉庫へのコピー推奨）を参照。
 > 実装時には、既存の `__kk_*` / `kk_*` bridge・合成スタブ・`RuntimeABISpec` 登録があれば同 PR で削除または `__kk_` 降格し、`UPDATE_GOLDEN=1` で golden を更新、`bash Scripts/diff_kotlinc.sh` で kotlinc 2.3.10 との差分を確認すること。
 
-- [ ] KSP-719: kotlin.Annotation-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1503: kotlin.Annotation-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Annotation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Annotation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -972,7 +972,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Annotation` — interface kotlin.Annotation  -- `abstract interface kotlin/Annotation`
 
-- [ ] KSP-720: kotlin.ArrayIndexOutOfBoundsException-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1504: kotlin.ArrayIndexOutOfBoundsException-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ArrayIndexOutOfBoundsException`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ArrayIndexOutOfBoundsException.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -982,7 +982,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ArrayIndexOutOfBoundsException` — class kotlin.ArrayIndexOutOfBoundsException  -- `open class kotlin/ArrayIndexOutOfBoundsException : kotlin/IndexOutOfBoundsException {`
 
-- [ ] KSP-721: kotlin.AutoCloseable-family の未実装 stdlib API を実装する（2 件）
+- [ ] KSP-1505: kotlin.AutoCloseable-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `AutoCloseable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/AutoCloseable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -993,7 +993,7 @@
     - `kotlin.AutoCloseable` — interface kotlin.AutoCloseable  -- `abstract interface kotlin/AutoCloseable {`
     - `kotlin.AutoCloseable` — fun AutoCloseable(Function0): AutoCloseable  -- `final inline fun kotlin/AutoCloseable(crossinline kotlin/Function0<kotlin/Unit>): kotlin/AutoCloseable`
 
-- [ ] KSP-722: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1506: kotlin.BuilderInference-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `BuilderInference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1003,7 +1003,7 @@
   - 未実装シンボル一覧:
     - `kotlin.BuilderInference` — class kotlin.BuilderInference  -- `open annotation class kotlin/BuilderInference : kotlin/Annotation {`
 
-- [ ] KSP-723: kotlin.Char-family の未実装 stdlib API を実装する（2 件）
+- [ ] KSP-1507: kotlin.Char-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `Char`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Char.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1014,7 +1014,7 @@
     - `kotlin.Char` — fun Char(Int): Char  -- `final inline fun kotlin/Char(kotlin/Int): kotlin/Char`
     - `kotlin.Char` — fun Char(UShort): Char  -- `final inline fun kotlin/Char(kotlin/UShort): kotlin/Char`
 
-- [ ] KSP-724: kotlin.CharSequence-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1508: kotlin.CharSequence-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `CharSequence`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/CharSequence.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1024,7 +1024,7 @@
   - 未実装シンボル一覧:
     - `kotlin.CharSequence` — interface kotlin.CharSequence  -- `abstract interface kotlin/CharSequence {`
 
-- [ ] KSP-725: kotlin.Comparator-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1509: kotlin.Comparator-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Comparator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Comparator.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1034,7 +1034,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Comparator` — fun Comparator(): Unit  -- `abstract fun interface <#A: kotlin/Any?> kotlin/Comparator {`
 
-- [ ] KSP-726: kotlin.ConsistentCopyVisibility-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1510: kotlin.ConsistentCopyVisibility-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ConsistentCopyVisibility`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ConsistentCopyVisibility.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1044,7 +1044,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ConsistentCopyVisibility` — class kotlin.ConsistentCopyVisibility  -- `open annotation class kotlin/ConsistentCopyVisibility : kotlin/Annotation {`
 
-- [ ] KSP-727: kotlin.ContextFunctionTypeParams-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1511: kotlin.ContextFunctionTypeParams-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ContextFunctionTypeParams`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ContextFunctionTypeParams.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1054,7 +1054,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ContextFunctionTypeParams` — class kotlin.ContextFunctionTypeParams  -- `open annotation class kotlin/ContextFunctionTypeParams : kotlin/Annotation {`
 
-- [ ] KSP-728: kotlin.Deprecated-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1512: kotlin.Deprecated-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Deprecated`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Deprecated.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1064,7 +1064,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Deprecated` — class kotlin.Deprecated  -- `open annotation class kotlin/Deprecated : kotlin/Annotation {`
 
-- [ ] KSP-729: kotlin.DeprecatedSinceKotlin-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1513: kotlin.DeprecatedSinceKotlin-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `DeprecatedSinceKotlin`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeprecatedSinceKotlin.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1074,7 +1074,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DeprecatedSinceKotlin` — class kotlin.DeprecatedSinceKotlin  -- `open annotation class kotlin/DeprecatedSinceKotlin : kotlin/Annotation {`
 
-- [ ] KSP-730: kotlin.DeprecationLevel-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1514: kotlin.DeprecationLevel-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `DeprecationLevel`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeprecationLevel.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1084,7 +1084,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DeprecationLevel` — enumClass kotlin.DeprecationLevel  -- `final enum class kotlin/DeprecationLevel : kotlin/Enum<kotlin/DeprecationLevel> {`
 
-- [ ] KSP-731: kotlin.DslMarker-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1515: kotlin.DslMarker-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `DslMarker`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DslMarker.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1094,7 +1094,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DslMarker` — class kotlin.DslMarker  -- `open annotation class kotlin/DslMarker : kotlin/Annotation {`
 
-- [ ] KSP-732: kotlin.Enum-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1516: kotlin.Enum-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Enum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1104,7 +1104,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Enum` — class kotlin.Enum  -- `abstract class <#A: kotlin/Enum<#A>> kotlin/Enum : kotlin/Comparable<#A> {`
 
-- [ ] KSP-733: kotlin.ExperimentalContextParameters-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1517: kotlin.ExperimentalContextParameters-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalContextParameters`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ContextParameters.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1114,7 +1114,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalContextParameters` — class kotlin.ExperimentalContextParameters  -- `open annotation class kotlin/ExperimentalContextParameters : kotlin/Annotation {`
 
-- [ ] KSP-734: kotlin.ExperimentalMultiplatform-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1518: kotlin.ExperimentalMultiplatform-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalMultiplatform`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/Multiplatform.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1124,7 +1124,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalMultiplatform` — class kotlin.ExperimentalMultiplatform  -- `open annotation class kotlin/ExperimentalMultiplatform : kotlin/Annotation {`
 
-- [ ] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1519: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalStdlibApi`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1134,7 +1134,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalStdlibApi` — class kotlin.ExperimentalStdlibApi  -- `open annotation class kotlin/ExperimentalStdlibApi : kotlin/Annotation {`
 
-- [ ] KSP-736: kotlin.ExperimentalSubclassOptIn-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1520: kotlin.ExperimentalSubclassOptIn-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalSubclassOptIn`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/OptIn.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1144,7 +1144,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalSubclassOptIn` — class kotlin.ExperimentalSubclassOptIn  -- `open annotation class kotlin/ExperimentalSubclassOptIn : kotlin/Annotation {`
 
-- [ ] KSP-737: kotlin.ExperimentalUnsignedTypes-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1521: kotlin.ExperimentalUnsignedTypes-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalUnsignedTypes`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/ExperimentalUnsignedTypes.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1154,7 +1154,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalUnsignedTypes` — class kotlin.ExperimentalUnsignedTypes  -- `open annotation class kotlin/ExperimentalUnsignedTypes : kotlin/Annotation {`
 
-- [ ] KSP-738: kotlin.ExposedCopyVisibility-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1522: kotlin.ExposedCopyVisibility-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExposedCopyVisibility`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExposedCopyVisibility.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1164,7 +1164,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExposedCopyVisibility` — class kotlin.ExposedCopyVisibility  -- `open annotation class kotlin/ExposedCopyVisibility : kotlin/Annotation {`
 
-- [ ] KSP-739: kotlin.ExtensionFunctionType-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1523: kotlin.ExtensionFunctionType-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExtensionFunctionType`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExtensionFunctionType.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1174,7 +1174,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExtensionFunctionType` — class kotlin.ExtensionFunctionType  -- `open annotation class kotlin/ExtensionFunctionType : kotlin/Annotation {`
 
-- [ ] KSP-740: kotlin.Function-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1524: kotlin.Function-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Function`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Function.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1184,7 +1184,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Function` — interface kotlin.Function  -- `abstract interface <#A: out kotlin/Any?> kotlin/Function`
 
-- [ ] KSP-741: kotlin.IgnorableReturnValue-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1525: kotlin.IgnorableReturnValue-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `IgnorableReturnValue`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IgnorableReturnValue.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1194,7 +1194,7 @@
   - 未実装シンボル一覧:
     - `kotlin.IgnorableReturnValue` — class kotlin.IgnorableReturnValue  -- `open annotation class kotlin/IgnorableReturnValue : kotlin/Annotation {`
 
-- [ ] KSP-742: kotlin.KotlinNothingValueException-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1526: kotlin.KotlinNothingValueException-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `KotlinNothingValueException`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinNothingValueException.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1204,7 +1204,7 @@
   - 未実装シンボル一覧:
     - `kotlin.KotlinNothingValueException` — class kotlin.KotlinNothingValueException  -- `final class kotlin/KotlinNothingValueException : kotlin/RuntimeException {`
 
-- [ ] KSP-743: kotlin.Lazy-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1527: kotlin.Lazy-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1214,7 +1214,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Lazy` — interface kotlin.Lazy  -- `abstract interface <#A: out kotlin/Any?> kotlin/Lazy {`
 
-- [ ] KSP-744: kotlin.LazyThreadSafetyMode-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1528: kotlin.LazyThreadSafetyMode-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `LazyThreadSafetyMode`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/LazyThreadSafetyMode.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1224,7 +1224,7 @@
   - 未実装シンボル一覧:
     - `kotlin.LazyThreadSafetyMode` — enumClass kotlin.LazyThreadSafetyMode  -- `final enum class kotlin/LazyThreadSafetyMode : kotlin/Enum<kotlin/LazyThreadSafetyMode> {`
 
-- [ ] KSP-745: kotlin.MustUseReturnValues-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1529: kotlin.MustUseReturnValues-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `MustUseReturnValues`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/MustUseReturnValues.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1234,7 +1234,7 @@
   - 未実装シンボル一覧:
     - `kotlin.MustUseReturnValues` — class kotlin.MustUseReturnValues  -- `open annotation class kotlin/MustUseReturnValues : kotlin/Annotation {`
 
-- [ ] KSP-746: kotlin.Nothing-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1530: kotlin.Nothing-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Nothing`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Nothing.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1244,7 +1244,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Nothing` — class kotlin.Nothing  -- `final class kotlin/Nothing`
 
-- [ ] KSP-747: kotlin.Number-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1531: kotlin.Number-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Number`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1254,7 +1254,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Number` — class kotlin.Number  -- `abstract class kotlin/Number {`
 
-- [ ] KSP-748: kotlin.OptIn-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1532: kotlin.OptIn-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `OptIn`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/OptIn.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1264,7 +1264,7 @@
   - 未実装シンボル一覧:
     - `kotlin.OptIn` — class kotlin.OptIn  -- `open annotation class kotlin/OptIn : kotlin/Annotation {`
 
-- [ ] KSP-749: kotlin.OptionalExpectation-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1533: kotlin.OptionalExpectation-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `OptionalExpectation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/OptionalExpectation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1274,7 +1274,7 @@
   - 未実装シンボル一覧:
     - `kotlin.OptionalExpectation` — class kotlin.OptionalExpectation  -- `open annotation class kotlin/OptionalExpectation : kotlin/Annotation {`
 
-- [ ] KSP-750: kotlin.OutOfMemoryError-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-750: kotlin.OutOfMemoryError-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `OutOfMemoryError`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/OutOfMemoryError.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1284,7 +1284,7 @@
   - 未実装シンボル一覧:
     - `kotlin.OutOfMemoryError` — class kotlin.OutOfMemoryError  -- `open class kotlin/OutOfMemoryError : kotlin/Error {`
 
-- [ ] KSP-751: kotlin.OverloadResolutionByLambdaReturnType-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1534: kotlin.OverloadResolutionByLambdaReturnType-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `OverloadResolutionByLambdaReturnType`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/OverloadResolutionByLambdaReturnType.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1294,7 +1294,7 @@
   - 未実装シンボル一覧:
     - `kotlin.OverloadResolutionByLambdaReturnType` — class kotlin.OverloadResolutionByLambdaReturnType  -- `open annotation class kotlin/OverloadResolutionByLambdaReturnType : kotlin/Annotation {`
 
-- [ ] KSP-752: kotlin.ParameterName-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1535: kotlin.ParameterName-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ParameterName`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ParameterName.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1304,7 +1304,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ParameterName` — class kotlin.ParameterName  -- `open annotation class kotlin/ParameterName : kotlin/Annotation {`
 
-- [ ] KSP-753: kotlin.PublishedApi-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1536: kotlin.PublishedApi-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `PublishedApi`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/PublishedApi.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1314,7 +1314,7 @@
   - 未実装シンボル一覧:
     - `kotlin.PublishedApi` — class kotlin.PublishedApi  -- `open annotation class kotlin/PublishedApi : kotlin/Annotation {`
 
-- [ ] KSP-754: kotlin.ReplaceWith-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1537: kotlin.ReplaceWith-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ReplaceWith`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ReplaceWith.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1324,7 +1324,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ReplaceWith` — class kotlin.ReplaceWith  -- `open annotation class kotlin/ReplaceWith : kotlin/Annotation {`
 
-- [ ] KSP-755: kotlin.RequiresOptIn-family の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-1538: kotlin.RequiresOptIn-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `RequiresOptIn`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/RequiresOptIn.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
