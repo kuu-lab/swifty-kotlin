@@ -471,6 +471,15 @@ extension DataFlowSemaPhase {
         guard !existing.isEmpty else {
             return false
         }
+        // Package symbols share the FQ-name table but live in a separate namespace,
+        // so they never conflict with declarations in that package.
+        if newKind == .package {
+            return false
+        }
+        let nonPackageExisting = existing.filter { $0.kind != .package }
+        guard !nonPackageExisting.isEmpty else {
+            return false
+        }
         func isCallableLike(_ kind: SymbolKind) -> Bool {
             switch kind {
             case .function, .constructor:
@@ -481,7 +490,7 @@ extension DataFlowSemaPhase {
         }
         if newKind == .property {
             if newIsExtensionProperty, let symbols {
-                return existing.contains { sym in
+                return nonPackageExisting.contains { sym in
                     if isCallableLike(sym.kind) { return false }
                     if sym.kind == .property {
                         return symbols.extensionPropertyReceiverType(for: sym.id) == nil
@@ -489,10 +498,10 @@ extension DataFlowSemaPhase {
                     return true
                 }
             }
-            return existing.contains { !isCallableLike($0.kind) }
+            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isCallableLike(newKind) {
-            return existing.contains {
+            return nonPackageExisting.contains {
                 !(isCallableLike($0.kind) || $0.kind == .property || isNominalTypeSymbol($0.kind))
             }
         }
@@ -505,10 +514,10 @@ extension DataFlowSemaPhase {
         // source order. A second nominal type (or a property) of the same name
         // still conflicts.
         if isNominalTypeSymbol(newKind) {
-            return existing.contains { !isCallableLike($0.kind) }
+            return nonPackageExisting.contains { !isCallableLike($0.kind) }
         }
         if isOverloadableSymbol(newKind) {
-            return existing.contains(where: { !isOverloadableSymbol($0.kind) })
+            return nonPackageExisting.contains(where: { !isOverloadableSymbol($0.kind) })
         }
         return true
     }
