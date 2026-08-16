@@ -125,3 +125,50 @@ For PRs that migrate `StateFlow`, `MutableStateFlow`, `Flow.stateIn`, `SharedFlo
   KOTLINC_CLASSPATH=/path/to/kotlinx-coroutines-core-jvm.jar \
     DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/some_coroutine_case.kt
   ```
+
+## KSP stdlib migration verification (Comparator)
+
+For PRs that migrate `kotlin.Comparator` (or similar stdlib declarations) from a synthetic Sema stub to a bundled Kotlin source while keeping a minimal synthetic placeholder:
+
+- Required environment on the Linux VM:
+
+  ```bash
+  export PATH=/opt/swift-6.3.1/usr/bin:/home/ubuntu/.runtime-build/kotlin-tools/kotlinc/bin:/home/ubuntu/.runtime-build/jdk21/bin:$PATH
+  export JAVA_HOME=/home/ubuntu/.runtime-build/jdk21
+  export JAVACMD=/home/ubuntu/.runtime-build/jdk21/bin/java
+  export KOTLINC=/home/ubuntu/.runtime-build/kotlin-tools/kotlinc/bin/kotlinc
+  export C_INCLUDE_PATH=/usr/lib/llvm-14/include
+  export LIBRARY_PATH=/usr/lib/llvm-14/lib
+  export LD_LIBRARY_PATH=/usr/lib/llvm-14/lib
+  export KSWIFTK_LLVM_DYLIB=/usr/lib/llvm-14/lib/libLLVM.so
+  ```
+
+- Run `swift package clean && swift build` first. SwiftPM incremental builds can skip re-linking when checkout timestamps are stale.
+- Run the Sema golden suite to exercise the bundled source symbol flags and the synthetic-placeholder reuse path:
+
+  ```bash
+  SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter GoldenSemaGoldenTests -Xswiftc -swift-version -Xswiftc 6
+  ```
+
+  Also run `StringSyntheticMemberLinkTests/testStringSyntheticMemberLinkCleanCallExpressions` because `String.Companion.CASE_INSENSITIVE_ORDER` resolves `kotlin.Comparator` early.
+- Run the targeted diff case and execute the binary directly:
+
+  ```bash
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Comparator.kt
+  .build/debug/kswiftc Scripts/diff_cases/stdlib_kotlin_n_Comparator.kt -o /tmp/comparator_test && /tmp/comparator_test
+  ```
+
+  Expected output (based on the current source `{ a, b -> a - b }`): `-2`, `5`, `0`.
+- Run the full diff gate to catch regressions in comparator HOFs and `String.CASE_INSENSITIVE_ORDER`:
+
+  ```bash
+  bash Scripts/diff_kotlinc.sh Scripts/diff_cases
+  ```
+
+  If parallel stdlib-artifact flakiness (`KSwiftKStdlib_0.o` / `metadata.bin not found`) appears, set `DIFF_PARALLEL=0` and rerun serially.
+- Run the housekeeping checks:
+
+  ```bash
+  bash Scripts/check_todo_ids.sh
+  bash Scripts/validate_runtime_abi_links.sh -Xswiftc -swift-version -Xswiftc 6
+  ```
