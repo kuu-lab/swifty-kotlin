@@ -1200,7 +1200,6 @@ extension DataFlowSemaPhase {
             registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
         }
         registerSyntheticBuilderDSLStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticComparatorStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
