@@ -22,7 +22,7 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0020",
+      "code": "KSWIFTK-SEMA-0026",
       "source": "kswiftk",
       "message": "only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver",
       "codeActions": []

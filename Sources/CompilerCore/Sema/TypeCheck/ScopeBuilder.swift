@@ -228,6 +228,25 @@ struct TypeCheckScopeBuilder {
             {
                 continue
             }
+            // KSP-724: Source-backed `kotlin.text.CharSequence.get` must also stay
+            // out of the default-import scope. The bundled `CharSequence` interface has
+            // no method slots, so `get` is a top-level extension; including it here
+            // would shadow source-backed member `StringBuilder.get` in
+            // implicit-receiver calls. Explicit `cs[0]` and member-style calls still
+            // resolve it through `inferMemberCallImpl`'s `lookupByShortName` fallback.
+            // Other CharSequence operator extensions (e.g. `contains`) are intentionally
+            // left visible; `StringBuilder` has no `contains` member and they are
+            // needed by explicit `CharSequence`-receiver calls.
+            if isExtensionFunction,
+               symbol.flags.contains(.operatorFunction),
+               sema.symbols.isSourceBackedSymbol(symbol.id),
+               interner.resolve(symbol.name) == "get",
+               let receiverType = sema.symbols.functionSignature(for: symbol.id)?.receiverType,
+               case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
+               receiverClassType.classSymbol == sema.types.charSequenceInterfaceSymbol
+            {
+                continue
+            }
             mapping[candidatePackage, default: []].append(symbol.id)
         }
         return mapping

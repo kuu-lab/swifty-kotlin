@@ -66,14 +66,15 @@ extension CallTypeChecker {
             // KSP-724: `String.length` is now a bundled extension property, so a
             // non-nullable `String` falls through to the fallback above. A nullable
             // `String?` reaches this path because the property requires a non-null
-            // receiver; emit the standard nullable-receiver diagnostic instead of
-            // "unresolved member".
+            // receiver; emit the nullable-receiver diagnostic instead of
+            // "unresolved member". SEMA-0020 is already used for reified type
+            // parameters, so this path uses the fresh SEMA-0026 code.
             if !safeCall,
                sema.types.nullability(of: lookupReceiverType) == .nullable,
                sema.types.isSubtype(sema.types.makeNonNullable(lookupReceiverType), sema.types.stringType)
             {
                 ctx.semaCtx.diagnostics.error(
-                    "KSWIFTK-SEMA-0020",
+                    "KSWIFTK-SEMA-0026",
                     "only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver",
                     range: range
                 )
