@@ -39,6 +39,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 16 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ、本 PR でも再集計で16件を確認。詳細は該当節） |
+| DEBT-DIFF-008 | 2 | primitive Number virtual dispatch 未実装 | runtime / lowering で boxed primitive に対する `Number.to*` メソッド dispatch を実装（`KSP-1540` 参照）。対象ケースは `stdlib_kotlin_n_Number_primitive.kt` / `stdlib_kotlin_n_Number_primitive_generic.kt` |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -334,6 +335,15 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 ### 未実装機能・deepなブロッカー: `contract_returns.kt` / `contracts_basic.kt`
 
 ref はテストファイルが `@OptIn(ExperimentalContracts::class)` を欠いているために失敗する(test-input bug、容易に直せる)。candidate は全く別の実バグで失敗する: `contract { returns() implies (...) }` 内の `returns()`/`implies()` 呼び出しが `KSWIFTK-SEMA-0002: No viable overload found for call` になる。`HeaderHelpers.registerSyntheticContractStubs` は `ContractBuilder.returns()`/`SimpleEffect.implies()` 等を合成メンバーとして登録済みで、`CallTypeChecker.swift` の "General member function lookup via implicit receiver" 経路(`collectMemberFunctionCandidates`)がこれらを見つけられるはずだが、実際には見つけられていない。原因は未特定(`contract`専用のハードコードされた特別扱いと、通常のimplicit-receiver経路の相互作用を要調査)。ファイル内の後続エラー(`Exception(...)`呼び出し、`text.length`アクセス)はこの1件の根本原因から連鎖するノイズであり、独立したバグではない。
+
+## DEBT-DIFF-008: primitive Number virtual dispatch
+
+`KSP-747` で `kotlin.Number` を bundled stdlib ソース化したことにより、`val n: Number = 42` や `fun <T : Number> sumOf(a: T, b: T)` のように primitive を `Number` 型変数 / 上限境界のジェネリック引数に受けた場合に `n.toDouble()` / `a.toDouble()` 等が解決されるようになった。しかし、runtime / lowering 側で boxed primitive に対する `Number` の仮想メソッド dispatch が未整備のため、正しい値を返さないか実行時エラーとなる。
+
+| case | root cause | 次アクション |
+| --- | --- | --- |
+| `stdlib_kotlin_n_Number_primitive.kt` | `Number` 型ローカル変数に primitive リテラルを代入した際、box / unbox または vtable/itable 経由で `Number.to*` が正しく primitive 値に dispatch されない | `KSP-1540` で runtime / lowering 対応後に `SKIP-DIFF` 解除 |
+| `stdlib_kotlin_n_Number_primitive_generic.kt` | `T : Number` 上限境界経由で primitive を受けた場合も同様の dispatch 不備 | `KSP-1540` で一括対応後に `SKIP-DIFF` 解除 |
 
 ## 解除手順
 

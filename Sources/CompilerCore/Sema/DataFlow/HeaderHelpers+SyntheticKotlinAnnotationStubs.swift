@@ -23,21 +23,7 @@ extension DataFlowSemaPhase {
         let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) ?? .invalid
 
         registerSyntheticAnnotationClass(
-            named: "Suppress",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "Deprecated",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "DeprecatedSinceKotlin",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -57,17 +43,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        if let deprecatedSinceKotlinSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("DeprecatedSinceKotlin")]
-        ) {
-            registerSyntheticDeprecatedSinceKotlinMembers(
-                ownerSymbol: deprecatedSinceKotlinSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("DeprecatedSinceKotlin")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",
@@ -78,13 +53,6 @@ extension DataFlowSemaPhase {
         )
         registerSyntheticAnnotationClass(
             named: "OptionalExpectation",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "Throws",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -175,14 +143,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticAnnotationClass(
-            named: "PublishedApi",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
         registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
@@ -431,22 +391,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let publishedApiSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("PublishedApi")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                    ]
-                ),
-                to: publishedApiSymbol,
-                symbols: symbols
-            )
-        }
-
         if let optionalExpectationSymbol = symbols.lookup(
             fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
         ) {
@@ -465,29 +409,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let throwsSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Throws")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                    ]
-                ),
-                to: throwsSymbol,
-                symbols: symbols
-            )
-            registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
-                ownerSymbol: throwsSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("Throws")],
-                kotlinPkg: kotlinPkg,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
         if let sinceKotlinSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SinceKotlin")]) {
             appendSyntheticAnnotation(
                 MetadataAnnotationRecord(
@@ -575,30 +496,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let publishedApiSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("PublishedApi")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY",
-                    ]
-                ),
-                to: publishedApiSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: publishedApiSymbol,
-                symbols: symbols
             )
         }
 

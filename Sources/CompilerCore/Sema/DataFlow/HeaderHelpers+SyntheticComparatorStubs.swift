@@ -1,51 +1,40 @@
-
-/// Synthetic anchor for the built-in `kotlin.Comparator` fun interface.
-/// KSP-309 / KSP-461 moved every comparison helper (compareBy, compareValues*,
-/// nullsFirst/nullsLast, naturalOrder/reverseOrder, reversed, then*) to bundled
-/// Kotlin source; only the interface itself stays synthetic.
+/// Synthetic nominal anchor for the bundled `kotlin.Comparator` fun interface.
+///
+/// KSP-725 migrates the `Comparator` interface itself to real Kotlin source
+/// (`Sources/CompilerCore/Stdlib/kotlin/Comparator.kt`). This file keeps only
+/// a placeholder so that other early synthetic stubs — notably
+/// `String.Companion.CASE_INSENSITIVE_ORDER` and `CallTypeChecker` comparator
+/// helpers — can resolve the `kotlin.Comparator` symbol before bundled header
+/// collection runs. The bundled source reuses this symbol via
+/// `HeaderCollection.reusableSyntheticSourceDeclarationKeys`.
 extension DataFlowSemaPhase {
     func registerSyntheticComparatorStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        let comparisonsPkg: [InternedString] = kotlinPkg + [interner.intern("comparisons")]
-        _ = ensureSyntheticPackage(fqName: kotlinPkg, symbols: symbols)
-        _ = ensureSyntheticPackage(fqName: comparisonsPkg, symbols: symbols)
-
-        _ = registerComparatorInterface(
+        let kotlinPkg = ensurePackage(
+            path: ["kotlin"],
             symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinPkg: kotlinPkg
+            interner: interner
         )
-    }
 
-    private func registerComparatorInterface(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinPkg: [InternedString]
-    ) -> SymbolID {
-        let comparatorName = interner.intern("Comparator")
-        let comparatorFQName = kotlinPkg + [comparatorName]
-        let comparatorSymbol: SymbolID = if let existing = symbols.lookup(fqName: comparatorFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .interface,
-                name: comparatorName,
-                fqName: comparatorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .funInterface]
-            )
-        }
+        // Bare `.interface` placeholder: its kind must match the real
+        // `fun interface Comparator` in bundled source so header collection
+        // reuses it instead of reporting a duplicate declaration.
+        let comparatorSymbol = ensureInterfaceSymbol(
+            named: "Comparator",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        symbols.insertFlags(.funInterface, for: comparatorSymbol)
 
-        // Define type parameter T for Comparator<T>
+        // Register the type parameter early so references such as
+        // `Comparator<String>` can be formed before bundled source is collected.
         let tParamName = interner.intern("T")
-        let tParamFQName = comparatorFQName + [tParamName]
+        let comparatorName = interner.intern("Comparator")
+        let tParamFQName = kotlinPkg + [comparatorName, tParamName]
         let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
             existing
         } else {
@@ -58,41 +47,27 @@ extension DataFlowSemaPhase {
                 flags: []
             )
         }
-        let tParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol, nullability: .nonNull
-        )))
         types.setNominalTypeParameterSymbols([tParamSymbol], for: comparatorSymbol)
         types.setNominalTypeParameterVariances([.in], for: comparatorSymbol)
 
-        // compare(a: T, b: T): Int
+        // Pre-register the single abstract method so that imported library
+        // vtable/itable layouts can resolve `kotlin.Comparator.compare` before
+        // bundled source is collected. The bundled declaration reuses this
+        // placeholder through `MemberHeaderCollection` synthetic-member reuse.
+        let tParamType = types.make(.typeParam(TypeParamType(
+            symbol: tParamSymbol,
+            nullability: .nonNull
+        )))
         let compareName = interner.intern("compare")
-        let compareFQName = comparatorFQName + [compareName]
+        let compareFQName = kotlinPkg + [comparatorName, compareName]
         guard symbols.lookup(fqName: compareFQName) == nil else {
-            return comparatorSymbol
+            return
         }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: comparatorSymbol,
             args: [.invariant(tParamType)],
             nullability: .nonNull
         )))
-        let aName = interner.intern("a")
-        let bName = interner.intern("b")
-        let aSymbol = symbols.define(
-            kind: .valueParameter,
-            name: aName,
-            fqName: compareFQName + [aName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        let bSymbol = symbols.define(
-            kind: .valueParameter,
-            name: bName,
-            fqName: compareFQName + [bName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
         let compareSymbol = symbols.define(
             kind: .function,
             name: compareName,
@@ -102,8 +77,6 @@ extension DataFlowSemaPhase {
             flags: [.synthetic, .abstractType]
         )
         symbols.setParentSymbol(comparatorSymbol, for: compareSymbol)
-        symbols.setParentSymbol(compareSymbol, for: aSymbol)
-        symbols.setParentSymbol(compareSymbol, for: bSymbol)
         symbols.setFunctionSignature(
             FunctionSignature(
                 receiverType: receiverType,
@@ -114,7 +87,5 @@ extension DataFlowSemaPhase {
             ),
             for: compareSymbol
         )
-
-        return comparatorSymbol
     }
 }

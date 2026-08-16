@@ -368,109 +368,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticDeprecatedSinceKotlinMembers(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        appendSyntheticAnnotation(
-            MetadataAnnotationRecord(
-                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.ANNOTATION_CLASS",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.PROPERTY_SETTER",
-                    "AnnotationTarget.PROPERTY_GETTER",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            to: ownerSymbol,
-            symbols: symbols
-        )
-
-        let stringType = types.stringType
-        let ownerType = types.make(.classType(ClassType(
-            classSymbol: ownerSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let propertyNames = ["warningSince", "errorSince", "hiddenSince"].map { interner.intern($0) }
-        for propertyName in propertyNames {
-            let propertyFQName = ownerFQName + [propertyName]
-            let propertySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: propertyFQName) {
-                propertySymbol = existing
-            } else {
-                propertySymbol = symbols.define(
-                    kind: .property,
-                    name: propertyName,
-                    fqName: propertyFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-            symbols.setPropertyType(stringType, for: propertySymbol)
-        }
-
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerFQName + [initName]
-        let ctorSymbol: SymbolID
-        if let existing = symbols.lookupAll(fqName: ctorFQName).first(where: {
-            symbols.symbol($0)?.kind == .constructor
-        }) {
-            ctorSymbol = existing
-        } else {
-            ctorSymbol = symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: ctorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-
-        let valueParameterSymbols = propertyNames.map { parameterName -> SymbolID in
-            let parameterFQName = ctorFQName + [parameterName]
-            let parameterSymbol: SymbolID
-            if let existing = symbols.lookup(fqName: parameterFQName) {
-                parameterSymbol = existing
-            } else {
-                parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: parameterName,
-                    fqName: parameterFQName,
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(ctorSymbol, for: parameterSymbol)
-            symbols.setPropertyType(stringType, for: parameterSymbol)
-            return parameterSymbol
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: Array(repeating: stringType, count: valueParameterSymbols.count),
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: true, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: ctorSymbol
-        )
-    }
-
     func registerSyntheticAnnotationRetentionEnum(
         packageFQName: [InternedString],
         packageSymbol: SymbolID,
@@ -714,6 +611,50 @@ extension DataFlowSemaPhase {
                 valueParameterIsVararg: [true]
             ),
             for: constructorSymbol
+        )
+    }
+
+    /// Registers the synthetic `exceptionClasses` property and vararg constructor
+    /// for `kotlin.Throws` after bundled stdlib sources have been collected.
+    func registerSyntheticThrowsAnnotationMembersIfNeeded(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg = ensurePackage(
+            path: ["kotlin"],
+            symbols: symbols,
+            interner: interner
+        )
+        let throwsName = interner.intern("Throws")
+        let throwsFQName = kotlinPkg + [throwsName]
+        guard let throwsSymbol = symbols.lookup(fqName: throwsFQName),
+              let symbolInfo = symbols.symbol(throwsSymbol),
+              symbolInfo.kind == .annotationClass
+        else {
+            return
+        }
+
+        appendSyntheticAnnotation(
+            MetadataAnnotationRecord(
+                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
+                arguments: [
+                    "AnnotationTarget.FUNCTION",
+                    "AnnotationTarget.PROPERTY_GETTER",
+                    "AnnotationTarget.PROPERTY_SETTER",
+                    "AnnotationTarget.CONSTRUCTOR",
+                ]
+            ),
+            to: throwsSymbol,
+            symbols: symbols
+        )
+        registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
+            ownerSymbol: throwsSymbol,
+            ownerFQName: throwsFQName,
+            kotlinPkg: kotlinPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
         )
     }
 
