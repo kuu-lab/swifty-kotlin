@@ -536,12 +536,30 @@ extension TypeCheckHelpers {
 
     private func normalizeOptInStringLiteral(_ raw: String) -> String {
         var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        while value.hasPrefix("\"") || value.hasPrefix("'") {
-            value.removeFirst()
+
+        func isQuoteEscaped(_ quoteIndex: String.Index) -> Bool {
+            guard quoteIndex > value.startIndex else { return false }
+            var index = value.index(before: quoteIndex)
+            var backslashCount = 0
+            while index >= value.startIndex, value[index] == "\\" {
+                backslashCount += 1
+                guard index > value.startIndex else { break }
+                index = value.index(before: index)
+            }
+            return backslashCount % 2 == 1
         }
-        while value.hasSuffix("\"") || value.hasSuffix("'") {
+
+        while value.count >= 2,
+              let first = value.first,
+              let last = value.last,
+              first == last,
+              (first == "\"" || first == "'"),
+              !isQuoteEscaped(value.index(before: value.endIndex))
+        {
+            value.removeFirst()
             value.removeLast()
         }
+
         return decodeKotlinStringEscapes(value)
     }
 
