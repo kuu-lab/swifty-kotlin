@@ -142,12 +142,33 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument:
+            // no captures -> 0, one capture -> the raw capture value, two or more
+            // -> a packed closure object built by makeBoxedCallableCaptureArguments.
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
-            if info.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
+            if let closureRawArg {
+                callArgs = [closureRawArg, loweredReceiverID]
             } else {
                 callArgs = info.captureArguments + [loweredReceiverID]
             }
@@ -352,12 +373,32 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda with the pinned handle.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument
+            // (see scopeUse above).
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
-            if info.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArgs = info.captureArguments + [zeroExpr, pinnedResult]
+            if let closureRawArg {
+                callArgs = [closureRawArg, pinnedResult]
             } else {
                 callArgs = info.captureArguments + [pinnedResult]
             }
