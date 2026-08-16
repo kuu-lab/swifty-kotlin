@@ -880,17 +880,6 @@ extension CallLowerer {
             )
         }
 
-        if externalLinkName == "__kk_iterator_builder_build", loweredArguments.count == 1 {
-            return makeCollectionHOFExpandedArguments(
-                loweredArgID: loweredArguments[0],
-                argExprID: originalArgs[0].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-        }
-
         let legacyNames: Set = ["__kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
             var seedArgument = loweredArguments[0]

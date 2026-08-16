@@ -31,9 +31,6 @@ struct CollectionLiteralLookupTables {
         commonLookup = CommonLookupNames(interner: interner)
 
         sequenceRuntimeBridgeReturningNames = [
-            interner.intern("emptySequence"),
-            interner.intern("sequenceOf"),
-            interner.intern("generateSequence"),
             interner.intern("lineSequence"),
             interner.intern("splitToSequence"),
             arrayLookup.kkListAsSequenceName,
