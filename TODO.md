@@ -521,6 +521,309 @@
   - diff: `string_*.kt` 既存拡張 + `charsequence_*.kt`/`locale_*.kt`/`normalize_*.kt` 新規
   - 前提: KSP-406, KSP-407, KSP-408, KSP-409, KSP-410, KSP-411, KSP-624, KSP-710, KSP-711
 
+#### bucket (b) 未起票追補 第2弾（2026-08-16）
+
+> 「Kotlin source 以外（Synthetic Swift stub / Runtime 公開 `kk_*` / Sema 名前特例）で実装が残っている stdlib 面」を master `eacdb9026` で再棚卸しし、既存 KSP タスクにどのタスクでも追跡されていなかった残余を 1タスク=1PR で起票したもの。採番は KSP-718 の続き。
+>
+> 実測（2026-08-16, master `eacdb9026`）: bundled Kotlin source 153ファイル/23,266行、Synthetic stub 68ファイル/45,516行、Runtime 公開 `kk_*` 1,175、bridge `__kk_*` 688、`excludedBundledStdlibFiles` 0件。
+>
+> 各タスクの「削除/降格 kk_*」は棚卸し時点の列挙であり、着手時に必ず記載の `rg` で再固定する（先行タスクのマージで既に消えている場合は TODO 同期として完了化してよい）。
+
+- [ ] KSP-719: MutableList / AbstractMutableList の class shell と要素追加・削除メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMutableListStubs.swift`（1364行のうち `registerSyntheticMutableListStub` / `registerSyntheticAbstractMutableListStub` / `set` / `add` / `add(index)` / `removeAt` / `removeFirst(OrNull)` / `removeLast(OrNull)` / `clear` / `removeAll` / `retainAll` / `plusAssign` / `minusAssign` 部分。`addAll` 群は KSP-705）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableCollections.kt` 追記（class shell は `Collections.kt` / 新設 `AbstractMutableList.kt`）
+  - 削除/降格 kk_*: `kk_mutable_list_*`（`set`/`add`/`addAt`/`removeAt`/`removeFirst*`/`removeLast*`/`clear`/`removeAll`/`retainAll`）系を `__kk_` 降格。着手時 `rg -o '@_cdecl\("kk_(mutable_)?list_[a-zA-Z0-9_]*"\)' Sources/Runtime` と `rg 'removeFirstOrNull|retainAll' Sources/CompilerCore/Sema Sources/CompilerCore/KIR` で再固定
+  - 手順: T
+  - diff: `mutable_list_*.kt` 既存 + `removeFirstOrNull`/`removeLastOrNull`/`retainAll`/`minusAssign` 単独ケース
+  - 前提: KSP-700, KSP-705
+
+- [ ] KSP-720: MutableList の in-place 並べ替え（`sort`/`sortWith`/`sortBy`/`sortByDescending`/`sortDescending`/`shuffle`/`reverse`）を Kotlin 化し `HeaderHelpers+SyntheticMutableListStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMutableListStubs.swift`（`registerMutableListSort*` / `registerMutableListShuffleMember` / `registerMutableListReverseMember`。KSP-705/KSP-719 完了後の残余）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListSortingHOF.kt` 追記（in-place 版）
+  - 削除/降格 kk_*: `kk_mutable_list_sort*` / `kk_mutable_list_shuffle` / `kk_mutable_list_reverse` 系（着手時 `rg -o '@_cdecl\("kk_[a-zA-Z0-9_]*(sort|shuffle|reverse)[a-zA-Z0-9_]*"\)' Sources/Runtime`）。`shuffle` の乱数コアは `__kk_random_*` へ降格
+  - 手順: T
+  - diff: `mutable_list_sort*.kt` 既存 + `shuffle(Random(7))` 決定性ケース、`sortBy`/`sortByDescending` 単独ケース
+  - 前提: KSP-426, KSP-685, KSP-705, KSP-719
+
+- [ ] KSP-721: `List<E>` の `max`/`min`/`maxOrNull`/`minOrNull`/`maxBy(OrNull)`/`minBy(OrNull)` を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`registerSimpleMember` / `registerComparableMember` / `registerByOrNull` 経路）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListExtremaHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_list_max`, `kk_list_min`, `kk_list_maxOrNull`, `kk_list_minOrNull`, `kk_list_maxBy`, `kk_list_minBy`, `kk_list_maxByOrNull`, `kk_list_minByOrNull`（`RuntimeCollectionHOFMaxMin.swift`）。比較コアは `__kk_comparable_compareTo` を使用
+  - 手順: T
+  - diff: `list_max_min*.kt` 既存 + `maxBy`/`minByOrNull` 空リストケース
+  - 前提: KSP-426, KSP-461
+
+- [ ] KSP-722: `List<E>` の `maxOf`/`minOf`/`maxOfOrNull`/`minOfOrNull`/`maxOfWith(OrNull)`/`minOfWith(OrNull)` を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`registerOfWithComparator` 経路含む）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListExtremaHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_list_maxOf`, `kk_list_minOf`, `kk_list_maxOfOrNull`, `kk_list_minOfOrNull`, `kk_list_maxOfWith`, `kk_list_minOfWith`, `kk_list_maxOfWithOrNull`, `kk_list_minOfWithOrNull`
+  - 手順: T
+  - diff: `list_max_of*.kt` 既存 + selector が Double/Comparable の両ケース、空リスト例外ケース
+  - 前提: KSP-461, KSP-721
+
+- [ ] KSP-723: `List<E>` の Comparator 消費系（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`/`sortedWith`/`sortedByDescending`）を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`registerWithComparator` 経路）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListExtremaHOF.kt` / `ListSortingHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_list_maxWith`, `kk_list_maxWithOrNull`, `kk_list_minWith`, `kk_list_minWithOrNull`（`RuntimeCollectionHOFMaxMin.swift`。KSP-461 の注記どおり削除は List 側の担当）, `kk_list_sortedWith`, `kk_list_sortedByDescending`。Comparator 呼び出しは `__kk_compare_with_comparator`
+  - 手順: T
+  - diff: `list_sorted_with.kt`/`list_max_with*.kt` 既存 + `compareBy` 併用ケース
+  - 前提: KSP-461, KSP-684
+
+- [ ] KSP-724: `List<E>` の `zip`/`zip(transform)`/`unzip`/`partition`/`sumOf` を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`zip`/`unzip`/`partition`/`sumOf` 登録）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListAggregateHOF.kt` 追記（`Pair` は `Tuples.kt`）
+  - 削除/降格 kk_*: `kk_list_zip`, `kk_list_zip_transform`, および着手時 `rg -o '@_cdecl\("kk_list_(unzip|partition|sumOf)[a-zA-Z0-9_]*"\)' Sources/Runtime` で確定する分
+  - 手順: T
+  - diff: `list_zip*.kt`/`list_partition.kt` 既存 + `unzip`、長さ不一致 `zip`、`sumOf` の Int/Long/Double オーバーロードケース
+  - 前提: KSP-426, KSP-706
+
+- [ ] KSP-725: `List<E>` の `random`/`randomOrNull` を Kotlin 化し `HeaderHelpers+SyntheticListAggregateMembers.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（KSP-721〜724 完了後の残余 + `registerListAggregateMembers` orchestrator）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListAccessHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_list_random`, `kk_list_randomOrNull`（`Random` 引数版含む）。乱数コアは `__kk_random_*` へ降格
+  - 手順: T
+  - diff: `list_random*.kt` 既存 + `random(Random(7))` 決定値ケース、空リストの `randomOrNull`/例外ケース
+  - 前提: KSP-685, KSP-721, KSP-722, KSP-723, KSP-724
+
+- [ ] KSP-726: `List<E>` の filter 群（`filter`/`filterIndexed`/`filterNot`/`filterNotNull`/`filterIsInstance`）を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListTransformMembers.swift`（210行のうち filter 系登録）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListFilterHOF.kt` 追記
+  - 削除/降格 kk_*: 着手時 `rg -o '@_cdecl\("kk_list_filter[a-zA-Z0-9_]*"\)' Sources/Runtime` で列挙し削除/降格。`filterIsInstance` は型テスト lowering が必要なため `CallTypeChecker`/`CallLowerer` の名前特例も同一 PR で整理（不可能なら KSP-CAP 追加を報告）
+  - 手順: T
+  - diff: `list_filter*.kt` 既存 + `filterIsInstance<String>()`、`filterNotNull` の nullable 要素ケース
+  - 前提: KSP-421, KSP-700
+
+- [ ] KSP-727: `List<E>` の `sorted`/`sortedDescending`/`shuffled`/`sum` を Kotlin 化し `HeaderHelpers+SyntheticListTransformMembers.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListTransformMembers.swift`（KSP-726 完了後の残余。`sum`/`distinctBy` を含むファイル冒頭コメントの「not yet source-backed」分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListSortingHOF.kt` / `ListAggregateHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_list_sorted`, `kk_list_sortedDescending`, `kk_list_shuffled`, `kk_list_shuffled_random` + 着手時 `rg -o '@_cdecl\("kk_list_(sum|distinctBy)[a-zA-Z0-9_]*"\)' Sources/Runtime`
+  - 手順: T
+  - diff: `list_sorted*.kt` 既存 + `shuffled(Random(7))` 決定値ケース（KSP-CAP-011 の非回帰確認）、`sum` の Int/Long/Double ケース
+  - 前提: KSP-685, KSP-726
+
+- [ ] KSP-728: 符号付き primitive array の `size`/`toList` メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListConversionMembers.swift`（`IntArray`/`LongArray`/`ShortArray`/`ByteArray`/`CharArray`/`BooleanArray`/`DoubleArray`/`FloatArray` 分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` 追記（`size` は `ArrayIntrinsics.kt` の intrinsic を経由）
+  - 削除/降格 kk_*: `kk_intArray_size`/`kk_intArray_toList` 他 8型×2 = 16件を `__kk_` 降格（`RuntimeArray*.swift`。着手時 `rg -o '@_cdecl\("kk_[a-z]+Array_(size|toList)"\)' Sources/Runtime`）
+  - 手順: T
+  - diff: `array_conversions*.kt` 既存 + 各 primitive array の `size`/`toList` ケース
+  - 前提: KSP-657
+
+- [ ] KSP-729: unsigned array の `size`/`toList`/`asList` と `Array<T>` の `size`/`toList` を Kotlin 化し `HeaderHelpers+SyntheticListConversionMembers.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListConversionMembers.swift`（`UIntArray`/`ULongArray`/`UShortArray`/`UByteArray` + `Array<T>`。KSP-728 完了後の残余）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/UArrays.kt` / `ArrayConversions.kt` 追記
+  - 削除/降格 kk_*: `kk_uIntArray_size`/`kk_uIntArray_toList`/`kk_uIntArray_asList` 他 unsigned 4型分、`kk_array_size`, `kk_array_toList`
+  - 手順: T
+  - diff: `uarray_*.kt` 既存 + `UIntArray.toList()`/`asList()`、`Array<String>.toList()` ケース
+  - 前提: KSP-728
+
+- [ ] KSP-730: Array の content 比較・文字列化（`contentEquals`/`contentHashCode`/`contentToString`/`contentDeepEquals`/`contentDeepHashCode`/`contentDeepToString`）を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（1239行のうち content 系）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayContentAndCopy.kt` 追記
+  - 削除/降格 kk_*: `kk_array_contentDeepEquals`, `kk_array_contentDeepHashCode`, `kk_array_contentDeepToString`, `kk_array_contentHashCode`, `kk_byteArray_contentEquals`, `kk_*Array_contentToString`（primitive/unsigned 各型。着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*Array_content[a-zA-Z0-9_]*"\)' Sources/Runtime`）
+  - 手順: T
+  - diff: `array_content*.kt` 既存 + `contentDeepToString` の入れ子配列ケース、`contentEquals` の null 比較ケース
+  - 前提: KSP-657
+
+- [ ] KSP-731: Array の copy 系（`copyOf`/`copyOf(newSize)`/`copyOf(newSize, init)`/`copyOfRange`/`copyInto`）を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（copy 系）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayContentAndCopy.kt` 追記
+  - 削除/降格 kk_*: `kk_array_copyOf`, `kk_array_copyOf_newSize`, `kk_array_copyOf_newSize_init`, `kk_array_copyOfRange`, `kk_array_copyInto`（未初期化領域の boxing/GC は `__kk_array_*` bridge のまま）
+  - 手順: T
+  - diff: `array_copy*.kt` 既存 + `copyOf(newSize)` の拡張/縮小、`copyInto` の overlapping 範囲、`copyOfRange` 境界例外ケース
+  - 前提: KSP-657, KSP-730
+
+- [ ] KSP-732: Array の `sliceArray`/`reversedArray`/`asList`/`toTypedArray` を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（slice/reverse/view 系）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` 追記
+  - 削除/降格 kk_*: `kk_array_sliceArray_iterable`, `kk_array_sliceArray_range`, `kk_array_reversedArray`, `kk_*Array_asList`, 着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*Array_toTypedArray"\)' Sources/Runtime`
+  - 手順: T
+  - diff: `array_slice*.kt` 既存 + `sliceArray(IntRange)` と `sliceArray(listOf(...))` の両方、`toTypedArray` ケース
+  - 前提: KSP-729, KSP-730
+
+- [ ] KSP-733: `booleanArrayOf`/`byteArrayOf`/`charArrayOf`/`doubleArrayOf`/`floatArrayOf`/`intArrayOf`/`longArrayOf`/`shortArrayOf` と unsigned 版 factory を Kotlin 化し `HeaderHelpers+SyntheticArrayStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（`*ArrayOf` factory + class shell。KSP-730〜732 完了後の残余）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` / `UArrays.kt`（class shell は `ArrayIntrinsics.kt`）
+  - 削除/降格 kk_*: `kk_array_of` ほか着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*[Aa]rray_?of[a-zA-Z0-9_]*"\)' Sources/Runtime` で列挙。vararg 実体化が compiler intrinsic 依存なら該当分のみ (c) 残置理由をファイル削除見送りの根拠として記録
+  - 手順: T
+  - diff: `array_factory*.kt` 既存 + 各 `*ArrayOf()` 空/複数要素ケース、`ubyteArrayOf` ケース
+  - 前提: KSP-657, KSP-730, KSP-731, KSP-732
+
+- [ ] KSP-734: Sequence の class shell / `iterator` / `orEmpty` / `joinTo` / `joinToString` 登録残余を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（1178行のうち `registerSyntheticSequenceStub` / `registerSyntheticSequenceIteratorMember` / `registerSyntheticSequenceJoinTo(String)Member` / `orEmpty`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/sequences/Sequence.kt` / `Sequences.kt` 追記
+  - 削除/降格 kk_*: `kk_sequence_orEmpty` + 着手時 `rg -o '@_cdecl\("kk_sequence_(joinTo|joinToString|iterator)[a-zA-Z0-9_]*"\)' Sources/Runtime`（KSP-621 完了後の残余のみ）
+  - 手順: T
+  - diff: `sequence_join*.kt` 既存 + `orEmpty()`、`joinTo(StringBuilder)` ケース
+  - 前提: KSP-621, KSP-701
+
+- [ ] KSP-735: `sequence {}` / `SequenceScope` / `yield` / `yieldAll` / `iterator {}` builder を Kotlin 化し `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（`registerSyntheticSequenceBuilderStub` / `registerSyntheticIteratorBuilderStub` / `registerSyntheticGenerateSequence*` / `registerSyntheticSystemMember` / `registerSyntheticIOTopLevelProperty` の残余）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceBuilder.kt` 新設（`system`/`IO` 残余は KSP-713 と調整し `kotlin/system` / `kotlin/io` へ）
+  - 削除/降格 kk_*: 着手時 `rg -o '@_cdecl\("kk_(sequence_builder|yield|iterator_builder)[a-zA-Z0-9_]*"\)' Sources/Runtime`。restricted suspension（`SequenceScope`）が coroutine intrinsic を要するため、必要な残置は `__kk_` bridge として明記
+  - 手順: T
+  - diff: `sequence_builder*.kt` 既存 + `yieldAll(sequence)` の遅延評価順序ケース、`iterator {}` ケース
+  - 前提: KSP-651, KSP-713, KSP-734
+
+- [ ] KSP-736: `kotlin.Comparator` fun interface 宣言を Kotlin source 化し `HeaderHelpers+SyntheticComparatorStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticComparatorStubs.swift`（120行。KSP-309/KSP-461 後は interface 本体のみ残存）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparator.kt` 新設（`fun interface Comparator<T> { fun compare(a: T, b: T): Int }`）
+  - 削除/降格 kk_*: 対象 `kk_*` なし（比較コアは `__kk_compare_with_comparator` を継続使用）
+  - 手順: T
+  - diff: `comparator_*.kt` 既存 + SAM 変換（ラムダから Comparator）と `Comparator` 明示実装クラスの両ケース
+  - 前提: KSP-461。compiler-known anchor として Sema 初期化が先行参照している場合は (c) 残置と結論付け、根拠を `docs/stdlib-pipeline.md` §9 に記録して完了とする
+
+- [ ] KSP-737: `MatchResult` / `MatchResult.Destructured` の nominal anchor を Kotlin source 化し `HeaderHelpers+SyntheticRegexStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRegexStubs.swift`（77行。KSP-486/KSP-487 後は opaque anchor のみ）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`（既存 source に anchor を統合）
+  - 削除/降格 kk_*: 対象 `kk_*` なし（engine 側は既に `__kk_regex_*`）
+  - 手順: T
+  - diff: `regex_*.kt` 既存 + `destructured` 分解宣言ケース
+  - 前提: KSP-486, KSP-487。header 収集順で anchor が必須と判明した場合は (c) 残置理由を記録して完了とする
+
+- [ ] KSP-738: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift`（63行。bundled source 収集前パスで型解決させるための bare placeholder）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/random/Random.kt` / `util/JavaRandom.kt`（宣言は既に Kotlin 側にあるため、必要なのは header 収集順の依存解消）
+  - 削除/降格 kk_*: 対象 `kk_*` なし
+  - 手順: T（stub 削除で pre-bundled パスが解決不能になる場合は、Sema の header 収集順を bundled source 優先へ直す作業を同一 PR に含める。設計変更が必要なら KSP-CAP を追加して報告）
+  - diff: `random_*.kt` 既存 + `asKotlinRandom`/`asJavaRandom` 相互変換ケース
+  - 前提: KSP-685
+
+- [ ] KSP-739: `UIntRange` の property / membership / aggregate を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_uint_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
+  - 削除/降格 kk_*: `kk_uint_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toUIntArray`（13件）
+  - 手順: T
+  - diff: `uint_range_*.kt` 既存 + 空 range（`5u..1u`）の `isEmpty`/`firstOrNull`/`sum`、`UInt.MAX_VALUE` 境界ケース
+  - 前提: KSP-451, KSP-709
+
+- [ ] KSP-740: `ULongRange` の property / membership / aggregate を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_ulong_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
+  - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toULongArray`（13件）
+  - 手順: T
+  - diff: `ulong_range_*.kt` 既存 + `ULong.MAX_VALUE` 境界と空 range ケース
+  - 前提: KSP-739
+
+- [ ] KSP-741: `UIntRange` の map / filter 系 HOF を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift`（`kk_uint_range_\(member)` 動的生成経路）+ unsigned range メンバ登録
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記（unsigned 版）
+  - 削除/降格 kk_*: `kk_uint_range_map`, `_mapIndexed`, `_mapNotNull`, `_filter`, `_filterIndexed`, `_filterNot`（6件）
+  - 手順: T
+  - diff: `uint_range_hof*.kt` 既存 + `mapNotNull`/`filterIndexed` ケース
+  - 前提: KSP-739
+
+- [ ] KSP-742: `UIntRange` の fold / reduce / forEach / 述語検索 HOF を Kotlin 化する
+  - 対象スタブ: 同上（`kk_uint_range_*` 動的生成 + unsigned range メンバ登録）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_uint_range_fold`, `_foldIndexed`, `_reduce`, `_reduceIndexed`, `_forEach`, `_any`, `_all`, `_none`, `_find`, `_findLast`, `_first_predicate`, `_firstOrNull_predicate`, `_last_predicate`, `_lastOrNull_predicate`（14件）
+  - 手順: T
+  - diff: `uint_range_fold*.kt` 既存 + `reduce` の空 range 例外、`first { }` 不一致時例外ケース
+  - 前提: KSP-741
+
+- [ ] KSP-743: `ULongRange` の map / filter 系 HOF を Kotlin 化する
+  - 対象スタブ: 同上（`kk_ulong_range_*`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_ulong_range_map`, `_mapIndexed`, `_mapNotNull`, `_filter`, `_filterIndexed`, `_filterNot`（6件）
+  - 手順: T
+  - diff: `ulong_range_hof*.kt` 既存 + `mapNotNull`/`filterNot` ケース
+  - 前提: KSP-740, KSP-741
+
+- [ ] KSP-744: `ULongRange` の fold / reduce / forEach / 述語検索 HOF を Kotlin 化する
+  - 対象スタブ: 同上（`kk_ulong_range_*`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
+  - 削除/降格 kk_*: `kk_ulong_range_fold`, `_foldIndexed`, `_reduce`, `_reduceIndexed`, `_forEach`, `_any`, `_all`, `_none`, `_find`, `_findLast`, `_first_predicate`, `_firstOrNull_predicate`, `_last_predicate`, `_lastOrNull_predicate`（14件）
+  - 手順: T
+  - diff: `ulong_range_fold*.kt` 既存 + `reduce` 空 range 例外ケース
+  - 前提: KSP-742, KSP-743
+
+- [ ] KSP-745: `UIntRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift`（`__kk_uint_step` 等の分岐）+ unsigned range 登録
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeIterators.kt` / `ProgressionConstructors.kt` 追記（unsigned 版）
+  - 削除/降格 kk_*: `kk_uint_range_iterator`, `_hasNext`, `_next`, `_step`, `_chunked`, `_windowed`, `_take`, `_drop`, および `kk_uint_step`, `kk_uint_downTo`, `kk_uint_rangeTo`（`kk_uint_progression_fromClosedRange` は KSP-456 で整理済みか着手時に確認）
+  - 手順: T
+  - diff: `uint_progression*.kt` 既存 + `step 3` の最終要素、`downTo` 逆順、`windowed(partialWindows = true)` ケース
+  - 前提: KSP-456, KSP-739
+
+- [ ] KSP-746: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
+  - 対象スタブ: 同上（`kk_ulong_*`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeIterators.kt` / `ProgressionConstructors.kt` 追記
+  - 削除/降格 kk_*: `kk_ulong_range_iterator`, `_hasNext`, `_next`, `_step`, `_chunked`, `_windowed`, `_take`, `_drop`, および `kk_ulong_step`, `kk_ulong_downTo`, `kk_ulong_rangeTo`
+  - 手順: T
+  - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
+  - 前提: KSP-745
+
+- [ ] KSP-747: プリミティブ数値変換 `toInt()`/`toLong()`/`toUInt()` 等の (b)/(c) 分類を確定する（コード変更なしの分類タスク）
+  - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残存変換登録と、対応する `kk_(int|long|float|double|char|uint|ulong|ubyte|ushort)_to_*`（実測 60件超。`rg -o '@_cdecl\("kk_[a-z]+_to_[a-z_]+"\)' Sources/Runtime | sort -u` で列挙）
+  - 判定基準: KIR で 1 命令の数値変換に lowering されるものは (c) compiler intrinsic として残置、boxing/丸め/文字コード変換など stdlib 意味論を持つものは (b) 移行対象
+  - 完了条件: `docs/stdlib-pipeline.md` §9 分類表に受け手型ごとの (b)/(c) 判定と根拠を追記し、(b) 判定分が KSP-748〜755 のスコープと一致することを確認（不一致なら該当タスクの範囲を修正）。実装変更なし
+  - 手順: 分類のみ（U → TODO/docs 更新）
+  - 前提: KSP-637, KSP-638
+
+- [ ] KSP-748: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UInt 受け手分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
+  - 削除/降格 kk_*: `kk_uint_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_ulong`, `_to_ushort`（10件）
+  - 手順: T
+  - diff: `unsigned_conversions*.kt` 既存 + `UInt.MAX_VALUE.toInt()`（ラップ）と `toDouble()` の丸めケース
+  - 前提: KSP-747
+
+- [ ] KSP-749: `ULong` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（ULong 受け手分）
+  - 実装先: KSP-748 と同じ実装先ファイル
+  - 削除/降格 kk_*: `kk_ulong_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_short`, `_to_ubyte`, `_to_ushort`（+ `kk_ulong_to_uint` があれば含む）
+  - 手順: T
+  - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
+  - 前提: KSP-747, KSP-748
+
+- [ ] KSP-750: `UByte` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UByte 受け手分）
+  - 実装先: KSP-748 と同じ実装先ファイル
+  - 削除/降格 kk_*: `kk_ubyte_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_uint`, `_to_ulong`, `_to_ushort`（10件）
+  - 手順: T
+  - diff: `unsigned_conversions*.kt` + `UByte(200).toByte()` 符号反転ケース
+  - 前提: KSP-747, KSP-748
+
+- [ ] KSP-751: `UShort` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UShort 受け手分）
+  - 実装先: KSP-748 と同じ実装先ファイル
+  - 削除/降格 kk_*: `kk_ushort_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`（10件）
+  - 手順: T
+  - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
+  - 前提: KSP-747, KSP-748
+
+- [ ] KSP-752: `Int` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Int 受け手分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
+  - 削除/降格 kk_*: `kk_int_to_byte`, `_to_char`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`, `_to_ushort`, `kk_int_to_double_bits`（bit 変換は `__kk_` 降格）
+  - 手順: T
+  - diff: `numeric_conversions*.kt` 既存 + `(-1).toUInt()`、`Int.MIN_VALUE.toShort()` ケース
+  - 前提: KSP-747
+
+- [ ] KSP-753: `Long` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Long 受け手分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
+  - 削除/降格 kk_*: `kk_long_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`, `_to_ushort`
+  - 手順: T
+  - diff: `numeric_conversions*.kt` + `Long.MAX_VALUE.toDouble()` 精度、`toInt()` 切り詰めケース
+  - 前提: KSP-747, KSP-752
+
+- [ ] KSP-754: `Float` / `Double` の数値変換メンバを Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Float/Double 受け手分）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
+  - 削除/降格 kk_*: `kk_float_to_char`, `_to_int`, `_to_long`, `_to_uint`, `_to_ulong`, `kk_float_to_double_bits`, `kk_double_to_char`, `_to_float`, `_to_int`, `_to_long`, `_to_uint`, `_to_ulong`（NaN/無限の丸め規則は Kotlin 実装で明示、bit 変換は `__kk_` 降格）
+  - 手順: T
+  - diff: `numeric_conversions*.kt` + `Double.NaN.toInt()`、`Double.POSITIVE_INFINITY.toLong()`、`(-0.5).toInt()` の kotlinc 一致ケース
+  - 前提: KSP-747, KSP-752
+
+- [ ] KSP-755: `Char` の数値変換メンバを Kotlin 化し `HeaderHelpers+SyntheticCoercionStubs.swift` の変換残余を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Char 受け手分 + KSP-748〜754 完了後の残余。coercion 本体は `RangeCoercion.kt` で source 化済み）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（`Char.code` 経路と整合）
+  - 削除/降格 kk_*: `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong`（`kk_math_pow` が同ファイルに残る場合は KSP-637 と重複しないよう確認）
+  - 手順: T
+  - diff: `char_conversions*.kt` 既存 + サロゲート範囲の `Char.code` ケース
+  - 前提: KSP-637, KSP-747, KSP-752, KSP-753, KSP-754
+
 ### CLEANUP-STUB 追補（(a) 削除。2026-07-10 監査。採番は履歴最終 095 の続き。手順は RF-STUB-002 レシピ）
 
 > 「本家で deprecated/obsolete かつ KSwiftK でも未実装」の二重死と fiction。**W6 の移行より先に実施を推奨**（移行対象面積が減る）。
@@ -578,6 +881,27 @@
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
 - [x] CLEANUP-STUB-125: `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` の JVM 固有注釈を (a) 分割・削除する（§9 の同ファイル注記「split JVM-only annotations into (a) before table migration」と KSP-668 スコープ外メモ「JVM 固有注釈は (a) 分割してから」の実行体 — 2026-08-12 追補。対象は着手時に `rg -n 'Jvm[A-Z][a-zA-Z]*' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` で全列挙し、KSwiftK ターゲット（macOS ネイティブ）で意味を持たない JVM 専用注釈（`@JvmStatic`/`@JvmOverloads`/`@JvmField` 系等）を (a)、`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` 等の共通注釈インフラ（AnnotationTargetValidation・opt-in 機構が依存）を (c) 残置に分類してから削除する。手順: RF-STUB-002 レシピ）
   - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
+
+- [ ] CLEANUP-STUB-126: `HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` を削除する（2026-08-16 追補。`SyntheticBucketedStubRegistry` で `bucket: .targetOutCleanup` に分類済みだが cleanup タスクが未採番だった）
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`（260行）
+  - 削除内容: `registerSyntheticPlatformTimeConversionStubs(...)` および `java.time.Duration`/`java.time.Instant`/`java.util.concurrent.TimeUnit` interop（`toJavaDuration`/`toJavaInstant`/`toTimeUnit`/`toDurationUnit`）の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1222`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:137`（`name: "PlatformTimeConversion"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeTime.swift`（`kk_duration_to_java_duration`, `kk_instant_to_java_instant`, `kk_duration_unit_to_time_unit`, `kk_time_unit_to_duration_unit`）、`Sources/RuntimeABI/RuntimeABISpec+Duration.swift` の該当 ABI 登録
+  - テスト影響: `Tests/CompilerCoreTests/Sema/TimeUnitConversionSyntheticSurfaceTests.swift`、`Scripts/diff_cases/platform_time_conversion.kt` の整理（kotlinc でも JVM 依存のため diff 対象外化を明記）
+  - 注意: `kotlin.time.Duration`/`DurationUnit` 本体は (b) 移行対象（KSP-683）。本タスクは JVM interop 表面のみを削除し、Duration 本体には触れない
+- [ ] CLEANUP-STUB-127: `HeaderHelpers+SyntheticJsNumberStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsNumberStubs.swift`（117行）
+  - 削除内容: `registerSyntheticJsNumberStubs(...)` / `registerJsNumberMemberFunction(...)` および `kotlin.js.JsNumber` の `toInt`/`toDouble` 登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1230`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:151`（`name: "JsNumber"`）を削除
+  - 連動整理: `Sources/RuntimeABI/RuntimeABISpec+JsNumber.swift`（`kk_js_number_toInt`/`kk_js_number_toDouble`）と Runtime 実装を削除
+  - テスト影響: `rg -l 'JsNumber' Tests Scripts/diff_cases` で列挙して整理
+  - 前提: CLEANUP-STUB-128（`JsAny` 先行削除でも順不同可。両方で `kotlin.js` 表面を消し切る）
+- [ ] CLEANUP-STUB-128: `HeaderHelpers+SyntheticJsAnyStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+  - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsAnyStubs.swift`（25行）
+  - 削除内容: `registerSyntheticJsAnyStubs(...)` および `kotlin.js.JsAny` の登録を削除
+  - 呼び出し元: `HeaderHelpers.swift:1229`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:148`（`name: "JsAny"`）を削除
+  - 連動整理: 対象 `kk_*` なし。`JsNumber` が `JsAny` を supertype 参照するため CLEANUP-STUB-127 と同時 or 直後に実施
+  - テスト影響: `rg -l 'JsAny' Tests Scripts/diff_cases` で列挙して整理
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
