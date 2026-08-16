@@ -717,6 +717,50 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Registers the synthetic `exceptionClasses` property and vararg constructor
+    /// for `kotlin.Throws` after bundled stdlib sources have been collected.
+    func registerSyntheticThrowsAnnotationMembersIfNeeded(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg = ensurePackage(
+            path: ["kotlin"],
+            symbols: symbols,
+            interner: interner
+        )
+        let throwsName = interner.intern("Throws")
+        let throwsFQName = kotlinPkg + [throwsName]
+        guard let throwsSymbol = symbols.lookup(fqName: throwsFQName),
+              let symbolInfo = symbols.symbol(throwsSymbol),
+              symbolInfo.kind == .annotationClass
+        else {
+            return
+        }
+
+        appendSyntheticAnnotation(
+            MetadataAnnotationRecord(
+                annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
+                arguments: [
+                    "AnnotationTarget.FUNCTION",
+                    "AnnotationTarget.PROPERTY_GETTER",
+                    "AnnotationTarget.PROPERTY_SETTER",
+                    "AnnotationTarget.CONSTRUCTOR",
+                ]
+            ),
+            to: throwsSymbol,
+            symbols: symbols
+        )
+        registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
+            ownerSymbol: throwsSymbol,
+            ownerFQName: throwsFQName,
+            kotlinPkg: kotlinPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
     func makeSyntheticThrowsThrowableType(
         kotlinPkg: [InternedString],
         symbols: SymbolTable,

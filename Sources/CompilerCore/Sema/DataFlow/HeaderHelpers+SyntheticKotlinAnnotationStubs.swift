@@ -84,13 +84,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "Throws",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "SinceKotlin",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -550,29 +543,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let throwsSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("Throws")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.PROPERTY_GETTER",
-                        "AnnotationTarget.PROPERTY_SETTER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                    ]
-                ),
-                to: throwsSymbol,
-                symbols: symbols
-            )
-            registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
-                ownerSymbol: throwsSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("Throws")],
-                kotlinPkg: kotlinPkg,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
         if let sinceKotlinSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SinceKotlin")]) {
             appendSyntheticAnnotation(
                 MetadataAnnotationRecord(
