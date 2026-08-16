@@ -22,9 +22,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0024",
+      "code": "KSWIFTK-SEMA-0020",
       "source": "kswiftk",
-      "message": "Unresolved member function 'length'.",
+      "message": "only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver",
       "codeActions": []
     },
     {

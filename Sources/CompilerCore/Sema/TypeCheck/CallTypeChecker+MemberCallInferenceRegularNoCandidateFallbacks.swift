@@ -63,6 +63,22 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             }
+            // KSP-724: `String.length` is now a bundled extension property, so a
+            // non-nullable `String` falls through to the fallback above. A nullable
+            // `String?` reaches this path because the property requires a non-null
+            // receiver; emit the standard nullable-receiver diagnostic instead of
+            // "unresolved member".
+            if !safeCall,
+               sema.types.nullability(of: lookupReceiverType) == .nullable,
+               sema.types.isSubtype(sema.types.makeNonNullable(lookupReceiverType), sema.types.stringType)
+            {
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-0020",
+                    "only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver",
+                    range: range
+                )
+                return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+            }
         }
         if args.isEmpty,
            interner.resolve(calleeName) == "code"
