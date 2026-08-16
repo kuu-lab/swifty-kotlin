@@ -279,7 +279,7 @@
 
 #### collections
 
-- [ ] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
+- [x] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
 - [ ] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
 - [x] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。完了: PR #5060 で `buildString`/`buildStringBuilder` を `StringBuilder.kt` の source-backed API へ移設）
   - 実装: `builderDSLKind` の buildString 系分岐、`CallLowerer.swift` の append 引数ボクシング特例、旧 `kk_build_string*` の builder DSL 窓口を撤去。可変バッファに必要な `__kk_string_builder_*` 最小ブリッジは維持
