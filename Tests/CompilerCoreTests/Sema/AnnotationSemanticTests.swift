@@ -149,7 +149,7 @@ struct AnnotationSemanticTests {
             // testSyntheticDeprecatedToCharEmitsWarning
             """
             package sample11
-                    fun caller(): Char = 65.toChar()
+                    fun caller(): Char = 65L.toChar()
 
             """,
 
