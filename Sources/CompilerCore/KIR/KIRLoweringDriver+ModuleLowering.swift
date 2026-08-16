@@ -6,7 +6,10 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> KIRModule {
         ctx.resetModuleState()
-        ctx.initializeSyntheticLambdaSymbolAllocator(sema: sema)
+        ctx.initializeSyntheticLambdaSymbolAllocator(
+            sema: sema,
+            stdlibOnly: compilationCtx.options.stdlibOnly
+        )
 
         let arena = KIRArena()
         var files: [KIRFile] = []

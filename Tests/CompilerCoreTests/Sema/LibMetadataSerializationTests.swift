@@ -105,6 +105,42 @@ struct LibMetadataSerializationTests {
         #expect(decoded[0].isOpenClass)
     }
 
+    @Test func testMetadataModalityRoundTripsForNominalsAndMembers() {
+        let records = [
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_kk_abstract_Collection",
+                fqName: "demo.AbstractCollection",
+                isOpenClass: true,
+                modality: .abstract
+            ),
+            MetadataRecord(
+                kind: .function,
+                mangledName: "_kk_open_iterator",
+                fqName: "demo.AbstractCollection.iterator",
+                modality: .open
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_kk_abstract_size",
+                fqName: "demo.AbstractCollection.size",
+                modality: .abstract
+            ),
+        ]
+        let serialized = MetadataEncoder().serialize(records)
+        #expect(serialized.contains("modality=abstract"))
+        #expect(serialized.contains("modality=open"))
+
+        let decoded = MetadataDecoder().decode(serialized)
+        #expect(decoded.map(\.modality) == [.abstract, .open, .abstract])
+
+        let legacy = MetadataDecoder().decode(
+            "symbols=1\nfunction _kk_legacy fq=demo.legacy schema=v1 arity=0 sig=F0<I>\n"
+        )
+        #expect(legacy.count == 1)
+        #expect(legacy[0].modality == .final)
+    }
+
     @Test func testMetadataEncoderDecoderRoundTripForSealedClassFlag() {
         let record = MetadataRecord(
             kind: .class,

@@ -107,6 +107,33 @@ final class ControlFlowLowerer {
         // path below, the same way ranges do, instead of a channel-specific
         // structural lowering.
         let iterableType = sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType
+        // BUG-198: Keep the KSP-452 source iterator as the semantic contract, but
+        // use a direct runtime loop for the closed signed ranges that the compiler
+        // can prove are built-in. The generic iterator path allocates a source
+        // iterator object and pays two levels of dispatch on every element. This
+        // fast path is deliberately restricted to compiler-marked built-in range
+        // expressions and nominal range classes, so custom operators and
+        // interface-typed iterables retain their semantics.
+        if isBuiltInSignedRange(
+            iterableExpr: iterableExpr,
+            iterableType: iterableType,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ) {
+            return lowerBuiltInSignedRangeForExpr(
+                exprID,
+                iterableExpr: iterableExpr,
+                bodyExpr: bodyExpr,
+                label: label,
+                ast: ast,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+        }
         if let loopBinding = sema.bindings.loopIterationBinding(for: exprID) {
             return lowerCustomForExpr(
                 exprID,
@@ -338,6 +365,99 @@ final class ControlFlowLowerer {
         return unit
     }
 
+    /// BUG-198: Lowers a proven built-in signed range directly through a small
+    /// runtime iterator. The runtime implementation follows the monotonicity and
+    /// overflow behavior of `RangeIterators.kt` without exposing that fast path to
+    /// explicit `range.iterator()` calls or dynamically typed iterables.
+    private func lowerBuiltInSignedRangeForExpr(
+        _ exprID: ExprID,
+        iterableExpr: ExprID,
+        bodyExpr: ExprID,
+        label: InternedString?,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        let boolType = sema.types.make(.primitive(.boolean, .nonNull))
+        let iterableID = driver.lowerExpr(
+            iterableExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+
+        let iteratorID = arena.appendTemporary(type: sema.types.anyType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_range_for_in_iterator"),
+            arg: iterableID,
+            result: iteratorID,
+            into: &instructions
+        )
+
+        let continueLabel = driver.ctx.makeLoopLabel()
+        let breakLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.label(continueLabel))
+
+        let hasNextID = arena.appendTemporary(type: boolType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_range_for_in_hasNext"),
+            arg: iteratorID,
+            result: hasNextID,
+            into: &instructions
+        )
+        let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
+        instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
+        instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
+
+        let loopVariableSymbol = sema.bindings.identifierSymbols[exprID]
+        let previousLoopValue = loopVariableSymbol.flatMap { driver.ctx.localValue(for: $0) }
+        let loopVarType = sema.bindings.flowElementType(forExpr: exprID)
+            ?? loopVariableSymbol.flatMap { sema.symbols.propertyType(for: $0) }
+            ?? sema.types.anyType
+        let nextValueID = arena.appendTemporary(type: loopVarType)
+        emitNonThrowingCall(
+            callee: interner.intern("kk_range_for_in_next"),
+            arg: iteratorID,
+            result: nextValueID,
+            into: &instructions
+        )
+        if let loopVariableSymbol {
+            driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
+        }
+
+        driver.ctx.pushLoopControl(continueLabel: continueLabel, breakLabel: breakLabel, name: label)
+        _ = driver.lowerExpr(
+            bodyExpr,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+        _ = driver.ctx.popLoopControl()
+        instructions.append(.jump(continueLabel))
+        instructions.append(.label(breakLabel))
+
+        if let loopVariableSymbol {
+            if let previousLoopValue {
+                driver.ctx.setLocalValue(previousLoopValue, for: loopVariableSymbol)
+            } else {
+                driver.ctx.clearLocalValue(for: loopVariableSymbol)
+            }
+        }
+
+        let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+        instructions.append(.constValue(result: unit, value: .unit))
+        return unit
+    }
+
     /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
     /// (`i = 0; while (i < kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
     /// rather than the range-iterator intrinsics used by lowerForExpr's
@@ -463,6 +583,19 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> Bool {
         let nonNullType = sema.types.makeNonNullable(type)
+        if sema.types.isSubtype(nonNullType, sema.types.stringType) {
+            return false
+        }
+        if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol {
+            let charSequenceType = sema.types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            if sema.types.isSubtype(nonNullType, charSequenceType) {
+                return false
+            }
+        }
         if ReceiverClassifier(sema: sema, interner: interner).isIterableInterfaceType(nonNullType) {
             return true
         }
@@ -711,6 +844,97 @@ final class ControlFlowLowerer {
 
     // MARK: - Custom Iterator Resolution (STDLIB-OP-032)
 
+    /// Restricts BUG-198 to the signed range/progression classes and direct
+    /// signed range expressions. Unsigned ranges, OpenEndRange, custom classes,
+    /// and interface-typed values must continue through their existing lowering.
+    private func isBuiltInSignedRange(
+        iterableExpr: ExprID,
+        iterableType: TypeID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullType = sema.types.makeNonNullable(iterableType)
+        if sema.bindings.isUIntRangeExpr(iterableExpr)
+            || sema.bindings.isULongRangeExpr(iterableExpr)
+            || nonNullType == sema.types.uintType
+            || nonNullType == sema.types.ulongType {
+            return false
+        }
+        if sema.bindings.isRangeExpr(iterableExpr)
+            || ControlFlowTypeChecker.isRangeExpression(iterableExpr, ast: ast)
+            || isBuiltInRangeMemberCall(iterableExpr, ast: ast, sema: sema, interner: interner) {
+            if nonNullType == sema.types.intType
+                || nonNullType == sema.types.longType
+                || nonNullType == sema.types.charType
+            {
+                return true
+            }
+            guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
+                  isRangeLikeClass(symbol, sema: sema, interner: interner)
+            else {
+                return false
+            }
+            let shortName = interner.resolve(symbol.name)
+            return shortName == "IntRange"
+                || shortName == "IntProgression"
+                || shortName == "LongRange"
+                || shortName == "LongProgression"
+                || shortName == "CharRange"
+                || shortName == "CharProgression"
+        }
+        guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
+              isRangeLikeClass(symbol, sema: sema, interner: interner)
+        else {
+            return false
+        }
+        let shortName = interner.resolve(symbol.name)
+        return shortName == "IntRange"
+            || shortName == "IntProgression"
+            || shortName == "LongRange"
+            || shortName == "LongProgression"
+            || shortName == "CharRange"
+            || shortName == "CharProgression"
+    }
+
+    /// `downTo` and `step` are represented as member-call nodes by the parser
+    /// even though they are built-in range constructors. Use their resolved
+    /// runtime links so a source-defined function with the same name is not
+    /// mistaken for a built-in range.
+    private func isBuiltInRangeMemberCall(
+        _ exprID: ExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .memberCall(receiver, callee, _, _, _) = ast.arena.expr(exprID),
+              ["until", "rangeUntil", "downTo", "step"].contains(interner.resolve(callee)),
+              let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+              let linkName = sema.symbols.externalLinkName(for: chosen)
+        else {
+            return false
+        }
+        let signedLinks = [
+            "__kk_op_rangeUntil",
+            "__kk_op_downTo",
+            "__kk_op_step",
+            "__kk_char_range_step",
+        ]
+        guard signedLinks.contains(linkName) else {
+            return false
+        }
+        if linkName == "__kk_op_step" || linkName == "__kk_char_range_step" {
+            return isBuiltInSignedRange(
+                iterableExpr: receiver,
+                iterableType: sema.bindings.exprType(for: receiver) ?? sema.types.anyType,
+                ast: ast,
+                sema: sema,
+                interner: interner
+            )
+        }
+        return true
+    }
+
     /// Resolved custom iterator operator chain: iterator(), hasNext(), next().
     private struct CustomIteratorResolution {
         let iteratorSymbol: SymbolID
@@ -751,28 +975,42 @@ final class ControlFlowLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
-        guard let (_, classSymbol) = resolveClassTypeSymbol(
-            sema.types.makeNonNullable(receiverType),
-            sema: sema
-        ),
-              classSymbol.fqName.count >= 2
-        else {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        let classSymbol = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)?.1
+        let isCharSequenceLike = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+            || (sema.types.charSequenceInterfaceSymbol.map { symbol in
+                let charSequenceType = sema.types.make(.classType(ClassType(
+                    classSymbol: symbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                return sema.types.isSubtype(nonNullReceiverType, charSequenceType)
+            } ?? false)
+        guard isCharSequenceLike || classSymbol != nil else {
             return nil
         }
-        let packageFQName = classSymbol.fqName.dropLast()
-        for candidate in sema.symbols.lookupAll(fqName: packageFQName + [name]) {
-            guard let candidateSymbol = sema.symbols.symbol(candidate),
-                  candidateSymbol.kind == .function,
-                  candidateSymbol.flags.contains(.operatorFunction),
-                  (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
-                  let signature = sema.symbols.functionSignature(for: candidate),
-                  signature.parameterTypes.isEmpty,
-                  let candidateReceiverType = signature.receiverType
-            else {
-                continue
+        var packageFQNames: [[InternedString]] = classSymbol.map { [Array($0.fqName.dropLast())] } ?? []
+        if isCharSequenceLike {
+            let textPackage = [interner.intern("kotlin"), interner.intern("text")]
+            if !packageFQNames.contains(textPackage) {
+                packageFQNames.append(textPackage)
             }
-            if sema.types.isSubtype(receiverType, candidateReceiverType) {
-                return candidate
+        }
+        for packageFQName in packageFQNames {
+            for candidate in sema.symbols.lookupAll(fqName: packageFQName + [name]) {
+                guard let candidateSymbol = sema.symbols.symbol(candidate),
+                      candidateSymbol.kind == .function,
+                      candidateSymbol.flags.contains(.operatorFunction),
+                      (!candidateSymbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      let candidateReceiverType = signature.receiverType
+                else {
+                    continue
+                }
+                if sema.types.isSubtype(receiverType, candidateReceiverType) {
+                    return candidate
+                }
             }
         }
         return nil
@@ -838,16 +1076,32 @@ final class ControlFlowLowerer {
         interner: StringInterner
     ) -> CustomIteratorResolution? {
         let nonNullType = sema.types.makeNonNullable(iterableType)
+        let isCharSequenceLike: Bool = {
+            if sema.types.isSubtype(nonNullType, sema.types.stringType) {
+                return true
+            }
+            guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol else {
+                return false
+            }
+            let charSequenceType = sema.types.make(.classType(ClassType(
+                classSymbol: charSequenceSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            return sema.types.isSubtype(nonNullType, charSequenceType)
+        }()
         // Only resolve for user-defined class types and bundled Range/Progression,
         // Channel, or source Sequence/Iterator classes whose `iterator()` operators
         // are now supplied by Kotlin source.
-        guard let (_, classSymbol) = resolveClassTypeSymbol(nonNullType, sema: sema),
-              !classSymbol.flags.contains(.synthetic)
+        let classSymbol = resolveClassTypeSymbol(nonNullType, sema: sema)?.1
+        guard isCharSequenceLike || {
+            guard let classSymbol else { return false }
+            return !classSymbol.flags.contains(.synthetic)
                 || isRangeLikeClass(classSymbol, sema: sema, interner: interner)
                 || KnownCompilerNames(interner: interner).isChannelSymbol(classSymbol)
                 || KnownCompilerNames(interner: interner).isSequenceSymbol(classSymbol)
                 || sema.symbols.isSourceBackedSymbol(classSymbol.id)
-        else {
+        }() else {
             return nil
         }
         // KSP-441: Allow synthetic Sequence/Iterator symbols to resolve source `iterator()`.

@@ -232,10 +232,9 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // KSP-452: a direct range `for-in` (Int / Long / Char, including progressions)
-    // lowers through the bundled `iterator()` operator like every other iterable,
-    // instead of the kk_range_iterator/hasNext/next special case.
-    @Test func testBuildKIRLowersDirectRangeForLoopThroughIteratorOperator() throws {
+    // BUG-198: a built-in signed range keeps KSP-452's source iterator semantics,
+    // but the hot `for-in` loop uses the dedicated runtime fast path.
+    @Test func testBuildKIRLowersBuiltInRangeForLoopThroughFastRuntimePath() throws {
         let source = """
         fun sumInts(): Int {
             var sum = 0
@@ -271,9 +270,12 @@ extension BuildKIRRegressionTests {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
 
-                #expect(callees.contains("iterator"), "\(functionName): expected bundled iterator() call, got: \(callees)")
-                #expect(callees.contains("kk_iterator_hasNext"), "\(functionName): expected generic hasNext dispatch, got: \(callees)")
-                #expect(callees.contains("kk_iterator_next"), "\(functionName): expected generic next dispatch, got: \(callees)")
+                #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
+                #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
+                #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                #expect(!callees.contains("iterator"), "\(functionName): for-in must not allocate the generic source iterator, got: \(callees)")
+                #expect(!callees.contains("kk_iterator_hasNext"), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
+                #expect(!callees.contains("kk_iterator_next"), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
                 #expect(!callees.contains("kk_range_iterator"), "\(functionName): range loop must not use kk_range_iterator, got: \(callees)")
                 #expect(!callees.contains("kk_range_hasNext"), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
                 #expect(!callees.contains("kk_range_next"), "\(functionName): range loop must not use kk_range_next, got: \(callees)")

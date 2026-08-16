@@ -396,10 +396,31 @@ ensure_kotlinc_classpath() {
   fi
 
   if [[ ! -s "$KOTLINC_COROUTINES_JAR" ]]; then
+    local artifact_path="org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
     local download_url
-    download_url="https://repo1.maven.org/maven2/org/jetbrains/kotlinx/kotlinx-coroutines-core-jvm/${KOTLINC_COROUTINES_VERSION}/kotlinx-coroutines-core-jvm-${KOTLINC_COROUTINES_VERSION}.jar"
-    echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION}..."
-    curl -fSL -o "$KOTLINC_COROUTINES_JAR" "$download_url"
+    local downloaded=false
+    # Hosted runners can intermittently receive HTTP 403 from one Maven
+    # Central hostname. Retry transient failures and try the alternate
+    # canonical hostname before giving up, then verify the checksum below.
+    local download_urls=(
+      "https://repo.maven.apache.org/maven2/${artifact_path}"
+      "https://repo1.maven.org/maven2/${artifact_path}"
+    )
+    for download_url in "${download_urls[@]}"; do
+      echo "Downloading kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from ${download_url}..."
+      rm -f "$KOTLINC_COROUTINES_JAR"
+      if curl -fSL --retry 3 --retry-delay 2 --retry-max-time 120 \
+        --connect-timeout 30 --max-time 120 \
+        -o "$KOTLINC_COROUTINES_JAR" "$download_url"; then
+        downloaded=true
+        break
+      fi
+      echo "Download failed from ${download_url}; trying the next Maven Central hostname." >&2
+    done
+    if [[ "$downloaded" != true ]]; then
+      echo "Failed to download kotlinx-coroutines-core-jvm ${KOTLINC_COROUTINES_VERSION} from Maven Central." >&2
+      return 1
+    fi
   fi
 
   local actual_sha256

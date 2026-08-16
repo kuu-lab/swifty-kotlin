@@ -604,6 +604,56 @@ struct ArraySyntheticMemberLinkTests {
     }
 
     @Test
+    func testGenericArrayJoinToStringIsSourceBacked() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun main() {
+                val values: Array<Int?> = arrayOf(1, null, 3)
+                println(values.joinToString("|", "<", ">", 2, "..."))
+                println(values.joinToString("|", "<", ">", 2, "...") { it.toString() })
+            }
+            """
+        )
+        try runSema(ctx)
+
+        let sema = try #require(ctx.sema)
+        let genericArrayJoinSymbols = sema.symbols.lookupAll(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("collections"),
+            ctx.interner.intern("joinToString"),
+        ]).filter { symbolID in
+            guard let info = sema.symbols.symbol(symbolID),
+                  info.kind == .function,
+                  !info.flags.contains(.synthetic),
+                  let fileID = sema.symbols.sourceFileID(for: symbolID),
+                  ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_"),
+                  let signature = sema.symbols.functionSignature(for: symbolID),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClass) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                  let receiverInfo = sema.symbols.symbol(receiverClass.classSymbol)
+            else {
+                return false
+            }
+            return ctx.interner.resolve(receiverInfo.name) == "Array"
+        }
+        #expect(!genericArrayJoinSymbols.isEmpty, "Expected source-backed Array.joinToString symbols")
+        #expect(
+            genericArrayJoinSymbols.allSatisfy { symbolID in
+                guard let info = sema.symbols.symbol(symbolID) else { return false }
+                return !info.flags.contains(.synthetic)
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            },
+            "Generic Array.joinToString must not retain a synthetic runtime link"
+        )
+        #expect(
+            !sema.symbols.allSymbols().contains {
+                sema.symbols.externalLinkName(for: $0.id) == "kk_array_joinToString"
+            },
+            "The generic kk_array_joinToString bridge must be removed"
+        )
+    }
+
+    @Test
     func testPrimitiveArrayHOFsBindBundledKotlinSource() throws {
         let sources: [(arrayName: String, expression: String)] = [
             ("IntArray", "intArrayOf(1)"),
