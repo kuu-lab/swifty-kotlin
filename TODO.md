@@ -50,6 +50,7 @@
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
 - [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
+- [ ] KSP-CAP-014: bundled source から `vararg val` プロパティと `KClass` 型参照を生成・検証できるようにする（`kotlin.Throws` の `vararg val exceptionClasses: KClass<out Throwable>` を source 化するための前提。現行は `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録で補完）
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
@@ -1364,7 +1365,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Suppress` — class kotlin.Suppress  -- `open annotation class kotlin/Suppress : kotlin/Annotation {`
 
-- [ ] KSP-759: kotlin.Throws-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-759: kotlin.Throws-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Throws`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Throws.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
