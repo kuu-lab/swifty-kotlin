@@ -88,6 +88,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        registerSyntheticThrowsAnnotationMembersIfNeeded(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         assignCompilationModuleFQNames(
             symbols: symbols,
             moduleName: ctx.options.moduleName,
@@ -220,6 +225,15 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
+        // Resolve kotlin.Number as early as possible. Number is a builtin type
+        // name (BuiltinTypeNames.number), so signatures that mention `Number`
+        // need types.numberClassSymbol set before they are resolved.
+        resolveNumberClassSymbol(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+
         // Type aliases are collected before the remaining headers so that their
         // underlying type is available to signatures that mention the alias.
         for collectsTypeAliases in [true, false] {

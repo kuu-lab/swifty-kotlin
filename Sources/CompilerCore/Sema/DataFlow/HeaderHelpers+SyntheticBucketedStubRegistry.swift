@@ -41,9 +41,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Any") { phase, symbols, types, interner, context in
             phase.registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Number") { phase, symbols, types, interner, context in
-            phase.registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PropertyInterfaces") { phase, symbols, types, interner, context in
             phase.registerSyntheticPropertyInterfaceStubs(
                 symbols: symbols,

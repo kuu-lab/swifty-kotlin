@@ -158,7 +158,7 @@ kk_base64_encodeToByteArray_instance kk_base64_encode_instance
 kk_base64_withPadding_default kk_base64_withPadding_mime kk_base64_withPadding_urlsafe
 kk_byte_to_char kk_byte_to_uint kk_byte_to_ulong
 kk_channel_is_closed_token
-kk_char_fromCode kk_char_minus
+kk_char_minus
 kk_check_not_null_lazy
 kk_cleaner_clean
 kk_clock_gettime_monotonic_ns kk_clock_monotonic_mark_now
@@ -243,7 +243,7 @@ kk_write_barrier
 | **STDLIB-CINTEROP-FN-009/042** | ~~`kk_pinned_get`~~（2026-07-10 訂正: `HeaderHelpers+SyntheticCInteropStubs.swift` で externalLinkName 配線済み — 本表から除外） / `kk_copaque_pointer_{new,address}` / `kk_cpointer_{new,address}` / `kk_cname_{lookup,register}` / `kk_cleaner_clean` | `RuntimeNativeAPI.swift` |
 | **MIGRATION-ENC-001** (Base64) | `kk_base64_{encode,encodeToByteArray}_instance` / `kk_base64_withPadding_{default,mime,urlsafe}` | `RuntimeBase64.swift` |
 | **数値型変換** | `kk_byte_to_{char,uint,ulong}` / `kk_short_to_{char,uint,ulong}` | `RuntimeNumericCoercion.swift` |
-| **Char 演算** | `kk_char_fromCode` / `kk_char_minus` | `RuntimeChar.swift` |
+| **Char 演算** | `kk_char_minus` | `RuntimeChar.swift` |
 | **coroutine channel** | `kk_channel_is_closed_token` | `RuntimeCoroutineChannel.swift` |
 | **lazy not-null** | `kk_check_not_null_lazy` / `kk_require_not_null_lazy` | `RuntimePreconditions.swift` |
 | **TimeSource.Monotonic** | `kk_clock_gettime_monotonic_ns` / `kk_clock_monotonic_mark_now` | `RuntimeTime.swift` |

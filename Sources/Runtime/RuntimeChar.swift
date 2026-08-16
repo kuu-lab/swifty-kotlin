@@ -359,26 +359,6 @@ private func charDigitValueForRadix(_ code: Int) -> Int {
     return -1
 }
 
-// MARK: - STDLIB-003-ABI-003: Char(code: Int) constructor
-
-/// constructor(code: Int): Char
-/// Returns the Char with the given Unicode code point.
-/// Throws IllegalArgumentException if code is not in 0..0xFFFF.
-@_cdecl("kk_char_fromCode")
-public func kk_char_fromCode(
-    _ code: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard code >= 0, code <= 0xFFFF else {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(
-            message: "code \(code) is out of the valid Char range 0..0xFFFF"
-        )
-        return 0
-    }
-    return code
-}
-
 private func charBase10DigitValue(_ scalar: UnicodeScalar) -> Int? {
     if scalar.value >= 0x30, scalar.value <= 0x39 {
         return Int(scalar.value - 0x30)

@@ -635,12 +635,12 @@ public func kk_concurrent_modification_exception_new_cause(_ causeRaw: Int) -> I
     )
 }
 
-@_cdecl("kk_array_index_out_of_bounds_exception_new")
+@_cdecl("__kk_array_index_out_of_bounds_exception_new")
 public func kk_array_index_out_of_bounds_exception_new() -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(message: nil)
 }
 
-@_cdecl("kk_array_index_out_of_bounds_exception_new_message")
+@_cdecl("__kk_array_index_out_of_bounds_exception_new_message")
 public func kk_array_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateArrayIndexOutOfBoundsException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)

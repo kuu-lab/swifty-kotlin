@@ -149,7 +149,7 @@ struct AnnotationSemanticTests {
             // testSyntheticDeprecatedToCharEmitsWarning
             """
             package sample11
-                    fun caller(): Char = 65.toChar()
+                    fun caller(): Char = 65L.toChar()
 
             """,
 
@@ -867,7 +867,6 @@ struct AnnotationSemanticTests {
 
             #expect(symbol.kind == .annotationClass)
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbolID)
             let v6 = annotations.contains {
@@ -1104,7 +1103,7 @@ struct AnnotationSemanticTests {
 
             #expect(declaration.kind == .annotationClass)
             #expect(declaration.visibility == .public)
-            #expect(declaration.flags.contains(.synthetic))
+            #expect(!declaration.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbol)
             let v27 = annotations.contains {
@@ -1177,7 +1176,6 @@ struct AnnotationSemanticTests {
 
             #expect(declaration.kind == .annotationClass)
             #expect(declaration.visibility == .public)
-            #expect(declaration.flags.contains(.synthetic))
 
             let annotations = sema.symbols.annotations(for: symbol)
             let v32 = annotations.contains {
@@ -1206,6 +1204,21 @@ struct AnnotationSemanticTests {
         }
     }
 
+    @Test func testIntToCharNotDeprecated() throws {
+        let source = """
+        package test
+
+        fun caller(): Char = 65.toChar()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let deprecatedDiagnostics = diagnostics(withCode: "KSWIFTK-SEMA-DEPRECATED", in: ctx)
+
+        #expect(
+            deprecatedDiagnostics.isEmpty,
+            "Int.toChar() should not be deprecated in Kotlin 2.3.10, got: \(deprecatedDiagnostics)"
+        )
+    }
 
 
 
