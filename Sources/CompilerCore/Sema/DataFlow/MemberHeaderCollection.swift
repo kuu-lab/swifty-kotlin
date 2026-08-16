@@ -123,14 +123,26 @@ extension DataFlowSemaPhase {
                     range: funDecl.range
                 )
             }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: funDecl.name,
+            let memberSymbol: SymbolID
+            if let existingSyntheticFunction = reusableSyntheticMemberFunctionSymbol(
                 fqName: memberFQName,
-                declSite: funDecl.range,
-                visibility: visibility(from: funDecl.modifiers),
-                flags: memberFlags
-            )
+                ownerSymbol: ownerSymbol,
+                symbols: symbols
+            ) {
+                memberSymbol = existingSyntheticFunction
+                symbols.removeFlags(.synthetic, for: memberSymbol)
+                symbols.insertFlags(memberFlags, for: memberSymbol)
+                symbols.setDeclSite(funDecl.range, for: memberSymbol)
+            } else {
+                memberSymbol = symbols.define(
+                    kind: .function,
+                    name: funDecl.name,
+                    fqName: memberFQName,
+                    declSite: funDecl.range,
+                    visibility: visibility(from: funDecl.modifiers),
+                    flags: memberFlags
+                )
+            }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
             diagnoseReservedExternalFunctionUse(
                 funDecl,
@@ -1120,4 +1132,24 @@ extension DataFlowSemaPhase {
     // Collects companion object header: creates the companion symbol, links it to the owner class,
     // and registers companion members under the companion's fully qualified name. Resolution of
     // `ClassName.memberName` to companion members is handled separately by the call/type checker.
+
+    /// Returns a synthetic member function placeholder with the same fully-qualified
+    /// name and parent, so bundled source declarations can claim pre-registered
+    /// methods instead of creating a duplicate symbol.
+    private func reusableSyntheticMemberFunctionSymbol(
+        fqName: [InternedString],
+        ownerSymbol: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .function,
+                  symbol.flags.contains(.synthetic),
+                  symbols.parentSymbol(for: symbolID) == ownerSymbol
+            else {
+                return false
+            }
+            return true
+        }
+    }
 }
