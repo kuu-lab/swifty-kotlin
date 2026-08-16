@@ -542,7 +542,63 @@ extension TypeCheckHelpers {
         while value.hasSuffix("\"") || value.hasSuffix("'") {
             value.removeLast()
         }
-        return value
+        return decodeKotlinStringEscapes(value)
+    }
+
+    /// Decodes standard Kotlin string escape sequences (e.g. \" \\ \n \uXXXX)
+    /// so that values extracted from raw annotation argument text render correctly
+    /// in diagnostics.
+    private func decodeKotlinStringEscapes(_ raw: String) -> String {
+        var result = ""
+        var index = raw.startIndex
+        while index < raw.endIndex {
+            let char = raw[index]
+            if char == "\\" {
+                let next = raw.index(after: index)
+                guard next < raw.endIndex else {
+                    result.append(char)
+                    break
+                }
+                let nextChar = raw[next]
+                switch nextChar {
+                case "t":
+                    result.append("\t")
+                case "b":
+                    result.append("\u{08}")
+                case "n":
+                    result.append("\n")
+                case "r":
+                    result.append("\r")
+                case "'":
+                    result.append("'")
+                case "\"":
+                    result.append("\"")
+                case "\\":
+                    result.append("\\")
+                case "$":
+                    result.append("$")
+                case "u":
+                    let hexStart = raw.index(after: next)
+                    let hexEnd = raw.index(hexStart, offsetBy: 4, limitedBy: raw.endIndex) ?? raw.endIndex
+                    let hex = raw[hexStart..<hexEnd]
+                    if let codePoint = UInt32(hex, radix: 16),
+                       let scalar = UnicodeScalar(codePoint) {
+                        result.append(Character(scalar))
+                        index = hexEnd
+                        continue
+                    } else {
+                        result.append("u")
+                    }
+                default:
+                    result.append(nextChar)
+                }
+                index = raw.index(after: next)
+            } else {
+                result.append(char)
+                index = raw.index(after: index)
+            }
+        }
+        return result
     }
 
     private func resolveAnnotationClassSymbol(
