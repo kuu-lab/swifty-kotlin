@@ -1145,7 +1145,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 完了根拠: `kotlin.ExperimentalSubclassOptIn` は既に `Sources/CompilerCore/Stdlib/kotlin/annotations/OptIn.kt` に実装済みで bridge/stub 撤去対象なし。golden / diff ケースを追加し、`swift_test.sh --filter Golden`、`diff_kotlinc.sh Scripts/diff_cases`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` が green。
 
-- [ ] KSP-737: kotlin.ExperimentalUnsignedTypes-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-737: kotlin.ExperimentalUnsignedTypes-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalUnsignedTypes`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/ExperimentalUnsignedTypes.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
