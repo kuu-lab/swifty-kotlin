@@ -624,18 +624,17 @@ struct RegexSemaLoweringTests {
         // Call component1() and component2() explicitly rather than via destructuring,
         // since the compiler lowers val (a, b) = m differently.
         let ctx = try sharedRegexKIRCtx(at: 17)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase17", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("component1") && callees.contains("component2"),
-                Comment(rawValue: "componentN must dispatch to the Kotlin MatchResult API; found: \(callees)")
-            )
-            #expect(
-                !callees.contains("kk_match_result_component1"),
-                Comment(rawValue: "kk_match_result_component1 must be gone; found: \(callees)")
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase17", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("component1") && callees.contains("component2"),
+            Comment(rawValue: "componentN must dispatch to the Kotlin MatchResult API; found: \(callees)")
+        )
+        #expect(
+            !callees.contains("kk_match_result_component1"),
+            Comment(rawValue: "kk_match_result_component1 must be gone; found: \(callees)")
+        )
     }
 
     // MARK: - 12. No stray sema errors on valid Regex programs
@@ -688,6 +687,7 @@ struct RegexSemaLoweringTests {
                 !ctx.diagnostics.hasError,
                 "All RegexOption combinations should compile without sema errors"
             )
+        }
     }
 
 }
