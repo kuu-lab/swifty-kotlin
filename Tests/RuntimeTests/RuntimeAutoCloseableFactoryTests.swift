@@ -76,15 +76,15 @@ struct RuntimeAutoCloseableFactoryTests {
         #expect(snapshot.closureRaw == 41)
     }
 
-    /// KSP-611: `close()` written against a `Closeable`-typed value dispatches through
+    /// KSP-721: `close()` written against an `AutoCloseable`-typed value dispatches through
     /// kk_itable_lookup_dynamic, so the factory must also register the interface itself.
-    @Test func factoryRegistersCloseableInterfaceForDynamicDispatch() {
+    @Test func factoryRegistersAutoCloseableInterfaceForDynamicDispatch() {
         let resourceRaw = kk_auto_closeable_create(
             unsafeBitCast(autoCloseableCloseAction, to: Int.self),
             77
         )
-        let closeableTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable"))
-        let closeFnPtr = kk_itable_lookup_dynamic(resourceRaw, closeableTypeID, 0)
+        let autoCloseableTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.AutoCloseable"))
+        let closeFnPtr = kk_itable_lookup_dynamic(resourceRaw, autoCloseableTypeID, 0)
         #expect(closeFnPtr != 0)
 
         let closeFn = unsafeBitCast(closeFnPtr, to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self)

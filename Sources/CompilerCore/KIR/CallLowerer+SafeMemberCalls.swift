@@ -1060,35 +1060,49 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRDispatchKind? {
         guard let receiverTypeID,
-              case let .classType(classType) = sema.types.kind(of: receiverTypeID)
+              let methodSlot = layout.vtableSlots[callee]
         else { return nil }
-        let receiverClassSymID = classType.classSymbol
-        guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
-        guard let methodSlot = layout.vtableSlots[callee] else { return nil }
 
-        if receiverClassSym.kind == .class {
-            // If the receiver is a concrete class with no subtypes, use direct
-            // dispatch.  Kotlin classes are final by default, so this is safe and
-            // avoids the itable path which requires runtime typeInfo support.
-            if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
-            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
-        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverTypeID)
+        switch sema.types.kind(of: nonNullReceiverType) {
+        case let .classType(classType):
+            let receiverClassSymID = classType.classSymbol
+            guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
 
-        // The receiver's static type is the interface itself (e.g. a function
-        // parameter typed `d: Describable`) — the concrete implementing class,
-        // and therefore the itable slot that class assigned to this interface,
-        // is unknown at this call site. Falling back to slot 0 here previously
-        // dispatched to whatever interface happened to occupy slot 0 on the
-        // object actually passed in (e.g. Printable instead of Describable).
-        // Defer the slot lookup to runtime instead, keyed by the interface's
-        // stable type ID (see kk_itable_lookup_dynamic).
-        if receiverClassSym.kind == .interface {
+            if receiverClassSym.kind == .class {
+                // If the receiver is a concrete class with no subtypes, use direct
+                // dispatch.  Kotlin classes are final by default, so this is safe and
+                // avoids the itable path which requires runtime typeInfo support.
+                if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
+                guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
+                let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
+                return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+            }
+
+            // The receiver's static type is the interface itself (e.g. a function
+            // parameter typed `d: Describable`) — the concrete implementing class,
+            // and therefore the itable slot that class assigned to this interface,
+            // is unknown at this call site. Falling back to slot 0 here previously
+            // dispatched to whatever interface happened to occupy slot 0 on the
+            // object actually passed in (e.g. Printable instead of Describable).
+            // Defer the slot lookup to runtime instead, keyed by the interface's
+            // stable type ID (see kk_itable_lookup_dynamic).
+            if receiverClassSym.kind == .interface {
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: parentID, sema: sema, interner: interner
+                )
+                return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            }
+        case .typeParam:
+            // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
+            // has an unknown concrete class at compile time, so the interface
+            // itable must be resolved dynamically at runtime.
             let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                 symbol: parentID, sema: sema, interner: interner
             )
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        default:
+            break
         }
         return nil
     }
