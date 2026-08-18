@@ -3,7 +3,7 @@
 // (`object : Base(args) { override fun ... }`) that inherit an open *class*
 // (as opposed to an interface, already covered by BUG-141/KSP-CAP-001).
 //
-// Two independent bugs made this shape unusable before this fix:
+// Four independent bugs made this shape unusable before this fix:
 // (1) An object literal's own `override` members were never assigned a
 //     vtable slot — `ExprTypeChecker+ObjectLiteralInference.swift` copied the
 //     superclass's `vtableSlots` verbatim instead of re-running override
@@ -17,6 +17,18 @@
 //     compiler never called the superclass constructor for an object literal
 //     at all — so inherited properties kept their zeroed defaults, mirroring
 //     BUG-155/PR #5506 for named classes.
+// (3) `parseTail`'s newline-continuation heuristic (`KotlinParser+Statements.swift`)
+//     treated a bare `object` keyword after a newline as always starting a new
+//     top-level declaration, so an expression-bodied function whose object
+//     literal body starts on the *next* line (upstream kotlin-stdlib's actual
+//     formatting style for e.g. `Delegates.observable`) failed to parse at
+//     all. Fixed by having the two boundary checks in `parseTail` look one
+//     token further ahead: `object` immediately followed by `:` or `{` (no
+//     name) is an expression continuing the statement, not a new declaration.
+// (4) The superclass constructor call picked the *first* `<init>` overload
+//     found (`lookupAll(...).first`) regardless of whether its parameters
+//     actually matched the object literal's arguments, so a superclass with
+//     multiple constructors could silently run the wrong one.
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
@@ -101,6 +113,44 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "ObjectLiteralGenericSuperCtorArg", expected: "42\nRendered(42)\n")
+    }
+
+    @Test
+    func testObjectLiteralBodyStartingOnNextLineAfterEqualsParses() throws {
+        let source = """
+        open class Base { open fun describe(): String = "base" }
+        fun make(): Base =
+            object : Base() {
+                override fun describe(): String = "anon"
+            }
+        fun main() { println(make().describe()) }
+        """
+        try assertKotlinOutput(source, moduleName: "ObjectLiteralMultilineBody", expected: "anon\n")
+    }
+
+    @Test
+    func testObjectLiteralSuperConstructorResolvesMatchingOverload() throws {
+        let source = """
+        open class Multi {
+            val label: String
+            constructor(v: Int) { label = "int:" + v }
+            constructor(s: String) { label = "str:" + s }
+            open fun describe(): String = "base:" + label
+        }
+        fun makeFromInt(v: Int): Multi = object : Multi(v) {
+            override fun describe(): String = "over:" + label
+        }
+        fun makeFromString(s: String): Multi = object : Multi(s) {
+            override fun describe(): String = "over:" + label
+        }
+        fun main() {
+            println(makeFromInt(7).describe())
+            println(makeFromString("hi").describe())
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralSuperCtorOverload", expected: "over:int:7\nover:str:hi\n"
+        )
     }
 }
 #endif
