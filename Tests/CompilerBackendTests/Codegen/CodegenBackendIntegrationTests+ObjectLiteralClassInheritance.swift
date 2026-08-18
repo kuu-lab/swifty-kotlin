@@ -29,6 +29,19 @@
 //     found (`lookupAll(...).first`) regardless of whether its parameters
 //     actually matched the object literal's arguments, so a superclass with
 //     multiple constructors could silently run the wrong one.
+// (5) `superTypeConstructorArgs` was invisible to both capture-analysis
+//     traversals (Sema `CaptureAnalyzer` and KIR `LambdaLowerer+
+//     CaptureAnalysis`), which only walked an object literal's member bodies
+//     and property initializers. When the object literal sat inside a
+//     lambda and an outer local was referenced only from its superclass
+//     constructor call, the local was never added to the lambda's capture
+//     list even though the lowered body still referenced it.
+// (6) `parseBlock`'s block-start declaration dispatch had the same "bare
+//     `object` keyword always starts a declaration" bug as (3), but for a
+//     block/lambda body's *first* statement rather than a top-level
+//     expression-bodied function: a lambda whose entire body was the bare
+//     object literal expression (`{ object : Base(x) { ... } }`) mis-parsed
+//     `object` as a new named declaration.
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
@@ -151,6 +164,31 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         try assertKotlinOutput(
             source, moduleName: "ObjectLiteralSuperCtorOverload", expected: "over:int:7\nover:str:hi\n"
         )
+    }
+
+    @Test
+    func testObjectLiteralInsideLambdaCapturesOuterLocalUsedOnlyInSuperCtorArgs() throws {
+        let source = """
+        open class Base(val v: Int) { open fun f(): String = "base:" + v }
+        fun make(x: Int): () -> Base = { object : Base(x) { override fun f(): String = "anon:" + v } }
+        fun main() {
+            val factory = make(42)
+            val obj = factory()
+            println(obj.v)
+            println(obj.f())
+        }
+        """
+        try assertKotlinOutput(source, moduleName: "ObjectLiteralLambdaSuperCtorCapture", expected: "42\nanon:42\n")
+    }
+
+    @Test
+    func testObjectLiteralAsBareLambdaBodyDispatchesOverride() throws {
+        let source = """
+        open class Base { open fun f(): String = "base" }
+        fun make(): () -> Base = { object : Base() { override fun f(): String = "anon" } }
+        fun main() { println(make()().f()) }
+        """
+        try assertKotlinOutput(source, moduleName: "ObjectLiteralBareLambdaBody", expected: "anon\n")
     }
 }
 #endif

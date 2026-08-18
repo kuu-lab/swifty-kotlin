@@ -329,6 +329,17 @@ extension LambdaLowerer {
             return check(condition) || check(body)
         case let .doWhileExpr(body, condition, _, _):
             return check(body) || check(condition)
+        case let .objectLiteral(_, declID, _):
+            // KSP-CAP-018: `superTypeConstructorArgs` (`object : Base(this.x) { ... }`)
+            // is lowered wherever the object literal itself sits, so an implicit
+            // receiver member access there must still be seen here.
+            guard let declID,
+                  let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return false
+            }
+            return objectDecl.superTypeConstructorArgs.contains { check($0.expr) }
         default:
             return false
         }

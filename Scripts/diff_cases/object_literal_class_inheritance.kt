@@ -44,6 +44,15 @@ fun makeMultiFromString(s: String): Multi = object : Multi(s) {
     override fun describe(): String = "over:$label"
 }
 
+// Object literal appearing inside a lambda, with the enclosing function's own
+// parameter referenced only from the superclass constructor call -- the
+// lambda must still capture it, and a lambda body consisting solely of the
+// bare object literal expression must not be mis-parsed as a new top-level
+// declaration.
+open class Factory(val n: Int) { open fun describe(): String = "base:$n" }
+
+fun makeFactory(n: Int): () -> Factory = { object : Factory(n) { override fun describe(): String = "over:$n" } }
+
 fun main() {
     val vehicle = makeVehicle("car")
     println(vehicle.name)
@@ -57,4 +66,7 @@ fun main() {
 
     println(makeMultiFromInt(7).describe())
     println(makeMultiFromString("hi").describe())
+
+    val factory = makeFactory(99)
+    println(factory().describe())
 }
