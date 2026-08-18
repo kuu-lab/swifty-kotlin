@@ -38,7 +38,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 16 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ、本 PR でも再集計で16件を確認。詳細は該当節） |
+| DEBT-DIFF-007 | 15 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除して36→16、2026-08-18 に `mock_objects.kt` を追加解除（VisibilityChecker 包含クラスアクセス是正・テスト入力修正）して16→15 へ。詳細は該当節） |
 | DEBT-DIFF-008 | 2 | primitive Number virtual dispatch 未実装 | runtime / lowering で boxed primitive に対する `Number.to*` メソッド dispatch を実装（`KSP-1540` 参照）。対象ケースは `stdlib_kotlin_n_Number_primitive.kt` / `stdlib_kotlin_n_Number_primitive_generic.kt` |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -314,12 +314,12 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | `flow_builders.kt` | `channelFlow{}`/`callbackFlow{}`は実Kotlinの`ProducerScope`（`send`/`trySend`/`close`）を要求するが、KSP-686でkswiftcはこれらをfictionとして受理しない方針にした。real API形へ更新したため、candidateは未実装APIのSema診断で失敗する | channelFlow/callbackFlowのreal ProducerScope実装を別タスクで設計・実装する |
 | `flow_error_handling.kt` | `onErrorReturn`/`onErrorResume`(real Kotlinでは`ERROR`レベルでdeprecated、`catch{emit()}`/`catch{emitAll()}`推奨)をkswiftcが誤って受理。修正すると`onCompletion`(非推奨でない実オペレーター)が未実装で失敗する | テストを`catch{}`形式に書き換え。`Flow.onCompletion`を実装 |
 
-### グループ5: reflection(残り2件)
+### グループ5: reflection(残り1件)
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
-| `mock_objects.kt` | `VisibilityChecker.isAccessible`が「外側クラスから入れ子private classのメンバーへ」のみ許可し、逆方向(入れ子private classのコンストラクタを、同じ外側クラスの兄弟メソッドから呼ぶ)を誤って拒否する。テスト自体もrefで別の理由(publicコンストラクタがprivateクラスを露出)により拒否される設計ミスあり | `VisibilityChecker.swift`の入れ子private classコンストラクタ可視性チェックを、outer class自身のスコープに対して行うよう修正 |
+| ~~`mock_objects.kt`~~ | 解除済み（2026-08-18、`VisibilityChecker.swift` で共通の包含クラスを持つネストクラス・外側クラス間の private メンバ可視性判定を修正し、テスト入力の private 型露出を是正） | — |
 | ~~`annotation_reflection.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：annotation reflection API (`KClass<*>` 引数の `Annotation` 取得・配列化) を実kotlinc互換に修正） | — |
 | ~~`kclass_ktype_basic.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：`KClass.simpleName`/`isInstance`/`typeOf` を利用し、未対応の `KType.toString()` はテストから回避） | — |
 
