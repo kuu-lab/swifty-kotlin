@@ -80,13 +80,40 @@ final class LocalDeclTypeChecker {
             if let declaredType {
                 localType = declaredType
                 if let initializerType {
-                    if let initializer,
-                       sema.bindings.isRangeExpr(initializer),
-                       driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+                    let rangeExprSatisfiesIterableAnnotation: Bool = {
+                        guard let initializer,
+                              sema.bindings.isRangeExpr(initializer),
+                              let declaredElementType = driver.helpers.iterableElementType(
+                                  for: declaredType,
+                                  isRangeExpr: false,
+                                  sema: sema,
+                                  interner: interner
+                              ),
+                              let rangeElementType = driver.helpers.iterableElementType(
+                                  for: initializerType,
+                                  isRangeExpr: true,
+                                  isCharRangeExpr: sema.bindings.isCharRangeExpr(initializer),
+                                  sema: sema,
+                                  interner: interner
+                              )
+                        else {
+                            return false
+                        }
+                        return declaredElementType == rangeElementType
+                    }()
+                    if rangeExprSatisfiesIterableAnnotation
+                        || (initializer.map {
+                            sema.bindings.isRangeExpr($0)
+                                && driver.helpers.isRangeLikeType(
+                                    declaredType,
+                                    sema: sema,
+                                    interner: interner
+                                )
+                        } ?? false)
                     {
                         // Range expressions keep their runtime representation separate from
-                        // the source-level range interface, so accept the annotation without
-                        // forcing a nominal subtype check.
+                        // the source-level range interface, so accept a matching range-like or
+                        // Iterable annotation without forcing a nominal subtype check.
                     } else {
                         driver.emitSubtypeConstraint(
                             left: initializerType, right: declaredType,

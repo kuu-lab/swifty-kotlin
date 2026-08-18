@@ -392,10 +392,11 @@
   - diff: `comparable_interface.kt` 等既存 + 新規 collection interface 宣言ケース
   - 前提: KSP-701, KSP-703, KSP-704, KSP-705, KSP-699（orchestrator 削除前に内部呼び出しを独立化）
 
-- [ ] KSP-701: Iterable / Collection / Sequence consolidated registry を Kotlin 化し `HeaderHelpers+SyntheticIterableRegistry.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`, `Sources/CompilerCore/Stdlib/kotlin/collections/Collections.kt`, `Sources/CompilerCore/Stdlib/kotlin/sequences/Sequence.kt` 等既存ファイルへ追記
-  - 削除/降格 kk_*: `kk_sequence_*`, `kk_list_plus`, `kk_list_minus`, `kk_iterator_*`, `kk_op_contains`, `kk_range_iterator`, `__kk_mutable_collection_*` 等（`RuntimeSequence.swift`/`RuntimeCollectionHOF*.swift`/`RuntimeOperators.swift`。着手時 `rg -o '@_cdecl\("kk_[a-zA-Z0-9_]*"\)' Sources/Runtime` / `rg 'func register.*' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で再固定）
+- [ ] KSP-701: Iterable / Collection / Sequence consolidated registry を Kotlin 化し `HeaderHelpers+SyntheticIterableRegistry.swift` を削除する（実装済み、検証ゲート保留）
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift`（削除済み）、残存 fallback は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` / `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` および既存の bundled Kotlin collection/sequence source
+  - 実装: `Iterable.filter`/`reduce`/`reduceIndexed` を `Iterables.kt` に追加し、旧 registry の member 登録と `kk_list_plus_*`/`kk_list_minus_*` Runtime/ABI export を削除。interface fallback shell と Sequence fallback は別 helper に移動。
+  - 境界: Sequence terminal、range/iterator/contains、`__kk_collection_*`/`__kk_mutable_collection_*` 等の共有 bridge は後続タスク・lowering の参照があるため保持。
   - 手順: T
   - diff: `sequence_*.kt`, `iterable_*.kt`, `collection_*.kt` 既存拡張
   - 前提: KSP-700（interface shells source-backed 後に member 移行）

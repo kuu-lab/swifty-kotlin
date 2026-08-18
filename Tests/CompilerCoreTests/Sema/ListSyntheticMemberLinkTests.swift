@@ -1087,9 +1087,52 @@ struct ListSyntheticMemberLinkTests {
                 .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            // KSP-632: Iterable.minusElement is bundled Kotlin source, so no public
+            // KSP-701: Iterable.minusElement is bundled Kotlin source, so no public
             // kk_list_minus_element runtime bridge remains.
             #expect(callLinks.filter { $0 == "kk_list_minus_element" }.count == 0)
+        }
+    }
+
+    @Test
+    func testIterableFilterAndReduceMembersResolveToSourceBacked() throws {
+        let source = """
+        fun filterValues(values: Iterable<Int>): List<Int> {
+            return values.filter { it % 2 == 0 }
+        }
+
+        fun reduceValues(values: Iterable<Int>): Int {
+            return values.reduce { acc, value -> acc + value }
+        }
+
+        fun reduceIndexedValues(values: Iterable<Int>): Int {
+            return values.reduceIndexed { index, acc, value -> acc + index + value }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!(ctx.diagnostics.hasError), "Expected KSP-701 Iterable members to resolve cleanly, got: \(diagnosticSummary)")
+
+            let sema = try #require(ctx.sema)
+            for memberName in ["filter", "reduce", "reduceIndexed"] {
+                let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                    named: memberName,
+                    sema: sema,
+                    interner: ctx.interner
+                ))
+                #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
+                #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+
+                let callLinks = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == memberSymbol }
+                    .compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }
+                #expect(callLinks.isEmpty, "Expected Iterable.\(memberName) to avoid a runtime bridge")
+            }
         }
     }
 
