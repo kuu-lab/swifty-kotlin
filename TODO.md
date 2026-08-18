@@ -963,7 +963,8 @@
 > 1タスク = 原則 1 PR。粒度は（package, receiver）単位または 30 件を超える場合は関数名 prefix ファミリー単位。完全な未実装リストは `docs/stdlib-gap-audit-2.3.10/gap_v2.tsv`（本倉庫へのコピー推奨）を参照。
 > 実装時には、既存の `__kk_*` / `kk_*` bridge・合成スタブ・`RuntimeABISpec` 登録があれば同 PR で削除または `__kk_` 降格し、`UPDATE_GOLDEN=1` で golden を更新、`bash Scripts/diff_kotlinc.sh` で kotlinc 2.3.10 との差分を確認すること。
 
-- [ ] KSP-719: kotlin.Annotation-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-719: kotlin.Annotation-family の未実装 stdlib API を実装する（1 件）
+  - 完了 (2026-08-16): `Sources/CompilerCore/Stdlib/kotlin/Annotation.kt` を追加し、`HeaderCollection.reusableSyntheticSourceDeclarationKeys` で合成シンボルを再利用、`HeaderHelpers.patchBundledAnnotationSupertype` で `bindInheritanceEdges` 後に `kotlin.Any` を direct supertype として復元。Sema golden / diff ケース / `AnnotationBundledSourceSupertypeTests` で回帰検証。`swift_test.sh --filter Golden`、`diff_kotlinc.sh` 個別ケース、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` pass；`build/debug/kswiftc` smoke 実行済み。
   - 対象: `kotlin` / top-level / family `Annotation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Annotation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
