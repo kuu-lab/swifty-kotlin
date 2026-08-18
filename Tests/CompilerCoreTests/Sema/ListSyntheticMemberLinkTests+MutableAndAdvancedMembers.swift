@@ -1208,6 +1208,47 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testSetFilterUsesSetSpecificBundledSourceFunction() throws {
+        let source = """
+        fun filterValues(values: Set<Int>): List<Int> {
+            return values.filter { value -> value > 1 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected Set.filter to resolve cleanly: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
+                return ctx.interner.resolve(callee) == "filter"
+                    && !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let chosenSymbol = try #require(sema.symbols.symbol(chosenCallee))
+            let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+            let receiverType = try #require(signature.receiverType)
+            let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiverType, sema: sema))
+
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(chosenSymbol.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("filter"),
+            ])
+            #expect(receiverSymbol.fqName == [
+                ctx.interner.intern("kotlin"),
+                ctx.interner.intern("collections"),
+                ctx.interner.intern("Set"),
+            ])
+        }
+    }
+
+    @Test
     func testSetRegistersCollectionAsNominalSupertype() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
