@@ -260,9 +260,9 @@
 - [x] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃する（前提: W3 全完了 = KSP-308 のみで達成済み）
   - 完了: `Sources/CompilerCore/Driver/BundledStdlib.swift` の `excludedBundledStdlibFiles` は既に空集合だったため、プロパティ本体・ガード節・関連 doc comment を削除して機構ごと撤廃した。TODO.md 冒頭の移行テンプレート T（手順3, 6）と `docs/stdlib-pipeline.md`（§2/§4/§10/§13-7）から同機構への参照も更新済み。
   - 検証: `swift build --target CompilerCore` green、`rg excludedBundledStdlibFiles Sources/ Tests/` 0件。除外集合が元々空だったため `collectBundledStdlibSources` の出力（挙動）に変化なし。
-  - スコープ縮小: 当初手順(2)「`text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム」は、着手時点の実測で対象例に挙げた text/collections モジュール自体が (b) Kotlin 移行の途中（`KSP-426`/`KSP-428` が List の sort/min/max・集合演算・数値集計を未移行、`KSP-693`/`KSP-694` が text/sequences の合成スタブ整理未完了）であり、`docs/stdlib-pipeline.md` §6 の「機能スライス名は当該モジュールの M フェーズ完了時に統合・リネームする」方針と矛盾するため実施しなかった。粒度ルールに従い新番号 `KSP-1541` へ分割した。
+  - スコープ縮小: 当初手順(2)「`text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム」は、着手時点の実測で対象例に挙げた text/collections モジュール自体が (b) Kotlin 移行の途中（`KSP-426`/`KSP-428` が List の sort/min/max・集合演算・数値集計を未移行、`KSP-693` が text の合成スタブ整理未完了）であり、`docs/stdlib-pipeline.md` §6 の「機能スライス名は当該モジュールの M フェーズ完了時に統合・リネームする」方針と矛盾するため実施しなかった。粒度ルールに従い新番号 `KSP-1541` へ分割した。
 - [ ] KSP-1541: 機能スライス名の bundled `.kt` ファイルを kotlin-stdlib 本家準拠のファイル名へ統合・リネームする（KSP-505 手順(2)(3) の分割先。前提: 対象モジュールの M フェーズ完了）
-  - 背景: `docs/stdlib-pipeline.md` §6「既存の機能スライス名（`ListFilterHOF.kt` 等）は当該モジュールの M フェーズ完了時に統合・リネームする」を実行するタスク。2026-08-18 時点では text（M1: `KSP-693` 未完了）/collections（M3: `KSP-426`/`KSP-428` 未完了）/sequences（M4: `KSP-694` 未完了）を含む大半のモジュールがまだ (b) 残ありで対象外
+  - 背景: `docs/stdlib-pipeline.md` §6「既存の機能スライス名（`ListFilterHOF.kt` 等）は当該モジュールの M フェーズ完了時に統合・リネームする」を実行するタスク。2026-08-18 時点では text（M1: `KSP-693` 未完了）/collections（M3: `KSP-426`/`KSP-428` 未完了）を含む複数のモジュールがまだ (b) 残ありで対象外（着手時に §9 棚卸し表で全モジュールを再確認すること）
   - 着手条件: `docs/stdlib-pipeline.md` §9 の3分類棚卸し表を rg で再確認し、対象モジュールの (b) 行（未移行の合成スタブ登録）が 0 件であること。モジュール単体で条件を満たせば、そのモジュールだけ先行して統合・リネームしてよい（粒度ルールにより 1 モジュール = 1 PR に分割可）
   - 手順: (1) 対象モジュール配下の機能スライスファイル（例: `collections/ListFilterHOF.kt`, `text/StringBasics.kt` 等）を本家 kotlin-stdlib のファイル名・配置（例: `collections/Collections.kt`, `text/Strings.kt`）へ統合・リネーム（`docs/stdlib-pipeline.md` §6）。挙動変更ゼロが条件 (2) `UPDATE_GOLDEN=1` で golden 更新し `git diff -- Tests/CompilerCoreTests/GoldenCases` が機械的差分のみであることを確認 (3) 共通ゲート G green
 
