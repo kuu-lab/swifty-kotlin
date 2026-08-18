@@ -1214,13 +1214,6 @@ extension DataFlowSemaPhase {
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticPreconditionStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
@@ -1369,6 +1362,70 @@ extension DataFlowSemaPhase {
         let typeSups = types.directNominalSupertypes(for: annotationSymbol)
         if !typeSups.contains(anySymbol) {
             types.setNominalDirectSupertypes(typeSups + [anySymbol], for: annotationSymbol)
+        }
+    }
+
+    /// KSP-707: The bundled `kotlin/Preconditions.kt` source declares `require`/
+    /// `check`/`assert` without a `contract { ... }` block, so their smart-cast
+    /// narrowing (e.g. `require(x != null); x.length`) is not derived from the
+    /// AST. Attach the `ContractNonNullEffect` directly to the source-backed
+    /// symbols once header collection has registered them, so
+    /// `applyContractEffects` can branch on the passed-in condition expression.
+    func patchSourceBackedPreconditionContractEffects(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let lazyMessageType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let preconditionFunctions: [(name: String, parameterTypes: [TypeID])] = [
+            ("require", [types.booleanType]),
+            ("require", [types.booleanType, lazyMessageType]),
+            ("check", [types.booleanType]),
+            ("check", [types.booleanType, lazyMessageType]),
+            ("assert", [types.booleanType]),
+            ("assert", [types.booleanType, lazyMessageType]),
+        ]
+
+        for entry in preconditionFunctions {
+            let functionName = interner.intern(entry.name)
+            let functionFQName = kotlinPkg + [functionName]
+            guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      // Symbols loaded from a precompiled stdlib library artifact
+                      // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
+                      // both `.importedLibrary` and `.synthetic`, so only exclude
+                      // synthetic placeholders that are NOT backed by an import.
+                      !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                      let signature = symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType == nil
+                    && signature.parameterTypes == entry.parameterTypes
+                    && signature.returnType == types.unitType
+            }) else {
+                continue
+            }
+            guard let signature = symbols.functionSignature(for: symbol),
+                  !signature.valueParameterSymbols.isEmpty
+            else {
+                continue
+            }
+            symbols.setContractNonNullEffect(
+                ContractNonNullEffect(
+                    parameterSymbol: signature.valueParameterSymbols[0],
+                    appliesOnAnyReturn: true
+                ),
+                for: symbol
+            )
         }
     }
 
