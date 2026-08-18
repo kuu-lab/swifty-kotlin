@@ -1276,7 +1276,12 @@ extension ExprTypeChecker {
                             sema: sema,
                             interner: interner
                         ) ?? propertyType
-                        let resultType = expectedType ?? inferredType
+                        let resultType = resolvedPropertyReferenceResultType(
+                            expectedType: expectedType,
+                            inferredType: inferredType,
+                            sema: sema,
+                            interner: interner
+                        )
                         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                         sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
                         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
@@ -1315,7 +1320,12 @@ extension ExprTypeChecker {
                     sema: sema,
                     interner: interner
                 ) ?? propertyType
-                let resultType = expectedType ?? inferredType
+                let resultType = resolvedPropertyReferenceResultType(
+                    expectedType: expectedType,
+                    inferredType: inferredType,
+                    sema: sema,
+                    interner: interner
+                )
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
                 sema.bindings.bindExprType(id, type: resultType)
@@ -1507,6 +1517,51 @@ extension ExprTypeChecker {
             args: typeArgs,
             nullability: .nonNull
         )))
+    }
+
+    /// Decides the expression type for a property callable reference: an
+    /// `expectedType` is only trusted when it is itself one of the four
+    /// concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
+    /// `KProperty1`/`KMutableProperty1`) — the same set
+    /// `propertyReferenceShape` in `LambdaLowerer+PropertyReferenceLowering.swift`
+    /// recognizes to build the real KIR wrapper object. A broader or unrelated
+    /// expected type (`Any`, `KProperty<*>`, `KCallable<*>`, ...) would
+    /// silently defeat that wrapper and fall back to a non-conforming legacy
+    /// value, so `inferredType` (the correct concrete shape this reference
+    /// actually has) is used instead in that case. This mirrors how the
+    /// sibling function-reference branch above only adopts `expectedType`
+    /// when it resolves to a real function type or SAM interface, and
+    /// otherwise reports its own `inferredType`.
+    private func resolvedPropertyReferenceResultType(
+        expectedType: TypeID?,
+        inferredType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let expectedType,
+              isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner)
+        else {
+            return inferredType
+        }
+        return expectedType
+    }
+
+    private func isConcreteKPropertyReferenceShape(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        switch interner.resolve(symbol.name) {
+        case "KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1":
+            return true
+        default:
+            return false
+        }
     }
 
     private func inferClassRefExpr(
