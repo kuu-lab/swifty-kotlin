@@ -165,6 +165,21 @@ extension LambdaLowerer {
         return classType.classSymbol
     }
 
+    /// True when `symbol` is a class/interface/object/enum declaration —
+    /// i.e. something that has instances a `this` receiver could refer to.
+    /// Used to distinguish a bare `::member` reference to an instance member
+    /// of the enclosing class (needs an implicit-receiver capture) from one
+    /// to a genuine top-level declaration (`parentSymbol` is nil or not a
+    /// nominal type container, so no capture applies).
+    func isNominalTypeContainerSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        switch sema.symbols.symbol(symbol)?.kind {
+        case .class, .interface, .object, .enumClass:
+            return true
+        default:
+            return false
+        }
+    }
+
     func computeCaptureSymbolsForLambda(
         lambdaExprID: ExprID,
         lambdaParamCount: Int,

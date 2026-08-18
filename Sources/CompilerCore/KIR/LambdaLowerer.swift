@@ -1195,6 +1195,12 @@ final class LambdaLowerer {
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
         let isUnbound = sema.bindings.isUnboundCallableRef(exprID)
+        let targetSymbol = resolveCallableRefTargetSymbol(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            memberName: memberName,
+            sema: sema
+        )
         var captureArguments: [KIRExprID] = []
         if let receiverExpr {
             let loweredReceiver = driver.lowerExpr(
@@ -1211,14 +1217,21 @@ final class LambdaLowerer {
             if !isUnbound {
                 captureArguments.append(loweredReceiver)
             }
+        } else if !isUnbound,
+                  sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                  let targetSymbol,
+                  let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
+                  isNominalTypeContainerSymbol(parentSymbol, sema: sema),
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+        {
+            // KSP-496: a bare `::member` reference to a member property of the
+            // enclosing class is implicitly bound to `this` in Kotlin (the
+            // same shape as an explicit `this::member`), so it needs the same
+            // receiver capture — otherwise the generated wrapper's accessor
+            // has no instance to read/write, and calling `.get()`/`.set()`
+            // on it crashes (KSWIFTK-RUNTIME-0001 out-of-bounds read).
+            captureArguments.append(implicitReceiver)
         }
-
-        let targetSymbol = resolveCallableRefTargetSymbol(
-            exprID: exprID,
-            receiverExpr: receiverExpr,
-            memberName: memberName,
-            sema: sema
-        )
 
         // BUG-162: KProperty0/1 references need a real object implementing the
         // bundled KProperty and Function interfaces. A raw property symbol is
