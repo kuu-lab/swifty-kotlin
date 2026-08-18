@@ -889,7 +889,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
         #expect(ir.contains("@__kk_print_raw"))
-        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
+        // LLVM 14 emits typed pointers (i8*); LLVM 15+ uses opaque pointers (ptr).
+        #expect(ir.contains("{ ptr, i64, i64, i64 }") || ir.contains("{ i8*, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
