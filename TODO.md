@@ -440,8 +440,11 @@
   - diff: `tuple_*.kt` 既存 + `Pair`/`Triple` component/destructuring ケース
   - 前提: なし
 
-- [ ] KSP-707: Precondition `check`/`require`/`error` を Kotlin 化し `HeaderHelpers+SyntheticPreconditionStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPreconditionStubs.swift`
+- [x] KSP-707: Precondition `check`/`require`/`error` を Kotlin 化し `HeaderHelpers+SyntheticPreconditionStubs.swift` を削除する
+  - 完了 (2026-08-18): `require`/`check`/`error` は既に `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt` の source 実装のみで提供されていた（`registerSyntheticPreconditionStubs` は `externalLinkName: nil` のため新規シンボルを一切生成しない dead path だったと判明）。`HeaderHelpers+SyntheticPreconditionStubs.swift` を削除し、唯一 live だった `patchSourceBackedPreconditionContractEffects`（`require(x != null)` 等の smart-cast 用 `ContractNonNullEffect` を source-backed シンボルへ付与するロジック）を `HeaderHelpers.swift` へ移設・`Phase.swift` から従来通り呼び出し。`HeaderHelpers.swift` / `HeaderHelpers+SyntheticBucketedStubRegistry.swift` の呼び出し箇所も削除。
+    - 回帰と修正: 初回実装は `diff_kotlinc.sh`（`--stdlib-library` 経由の precompiled `.kklib` stdlib artifact モード）で `contract_smartcast.kt`/`contract_edge_cases.kt` が `No viable overload`/`Unresolved member function` で FAIL する回帰を作り込んでいた。原因は移設した関数の `!symbol.flags.contains(.synthetic)` フィルタが、precompiled artifact からロードされた `require`/`check`/`assert` シンボル（`.importedLibrary` と `.synthetic` の両方が立つ）を除外してしまうこと（デバッグ出力で `SymbolFlags(rawValue: 4194312)` 等を実測して特定）。フィルタを `!symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary)` に修正して解消。
+    - 検証: `swift build` green。ホストが他 worktree との同時実行で load average 200〜350 超まで高負荷化し、`swift_test.sh`/`swift test` は `CompilerCoreTests`（Swift Testing、in-process Sema 実行系: `PreconditionSyntheticSkipTests`/`KotlinContractsEffectModelTests` 等）で signal 10 (SIGBUS) を再現性高く発生（未変更 master でも同一クラッシュを再現確認、[[local-test-env-setup]] の既知事象と一致、コード起因ではなくマシン負荷/環境起因と判定）。そのため `.build/debug/kswiftc` を直接使った手動コンパイル・実行、および `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（`DIFF_COMPILE_TIMEOUT=300`、フル 934 ケース）で代替検証: `require(x != null)`/`check(y != null)`/`require(a is String)`/lazy message 版/`assert`/`error`/複合条件 (`&&`) を含む smart-cast ケースが期待通りの出力で PASS。full diff_cases は 933 passed / 35 skipped(既存 SKIP-DIFF) / 1 failed（`loop_body_alloca_stack_growth.kt`、`require`/`check` 等を一切使わない stack-growth perf ケースで run timeout=10s 超過。手動で余裕を持ったタイムアウトで再実行すると exit 0 で正常終了しており高負荷起因のタイムアウトと確認、本 PR の変更とは無関係）。CI での再確認を推奨。
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPreconditionStubs.swift`（削除済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt`（既存 source 継続）
   - 削除/降格 kk_*: 対象 `kk_*` なし
   - 手順: T
