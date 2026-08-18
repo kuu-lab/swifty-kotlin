@@ -608,12 +608,30 @@ struct TypeCheckHelpers {
                        symbolID == sema.types.kClassInterfaceSymbol
                         || sym.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
                     {
+                        // Preserve projected KClass type arguments in the nominal
+                        // representation. The dedicated KClass type stores only an
+                        // invariant argument, so collapsing `*`, `in`, or `out`
+                        // here would change the source-visible type.
+                        if let firstArg = resolvedArgs.first {
+                            switch firstArg {
+                            case .star, .in, .out:
+                                return sema.types.make(.classType(ClassType(
+                                    classSymbol: symbolID,
+                                    args: resolvedArgs,
+                                    nullability: nullability
+                                )))
+                            case .invariant:
+                                break
+                            }
+                        }
                         let argumentType: TypeID = if let firstArg = resolvedArgs.first {
                             switch firstArg {
-                            case let .invariant(t), let .out(t), let .in(t):
+                            case let .invariant(t):
                                 t
                             case .star:
                                 sema.types.anyType
+                            case let .out(t), let .in(t):
+                                t
                             }
                         } else {
                             sema.types.anyType
