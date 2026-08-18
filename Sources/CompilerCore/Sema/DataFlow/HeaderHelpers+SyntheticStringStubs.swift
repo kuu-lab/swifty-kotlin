@@ -22,30 +22,6 @@ extension DataFlowSemaPhase {
         if let kotlinRootPkgSymbol = symbols.lookup(fqName: kotlinRootPkg) {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
-
-        // `CharSequence.length` is an interface property, not an extension
-        // function. Keep a synthetic declaration in the interface so bundled
-        // Kotlin reads use the same itable path as user-defined implementations
-        // instead of forcing every receiver through a String-shaped runtime
-        // bridge. The extension stub below remains for String's legacy surface.
-        let charSequenceLengthName = interner.intern("length")
-        let charSequenceLengthFQName = charSequenceSymbol == .invalid
-            ? []
-            : (symbols.symbol(charSequenceSymbol)?.fqName ?? []) + [charSequenceLengthName]
-        if !charSequenceLengthFQName.isEmpty,
-           symbols.lookup(fqName: charSequenceLengthFQName) == nil
-        {
-            let lengthSymbol = symbols.define(
-                kind: .property,
-                name: charSequenceLengthName,
-                fqName: charSequenceLengthFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(charSequenceSymbol, for: lengthSymbol)
-            symbols.setPropertyType(types.intType, for: lengthSymbol)
-        }
         let appendableSymbol = ensureInterfaceSymbol(
             named: "Appendable",
             in: kotlinTextPkg,
@@ -64,17 +40,6 @@ extension DataFlowSemaPhase {
         let charType = types.make(.primitive(.char, .nonNull))
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
-        let listCharType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: charType
-        )
-        let charArrayType = makeNominalType(
-            symbols: symbols,
-            types: types,
-            fqName: [interner.intern("kotlin"), interner.intern("CharArray")]
-        )
         let nullableCharSequenceType = types.makeNullable(charSequenceType)
 
         // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
@@ -154,28 +119,10 @@ extension DataFlowSemaPhase {
         // String's companion object below (see STDLIB-TEXT-TYPE-004 companion
         // block, after `stringClassSymbol` is established).
 
-        registerSyntheticStringExtensionFunction(
-            named: "length",
-            externalLinkName: "kk_string_length",
-            receiverType: stringType,
-            parameters: [],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        // BUG-152: `length` must also resolve when the static type is the
-        // `CharSequence` interface, not only the concrete `String` type.
-        registerSyntheticStringExtensionFunction(
-            named: "length",
-            externalLinkName: "kk_string_length",
-            receiverType: charSequenceType,
-            parameters: [],
-            returnType: intType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-724: `String.length` is provided by bundled Kotlin source
+        // (`kotlin/String.kt`) and `CharSequence.length` is provided by the
+        // bundled `kotlin/CharSequence.kt` interface; synthetic extension stubs
+        // for `length` are no longer needed.
 
         // lowercase() — migrated to BundledStdlib (MIGRATION-TEXT-005)
         // uppercase() — migrated to BundledStdlib (MIGRATION-TEXT-005)
@@ -437,19 +384,10 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticStringExtensionFunction(
-            named: "get",
-            externalLinkName: "kk_char_sequence_get",
-            receiverType: charSequenceType,
-            parameters: [
-                ("index", intType, false, false),
-            ],
-            returnType: charType,
-            flags: [.synthetic, .operatorFunction],
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-724: `CharSequence.get` is provided by bundled Kotlin source
+        // (`kotlin/text/StringSubstringSlice.kt`); the synthetic extension stub
+        // is no longer needed.
+
         // BUG-152: `subSequence` on a value statically typed as `CharSequence` is
         // provided by bundled Kotlin source (StringSubstringSlice.kt).
 

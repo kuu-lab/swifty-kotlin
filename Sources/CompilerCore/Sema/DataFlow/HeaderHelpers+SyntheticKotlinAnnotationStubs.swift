@@ -33,13 +33,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "OptionalExpectation",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "IntroducedAt",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -62,16 +55,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticAnnotationClass(
-            named: "ParameterName",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-
-
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
         // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
         // (KSP-668). No synthetic registration is needed here.
@@ -225,23 +208,6 @@ extension DataFlowSemaPhase {
         }
 
 
-        if let optionalExpectationSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-                ),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-        }
 
 
 
@@ -276,36 +242,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let parameterNameSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("ParameterName")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.TYPE"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            registerSyntheticParameterNameMembers(
-                ownerSymbol: parameterNameSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("ParameterName")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
 
         // kotlin.concurrent package — `@Volatile` is a Native-target annotation.
         let kotlinConcurrentPkg = ensurePackage(

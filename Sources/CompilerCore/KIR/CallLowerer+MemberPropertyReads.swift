@@ -312,20 +312,16 @@ extension CallLowerer {
     ) -> KIRExprID? {
         // Synthetic stdlib interface properties (e.g. `Collection.size`) are
         // backed by runtime objects that do not register itable property
-        // getters, so their reads remain on the runtime fallback path. The
-        // synthetic CharSequence.length declaration is different: it is a real
-        // interface property and user-defined CharSequence implementations must
-        // be able to register their getter in the itable.
+        // getters, so their reads remain on the runtime fallback path.
+        // KSP-724: `CharSequence.length` is a source-backed interface property,
+        // so its `declSite` is set and it reaches the normal itable path along
+        // with other bundled interface properties.
         guard let propertyInfo = sema.symbols.symbol(propertySymbol),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
               ownerInfo.kind == .interface,
               (propertyInfo.declSite != nil
-                  || propertyInfo.flags.contains(.importedLibrary)
-                  || (ownerInfo.fqName == [
-                      interner.intern("kotlin"),
-                      interner.intern("CharSequence"),
-                  ] && interner.resolve(propertyInfo.name) == "length")),
+                  || propertyInfo.flags.contains(.importedLibrary)),
               let methodSlot = kirInterfacePropertyGetterSlot(
                   interfaceProperty: propertySymbol,
                   interfaceSymbol: ownerSymbol,

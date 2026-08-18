@@ -63,7 +63,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticSequenceTerminalMembers(
+        registerSyntheticSequenceResidualMembers(
             symbols: symbols,
             types: types,
             interner: interner,
