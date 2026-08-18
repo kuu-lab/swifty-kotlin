@@ -630,23 +630,9 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
-        // Bundled Kotlin source overloads with the same name and arity must
-        // resolve through their source symbols so inline lowering can expand
-        // their bodies at the call site.
-        let kotlinPackageFQName = [interner.intern("kotlin")]
-        let hasBundledTopLevelArrayFactory = if let calleeName, args.count == 2 {
-            sema.bundledIndex.contains(
-                owner: kotlinPackageFQName,
-                name: calleeName,
-                arity: args.count
-            )
-        } else {
-            false
-        }
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
-           !hasBundledTopLevelArrayFactory,
            locals[calleeName] == nil
         {
             let intType = sema.types.intType
