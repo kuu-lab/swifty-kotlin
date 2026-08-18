@@ -3876,6 +3876,21 @@ extension CallTypeChecker {
                 }
             }
 
+            // Set-specific source declarations must be selected before the
+            // generic Iterable overloads below. Set is also a Collection, so
+            // binding Iterable.filter first would make the result depend on
+            // bundled source load order.
+            if isSetReceiver, sema.bindings.callBindings[id] == nil, bindBundledSetSourceFunction() {
+                // The call now targets an ordinary Kotlin declaration, so its lambda
+                // arguments are boxed callables rather than native (closureObj, it)
+                // collection-HOF lambdas.
+                for arg in args {
+                    if let lambdaExpr = ast.arena.expr(arg.expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
+                    }
+                }
+            }
+
             // KSP-701: these generic collection extensions are ordinary
             // bundled Kotlin declarations on Iterable<T>. Keep the explicit
             // binding here for a statically Iterable receiver (and for
@@ -3913,17 +3928,6 @@ extension CallTypeChecker {
             // an already-bound CallBinding from a list/aggregate source path.
             if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
                 _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
-            }
-
-            if isSetReceiver, sema.bindings.callBindings[id] == nil, bindBundledSetSourceFunction() {
-                // The call now targets an ordinary Kotlin declaration, so its lambda
-                // arguments are boxed callables rather than native (closureObj, it)
-                // collection-HOF lambdas.
-                for arg in args {
-                    if let lambdaExpr = ast.arena.expr(arg.expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
-                    }
-                }
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
