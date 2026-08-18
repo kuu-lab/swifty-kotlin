@@ -37,12 +37,19 @@ cd "$ROOT_DIR"
 # no exec() argument limit applies); xargs may split them across several tool
 # invocations, so per-invocation counts are summed afterwards.
 count_lines() {
-  if [[ $# -eq 0 ]]; then
+  local existing_files=()
+  for file in "$@"; do
+    # `git ls-files` also returns paths deleted in the working tree. Ignore
+    # those paths so refactor metrics remain usable during file migrations.
+    [[ -f "$file" ]] && existing_files+=("$file")
+  done
+
+  if [[ ${#existing_files[@]} -eq 0 ]]; then
     printf '0\n'
     return
   fi
 
-  printf '%s\0' "$@" \
+  printf '%s\0' "${existing_files[@]}" \
     | xargs -0 awk 'END { print NR + 0 }' \
     | awk '{ total += $1 } END { print total + 0 }'
 }
@@ -51,12 +58,17 @@ count_regex_occurrences() {
   local pattern="$1"
   shift
 
-  if [[ $# -eq 0 ]]; then
+  local existing_files=()
+  for file in "$@"; do
+    [[ -f "$file" ]] && existing_files+=("$file")
+  done
+
+  if [[ ${#existing_files[@]} -eq 0 ]]; then
     printf '0\n'
     return
   fi
 
-  { printf '%s\0' "$@" | xargs -0 grep -hEo "$pattern" || true; } \
+  { printf '%s\0' "${existing_files[@]}" | xargs -0 grep -hEo "$pattern" || true; } \
     | awk 'END { print NR + 0 }'
 }
 

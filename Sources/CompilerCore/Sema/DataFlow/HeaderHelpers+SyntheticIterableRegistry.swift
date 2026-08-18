@@ -5,7 +5,7 @@ import RuntimeABI
 // The type shells and member registrations live together to avoid the old
 // SyntheticIterableStubs/SyntheticIterableMembers split.
 
-/// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
+/// Synthetic stdlib residuals retained after the KSP-697 nominal shell migration:
 /// Iterable, MutableIterable, Sequence, and Collection<T> interfaces plus member helpers (incl. primitive iterator stubs).
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
@@ -265,7 +265,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        collectionInterfaceSymbol: SymbolID
+        collectionInterfaceSymbol: SymbolID,
+        mutableIterableInterfaceSymbol: SymbolID? = nil
     ) -> SymbolID {
         let mutableCollectionName = interner.intern("MutableCollection")
         let mutableCollectionFQName = kotlinCollectionsPkg + [mutableCollectionName]
@@ -302,10 +303,22 @@ extension DataFlowSemaPhase {
         )))
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: mutableCollectionSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: mutableCollectionSymbol)
-        symbols.setDirectSupertypes([collectionInterfaceSymbol], for: mutableCollectionSymbol)
-        types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: mutableCollectionSymbol)
+        if symbols.directSupertypes(for: mutableCollectionSymbol).isEmpty {
+            var directSupertypes = [collectionInterfaceSymbol]
+            if let mutableIterableInterfaceSymbol {
+                directSupertypes.append(mutableIterableInterfaceSymbol)
+            }
+            symbols.setDirectSupertypes(directSupertypes, for: mutableCollectionSymbol)
+            types.setNominalDirectSupertypes(directSupertypes, for: mutableCollectionSymbol)
+        }
         symbols.setSupertypeTypeArgs([.out(typeParamType)], for: mutableCollectionSymbol, supertype: collectionInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: mutableCollectionSymbol, supertype: collectionInterfaceSymbol)
+        if let mutableIterableInterfaceSymbol,
+           symbols.supertypeTypeArgs(for: mutableCollectionSymbol, supertype: mutableIterableInterfaceSymbol).isEmpty
+        {
+            symbols.setSupertypeTypeArgs([.out(typeParamType)], for: mutableCollectionSymbol, supertype: mutableIterableInterfaceSymbol)
+            types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: mutableCollectionSymbol, supertype: mutableIterableInterfaceSymbol)
+        }
 
         let mutableCollectionType = types.make(.classType(ClassType(
             classSymbol: mutableCollectionSymbol,
@@ -512,7 +525,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString]
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty
     ) -> SymbolID {
         let iterableName = interner.intern("Iterable")
         let iterableFQName = kotlinCollectionsPkg + [iterableName]
@@ -531,14 +545,18 @@ extension DataFlowSemaPhase {
 
         let typeParamName = interner.intern("E")
         let typeParamFQName = iterableFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+        let typeParamSymbol: SymbolID = if let existing = types.nominalTypeParameterSymbols(for: iterableInterfaceSymbol).first {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
 
@@ -580,7 +598,9 @@ extension DataFlowSemaPhase {
 
         let iterFnName = interner.intern("iterator")
         let iterFnFQName = iterableFQName + [iterFnName]
-        if symbols.lookup(fqName: iterFnFQName) == nil {
+        if symbols.lookup(fqName: iterFnFQName) == nil,
+           !bundledIndex.contains(owner: iterableFQName, name: iterFnName, arity: 0)
+        {
             let typeParamType = types.make(.typeParam(TypeParamType(
                 symbol: typeParamSymbol,
                 nullability: .nonNull

@@ -57,10 +57,8 @@ struct CollectionLiteralLookupTables {
     var mutableListOfName: InternedString { listLookup.mutableListOfName }
     var arrayListOfName: InternedString { listLookup.arrayListOfName }
     var emptyListName: InternedString { listLookup.emptyListName }
-    var listOfNotNullName: InternedString { listLookup.listOfNotNullName }
     var arrayListName: InternedString { listLookup.arrayListName }
     var kkListOfName: InternedString { listLookup.kkListOfName }
-    var kkListOfNotNullName: InternedString { listLookup.kkListOfNotNullName }
     var kkEmptyListName: InternedString { listLookup.kkEmptyListName }
     var kkListSizeName: InternedString { listLookup.kkListSizeName }
     var kkListGetName: InternedString { listLookup.kkListGetName }

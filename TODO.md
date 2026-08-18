@@ -363,7 +363,7 @@
   - diff: `file_use_edge_cases.kt` 等既存 + `use` 単独ケース
   - 前提: なし
 
-- [ ] KSP-696: CollectionFactory bootstrap stub を削除し factory 関数を完全に Kotlin 化する
+- [x] KSP-696: CollectionFactory bootstrap stub を削除し factory 関数を完全に Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionFactoryStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
   - 削除/降格 kk_*: `kk_list_of_not_null`（`RuntimeCollections.swift`/`RuntimeABISpec+BridgeCoverage.swift`/`CallLowerer+CollectionFactoryCalls.swift`）を `__kk_list_of` 経由化 or 削除。`__kk_emptyList`/`__kk_list_of`/`__kk_emptySet`/`__kk_set_of`/`__kk_emptyMap`/`__kk_map_of` は source 使用継続
@@ -371,8 +371,8 @@
   - diff: `collection_factory_*.kt` 既存 + `listOfNotNull` ケース
   - 前提: なし（KSP-697/700/701/702 と統合調整可）
 
-- [ ] KSP-697: core collection / iterable / Comparable / List interface shells を Kotlin 化し `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` + `HeaderHelpers+SyntheticListStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListStubs.swift`（`LateListIndexedMembers` 含む）
+- [ ] KSP-697: core collection / iterable / Comparable / List interface shells を Kotlin 化し、旧 synthetic shell 登録を residual 責務へ分離する
+  - 対象 residual: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticComparableResiduals.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionResiduals.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListResiduals.swift`（`LateListIndexedMembers` 含む）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Comparable.kt`, `Sources/CompilerCore/Stdlib/kotlin/collections/` 新設 `Iterable.kt`/`Collection.kt`/`List.kt`/`MutableIterable.kt`/`MutableCollection.kt`/`AbstractList.kt`（既存 `MutableIterable.kt`/`AbstractCollection.kt`/`AbstractMutableCollection.kt`/`RandomAccess.kt` 活用）
   - 削除/降格 kk_*: interface shells には public `kk_*` なし。`Comparable` primitive conformances / `setupPrimitiveComparableImplementations` は (c) 残留として分離 or `__kk_` 降格
   - 手順: T
@@ -388,7 +388,7 @@
   - 前提: KSP-697（interface shells source-backed 後に member 移行）
 
 - [ ] KSP-699: IndexedValue / `ListIndexedAndArrayDequeStubs` 残余を Kotlin 化し削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift`, `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` 内 `registerLateListIndexedMembers` 残余
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift`, `HeaderHelpers+SyntheticCollectionResiduals.swift` 内 `registerLateListIndexedMembers` 残余
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterators.kt`（`IndexedValue` 等）
   - 削除/降格 kk_*: 対象 public `kk_*` なし
   - 手順: T

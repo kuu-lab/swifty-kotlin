@@ -1691,9 +1691,15 @@ struct ListSyntheticMemberLinkTests {
             let abstractListSymbol = try #require(sema.symbols.lookup(fqName: abstractListFQName))
             let abstractListInfo = try #require(sema.symbols.symbol(abstractListSymbol))
             #expect(abstractListInfo.kind == .class)
-            #expect(abstractListInfo.flags.contains(.synthetic))
+            // KSP-697: AbstractList is now a bundled Kotlin declaration. Its
+            // indexed members remain compiler residuals, but the nominal class
+            // itself must retain the source declaration and location.
+            #expect(!abstractListInfo.flags.contains(.synthetic))
             #expect(abstractListInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractListSymbol) == [.out])
+
+            let abstractListFileID = try #require(sema.symbols.sourceFileID(for: abstractListSymbol))
+            #expect(ctx.sourceManager.path(of: abstractListFileID) == "__bundled_kotlin/collections/AbstractList.kt")
 
             let directSupertypes = sema.symbols.directSupertypes(for: abstractListSymbol)
             #expect(directSupertypes.contains(abstractCollectionSymbol))
@@ -1708,6 +1714,82 @@ struct ListSyntheticMemberLinkTests {
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
             #expect(try #require(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
+        }
+    }
+
+    @Test
+    func testKSP697CollectionShellsAreSourceBackedWithoutDuplicateNominals() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let expected: [(packagePath: [String], name: String, variances: [TypeVariance], sourcePath: String)] = [
+                (["kotlin"], "Comparable", [.in], "__bundled_kotlin/Comparable.kt"),
+                (["kotlin", "collections"], "Iterable", [.out], "__bundled_kotlin/collections/Iterable.kt"),
+                (["kotlin", "collections"], "Collection", [.out], "__bundled_kotlin/collections/Collection.kt"),
+                (["kotlin", "collections"], "List", [.out], "__bundled_kotlin/collections/List.kt"),
+                (["kotlin", "collections"], "MutableCollection", [.invariant], "__bundled_kotlin/collections/MutableCollection.kt"),
+                (["kotlin", "collections"], "AbstractList", [.out], "__bundled_kotlin/collections/AbstractList.kt"),
+            ]
+
+            for item in expected {
+                let fqName = (item.packagePath + [item.name]).map { ctx.interner.intern($0) }
+                let candidates = sema.symbols.lookupAll(fqName: fqName)
+                #expect(candidates.count == 1, "Expected one nominal symbol for \(item.packagePath.joined(separator: ".")).\(item.name), got \(candidates.count)")
+                let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+                let info = try #require(sema.symbols.symbol(symbol))
+                #expect(!info.flags.contains(.synthetic))
+                #expect(sema.types.nominalTypeParameterVariances(for: symbol) == item.variances)
+                let fileID = try #require(sema.symbols.sourceFileID(for: symbol))
+                #expect(ctx.sourceManager.path(of: fileID) == item.sourcePath)
+            }
+
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            func symbol(_ name: String) throws -> SymbolID {
+                try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern(name)]))
+            }
+
+            let iterable = try symbol("Iterable")
+            let collection = try symbol("Collection")
+            let list = try symbol("List")
+            let mutableIterable = try symbol("MutableIterable")
+            let mutableCollection = try symbol("MutableCollection")
+            #expect(sema.symbols.directSupertypes(for: collection).contains(iterable))
+            #expect(sema.symbols.directSupertypes(for: list).contains(collection))
+            #expect(sema.symbols.directSupertypes(for: mutableCollection).contains(collection))
+            #expect(sema.symbols.directSupertypes(for: mutableCollection).contains(mutableIterable))
+            #expect(sema.symbols.supertypeTypeArgs(for: collection, supertype: iterable).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: list, supertype: collection).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: mutableCollection, supertype: collection).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: mutableCollection, supertype: mutableIterable).count == 1)
+        }
+    }
+
+    @Test
+    func testKSP697CollectionShellsSupportCustomImplementationsAndResidualDispatch() throws {
+        let source = """
+        class CustomIterable(private val value: Int) : Iterable<Int> {
+            override fun iterator(): Iterator<Int> = listOf(value).iterator()
+        }
+
+        class CustomList(private val value: Int) : AbstractList<Int>() {
+            override val size: Int get() = 1
+            override fun get(index: Int): Int = value
+            override fun iterator(): Iterator<Int> = listOf(value).iterator()
+        }
+
+        fun probe(values: List<Int>): Int {
+            val custom = CustomList(values[0])
+            return custom[0] + custom.iterator().next() + CustomIterable(1).iterator().next()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected source-backed collection shells and residual indexing/iterator members to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 

@@ -1,84 +1,7 @@
 // swiftlint:disable file_length
+// KSP-697: nominal collection shells are source-backed; this file retains residual registration.
 
 extension DataFlowSemaPhase {
-    /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
-    func registerSyntheticComparableStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
-        if symbols.lookup(fqName: kotlinPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("kotlin"),
-                fqName: kotlinPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        let comparableName = interner.intern("Comparable")
-        let comparableFQName = kotlinPkg + [comparableName]
-        let comparableSymbol: SymbolID = if let existing = symbols.lookup(fqName: comparableFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .interface,
-                name: comparableName,
-                fqName: comparableFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        // Store in TypeSystem for use in isSubtype
-        types.comparableInterfaceSymbol = comparableSymbol
-        types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
-
-        // KSP-669: the `Comparable<in T>` declaration is source-backed by
-        // `Stdlib/kotlin/Comparable.kt`, which reuses this synthetic shell on
-        // bundle load. The residual `compareTo` operator, primitive conformances
-        // (c-hard) and range upper bounds stay compiler-side (see
-        // `docs/stdlib-pipeline.md`).
-        // Define type parameter T for Comparable<in T>.
-        let tParamName = interner.intern("T")
-        let tParamFQName = comparableFQName + [tParamName]
-        let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: tParamName,
-                fqName: tParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let tParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol, nullability: .nonNull
-        )))
-
-        registerComparableCompareToOperator(
-            symbols: symbols, types: types, interner: interner,
-            comparableFQName: comparableFQName,
-            comparableSymbol: comparableSymbol,
-            tParamSymbol: tParamSymbol,
-            tParamType: tParamType
-        )
-        registerOpenEndRangeComparableUpperBound(
-            comparableSymbol: comparableSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        setupPrimitiveComparableImplementations(symbols: symbols, types: types, interner: interner, comparableSymbol: comparableSymbol)
-        patchSyntheticClosedRangeTypeParameterUpperBound(symbols: symbols, types: types, interner: interner)
-    }
-
     func registerSyntheticCollectionStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -121,7 +44,8 @@ extension DataFlowSemaPhase {
 
         let iterableInterfaceSymbol = registerSyntheticIterableStub(
             symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: bundledIndex
         )
 
         registerIterableReduceIndexedMember(
@@ -171,7 +95,8 @@ extension DataFlowSemaPhase {
         let mutableCollectionInterfaceSymbol = registerSyntheticMutableCollectionStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
-            collectionInterfaceSymbol: collectionInterfaceSymbol
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mutableIterableInterfaceSymbol: mutableIterableInterfaceSymbol
         )
 
         registerSyntheticAbstractMutableCollectionStub(
