@@ -60,6 +60,54 @@ extension TypeCheckHelpers {
         )))
     }
 
+    /// The intrinsic `KProperty0<V>` / `KProperty1<T, V>` / `KMutableProperty0<V>` /
+    /// `KMutableProperty1<T, V>` type of a property reference (`obj::prop` /
+    /// `Type::prop`), independent of any expected type from the call site.
+    ///
+    /// Callers must not adopt an `expectedType` that still mentions unresolved
+    /// type parameters (e.g. the declared `vararg elements: T` parameter type
+    /// while inferring `listOf(C::v)`'s argument, before `T` is solved) — doing
+    /// so binds the reference's static type to a bare type variable instead of
+    /// a `KProperty*` classType, which later fails `lowerPropertyReferenceWrapperValue`'s
+    /// shape guard and silently falls back to the legacy bare-symbol callable
+    /// path (crashes at runtime: that path calls the property's raw accessor
+    /// with no receiver). This natural type is what such callers should report
+    /// instead.
+    func naturalPropertyReferenceType(
+        propertySymbol: SymbolID,
+        ownerType: TypeID?,
+        isBoundReceiver: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard let propertyType = sema.symbols.propertyType(for: propertySymbol) else {
+            return nil
+        }
+        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        let interfaceName: String = switch (isBoundReceiver, isMutable) {
+        case (true, false): "KProperty0"
+        case (true, true): "KMutableProperty0"
+        case (false, false): "KProperty1"
+        case (false, true): "KMutableProperty1"
+        }
+        let reflectPkg = [interner.intern("kotlin"), interner.intern("reflect")]
+        guard let interfaceSymbol = sema.symbols.lookup(fqName: reflectPkg + [interner.intern(interfaceName)]) else {
+            return nil
+        }
+        let args: [TypeArg]
+        if isBoundReceiver {
+            args = [.invariant(propertyType)]
+        } else {
+            guard let ownerType else { return nil }
+            args = [.invariant(ownerType), .invariant(propertyType)]
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: args,
+            nullability: .nonNull
+        )))
+    }
+
     func chooseCallableReferenceTarget(
         from candidates: [SymbolID],
         expectedType: TypeID?,

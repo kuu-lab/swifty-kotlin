@@ -1267,7 +1267,25 @@ extension ExprTypeChecker {
                     }
                     if let propertySymbol = propertyCandidates.first {
                         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        let resultType = expectedType ?? propertyType
+                        // An expected type that still mentions type parameters belongs to
+                        // a generic signature whose type arguments are inferred from this
+                        // very argument (e.g. `listOf(C::v)`'s `vararg elements: T` before
+                        // `T` is solved). Adopting it verbatim would bind this reference's
+                        // static type to a bare type variable instead of a `KProperty*`
+                        // classType, which downstream KIR lowering can't shape into a
+                        // wrapper object — report the reference's own natural type instead.
+                        let resultType: TypeID
+                        if let expectedType, !sema.types.typeContainsAnyTypeParam(expectedType) {
+                            resultType = expectedType
+                        } else {
+                            resultType = driver.helpers.naturalPropertyReferenceType(
+                                propertySymbol: propertySymbol,
+                                ownerType: nonNullReceiver,
+                                isBoundReceiver: unboundClassType == nil,
+                                sema: sema,
+                                interner: interner
+                            ) ?? expectedType ?? propertyType
+                        }
                         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                         sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
                         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
