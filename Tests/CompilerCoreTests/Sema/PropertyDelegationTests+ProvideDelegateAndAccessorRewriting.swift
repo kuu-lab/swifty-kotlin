@@ -15,6 +15,14 @@ import Testing
 private enum PropertyDelegationSharedContext {
     static nonisolated(unsafe) var raw: CompilationContext?
     static nonisolated(unsafe) var lowered: CompilationContext?
+    static nonisolated(unsafe) var loweredPaths: [String]?
+}
+
+private enum PropertyDelegationLoweredFixture: Int {
+    case delegated = 0
+    case mutable = 1
+    case provideDelegate = 2
+    case topLevel = 3
 }
 
 private func sharedPropertyDelegationRawCtx() throws -> CompilationContext {
@@ -33,15 +41,6 @@ private func sharedPropertyDelegationRawCtx() throws -> CompilationContext {
         }
         """,
         """
-        package delegation.raw1
-        class MyDelegate1 {
-            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-        }
-        class Foo1 {
-            val x: Int by MyDelegate1()
-        }
-        """,
-        """
         package delegation.raw2
         class MyDelegate2 {
             operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate2 = this
@@ -49,16 +48,6 @@ private func sharedPropertyDelegationRawCtx() throws -> CompilationContext {
         }
         class Foo2 {
             val x: Int by MyDelegate2()
-        }
-        """,
-        """
-        package delegation.raw3
-        class MyDelegate3 {
-            operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate3 = this
-            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-        }
-        class Foo3 {
-            val x: Int by MyDelegate3()
         }
         """,
     ]
@@ -101,25 +90,6 @@ private func sharedPropertyDelegationLoweredCtx() throws -> CompilationContext {
         }
         """,
         """
-        package delegation.lower2
-        class MyDelegate7 {
-            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-        }
-        class Foo7 {
-            val x: Int by MyDelegate7()
-        }
-        """,
-        """
-        package delegation.lower3
-        class MyDelegate8 {
-            operator fun getValue(thisRef: Any?, property: Any?): Int = 42
-            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {}
-        }
-        class Foo8 {
-            var x: Int by MyDelegate8()
-        }
-        """,
-        """
         package delegation.lower4
         class MyDelegate9 {
             operator fun provideDelegate(thisRef: Any?, property: Any?): MyDelegate9 = this
@@ -144,11 +114,20 @@ private func sharedPropertyDelegationLoweredCtx() throws -> CompilationContext {
         try runToKIR(ctx)
         try LoweringPhase().run(ctx)
         result = ctx
+        PropertyDelegationSharedContext.loweredPaths = paths
     }
 
     let ctx = try #require(result)
     PropertyDelegationSharedContext.lowered = ctx
     return ctx
+}
+
+private func sharedPropertyDelegationLoweredFixture(
+    _ fixture: PropertyDelegationLoweredFixture
+) throws -> (ctx: CompilationContext, path: String) {
+    let ctx = try sharedPropertyDelegationLoweredCtx()
+    let paths = try #require(PropertyDelegationSharedContext.loweredPaths)
+    return (ctx: ctx, path: paths[fixture.rawValue])
 }
 
 private func hasDelegateStorageWrite(_ body: [KIRInstruction], interner: StringInterner) -> Bool {
@@ -188,7 +167,7 @@ extension DelegateStorageSymbolTableTests {
         let interner = ctx.interner
 
         let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            interner.resolve(fn.name) == "Foo1" ? fn : nil
+            interner.resolve(fn.name) == "Foo0" ? fn : nil
         }
 
         if let ctor = constructors.first {
@@ -235,7 +214,7 @@ extension DelegateStorageSymbolTableTests {
         let interner = ctx.interner
 
         let constructors = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
-            interner.resolve(fn.name) == "Foo3" ? fn : nil
+            interner.resolve(fn.name) == "Foo2" ? fn : nil
         }
         #expect(!constructors.isEmpty, "Expected Foo constructor")
 
@@ -340,23 +319,27 @@ extension DelegateStorageSymbolTableTests {
                       "Expected synthesized setter path to remain available after lowering")
     }
     @Test func testDelegatedPropertyCompilesWithoutErrors() throws {
-        let ctx = try sharedPropertyDelegationLoweredCtx()
-        #expect(!ctx.diagnostics.hasError,
+        let (ctx, path) = try sharedPropertyDelegationLoweredFixture(.delegated)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty,
                        "Delegated property should compile without errors")
     }
     @Test func testMutableDelegatedPropertyCompilesWithoutErrors() throws {
-        let ctx = try sharedPropertyDelegationLoweredCtx()
-        #expect(!ctx.diagnostics.hasError,
+        let (ctx, path) = try sharedPropertyDelegationLoweredFixture(.mutable)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty,
                        "Mutable delegated property should compile without errors")
     }
     @Test func testDelegatedPropertyWithProvideDelegateCompilesWithoutErrors() throws {
-        let ctx = try sharedPropertyDelegationLoweredCtx()
-        #expect(!ctx.diagnostics.hasError,
+        let (ctx, path) = try sharedPropertyDelegationLoweredFixture(.provideDelegate)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty,
                        "Delegated property with provideDelegate should compile without errors")
     }
     @Test func testTopLevelDelegatedPropertyCompilesWithoutErrors() throws {
-        let ctx = try sharedPropertyDelegationLoweredCtx()
-        #expect(!ctx.diagnostics.hasError,
+        let (ctx, path) = try sharedPropertyDelegationLoweredFixture(.topLevel)
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+        #expect(errors.isEmpty,
                        "Top-level delegated property should compile without errors")
     }
 }
