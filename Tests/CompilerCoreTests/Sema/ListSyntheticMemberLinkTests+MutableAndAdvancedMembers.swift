@@ -1374,7 +1374,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testWithIndexUsesIterableOfIndexedValueSignature() throws {
+    func testWithIndexUsesListOfIndexedValueSignature() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
 
