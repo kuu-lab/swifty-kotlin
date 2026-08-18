@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct ContinuationSyntheticStubTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 

@@ -103,10 +103,12 @@ struct MathOverloadResolutionTests {
     fun roundToIntFloat(x: Float): Int = x.roundToInt()
     fun roundToLongDouble(x: Double): Long = x.roundToLong()
     fun roundToLongFloat(x: Float): Long = x.roundToLong()
-    fun precisionHelpers(x: Double, y: Float) {
-        val a = x.ulp; val b = x.nextUp(); val c = x.nextDown()
-        val d = y.ulp; val e = y.nextUp(); val f = y.nextDown()
-    }
+    fun ulpDouble(x: Double): Double = x.ulp
+    fun ulpFloat(x: Float): Float = x.ulp
+    fun nextUpDouble(x: Double): Double = x.nextUp()
+    fun nextUpFloat(x: Float): Float = x.nextUp()
+    fun nextDownDouble(x: Double): Double = x.nextDown()
+    fun nextDownFloat(x: Float): Float = x.nextDown()
     fun absDistinct(i: Int, l: Long, d: Double, flt: Float) {
         val ai = abs(i); val al = abs(l); val ad = abs(d); val af = abs(flt)
     }
@@ -157,6 +159,15 @@ struct MathOverloadResolutionTests {
         }
     }
 
+    private func functionBodyRange(
+        named name: String,
+        in ast: ASTModule,
+        interner: StringInterner
+    ) throws -> SourceRange {
+        let function = try #require(functionDecl(named: name, in: ast, interner: interner))
+        return try #require(bodyRange(of: function))
+    }
+
     private func renderedSignature(for symbol: SymbolID, sema: SemaModule) -> String? {
         guard let signature = sema.symbols.functionSignature(for: symbol) else { return nil }
         let parameters = signature.parameterTypes
@@ -180,14 +191,19 @@ struct MathOverloadResolutionTests {
     private func matchingCallExpressions(
         named callName: String,
         source: String,
+        inFunction functionName: String,
         in ctx: CompilationContext
     ) throws -> [(ExprID, SymbolID)] {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let functionRange = try functionBodyRange(named: functionName, in: ast, interner: ctx.interner)
         var matches: [(ExprID, SymbolID)] = []
         for exprIndex in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(exprIndex))
-            guard let expr = ast.arena.expr(exprID), isInUserFile(exprID, ast: ast) else { continue }
+            guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
+                  functionRange.contains(exprRange)
+            else { continue }
             let name: String
             switch expr {
             case let .call(calleeExpr, _, _, _):
@@ -209,6 +225,7 @@ struct MathOverloadResolutionTests {
 
     private func resolvedLink(
         forCall callName: String,
+        inFunction functionName: String,
         withSource source: String,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -219,21 +236,34 @@ struct MathOverloadResolutionTests {
             "Unexpected sema error for '\(callName)': \(ctx.diagnostics.diagnostics.map(\.message))"
         )
         let sema = try #require(ctx.sema)
-        return try matchingCallExpressions(named: callName, source: source, in: ctx)
-            .first
-            .flatMap { sema.symbols.externalLinkName(for: $0.1) }
+        let matches = try matchingCallExpressions(
+            named: callName,
+            source: source,
+            inFunction: functionName,
+            in: ctx
+        )
+        #expect(!matches.isEmpty, "Expected \(callName) in shared function \(functionName)")
+        return matches.first.flatMap { sema.symbols.externalLinkName(for: $0.1) }
     }
 
     /// Kotlin-source backed overloads carry no runtime link, so the
     /// selected overload is identified by its resolved signature instead.
     private func resolvedSourceBackedSignature(
         forCall callName: String,
+        inFunction functionName: String,
         withSource source: String
     ) throws -> String? {
         let ctx = try sharedCtx()
         #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
         let sema = try #require(ctx.sema)
-        for (_, chosenCallee) in try matchingCallExpressions(named: callName, source: source, in: ctx) {
+        let matches = try matchingCallExpressions(
+            named: callName,
+            source: source,
+            inFunction: functionName,
+            in: ctx
+        )
+        #expect(!matches.isEmpty, "Expected \(callName) in shared function \(functionName)")
+        for (_, chosenCallee) in matches {
             if let signature = sourceBackedSignature(for: chosenCallee, sema: sema) {
                 return signature
             }
@@ -243,6 +273,7 @@ struct MathOverloadResolutionTests {
 
     private func resolvedLinkForFirstMatchingCall(
         names: Set<String>,
+        inFunction functionName: String,
         withSource source: String,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -252,7 +283,13 @@ struct MathOverloadResolutionTests {
         let sema = try #require(ctx.sema)
         var results: [String: String] = [:]
         for name in names {
-            guard let chosenCallee = try matchingCallExpressions(named: name, source: source, in: ctx).first?.1 else {
+            guard let chosenCallee = try matchingCallExpressions(
+                named: name,
+                source: source,
+                inFunction: functionName,
+                in: ctx
+            ).first?.1 else {
+                #expect(Bool(false), "Expected \(name) in shared function \(functionName)")
                 continue
             }
             results[name] = sema.symbols.externalLinkName(for: chosenCallee) ?? "<source>"
@@ -264,25 +301,25 @@ struct MathOverloadResolutionTests {
 
     @Test func testAbsIntOverload() throws {
         let source = "fun f(x: Int): Int = abs(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "abs", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "abs", inFunction: "absInt", withSource: source)
         #expect(signature == "(Int) -> Int")
     }
 
     @Test func testAbsLongOverload() throws {
         let source = "fun f(x: Long): Long = abs(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "abs", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "abs", inFunction: "absLong", withSource: source)
         #expect(signature == "(Long) -> Long")
     }
 
     @Test func testAbsDoubleOverload() throws {
         let source = "fun f(x: Double): Double = abs(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "abs", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "abs", inFunction: "absDouble", withSource: source)
         #expect(signature == "(Double) -> Double")
     }
 
     @Test func testAbsFloatOverload() throws {
         let source = "fun f(x: Float): Float = abs(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "abs", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "abs", inFunction: "absFloat", withSource: source)
         #expect(signature == "(Float) -> Float")
     }
 
@@ -290,13 +327,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sqrt(x)"
-        let link = try resolvedLink(forCall: "sqrt", withSource: source)
+        let link = try resolvedLink(forCall: "sqrt", inFunction: "sqrtDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testSqrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = sqrt(x)"
-        let link = try resolvedLink(forCall: "sqrt", withSource: source)
+        let link = try resolvedLink(forCall: "sqrt", inFunction: "sqrtFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -304,37 +341,41 @@ struct MathOverloadResolutionTests {
 
     @Test func testPowDoubleOverload() throws {
         let source = "fun f(x: Double, y: Double): Double = x.pow(y)"
-        let link = try resolvedLink(forCall: "pow", withSource: source)
+        let link = try resolvedLink(forCall: "pow", inFunction: "powDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testPowRemainingOverloads() throws {
-        let cases: [(source: String, expectedLink: String?)] = [
-            ("fun f(x: Float, y: Float): Float = x.pow(y)", nil),
-            ("fun f(x: Double, n: Int): Double = x.pow(n)", nil),
-            ("fun f(x: Float, n: Int): Float = x.pow(n)", nil),
+        let cases: [(function: String, source: String, expectedLink: String?)] = [
+            ("powFloat", "fun f(x: Float, y: Float): Float = x.pow(y)", nil),
+            ("powDoubleInt", "fun f(x: Double, n: Int): Double = x.pow(n)", nil),
+            ("powFloatInt", "fun f(x: Float, n: Int): Float = x.pow(n)", nil),
         ]
 
         for testCase in cases {
-            let link = try resolvedLink(forCall: "pow", withSource: testCase.source)
+            let link = try resolvedLink(forCall: "pow", inFunction: testCase.function, withSource: testCase.source)
             #expect(link == testCase.expectedLink)
         }
     }
 
     @Test func testIEEEremNextTowardsAndWithSignOverloads() throws {
-        let cases: [(name: String, source: String, expectedLink: String?)] = [
-            ("IEEErem", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", nil),
-            ("IEEErem", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", nil),
-            ("nextTowards", "fun f(x: Double, y: Double): Double = x.nextTowards(y)", nil),
-            ("nextTowards", "fun f(x: Float, y: Float): Float = x.nextTowards(y)", nil),
-            ("withSign", "fun f(x: Double, y: Double): Double = x.withSign(y)", nil),
-            ("withSign", "fun f(x: Double, sign: Int): Double = x.withSign(sign)", nil),
-            ("withSign", "fun f(x: Float, y: Float): Float = x.withSign(y)", nil),
-            ("withSign", "fun f(x: Float, sign: Int): Float = x.withSign(sign)", nil),
+        let cases: [(name: String, function: String, source: String, expectedLink: String?)] = [
+            ("IEEErem", "ieeeRemDouble", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", nil),
+            ("IEEErem", "ieeeRemFloat", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", nil),
+            ("nextTowards", "nextTowardsDouble", "fun f(x: Double, y: Double): Double = x.nextTowards(y)", nil),
+            ("nextTowards", "nextTowardsFloat", "fun f(x: Float, y: Float): Float = x.nextTowards(y)", nil),
+            ("withSign", "withSignDoubleDouble", "fun f(x: Double, y: Double): Double = x.withSign(y)", nil),
+            ("withSign", "withSignDoubleInt", "fun f(x: Double, sign: Int): Double = x.withSign(sign)", nil),
+            ("withSign", "withSignFloatFloat", "fun f(x: Float, y: Float): Float = x.withSign(y)", nil),
+            ("withSign", "withSignFloatInt", "fun f(x: Float, sign: Int): Float = x.withSign(sign)", nil),
         ]
 
         for testCase in cases {
-            let link = try resolvedLink(forCall: testCase.name, withSource: testCase.source)
+            let link = try resolvedLink(
+                forCall: testCase.name,
+                inFunction: testCase.function,
+                withSource: testCase.source
+            )
             #expect(link == testCase.expectedLink)
         }
     }
@@ -366,37 +407,37 @@ struct MathOverloadResolutionTests {
 
     @Test func testRoundDoubleOverload() throws {
         let source = "fun f(x: Double): Double = round(x)"
-        let link = try resolvedLink(forCall: "round", withSource: source)
+        let link = try resolvedLink(forCall: "round", inFunction: "roundDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testRoundFloatOverload() throws {
         let source = "fun f(x: Float): Float = round(x)"
-        let link = try resolvedLink(forCall: "round", withSource: source)
+        let link = try resolvedLink(forCall: "round", inFunction: "roundFloat", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testCeilDoubleOverload() throws {
         let source = "fun f(x: Double): Double = ceil(x)"
-        let link = try resolvedLink(forCall: "ceil", withSource: source)
+        let link = try resolvedLink(forCall: "ceil", inFunction: "ceilDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testCeilFloatOverload() throws {
         let source = "fun f(x: Float): Float = ceil(x)"
-        let link = try resolvedLink(forCall: "ceil", withSource: source)
+        let link = try resolvedLink(forCall: "ceil", inFunction: "ceilFloat", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testFloorDoubleOverload() throws {
         let source = "fun f(x: Double): Double = floor(x)"
-        let link = try resolvedLink(forCall: "floor", withSource: source)
+        let link = try resolvedLink(forCall: "floor", inFunction: "floorDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testFloorFloatOverload() throws {
         let source = "fun f(x: Float): Float = floor(x)"
-        let link = try resolvedLink(forCall: "floor", withSource: source)
+        let link = try resolvedLink(forCall: "floor", inFunction: "floorFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -416,6 +457,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
+            inFunction: "trigDouble",
             withSource: source
         )
         #expect(links["sin"] == "<source>")
@@ -440,6 +482,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
+            inFunction: "trigFloat",
             withSource: source
         )
         #expect(links["sin"] == "<source>")
@@ -454,13 +497,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testAtan2DoubleOverload() throws {
         let source = "fun f(y: Double, x: Double): Double = atan2(y, x)"
-        let link = try resolvedLink(forCall: "atan2", withSource: source)
+        let link = try resolvedLink(forCall: "atan2", inFunction: "atan2Double", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testAtan2FloatOverload() throws {
         let source = "fun f(y: Float, x: Float): Float = atan2(y, x)"
-        let link = try resolvedLink(forCall: "atan2", withSource: source)
+        let link = try resolvedLink(forCall: "atan2", inFunction: "atan2Float", withSource: source)
         #expect(link == nil)
     }
 
@@ -477,6 +520,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["sinh", "cosh", "tanh"],
+            inFunction: "hyperbolicDouble",
             withSource: source
         )
         #expect(links["sinh"] == "<source>")
@@ -495,6 +539,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["sinh", "cosh", "tanh"],
+            inFunction: "hyperbolicFloat",
             withSource: source
         )
         #expect(links["sinh"] == "<source>")
@@ -515,6 +560,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["acosh", "asinh", "atanh"],
+            inFunction: "inverseHyperbolicDouble",
             withSource: source
         )
         #expect(links["acosh"] == "<source>")
@@ -533,6 +579,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["acosh", "asinh", "atanh"],
+            inFunction: "inverseHyperbolicFloat",
             withSource: source
         )
         #expect(links["acosh"] == "<source>")
@@ -556,6 +603,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
+            inFunction: "logExpDouble",
             withSource: source
         )
         #expect(links["exp"] == "<source>")
@@ -580,6 +628,7 @@ struct MathOverloadResolutionTests {
         """
         let links = try resolvedLinkForFirstMatchingCall(
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
+            inFunction: "logExpFloat",
             withSource: source
         )
         #expect(links["exp"] == "<source>")
@@ -592,13 +641,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testLogTwoArgDoubleOverload() throws {
         let source = "fun f(x: Double, base: Double): Double = log(x, base)"
-        let link = try resolvedLink(forCall: "log", withSource: source)
+        let link = try resolvedLink(forCall: "log", inFunction: "logTwoArgDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testLogTwoArgFloatOverload() throws {
         let source = "fun f(x: Float, base: Float): Float = log(x, base)"
-        let link = try resolvedLink(forCall: "log", withSource: source)
+        let link = try resolvedLink(forCall: "log", inFunction: "logTwoArgFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -606,13 +655,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testHypotDoubleOverload() throws {
         let source = "fun f(x: Double, y: Double): Double = hypot(x, y)"
-        let link = try resolvedLink(forCall: "hypot", withSource: source)
+        let link = try resolvedLink(forCall: "hypot", inFunction: "hypotDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testHypotFloatOverload() throws {
         let source = "fun f(x: Float, y: Float): Float = hypot(x, y)"
-        let link = try resolvedLink(forCall: "hypot", withSource: source)
+        let link = try resolvedLink(forCall: "hypot", inFunction: "hypotFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -622,7 +671,11 @@ struct MathOverloadResolutionTests {
         for name in ["max", "min"] {
             for type in ["Double", "Float", "Int", "Long", "UInt", "ULong"] {
                 let source = "fun f(a: \(type), b: \(type)): \(type) = \(name)(a, b)"
-                let signature = try resolvedSourceBackedSignature(forCall: name, withSource: source)
+                let signature = try resolvedSourceBackedSignature(
+                    forCall: name,
+                    inFunction: "\(name)\(type)",
+                    withSource: source
+                )
                 #expect(
                     signature == "(\(type), \(type)) -> \(type)",
                     "\(name)(\(type), \(type)) should resolve to the matching overload, got \(signature ?? "nil")"
@@ -635,13 +688,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testCbrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = cbrt(x)"
-        let link = try resolvedLink(forCall: "cbrt", withSource: source)
+        let link = try resolvedLink(forCall: "cbrt", inFunction: "cbrtDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testCbrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = cbrt(x)"
-        let link = try resolvedLink(forCall: "cbrt", withSource: source)
+        let link = try resolvedLink(forCall: "cbrt", inFunction: "cbrtFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -649,13 +702,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testSignDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sign(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "sign", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "sign", inFunction: "signDouble", withSource: source)
         #expect(signature == "(Double) -> Double")
     }
 
     @Test func testSignFloatOverload() throws {
         let source = "fun f(x: Float): Float = sign(x)"
-        let signature = try resolvedSourceBackedSignature(forCall: "sign", withSource: source)
+        let signature = try resolvedSourceBackedSignature(forCall: "sign", inFunction: "signFloat", withSource: source)
         #expect(signature == "(Float) -> Float")
     }
 
@@ -663,13 +716,13 @@ struct MathOverloadResolutionTests {
 
     @Test func testTruncateDoubleOverload() throws {
         let source = "fun f(x: Double): Double = truncate(x)"
-        let link = try resolvedLink(forCall: "truncate", withSource: source)
+        let link = try resolvedLink(forCall: "truncate", inFunction: "truncateDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testTruncateFloatOverload() throws {
         let source = "fun f(x: Float): Float = truncate(x)"
-        let link = try resolvedLink(forCall: "truncate", withSource: source)
+        let link = try resolvedLink(forCall: "truncate", inFunction: "truncateFloat", withSource: source)
         #expect(link == nil)
     }
 
@@ -677,40 +730,44 @@ struct MathOverloadResolutionTests {
 
     @Test func testRoundToIntDoubleOverload() throws {
         let source = "fun f(x: Double): Int = x.roundToInt()"
-        let link = try resolvedLink(forCall: "roundToInt", withSource: source)
+        let link = try resolvedLink(forCall: "roundToInt", inFunction: "roundToIntDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testRoundToIntFloatOverload() throws {
         let source = "fun f(x: Float): Int = x.roundToInt()"
-        let link = try resolvedLink(forCall: "roundToInt", withSource: source)
+        let link = try resolvedLink(forCall: "roundToInt", inFunction: "roundToIntFloat", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testRoundToLongDoubleOverload() throws {
         let source = "fun f(x: Double): Long = x.roundToLong()"
-        let link = try resolvedLink(forCall: "roundToLong", withSource: source)
+        let link = try resolvedLink(forCall: "roundToLong", inFunction: "roundToLongDouble", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testRoundToLongFloatOverload() throws {
         let source = "fun f(x: Float): Long = x.roundToLong()"
-        let link = try resolvedLink(forCall: "roundToLong", withSource: source)
+        let link = try resolvedLink(forCall: "roundToLong", inFunction: "roundToLongFloat", withSource: source)
         #expect(link == nil)
     }
 
     @Test func testFloatingPrecisionExtensionsAreSourceBacked() throws {
-        let cases: [(name: String, source: String)] = [
-            ("ulp", "fun f(x: Double): Double = x.ulp"),
-            ("ulp", "fun f(x: Float): Float = x.ulp"),
-            ("nextUp", "fun f(x: Double): Double = x.nextUp()"),
-            ("nextUp", "fun f(x: Float): Float = x.nextUp()"),
-            ("nextDown", "fun f(x: Double): Double = x.nextDown()"),
-            ("nextDown", "fun f(x: Float): Float = x.nextDown()"),
+        let cases: [(name: String, function: String, source: String)] = [
+            ("ulp", "ulpDouble", "fun f(x: Double): Double = x.ulp"),
+            ("ulp", "ulpFloat", "fun f(x: Float): Float = x.ulp"),
+            ("nextUp", "nextUpDouble", "fun f(x: Double): Double = x.nextUp()"),
+            ("nextUp", "nextUpFloat", "fun f(x: Float): Float = x.nextUp()"),
+            ("nextDown", "nextDownDouble", "fun f(x: Double): Double = x.nextDown()"),
+            ("nextDown", "nextDownFloat", "fun f(x: Float): Float = x.nextDown()"),
         ]
 
         for testCase in cases {
-            let link = try resolvedLink(forCall: testCase.name, withSource: testCase.source)
+            let link = try resolvedLink(
+                forCall: testCase.name,
+                inFunction: testCase.function,
+                withSource: testCase.source
+            )
             #expect(link == nil, "(testCase.name) should resolve to Kotlin source")
         }
     }
@@ -767,10 +824,12 @@ struct MathOverloadResolutionTests {
     @Test func testSqrtSelectsDistinctSourceBackedOverloadsForDoubleAndFloat() throws {
         let doubleSignature = try resolvedSourceBackedSignature(
             forCall: "sqrt",
+            inFunction: "sqrtDouble",
             withSource: "fun f(x: Double): Double = sqrt(x)"
         )
         let floatSignature = try resolvedSourceBackedSignature(
             forCall: "sqrt",
+            inFunction: "sqrtFloat",
             withSource: "fun f(x: Float): Float = sqrt(x)"
         )
         #expect(doubleSignature == "(Double) -> Double")
@@ -781,6 +840,7 @@ struct MathOverloadResolutionTests {
 
     private func resolvedLinkForFQNCall(
         lastComponent: String,
+        inFunction functionName: String,
         withSource source: String,
         file: StaticString = #filePath,
         line: UInt = #line
@@ -790,11 +850,14 @@ struct MathOverloadResolutionTests {
                 "Unexpected sema error for FQN call '\(lastComponent)'")
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
+        let functionRange = try functionBodyRange(named: functionName, in: ast, interner: ctx.interner)
         for exprIndex in ast.arena.exprs.indices {
             let exprID = ExprID(rawValue: Int32(exprIndex))
             guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
                   case let .memberCall(_, calleeMember, _, _, _) = expr,
                   ctx.interner.resolve(calleeMember) == lastComponent,
+                  functionRange.contains(exprRange),
                   isInUserFile(exprID, ast: ast),
                   let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                   let signature = renderedSignature(for: chosenCallee, sema: sema),
@@ -808,14 +871,22 @@ struct MathOverloadResolutionTests {
     @Test func testFQNAbsOverloadsResolveWithoutRuntimeLink() throws {
         for type in ["Int", "Double"] {
             let source = "fun f(x: \(type)): \(type) = kotlin.math.abs(x)"
-            let link = try resolvedLinkForFQNCall(lastComponent: "abs", withSource: source)
+            let link = try resolvedLinkForFQNCall(
+                lastComponent: "abs",
+                inFunction: "fqnAbs\(type)",
+                withSource: source
+            )
             #expect(link == nil, "FQN abs(\(type)) is Kotlin-source backed, got \(link ?? "nil")")
         }
     }
 
     @Test func testFQNSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = kotlin.math.sqrt(x)"
-        let link = try resolvedLinkForFQNCall(lastComponent: "sqrt", withSource: source)
+        let link = try resolvedLinkForFQNCall(
+            lastComponent: "sqrt",
+            inFunction: "fqnSqrtDouble",
+            withSource: source
+        )
         #expect(link == nil)
     }
 }
