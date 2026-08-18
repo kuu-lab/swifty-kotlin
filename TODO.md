@@ -38,10 +38,10 @@
 > **移行テンプレート T**（W2〜W4/W6 の各タスクはこの手順）:
 > 1. タスク記載の diff ケースを `Scripts/diff_cases/` で確認・なければ追加し、**現行実装**で `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/<case>.kt` green を確認（挙動の固定）
 > 2. タスク記載の実装先 .kt に Kotlin 実装を書く（既存ファイル追記可）。ランタイム依存点は `@KsSymbolName("__kk_...") internal external fun __名前(...)` で宣言
-> 3. 新規 .kt は `Sources/CompilerCore/Stdlib/kotlin/` 配下に置くだけで自動配線される。除外リスト対象は `Sources/CompilerCore/Driver/FrontendPhases.swift` の `excludedBundledStdlibFiles` から該当エントリを削除
+> 3. 新規 .kt は `Sources/CompilerCore/Stdlib/kotlin/` 配下に置くだけで自動配線される（除外リスト機構は KSP-505 で撤廃済み）
 > 4. **同一 PR** で、タスク記載の (a) `HeaderHelpers+Synthetic*` の該当登録 (b) `CallTypeChecker+*` / `CallLowerer+*` の名前文字列特例 case (c) Runtime の `@_cdecl` 関数 (d) `RuntimeABISpec` の該当エントリ（parity テスト含む）を削除する。「ブリッジ残留」指定の関数は削除せず `__kk_` prefix へ改名し spec を更新
 > 5. U → G → タスク記載の rg 完了チェックが 0 件
-> 6. **移行完了の3点確認**: ①除外リスト非登録 ②.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: RangeCoercion.kt） ③Sema/KIR/Lowering に同名 name-string 特例が残っていない
+> 6. **移行完了の2点確認**: ①.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: RangeCoercion.kt） ②Sema/KIR/Lowering に同名 name-string 特例が残っていない
 > 7. **二重 oracle**: diff ケースに加え、bundled .kt を実行して期待値比較する自己完結テスト（KSP-INF-006 のハーネス整備後は必須。整備前は G の既存テストで代替可）
 > 8. ブリッジ（`__kk_*`）を**追加**する場合は理由コード（syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）を PR 本文に明記し、`RuntimeABISpec` 登録 + specVersion 更新をセットで行う。本家 kotlin-stdlib から移植した .kt には Apache 2.0 帰属ヘッダを付ける（KSP-INF-013）
 
@@ -257,8 +257,14 @@
   - 手順: (1) `Package.swift` の `resources: [.copy("Stdlib")]` が `Sources/CompilerCore/Stdlib` を指すこと（ルートではない）を確認 (2) 各 .kt を「対応 KSP タスクの下敷きに使う / 即削除」に分類（W3/W4 の該当タスクへ移設済みのものから削除） (3) `git rm -r Stdlib/`
   - 完了: ルート `Stdlib/` が存在しない + G
   - 完了確認（2026-08-14）: merged PR #5740 / merge commit `4a38e5364` が root `Stdlib/` の 27 `.kt` を削除したことを履歴で確認。latest master `0a9c0c248` でも root `Stdlib/` は不在で、`Package.swift` は `CompilerCore` の `.copy("Stdlib")` として `Sources/CompilerCore/Stdlib` を resource 化している。`BundledStdlibExecutionTests` 27/27、`StdlibArtifactRegressionTests` 27/27 を現行コードで検証済み。
-- [ ] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃し、ファイル名を本家準拠へリネームする
-  - 前提: W3 全完了。手順: (1) セットが空であることを確認して機構ごと削除 (2) `text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム（`docs/stdlib-pipeline.md` §6） (3) U で golden 更新
+- [x] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃する（前提: W3 全完了 = KSP-308 のみで達成済み）
+  - 完了: `Sources/CompilerCore/Driver/BundledStdlib.swift` の `excludedBundledStdlibFiles` は既に空集合だったため、プロパティ本体・ガード節・関連 doc comment を削除して機構ごと撤廃した。TODO.md 冒頭の移行テンプレート T（手順3, 6）と `docs/stdlib-pipeline.md`（§2/§4/§10/§13-7）から同機構への参照も更新済み。
+  - 検証: `swift build --target CompilerCore` green、`rg excludedBundledStdlibFiles Sources/ Tests/` 0件。除外集合が元々空だったため `collectBundledStdlibSources` の出力（挙動）に変化なし。
+  - スコープ縮小: 当初手順(2)「`text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム」は、着手時点の実測で対象例に挙げた text/collections モジュール自体が (b) Kotlin 移行の途中（`KSP-426`/`KSP-428` が List の sort/min/max・集合演算・数値集計を未移行、`KSP-693` が text の合成スタブ整理未完了）であり、`docs/stdlib-pipeline.md` §6 の「機能スライス名は当該モジュールの M フェーズ完了時に統合・リネームする」方針と矛盾するため実施しなかった。粒度ルールに従い新番号 `KSP-1541` へ分割した。
+- [ ] KSP-1541: 機能スライス名の bundled `.kt` ファイルを kotlin-stdlib 本家準拠のファイル名へ統合・リネームする（KSP-505 手順(2)(3) の分割先。前提: 対象モジュールの M フェーズ完了）
+  - 背景: `docs/stdlib-pipeline.md` §6「既存の機能スライス名（`ListFilterHOF.kt` 等）は当該モジュールの M フェーズ完了時に統合・リネームする」を実行するタスク。2026-08-18 時点では text（M1: `KSP-693` 未完了）/collections（M3: `KSP-426`/`KSP-428` 未完了）を含む複数のモジュールがまだ (b) 残ありで対象外（着手時に §9 棚卸し表で全モジュールを再確認すること）
+  - 着手条件: `docs/stdlib-pipeline.md` §9 の3分類棚卸し表を rg で再確認し、対象モジュールの (b) 行（未移行の合成スタブ登録）が 0 件であること。モジュール単体で条件を満たせば、そのモジュールだけ先行して統合・リネームしてよい（粒度ルールにより 1 モジュール = 1 PR に分割可）
+  - 手順: (1) 対象モジュール配下の機能スライスファイル（例: `collections/ListFilterHOF.kt`, `text/StringBasics.kt` 等）を本家 kotlin-stdlib のファイル名・配置（例: `collections/Collections.kt`, `text/Strings.kt`）へ統合・リネーム（`docs/stdlib-pipeline.md` §6）。挙動変更ゼロが条件 (2) `UPDATE_GOLDEN=1` で golden 更新し `git diff -- Tests/CompilerCoreTests/GoldenCases` が機械的差分のみであることを確認 (3) 共通ゲート G green
 
 - [x] KSP-690: bundled stdlib 自身の diagnostics ゼロを enforcing テスト化する（§8 の要件「stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う（warning 含めゼロを CI で enforcing にする）」に対応するテストが存在しない — 2026-08-12 実装確認で該当テストゼロ）。KSP-INF-004 の既存実装（PR #4967）で充足済み
   - 実装: 全 bundled .kt を注入した最小入力（`hello.kt` 相当）のコンパイルで、`__bundled_*` パスを source location とする診断が warning 含め 0 件であることを固定する `Tests/CompilerCoreTests/Integration/BundledStdlibDiagnosticsTests.swift` を追加済み。`KSWIFTK-SEMA-0102`（bundled×synthetic 二重定義 warning）のガード漏れ検知網を兼ねる
