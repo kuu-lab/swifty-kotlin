@@ -9,7 +9,7 @@ import Testing
 // expected ByteBuffer receiver, parameter/return types, and @ExperimentalUuidApi
 // opt-in annotations.
 
-@Suite
+@Suite(.serialized)
 struct UuidPutUuidSemaTests {
 
     // MARK: - Shared fixture

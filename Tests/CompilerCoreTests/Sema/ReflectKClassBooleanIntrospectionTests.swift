@@ -5,7 +5,7 @@ import Testing
 /// STDLIB-REFLECT-067: Sema inference for KClass kind/modifier boolean members
 /// (`isData` / `isSealed` / `isValue`) on both a class-literal receiver and a
 /// stored `KClass<T>` variable receiver.
-@Suite
+@Suite(.serialized)
 struct ReflectKClassBooleanIntrospectionTests {
     private static let sharedSource = """
     import kotlin.reflect.KClass

@@ -4,7 +4,7 @@ import Testing
 
 // MARK: - KSP-310: kotlin.uuid.Uuid API surface inventory
 
-@Suite
+@Suite(.serialized)
 struct UuidAPISurfaceInventoryTests {
     private static nonisolated(unsafe) var _sharedSema: (CompilationContext, SemaModule, StringInterner)?
 

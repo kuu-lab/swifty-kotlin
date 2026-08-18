@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct IntegerNarrowingPassTests {
     private func makeKIRContext(interner: StringInterner, sema: SemaModule?) -> KIRContext {
         let options = CompilerOptions(

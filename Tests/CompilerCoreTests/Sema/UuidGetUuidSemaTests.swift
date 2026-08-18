@@ -7,7 +7,7 @@ import Testing
 // both overloads are source-backed with the expected ByteBuffer receiver,
 // parameter/return signatures, and @ExperimentalUuidApi annotation.
 
-@Suite
+@Suite(.serialized)
 struct UuidGetUuidSemaTests {
 
     private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {

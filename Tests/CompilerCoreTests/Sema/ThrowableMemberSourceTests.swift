@@ -4,7 +4,7 @@ import Testing
 /// KSP-654: `Throwable` members are declared in bundled Kotlin source
 /// (`Stdlib/kotlin/Throwable.kt`) instead of synthetic stubs, so they carry no
 /// `kk_*` external link name of their own.
-@Suite
+@Suite(.serialized)
 struct ThrowableMemberSourceTests {
     private static let sharedSource = """
     fun sampleSuppressed(e: Throwable) {

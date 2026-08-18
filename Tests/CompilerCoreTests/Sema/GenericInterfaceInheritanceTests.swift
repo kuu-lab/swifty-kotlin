@@ -7,7 +7,7 @@ import Testing
 /// (e.g. `interface B<T> : A<T>`) or to a function-type supertype
 /// (e.g. `interface C<V> : () -> V`). This capability underpins the bundled
 /// Kotlin `KProperty0/1/2` shells.
-@Suite
+@Suite(.serialized)
 struct GenericInterfaceInheritanceTests {
     private static let sharedSource = """
     interface A<T> {
