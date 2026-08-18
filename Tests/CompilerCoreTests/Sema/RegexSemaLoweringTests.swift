@@ -439,183 +439,183 @@ struct RegexSemaLoweringTests {
 
     @Test func testSingleArgRegexConstructorLowersToKkRegexCreate() throws {
         let ctx = try sharedRegexKIRCtx(at: 0)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase0", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_regex_create_flat"),
-                Comment(rawValue: "KIR must contain kk_regex_create for single-arg constructor; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase0", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_regex_create_flat"),
+            Comment(rawValue: "KIR must contain kk_regex_create for single-arg constructor; found: \(callees)")
+        )
     }
 
     @Test func testTwoArgOptionRegexConstructorLowersToKkRegexCreateWithOption() throws {
         let ctx = try sharedRegexKIRCtx(at: 1)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase1", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_regex_create_with_option_flat"),
-                Comment(rawValue: "KIR must contain kk_regex_create_with_option; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase1", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_regex_create_with_option_flat"),
+            Comment(rawValue: "KIR must contain kk_regex_create_with_option; found: \(callees)")
+        )
     }
 
     @Test func testSetOptionsRegexConstructorLowersToKkRegexCreateWithOptions() throws {
         let ctx = try sharedRegexKIRCtx(at: 2)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase2", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_regex_create_with_options_flat"),
-                Comment(rawValue: "KIR must contain kk_regex_create_with_options; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase2", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_regex_create_with_options_flat"),
+            Comment(rawValue: "KIR must contain kk_regex_create_with_options; found: \(callees)")
+        )
     }
 
     // MARK: - 6. KIR lowering: member calls emit correct KIR callees
 
     @Test func testRegexMatchesLowersToKkRegexMatches() throws {
         let ctx = try sharedRegexKIRCtx(at: 3)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase3", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_matches_flat"), Comment(rawValue: "KIR must contain kk_regex_matches; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase3", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_matches_flat"), Comment(rawValue: "KIR must contain kk_regex_matches; found: \(callees)"))
     }
 
     @Test func testRegexContainsMatchInLowersToKkRegexContainsMatchIn() throws {
         let ctx = try sharedRegexKIRCtx(at: 4)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase4", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_containsMatchIn_flat"), Comment(rawValue: "KIR must contain kk_regex_containsMatchIn; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase4", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_containsMatchIn_flat"), Comment(rawValue: "KIR must contain kk_regex_containsMatchIn; found: \(callees)"))
     }
 
     @Test func testRegexFindLowersToKkRegexFind() throws {
         let ctx = try sharedRegexKIRCtx(at: 5)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase5", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase5", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_find_flat"), Comment(rawValue: "KIR must contain kk_regex_find; found: \(callees)"))
     }
 
     @Test func testRegexFindAllLowersToKkRegexFindAll() throws {
         let ctx = try sharedRegexKIRCtx(at: 6)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase6", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase6", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_findAll_flat"), Comment(rawValue: "KIR must contain kk_regex_findAll; found: \(callees)"))
     }
 
     @Test func testRegexMatchEntireLowersToKkRegexMatchEntire() throws {
         let ctx = try sharedRegexKIRCtx(at: 7)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase7", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase7", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_matchEntire_flat"), Comment(rawValue: "KIR must contain kk_regex_matchEntire; found: \(callees)"))
     }
 
     @Test func testRegexReplaceWithLambdaLowersToKkRegexReplaceLambda() throws {
         let ctx = try sharedRegexKIRCtx(at: 8)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase8", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain __kk_regex_replace_lambda; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase8", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_replace_lambda"), Comment(rawValue: "KIR must contain __kk_regex_replace_lambda; found: \(callees)"))
     }
 
     // MARK: - 7. KIR lowering: String.toRegex()
 
     @Test func testStringToRegexLowersToKkStringToRegex() throws {
         let ctx = try sharedRegexKIRCtx(at: 9)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase9", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_string_toRegex_flat"), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase9", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_string_toRegex_flat"), Comment(rawValue: "KIR must contain kk_string_toRegex; found: \(callees)"))
     }
 
     // MARK: - 8. KIR lowering: String.toRegex(option) / String.toRegex(options)
 
     @Test func testStringToRegexWithOptionLowersToKkStringToRegexWithOption() throws {
         let ctx = try sharedRegexKIRCtx(at: 10)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase10", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_string_toRegex_with_option_flat"),
-                Comment(rawValue: "KIR must contain kk_string_toRegex_with_option; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase10", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_string_toRegex_with_option_flat"),
+            Comment(rawValue: "KIR must contain kk_string_toRegex_with_option; found: \(callees)")
+        )
     }
 
     @Test func testStringToRegexWithOptionsSetLowersToKkStringToRegexWithOptions() throws {
         let ctx = try sharedRegexKIRCtx(at: 11)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase11", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_string_toRegex_with_options_flat"),
-                Comment(rawValue: "KIR must contain kk_string_toRegex_with_options; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase11", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_string_toRegex_with_options_flat"),
+            Comment(rawValue: "KIR must contain kk_string_toRegex_with_options; found: \(callees)")
+        )
     }
 
     // MARK: - 9. KIR lowering: String.split(Regex) and String.contains(Regex)
 
     @Test func testStringSplitWithRegexUsesSourceBackedWrapper() throws {
         let ctx = try sharedRegexKIRCtx(at: 12)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase12", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("split"), Comment(rawValue: "KIR must call the source-backed split wrapper; found: \(callees)"))
-            #expect(
-                !callees.contains("kk_string_split_regex_flat"),
-                Comment(rawValue: "User KIR should not directly lower split(Regex) to runtime; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase12", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("split"), Comment(rawValue: "KIR must call the source-backed split wrapper; found: \(callees)"))
+        #expect(
+            !callees.contains("kk_string_split_regex_flat"),
+            Comment(rawValue: "User KIR should not directly lower split(Regex) to runtime; found: \(callees)")
+        )
     }
 
     @Test func testStringContainsWithRegexLowersToKkStringContainsRegex() throws {
         let ctx = try sharedRegexKIRCtx(at: 13)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase13", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_string_contains_regex_flat"), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase13", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_string_contains_regex_flat"), Comment(rawValue: "KIR must contain kk_string_contains_regex; found: \(callees)"))
     }
 
     // MARK: - 9. KIR lowering: Regex.fromLiteral (companion)
 
     @Test func testRegexFromLiteralLowersToKkRegexFromLiteral() throws {
         let ctx = try sharedRegexKIRCtx(at: 14)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase14", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("__kk_regex_from_literal_flat"), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase14", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(callees.contains("__kk_regex_from_literal_flat"), Comment(rawValue: "KIR must contain kk_regex_from_literal; found: \(callees)"))
     }
 
     // MARK: - 10. KIR lowering: group access goes through the raw match-data bridges
 
     @Test func testNamedGroupAccessChainLowersToGroupIndexOfNameBridge() throws {
         let ctx = try sharedRegexKIRCtx(at: 15)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase15", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("get") && callees.contains("groups"),
-                Comment(rawValue: "Named group access must dispatch to the Kotlin MatchGroupCollection API; found: \(callees)")
-            )
-            #expect(
-                !callees.contains("kk_match_group_collection_get"),
-                Comment(rawValue: "kk_match_group_collection_get must be gone; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase15", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("get") && callees.contains("groups"),
+            Comment(rawValue: "Named group access must dispatch to the Kotlin MatchGroupCollection API; found: \(callees)")
+        )
+        #expect(
+            !callees.contains("kk_match_group_collection_get"),
+            Comment(rawValue: "kk_match_group_collection_get must be gone; found: \(callees)")
+        )
     }
 
     @Test func testGroupsByIndexLowersToGroupPositionBridges() throws {
         let ctx = try sharedRegexKIRCtx(at: 16)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "regexCase16", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("get") && callees.contains("groups"),
-                Comment(rawValue: "Index-based group access must dispatch to the Kotlin MatchGroupCollection API; found: \(callees)")
-            )
-            #expect(
-                !callees.contains("kk_match_group_collection_get_at"),
-                Comment(rawValue: "kk_match_group_collection_get_at must be gone; found: \(callees)")
-            )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "regexCase16", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("get") && callees.contains("groups"),
+            Comment(rawValue: "Index-based group access must dispatch to the Kotlin MatchGroupCollection API; found: \(callees)")
+        )
+        #expect(
+            !callees.contains("kk_match_group_collection_get_at"),
+            Comment(rawValue: "kk_match_group_collection_get_at must be gone; found: \(callees)")
+        )
     }
 
     // MARK: - 11. KIR lowering: MatchResult component calls
