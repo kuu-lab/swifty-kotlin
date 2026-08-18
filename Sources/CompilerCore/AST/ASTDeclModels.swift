@@ -256,6 +256,11 @@ public struct ObjectDecl: Codable {
     public let modifiers: Modifiers
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
+    /// Arguments of the superclass constructor invocation in the object
+    /// header (`object : Base(n) { ... }`), populated only for object
+    /// literal expressions (KSP-CAP-018). Empty for interfaces, for `Base()`,
+    /// and for named `object` declarations (not yet threaded through).
+    public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]
     public let classBodyInitOrder: [ClassBodyInitMember]
@@ -270,6 +275,7 @@ public struct ObjectDecl: Codable {
         modifiers: Modifiers,
         annotations: [AnnotationNode] = [],
         superTypes: [TypeRefID] = [],
+        superTypeConstructorArgs: [CallArgument] = [],
         nestedTypeAliases: [TypeAliasDecl] = [],
         initBlocks: [FunctionBody] = [],
         classBodyInitOrder: [ClassBodyInitMember] = [],
@@ -283,6 +289,7 @@ public struct ObjectDecl: Codable {
         self.modifiers = modifiers
         self.annotations = annotations
         self.superTypes = superTypes
+        self.superTypeConstructorArgs = superTypeConstructorArgs
         self.nestedTypeAliases = nestedTypeAliases
         self.initBlocks = initBlocks
         self.classBodyInitOrder = classBodyInitOrder

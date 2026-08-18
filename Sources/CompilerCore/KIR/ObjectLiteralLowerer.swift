@@ -145,6 +145,17 @@ final class ObjectLiteralLowerer {
             interner: interner,
             instructions: &instructions
         )
+        emitObjectLiteralSuperConstructorCall(
+            objectDecl,
+            objectSymbol: objectSymbol,
+            objectValue: objectValue,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
 
         // KSP-CAP-001: materialize outer locals/parameters captured by this
         // object literal's member functions into instance fields, while the
@@ -217,6 +228,59 @@ final class ObjectLiteralLowerer {
         }
 
         return objectValue
+    }
+
+    /// KSP-CAP-018: emits the implicit `super(...)` call of an object
+    /// literal's superclass, e.g. `object : Base(x) { ... }`. Kotlin runs the
+    /// superclass constructor before the object literal's own initializers,
+    /// so the superclass's property initializers and `init` blocks — which
+    /// write into the same instance at the layout offsets the object literal
+    /// inherits — must execute here. Without this call an object literal
+    /// instance keeps the zeroed defaults for every inherited property (same
+    /// root cause as BUG-155/PR #5506's `emitSuperConstructorDelegation` for
+    /// named classes; object literals never went through that fix since they
+    /// have no user-written constructor of their own).
+    private func emitObjectLiteralSuperConstructorCall(
+        _ objectDecl: ObjectDecl,
+        objectSymbol: SymbolID,
+        objectValue: KIRExprID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) {
+        guard let superclassSymbol = sema.symbols.directSupertypes(for: objectSymbol).first(where: {
+            let kind = sema.symbols.symbol($0)?.kind
+            return kind == .class || kind == .enumClass
+        }),
+        let superclassInfo = sema.symbols.symbol(superclassSymbol),
+        let superCtorSymbol = sema.symbols
+            .lookupAll(fqName: superclassInfo.fqName + [interner.intern("<init>")])
+            .first,
+        sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+        else {
+            return
+        }
+
+        var argIDs: [KIRExprID] = [objectValue]
+        for arg in objectDecl.superTypeConstructorArgs {
+            argIDs.append(driver.lowerExpr(
+                arg.expr, ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers, instructions: &instructions
+            ))
+        }
+
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        instructions.append(.call(
+            symbol: superCtorSymbol,
+            callee: interner.intern("<init>"),
+            arguments: argIDs,
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil
+        ))
     }
 
     /// KSP-CAP-001: re-establishes an object literal's captured outer

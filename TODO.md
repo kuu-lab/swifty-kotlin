@@ -51,6 +51,60 @@
 
 - [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
 - [ ] KSP-CAP-014: bundled source から `vararg val` プロパティと `KClass` 型参照を生成・検証できるようにする（`kotlin.Throws` の `vararg val exceptionClasses: KClass<out Throwable>` を source 化するための前提。現行は `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録で補完）
+- [~] KSP-CAP-018: object 式によるクラス継承を通す（= BUG-212）。ブロック対象: KSP-491・KSP-681（`Delegates.observable`/`vetoable` が返す `object : ObservableProperty<T>(initialValue) { override fun ... }`）・KSP-441（object 式でパイプラインを表現する方針）
+  - **注記**: 旧 KSP-CAP-016/017（同一症状、2026-08-06 記録）と旧 BUG-187/188 は、名前不明の TODO.md 編集（`f9dea8961c` 付近、DEBT-DIFF-005 統合コミット群）でブロッカー台帳から本文ごと消失し、`[x]` 化されないまま記録が失われていた。名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 症状の一部）は別途 `1128468186`（PR #5506, "Fix BUG-155: run superclass constructors and class-body initializers"）で修正済みと 2026-08-18 実機確認したため当該部分はクローズ、object 式経由の残り2症状のみ本項として採番し直す。
+  - 症状は2系統（interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済み。本項目は**クラス**継承）:
+    1. 基底クラスの `open`/`abstract` メンバを object 式が override しても dispatch されない。`open class Base { open fun describe(): String = "base" }` `fun make(): Base = object : Base() { override fun describe() = "anon" }` に対し `make().describe()` が基底実装 `"base"` を返す
+    2. スーパークラス実引数付きの object 式 `object : Base(x) {}` は実行時 `KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed` でクラッシュする（名前付きサブクラスは `1128468186` で修正済みだが、object 式はこのクラッシュが残る点が異なる）
+  - 最小再現（kotlinc は `anon` / `7`。2026-08-18 `.build/debug/kswiftc` で再実機確認済み）:
+    ```kotlin
+    open class Base { open fun describe(): String = "base" }
+    fun make(): Base = object : Base() { override fun describe(): String = "anon" }
+    fun main() { println(make().describe()) }   // "base"
+
+    open class Base2(val v: Int)
+    fun make2(x: Int): Base2 = object : Base2(x) {}
+    fun main2() { println(make2(7).v) }         // KSWIFTK-RUNTIME-0001
+    ```
+  - **部分修正（2026-08-18）**: 症状1・症状2ともに、object 式が**メンバ宣言（override 関数/プロパティ）を1つ以上持つ**場合は解消した。真因は2つの独立バグだった:
+    (a) 症状1（override dispatch）: `ExprTypeChecker+ObjectLiteralInference.swift`（object 式は関数本体の型検査中に処理されるため、全ての named nominal に対して vtable slot を計算する `LayoutSynthesis.synthesizeNominalLayouts` — `runValidationPasses` で実行 — が既に完了した*後*に symbol が生成される）が、`NominalLayout.vtableSlots` をスーパークラスから単純コピーするだけで、object 式自身の `override` メンバに対する override 解決（継承 slot の再利用判定）を一切行っていなかった。`LayoutSynthesis.swift` の該当ロジック（`MethodDispatchKey` 照合・`resolveOverriddenSlot`）を `Sources/CompilerCore/Sema/DataFlow/VtableOverrideMatching.swift` の共有関数へ抽出し、`ExprTypeChecker+ObjectLiteralInference.swift` からも呼ぶことで解決。
+    (b) 症状2（super ctor 実引数）: `object : Base(x) { ... }` の `(x)` はパーサ（`BuildASTPhase+ExpressionParserLambdaObjectCallable.swift` の `parseObjectLiteral`）が `skipBalancedParenthesisIfNeeded()` で単に読み捨てており、`ObjectDecl` に実引数を保持するフィールド自体が存在しなかった（`SuperTypeEntry.constructorArgs` は名前付きクラス専用で、`ObjectDecl.superTypes` は `[TypeRefID]` のみ）。`ObjectDecl.superTypeConstructorArgs: [CallArgument]` を新設し、`parseCallArguments()`（通常の呼び出し実引数パーサ）で実引数を捕捉。さらに (1) `ExprTypeChecker+ObjectLiteralInference.swift` でこれらの式を外側スコープ（`ctx`/`locals`）に対して型検査するよう追加（怠ると KIR lowering 時に式が未解決のまま `unit` に落ちる、ジェネリック引数 `T` の参照を含む場合に顕在化）、(2) `ObjectLiteralLowerer.swift` に `emitObjectLiteralSuperConstructorCall`（PR #5506 の `emitSuperConstructorDelegation` と同型のロジック）を新設し、`kk_object_new` 直後・itable/vtable 登録の直後にスーパークラスの `<init>` を実引数付きで呼び出すよう配線。
+    回帰: `Scripts/diff_cases/object_literal_class_inheritance.kt`（`diff_kotlinc.sh` PASS 確認済み）、`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+ObjectLiteralClassInheritance.swift`（3テスト、ジェネリック外側スコープ引数のケースを含む）。
+  - **未解消（別途対応が必要、本 PR のスコープ外）**:
+    1. メンバ宣言を1つも持たない object 式（`object : Base(x) {}` のような空ボディ）は上記修正の対象外。`declID`（`ObjectDecl`）自体が生成されず（`parseObjectLiteralDecl` が空ボディで `nil` を返す）、`ObjectLiteralLowerer.lowerObjectLiteralExpr` の別経路（`ensureObjectLiteralGeneratedDecls`、`classID=0` で `nominalLayout` を計算しない簡易パス）を通るため、この PR の修正が届かない。`Delegates.observable`/`vetoable` は必ず override メンバを持つため実害はないが、上記の最小再現2番目のケース単体は依然クラッシュする。
+    2. 複数行にまたがる expression-body 関数で、`=` の次の行が `object :` で始まる形（本家 `kotlin.properties.Delegates` の実際のソーススタイル）はパースに失敗する別バグを新規発見（詳細は BUG-213）。単一行に書けば回避できる。
+    3. 名前付き（非リテラル）`object : Base(x) { ... }` 宣言は本項目の対象外（症状1は名前付きでも再現しないが、症状2のコンストラクタ実引数破棄と、加えて base 型変数経由での virtual dispatch がレシーバに誤った定数値を積む別バグ — 発見元 p9、`.symbolRef` 定数が `loadGlobal` の代わりに使われている — が残存。詳細未起票、必要になったら新規 CAP として切り出す）
+- [ ] KSP-CAP-019: delegate 式のトレーリングラムダを通常の呼び出し実引数として解決する。ブロック対象: KSP-491・KSP-492・KSP-680・KSP-681
+  - **注記**: 旧 KSP-CAP-014（2026-08-06 記録、番号は現 KSP-CAP-014「vararg val プロパティ」とは無関係の別ブロッカー）と同一症状で、`f9dea8961c` 付近の TODO.md 編集で台帳から消失していた。2026-08-18 `.build/debug/kswiftc` で再実機確認し、症状・原因とも変化なし（コードコメント `Sources/CompilerCore/AST/BuildASTPhase+TypeParsing.swift` の `propertyHeadTokens` に同一の設計判断が残存）。
+  - 症状: `by <factory> { ... }` 形の delegate 式でトレーリングラムダが delegate 式から切り離され、`PropertyDecl.delegateBody` として別経路で保持される（`BuildASTPhase+TypeParsing.swift` の `propertyHeadTokens` が `.block` 子ノードで打ち切り、`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` が再パース）。このため operator 規約による通常解決から見ると、コンストラクタ形 `by MyLazy { ... }` は実引数 0 個の呼び出し（→ `KSWIFTK-SEMA-0103`）、関数形 `by myLazy { ... }` は初期化ラムダ欠落のまま lowering され実行時クラッシュになる。`kk_lazy_create` 等の特例経路だけが `delegateBody` を拾えるので、現状の `by lazy { ... }` は「動いて見える」
+  - 最小再現（`operator fun getValue` をメンバとして持つユーザー定義 delegate。括弧付き `by myLazy({ ... })` は正常動作するのでトレーリングラムダ固有。2026-08-18 再実機確認済み — ctor 形は `KSWIFTK-SEMA-0103`、関数形は `KSWIFTK-RUNTIME-0001: kk_array_get_inbounds precondition failed`）:
+    ```kotlin
+    class MyLazy<T>(private val initializer: () -> T) {
+        private var cached: Any? = null
+        private var done: Boolean = false
+        operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+            if (!done) { cached = initializer(); done = true }
+            @Suppress("UNCHECKED_CAST")
+            return cached as T
+        }
+    }
+    fun <T> myLazy(initializer: () -> T): MyLazy<T> = MyLazy(initializer)
+
+    val a: String by MyLazy { "ctor" }        // KSWIFTK-SEMA-0103
+    val b: String by myLazy { "fn" }          // 実行時 KSWIFTK-RUNTIME-0001: kk_array_get_inbounds precondition failed
+    ```
+    kotlinc 2.3.10 は両方とも `ctor` / `fn` を出力する
+  - 対応方針: `declarationDelegateExpression` 側でもトレーリングラムダを呼び出しの最終実引数として畳み込む（`propertyHeadTokens(includingTrailingLambdaTokens:)` の opt-in を delegate 経路にも広げる）。`observable`/`vetoable` の合成スタブが初期値 1 引数しか受け付けない点が KSP-CAP-005 時点で畳み込みを見送った理由なので、合成スタブ側のシグネチャ更新（または Kotlin 宣言への置換）と同時に行う必要がある
+- [ ] KSP-CAP-020: 拡張 operator `getValue`/`setValue` を property delegate の解決候補に含める。ブロック対象: KSP-491（本家形 `public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T`）
+  - **注記**: 旧 KSP-CAP-015（2026-08-06 記録）と同一症状で、`f9dea8961c` 付近の TODO.md 編集で台帳から消失していた。2026-08-18 `.build/debug/kswiftc` で再実機確認し変化なし。
+  - 症状: `DeclTypeChecker+PropertyHelpers.swift` の `typeCheckDelegate` は `collectMemberFunctionCandidates`（メンバと supertype のみ走査）で候補を集めるため、拡張関数として宣言された operator は一切見えず `KSWIFTK-SEMA-0103` になる
+  - 最小再現（kotlinc 2.3.10 は `ext` を出力。2026-08-18 再実機確認済み — `KSWIFTK-SEMA-0103`）:
+    ```kotlin
+    class Holder(val v: String)
+    operator fun Holder.getValue(thisRef: Any?, property: KProperty<*>): String = v
+    val p: String by Holder("ext")   // KSWIFTK-SEMA-0103
+    ```
+  - 影響: 本家 `kotlin.Lazy` は `getValue` をインターフェースのメンバではなく拡張として持つ。本項目未解消のまま KSP-491 を進めると `Lazy` インターフェースにメンバ `getValue` を生やす本家逸脱が必要になる
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
@@ -204,6 +258,12 @@
   - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
   - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
   - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
+  - **2026-08-18 実機再プローブ: 上記「注意」の中断条件に該当。着手前ブロック中**（前提: KSP-CAP-018, KSP-CAP-019, KSP-CAP-020）。2026-08-06 に一度この中断判定が行われ台帳（旧 KSP-CAP-014〜017 / 旧 BUG-187/188、PR #5497 `5ba0d583f3`）に記録されていたが、`f9dea8961c`（DEBT-DIFF-005 統合コミット群）付近の TODO.md 編集で記録が本文ごと失われ `[ ]` 未着手のまま埋もれていた（発見: 本セッションで KSP-681 に着手しようとして prerequisite の KSP-491 が実質ブロック中と判明）。`.build/debug/kswiftc`（現行 HEAD `9b2b615107` 相当で新規ビルド）で当時の4項目すべてを再実機確認した結果:
+    1. **解消済み**: 名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 の一部）。`open class Base(val v: Int); class Sub(x: Int): Base(x)` は `Base(7).v`/`Sub(7).v` とも `7` を返す（PR #5506, commit `1128468186`「Fix BUG-155: run superclass constructors and class-body initializers」で修正済みと確認）
+    2. **未解消**: `by lazy { ... }` 相当のコンストラクタ/関数呼び出し形トレーリングラムダが delegate 式から欠落する（→ KSP-CAP-019。旧 KSP-CAP-014 と同一症状）
+    3. **未解消**: 拡張 operator `getValue`/`setValue`（本家 `Lazy.getValue` の形）は delegate 解決候補に入らない（→ KSP-CAP-020。旧 KSP-CAP-015 と同一症状）
+    4. **未解消**: object 式によるクラス継承 — override が dispatch されない／スーパークラス実引数付きだと実行時クラッシュ（→ KSP-CAP-018。旧 KSP-CAP-017 と同一症状。`Delegates.observable`/`vetoable` が返す `object : ObservableProperty<T>(initialValue) { override fun ... }` に必須の形）
+    2〜4 のいずれも解消しないと、本家準拠の `Lazy`/`ObservableProperty`/`Delegates.observable/vetoable/notNull` を「operator 規約による通常解決」で実装することはできない。着手順は KSP-CAP-018 → KSP-CAP-019 → KSP-CAP-020 を推奨（いずれも delegate 以外にも波及する一般的なコンパイラ機能ギャップのため単独でも価値がある）。KSP-681 はこの KSP-491 のブロックをそのまま継承する（前提: KSP-491）
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 
@@ -335,6 +395,7 @@
 
 - [x] KSP-680: delegate インターフェース群を .kt 化する（ReadOnlyProperty/ReadWriteProperty/PropertyDelegateProvider。前提: KSP-CAP-007）
 - [ ] KSP-681: ObservableProperty/Delegates 残余を Kotlin 化する（KSP-491 の範囲を超える残り約20系統。前提: KSP-491, KSP-680）。BUG-017はKSP-CAP-013のPR #4976で独立に修正済みのため本タスクの前提から外れた
+  - **2026-08-18 着手前ブロック中**: 前提 KSP-491 が KSP-CAP-018/019/020（object 式クラス継承 / delegate トレーリングラムダ / 拡張 operator getValue 解決）で着手前ブロック中のため、本タスクも同じ理由で着手不可。「KSP-491 の範囲を超える残り約20系統」の内訳を棚卸しした限りでは全て `kotlin.properties`/`ObservableProperty`/`Delegates` 系（`kotlin.reflect` の KProperty0/1/2 等は KSP-682/KSP-689 が別途カバー済み）で、KSP-491 と同じ「operator 規約による本家準拠の delegate 実装」を要するため、同じ3ブロッカーの影響を受ける可能性が高い。KSP-491 側のブロッカー解消（またはブロッカーを回避できる具体的な残り20系統の切り出し）が先決。詳細は KSP-491 の 2026-08-18 実機再プローブ注記を参照
 - [x] KSP-689: KClass の members/constructors 系が返すランタイムハンドルへ nominal 型 ID を付与し、interface 適合（`is`/`as`・共有メンバ dispatch）を成立させる（KSP-496 の未完了メモが実装手順まで特定した上で「一定規模の別タスクとして切り出すのが妥当」と明記したまま未起票だった — 2026-08-12 追補。Reflection box の安定型ID・継承辺と KCallable 共通 name dispatch を実装）
   - 手順（KSP-496 調査の再掲）: (1) `KCallable`/`KFunction`/`KProperty` 等リフレクション interface の nominal 型 ID を `runtimeStableNominalTypeID(fqName:)` で計算し起動時に一度登録 (2) `RuntimeKFunctionBox`/`RuntimeKPropertyStub` 等の生成箇所を `registerRuntimeObject(_:typeID:)` 経由に変更（前例: `IndexedValue`/`Map.Entry` の `runtimeRegisterObjectType` + `runtimeRegisterTypeEdge`。Sema 側の supertype 関係は `addSyntheticDirectSupertypes` でモデル化済み） (3) `KCallable.name` 等の共有メンバを複数 Box 型を順に tryCast するディスパッチへ書き換え
   - 対象メンバ: `members`/`constructors`/`primaryConstructor`/`properties`/`memberProperties`/`declaredMemberProperties`/`functions`/`memberFunctions`/`declaredMemberFunctions`/`nestedClasses`/`supertypes`
@@ -927,6 +988,16 @@
 - [ ] BUG-195: `kotlin.time` の `toDuration`/`toTimeUnit`/`Duration.toComponents` が軒並み誤動作する。最小再現: (1) `2.toDuration(DurationUnit.SECONDS).inWholeSeconds` は `2` ではなく `0` を返す（`1500L.toDuration(DurationUnit.MILLISECONDS)`/`1.5.toDuration(DurationUnit.MINUTES)` も同様に常に `0` 相当）。(2) `DurationUnit.toTimeUnit()` はどの `DurationUnit` を渡しても常に `TimeUnit.NANOSECONDS` 相当を返す（`DurationUnit.NANOSECONDS`/`SECONDS`/`DAYS` いずれも `label()` 経由で `"ns"` になる）。(3) `Duration.toComponents{}`（5-arg/4-arg/3-arg/2-arg いずれのオーバーロードも）を含むコードは実行時に `Fatal error` 系ではなく `outputUnavailable`（`Sources/CompilerBackend/LinkPhase.swift:120`）でプロセスが結果を返さない。いずれもテスト側の期待値自体は自明な算術（2秒=2秒、1500ms=1500ms 等）で誤りの余地がなく、`git diff origin/master` で `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+StableDurationEdgeCases.swift` を含む関連ファイルが無変更と確認済み、かつ独立した origin/master 単体 tip（`d8f08bd8c`）でも(1)(2)は同一の誤った値、(3)は load average 21→4 の間で3回連続再現する決定的な `outputUnavailable` として再現することを確認済み（サブエージェントによる独立検証、環境負荷起因のflakeではない）。発見元: 本 PR（16回目 master マージ）が取り込んだ15コミットの一つ「Move TimeMark/ComparableTimeMark operations to Kotlin stdlib source (KSP-648) (#5474)」（`8429d66a2`）が疑わしい（Duration/TimeMark 関連の Kotlin ソース化移行と時期・領域が一致）が未確認。**経路特定・スコープ再確定（本 PR の18回目 master マージ時点で追記、前回の「完了」判定を撤回）**: 本項は「stdlib をソースから直接注入してコンパイルする通常経路」では発生せず、「`--stdlib-library <path>.kklib`（事前コンパイル済み stdlib アーティファクト、`Tests/CompilerBackendTests/Integration/TestSupport/StdlibCache.swift` のテストキャッシュ・`Scripts/diff_kotlinc.sh` の `--no-stdlib --stdlib-library` 呼び出し双方が使う経路）でコンパイルする経路」限定で再現する artifact-path 限定のバグと判明。通常経路（`.build/debug/kswiftc` に `--stdlib-library` を付けずソースをそのまま渡す）では本項記載の最小再現3件（(1) `2.toDuration(...)`/`1500L.toDuration(...)`/`1.5.toDuration(DurationUnit.MINUTES)` の3種、(2) `testDurationUnitToTimeUnitConversion` と同一ソース、(3) `testDurationStableToComponentsOverloads` と同一ソース）はいずれも期待値と完全一致（`2`/`1500`/`90`、`ns`/`s`/`d`/`true`/`false`、`1/2/3/4/5/26/3/4/5/1563/4/5/-1/-500000000`）することを確認した。しかし同一ソースを `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を`rm -rf`で再構築させた**直後の新鮮なアーティファクト**に対し `--stdlib-library` 経由でコンパイルすると、(1)は `0/0/0`、(2)は `ns/ns/ns/false/false`（いずれも本項オリジナルの誤り方と一致）を再現し、コンパイル時に `KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.component1`等の警告が出る（アーティファクトの stdlib メタデータ生成が一部シンボルを欠落させている）。`SWIFT_TEST_PARALLEL=0` での直列単独再実行でも同一結果のため並行実行由来の汚染でもない。前回「完了」としクレジットした `3cc0e943d`（KSP-472）は誤り（このコミットはこのバグを修正していない、撤回）。根本原因はメタデータ書き込み側（`--stdlib-only --emit library` で `.kklib` を生成する経路）の一部シンボル欠落で、BUG-197（`--stdlib-library` モードでの型引数消失）・BUG-199（precompiled artifact での重複宣言）・BUG-200（precompiled artifact での modality 欠落）と同じ「事前コンパイル済み stdlib アーティファクトのメタデータ生成が不完全」というバグ群に属すると見られる。今回修正しない理由: `.kklib` メタデータシリアライズ側の踏み込んだ調査が必要で、マージコンフリクト解消という本 PR のスコープを超える。次に着手する際は BUG-197/199/200 と合わせて、メタデータ書き込み側（`CodegenPhase.swift` の library emit 経路）の vtable/メタデータ生成ロジックから調査すること。**diff_kotlinc.sh フルコーパスでの影響確認（本 PR の18回目 master マージ時点で追記）**: `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を再構築した新鮮なアーティファクトに対し `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（790件）を実行したところ、`base64_edge_cases.kt`/`measure_timed_value.kt`/`regex_destructured_groups.kt`/`measure_time_duration.kt`/`time_edge_cases.kt`/`measure_time.kt`/`match_result.kt`/`platform_time_conversion.kt` の8件すべてが PASS した。`KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.*` 系の警告はコンパイル時 stderr に出るが、これらのケースはいずれも欠落シンボルを実行時に到達しないため diff レベルでの出力不一致には至らない（警告はコーパス全体で無害）。観測可能な実害は `swift_test.sh` の `testDurationStable*` 系3件（`StdlibCache.swift` 経由の同一アーティファクト機構を使う）に限定されており、`docs/diff-skip-inventory.md` への SKIP-DIFF 登録は不要と判断した。**注記（本 PR の19回目 master マージ時点で追記）**: `KSWIFTK-LIB-0004` 警告は今回の `diff_kotlinc.sh` フルスイート実行の stderr にも変わらず出現しており（14箇所）、artifact writer 側のシンボル欠落自体は解消していない。今回のフルゲート実行で `testDurationStable*` 系が失敗リストに現れなかったのも同じ理由（BUG-187 と同様、確定的な pass/fail ログが取れておらず高負荷実行下での可視性の問題）で、修正されたと解釈しないこと
 
 - [x] BUG-211: bundled Kotlin 拡張内での `CharSequence` レシーバの `length` プロパティ読みが interface 越し dispatch で 0 を返す（KSP-410 完了メモに「未 task 化の別既存バグ、本 PR スコープ外」と記録されたまま未採番だった — 2026-08-12 起票）。症状: `CharSequence` レシーバの bundled 拡張関数（`StringHOF.kt` 等）本体から `this.length` を読むと、実体が `String` でも 0 が返り HOF が空振りする。現行 stdlib ソースは `kswiftk.internal.__string_struct_get_length` ブリッジ（`StringEmptyBlankLines.kt` 等の既存パターン）で回避しているため実害は隠れているが、今後の `CharSequence` 系移行（KSP-406/409/411 等）が同じ回避を増殖させる。BUG-152 が修正した `CharSequence.length` の Sema 解決・`kk_char_sequence_length` の StringBuilder 対応とは別レイヤ（interface プロパティのランタイム表現ディスパッチ側）。着手時に最小再現（ユーザーコードの `fun f(cs: CharSequence) = cs.length` と bundled 拡張内の両経路）を固定してから修正し、修正後は stdlib ソースの `__string_struct_get_length` 回避を通常の `length` 読みへ戻してブリッジ削減（KSP-691 のメトリクス改善）につなげる
+- [~] BUG-212: object 式（匿名クラス）で**クラス**を継承すると、(1) 基底クラスの `open`/`abstract` メンバへの override が dispatch されず基底実装（`abstract` の場合は `null`）が使われ、(2) スーパークラス実引数付き `object : Base(x) {}` は実行時 `KSwiftK panic [KSWIFTK-RUNTIME-0001]: kk_array_get_inbounds precondition failed` でクラッシュする。interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済みで、本件はクラス継承経路。最小再現: `open class Base { open fun describe(): String = "base" }` `fun make(): Base = object : Base() { override fun describe(): String = "anon" }` `fun main() { println(make().describe()) }` が `"base"`（kotlinc は `"anon"`）。(2) は `open class Base2(val v: Int)` `fun make2(x: Int): Base2 = object : Base2(x) {}` でクラッシュ。名前付きサブクラスのスーパークラス primary constructor 実引数伝搬は PR #5506（`1128468186`）で別途修正済みだが、object 式はこのクラッシュが残る点が異なる。発見元: 2026-08-06 に KSP-491 の着手前プローブで一度 `BUG-188` として台帳登録されたが、後続の TODO.md 統合編集で記録が失われていた。2026-08-18 `.build/debug/kswiftc` で再実機確認し、症状に変化なし（両方とも pre-existing）。台帳は KSP-CAP-018。**部分修正（2026-08-18、KSP-CAP-018）**: override メンバを1つ以上持つ object 式については (1)(2) とも解消（詳細・回帰は KSP-CAP-018 参照）。メンバ宣言を持たない空ボディの object 式（(2) の最小再現そのもの）は別経路のため未解消のまま残存
+- [ ] BUG-213: expression-body 関数（`fun f(...): T = <expr>`）の `<expr>` が `object :` で始まる object 式で、かつ `=` の直後ではなく次の行から始まる場合にパースが壊れる。関数宣言そのものが「本体を持たない」扱いになり（`KSWIFTK-SEMA-0009: Function '...' must have a body`）、次行の `object` トークン単体が新規トップレベル宣言の開始と誤認されて `KSWIFTK-PARSE-0002: Expected declaration name` 警告と後続の型/参照未解決エラーの連鎖を引き起こす。同一 `object :` 式でも `=` と同じ行に置けば正常に解析される（KSP-CAP-018 の回帰テストが採用している回避策）。任意の式（例: リテラル）を次行に置く分には問題なく解析されるため（`fun f(): Int =\n 42` は正常）、`object` キーワード特有の継続行ヒューリスティックの欠陥と見られる。最小再現（kotlinc は両方とも正常に解析・実行）:
+  ```kotlin
+  open class Base { open fun describe(): String = "base" }
+  fun make(): Base =
+      object : Base() { override fun describe(): String = "anon" }
+  fun main() { println(make().describe()) }
+  // 単一行なら成功: fun make(): Base = object : Base() { ... }
+  ```
+  影響: 本家 `kotlin.properties.Delegates.observable`/`vetoable` の実際のソース記述（`= \n object : ObservableProperty<T>(initialValue) { ... }` の複数行形）はこのバグを踏むため、bundled Kotlin 側で単一行に書き直すワークアラウンドが必要になる。発見元: KSP-CAP-018 の回帰テスト作成中（2026-08-18）。今回修正しない理由: 文/宣言境界のセミコロン推論・継続行ヒューリスティック（`BuildASTPhase` のトークン走査、具体的な該当箇所は未特定）に触れる調査が必要で、KSP-CAP-018（object 式のクラス継承 override dispatch / super ctor 実引数）のスコープを超えるため
 
 ---
 
