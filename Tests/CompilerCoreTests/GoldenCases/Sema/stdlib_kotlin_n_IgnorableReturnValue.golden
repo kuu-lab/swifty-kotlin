@@ -1,0 +1,7 @@
+symbol fq=golden.sema.ignored kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.user kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_n_IgnorableReturnValue package=golden.sema
+  decl golden.sema.ignored fun ignored sym=golden.sema.ignored
+  decl golden.sema.user fun user sym=golden.sema.user
+expr e@4:22 int(1) type=Int
+expr e@7:5 call callee=e@7:5#1 args=[] type=Int call=golden.sema.ignored
