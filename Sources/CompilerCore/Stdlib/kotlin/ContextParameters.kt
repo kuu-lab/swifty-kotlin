@@ -7,6 +7,18 @@
 
 package kotlin
 
+// KSP-733: the opt-in marker for context parameters, migrated out of the
+// synthetic experimental-marker stubs in HeaderHelpers+SyntheticExperimentalMarkerStubs.swift.
+
+@kotlin.RequiresOptIn(
+    message = "The API is related to the experimental feature \"context parameters\" (see KEEP-367) and may be changed or removed in any future release.",
+    level = RequiresOptIn.Level.ERROR
+)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.SinceKotlin("2.2")
+public annotation class ExperimentalContextParameters
+
 // KSP-603: the `context` / `contextOf` helpers migrated out of the synthetic
 // stubs in HeaderHelpers+SyntheticScopeFunctionStubs.swift.
 //

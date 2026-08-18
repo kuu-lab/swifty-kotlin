@@ -535,15 +535,21 @@ extension TypeCheckHelpers {
     }
 
     private func normalizeOptInStringLiteral(_ raw: String) -> String {
-        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        while value.hasPrefix("\"") || value.hasPrefix("'") {
-            value.removeFirst()
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Annotation arguments are rebuilt from raw tokens. Determine whether
+        // the value is a string literal (regular or raw, with optional
+        // multi-dollar prefix) and extract its content. Raw strings must not
+        // be escape-decoded; regular strings are decoded like any other
+        // Kotlin string literal.
+        if let extraction = extractKotlinStringLiteralContent(value) {
+            return extraction.isRaw ? extraction.content : decodeKotlinStringEscapes(extraction.content)
         }
-        while value.hasSuffix("\"") || value.hasSuffix("'") {
-            value.removeLast()
-        }
-        return value
+
+        return decodeKotlinStringEscapes(value)
     }
+
+
 
     private func resolveAnnotationClassSymbol(
         named rawName: String,
