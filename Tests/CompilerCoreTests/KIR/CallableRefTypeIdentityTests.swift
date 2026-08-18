@@ -73,6 +73,74 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "Explicit KProperty0<Int> annotation on a bare top-level reference should type-check. Diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
+    // Devin review finding on the fix above: adopting `expectedType` verbatim without
+    // checking it against the property's actual type let mismatched annotations compile
+    // silently (e.g. `val r: KProperty0<String> = ::intProperty`), producing garbage at
+    // runtime instead of a diagnostic. Covers the bare/no-receiver branch, the
+    // receiver-having branch (pre-existing hole, same shape), a non-KProperty expected
+    // type, and a mutability mismatch (val referenced as KMutableProperty0).
+    @Test func testSemaRejectsMismatchedKPropertyValueTypeForBareReference() throws {
+        let source = """
+        import kotlin.reflect.KProperty0
+
+        val topLevelInt: Int = 7
+
+        fun main() {
+            val r: KProperty0<String> = ::topLevelInt
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError, "A KProperty0<String> annotation on an Int property reference must be a type error, not silently accepted.")
+    }
+
+    @Test func testSemaRejectsMismatchedKPropertyValueTypeForReceiverReference() throws {
+        let source = """
+        import kotlin.reflect.KProperty1
+
+        class Person(val age: Int)
+
+        fun main() {
+            val r: KProperty1<Person, String> = Person::age
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError, "A KProperty1<Person, String> annotation on an Int property reference must be a type error, not silently accepted.")
+    }
+
+    @Test func testSemaRejectsBarePropertyReferenceAsMismatchedFunctionType() throws {
+        let source = """
+        val topLevelInt: Int = 7
+
+        fun main() {
+            val f: (Int) -> Int = ::topLevelInt
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError, "A zero-arg property reference is not a (Int) -> Int; this must be a type error, not silently accepted.")
+    }
+
+    @Test func testSemaRejectsImmutablePropertyReferenceAsKMutableProperty() throws {
+        let source = """
+        import kotlin.reflect.KMutableProperty0
+
+        val topLevelInt: Int = 7
+
+        fun main() {
+            val m: KMutableProperty0<Int> = ::topLevelInt
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(ctx.diagnostics.hasError, "A val's reference cannot be typed as KMutableProperty0; this must be a type error, not silently accepted.")
+    }
+
     @Test func testSemaBindsFunctionRefKindForBoundCallableReference() throws {
         let source = """
         class Box {

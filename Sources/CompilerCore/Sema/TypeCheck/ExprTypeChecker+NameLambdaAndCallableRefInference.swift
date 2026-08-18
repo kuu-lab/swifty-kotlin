@@ -1164,6 +1164,57 @@ extension ExprTypeChecker {
         return inferredFunctionType
     }
 
+    /// Builds the natural `KProperty0<V>`/`KMutableProperty0<V>`/`KProperty1<T, V>`/
+    /// `KMutableProperty1<T, V>` type for a property callable reference (selected by
+    /// receiver-boundness and mutability), so callers can verify an explicit expected-type
+    /// annotation is actually compatible before adopting it as the reference's inferred type.
+    private func naturalPropertyReferenceType(
+        propertyType: TypeID,
+        ownerType: TypeID?,
+        propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+        let interfaceName: String = switch (ownerType != nil, isMutable) {
+        case (false, false): "KProperty0"
+        case (false, true): "KMutableProperty0"
+        case (true, false): "KProperty1"
+        case (true, true): "KMutableProperty1"
+        }
+        let fqName = [interner.intern("kotlin"), interner.intern("reflect"), interner.intern(interfaceName)]
+        guard let classSymbol = sema.symbols.lookup(fqName: fqName) else { return nil }
+        let args: [TypeArg] = ownerType.map { [.invariant($0), .invariant(propertyType)] } ?? [.invariant(propertyType)]
+        return sema.types.make(.classType(ClassType(classSymbol: classSymbol, args: args, nullability: .nonNull)))
+    }
+
+    /// Adopts `expectedType` as a property callable reference's inferred type only when the
+    /// reference's natural type (see `naturalPropertyReferenceType`) is actually a subtype of
+    /// it. Otherwise falls back to the property's own value type, so the ordinary
+    /// declared-type subtype check downstream produces a normal type-mismatch diagnostic
+    /// instead of silently accepting an incompatible annotation (e.g.
+    /// `val r: KProperty0<String> = ::someIntProperty`, or `val f: (Int) -> Int =
+    /// ::someIntProperty`, whose natural `KProperty0<Int>` isn't a `(Int) -> Int`).
+    private func propertyReferenceResultType(
+        expectedType: TypeID?,
+        propertyType: TypeID,
+        ownerType: TypeID?,
+        propertySymbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let expectedType,
+              let naturalType = naturalPropertyReferenceType(
+                  propertyType: propertyType, ownerType: ownerType, propertySymbol: propertySymbol,
+                  sema: sema, interner: interner
+              ),
+              sema.types.isSubtype(naturalType, expectedType)
+        else {
+            return propertyType
+        }
+        return expectedType
+    }
+
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -1267,7 +1318,14 @@ extension ExprTypeChecker {
                     }
                     if let propertySymbol = propertyCandidates.first {
                         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        let resultType = expectedType ?? propertyType
+                        let resultType = propertyReferenceResultType(
+                            expectedType: expectedType,
+                            propertyType: propertyType,
+                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
+                            propertySymbol: propertySymbol,
+                            sema: sema,
+                            interner: interner
+                        )
                         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                         sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
                         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
@@ -1298,7 +1356,14 @@ extension ExprTypeChecker {
             }
             if let propertySymbol = propertyCandidates.first {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                let resultType = expectedType ?? propertyType
+                let resultType = propertyReferenceResultType(
+                    expectedType: expectedType,
+                    propertyType: propertyType,
+                    ownerType: nil,
+                    propertySymbol: propertySymbol,
+                    sema: sema,
+                    interner: interner
+                )
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
                 sema.bindings.bindExprType(id, type: resultType)
