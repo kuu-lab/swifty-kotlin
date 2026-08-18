@@ -759,6 +759,7 @@ final class CallTypeChecker {
                 case "ShortArray": sema.types.shortType
                 case "ByteArray": sema.types.byteType
                 case "UByteArray": sema.types.ubyteType
+                case "UShortArray": sema.types.ushortType
                 case "UIntArray": sema.types.uintType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
                 case "FloatArray": sema.types.make(.primitive(.float, .nonNull))
@@ -2416,7 +2417,6 @@ final class CallTypeChecker {
             applyContractEffects(
                 chosen: chosen,
                 args: args,
-                argTypes: argTypes,
                 ctx: ctx,
                 locals: &locals
             )
@@ -2557,7 +2557,6 @@ final class CallTypeChecker {
                     applyContractEffects(
                         chosen: chosen,
                         args: args,
-                        argTypes: argTypes,
                         ctx: ctx,
                         locals: &locals
                     )

@@ -38,10 +38,10 @@
 > **移行テンプレート T**（W2〜W4/W6 の各タスクはこの手順）:
 > 1. タスク記載の diff ケースを `Scripts/diff_cases/` で確認・なければ追加し、**現行実装**で `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/<case>.kt` green を確認（挙動の固定）
 > 2. タスク記載の実装先 .kt に Kotlin 実装を書く（既存ファイル追記可）。ランタイム依存点は `@KsSymbolName("__kk_...") internal external fun __名前(...)` で宣言
-> 3. 新規 .kt は `Sources/CompilerCore/Stdlib/kotlin/` 配下に置くだけで自動配線される。除外リスト対象は `Sources/CompilerCore/Driver/FrontendPhases.swift` の `excludedBundledStdlibFiles` から該当エントリを削除
+> 3. 新規 .kt は `Sources/CompilerCore/Stdlib/kotlin/` 配下に置くだけで自動配線される（除外リスト機構は KSP-505 で撤廃済み）
 > 4. **同一 PR** で、タスク記載の (a) `HeaderHelpers+Synthetic*` の該当登録 (b) `CallTypeChecker+*` / `CallLowerer+*` の名前文字列特例 case (c) Runtime の `@_cdecl` 関数 (d) `RuntimeABISpec` の該当エントリ（parity テスト含む）を削除する。「ブリッジ残留」指定の関数は削除せず `__kk_` prefix へ改名し spec を更新
 > 5. U → G → タスク記載の rg 完了チェックが 0 件
-> 6. **移行完了の3点確認**: ①除外リスト非登録 ②.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: RangeCoercion.kt） ③Sema/KIR/Lowering に同名 name-string 特例が残っていない
+> 6. **移行完了の2点確認**: ①.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: RangeCoercion.kt） ②Sema/KIR/Lowering に同名 name-string 特例が残っていない
 > 7. **二重 oracle**: diff ケースに加え、bundled .kt を実行して期待値比較する自己完結テスト（KSP-INF-006 のハーネス整備後は必須。整備前は G の既存テストで代替可）
 > 8. ブリッジ（`__kk_*`）を**追加**する場合は理由コード（syscall / メモリ表現 / GC・continuation / メタデータ / 性能=実測値添付）を PR 本文に明記し、`RuntimeABISpec` 登録 + specVersion 更新をセットで行う。本家 kotlin-stdlib から移植した .kt には Apache 2.0 帰属ヘッダを付ける（KSP-INF-013）
 
@@ -257,8 +257,14 @@
   - 手順: (1) `Package.swift` の `resources: [.copy("Stdlib")]` が `Sources/CompilerCore/Stdlib` を指すこと（ルートではない）を確認 (2) 各 .kt を「対応 KSP タスクの下敷きに使う / 即削除」に分類（W3/W4 の該当タスクへ移設済みのものから削除） (3) `git rm -r Stdlib/`
   - 完了: ルート `Stdlib/` が存在しない + G
   - 完了確認（2026-08-14）: merged PR #5740 / merge commit `4a38e5364` が root `Stdlib/` の 27 `.kt` を削除したことを履歴で確認。latest master `0a9c0c248` でも root `Stdlib/` は不在で、`Package.swift` は `CompilerCore` の `.copy("Stdlib")` として `Sources/CompilerCore/Stdlib` を resource 化している。`BundledStdlibExecutionTests` 27/27、`StdlibArtifactRegressionTests` 27/27 を現行コードで検証済み。
-- [ ] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃し、ファイル名を本家準拠へリネームする
-  - 前提: W3 全完了。手順: (1) セットが空であることを確認して機構ごと削除 (2) `text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム（`docs/stdlib-pipeline.md` §6） (3) U で golden 更新
+- [x] KSP-505: `excludedBundledStdlibFiles` 機構を撤廃する（前提: W3 全完了 = KSP-308 のみで達成済み）
+  - 完了: `Sources/CompilerCore/Driver/BundledStdlib.swift` の `excludedBundledStdlibFiles` は既に空集合だったため、プロパティ本体・ガード節・関連 doc comment を削除して機構ごと撤廃した。TODO.md 冒頭の移行テンプレート T（手順3, 6）と `docs/stdlib-pipeline.md`（§2/§4/§10/§13-7）から同機構への参照も更新済み。
+  - 検証: `swift build --target CompilerCore` green、`rg excludedBundledStdlibFiles Sources/ Tests/` 0件。除外集合が元々空だったため `collectBundledStdlibSources` の出力（挙動）に変化なし。
+  - スコープ縮小: 当初手順(2)「`text/Strings.kt`, `collections/Collections.kt` 等 kotlin-stdlib 本家のファイル構成へ統合リネーム」は、着手時点の実測で対象例に挙げた text/collections モジュール自体が (b) Kotlin 移行の途中（`KSP-426`/`KSP-428` が List の sort/min/max・集合演算・数値集計を未移行、`KSP-693` が text の合成スタブ整理未完了）であり、`docs/stdlib-pipeline.md` §6 の「機能スライス名は当該モジュールの M フェーズ完了時に統合・リネームする」方針と矛盾するため実施しなかった。粒度ルールに従い新番号 `KSP-1541` へ分割した。
+- [ ] KSP-1541: 機能スライス名の bundled `.kt` ファイルを kotlin-stdlib 本家準拠のファイル名へ統合・リネームする（KSP-505 手順(2)(3) の分割先。前提: 対象モジュールの M フェーズ完了）
+  - 背景: `docs/stdlib-pipeline.md` §6「既存の機能スライス名（`ListFilterHOF.kt` 等）は当該モジュールの M フェーズ完了時に統合・リネームする」を実行するタスク。2026-08-18 時点では text（M1: `KSP-693` 未完了）/collections（M3: `KSP-426`/`KSP-428` 未完了）を含む複数のモジュールがまだ (b) 残ありで対象外（着手時に §9 棚卸し表で全モジュールを再確認すること）
+  - 着手条件: `docs/stdlib-pipeline.md` §9 の3分類棚卸し表を rg で再確認し、対象モジュールの (b) 行（未移行の合成スタブ登録）が 0 件であること。モジュール単体で条件を満たせば、そのモジュールだけ先行して統合・リネームしてよい（粒度ルールにより 1 モジュール = 1 PR に分割可）
+  - 手順: (1) 対象モジュール配下の機能スライスファイル（例: `collections/ListFilterHOF.kt`, `text/StringBasics.kt` 等）を本家 kotlin-stdlib のファイル名・配置（例: `collections/Collections.kt`, `text/Strings.kt`）へ統合・リネーム（`docs/stdlib-pipeline.md` §6）。挙動変更ゼロが条件 (2) `UPDATE_GOLDEN=1` で golden 更新し `git diff -- Tests/CompilerCoreTests/GoldenCases` が機械的差分のみであることを確認 (3) 共通ゲート G green
 
 - [x] KSP-690: bundled stdlib 自身の diagnostics ゼロを enforcing テスト化する（§8 の要件「stdlib ソース自身に diagnostics が出る状態はコンパイラのバグとして扱う（warning 含めゼロを CI で enforcing にする）」に対応するテストが存在しない — 2026-08-12 実装確認で該当テストゼロ）。KSP-INF-004 の既存実装（PR #4967）で充足済み
   - 実装: 全 bundled .kt を注入した最小入力（`hello.kt` 相当）のコンパイルで、`__bundled_*` パスを source location とする診断が warning 含め 0 件であることを固定する `Tests/CompilerCoreTests/Integration/BundledStdlibDiagnosticsTests.swift` を追加済み。`KSWIFTK-SEMA-0102`（bundled×synthetic 二重定義 warning）のガード漏れ検知網を兼ねる
@@ -892,7 +898,7 @@
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
   - 完了 (2026-08-14): HTTP request builder 用の内部 URI handoff は保持し、Java URL の公開 Sema/runtime surface のみ除去
 - [x] CLEANUP-STUB-125: `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` の JVM 固有注釈を (a) 分割・削除する（§9 の同ファイル注記「split JVM-only annotations into (a) before table migration」と KSP-668 スコープ外メモ「JVM 固有注釈は (a) 分割してから」の実行体 — 2026-08-12 追補。対象は着手時に `rg -n 'Jvm[A-Z][a-zA-Z]*' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` で全列挙し、KSwiftK ターゲット（macOS ネイティブ）で意味を持たない JVM 専用注釈（`@JvmStatic`/`@JvmOverloads`/`@JvmField` 系等）を (a)、`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` 等の共通注釈インフラ（AnnotationTargetValidation・opt-in 機構が依存）を (c) 残置に分類してから削除する。手順: RF-STUB-002 レシピ）
-  - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
+     - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
 
 - [ ] CLEANUP-STUB-126: `HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` を削除する（2026-08-16 追補。`SyntheticBucketedStubRegistry` で `bucket: .targetOutCleanup` に分類済みだが cleanup タスクが未採番だった）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`（260行）
@@ -901,19 +907,22 @@
   - 連動整理: Runtime `Sources/Runtime/RuntimeTime.swift`（`kk_duration_to_java_duration`, `kk_instant_to_java_instant`, `kk_duration_unit_to_time_unit`, `kk_time_unit_to_duration_unit`）、`Sources/RuntimeABI/RuntimeABISpec+Duration.swift` の該当 ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Sema/TimeUnitConversionSyntheticSurfaceTests.swift`、`Scripts/diff_cases/platform_time_conversion.kt` の整理（kotlinc でも JVM 依存のため diff 対象外化を明記）
   - 注意: `kotlin.time.Duration`/`DurationUnit` 本体は (b) 移行対象（KSP-683）。本タスクは JVM interop 表面のみを削除し、Duration 本体には触れない
-- [ ] CLEANUP-STUB-127: `HeaderHelpers+SyntheticJsNumberStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+- [x] CLEANUP-STUB-127: `HeaderHelpers+SyntheticJsNumberStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsNumberStubs.swift`（117行）
   - 削除内容: `registerSyntheticJsNumberStubs(...)` / `registerJsNumberMemberFunction(...)` および `kotlin.js.JsNumber` の `toInt`/`toDouble` 登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1230`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:151`（`name: "JsNumber"`）を削除
   - 連動整理: `Sources/RuntimeABI/RuntimeABISpec+JsNumber.swift`（`kk_js_number_toInt`/`kk_js_number_toDouble`）と Runtime 実装を削除
   - テスト影響: `rg -l 'JsNumber' Tests Scripts/diff_cases` で列挙して整理
-  - 前提: CLEANUP-STUB-128（`JsAny` 先行削除でも順不同可。両方で `kotlin.js` 表面を消し切る）
-- [ ] CLEANUP-STUB-128: `HeaderHelpers+SyntheticJsAnyStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+  - 前提: CLEANUP-STUB-128 と同一変更で `kotlin.js` synthetic surface を消し切る
+  - 実装 (2026-08-18): `JsNumber` の Sema / RuntimeABI / parity allowlist 参照を除去し、現 HEAD の `Sources/Runtime` に該当実装が無いことを確認。Runtime ABI parity focused test、Fiction audit dump、Swift build を実施
+  - 完了 (2026-08-19): CLEANUP-STUB-128 と同一PRで `JsNumber` の Sema / RuntimeABI / parity allowlist 参照を除去。Runtime ABI parity、Fiction audit dump、Swift build、CI の全ゲートを確認
+- [x] CLEANUP-STUB-128: `HeaderHelpers+SyntheticJsAnyStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsAnyStubs.swift`（25行）
   - 削除内容: `registerSyntheticJsAnyStubs(...)` および `kotlin.js.JsAny` の登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1229`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:148`（`name: "JsAny"`）を削除
-  - 連動整理: 対象 `kk_*` なし。`JsNumber` が `JsAny` を supertype 参照するため CLEANUP-STUB-127 と同時 or 直後に実施
-  - テスト影響: `rg -l 'JsAny' Tests Scripts/diff_cases` で列挙して整理
+  - 連動整理: 対象 `kk_*` なし。`JsNumber` が `JsAny` を supertype 参照するため CLEANUP-STUB-127 と同一変更で実施
+  - テスト影響: `rg -l 'JsAny' Tests Scripts/diff_cases` は対象なし。`js_annotations.kt` は別の Kotlin/JS 注釈ケースのため保持
+  - 完了 (2026-08-19): `JsAny` の Sema 登録・2つの登録経路を除去。`JsNumber` と関連 spec-only ABI entries と合わせて Kotlin/JS synthetic surface を完全削除
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
@@ -937,6 +946,7 @@
 - [x] BUG-195: `kotlin.time` の `toDuration`/`toTimeUnit`/`Duration.toComponents` が軒並み誤動作する。最小再現: (1) `2.toDuration(DurationUnit.SECONDS).inWholeSeconds` は `2` ではなく `0` を返す（`1500L.toDuration(DurationUnit.MILLISECONDS)`/`1.5.toDuration(DurationUnit.MINUTES)` も同様に常に `0` 相当）。(2) `DurationUnit.toTimeUnit()` はどの `DurationUnit` を渡しても常に `TimeUnit.NANOSECONDS` 相当を返す（`DurationUnit.NANOSECONDS`/`SECONDS`/`DAYS` いずれも `label()` 経由で `"ns"` になる）。(3) `Duration.toComponents{}`（5-arg/4-arg/3-arg/2-arg いずれのオーバーロードも）を含むコードは実行時に `Fatal error` 系ではなく `outputUnavailable`（`Sources/CompilerBackend/LinkPhase.swift:120`）でプロセスが結果を返さない。いずれもテスト側の期待値自体は自明な算術（2秒=2秒、1500ms=1500ms 等）で誤りの余地がなく、`git diff origin/master` で `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+StableDurationEdgeCases.swift` を含む関連ファイルが無変更と確認済み、かつ独立した origin/master 単体 tip（`d8f08bd8c`）でも(1)(2)は同一の誤った値、(3)は load average 21→4 の間で3回連続再現する決定的な `outputUnavailable` として再現することを確認済み（サブエージェントによる独立検証、環境負荷起因のflakeではない）。発見元: 本 PR（16回目 master マージ）が取り込んだ15コミットの一つ「Move TimeMark/ComparableTimeMark operations to Kotlin stdlib source (KSP-648) (#5474)」（`8429d66a2`）が疑わしい（Duration/TimeMark 関連の Kotlin ソース化移行と時期・領域が一致）が未確認。**経路特定・スコープ再確定（本 PR の18回目 master マージ時点で追記、前回の「完了」判定を撤回）**: 本項は「stdlib をソースから直接注入してコンパイルする通常経路」では発生せず、「`--stdlib-library <path>.kklib`（事前コンパイル済み stdlib アーティファクト、`Tests/CompilerBackendTests/Integration/TestSupport/StdlibCache.swift` のテストキャッシュ・`Scripts/diff_kotlinc.sh` の `--no-stdlib --stdlib-library` 呼び出し双方が使う経路）でコンパイルする経路」限定で再現する artifact-path 限定のバグと判明。通常経路（`.build/debug/kswiftc` に `--stdlib-library` を付けずソースをそのまま渡す）では本項記載の最小再現3件（(1) `2.toDuration(...)`/`1500L.toDuration(...)`/`1.5.toDuration(DurationUnit.MINUTES)` の3種、(2) `testDurationUnitToTimeUnitConversion` と同一ソース、(3) `testDurationStableToComponentsOverloads` と同一ソース）はいずれも期待値と完全一致（`2`/`1500`/`90`、`ns`/`s`/`d`/`true`/`false`、`1/2/3/4/5/26/3/4/5/1563/4/5/-1/-500000000`）することを確認した。しかし同一ソースを `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を`rm -rf`で再構築させた**直後の新鮮なアーティファクト**に対し `--stdlib-library` 経由でコンパイルすると、(1)は `0/0/0`、(2)は `ns/ns/ns/false/false`（いずれも本項オリジナルの誤り方と一致）を再現し、コンパイル時に `KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.component1`等の警告が出る（アーティファクトの stdlib メタデータ生成が一部シンボルを欠落させている）。`SWIFT_TEST_PARALLEL=0` での直列単独再実行でも同一結果のため並行実行由来の汚染でもない。前回「完了」としクレジットした `3cc0e943d`（KSP-472）は誤り（このコミットはこのバグを修正していない、撤回）。根本原因はメタデータ書き込み側（`--stdlib-only --emit library` で `.kklib` を生成する経路）の一部シンボル欠落で、BUG-197（`--stdlib-library` モードでの型引数消失）・BUG-199（precompiled artifact での重複宣言）・BUG-200（precompiled artifact での modality 欠落）と同じ「事前コンパイル済み stdlib アーティファクトのメタデータ生成が不完全」というバグ群に属すると見られる。当時の監査で修正しなかった理由: `.kklib` メタデータシリアライズ側の踏み込んだ調査が必要で、マージコンフリクト解消という本 PR のスコープを超える。次に着手する際は BUG-197/199/200 と合わせて、メタデータ書き込み側（`CodegenPhase.swift` の library emit 経路）の vtable/メタデータ生成ロジックから調査すること。**diff_kotlinc.sh フルコーパスでの影響確認（本 PR の18回目 master マージ時点で追記）**: `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を再構築した新鮮なアーティファクトに対し `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（790件）を実行したところ、`base64_edge_cases.kt`/`measure_timed_value.kt`/`regex_destructured_groups.kt`/`measure_time_duration.kt`/`time_edge_cases.kt`/`measure_time.kt`/`match_result.kt`/`platform_time_conversion.kt` の8件すべてが PASS した。`KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.*` 系の警告はコンパイル時 stderr に出るが、これらのケースはいずれも欠落シンボルを実行時に到達しないため diff レベルでの出力不一致には至らない（警告はコーパス全体で無害）。観測可能な実害は `swift_test.sh` の `testDurationStable*` 系3件（`StdlibCache.swift` 経由の同一アーティファクト機構を使う）に限定されており、`docs/diff-skip-inventory.md` への SKIP-DIFF 登録は不要と判断した。**注記（本 PR の19回目 master マージ時点で追記）**: `KSWIFTK-LIB-0004` 警告は今回の `diff_kotlinc.sh` フルスイート実行の stderr にも変わらず出現しており（14箇所）、artifact writer 側のシンボル欠落自体は解消していない。今回のフルゲート実行で `testDurationStable*` 系が失敗リストに現れなかったのも同じ理由（BUG-187 と同様、確定的な pass/fail ログが取れておらず高負荷実行下での可視性の問題）で、修正されたと解釈しないこと。**完了（2026-08-18、実装: PR #5789 / commit `5f73f5e72`; precompiled metadata follow-up: PR #5833 / merge commit `96eb93df4`）**: `Scripts/diff_cases/duration_bug195.kt` を fresh `.kklib` 経路で再検証して PASS、bundled-source 経路の CLI でも `2`/`1500`/`90`/`true`/`true`/`2/0` を確認した。Swift targeted test は Xcode beta の `swiftpm-testing-helper` が stack guard で SIGBUS 終了したため、本体の BUG-195 失敗とは分離して扱う
 
 - [x] BUG-211: bundled Kotlin 拡張内での `CharSequence` レシーバの `length` プロパティ読みが interface 越し dispatch で 0 を返す（KSP-410 完了メモに「未 task 化の別既存バグ、本 PR スコープ外」と記録されたまま未採番だった — 2026-08-12 起票）。症状: `CharSequence` レシーバの bundled 拡張関数（`StringHOF.kt` 等）本体から `this.length` を読むと、実体が `String` でも 0 が返り HOF が空振りする。現行 stdlib ソースは `kswiftk.internal.__string_struct_get_length` ブリッジ（`StringEmptyBlankLines.kt` 等の既存パターン）で回避しているため実害は隠れているが、今後の `CharSequence` 系移行（KSP-406/409/411 等）が同じ回避を増殖させる。BUG-152 が修正した `CharSequence.length` の Sema 解決・`kk_char_sequence_length` の StringBuilder 対応とは別レイヤ（interface プロパティのランタイム表現ディスパッチ側）。着手時に最小再現（ユーザーコードの `fun f(cs: CharSequence) = cs.length` と bundled 拡張内の両経路）を固定してから修正し、修正後は stdlib ソースの `__string_struct_get_length` 回避を通常の `length` 読みへ戻してブリッジ削減（KSP-691 のメトリクス改善）につなげる
+- [ ] BUG-212: 複数の Kotlin source を同一 `CompilationContext` で KIR 化すると、`kotlin.native.Platform.memoryModel` の `kk_platform_memoryModel` 呼び出しが消えることがある。最小再現は次の2ファイル構成: (1) `package nativecase0` の `fun main0() { val memoryModel = Platform.memoryModel }`（`kotlin.experimental.ExperimentalNativeApi` を opt-in）、(2) 別 package `nativecase1` の `fun probe1(value: Any?): Int = value.identityHashCode()`。1ファイル目だけでは `main0` の KIR に `kk_platform_memoryModel` が含まれるが、2ファイルを同じ context に渡すと `main0` の callee が空になり呼び出しが欠落する。発見元: REFACT-TEST-003 の NativePlatform fixture 集約。現行回避は `BuildKIRRegressionTests+NativePlatform.swift` で `Platform.memoryModel` fixture を単独 context に保つこと。synthetic object-property の symbol／binding／lowering state が別ファイルで変化する根本原因は未特定で、同PR内で安全に修正できないため、最小再現と回避策をここで追跡する。
 
 ---
 
@@ -954,12 +964,17 @@
 > 目標: 同一ファイル / 同一スイート内で同じ入力を使う箇所を 1 回の pipeline 呼び出しにまとめ、上記カウントを再び半減させる。
 > 進行中 PR: #5765 (Batch 83)。未 PR の作業ブランチ: `devin/consolidate-sema-api-tests-batch84` (Batch 84)。
 
-- [~] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
+- [x] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
   - 対象例: `ListSyntheticMemberLinkTests+MutableAndAdvancedMembers.swift` (60), `ListSyntheticMemberLinkTests.swift` (58), `RegexSemaLoweringTests.swift` (13), `MathOverloadResolutionTests.swift` (8), `ContinuationSyntheticStubTests.swift` (6), `KotlinAnnotationAPIInventoryTests.swift` (6), `MatchResultTypeTests.swift` (6), `MathSyntheticTopLevelLinkTests.swift` (6), `CoroutineIntrinsicsSyntheticStubTests.swift` (5), `KotlinIOCommonEdgeCaseTests.swift` (5)
 - [ ] REFACT-TEST-002: 各テストで `makeSema()` を作り直している surface-inventory 系 Sema スイートに `sharedSema()` キャッシュを導入
   - 対象例: `IntegerNarrowingPassTests.swift` (8), `EnumAPISurfaceInventoryTests.swift` (8), `ExceptionSyntheticStubTests.swift` (4), `GenericInterfaceInheritanceTests.swift` (4), `ReflectKMutablePropertySyntheticTests.swift` (4), `ReflectKProperty2SyntheticTests.swift` (4), `ThrowableMemberSourceTests.swift` (4), `ReflectK*` 系・`NativeCInteropBetaInteropApiTests` など (2-3 件×多数)
-- [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約
-  - 対象例: `KotlinIOCommonEdgeCaseTests.swift` (28), `RegexSemaLoweringTests.swift` (18), `BuildKIRRegressionTests+NativePlatform.swift` (14), `BuildKIRRegressionTests.swift` (12), `LibMetadataImportIntegrationTests.swift` (12), `BlockExpressionTests.swift` (11), `LoweringPassRegressionTests+FileRewrite.swift` (11), `LibraryMetadataManifestValidationTests.swift` (11), `PropertyDelegationTests+ProvideDelegateAndAccessorRewriting.swift` (11), `BuildASTBodyParsingRegressionTests.swift` (10), `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` (10)
+- [~] REFACT-TEST-003: 同一入力で複数 `runToKIR(ctx)` を呼んでいる KIR テストを共有 `runToKIR(ctx)` に集約（必須ゲート未完了のため完了保留）
+  - 独立した fixture 群を package／関数名で分離し、Regex、NativePlatform bridge（`Platform.memoryModel` は synthetic object-property state のため単独 context）、BuildKIR、BlockExpression、BuildAST body parsing、FileRewrite、Property Delegation を raw／lowered の共有 `CompilationContext` に集約した。既存のテスト名と対象 fixture の assertion は維持している。
+  - `KotlinIOCommonEdgeCaseTests.swift` と `BuildKIRRegressionTests+ExpressionAndAdvancedScenarios+ControlFlowTryAndObjectLiteral.swift` は既に共有化済みのため変更しない。
+  - `.kklib`、`searchPaths`、manifest 診断、import 解決など外部ライブラリ状態がケースごとに異なる `LibMetadataImportIntegrationTests.swift`、`LibraryMetadataManifestValidationTests.swift` および関連 import テストは、誤った診断混入を避けるため個別コンテキストのまま維持した。
+  - `BuildKIRRegressionTests+NativePlatform.swift` の `Platform.memoryModel` は、他の Native bridge fixture と同一 context にまとめると runtime call が KIR から消えるため、元の単独 context を維持し、残りの NativePlatform fixture 群のみ共有した。この未修正コンパイラ不具合は BUG-212 として記録した。
+  - 手動 `runSema`／`BuildKIRPhase` 検証、ABI／synthetic KIR の直接検証、benchmark 用 fixture、および before/after の LoweringPhase 順序を意図的に検証する単独ケースは対象外として棚卸し済み。
+  - focused テストは確認済みだが、`bash Scripts/swift_test.sh`、`--filter Golden`、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` の必須ゲートは未完了／未確認のため、全ゲート green 後に完了へ更新する。
 - [x] REFACT-TEST-004: 複数 `runToLowering` / `runFrontend` を呼んでいる Lowering / Frontend テストを共有コンテキストに集約
   - 対象5 suite の直接 pipeline 呼出を 38 回から 5 回へ集約し、fixture ごとの AST/KIR assertion、path 別 diagnostics、ValueClass の対象シンボル境界を維持
   - `FrontendParallelBenchmarkTests` は測定用 fixture のため対象外とし、AST/Driver/Lexer の異なる入力・状態依存 suite は安全な共有条件を満たさないため変更しない
@@ -1436,7 +1451,7 @@
   - 未実装シンボル一覧:
     - `kotlin.UShortArray` — fun UShortArray(Int, Function1): UShortArray  -- `final inline fun kotlin/UShortArray(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/UShort>): kotlin/UShortArray`
 
-- [ ] KSP-765: kotlin.Unit-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-765: kotlin.Unit-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `Unit`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Unit.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

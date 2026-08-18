@@ -22,6 +22,107 @@ struct MatchResultTypeTests {
 
     private static let bundledSourcePath = "__bundled_kotlin/text/MatchResult.kt"
 
+    private static let sharedUsageSources = [
+        #"""
+        package sample0
+
+        fun probe(input: String): String? {
+            val match = Regex("(a)(b)").find(input) ?: return null
+            val value = match.value
+            val range = match.range
+            val groupValues = match.groupValues
+            val groups = match.groups
+            val first = match.component1()
+            val second = match.component2()
+            val nextMatch = match.next()
+            val destructured = match.destructured
+            return value + range.first + groupValues.size + groups.size +
+                first + second + destructured.component1() + destructured.match.value +
+                (nextMatch?.value ?: "")
+        }
+        """#,
+        #"""
+        package sample1
+
+        fun probe(): Int {
+            val regex = Regex("(?<a>x)")
+            return regex.pattern.length + regex.options.size + regex.groupNames.size
+        }
+        """#,
+        #"""
+        package sample2
+
+        fun extractFirstNumber(input: String): String? {
+            val regex = Regex("(\\d+)")
+            val match = regex.find(input)
+            return match?.value
+        }
+        """#,
+        #"""
+        package sample3
+
+        fun extractGroups(input: String): String? {
+            val regex = Regex("(\\w+)\\s+(\\w+)")
+            val match = regex.find(input)
+            val d = match?.destructured
+            return d?.component1()
+        }
+        """#,
+        #"""
+        package sample4
+
+        fun allMatches(input: String): List<String> {
+            val regex = Regex("\\d+")
+            var match = regex.find(input)
+            val results = mutableListOf<String>()
+            while (match != null) {
+                results.add(match.value)
+                match = match.next()
+            }
+            return results
+        }
+        """#,
+    ]
+
+    private static nonisolated(unsafe) var _sharedUsage: (CompilationContext, [String])?
+
+    private func sharedUsage() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedUsage { return cached }
+        var result: (CompilationContext, [String])?
+        try withTemporaryFiles(contents: Self.sharedUsageSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (ctx, paths)
+        }
+        let shared = try #require(result)
+        Self._sharedUsage = shared
+        return shared
+    }
+
+    private func diagnosticsForPath(
+        _ path: String,
+        in ctx: CompilationContext
+    ) -> [Diagnostic] {
+        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
+    }
+
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            guard let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
     // MARK: - Shared sema fixture
 
     private func makeSema() throws -> (SemaModule, StringInterner, CompilationContext) {
@@ -49,11 +150,12 @@ struct MatchResultTypeTests {
     /// Resolves the symbol a `receiver.member` read/call in `source` binds to.
     private func memberSymbol(
         _ memberName: String,
+        in path: String,
         in ctx: CompilationContext
     ) throws -> SymbolID {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let exprID = try #require(firstExprID(in: ast) { _, expr in
+        let exprID = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
             guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
             return ctx.interner.resolve(callee) == memberName
         }, "Expected a `.\(memberName)` member access in the test source")
@@ -94,24 +196,9 @@ struct MatchResultTypeTests {
     // MARK: - 3. Public members resolve to bundled Kotlin source
 
     @Test func testMatchResultMembersResolveToBundledKotlinSource() throws {
-        let ctx = makeContextFromSource("""
-        fun probe(input: String): String? {
-            val match = Regex("(a)(b)").find(input) ?: return null
-            val value = match.value
-            val range = match.range
-            val groupValues = match.groupValues
-            val groups = match.groups
-            val first = match.component1()
-            val second = match.component2()
-            val nextMatch = match.next()
-            val destructured = match.destructured
-            return value + range.first + groupValues.size + groups.size +
-                first + second + destructured.component1() + destructured.match.value +
-                (nextMatch?.value ?: "")
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[0]
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected MatchResult members to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
@@ -123,7 +210,7 @@ struct MatchResultTypeTests {
             "component1", "component2", "next", "destructured", "match",
         ]
         for member in members {
-            let symbol = try memberSymbol(member, in: ctx)
+            let symbol = try memberSymbol(member, in: path, in: ctx)
             #expect(
                 sema.symbols.externalLinkName(for: symbol) == nil,
                 "MatchResult.\(member) must not be wired to a kk_* runtime entry point"
@@ -138,14 +225,9 @@ struct MatchResultTypeTests {
     // MARK: - 4. Regex accessors resolve to bundled Kotlin source
 
     @Test func testRegexAccessorsResolveToBundledKotlinSource() throws {
-        let ctx = makeContextFromSource("""
-        fun probe(): Int {
-            val regex = Regex("(?<a>x)")
-            return regex.pattern.length + regex.options.size + regex.groupNames.size
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[1]
+        let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Expected Regex accessors to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
@@ -153,7 +235,7 @@ struct MatchResultTypeTests {
 
         let sema = try #require(ctx.sema)
         for member in ["pattern", "options", "groupNames"] {
-            let symbol = try memberSymbol(member, in: ctx)
+            let symbol = try memberSymbol(member, in: path, in: ctx)
             #expect(
                 sema.symbols.externalLinkName(for: symbol) == nil,
                 "Regex.\(member) must not be wired to a kk_* runtime entry point"
@@ -168,15 +250,8 @@ struct MatchResultTypeTests {
     // MARK: - 5. Source-level usage: basic MatchResult access type-checks
 
     @Test func testBasicMatchResultAccessTypeChecks() throws {
-        let ctx = makeContextFromSource("""
-        fun extractFirstNumber(input: String): String? {
-            val regex = Regex("(\\\\d+)")
-            val match = regex.find(input)
-            return match?.value
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let (ctx, paths) = try sharedUsage()
+        let errors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "Basic MatchResult access should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"
@@ -186,16 +261,8 @@ struct MatchResultTypeTests {
     // MARK: - 6. Source-level usage: MatchResult.destructured access type-checks
 
     @Test func testDestructuredPropertyAccessTypeChecks() throws {
-        let ctx = makeContextFromSource("""
-        fun extractGroups(input: String): String? {
-            val regex = Regex("(\\\\w+)\\\\s+(\\\\w+)")
-            val match = regex.find(input)
-            val d = match?.destructured
-            return d?.component1()
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let (ctx, paths) = try sharedUsage()
+        let errors = diagnosticsForPath(paths[3], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "MatchResult.destructured access should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"
@@ -205,20 +272,8 @@ struct MatchResultTypeTests {
     // MARK: - 7. Source-level usage: MatchResult.next() chaining type-checks
 
     @Test func testMatchResultNextChainingTypeChecks() throws {
-        let ctx = makeContextFromSource("""
-        fun allMatches(input: String): List<String> {
-            val regex = Regex("\\\\d+")
-            var match = regex.find(input)
-            val results = mutableListOf<String>()
-            while (match != null) {
-                results.add(match.value)
-                match = match.next()
-            }
-            return results
-        }
-        """)
-        try runSema(ctx)
-        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        let (ctx, paths) = try sharedUsage()
+        let errors = diagnosticsForPath(paths[4], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
             "MatchResult.next() chaining should type-check without errors: \(errors.map { "\($0.code): \($0.message)" })"

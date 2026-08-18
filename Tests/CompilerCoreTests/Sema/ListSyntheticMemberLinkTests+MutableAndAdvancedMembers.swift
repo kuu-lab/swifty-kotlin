@@ -9,9 +9,8 @@ import Testing
 extension ListSyntheticMemberLinkTests {
     @Test
     func testListSortedAndSortedDescendingHaveComparableUpperBound() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName: [InternedString] = [
@@ -877,9 +876,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverTypes() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
@@ -940,9 +938,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListBulkCollectionMembersKeepInvariantReceiverType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let mutableListFQName: [InternedString] = [
@@ -1212,9 +1209,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testSetRegistersCollectionAsNominalSupertype() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let setSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1234,9 +1230,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testContainsAllMembersUseCollectionRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = [
@@ -1275,9 +1270,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testSetContainsAllUsesCollectionParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = [
@@ -1319,9 +1313,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testContainsMembersAreMarkedOperatorFunctions() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = [
@@ -1382,9 +1375,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testWithIndexUsesListOfIndexedValueSignature() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let withIndexSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1469,9 +1461,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListBulkMutationMembersUseInvariantReceiverType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let mutableListFQName = [
@@ -1500,9 +1491,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableSetClearIsNotMarkedOperatorFunction() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let clearSymbol = try #require(sema.symbols.lookup(fqName: [
@@ -1518,9 +1508,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableSetAddAllUsesCollectionParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
@@ -1701,9 +1690,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testIndexedIterableMembersAreSourceBacked() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName: [InternedString] = [
@@ -1814,9 +1802,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMapHigherOrderMembersAreInlineAndToListPreservesPairType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
@@ -2143,9 +2130,8 @@ extension ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableMapPutAllUsesProjectedMapParameterType() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
