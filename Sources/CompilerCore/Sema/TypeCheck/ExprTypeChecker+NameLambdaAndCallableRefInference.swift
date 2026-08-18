@@ -1267,25 +1267,30 @@ extension ExprTypeChecker {
                     }
                     if let propertySymbol = propertyCandidates.first {
                         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        // An expected type that still mentions type parameters belongs to
-                        // a generic signature whose type arguments are inferred from this
-                        // very argument (e.g. `listOf(C::v)`'s `vararg elements: T` before
-                        // `T` is solved). Adopting it verbatim would bind this reference's
-                        // static type to a bare type variable instead of a `KProperty*`
-                        // classType, which downstream KIR lowering can't shape into a
-                        // wrapper object — report the reference's own natural type instead.
-                        let resultType: TypeID
-                        if let expectedType, !sema.types.typeContainsAnyTypeParam(expectedType) {
-                            resultType = expectedType
-                        } else {
-                            resultType = driver.helpers.naturalPropertyReferenceType(
-                                propertySymbol: propertySymbol,
-                                ownerType: nonNullReceiver,
-                                isBoundReceiver: unboundClassType == nil,
-                                sema: sema,
-                                interner: interner
-                            ) ?? expectedType ?? propertyType
-                        }
+                        // Unlike a lambda literal, a property reference's static type is
+                        // fully determined by the property itself (bound/unbound,
+                        // mutable/immutable) — it is always exactly one of
+                        // KProperty0/KMutableProperty0/KProperty1/KMutableProperty1, never
+                        // context-dependent. Report that natural type unconditionally rather
+                        // than adopting `expectedType` verbatim: adopting it is only
+                        // harmless when it happens to already be that exact shape (e.g. `val
+                        // ref: KProperty1<C, Int> = C::v`), but silently wrong whenever it
+                        // is anything else the reference is merely assignable to — a bare
+                        // unresolved type parameter (e.g. `listOf(C::v)`'s `vararg elements:
+                        // T` before `T` is solved), or any other concrete supertype like
+                        // `KProperty<*>`/`KCallable<*>`/`Any`. In every one of those cases,
+                        // binding the reference's static type to something other than its
+                        // natural classType makes `lowerPropertyReferenceWrapperValue` (which
+                        // requires a resolved KProperty0/1/MutableProperty0/1 classType) bail
+                        // out and fall back to a legacy bare-symbol callable path that
+                        // crashes at runtime.
+                        let resultType = driver.helpers.naturalPropertyReferenceType(
+                            propertySymbol: propertySymbol,
+                            ownerType: nonNullReceiver,
+                            isBoundReceiver: unboundClassType == nil,
+                            sema: sema,
+                            interner: interner
+                        ) ?? expectedType ?? propertyType
                         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                         sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
                         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
