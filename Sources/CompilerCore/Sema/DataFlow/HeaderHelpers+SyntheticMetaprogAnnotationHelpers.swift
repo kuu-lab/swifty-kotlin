@@ -10,9 +10,7 @@ private enum SyntheticAnnotationAPISurfaceForHelpers {
     static let retentionEntries = ["SOURCE", "BINARY", "RUNTIME"]
 }
 
-/// Helpers used by the synthetic Metaprog stub registration:
-/// annotation class registration, JVM annotation registration,
-/// AnnotationTarget / Retention / DeprecationLevel
+/// AnnotationTarget / Retention / RequiresOptInLevel
 /// enums, the throws-exception-classes property/constructor, and
 /// generic String / Boolean / Int annotation property/constructor
 /// registration helpers.
@@ -229,64 +227,6 @@ extension DataFlowSemaPhase {
         )))
 
         for entryName in SyntheticAnnotationAPISurfaceForHelpers.targetEntries {
-            let entry = interner.intern(entryName)
-            let entryFQName = enumFQName + [entry]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entry,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            if symbols.propertyType(for: entrySymbol) == nil {
-                symbols.setPropertyType(enumType, for: entrySymbol)
-            }
-        }
-    }
-
-    func registerSyntheticDeprecationLevelEnum(
-        packageFQName: [InternedString],
-        packageSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let enumName = interner.intern("DeprecationLevel")
-        let enumFQName = packageFQName + [enumName]
-        let enumSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: enumFQName) {
-            enumSymbol = existing
-            if packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: existing)
-            }
-        } else {
-            enumSymbol = symbols.define(
-                kind: .enumClass,
-                name: enumName,
-                fqName: enumFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: enumSymbol)
-            }
-        }
-
-        let enumType = types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        for entryName in ["WARNING", "ERROR", "HIDDEN"] {
             let entry = interner.intern(entryName)
             let entryFQName = enumFQName + [entry]
             let entrySymbol: SymbolID
