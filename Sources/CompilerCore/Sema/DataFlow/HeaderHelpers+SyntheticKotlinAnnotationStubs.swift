@@ -49,13 +49,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticAnnotationClass(
-            named: "SubclassOptInRequired",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -204,28 +197,6 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(retentionType, for: valueSymbol)
             symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
         }
-
-        if let subclassOptInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SubclassOptInRequired")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: subclassOptInSymbol,
-                symbols: symbols
-            )
-            registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-                ownerSymbol: subclassOptInSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("SubclassOptInRequired")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-
-
-
 
         if let introducedAtSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("IntroducedAt")]) {
             appendSyntheticAnnotation(
