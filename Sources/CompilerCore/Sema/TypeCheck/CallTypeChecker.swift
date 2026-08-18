@@ -630,9 +630,12 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
+        // KSP-764: UShortArray(size, init) is bundled Kotlin source; let normal
+        // overload resolution bind it instead of the legacy synthetic path.
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
-           args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
+           (args.count == 2 && calleeName != knownNames.ushortArray)
+               || (args.count == 1 && calleeName != knownNames.array),
            locals[calleeName] == nil
         {
             let intType = sema.types.intType
@@ -738,7 +741,6 @@ final class CallTypeChecker {
                 case "LongArray": sema.types.longType
                 case "ShortArray": sema.types.shortType
                 case "ByteArray": sema.types.byteType
-                case "UShortArray": sema.types.ushortType
                 case "UByteArray": sema.types.ubyteType
                 case "UIntArray": sema.types.uintType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
