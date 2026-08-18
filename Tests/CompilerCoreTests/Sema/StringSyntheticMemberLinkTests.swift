@@ -69,8 +69,10 @@ struct StringSyntheticMemberLinkTests {
 
     // BUG-211: CharSequence.length must be represented as an interface
     // property so bundled Kotlin reads can use the normal itable path.
+    // KSP-724: The property is now source-backed from bundled Kotlin, not a
+    // synthetic stub, but it remains abstract and parented to CharSequence.
     @Test
-    func testBug211CharSequenceLengthIsSyntheticInterfaceProperty() throws {
+    func testBug211CharSequenceLengthIsInterfaceProperty() throws {
         let (sema, interner) = try sharedSema()
         let charSequenceFQ = ["kotlin", "CharSequence"].map { interner.intern($0) }
         let lengthFQ = charSequenceFQ + [interner.intern("length")]
@@ -79,7 +81,8 @@ struct StringSyntheticMemberLinkTests {
         let lengthInfo = try #require(sema.symbols.symbol(lengthSymbol))
 
         #expect(lengthInfo.kind == .property)
-        #expect(lengthInfo.flags.contains(.synthetic))
+        #expect(!lengthInfo.flags.contains(.synthetic))
+        #expect(lengthInfo.flags.contains(.abstractType))
         #expect(sema.symbols.parentSymbol(for: lengthSymbol) == charSequenceSymbol)
         #expect(sema.symbols.propertyType(for: lengthSymbol) == sema.types.intType)
     }
