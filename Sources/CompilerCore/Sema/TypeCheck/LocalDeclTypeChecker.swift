@@ -88,9 +88,8 @@ final class LocalDeclTypeChecker {
                                   sema: sema,
                                   interner: interner
                               ),
-                              let declaredElementType = driver.helpers.iterableElementType(
+                              let declaredElementType = driver.helpers.plainIterableElementType(
                                   for: declaredType,
-                                  isRangeExpr: false,
                                   sema: sema,
                                   interner: interner
                               ),

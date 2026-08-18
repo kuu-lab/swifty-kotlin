@@ -121,6 +121,31 @@ struct TypeCheckHelpers {
         ]
     }
 
+    /// Returns the element argument from a plain `kotlin.collections.Iterable` type.
+    ///
+    /// This deliberately reads the resolved nominal argument instead of asking
+    /// `iterableElementType` to inspect the synthetic `iterator()` member. The
+    /// latter can expose the declaration's unsubstituted `E` type parameter for
+    /// the interface itself.
+    func plainIterableElementType(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard isPlainIterableType(type, sema: sema, interner: interner),
+              let (classType, _) = resolveClassTypeSymbol(type, sema: sema),
+              let elementArgument = classType.args.first
+        else {
+            return nil
+        }
+        switch elementArgument {
+        case let .invariant(element), let .out(element), let .in(element):
+            return element
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
     func isOpenEndRangeType(
         _ type: TypeID,
         sema: SemaModule,
