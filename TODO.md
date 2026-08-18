@@ -1116,7 +1116,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalContextParameters` — class kotlin.ExperimentalContextParameters  -- `open annotation class kotlin/ExperimentalContextParameters : kotlin/Annotation {`
 
-- [ ] KSP-734: kotlin.ExperimentalMultiplatform-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-734: kotlin.ExperimentalMultiplatform-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalMultiplatform`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotations/Multiplatform.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
