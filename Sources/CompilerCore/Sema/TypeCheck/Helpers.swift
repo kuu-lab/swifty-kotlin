@@ -100,6 +100,27 @@ struct TypeCheckHelpers {
         }
     }
 
+    /// Returns true only for the plain `kotlin.collections.Iterable` interface.
+    ///
+    /// A range expression uses its element type as the intermediate Sema type,
+    /// so `LocalDeclTypeChecker` needs a narrow exemption for an explicitly
+    /// annotated `Iterable<T>`. Concrete collection types and other iterable
+    /// classes still require the normal subtype constraint.
+    func isPlainIterableType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        return symbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+    }
+
     func isOpenEndRangeType(
         _ type: TypeID,
         sema: SemaModule,

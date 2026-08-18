@@ -83,6 +83,11 @@ final class LocalDeclTypeChecker {
                     let rangeExprSatisfiesIterableAnnotation: Bool = {
                         guard let initializer,
                               sema.bindings.isRangeExpr(initializer),
+                              driver.helpers.isPlainIterableType(
+                                  declaredType,
+                                  sema: sema,
+                                  interner: interner
+                              ),
                               let declaredElementType = driver.helpers.iterableElementType(
                                   for: declaredType,
                                   isRangeExpr: false,
@@ -113,7 +118,7 @@ final class LocalDeclTypeChecker {
                     {
                         // Range expressions keep their runtime representation separate from
                         // the source-level range interface, so accept a matching range-like or
-                        // Iterable annotation without forcing a nominal subtype check.
+                        // plain Iterable annotation without forcing a nominal subtype check.
                     } else {
                         driver.emitSubtypeConstraint(
                             left: initializerType, right: declaredType,

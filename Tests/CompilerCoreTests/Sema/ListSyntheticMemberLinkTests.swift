@@ -1137,6 +1137,40 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testRangeInitializerOnlyWidensToPlainIterableAnnotation() throws {
+        let validSource = """
+        fun valid() {
+            val values: Iterable<Int> = 1..3
+        }
+        """
+        try withTemporaryFile(contents: validSource) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected Iterable<Int> range annotation to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+        }
+
+        let invalidSources: [(String, String)] = [
+            ("List", "val values: List<Int> = 1..3"),
+            ("Set", "val values: Set<Int> = 1..3"),
+            ("Collection", "val values: Collection<Int> = 1..3"),
+            ("Array", "val values: Array<Int> = 1..3"),
+            ("String", "val values: String = 'a'..'c'"),
+        ]
+        for (annotationName, declaration) in invalidSources {
+            let source = """
+            fun invalid() {
+                \(declaration)
+            }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+                #expect(ctx.diagnostics.hasError, "Expected range-to-\(annotationName) assignment to produce a type error")
+            }
+        }
+    }
+
+    @Test
     func testIterableReduceRightIndexedResolvesToSourceBacked() throws {
         let source = """
         fun checksum(values: Iterable<Int>): Int {
