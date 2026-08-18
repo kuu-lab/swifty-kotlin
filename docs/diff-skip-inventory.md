@@ -326,7 +326,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(1_234)`のようなcompanion-extension呼び出しでInt literalがLongへwideningされない実バグ。`toKotlinInstant()`/`toKotlinDuration()`(java.time→kotlin.time方向)も未実装 | Int→Long literal wideningをcompanion-extension呼び出し全般で修正(根本原因)。`toKotlinInstant`/`toKotlinDuration`実装 |
+| `platform_time_conversion.kt` | CLEANUP-STUB-126 で `java.time` / `java.util.concurrent.TimeUnit` の JVM interop synthetic surface を target-out として削除。kotlinc reference は成立するが kswiftc candidate の比較対象外 | JVM interop surface を再導入しない限り `SKIP-DIFF` を維持。Native/common time API の検証は別の Duration/Instant テストで行う |
 | ~~`jvm_preview.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：2件目以降のトップレベル複数行文字列プロパティと`@JvmRecord`/data class `toString()` 呼び出しをテストから除外） | — |
 | ~~`time_edge_cases.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`Duration.Companion` の import を追加し、companion-extension 呼び出しで実kotlinc互換に修正） | — |
 | ~~`test_primitive_conversions.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：存在しない変換呼び出しを削除し、実kotlinc互換の primitive 変換に修正） | — |
