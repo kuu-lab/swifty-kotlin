@@ -21,6 +21,158 @@ import Testing
 @Suite
 struct RegexSemaLoweringTests {
 
+    private static let sharedSemaSources = [
+        #"""
+        package sample0
+        fun test() {
+            val r = Regex("[a-z]+")
+            println(r.containsMatchIn("hello"))
+        }
+        """#,
+        #"""
+        package sample1
+        fun test() {
+            val r = Regex("foo", RegexOption.IGNORE_CASE)
+            println(r.matches("FOO"))
+        }
+        """#,
+        #"""
+        package sample2
+        fun test() {
+            val r = Regex("bar", setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
+            println(r.containsMatchIn("bar"))
+        }
+        """#,
+        #"""
+        package sample3
+        fun test() {
+            val opt = RegexOption.IGNORE_CASE
+        }
+        """#,
+        #"""
+        package sample4
+        fun test() {
+            val opt0 = RegexOption.IGNORE_CASE
+            val opt1 = RegexOption.MULTILINE
+            val opt2 = RegexOption.DOT_MATCHES_ALL
+            val opt3 = RegexOption.LITERAL
+            val opt4 = RegexOption.UNIX_LINES
+            val opt5 = RegexOption.COMMENTS
+            val opt6 = RegexOption.CANON_EQ
+        }
+        """#,
+        #"""
+        package sample5
+        fun test() {
+            val r = Regex("^[0-9]+$")
+            println(r.matches("42"))
+        }
+        """#,
+        #"""
+        package sample6
+        fun test() {
+            val r = Regex("\\d+")
+            val all = r.findAll("abc 1 def 2 ghi 3")
+        }
+        """#,
+        #"""
+        package sample7
+        fun test() {
+            val r = Regex("\\d+")
+            val result = r.replace("abc 1 def 2") { m -> "[${m.value}]" }
+        }
+        """#,
+        #"""
+        package sample8
+        fun test() {
+            val r = Regex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
+            val m = r.find("2025-04-17")
+            val year = m?.groups?.get("year")?.value
+            println(year)
+        }
+        """#,
+        #"""
+        package sample9
+        fun test() {
+            val r = Regex("(\\d+)-(\\w+)")
+            val m = r.find("123-abc")
+            val first = m?.groups?.get(1)?.value
+            println(first)
+        }
+        """#,
+        #"""
+        package sample10
+        fun test() {
+            val r = Regex("(\\d+)")
+            val m = r.find("42")
+            val vals = m?.groupValues
+            println(vals)
+        }
+        """#,
+        #"""
+        package sample11
+        fun parseDate(input: String): String? {
+            val r = Regex("(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})")
+            val m = r.find(input) ?: return null
+            val year = m.groups.get("year")?.value ?: "?"
+            val month = m.groups.get("month")?.value ?: "?"
+            val day = m.groups.get("day")?.value ?: "?"
+            return "$year/$month/$day"
+        }
+        fun main() {
+            println(parseDate("2025-04-17"))
+        }
+        """#,
+        #"""
+        package sample12
+        fun test() {
+            val r1 = Regex("hello", RegexOption.IGNORE_CASE)
+            val r2 = Regex("world", RegexOption.MULTILINE)
+            val r3 = Regex("foo", RegexOption.DOT_MATCHES_ALL)
+            val r4 = Regex("bar", RegexOption.LITERAL)
+            val r5 = Regex("baz", RegexOption.UNIX_LINES)
+            val r6 = Regex("qux", RegexOption.COMMENTS)
+            val r7 = Regex("quux", RegexOption.CANON_EQ)
+            val rAll = Regex(
+                ".*",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE,
+                      RegexOption.DOT_MATCHES_ALL, RegexOption.LITERAL)
+            )
+        }
+        """#,
+    ]
+
+    private static nonisolated(unsafe) var _sharedSema: (CompilationContext, [String])?
+
+    private func sharedSema() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedSema { return cached }
+        var result: (CompilationContext, [String])?
+        try withTemporaryFiles(contents: Self.sharedSemaSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (ctx, paths)
+        }
+        let shared = try #require(result)
+        Self._sharedSema = shared
+        return shared
+    }
+
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path else { continue }
+            if predicate(exprID, expr) { return exprID }
+        }
+        return nil
+    }
+
     // MARK: - Helpers
 
     /// Collect every callee name emitted across all KIR functions in a module.
@@ -39,107 +191,52 @@ struct RegexSemaLoweringTests {
     // confirm that each overload compiles without errors.
 
     @Test func testSingleArgConstructorCompilesSemaClean() throws {
-        let source = """
-        fun test() {
-            val r = Regex("[a-z]+")
-            println(r.containsMatchIn("hello"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == ctx.sourceManager.fileID(forPath: paths[0]) && $0.severity == .error },
                            "Single-arg Regex constructor must compile without sema errors")
-        }
     }
 
     @Test func testTwoArgOptionConstructorCompilesSemaClean() throws {
-        let source = """
-        fun test() {
-            val r = Regex("foo", RegexOption.IGNORE_CASE)
-            println(r.matches("FOO"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == ctx.sourceManager.fileID(forPath: paths[1]) && $0.severity == .error },
                            "Two-arg Regex(String, RegexOption) constructor must compile without sema errors")
-        }
     }
 
     @Test func testTwoArgSetOptionsConstructorCompilesSemaClean() throws {
-        let source = """
-        fun test() {
-            val r = Regex("bar", setOf(RegexOption.MULTILINE, RegexOption.DOT_MATCHES_ALL))
-            println(r.containsMatchIn("bar"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        #expect(!ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == ctx.sourceManager.fileID(forPath: paths[2]) && $0.severity == .error },
                            "Two-arg Regex(String, Set<RegexOption>) constructor must compile without sema errors")
-        }
     }
 
     // MARK: - 2. RegexOption enum member dispatch
 
     @Test func testRegexOptionIgnoreCaseResolvesSema() throws {
-        let source = """
-        fun test() {
-            val opt = RegexOption.IGNORE_CASE
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == ctx.sourceManager.fileID(forPath: paths[3]) && $0.severity == .error },
                 "RegexOption.IGNORE_CASE must resolve without sema errors"
             )
-        }
     }
 
     @Test func testAllRegexOptionEntriesResolveWithoutErrors() throws {
-        let entries = [
-            "IGNORE_CASE", "MULTILINE", "DOT_MATCHES_ALL",
-            "LITERAL", "UNIX_LINES", "COMMENTS", "CANON_EQ",
-        ]
-        for entry in entries {
-            let source = """
-            fun test() {
-                val opt = RegexOption.\(entry)
-            }
-            """
-            try withTemporaryFile(contents: source) { path in
-                let ctx = makeCompilationContext(inputs: [path])
-                try runSema(ctx)
-                #expect(
-                    !ctx.diagnostics.hasError,
-                    "RegexOption.\(entry) must resolve without sema errors"
-                )
-            }
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[4]))
+        let errors = ctx.diagnostics.diagnostics.filter {
+            $0.primaryRange?.start.file == fileID && $0.severity == .error
         }
+        #expect(errors.isEmpty, "RegexOption entries must resolve without sema errors: (errors)")
     }
 
     // MARK: - 3. Method dispatch for each Regex member
 
     @Test func testMatchesBindingResolvesToKkRegexMatches() throws {
-        let source = """
-        fun test() {
-            val r = Regex("^[0-9]+$")
-            println(r.matches("42"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let path = paths[5]
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+                firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "matches"
                 },
@@ -147,24 +244,16 @@ struct RegexSemaLoweringTests {
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_matches_flat")
-        }
     }
 
     @Test func testFindAllBindingResolvesToKkRegexFindAll() throws {
-        let source = """
-        fun test() {
-            val r = Regex("\\\\d+")
-            val all = r.findAll("abc 1 def 2 ghi 3")
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let path = paths[6]
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+                firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "findAll"
                 },
@@ -172,31 +261,23 @@ struct RegexSemaLoweringTests {
             )
             let binding = try #require(sema.bindings.callBinding(for: callExpr))
             #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_findAll_flat")
-        }
     }
 
     @Test func testReplaceWithLambdaBindingResolvesToKkRegexReplaceLambda() throws {
-        let source = """
-        fun test() {
-            val r = Regex("\\\\d+")
-            val result = r.replace("abc 1 def 2") { m -> "[${m.value}]" }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let path = paths[7]
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+                firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, range) = expr else { return false }
                     guard ctx.interner.resolve(callee) == "replace" else { return false }
                     // KSP-483: bundled Stdlib/kotlin/io/Files.kt also calls
                     // String.replace(String, String) internally, and bundled
                     // stdlib is scanned before user source; exclude it so this
                     // finds the user's Regex.replace(...) call.
-                    return !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    return ctx.sourceManager.path(of: range.start.file) == path
                 },
                 "Expected .replace(...) member call"
             )
@@ -204,66 +285,35 @@ struct RegexSemaLoweringTests {
             #expect(
                 sema.symbols.externalLinkName(for: binding.chosenCallee) == "__kk_regex_replace_lambda"
             )
-        }
     }
 
     // MARK: - 4. Named capture group access chain
 
     @Test func testNamedGroupAccessChainProducesNoSemaErrors() throws {
-        let source = """
-        fun test() {
-            val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})-(?<day>\\\\d{2})")
-            val m = r.find("2025-04-17")
-            val year = m?.groups?.get("year")?.value
-            println(year)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[8]))
             #expect(
-                !ctx.diagnostics.hasError,
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == fileID && $0.severity == .error },
                 "Named group access chain should have no sema errors"
             )
-        }
     }
 
     @Test func testGroupsByIndexAccessProducesNoSemaErrors() throws {
-        let source = """
-        fun test() {
-            val r = Regex("(\\\\d+)-(\\\\w+)")
-            val m = r.find("123-abc")
-            val first = m?.groups?.get(1)?.value
-            println(first)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[9]))
             #expect(
-                !ctx.diagnostics.hasError,
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == fileID && $0.severity == .error },
                 "Group-by-index access chain should have no sema errors"
             )
-        }
     }
 
     @Test func testGroupValuesListAccessProducesNoSemaErrors() throws {
-        let source = """
-        fun test() {
-            val r = Regex("(\\\\d+)")
-            val m = r.find("42")
-            val vals = m?.groupValues
-            println(vals)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[10]))
             #expect(
-                !ctx.diagnostics.hasError,
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == fileID && $0.severity == .error },
                 "groupValues access should have no sema errors"
             )
-        }
     }
 
     // MARK: - 5. KIR lowering: constructor calls emit correct KIR callees
@@ -627,54 +677,21 @@ struct RegexSemaLoweringTests {
     // MARK: - 12. No stray sema errors on valid Regex programs
 
     @Test func testComplexRegexProgramProducesNoSemaErrors() throws {
-        let source = """
-        fun parseDate(input: String): String? {
-            val r = Regex("(?<year>\\\\d{4})-(?<month>\\\\d{2})-(?<day>\\\\d{2})")
-            val m = r.find(input) ?: return null
-            val year = m.groups.get("year")?.value ?: "?"
-            val month = m.groups.get("month")?.value ?: "?"
-            val day = m.groups.get("day")?.value ?: "?"
-            return "$year/$month/$day"
-        }
-        fun main() {
-            println(parseDate("2025-04-17"))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[11]))
+        #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == fileID && $0.severity == .error },
                 "Complex Regex program must produce no sema errors"
             )
-        }
     }
 
     @Test func testRegexWithAllOptionCombinationsProducesNoSemaErrors() throws {
-        let source = """
-        fun test() {
-            val r1 = Regex("hello", RegexOption.IGNORE_CASE)
-            val r2 = Regex("world", RegexOption.MULTILINE)
-            val r3 = Regex("foo", RegexOption.DOT_MATCHES_ALL)
-            val r4 = Regex("bar", RegexOption.LITERAL)
-            val r5 = Regex("baz", RegexOption.UNIX_LINES)
-            val r6 = Regex("qux", RegexOption.COMMENTS)
-            val r7 = Regex("quux", RegexOption.CANON_EQ)
-            val rAll = Regex(
-                ".*",
-                setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE,
-                      RegexOption.DOT_MATCHES_ALL, RegexOption.LITERAL)
-            )
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
+        let (ctx, paths) = try sharedSema()
+        let fileID = try #require(ctx.sourceManager.fileID(forPath: paths[12]))
+        #expect(
+                !ctx.diagnostics.diagnostics.contains { $0.primaryRange?.start.file == fileID && $0.severity == .error },
                 "All RegexOption combinations should compile without sema errors"
             )
-        }
     }
 
 }
