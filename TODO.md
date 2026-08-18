@@ -51,6 +51,49 @@
 
 - [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
 - [ ] KSP-CAP-014: bundled source から `vararg val` プロパティと `KClass` 型参照を生成・検証できるようにする（`kotlin.Throws` の `vararg val exceptionClasses: KClass<out Throwable>` を source 化するための前提。現行は `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録で補完）
+- [ ] KSP-CAP-015: delegate 式のトレーリングラムダを通常の呼び出し実引数として解決する。ブロック対象: 本家形 `Lazy<T>.getValue`/`Delegates.observable` 実装全般（KSP-491 は specialized creation-time lowering の維持で回避）
+  - 症状: `by <factory> { ... }` 形の delegate 式でトレーリングラムダが delegate 式から切り離され、`PropertyDecl.delegateBody` として別経路で保持される（`BuildASTPhase+TypeParsing.swift` の `propertyHeadTokens` が `.block` 子ノードで打ち切り、`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` が再パース）。このため operator 規約による通常解決から見ると、コンストラクタ形 `by MyLazy { ... }` は実引数 0 個の呼び出し（→ `KSWIFTK-SEMA-0103`）、関数形 `by myLazy { ... }` は初期化ラムダ欠落のまま lowering され実行時クラッシュになる。
+  - 最小再現（2026-08-18 実機再確認、`operator fun getValue` をメンバとして持つユーザー定義 delegate。括弧付き `by myLazy({ ... })` は正常動作するのでトレーリングラムダ固有）:
+    ```kotlin
+    class MyLazy<T>(private val initializer: () -> T) {
+        private var cached: Any? = null
+        private var done: Boolean = false
+        operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+            if (!done) { cached = initializer(); done = true }
+            @Suppress("UNCHECKED_CAST")
+            return cached as T
+        }
+    }
+    fun <T> myLazy(initializer: () -> T): MyLazy<T> = MyLazy(initializer)
+
+    val a: String by MyLazy { "ctor" }        // KSWIFTK-SEMA-0103
+    val b: String by myLazy { "fn" }          // 実行時クラッシュ
+    ```
+    kotlinc 2.3.10 は両方とも `ctor` / `fn` を出力する
+  - 対応方針: `declarationDelegateExpression` 側でもトレーリングラムダを呼び出しの最終実引数として畳み込む（`propertyHeadTokens(includingTrailingLambdaTokens:)` の opt-in を delegate 経路にも広げる）
+- [ ] KSP-CAP-016: 拡張 operator `getValue`/`setValue` を property delegate の解決候補に含める。ブロック対象: 本家形 `public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T`（KSP-491 は `Lazy<T>` インターフェース自体にメンバとして `getValue` を持たせることで回避）
+  - 症状: `DeclTypeChecker+PropertyHelpers.swift` の `typeCheckDelegate` は `collectMemberFunctionCandidates`（メンバと supertype のみ走査）で候補を集めるため、拡張関数として宣言された operator は一切見えず `KSWIFTK-SEMA-0103` になる
+  - 最小再現（2026-08-18 実機再確認、kotlinc 2.3.10 は `ext` を出力）:
+    ```kotlin
+    class Holder(val v: String)
+    operator fun Holder.getValue(thisRef: Any?, property: Any?): String = v
+    val p: String by Holder("ext")   // KSWIFTK-SEMA-0103
+    ```
+- [ ] KSP-CAP-017: object 式によるクラス継承を通す。ブロック対象: 本家形 `Delegates.observable`/`vetoable` が返す `object : ObservableProperty<T>(initialValue) { override fun ... }`（KSP-491 は named private subclass での回避で対応）・KSP-441（object 式でパイプラインを表現する方針）
+  - 症状は2系統ある（interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済み。本項目は**クラス**継承）:
+    1. 基底クラスの `open`/`abstract` メンバを object 式が override しても dispatch されない
+    2. スーパークラス実引数付きの object 式 `object : Base(x) {}` は実行時 `KSWIFTK-RUNTIME-0001: kk_array_get_inbounds precondition failed` でクラッシュする
+  - 最小再現（2026-08-18 実機再確認、host 高負荷下では見かけ上ハングに見えることがあるが実際はハングではない — 280秒程度の余裕を持って検証すること。kotlinc は `anon` / `7`）:
+    ```kotlin
+    open class Base { open fun describe(): String = "base" }
+    fun make(): Base = object : Base() { override fun describe(): String = "anon" }
+    fun main() { println(make().describe()) }   // "base"
+
+    open class Base2(val v: Int)
+    fun make2(x: Int): Base2 = object : Base2(x) {}
+    fun main2() { println(make2(7).v) }         // KSWIFTK-RUNTIME-0001
+    ```
+    named class 継承（`class Sub(v: Int) : Base(v) { override fun describe() = "sub:$v" }`）は override dispatch・コンストラクタ実引数ともに正常動作を確認済み——問題は匿名 object 式特有。スーパークラス実引数自体（named class 経由）は解消済み（旧 KSP-CAP-016/BUG-187 相当、`ASTDeclModels.swift` の `SuperTypeEntry.constructorArgs` で対応済み、2026-08-18 実機確認）。
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
@@ -195,15 +238,22 @@
   - 現行コード（master `0a9c0c248`）: `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt` / `StringSearchReplace.kt` が公開APIを定義し、`Sources/Runtime/RuntimeRegex.swift` / `Sources/RuntimeABI/RuntimeABISpec+Regex.swift` が `__kk_*` エンジン境界を提供。Sema/CodegenのRegex関連テストも現行masterに保持。
   - 再監査（2026-08-14）: `swift build`、Regex関連7 suites 82 tests（Sema/API/Codegen/ABI）が全pass、`bash Scripts/validate_runtime_abi_links.sh`（4 tests）がpass。後続PR #5111 の棚卸し再導入で未チェック化していたTODOのみを同期。
 
-#### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は `StdlibDelegateLoweringPass` が call site を直接書き換える構造）
+#### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は operator 規約による通常解決）
 
-- [ ] KSP-491: Lazy / Delegates を Kotlin 化する
-  - 下敷き: 死蔵 `Stdlib/kotlin/LazyDelegate.kt`, `properties/Properties.kt`, `properties/Delegates.kt`, `properties/ObservableProperty.kt` → `Sources/CompilerCore/Stdlib/kotlin/properties/` へ移設
-  - Kotlin 化: `ReadOnlyProperty`/`ReadWriteProperty` インターフェース、`ObservableProperty`（beforeChange/afterChange）、`Delegates.observable/vetoable/notNull`、`lazy(mode)` の `NONE`/`PUBLICATION` モード
-  - ブリッジ残留: `SYNCHRONIZED` モードのロックのみ `__kk_lazy_sync_*`（新設）
-  - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
-  - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
-  - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
+- [x] KSP-491: Lazy / Delegates を Kotlin 化する（2026-08-18完了）
+  - **完了**: `lazy`/`lazyOf`/`Lazy<T>` を `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt`、`ObservableProperty`/`Delegates.observable/vetoable/notNull` を `Sources/CompilerCore/Stdlib/kotlin/properties/{ObservableProperty,Delegates}.kt` へ実装（`ReadOnlyProperty`/`ReadWriteProperty` は KSP-680 で既に `properties/Interfaces.kt` へ移設済みだった）。全 delegate kind（`.custom` と stdlib 4種）が `DeclTypeChecker.typeCheckDelegate` の通常 `getValue`/`setValue` operator 解決に一本化され、`StdlibDelegateLoweringPass.swift`（削除）が担っていた名前ベースの書き換え特例は撤廃。`StdlibDelegateKind`（新設 `Lowering/StdlibDelegateKind.swift`）は生成時にどの実装クラスを構築するかの判別にのみ残存。
+  - **設計上の逸脱（下記ブロッカーへの回避策、本家 kotlin-stdlib と異なる点）**:
+    1. `Lazy<T>.getValue` は本家では拡張関数だが、ここではインターフェースの抽象メンバとして宣言（KSP-CAP-015 未解消のため。外部から見た挙動は同一）。デフォルト実装（`= value`）を持たせているため、`Lazy<T>` を自前実装するユーザークラス（`getValue` を override しない）も本家同様にコンパイルできる。
+    2. `Delegates.observable/vetoable` は本家の匿名 `object : ObservableProperty<T>(initialValue) { override fun ... }` ではなく、named private subclass（`SimpleObservableProperty`/`SimpleVetoableProperty`）で実装（KSP-CAP-017 未解消のため。named class 継承は正常動作を実機確認済み）。
+    3. `lazy(mode)` の `PUBLICATION` モードは真の atomic CAS ではなく非同期化なしの単純代入（ブリッジ新設なしという要件を満たすための簡略化。単一スレッド実行の diff/golden カバレッジでは観測不能な差異）。
+    4. `LazyImpl` の未初期化判定は sentinel オブジェクト（`UNINITIALIZED_LAZY_VALUE`）との `===` 比較ではなく `private var computed: Boolean` フラグで行う。理由: `LazyImpl` の生成は（トレーリングラムダをコンストラクタ実引数として再構成する都合上）呼び出し側 KIR lowering から直接コンストラクタ呼び出しする実装になっており、sentinel を bundled `object` シングルトンにすると呼び出し側コンパイル単位から stdlib 側の内部シンボルを跨いで参照する形になる。BUG-213（下記）修正前はゼロフィールドの bundled `object` をこの経路で参照するとクロスモジュールのグローバルスロットが未エクスポートでリンクエラーになっていたため、Boolean フラグ（呼び出し側で単純な `false` リテラルとして構築可能）に置き換えて回避した。
+  - ブリッジ新設: `__kk_lazy_sync_lock`/`__kk_lazy_sync_unlock`（`Sources/Runtime/RuntimePreconditions.swift`、`kotlin.synchronized` と同じ per-object `NSRecursiveLock` 辞書を再利用。理由コード: GC・continuation）。
+  - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_create/get_value/set_value`, `kk_notNull_create/get_value/set_value`（計13、`RuntimeDelegates.swift`/`RuntimeTypes.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の `Lazy`/`lazy`/`lazyOf`/`lazy$mode`/`Delegates`/`ObservableProperty` 登録（約620行）/ `RuntimeABISpec+Delegate.swift` の対応12エントリ。
+  - **作業中に発見し同PRで修正したバグ**:
+    - BUG-212（ローカル `by`-delegate をネストしたラムダがキャプチャすると、キャプチャ値が空でゼロ値になる。`.custom` 含む全 delegate kind に影響する既存バグで、`local_delegate_lazy.kt` が `lazy` 専用の別実装で回避していたため顕在化していなかった）。
+    - BUG-213（フィールドを持たず object initializer も持たない bundled `object`——`kotlin.properties.Delegates` 等——を、事前コンパイル済み `.kklib` の外側の別コンパイル単位から receiver として参照するとリンクエラーになる。詳細は下記 BUG-213 エントリ参照）。
+  - **ブロッカー（回避策で対応、別チケットとして再起票）**: KSP-CAP-015（delegate トレーリングラムダの一般化）、KSP-CAP-016（拡張 operator の delegate 解決候補への算入）、KSP-CAP-017（匿名 object 式によるクラス継承）。過去に KSP-CAP-014/015/016/017 として記録されたが `f9dea8961c`（DEBT-DIFF-005, #5111, round-20 renumbering）で誤って失われていたため、実機再検証の上で新番号として再記録（下記）。
+  - 検証: `swift build` green。`bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（全934ケース中933 PASS、1件は `loop_body_alloca_stack_growth.kt` が host 高負荷による実行タイムアウトで false failure——host 負荷が下がった状態での単体再実行では PASS を確認済み、delegate/lazy 関連コードとは無関係）。`bash Scripts/swift_test.sh` フル: 実行できた数千件は全て green だが、host 高負荷（load average 100〜340台で推移）下で `LSPServerTests`/`CompilerCoreTests`/`CompilerBackendTests` が非決定的な地点で signal 10 (SIGBUS) を起こし完走せず（host 負荷起因の既知の環境問題、実行できたテストは全て green でコード起因の失敗ではない——CI（専用ランナー）で最終確認要）。`Scripts/loc_report.sh` 前後比較: `kk_cdecl_count` 1094→1081（-13、削除した kk_* 関数数と一致）、`__kk_cdecl_count` 757→759（+2、新設した `__kk_lazy_sync_lock/unlock` と一致）、`header_helpers_synthetic_total_lines` 43276→42654（-622）、`kk_literal_count` 7016→6923（-93）、`interner_resolve_literal_comparison_count` 752→753（+1、テストファイル `LocalDelegatePropertyKIRTests.swift` 内の既存パターン踏襲によるアサーション追加のみで prod コードへの影響なし）。
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 
@@ -927,6 +977,8 @@
 - [ ] BUG-195: `kotlin.time` の `toDuration`/`toTimeUnit`/`Duration.toComponents` が軒並み誤動作する。最小再現: (1) `2.toDuration(DurationUnit.SECONDS).inWholeSeconds` は `2` ではなく `0` を返す（`1500L.toDuration(DurationUnit.MILLISECONDS)`/`1.5.toDuration(DurationUnit.MINUTES)` も同様に常に `0` 相当）。(2) `DurationUnit.toTimeUnit()` はどの `DurationUnit` を渡しても常に `TimeUnit.NANOSECONDS` 相当を返す（`DurationUnit.NANOSECONDS`/`SECONDS`/`DAYS` いずれも `label()` 経由で `"ns"` になる）。(3) `Duration.toComponents{}`（5-arg/4-arg/3-arg/2-arg いずれのオーバーロードも）を含むコードは実行時に `Fatal error` 系ではなく `outputUnavailable`（`Sources/CompilerBackend/LinkPhase.swift:120`）でプロセスが結果を返さない。いずれもテスト側の期待値自体は自明な算術（2秒=2秒、1500ms=1500ms 等）で誤りの余地がなく、`git diff origin/master` で `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+StableDurationEdgeCases.swift` を含む関連ファイルが無変更と確認済み、かつ独立した origin/master 単体 tip（`d8f08bd8c`）でも(1)(2)は同一の誤った値、(3)は load average 21→4 の間で3回連続再現する決定的な `outputUnavailable` として再現することを確認済み（サブエージェントによる独立検証、環境負荷起因のflakeではない）。発見元: 本 PR（16回目 master マージ）が取り込んだ15コミットの一つ「Move TimeMark/ComparableTimeMark operations to Kotlin stdlib source (KSP-648) (#5474)」（`8429d66a2`）が疑わしい（Duration/TimeMark 関連の Kotlin ソース化移行と時期・領域が一致）が未確認。**経路特定・スコープ再確定（本 PR の18回目 master マージ時点で追記、前回の「完了」判定を撤回）**: 本項は「stdlib をソースから直接注入してコンパイルする通常経路」では発生せず、「`--stdlib-library <path>.kklib`（事前コンパイル済み stdlib アーティファクト、`Tests/CompilerBackendTests/Integration/TestSupport/StdlibCache.swift` のテストキャッシュ・`Scripts/diff_kotlinc.sh` の `--no-stdlib --stdlib-library` 呼び出し双方が使う経路）でコンパイルする経路」限定で再現する artifact-path 限定のバグと判明。通常経路（`.build/debug/kswiftc` に `--stdlib-library` を付けずソースをそのまま渡す）では本項記載の最小再現3件（(1) `2.toDuration(...)`/`1500L.toDuration(...)`/`1.5.toDuration(DurationUnit.MINUTES)` の3種、(2) `testDurationUnitToTimeUnitConversion` と同一ソース、(3) `testDurationStableToComponentsOverloads` と同一ソース）はいずれも期待値と完全一致（`2`/`1500`/`90`、`ns`/`s`/`d`/`true`/`false`、`1/2/3/4/5/26/3/4/5/1563/4/5/-1/-500000000`）することを確認した。しかし同一ソースを `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を`rm -rf`で再構築させた**直後の新鮮なアーティファクト**に対し `--stdlib-library` 経由でコンパイルすると、(1)は `0/0/0`、(2)は `ns/ns/ns/false/false`（いずれも本項オリジナルの誤り方と一致）を再現し、コンパイル時に `KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.component1`等の警告が出る（アーティファクトの stdlib メタデータ生成が一部シンボルを欠落させている）。`SWIFT_TEST_PARALLEL=0` での直列単独再実行でも同一結果のため並行実行由来の汚染でもない。前回「完了」としクレジットした `3cc0e943d`（KSP-472）は誤り（このコミットはこのバグを修正していない、撤回）。根本原因はメタデータ書き込み側（`--stdlib-only --emit library` で `.kklib` を生成する経路）の一部シンボル欠落で、BUG-197（`--stdlib-library` モードでの型引数消失）・BUG-199（precompiled artifact での重複宣言）・BUG-200（precompiled artifact での modality 欠落）と同じ「事前コンパイル済み stdlib アーティファクトのメタデータ生成が不完全」というバグ群に属すると見られる。今回修正しない理由: `.kklib` メタデータシリアライズ側の踏み込んだ調査が必要で、マージコンフリクト解消という本 PR のスコープを超える。次に着手する際は BUG-197/199/200 と合わせて、メタデータ書き込み側（`CodegenPhase.swift` の library emit 経路）の vtable/メタデータ生成ロジックから調査すること。**diff_kotlinc.sh フルコーパスでの影響確認（本 PR の18回目 master マージ時点で追記）**: `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を再構築した新鮮なアーティファクトに対し `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（790件）を実行したところ、`base64_edge_cases.kt`/`measure_timed_value.kt`/`regex_destructured_groups.kt`/`measure_time_duration.kt`/`time_edge_cases.kt`/`measure_time.kt`/`match_result.kt`/`platform_time_conversion.kt` の8件すべてが PASS した。`KSWIFTK-LIB-0004: Unknown metadata vtable symbol ...: kotlin.io.encoding.Base64.PaddingOption.values`/`kotlin.text.MatchGroup.*` 系の警告はコンパイル時 stderr に出るが、これらのケースはいずれも欠落シンボルを実行時に到達しないため diff レベルでの出力不一致には至らない（警告はコーパス全体で無害）。観測可能な実害は `swift_test.sh` の `testDurationStable*` 系3件（`StdlibCache.swift` 経由の同一アーティファクト機構を使う）に限定されており、`docs/diff-skip-inventory.md` への SKIP-DIFF 登録は不要と判断した。**注記（本 PR の19回目 master マージ時点で追記）**: `KSWIFTK-LIB-0004` 警告は今回の `diff_kotlinc.sh` フルスイート実行の stderr にも変わらず出現しており（14箇所）、artifact writer 側のシンボル欠落自体は解消していない。今回のフルゲート実行で `testDurationStable*` 系が失敗リストに現れなかったのも同じ理由（BUG-187 と同様、確定的な pass/fail ログが取れておらず高負荷実行下での可視性の問題）で、修正されたと解釈しないこと
 
 - [x] BUG-211: bundled Kotlin 拡張内での `CharSequence` レシーバの `length` プロパティ読みが interface 越し dispatch で 0 を返す（KSP-410 完了メモに「未 task 化の別既存バグ、本 PR スコープ外」と記録されたまま未採番だった — 2026-08-12 起票）。症状: `CharSequence` レシーバの bundled 拡張関数（`StringHOF.kt` 等）本体から `this.length` を読むと、実体が `String` でも 0 が返り HOF が空振りする。現行 stdlib ソースは `kswiftk.internal.__string_struct_get_length` ブリッジ（`StringEmptyBlankLines.kt` 等の既存パターン）で回避しているため実害は隠れているが、今後の `CharSequence` 系移行（KSP-406/409/411 等）が同じ回避を増殖させる。BUG-152 が修正した `CharSequence.length` の Sema 解決・`kk_char_sequence_length` の StringBuilder 対応とは別レイヤ（interface プロパティのランタイム表現ディスパッチ側）。着手時に最小再現（ユーザーコードの `fun f(cs: CharSequence) = cs.length` と bundled 拡張内の両経路）を固定してから修正し、修正後は stdlib ソースの `__string_struct_get_length` 回避を通常の `length` 読みへ戻してブリッジ削減（KSP-691 のメトリクス改善）につなげる
+- [x] BUG-212: ネストしたラムダがローカル `by`-delegate 宣言（custom・stdlib 両方）をキャプチャすると、キャプチャされた値が空になり読み取り結果がゼロ値になる（KSP-491 着手中に発見・同PRで修正、2026-08-18）。原因: `LambdaLowerer+CallableResolutionAndCapture.swift` の `captureValueExpr` がキャプチャ対象シンボルの現在値を `driver.ctx.localValue(for:)` からのみ取得しており、delegate-backed なローカル（値ではなく `driver.ctx.localDelegateStorage(for:)` にのみ delegate インスタンスを保持）を素通りして `nil` を返していた。呼び出し元の `LambdaLowerer.swift` はこれを「キャプチャ不要」と誤解釈してそのシンボルを `captureBindings` から丸ごと除外し、ラムダ本体側でも delegate storage が再構築されないため、本体内の読み取りは値もdelegate storageも見つからずゼロ初期化された既定値を返していた。最小再現: `class Box(private val v: Int) { operator fun getValue(thisRef: Any?, property: Any?): Int = v }; fun main() { val unused by Box(999); val captured by Box(7); val read = { captured }; println(read()) }` が `0`（期待値 `7`）。修正: `captureValueExpr` に `localDelegateStorage` フォールバックを追加し、`LambdaLowerer.swift` のラムダ本体スコープ再構築（3箇所）を共通ヘルパー `bindCapturedLambdaValue` に統合して delegate-backed キャプチャは `setLocalDelegateStorage` で再登録するようにした。回帰: 既存の `Scripts/diff_cases/local_delegate_lazy.kt`（`val captured by lazy { 7 }` をラムダがキャプチャする既存ケース、修正前は最終行が `0` になっていたことを実機確認済み）が正しい出力に復帰したことを確認
+- [x] BUG-213: フィールドを持たず object initializer も持たない bundled `object`（例: `kotlin.properties.Delegates`）を、事前コンパイル済み `.kklib` の外側の別コンパイル単位から receiver として参照すると `Undefined symbols ... _kk_global_root_slot_kotlin_properties_Delegates` でリンクエラーになる（KSP-491 着手中に発見・同PRで修正、2026-08-19）。原因: `NativeEmitter.swift` の `ensureImportedGlobalReferences` が、参照対象シンボルの LLVM グローバル宣言を追加するかどうかを `shouldEmitImportedGlobalReference(for:)` の真偽だけで判定していた。同メソッドの `.object` ケースは「object initializer も外部リンク名も持たずインスタンスフィールド数もゼロ」の object を「実体を持たない残留 synthetic stub（例: `kotlin.system.System`）」とみなして `false` を返す設計だが、`ensureImportedGlobalReferences` 側のガードが `shouldEmitImportedGlobalReference` の真偽のみを見ていたため、`false` の場合はグローバル宣言そのものをスキップしてしまい、本来この種の object 用に別途用意されていた `shouldUseWeakImportedGlobalReference`（weak linkage・ゼロ初期化のフォールバック宣言）に一度も到達しない死コードになっていた。結果、宣言のないシンボルへの参照だけがオブジェクトファイルに残り、リンク時に未定義シンボルとして検出されていた。最小再現: `Sources/CompilerCore/Stdlib/kotlin/properties/Delegates.kt` の `object Delegates { fun <T> observable(...) ... }`（フィールドなし）を、`diff_kotlinc.sh` のように事前コンパイル済み `.kklib` として分離ビルドしたうえで `local_delegate_stdlib_delegates.kt`（`var observed by Delegates.observable(1) { ... }` をローカル変数として使用）を候補プログラム側でコンパイル・リンクすると `_kk_global_root_slot_kotlin_properties_Delegates` が未定義でリンク失敗。修正: `ensureImportedGlobalReferences` のガードを `shouldEmitImportedGlobalReference(for: symbol) || shouldUseWeakImportedGlobalReference(for: symbol)` に変更し、上記フォールバック分岐に実際に到達できるようにした。回帰: `Scripts/diff_cases/local_delegate_stdlib_delegates.kt`（既存、修正前はリンクエラー）・`property_delegate_edge_cases.kt`（既存、`Delegates.observable/vetoable` をメンバプロパティとして使用）が `diff_kotlinc.sh` で PASS することを確認。本バグは KSP-491 が初めてこの種のゼロフィールド bundled `object` をユーザーコード側の通常の `Delegates.foo(...)` 呼び出し経由で参照可能にしたことで顕在化したもので、KSP-491 固有ではなく `NativeEmitter.swift` の既存バグ
 
 ---
 

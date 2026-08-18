@@ -55,13 +55,6 @@ final class KIRLoweringContext {
     // MARK: - Module-Level State (accumulated across entire pass)
 
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
-    /// Stdlib delegate kind (`lazy`/`observable`/`vetoable`/`notNull`) of a local
-    /// `by`-delegated declaration, keyed by the local's own symbol. Reads of such a
-    /// local go through the matching `kk_*_get_value` runtime accessor instead of
-    /// using the delegate handle itself as the value. Kept module-level rather than
-    /// scope-local so that a delegated local captured by a nested lambda is still
-    /// recognized while lowering the lambda body under a fresh scope.
-    private var localStdlibDelegateKindsBySymbol: [SymbolID: StdlibDelegateKind] = [:]
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]
     var syntheticLambdaSymbolsByExprID: [ExprID: SymbolID] = [:]
@@ -177,14 +170,6 @@ final class KIRLoweringContext {
 
     func localDelegateStorage(for symbol: SymbolID) -> KIRExprID? {
         localDelegateStorageBySymbol[symbol]
-    }
-
-    func localStdlibDelegateKind(for symbol: SymbolID) -> StdlibDelegateKind? {
-        localStdlibDelegateKindsBySymbol[symbol]
-    }
-
-    func setLocalStdlibDelegateKind(_ kind: StdlibDelegateKind, for symbol: SymbolID) {
-        localStdlibDelegateKindsBySymbol[symbol] = kind
     }
 
     func setLocalDelegateStorage(_ exprID: KIRExprID, for symbol: SymbolID) {

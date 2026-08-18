@@ -614,13 +614,28 @@ extension KIRLoweringDriver {
                 delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
-            let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
-            let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
-            body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
+            let modeExpr = lowerLazyModeExpr(
+                delegateExpression: propertyDecl.delegateExpression,
+                shared: shared, compilationCtx: compilationCtx, emit: &body
+            )
+            let initialValueExpr = arena.appendExpr(.unit, type: sema.types.anyType)
+            body.append(.constValue(result: initialValueExpr, value: .null))
+            let initialComputedExpr = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
+            body.append(.constValue(result: initialComputedExpr, value: .boolLiteral(false)))
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
+                parameterCount: 4, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_lazy_create"),
-                arguments: [lambdaFnPtr, modeExpr],
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj, lambdaFnPtr, modeExpr, initialValueExpr, initialComputedExpr],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .observable, .vetoable:
@@ -633,18 +648,44 @@ extension KIRLoweringDriver {
                 valueType: sema.symbols.propertyType(for: propSymbol), propertySymbol: propSymbol,
                 paramCount: 3, shared: shared, emit: &body
             )
-            let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
+            let className = delegateKind == .observable ? "SimpleObservableProperty" : "SimpleVetoableProperty"
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [
+                    interner.intern("kotlin"), interner.intern("properties"),
+                    interner.intern(className), interner.intern("<init>"),
+                ],
+                parameterCount: 2, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.properties.\(className) constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil, callee: interner.intern(runtimeFnName),
-                arguments: [initialValueExpr, callbackFnPtr],
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj, initialValueExpr, callbackFnPtr],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .notNull:
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [
+                    interner.intern("kotlin"), interner.intern("properties"),
+                    interner.intern("NotNullVar"), interner.intern("<init>"),
+                ],
+                parameterCount: 0, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.properties.NotNullVar constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_notNull_create"),
-                arguments: [],
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .custom:

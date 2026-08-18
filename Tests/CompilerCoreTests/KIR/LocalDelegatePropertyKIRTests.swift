@@ -108,9 +108,12 @@ struct LocalDelegatePropertyKIRTests {
                 callees.contains("setValue"),
                 "Assigning a local delegated var should call setValue, got: \(callees)"
             )
+            // KSP-491: reads always dispatch a fresh getValue (no declaration-time
+            // call, no post-assignment refresh) -- only the final `println(x)`
+            // read below calls it.
             #expect(
-                callees.filter { $0 == "getValue" }.count >= 2,
-                "Expected a getValue call at declaration and a refresh getValue call after the assignment, got: \(callees)"
+                callees.filter { $0 == "getValue" }.count == 1,
+                "Expected exactly one getValue call, for the final read, got: \(callees)"
             )
         }
     }
@@ -263,7 +266,11 @@ struct LocalDelegatePropertyKIRTests {
 
     /// BUG-052: a local `val x by lazy { ... }` kept the `kk_lazy_create` handle as
     /// the local's value, so reads observed the delegate object itself
-    /// (`println(x)` printed `<object 0x...>`).
+    /// (`println(x)` printed `<object 0x...>`). KSP-491: `lazy`'s `getValue` is
+    /// declared on the `Lazy<T>` interface (not `LazyImpl` directly, since Sema
+    /// resolves it against `lazy`'s declared -- interface -- return type), so
+    /// each read dispatches through `.virtualCall`'s itable path, not a plain
+    /// `.call`; see `extractVirtualCallees`.
     @Test func testLocalLazyDelegateReadsCallLazyGetValue() throws {
         let source = """
         fun main() {
@@ -274,8 +281,6 @@ struct LocalDelegatePropertyKIRTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            // Through Lowering: StdlibDelegateLoweringPass turns the factory call
-            // into kk_lazy_create.
             try runToLowering(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
@@ -283,36 +288,38 @@ struct LocalDelegatePropertyKIRTests {
 
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_lazy_create"), "expected the lazy handle to be created, got: \(callees)")
-            // One kk_lazy_get_value per read: reading through the runtime accessor
-            // (instead of caching one value at the declaration) is what keeps the
-            // initializer deferred until the first read.
+            // One getValue per read: reading through the delegate's own
+            // getValue on every read (instead of caching one value at the
+            // declaration) is what keeps the initializer deferred until the
+            // first read, and lets a mutable delegate's reads observe writes.
             #expect(
-                callees.filter { $0 == "kk_lazy_get_value" }.count == 2,
-                "each read of a local lazy delegate must go through kk_lazy_get_value, got: \(callees)"
+                virtualCallees.filter { $0 == "getValue" }.count == 2,
+                "each read of a local lazy delegate must call getValue, got virtual callees: \(virtualCallees)"
             )
 
-            // println must consume kk_lazy_get_value's result, not the handle
-            // returned by kk_lazy_create.
-            // Values derived from kk_lazy_get_value's result, following the
-            // boxing call the Int value goes through before println.
+            // println must consume getValue's result, not the delegate handle
+            // itself.
             var derivedValues: Set<KIRExprID> = []
             var printCallArguments: [[KIRExprID]] = []
             for instruction in mainBody {
+                if case let .virtualCall(_, callee, _, arguments, result, _, _, _) = instruction,
+                   ctx.interner.resolve(callee) == "getValue", let result
+                {
+                    derivedValues.insert(result)
+                    continue
+                }
                 guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
                 let calleeName = ctx.interner.resolve(callee)
-                if calleeName == "kk_lazy_get_value", let result {
-                    derivedValues.insert(result)
-                } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
+                if let result, arguments.contains(where: { derivedValues.contains($0) }) {
                     derivedValues.insert(result)
                 }
                 if calleeName == "println" || calleeName == "__kk_print_raw" || calleeName.hasPrefix("kk_println") {
                     printCallArguments.append(arguments)
                 }
             }
-            #expect(!derivedValues.isEmpty, "expected a kk_lazy_get_value call in main")
+            #expect(!derivedValues.isEmpty, "expected a getValue call in main")
             #expect(
                 printCallArguments.filter { arguments in
                     arguments.contains(where: { derivedValues.contains($0) })
@@ -358,14 +365,14 @@ struct LocalDelegatePropertyKIRTests {
 
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_observable_create"), "got: \(callees)")
-            #expect(callees.contains("kk_observable_set_value"), "assignment must notify the delegate, got: \(callees)")
-            #expect(callees.contains("kk_observable_get_value"), "read must query the delegate, got: \(callees)")
+            #expect(virtualCallees.contains("setValue"), "assignment must notify the delegate, got: \(virtualCallees)")
+            #expect(virtualCallees.contains("getValue"), "read must query the delegate, got: \(virtualCallees)")
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(
-                !callees.contains("observable"),
-                "the Delegates.observable factory stub must be replaced by its runtime entry point, got: \(callees)"
+                !callees.contains("observable") && !callees.contains("kk_observable_create"),
+                "the Delegates.observable factory call must resolve to the real bundled implementation, got: \(callees)"
             )
         }
     }
@@ -388,11 +395,10 @@ struct LocalDelegatePropertyKIRTests {
 
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("kk_notNull_create"), "got: \(callees)")
-            #expect(callees.contains("kk_notNull_set_value"), "got: \(callees)")
-            #expect(callees.contains("kk_notNull_get_value"), "got: \(callees)")
+            #expect(virtualCallees.contains("setValue"), "got: \(virtualCallees)")
+            #expect(virtualCallees.contains("getValue"), "got: \(virtualCallees)")
         }
     }
 
@@ -406,30 +412,47 @@ struct LocalDelegatePropertyKIRTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+            try runToLowering(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
 
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            // The `lazy` factory call is only rewritten to `kk_lazy_create` by
-            // StdlibDelegateLoweringPass, which runs after this stage.
-            let createIndex = try #require(callees.firstIndex(of: "lazy"))
-            let getValueIndex = try #require(callees.firstIndex(of: "kk_lazy_get_value"))
-            let printIndices = callees.indices.filter { callees[$0] == "println" }
-            let firstPrintIndex = try #require(printIndices.first)
+            // Position getValue among *all* instructions (not just one callee
+            // kind) so it can be compared against the first println call.
+            var getValueIndex: Int?
+            var firstPrintIndex: Int?
+            for (index, instruction) in mainBody.enumerated() {
+                if case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction,
+                   ctx.interner.resolve(callee) == "getValue", getValueIndex == nil
+                {
+                    getValueIndex = index
+                }
+                if case let .call(_, callee, _, _, _, _, _, _) = instruction {
+                    let name = ctx.interner.resolve(callee)
+                    if (name == "println" || name.hasPrefix("kk_println")), firstPrintIndex == nil {
+                        firstPrintIndex = index
+                    }
+                }
+            }
+            let resolvedGetValueIndex = try #require(getValueIndex, "expected a getValue call, callees: \(callees), virtual: \(virtualCallees)")
+            let resolvedFirstPrintIndex = try #require(firstPrintIndex, "expected a println call")
 
-            #expect(createIndex < firstPrintIndex, "the delegate must be created at the declaration")
             #expect(
-                getValueIndex > firstPrintIndex,
-                "the value must only be read at the read site, not forced at the declaration: \(callees)"
+                resolvedGetValueIndex > resolvedFirstPrintIndex,
+                "the value must only be read at the read site, not forced at the declaration"
             )
         }
     }
 
     @Test func testLocalLazyDelegateCapturedByLambdaReadsThroughGetValue() throws {
-        // The lambda body is lowered under a fresh scope, so the delegate kind must
-        // survive scope resets for the captured read to go through the accessor.
+        // The lambda body is lowered under a fresh scope, so the delegate
+        // storage must survive scope resets for the captured read to go
+        // through the accessor.
         let source = """
         fun main() {
             val x by lazy { 42 }
@@ -439,7 +462,7 @@ struct LocalDelegatePropertyKIRTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+            try runToLowering(ctx)
 
             let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
             #expect(!(ctx.diagnostics.hasError), "capturing a local lazy delegate should compile: \(diagnosticMessages)")
@@ -448,12 +471,12 @@ struct LocalDelegatePropertyKIRTests {
             var sawGetValue = false
             module.arena.transformFunctions { function in
                 for instruction in function.body {
-                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { continue }
-                    if ctx.interner.resolve(callee) == "kk_lazy_get_value" { sawGetValue = true }
+                    guard case let .virtualCall(_, callee, _, _, _, _, _, _) = instruction else { continue }
+                    if ctx.interner.resolve(callee) == "getValue" { sawGetValue = true }
                 }
                 return function
             }
-            #expect(sawGetValue, "a lambda reading a captured lazy local should call kk_lazy_get_value")
+            #expect(sawGetValue, "a lambda reading a captured lazy local should call getValue")
         }
     }
 }

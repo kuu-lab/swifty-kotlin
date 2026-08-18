@@ -1,30 +1,4 @@
 
-// MARK: - Pre-interned runtime names for delegate rewriting
-
-private struct DelegateRuntimeNames {
-    let getValueName: InternedString
-    let setValueName: InternedString
-    let lazyGetValue: InternedString
-    let observableGetValue: InternedString
-    let vetoableGetValue: InternedString
-    let notNullGetValue: InternedString
-    let observableSetValue: InternedString
-    let vetoableSetValue: InternedString
-    let notNullSetValue: InternedString
-
-    init(interner: StringInterner) {
-        getValueName = interner.intern("getValue")
-        setValueName = interner.intern("setValue")
-        lazyGetValue = interner.intern("kk_lazy_get_value")
-        observableGetValue = interner.intern("kk_observable_get_value")
-        vetoableGetValue = interner.intern("kk_vetoable_get_value")
-        notNullGetValue = interner.intern("kk_notNull_get_value")
-        observableSetValue = interner.intern("kk_observable_set_value")
-        vetoableSetValue = interner.intern("kk_vetoable_set_value")
-        notNullSetValue = interner.intern("kk_notNull_set_value")
-    }
-}
-
 extension KIRLoweringDriver {
     func postProcessTopLevelInitializersAndDelegates(
         ast: ASTModule,
@@ -39,9 +13,6 @@ extension KIRLoweringDriver {
         let interner = compilationCtx.interner
         let mainName = interner.intern("main")
 
-        let delegateKindByPropertySymbol = buildDelegateKindMap(ast: ast, sema: sema, interner: interner)
-        let names = DelegateRuntimeNames(interner: interner)
-
         arena.transformFunctions { function in
             var updated = function
 
@@ -53,9 +24,8 @@ extension KIRLoweringDriver {
 
             if !delegateStorageSymbolByPropertySymbol.isEmpty {
                 updated.replaceBody(rewriteDelegateAccesses(
-                    body: updated.body, arena: arena, sema: sema,
-                    storageMap: delegateStorageSymbolByPropertySymbol,
-                    kindMap: delegateKindByPropertySymbol, names: names, interner: interner
+                    body: updated.body, sema: sema,
+                    storageMap: delegateStorageSymbolByPropertySymbol, interner: interner
                 ))
             }
 
@@ -87,77 +57,19 @@ extension KIRLoweringDriver {
         return newBody.instructions
     }
 
-    // MARK: - Delegate Kind Map
-
-    private func buildDelegateKindMap(
-        ast: ASTModule, sema: SemaModule, interner: StringInterner
-    ) -> [SymbolID: StdlibDelegateKind] {
-        var map: [SymbolID: StdlibDelegateKind] = [:]
-
-        func collect(from declID: DeclID) {
-            guard let decl = ast.arena.decl(declID) else { return }
-            switch decl {
-            case let .propertyDecl(prop):
-                guard let sym = sema.bindings.declSymbols[declID],
-                      prop.delegateExpression != nil
-                else { return }
-                map[sym] = StdlibDelegateKind.detect(
-                    delegateExpr: prop.delegateExpression,
-                    ast: ast,
-                    interner: interner
-                )
-            case let .classDecl(classDecl):
-                for memberProperty in classDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in classDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in classDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            case let .objectDecl(objectDecl):
-                for memberProperty in objectDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in objectDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in objectDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            case let .interfaceDecl(interfaceDecl):
-                for memberProperty in interfaceDecl.memberProperties {
-                    collect(from: memberProperty)
-                }
-                for nestedClass in interfaceDecl.nestedClasses {
-                    collect(from: nestedClass)
-                }
-                for nestedObject in interfaceDecl.nestedObjects {
-                    collect(from: nestedObject)
-                }
-            default:
-                return
-            }
-        }
-
-        for file in ast.sortedFiles {
-            for declID in file.topLevelDecls {
-                collect(from: declID)
-            }
-        }
-        return map
-    }
-
     // MARK: - Delegate Access Rewriting
 
+    /// Rewrites top-level delegated-property access sites (read/write, outside
+    /// the property's own module) to call the synthesized `get`/`set`
+    /// accessor functions instead of touching `$delegate_x`'s storage global
+    /// directly. Every delegate kind (`lazy`/`Delegates.observable/vetoable/
+    /// notNull`/custom) shares this path since KSP-491: they all resolve
+    /// `getValue`/`setValue` through the same operator convention and get the
+    /// same synthesized accessors (`emitDelegateAccessorsIfCustom`).
     private func rewriteDelegateAccesses(
         body: [KIRInstruction],
-        arena: KIRArena,
         sema: SemaModule,
         storageMap: [SymbolID: SymbolID],
-        kindMap: [SymbolID: StdlibDelegateKind],
-        names: DelegateRuntimeNames,
         interner: StringInterner
     ) -> [KIRInstruction] {
         var fullStorageMap = storageMap
@@ -170,6 +82,9 @@ extension KIRLoweringDriver {
         for (propertySymbol, storageSymbol) in fullStorageMap {
             propertyByStorageSymbol[storageSymbol] = propertySymbol
         }
+        let getValueName = interner.intern("getValue")
+        let setValueName = interner.intern("setValue")
+
         // Pass 1: collect copy targets to distinguish getter vs setter paths.
         var copyTargetExprs: Set<KIRExprID> = []
         for instruction in body {
@@ -182,45 +97,41 @@ extension KIRLoweringDriver {
         result.reserveCapacity(body.count)
 
         for instruction in body {
-            if case let .call(symbol, callee, arguments, callResult, _, _, _, _) = instruction,
+            if case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                let storageSymbol = symbol,
-               let propertySymbol = propertyByStorageSymbol[storageSymbol],
-               callee == names.getValueName || callee == names.setValueName
+               propertyByStorageSymbol[storageSymbol] != nil,
+               callee == getValueName || callee == setValueName
             {
-                if kindMap[propertySymbol] == .custom {
-                    result.append(instruction)
-                    continue
-                }
-                if callee == names.getValueName {
-                    emitGetValue(
-                        result: callResult ?? arena.appendTemporary(type: sema.types.anyType),
-                        storageSym: storageSymbol,
-                        propSym: propertySymbol,
-                        kindMap: kindMap,
-                        names: names,
-                        arena: arena,
-                        sema: sema,
-                        body: &result
-                    )
-                } else {
-                    let valueExpr = arguments.last ?? arena.appendExpr(.unit, type: sema.types.anyType)
-                    emitSetValue(
-                        fromExpr: valueExpr,
-                        storageSym: storageSymbol,
-                        kind: kindMap[propertySymbol],
-                        names: names,
-                        arena: arena,
-                        sema: sema,
-                        body: &result
-                    )
-                }
+                // Already a well-formed getValue/setValue call emitted by the
+                // delegate's own accessor function -- nothing to rewrite.
+                result.append(instruction)
                 continue
             }
 
             if case let .loadGlobal(res, sym) = instruction,
-               let storageSym = fullStorageMap[sym]
+               fullStorageMap[sym] != nil
             {
-                if kindMap[sym] == .custom {
+                result.append(
+                    .call(
+                        symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
+                        callee: interner.intern("get"),
+                        arguments: [],
+                        result: res,
+                        canThrow: false,
+                        thrownResult: nil
+                    )
+                )
+                continue
+            }
+
+            if case let .constValue(res, value) = instruction,
+               case let .symbolRef(sym) = value,
+               fullStorageMap[sym] != nil
+            {
+                if copyTargetExprs.contains(res) {
+                    targets[res] = sym
+                    result.append(instruction)
+                } else {
                     result.append(
                         .call(
                             symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
@@ -231,76 +142,23 @@ extension KIRLoweringDriver {
                             thrownResult: nil
                         )
                     )
-                    continue
-                }
-                emitGetValue(
-                    result: res, storageSym: storageSym, propSym: sym,
-                    kindMap: kindMap, names: names,
-                    arena: arena, sema: sema, body: &result
-                )
-                continue
-            }
-
-            if case let .constValue(res, value) = instruction,
-               case let .symbolRef(sym) = value,
-               let storageSym = fullStorageMap[sym]
-            {
-                if kindMap[sym] == .custom {
-                    if copyTargetExprs.contains(res) {
-                        targets[res] = sym
-                        result.append(instruction)
-                    } else {
-                        result.append(
-                            .call(
-                                symbol: SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: sym),
-                                callee: interner.intern("get"),
-                                arguments: [],
-                                result: res,
-                                canThrow: false,
-                                thrownResult: nil
-                            )
-                        )
-                    }
-                    continue
-                }
-                if copyTargetExprs.contains(res) {
-                    targets[res] = sym
-                    result.append(instruction)
-                } else {
-                    emitGetValue(
-                        result: res, storageSym: storageSym, propSym: sym,
-                        kindMap: kindMap, names: names,
-                        arena: arena, sema: sema, body: &result
-                    )
                 }
                 continue
             }
 
             if case let .copy(fromExpr, toExpr) = instruction,
                let propSym = targets.removeValue(forKey: toExpr),
-               let storageSym = fullStorageMap[propSym]
+               fullStorageMap[propSym] != nil
             {
-                if kindMap[propSym] == .custom {
-                    result.append(
-                        .call(
-                            symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
-                            callee: interner.intern("set"),
-                            arguments: [fromExpr],
-                            result: nil,
-                            canThrow: false,
-                            thrownResult: nil
-                        )
+                result.append(
+                    .call(
+                        symbol: SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propSym),
+                        callee: interner.intern("set"),
+                        arguments: [fromExpr],
+                        result: nil,
+                        canThrow: false,
+                        thrownResult: nil
                     )
-                    continue
-                }
-                if kindMap[propSym] == .lazy {
-                    result.append(instruction)
-                    continue
-                }
-                emitSetValue(
-                    fromExpr: fromExpr, storageSym: storageSym,
-                    kind: kindMap[propSym],
-                    names: names, arena: arena, sema: sema, body: &result
                 )
                 continue
             }
@@ -308,66 +166,6 @@ extension KIRLoweringDriver {
             result.append(instruction)
         }
         return result.instructions
-    }
-
-    private func emitGetValue(
-        result: KIRExprID, storageSym: SymbolID, propSym: SymbolID,
-        kindMap: [SymbolID: StdlibDelegateKind], names: DelegateRuntimeNames,
-        arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
-    ) {
-        let handle = arena.appendTemporary(type: sema.types.anyType
-        )
-        body.append(.loadGlobal(result: handle, symbol: storageSym))
-        let name: InternedString = switch kindMap[propSym] {
-        case .lazy: names.lazyGetValue
-        case .observable: names.observableGetValue
-        case .vetoable: names.vetoableGetValue
-        case .notNull: names.notNullGetValue
-        case .custom:
-            preconditionFailure(
-                "'.custom' delegate property access must be redirected to the property's " +
-                    "own accessor symbol by rewriteDelegateAccesses before reaching emitGetValue"
-            )
-        case nil:
-            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitGetValue")
-        }
-        body.append(.call(
-            symbol: nil,
-            callee: name,
-            arguments: [handle],
-            result: result, canThrow: false, thrownResult: nil
-        ))
-    }
-
-    private func emitSetValue(
-        fromExpr: KIRExprID, storageSym: SymbolID, kind: StdlibDelegateKind?,
-        names: DelegateRuntimeNames,
-        arena: KIRArena, sema: SemaModule, body: inout KIRLoweringEmitContext
-    ) {
-        let handle = arena.appendTemporary(type: sema.types.anyType
-        )
-        body.append(.loadGlobal(result: handle, symbol: storageSym))
-        let name: InternedString = switch kind {
-        case .observable: names.observableSetValue
-        case .vetoable: names.vetoableSetValue
-        case .notNull: names.notNullSetValue
-        case .lazy: preconditionFailure("lazy delegate setValue is not supported")
-        case .custom:
-            preconditionFailure(
-                "'.custom' delegate property access must be redirected to the property's " +
-                    "own accessor symbol by rewriteDelegateAccesses before reaching emitSetValue"
-            )
-        case nil:
-            preconditionFailure("delegate kind must be resolved by buildDelegateKindMap before reaching emitSetValue")
-        }
-        let setResult = arena.appendTemporary(type: sema.types.anyType
-        )
-        body.append(.call(
-            symbol: nil,
-            callee: name,
-            arguments: [handle, fromExpr],
-            result: setResult, canThrow: false, thrownResult: nil
-        ))
     }
 }
 
@@ -377,9 +175,9 @@ extension KIRLoweringDriver {
     /// A class-member delegate body (`lazy { }`, `Delegates.observable(...) { }`)
     /// may reference other instance fields by bare name (e.g. `initCount += 1`,
     /// DEBT-KIR-008/BUG-170). The generated function is invoked later through
-    /// the delegate's stored function pointer (`kk_lazy_create`'s for `.lazy`,
-    /// `RuntimeObservableBox`/`RuntimeVetoableBox`'s `callbackFnPtr` for the
-    /// other two), which cannot simply gain an extra KIR parameter — the
+    /// the delegate's stored function pointer (`LazyImpl`'s `initializer` for
+    /// `.lazy`, `SimpleObservableProperty`/`SimpleVetoableProperty`'s `onChange`
+    /// for the other two), which cannot simply gain an extra KIR parameter — the
     /// runtime side always invokes it through a fixed dispatch entry point
     /// (`kk_function_invoke_0` for `.lazy`, `kk_function_invoke_3` for
     /// `.observable`/`.vetoable`) that already distinguishes a raw thunk
@@ -486,9 +284,39 @@ extension KIRLoweringDriver {
         ctx.appendGeneratedCallableDecl(lambdaDecl)
 
         guard let outerReceiver else {
-            let lambdaRefExpr = arena.appendExpr(.symbolRef(lambdaSymbol), type: sema.types.anyType)
-            instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(lambdaSymbol)))
-            return lambdaRefExpr
+            // KSP-491: `lambdaSymbol` above was previously returned bare (a
+            // "raw thunk" `(numberedParams...) -> T` function pointer),
+            // relying on it only ever being invoked through
+            // kk_function_invoke_0/_3's raw-thunk branch. Passed instead to a
+            // real Kotlin closure-typed parameter (`LazyImpl`'s
+            // `initializer`, `SimpleObservableProperty`'s `onChange`, ...)
+            // and invoked there through ordinary closure-call syntax, the
+            // value must be a genuine boxed FunctionN -- but
+            // `kk_function_create_N` boxes a `(closureRaw, args..., outThrown)`-
+            // shaped pointer, one parameter more than `lambdaSymbol` has, so
+            // boxing it directly shifts every argument by one slot at
+            // invocation. Wrap it in a trivial closure-shaped adapter (an
+            // unused leading parameter, forwarding the rest) first, mirroring
+            // `materializeCapturingDelegateLambda` below minus the actual
+            // capture load this receiverless case has nothing to load.
+            let adapterSymbol = boxableDelegateLambdaAdapter(
+                innerLambdaSymbol: lambdaSymbol,
+                innerLambdaName: lambdaName,
+                numberedParams: numberedParams,
+                sema: sema,
+                arena: arena,
+                interner: interner
+            )
+            let lambdaRefExpr = arena.appendExpr(.symbolRef(adapterSymbol), type: sema.types.anyType)
+            instructions.append(.constValue(result: lambdaRefExpr, value: .symbolRef(adapterSymbol)))
+            return boxDelegateLambdaAsClosure(
+                lambdaRefExpr: lambdaRefExpr,
+                paramCount: paramCount,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
         }
         return materializeCapturingDelegateLambda(
             innerLambdaSymbol: lambdaSymbol,
@@ -501,6 +329,91 @@ extension KIRLoweringDriver {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    /// Wraps `innerLambdaSymbol` (a plain `(numberedParams...) -> T` function,
+    /// no closure parameter) in a trivial adapter of shape
+    /// `(closureRaw, numberedParams...) -> T` that ignores `closureRaw` and
+    /// forwards the rest -- the shape `kk_function_create_N`'s boxed value
+    /// expects its `fnPtr` to already have (see `boxDelegateLambdaAsClosure`).
+    private func boxableDelegateLambdaAdapter(
+        innerLambdaSymbol: SymbolID,
+        innerLambdaName: InternedString,
+        numberedParams: [KIRParameter],
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner
+    ) -> SymbolID {
+        let adapterSymbol = ctx.allocateSyntheticGeneratedSymbol()
+        let adapterName = interner.intern("kk_delegate_lambda_noop_adapter_\(adapterSymbol.rawValue)")
+        let closureParam = KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: sema.types.intType)
+        let adapterNumberedParams = numberedParams.map {
+            KIRParameter(symbol: ctx.allocateSyntheticGeneratedSymbol(), type: $0.type)
+        }
+        let adapterParams = [closureParam] + adapterNumberedParams
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        var forwardedArgs: [KIRExprID] = []
+        for param in adapterNumberedParams {
+            let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
+            body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
+            forwardedArgs.append(paramExpr)
+        }
+        let callResult = arena.appendTemporary(type: sema.types.anyType)
+        body.append(.call(
+            symbol: innerLambdaSymbol,
+            callee: innerLambdaName,
+            arguments: forwardedArgs,
+            result: callResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnValue(callResult))
+        body.append(.endBlock)
+
+        let adapterDecl = arena.appendDecl(.function(KIRFunction(
+            symbol: adapterSymbol, name: adapterName, params: adapterParams,
+            returnType: sema.types.anyType, body: body, isSuspend: false, isInline: false
+        )))
+        ctx.appendGeneratedCallableDecl(adapterDecl)
+        return adapterSymbol
+    }
+
+    /// Boxes a raw delegate-lambda thunk reference (no outer receiver to
+    /// capture) into a genuine `FunctionN` closure value via
+    /// `kk_function_create_N` with an empty (`0`) closure environment, so
+    /// ordinary Kotlin closure-call syntax (`onChange(a, b, c)`) can invoke
+    /// it -- mirroring the tail of `materializeCapturingDelegateLambda`
+    /// below, minus the capture-loading adapter this receiverless case
+    /// doesn't need.
+    private func boxDelegateLambdaAsClosure(
+        lambdaRefExpr: KIRExprID,
+        paramCount: Int,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout KIRLoweringEmitContext
+    ) -> KIRExprID {
+        let zeroClosureExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+        instructions.append(.constValue(result: zeroClosureExpr, value: .intLiteral(0)))
+        let createCallee: InternedString = switch paramCount {
+        case 0: interner.intern("kk_function_create_0")
+        case 1: interner.intern("kk_function_create_1")
+        case 2: interner.intern("kk_function_create_2")
+        case 3: interner.intern("kk_function_create_3")
+        case 4: interner.intern("kk_function_create_4")
+        default: preconditionFailure("Unsupported delegate callback arity: \(paramCount)")
+        }
+        let materializedExpr = arena.appendTemporary(type: sema.types.anyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: createCallee,
+            arguments: [lambdaRefExpr, zeroClosureExpr],
+            result: materializedExpr,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return materializedExpr
     }
 
     /// Wraps `innerLambdaSymbol` (a `(receiver, [property, old, new]) -> T`

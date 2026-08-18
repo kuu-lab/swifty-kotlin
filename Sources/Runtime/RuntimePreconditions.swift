@@ -36,3 +36,23 @@ private func runtimeGetOrCreateLock(for key: Int) -> NSRecursiveLock {
     runtimeLocks[key] = newLock
     return newLock
 }
+
+// MARK: - lazy(SYNCHRONIZED) locking (KSP-491)
+
+/// Bare lock/unlock pair backing `lazy(LazyThreadSafetyMode.SYNCHRONIZED) { ... }`
+/// (`Stdlib/kotlin/Lazy.kt`'s `LazyImpl`). Reuses the same per-object reentrant
+/// lock dictionary as `kotlin.synchronized`, keyed by the `Lazy` instance's own
+/// handle. Split into two calls (rather than a `synchronized`-style
+/// closure-taking bridge) so the already-initialized fast path never has to
+/// pay for a closure allocation.
+@_cdecl("__kk_lazy_sync_lock")
+public func __kk_lazy_sync_lock(_ handle: Int) -> Int {
+    runtimeGetOrCreateLock(for: handle).lock()
+    return 0
+}
+
+@_cdecl("__kk_lazy_sync_unlock")
+public func __kk_lazy_sync_unlock(_ handle: Int) -> Int {
+    runtimeGetOrCreateLock(for: handle).unlock()
+    return 0
+}

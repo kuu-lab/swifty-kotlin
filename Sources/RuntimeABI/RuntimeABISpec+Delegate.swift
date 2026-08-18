@@ -3,28 +3,13 @@
 /// `RuntimeABISpec.delegateFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let delegateFunctions: [RuntimeABIFunctionSpec] = [
-        // Lazy
+        // Lazy(SYNCHRONIZED) locking (KSP-491). `lazy`/`Delegates.observable/vetoable/notNull`
+        // themselves are bundled Kotlin source (Stdlib/kotlin/Lazy.kt,
+        // Stdlib/kotlin/properties/{ObservableProperty,Delegates}.kt); this pair is the
+        // only runtime bridge they still need (reason code: GC/continuation-adjacent
+        // per-object locking, same rationale as `__kk_synchronized`).
         RuntimeABIFunctionSpec(
-            name: "kk_lazy_create",
-            parameters: [
-                RuntimeABIParameter(name: "initFnPtr", type: .intptr),
-                RuntimeABIParameter(name: "mode", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_lazy_of",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_lazy_get_value",
+            name: "__kk_lazy_sync_lock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
             ],
@@ -33,95 +18,9 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_lazy_is_initialized",
+            name: "__kk_lazy_sync_unlock",
             parameters: [
                 RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        // Observable
-        RuntimeABIFunctionSpec(
-            name: "kk_observable_create",
-            parameters: [
-                RuntimeABIParameter(name: "initialValue", type: .intptr),
-                RuntimeABIParameter(name: "callbackFnPtr", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_observable_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_observable_set_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "newValue", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        // Vetoable
-        RuntimeABIFunctionSpec(
-            name: "kk_vetoable_create",
-            parameters: [
-                RuntimeABIParameter(name: "initialValue", type: .intptr),
-                RuntimeABIParameter(name: "callbackFnPtr", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_vetoable_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_vetoable_set_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "newValue", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false
-        ),
-        // NotNull
-        RuntimeABIFunctionSpec(
-            name: "kk_notNull_create",
-            parameters: [],
-            returnType: .intptr,
-            section: "Delegate",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_notNull_get_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Delegate"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_notNull_set_value",
-            parameters: [
-                RuntimeABIParameter(name: "handle", type: .intptr),
-                RuntimeABIParameter(name: "newValue", type: .intptr),
             ],
             returnType: .intptr,
             section: "Delegate",
