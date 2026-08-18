@@ -342,17 +342,16 @@ extension CallTypeChecker {
     func applyContractEffects(
         chosen: SymbolID,
         args: [CallArgument],
-        argTypes: [TypeID],
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
         guard let effect = sema.symbols.contractNonNullEffect(for: chosen),
               effect.appliesOnAnyReturn,
-              let parameterIndex = sema.symbols.functionSignature(for: chosen)?
-              .valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+              let signature = sema.symbols.functionSignature(for: chosen),
+              let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
               parameterIndex < args.count,
-              parameterIndex < argTypes.count
+              parameterIndex < signature.parameterTypes.count
         else {
             return
         }
@@ -361,7 +360,7 @@ extension CallTypeChecker {
         // source-backed contract effects point directly at the nullable
         // argument from a returns() implies clause.
         let narrowedState: DataFlowState
-        if argTypes[parameterIndex] == sema.types.booleanType {
+        if signature.parameterTypes[parameterIndex] == sema.types.booleanType {
             let branch = ctx.dataFlow.branchOnCondition(
                 conditionExpr,
                 base: ctx.flowState,

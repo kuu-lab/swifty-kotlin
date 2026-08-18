@@ -2397,7 +2397,6 @@ final class CallTypeChecker {
             applyContractEffects(
                 chosen: chosen,
                 args: args,
-                argTypes: argTypes,
                 ctx: ctx,
                 locals: &locals
             )
@@ -2538,7 +2537,6 @@ final class CallTypeChecker {
                     applyContractEffects(
                         chosen: chosen,
                         args: args,
-                        argTypes: argTypes,
                         ctx: ctx,
                         locals: &locals
                     )

@@ -509,6 +509,29 @@ struct KotlinContractsEffectModelTests {
                     }
 
             """,
+            // testNonNullContractDoesNotNarrowVariablesInsideBooleanArgument
+            """
+            package sample17
+
+                    import kotlin.contracts.*
+
+                    @OptIn(ExperimentalContracts::class)
+                    fun assertNotNull(value: Any?) {
+                        contract {
+                            returns() implies (value != null)
+                        }
+                        if (value == null) throw IllegalArgumentException("null")
+                    }
+
+                    fun nullableText(): String? = null
+
+                    fun main() {
+                        val value: String? = nullableText()
+                        assertNotNull(value != null)
+                        println(value.length)
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -1097,6 +1120,21 @@ struct KotlinContractsEffectModelTests {
                 #expect(
                     chosenAssertNotNull == assertNotNullSymbol,
                     "The sample16 call should use its source-backed assertNotNull declaration"
+                )
+
+            }
+
+            // === testNonNullContractDoesNotNarrowVariablesInsideBooleanArgument ===
+
+            do {
+
+                let sample17Path = paths[17]
+
+                let sample17Diagnostics = diagnosticsForPath(sample17Path, in: ctx)
+
+                #expect(
+                    sample17Diagnostics.contains { $0.code == "KSWIFTK-SEMA-0026" },
+                    "Expected nullable access to remain rejected after a Boolean argument: \(sample17Diagnostics.map(\.message))"
                 )
 
             }
