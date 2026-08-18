@@ -22,9 +22,12 @@ struct IntegerNarrowingPassTests {
         )
     }
 
-    private func makeSema() -> SemaModule {
-        makeSemaModule(symbols: SymbolTable(), types: TypeSystem(), bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-    }
+    private static nonisolated(unsafe) let sharedSema: SemaModule = makeSemaModule(
+        symbols: SymbolTable(),
+        types: TypeSystem(),
+        bindings: BindingTable(),
+        diagnostics: DiagnosticEngine()
+    ).ctx
 
     private func makeModule(
         body: [KIRInstruction],
@@ -56,7 +59,7 @@ struct IntegerNarrowingPassTests {
     func testIntAdditionResultIsNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: intType)
@@ -95,7 +98,7 @@ struct IntegerNarrowingPassTests {
     func testLongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let longType = sema.types.make(.primitive(.long, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: longType)
@@ -134,7 +137,7 @@ struct IntegerNarrowingPassTests {
     func testIntShiftLeftIsRewrittenToWidthAwareVariant() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
         let value = arena.appendExpr(.temporary(0), type: intType)
@@ -165,7 +168,7 @@ struct IntegerNarrowingPassTests {
     func testLongShiftLeftUsesSixBitMaskedVariantWithoutNarrowing() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let longType = sema.types.make(.primitive(.long, .nonNull))
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
@@ -206,7 +209,7 @@ struct IntegerNarrowingPassTests {
     func testUIntAdditionResultIsNarrowedToUInt() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let uintType = sema.types.make(.primitive(.uint, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: uintType)
@@ -244,7 +247,7 @@ struct IntegerNarrowingPassTests {
     func testULongAdditionResultIsNotNarrowed() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let ulongType = sema.types.make(.primitive(.ulong, .nonNull))
 
         let lhs = arena.appendExpr(.temporary(0), type: ulongType)
@@ -284,7 +287,7 @@ struct IntegerNarrowingPassTests {
     func testShouldRunReturnsFalseWithoutRelevantCallees() {
         let interner = StringInterner()
         let arena = KIRArena()
-        let sema = makeSema()
+        let sema = Self.sharedSema
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
         let (module, _) = makeModule(

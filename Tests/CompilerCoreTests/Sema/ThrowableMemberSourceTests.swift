@@ -6,18 +6,30 @@ import Testing
 /// `kk_*` external link name of their own.
 @Suite
 struct ThrowableMemberSourceTests {
+    private static let sharedSource = """
+    fun sampleSuppressed(e: Throwable) {
+        val suppressed: List<Throwable> = e.suppressedExceptions
+    }
+
+    fun sampleSubclass(e: IllegalStateException): Int {
+        val text: String? = e.message
+        val root: Throwable? = e.cause
+        e.addSuppressed(IllegalArgumentException("x"))
+        e.initCause(root)
+        return e.getSuppressed().size + e.suppressedExceptions.size + (if (text == null) 0 else 1)
+    }
+    """
+
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
         if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
+        let pair = try makeSema(source: Self.sharedSource)
         Self._sharedSema = pair
         return pair
     }
 
-    private func makeSema(
-        source: String = "fun noop() {}"
-    ) throws -> (SemaModule, StringInterner) {
+    private func makeSema(source: String) throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -97,15 +109,9 @@ struct ThrowableMemberSourceTests {
 
     @Test
     func testSuppressedExceptionsCanBeAssignedToListOfThrowable() throws {
-        let source = """
-        fun sample(e: Throwable) {
-            val suppressed: List<Throwable> = e.suppressedExceptions
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
+        let (sema, interner) = try sharedSema()
         let sampleSymbol = try #require(sema.symbols.lookup(
-            fqName: [interner.intern("sample")]
+            fqName: [interner.intern("sampleSuppressed")]
         ))
 
         #expect(sema.symbols.functionSignature(for: sampleSymbol) != nil)
@@ -113,19 +119,9 @@ struct ThrowableMemberSourceTests {
 
     @Test
     func testMemberSurfaceTypeChecksOnSubclassReceivers() throws {
-        let source = """
-        fun sample(e: IllegalStateException): Int {
-            val text: String? = e.message
-            val root: Throwable? = e.cause
-            e.addSuppressed(IllegalArgumentException("x"))
-            e.initCause(root)
-            return e.getSuppressed().size + e.suppressedExceptions.size + (if (text == null) 0 else 1)
-        }
-        """
-
-        let (sema, interner) = try makeSema(source: source)
+        let (sema, interner) = try sharedSema()
         let sampleSymbol = try #require(sema.symbols.lookup(
-            fqName: [interner.intern("sample")]
+            fqName: [interner.intern("sampleSubclass")]
         ))
 
         #expect(sema.symbols.functionSignature(for: sampleSymbol)?.returnType == sema.types.intType)

@@ -9,6 +9,29 @@ import Testing
 /// Kotlin `KProperty0/1/2` shells.
 @Suite
 struct GenericInterfaceInheritanceTests {
+    private static let sharedSource = """
+    interface A<T> {
+        fun g(): T
+    }
+
+    interface B<T> : A<T>
+
+    fun useMember(b: B<Int>): Int = b.g()
+
+    fun upcast(b: B<Int>): A<Int> = b
+
+    interface Producer<V> : () -> V
+    """
+
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let pair = try makeSema(source: Self.sharedSource)
+        Self._sharedSema = pair
+        return pair
+    }
+
     private func makeSema(
         source: String
     ) throws -> (SemaModule, StringInterner) {
@@ -24,14 +47,7 @@ struct GenericInterfaceInheritanceTests {
     }
 
     @Test func testGenericInterfaceForwardsTypeParameterToSupertype() throws {
-        let source = """
-        interface A<T> {
-            fun g(): T
-        }
-
-        interface B<T> : A<T>
-        """
-        let (sema, interner) = try makeSema(source: source)
+        let (sema, interner) = try sharedSema()
 
         let aSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("A")]))
         let bSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("B")]))
@@ -52,25 +68,11 @@ struct GenericInterfaceInheritanceTests {
     @Test func testGenericInterfaceUpcastAndInheritedMemberResolve() throws {
         // Upcasting `B<Int>` to `A<Int>` and calling the inherited member both
         // require the forwarded supertype arguments to be bound.
-        let source = """
-        interface A<T> {
-            fun g(): T
-        }
-
-        interface B<T> : A<T>
-
-        fun useMember(b: B<Int>): Int = b.g()
-
-        fun upcast(b: B<Int>): A<Int> = b
-        """
-        _ = try makeSema(source: source)
+        _ = try sharedSema()
     }
 
     @Test func testFunctionTypeSupertypeBindsFunctionInterface() throws {
-        let source = """
-        interface Producer<V> : () -> V
-        """
-        let (sema, interner) = try makeSema(source: source)
+        let (sema, interner) = try sharedSema()
 
         let producerSymbol = try #require(sema.symbols.lookup(fqName: [interner.intern("Producer")]))
         let function0Symbol = try #require(sema.symbols.lookup(

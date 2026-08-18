@@ -6,6 +6,15 @@ import Testing
 
 @Suite
 struct UuidAPISurfaceInventoryTests {
+    private static nonisolated(unsafe) var _sharedSema: (CompilationContext, SemaModule, StringInterner)?
+
+    private func sharedSema() throws -> (CompilationContext, SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSemaWithContext()
+        Self._sharedSema = triple
+        return triple
+    }
+
     private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
         var result: (CompilationContext, SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -37,7 +46,7 @@ struct UuidAPISurfaceInventoryTests {
 
     @Test
     func testUuidPackageClassAndCompanionAreBundledFromSource() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSema()
         let uuidSourceFileID = try #require(ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt"))
 
         let packageSymbol = sema.symbols.lookup(fqName: ["kotlin", "uuid"].map { interner.intern($0) })
@@ -59,7 +68,7 @@ struct UuidAPISurfaceInventoryTests {
 
     @Test
     func testUuidPublicClassApisAreSourceBackedWithoutPureRuntimeLinks() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSema()
         let uuidSourceFileID = try #require(ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt"))
         let publicApiPaths: [[String]] = [
             ["kotlin", "uuid", "Uuid", "Companion", "SIZE_BITS"],
@@ -107,7 +116,7 @@ struct UuidAPISurfaceInventoryTests {
 
     @Test
     func testUuidResidualPrivateBridgesUseDowngradedNames() throws {
-        let (_, sema, interner) = try makeSemaWithContext()
+        let (_, sema, interner) = try sharedSema()
         let bridges: [(path: [String], link: String)] = [
             (["kotlin", "uuid", "__kk_uuid_random"], "__kk_uuid_random"),
             (["kotlin", "uuid", "__kk_uuid_lexicalOrder"], "__kk_uuid_lexicalOrder"),
@@ -131,7 +140,7 @@ struct UuidAPISurfaceInventoryTests {
     /// testUuidPublicClassApisAreSourceBackedWithoutPureRuntimeLinks above).
     @Test
     func testUuidJavaInteropExtensionIsSourceBackedDelegatingToRenamedBridge() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSema()
         let uuidSourceFileID = try #require(ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt"))
         let path = ["kotlin", "uuid", "toKotlinUuid"]
 
@@ -147,7 +156,7 @@ struct UuidAPISurfaceInventoryTests {
 
     @Test
     func testUuidFactoryAndPropertyTypesResolve() throws {
-        let (_, sema, interner) = try makeSemaWithContext()
+        let (_, sema, interner) = try sharedSema()
         let uuidSymbol = try #require(sema.symbols.lookup(fqName: ["kotlin", "uuid", "Uuid"].map {
             interner.intern($0)
         }))
