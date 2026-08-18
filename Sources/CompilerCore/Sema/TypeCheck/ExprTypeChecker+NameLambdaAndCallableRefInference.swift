@@ -1519,28 +1519,39 @@ extension ExprTypeChecker {
         )))
     }
 
-    /// Decides the expression type for a property callable reference: an
-    /// `expectedType` is only trusted when it is itself one of the four
-    /// concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
+    /// Decides the expression type for a property callable reference.
+    ///
+    /// A property reference is also a valid function value — Kotlin allows
+    /// `list.map(Person::name)` or `val f: (Person) -> String = Person::name`
+    /// — so an `expectedType` that is a function type (or SAM-convertible
+    /// interface) is always trusted as-is, exactly like before this fix and
+    /// exactly like the sibling function-reference branch above.
+    ///
+    /// Otherwise, `expectedType` is only trusted when it is itself one of the
+    /// four concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
     /// `KProperty1`/`KMutableProperty1`) — the same set
     /// `propertyReferenceShape` in `LambdaLowerer+PropertyReferenceLowering.swift`
     /// recognizes to build the real KIR wrapper object. A broader or unrelated
     /// expected type (`Any`, `KProperty<*>`, `KCallable<*>`, ...) would
     /// silently defeat that wrapper and fall back to a non-conforming legacy
     /// value, so `inferredType` (the correct concrete shape this reference
-    /// actually has) is used instead in that case. This mirrors how the
-    /// sibling function-reference branch above only adopts `expectedType`
-    /// when it resolves to a real function type or SAM interface, and
-    /// otherwise reports its own `inferredType`.
+    /// actually has) is used instead in that case.
     private func resolvedPropertyReferenceResultType(
         expectedType: TypeID?,
         inferredType: TypeID,
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        guard let expectedType,
-              isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner)
-        else {
+        guard let expectedType else {
+            return inferredType
+        }
+        if case .functionType = sema.types.kind(of: expectedType) {
+            return expectedType
+        }
+        if driver.helpers.samFunctionType(for: expectedType, sema: sema) != nil {
+            return expectedType
+        }
+        guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
             return inferredType
         }
         return expectedType

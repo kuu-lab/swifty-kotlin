@@ -157,5 +157,38 @@ struct PropertyCallableReferenceDefaultTypeTests {
         let (symbol, _) = try classTypeSymbol(for: callableRefExprID, sema: sema)
         #expect(symbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty1"])
     }
+
+    /// A property reference is also a valid function value in Kotlin
+    /// (`val f: (C) -> Int = C::v`, `list.map(C::v)`), so a function-typed
+    /// expected type must still be honored as-is — the same as before this
+    /// fix — rather than being overridden by the newly-inferred KPropertyN
+    /// default. This only pins the Sema-level type binding: whether the
+    /// resulting KIR/codegen path for a property reference bound to an
+    /// explicit function type actually links and runs correctly is tracked
+    /// separately in TODO.md (a pre-existing, unrelated bug — reproducible
+    /// on stock master with no dependency on this fix).
+    @Test func testExplicitFunctionTypeExpectedTypeStillWinsOverKPropertyDefault() throws {
+        let ctx = makeContextFromSource("""
+        class C(val v: Int)
+        fun main() {
+            val f: (C) -> Int = C::v
+        }
+        """)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected clean compile, got: \(ctx.diagnostics.diagnostics)")
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+
+        let exprType = try #require(sema.bindings.exprTypes[callableRefExprID])
+        guard case .functionType = sema.types.kind(of: exprType) else {
+            Issue.record("Expected C::v bound to (C) -> Int to keep a function type, got \(sema.types.kind(of: exprType))")
+            return
+        }
+    }
 }
 #endif
