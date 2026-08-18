@@ -83,28 +83,11 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        // KSP-496: primaryConstructor stays a compiler special case for the same
-        // reason as the collection-returning members below, but it returns a
-        // single nullable value (KFunction<*>?), not a collection.
-        if calleeName == knownNames.primaryConstructorName, args.isEmpty {
-            let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-            sema.bindings.bindExprType(id, type: nullableAnyType)
-            return nullableAnyType
-        }
-        // KSP-496: members/constructors/nestedClasses/properties/memberProperties/
-        // declaredMemberProperties/functions/memberFunctions/
-        // declaredMemberFunctions/supertypes remain compiler special cases
-        // because their bundled generic declarations are not yet present.
-        let kclassMemberCollectionCallees: Set<InternedString> = [
-            knownNames.membersName, knownNames.constructorsName,
-            knownNames.nestedClassesName,
-            knownNames.propertiesName, knownNames.memberPropertiesName,
-            knownNames.declaredMemberPropertiesName,
-            knownNames.functionsName, knownNames.memberFunctionsName,
-            knownNames.declaredMemberFunctionsName,
-            knownNames.supertypesName,
-        ]
-        if kclassMemberCollectionCallees.contains(calleeName), args.isEmpty {
+        // KSP-496: `properties` (unlike memberProperties/declaredMemberProperties)
+        // stays a compiler special case — it isn't a real kotlin-stdlib name, and
+        // Scripts/diff_cases/kclass_interface_handles.kt relies on freely shadowing
+        // it with a real user-declared extension for kotlinc portability.
+        if calleeName == knownNames.propertiesName, args.isEmpty {
             let listType = makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,
@@ -186,30 +169,9 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
-        // KSP-496: primaryConstructor stays a compiler special case (via
-        // variable receiver) for the same reason as the collection-returning
-        // members below, but it returns a single nullable value
-        // (KFunction<*>?), not a collection.
-        if calleeName == knownNames.primaryConstructorName, args.isEmpty {
-            let nullableAnyType = sema.types.makeNullable(sema.types.anyType)
-            sema.bindings.bindExprType(id, type: nullableAnyType)
-            return nullableAnyType
-        }
-        // KSP-496: members/constructors/nestedClasses/properties/memberProperties/
-        // declaredMemberProperties/functions/memberFunctions/
-        // declaredMemberFunctions/supertypes remain compiler special cases (via
-        // variable receiver) because their bundled generic declarations are not
-        // yet present.
-        let kclassVarMemberCollectionCallees: Set<InternedString> = [
-            knownNames.membersName, knownNames.constructorsName,
-            knownNames.nestedClassesName,
-            knownNames.propertiesName, knownNames.memberPropertiesName,
-            knownNames.declaredMemberPropertiesName,
-            knownNames.functionsName, knownNames.memberFunctionsName,
-            knownNames.declaredMemberFunctionsName,
-            knownNames.supertypesName,
-        ]
-        if kclassVarMemberCollectionCallees.contains(calleeName), args.isEmpty {
+        // KSP-496: `properties` (via variable receiver) stays a compiler special
+        // case for the same reason as above — see tryInferClassRefMemberCall.
+        if calleeName == knownNames.propertiesName, args.isEmpty {
             let listType = makeSyntheticListType(
                 symbols: sema.symbols,
                 types: sema.types,

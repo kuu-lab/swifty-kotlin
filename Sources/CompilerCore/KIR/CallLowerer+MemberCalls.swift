@@ -4,27 +4,20 @@
 /// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
     // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the boolean
-    // flags/visibility/annotations moved to ordinary Kotlin extension
-    // declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
+    // flags/visibility/annotations/members/constructors/primaryConstructor/
+    // memberProperties/declaredMemberProperties/functions/memberFunctions/
+    // declaredMemberFunctions/nestedClasses/supertypes moved to ordinary
+    // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
     //
     // The remaining names stay here:
     // - findAnnotation/findAssociatedObject take a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
-    // - members/constructors/primaryConstructor/properties/memberProperties/
-    //   declaredMemberProperties/functions/memberFunctions/
-    //   declaredMemberFunctions/nestedClasses/supertypes return a
-    //   KFunction/KCallable/KClass/KType-shaped collection or value backed by
-    //   a runtime handle. Reflection handles carry stable nominal IDs, and
-    //   KCallable.name dispatches across function, constructor, and property
-    //   boxes. The collection APIs remain compiler special cases because their
-    //   generic public signatures are not yet represented by bundled Kotlin.
+    // - properties is not a real kotlin-stdlib name (only the `member`/
+    //   `declaredMember`-prefixed variants exist upstream); diff cases rely
+    //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject",
-        "members", "constructors", "primaryConstructor",
-        "properties", "memberProperties", "declaredMemberProperties",
-        "functions", "memberFunctions", "declaredMemberFunctions",
-        "nestedClasses", "supertypes",
+        "findAnnotation", "findAssociatedObject", "properties",
     ]
 
     func lowerMemberCallExpr(
