@@ -262,10 +262,10 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticInstantStubs.swift` | 441 | (b) | M8 time source migration. |
 | `HeaderHelpers+SyntheticIterableRegistry.swift` | 2741 | (b) | RF-STUB-005 consolidated Iterable/Collection shells and member registrations. |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
-| `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | Kotlin/JS surface; cleanup candidate. |
+| `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
-| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | ~~Kotlin/JS number bridge; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127, 2026-08-18)。`JsNumber` synthetic Sema surface と stale RuntimeABI spec を除去。 |
+| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | ~~Kotlin/JS number bridge; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsNumber` synthetic Sema surface と stale RuntimeABI spec を除去。 |
 | `HeaderHelpers+SyntheticJsStringInteropStubs.swift` | 183 | (a) | Kotlin/JS string interop; cleanup candidate. |
 | `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` | 790 | (c) | Core annotation and opt-in metadata surface. |
 | `HeaderHelpers+SyntheticKotlinIOExceptionStubs.swift` | 133 | (b) | `kotlin.io` exception shell; source/runtime migration owner. |
@@ -356,8 +356,8 @@ should follow the same shape:
 
 ### Follow-up order
 
-1. Finish small (a) deletions that still have direct central calls:
-   `SyntheticJsAnyStubs`.
+1. Small (a) deletions with direct central calls are complete:
+   `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs` (CLEANUP-STUB-127/128).
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
    `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.

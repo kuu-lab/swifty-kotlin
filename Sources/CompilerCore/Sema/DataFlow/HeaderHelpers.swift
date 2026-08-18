@@ -1227,7 +1227,6 @@ extension DataFlowSemaPhase {
         } else {
             registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         }
-        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(
             symbols: symbols,
             types: types,
