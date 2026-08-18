@@ -5,7 +5,8 @@ import Testing
 struct PreconditionSyntheticSkipTests {
     /// Regression for the bundled `kotlin/Preconditions.kt` source clashing with
     /// synthetic `require`/`check`/`error` fallback stubs. Before the KSP-002 skip
-    /// guard was wired into `HeaderHelpers+SyntheticPreconditionStubs.swift`, these
+    /// guard (removed in KSP-707 along with the rest of the synthetic
+    /// registration path once bundled source became the sole provider), these
     /// calls produced duplicate-definition warnings and ambiguous-overload errors.
     @Test
     func bundledPreconditionCallsTypeCheckCleanly() throws {
