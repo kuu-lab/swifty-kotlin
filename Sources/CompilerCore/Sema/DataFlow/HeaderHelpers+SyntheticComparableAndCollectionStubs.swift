@@ -311,38 +311,6 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(randomAccessType, for: randomAccessSymbol)
     }
 
-    func registerLateListIndexedMembers(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        bundledIndex: BundledDeclarationIndex = .empty,
-        skipStats: SyntheticStubSkipStatsCollector? = nil
-    ) {
-        let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
-        let listFQName = kotlinCollectionsPkg + [interner.intern("List")]
-        guard let listInterfaceSymbol = symbols.lookup(fqName: listFQName),
-              let listTypeParamSymbol = symbols.lookup(
-                  fqName: kotlinCollectionsPkg + [interner.intern("List"), interner.intern("E")]
-              )
-        else {
-            return
-        }
-
-        let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbol, nullability: .nonNull
-        )))
-        registerListIndexedMembers(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-    }
-
     /// Register `kotlin.collections.List<E>` interface stub with `operator fun get(index: Int): E`.
     func makeComparableTypeParam(
         symbols: SymbolTable,
