@@ -532,6 +532,18 @@ struct KotlinContractsEffectModelTests {
                     }
 
             """,
+            // testNonexistentBooleanImpliesReturnsNotNullIsRejected
+            """
+            package sample18
+
+                    import kotlin.contracts.*
+
+                    @OptIn(ExperimentalContracts::class, ExperimentalExtendedContracts::class)
+                    fun invalidContract() {
+                        contract { true implies returnsNotNull() }
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -1135,6 +1147,21 @@ struct KotlinContractsEffectModelTests {
                 #expect(
                     sample17Diagnostics.contains { $0.code == "KSWIFTK-SEMA-0026" },
                     "Expected nullable access to remain rejected after a Boolean argument: \(sample17Diagnostics.map(\.message))"
+                )
+
+            }
+
+            // === testNonexistentBooleanImpliesReturnsNotNullIsRejected ===
+
+            do {
+
+                let sample18Path = paths[18]
+
+                let sample18Diagnostics = diagnosticsForPath(sample18Path, in: ctx)
+
+                #expect(
+                    sample18Diagnostics.contains { $0.severity == .error },
+                    "Expected nonexistent Boolean.implies(ReturnsNotNull) API to be rejected: \(sample18Diagnostics.map(\.message))"
                 )
 
             }

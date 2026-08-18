@@ -31,11 +31,6 @@ public interface ContractBuilder {
     ): CallsInPlace
 }
 
-/** Describes an effect observed when a Boolean condition holds. */
-@ExperimentalContracts
-@ExperimentalExtendedContracts
-public infix fun Boolean.implies(value: ReturnsNotNull) {}
-
 /** Describes a condition guaranteed to hold while a lambda executes. */
 @ExperimentalContracts
 @ExperimentalExtendedContracts
