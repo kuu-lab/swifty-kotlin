@@ -482,7 +482,7 @@ final class CallLowerer {
         if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
            scopeKind == .scopeContext,
            args.count >= 2,
-           args.count <= 7
+           args.count <= 23
         {
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let loweredContextArguments = args.dropLast().map { contextArgument in
