@@ -740,7 +740,8 @@ extension BuildASTPhase {
                 modifiers: param.isOverrideProperty ? [.override] : [],
                 type: param.type,
                 isVar: param.isMutableProperty,
-                isSynthesizedPrimaryConstructorProperty: true
+                isSynthesizedPrimaryConstructorProperty: true,
+                isVararg: param.isVararg
             )
             return astArena.appendDecl(.propertyDecl(property))
         }

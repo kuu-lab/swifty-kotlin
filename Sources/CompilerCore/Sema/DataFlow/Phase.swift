@@ -88,11 +88,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
-        registerSyntheticThrowsAnnotationMembersIfNeeded(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         assignCompilationModuleFQNames(
             symbols: symbols,
             moduleName: ctx.options.moduleName,

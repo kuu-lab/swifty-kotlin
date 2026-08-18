@@ -604,6 +604,22 @@ struct TypeCheckHelpers {
                         }
                         // Fall through to classType for error recovery
                     }
+                    if let sym = sema.symbols.symbol(symbolID),
+                       symbolID == sema.types.kClassInterfaceSymbol
+                        || sym.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
+                    {
+                        let argumentType: TypeID = if let firstArg = resolvedArgs.first {
+                            switch firstArg {
+                            case let .invariant(t), let .out(t), let .in(t):
+                                t
+                            case .star:
+                                sema.types.anyType
+                            }
+                        } else {
+                            sema.types.anyType
+                        }
+                        return sema.types.makeKClassType(argument: argumentType, nullability: nullability)
+                    }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: symbolID,
                         args: resolvedArgs,

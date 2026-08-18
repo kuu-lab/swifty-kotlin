@@ -429,7 +429,17 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: propertyDecl.range
             ) ?? types.nullableAnyType
-            symbols.setPropertyType(resolvedType, for: memberSymbol)
+            let propertyType: TypeID = if propertyDecl.isVararg {
+                makeVarargArrayPropertyType(
+                    for: resolvedType,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
+            } else {
+                resolvedType
+            }
+            symbols.setPropertyType(propertyType, for: memberSymbol)
 
             if let getter = propertyDecl.getter, getter.body != .unit {
                 symbols.setPropertyHasCustomGetter(true, for: memberSymbol)
@@ -1219,5 +1229,45 @@ extension DataFlowSemaPhase {
             }
             return true
         }
+    }
+
+    private func makeVarargArrayPropertyType(
+        for elementType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> TypeID {
+        switch types.kind(of: elementType) {
+        case let .primitive(primitive, nullability) where nullability == .nonNull:
+            let arrayName: String = switch primitive {
+            case .boolean: "BooleanArray"
+            case .char: "CharArray"
+            case .int: "IntArray"
+            case .long: "LongArray"
+            case .float: "FloatArray"
+            case .double: "DoubleArray"
+            case .uint: "UIntArray"
+            case .ulong: "ULongArray"
+            case .ubyte: "UByteArray"
+            case .ushort: "UShortArray"
+            case .byte: "ByteArray"
+            case .short: "ShortArray"
+            }
+            let arrayFQName = [interner.intern("kotlin"), interner.intern(arrayName)]
+            if let arraySym = symbols.lookup(fqName: arrayFQName) {
+                return types.make(.classType(ClassType(classSymbol: arraySym, args: [], nullability: .nonNull)))
+            }
+        default:
+            break
+        }
+        let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        guard let arraySym = symbols.lookup(fqName: arrayFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: arraySym,
+            args: [.out(elementType)],
+            nullability: .nonNull
+        )))
     }
 }

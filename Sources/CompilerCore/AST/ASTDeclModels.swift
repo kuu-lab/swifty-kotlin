@@ -409,6 +409,8 @@ public struct PropertyDecl: Codable {
     /// `true` for synthetic member properties materialized from primary
     /// constructor `val` / `var` parameters.
     public let isSynthesizedPrimaryConstructorProperty: Bool
+    /// `true` for properties declared via `vararg val` / `vararg var` primary constructor parameters.
+    public let isVararg: Bool
     /// Kotlin 2.0 explicit backing field declaration (`field = expr` or
     /// `field: Type = expr`).  When present, the backing field has its own
     /// type and initializer distinct from the property's.
@@ -429,6 +431,7 @@ public struct PropertyDecl: Codable {
         delegateBodyParams: [InternedString] = [],
         receiverType: TypeRefID? = nil,
         isSynthesizedPrimaryConstructorProperty: Bool = false,
+        isVararg: Bool = false,
         explicitBackingField: ExplicitBackingField? = nil
     ) {
         self.range = range
@@ -445,6 +448,7 @@ public struct PropertyDecl: Codable {
         self.delegateBodyParams = delegateBodyParams
         self.receiverType = receiverType
         self.isSynthesizedPrimaryConstructorProperty = isSynthesizedPrimaryConstructorProperty
+        self.isVararg = isVararg
         self.explicitBackingField = explicitBackingField
     }
 }

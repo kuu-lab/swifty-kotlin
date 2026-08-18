@@ -168,6 +168,21 @@ extension DataFlowSemaPhase {
                     // underlying type is not yet available (e.g. unresolved RHS,
                     // imported alias without signature metadata).
                 }
+                if resolved.id == types.kClassInterfaceSymbol
+                    || resolved.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
+                {
+                    let argumentType: TypeID = if let firstArg = resolvedArgs.first {
+                        switch firstArg {
+                        case let .invariant(t), let .out(t), let .in(t):
+                            t
+                        case .star:
+                            types.anyType
+                        }
+                    } else {
+                        types.anyType
+                    }
+                    return types.makeKClassType(argument: argumentType, nullability: nullability)
+                }
                 return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
             }
             if candidates.isEmpty,
