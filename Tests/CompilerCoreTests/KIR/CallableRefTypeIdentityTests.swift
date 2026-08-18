@@ -50,6 +50,29 @@ struct CallableRefTypeIdentityTests {
         #expect(refKind == .propertyRef, "::answer should be marked as a property reference.")
     }
 
+    // KSP-496 byproduct bug: unlike the receiver-having branches of
+    // inferCallableRefExpr (Type::member, obj::member), the bare/no-receiver
+    // branch used to return the property's own type instead of the
+    // explicitly-annotated expected type, so `val bare: KProperty0<Int> =
+    // ::topLevel` failed with KSWIFTK-TYPE-0001 (assigning an Int-typed
+    // expression to a KProperty0<Int>-typed variable).
+    @Test func testSemaAcceptsExplicitKPropertyTypeForBareTopLevelPropertyReference() throws {
+        let source = """
+        import kotlin.reflect.KProperty0
+
+        val topLevel: Int = 7
+
+        fun main() {
+            val bare: KProperty0<Int> = ::topLevel
+            println(bare.name)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Explicit KProperty0<Int> annotation on a bare top-level reference should type-check. Diagnostics: \(ctx.diagnostics.diagnostics)")
+    }
+
     @Test func testSemaBindsFunctionRefKindForBoundCallableReference() throws {
         let source = """
         class Box {
@@ -148,6 +171,65 @@ struct CallableRefTypeIdentityTests {
             #expect(
                 !(allCallees.contains("kk_callable_ref_tag_kfunction")),
                 "Property callable ref should NOT be tagged as KFunction."
+            )
+        }
+    }
+
+    // KSP-496 byproduct bug: a bare top-level `val` whose initializer is a
+    // compile-time literal never gets a runtime store for its backing
+    // global (lowerPropertyInitializer skips `needsInit` for such
+    // properties, since ordinary reads are constant-folded and never touch
+    // the global). The synthetic KProperty0 getter accessor generated for
+    // `::topLevel` must therefore substitute the same literal constant
+    // instead of emitting a `loadGlobal` against that never-initialized
+    // slot — otherwise `.get()` silently returns the zero value.
+    @Test func testKIRBareTopLevelConstantPropertyReferenceAccessorSubstitutesConstant() throws {
+        let source = """
+        import kotlin.reflect.KProperty0
+
+        val distinctiveConst: Int = 4242
+
+        fun main() {
+            val ref: KProperty0<Int> = ::distinctiveConst
+            println(ref.get())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let propertySymbol = try #require(
+                sema.symbols.lookup(fqName: [ctx.interner.intern("distinctiveConst")]),
+                "distinctiveConst property symbol should be resolvable."
+            )
+
+            let allBodies = findAllKIRFunctions(in: module).map(\.body)
+
+            let loadsOfProperty = allBodies.flatMap { body in
+                body.compactMap { instruction -> SymbolID? in
+                    guard case let .loadGlobal(_, symbol) = instruction, symbol == propertySymbol else { return nil }
+                    return symbol
+                }
+            }
+            #expect(
+                loadsOfProperty.isEmpty,
+                "distinctiveConst's never-initialized global must not be read via loadGlobal from the property-reference accessor."
+            )
+
+            let constantSubstitutions = allBodies.flatMap { body in
+                body.compactMap { instruction -> Int64? in
+                    guard case let .constValue(_, value) = instruction,
+                          case let .intLiteral(literal) = value
+                    else { return nil }
+                    return literal
+                }
+            }
+            #expect(
+                constantSubstitutions.contains(4242),
+                "The property-reference accessor should substitute the literal constant 4242 directly."
             )
         }
     }

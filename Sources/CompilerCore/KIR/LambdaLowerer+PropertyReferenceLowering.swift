@@ -504,9 +504,26 @@ extension LambdaLowerer {
                 body.append(.returnUnit)
             }
         } else if kind == .getter {
-            let result = arena.appendTemporary(type: propertyType)
-            body.append(.loadGlobal(result: result, symbol: propertySymbol))
-            body.append(.returnValue(result))
+            // Top-level/object `val`s whose initializer is a compile-time
+            // literal never get a runtime store emitted for their backing
+            // global (see lowerPropertyInitializer's `needsInit` check) —
+            // ordinary reads bypass the global entirely via this same
+            // constant-substitution path (ExprLowerer.lowerExpr's `.nameRef`
+            // case). A raw `loadGlobal` here would read that never-initialized
+            // global and return its zero value instead of the constant.
+            if let symInfo = sema.symbols.symbol(propertySymbol),
+               !symInfo.flags.contains(.mutable),
+               let constant = propertyConstantInitializers[propertySymbol]
+                   ?? sema.symbols.constValueExprKind(for: propertySymbol)
+            {
+                let result = arena.appendExpr(constant, type: propertyType)
+                body.append(.constValue(result: result, value: constant))
+                body.append(.returnValue(result))
+            } else {
+                let result = arena.appendTemporary(type: propertyType)
+                body.append(.loadGlobal(result: result, symbol: propertySymbol))
+                body.append(.returnValue(result))
+            }
         } else if let valueSymbol {
             let valueExpr = arena.appendExpr(.symbolRef(valueSymbol), type: propertyType)
             body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
