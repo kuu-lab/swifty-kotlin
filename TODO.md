@@ -898,7 +898,7 @@
   - テスト影響: `Tests/CompilerCoreTests/Integration/KotlinCompilationURLTests.swift`、`Tests/RuntimeTests/RuntimeURLTests.swift`、diff case `url_basic.kt` の整理
   - 完了 (2026-08-14): HTTP request builder 用の内部 URI handoff は保持し、Java URL の公開 Sema/runtime surface のみ除去
 - [x] CLEANUP-STUB-125: `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` の JVM 固有注釈を (a) 分割・削除する（§9 の同ファイル注記「split JVM-only annotations into (a) before table migration」と KSP-668 スコープ外メモ「JVM 固有注釈は (a) 分割してから」の実行体 — 2026-08-12 追補。対象は着手時に `rg -n 'Jvm[A-Z][a-zA-Z]*' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` で全列挙し、KSwiftK ターゲット（macOS ネイティブ）で意味を持たない JVM 専用注釈（`@JvmStatic`/`@JvmOverloads`/`@JvmField` 系等）を (a)、`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` 等の共通注釈インフラ（AnnotationTargetValidation・opt-in 機構が依存）を (c) 残置に分類してから削除する。手順: RF-STUB-002 レシピ）
-  - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
+     - 完了 (2026-08-14): 着手時の指定 `rg` は両対象ファイルで0件。JVM固有注釈の登録・JVM専用回帰テスト群は CLEANUP-STUB-084 (#3954, `ace371605`) で既に削除・共通注釈実装から分離済み。`AnnotationTarget`/`AnnotationRetention`/`DeprecationLevel`/`RequiresOptIn` と `AnnotationTargetValidation`・opt-in 回帰は現行コードに残置し、注釈固有のRuntime ABI追加・削除は無い。実装変更なしのTODO同期として完了。
 
 - [ ] CLEANUP-STUB-126: `HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` を削除する（2026-08-16 追補。`SyntheticBucketedStubRegistry` で `bucket: .targetOutCleanup` に分類済みだが cleanup タスクが未採番だった）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift`（260行）
@@ -907,19 +907,22 @@
   - 連動整理: Runtime `Sources/Runtime/RuntimeTime.swift`（`kk_duration_to_java_duration`, `kk_instant_to_java_instant`, `kk_duration_unit_to_time_unit`, `kk_time_unit_to_duration_unit`）、`Sources/RuntimeABI/RuntimeABISpec+Duration.swift` の該当 ABI 登録
   - テスト影響: `Tests/CompilerCoreTests/Sema/TimeUnitConversionSyntheticSurfaceTests.swift`、`Scripts/diff_cases/platform_time_conversion.kt` の整理（kotlinc でも JVM 依存のため diff 対象外化を明記）
   - 注意: `kotlin.time.Duration`/`DurationUnit` 本体は (b) 移行対象（KSP-683）。本タスクは JVM interop 表面のみを削除し、Duration 本体には触れない
-- [ ] CLEANUP-STUB-127: `HeaderHelpers+SyntheticJsNumberStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+- [x] CLEANUP-STUB-127: `HeaderHelpers+SyntheticJsNumberStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsNumberStubs.swift`（117行）
   - 削除内容: `registerSyntheticJsNumberStubs(...)` / `registerJsNumberMemberFunction(...)` および `kotlin.js.JsNumber` の `toInt`/`toDouble` 登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1230`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:151`（`name: "JsNumber"`）を削除
   - 連動整理: `Sources/RuntimeABI/RuntimeABISpec+JsNumber.swift`（`kk_js_number_toInt`/`kk_js_number_toDouble`）と Runtime 実装を削除
   - テスト影響: `rg -l 'JsNumber' Tests Scripts/diff_cases` で列挙して整理
-  - 前提: CLEANUP-STUB-128（`JsAny` 先行削除でも順不同可。両方で `kotlin.js` 表面を消し切る）
-- [ ] CLEANUP-STUB-128: `HeaderHelpers+SyntheticJsAnyStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
+  - 前提: CLEANUP-STUB-128 と同一変更で `kotlin.js` synthetic surface を消し切る
+  - 実装 (2026-08-18): `JsNumber` の Sema / RuntimeABI / parity allowlist 参照を除去し、現 HEAD の `Sources/Runtime` に該当実装が無いことを確認。Runtime ABI parity focused test、Fiction audit dump、Swift build を実施
+  - 完了 (2026-08-19): CLEANUP-STUB-128 と同一PRで `JsNumber` の Sema / RuntimeABI / parity allowlist 参照を除去。Runtime ABI parity、Fiction audit dump、Swift build、CI の全ゲートを確認
+- [x] CLEANUP-STUB-128: `HeaderHelpers+SyntheticJsAnyStubs.swift` を削除する（2026-08-16 追補。`.targetOutCleanup` 分類済みで未採番）
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticJsAnyStubs.swift`（25行）
   - 削除内容: `registerSyntheticJsAnyStubs(...)` および `kotlin.js.JsAny` の登録を削除
   - 呼び出し元: `HeaderHelpers.swift:1229`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:148`（`name: "JsAny"`）を削除
-  - 連動整理: 対象 `kk_*` なし。`JsNumber` が `JsAny` を supertype 参照するため CLEANUP-STUB-127 と同時 or 直後に実施
-  - テスト影響: `rg -l 'JsAny' Tests Scripts/diff_cases` で列挙して整理
+  - 連動整理: 対象 `kk_*` なし。`JsNumber` が `JsAny` を supertype 参照するため CLEANUP-STUB-127 と同一変更で実施
+  - テスト影響: `rg -l 'JsAny' Tests Scripts/diff_cases` は対象なし。`js_annotations.kt` は別の Kotlin/JS 注釈ケースのため保持
+  - 完了 (2026-08-19): `JsAny` の Sema 登録・2つの登録経路を除去。`JsNumber` と関連 spec-only ABI entries と合わせて Kotlin/JS synthetic surface を完全削除
 
 ### バグバックログ（BUG-NNN。既存・未修正バグの追跡。PR 状態は各タスクの記載時点）
 
