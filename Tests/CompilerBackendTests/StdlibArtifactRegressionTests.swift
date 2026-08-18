@@ -1506,4 +1506,80 @@ struct StdlibArtifactRegressionTests {
                 """)
         }
     }
+
+    /// KSP-707: symbols loaded from a precompiled stdlib library artifact carry
+    /// both `.importedLibrary` and `.synthetic`, so `require`/`check`/`assert`'s
+    /// `ContractNonNullEffect` (which powers `require(x != null)`-style smart-cast
+    /// narrowing) must still be attached to those symbols and not skipped by a
+    /// synthetic-only filter. Regression test for a bug introduced while
+    /// relocating `patchSourceBackedPreconditionContractEffects` out of the
+    /// now-deleted `HeaderHelpers+SyntheticPreconditionStubs.swift`: narrowing
+    /// after `require`/`check` silently stopped resolving when compiling a
+    /// consumer module against a shared `.kklib` artifact (the exact mode
+    /// `Scripts/diff_kotlinc.sh` uses), while the inline-bundled-source
+    /// compilation path kept working.
+    @Test
+    func testPreconditionSmartCastThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            val x: String? = "hello"
+            require(x != null)
+            println(x.length)
+
+            val y: String? = "world"
+            check(y != null)
+            println(y.length)
+
+            val a: Any = "kotlin"
+            require(a is String)
+            println(a.length)
+
+            val c: String? = "lazy"
+            require(c != null) { "c must not be null" }
+            println(c.length)
+
+            val d: String? = "compound"
+            val e: String? = "both"
+            require(d != null && e != null)
+            println(d.length + e.length)
+
+            val f: String? = "asserted"
+            assert(f != null)
+            println(f.length)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == """
+                5
+                5
+                6
+                4
+                12
+                8
+
+                """)
+        }
+    }
 }
