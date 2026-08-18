@@ -4,7 +4,36 @@ import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
+    private static nonisolated(unsafe) var _sharedNativePlatformMemoryModelKIRCtx: CompilationContext?
     private static nonisolated(unsafe) var _sharedNativePlatformKIRCtx: CompilationContext?
+
+    private func sharedNativePlatformMemoryModelKIRCtx() throws -> CompilationContext {
+        if let cached = Self._sharedNativePlatformMemoryModelKIRCtx {
+            return cached
+        }
+
+        // Keep this synthetic object-property fixture isolated; combining it with the other native bridge fixtures drops the runtime call from KIR.
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.Platform
+
+        fun main() {
+            val memoryModel = Platform.memoryModel
+        }
+        """
+
+        var result: CompilationContext?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        Self._sharedNativePlatformMemoryModelKIRCtx = ctx
+        return ctx
+    }
 
     private func sharedNativePlatformKIRCtx() throws -> CompilationContext {
         if let cached = Self._sharedNativePlatformKIRCtx {
@@ -12,16 +41,6 @@ extension BuildKIRRegressionTests {
         }
 
         let sources: [String] = [
-            """
-            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-            package nativecase0
-
-            import kotlin.native.Platform
-
-            fun main0() {
-                val memoryModel = Platform.memoryModel
-            }
-            """,
             """
             @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
             package nativecase1
@@ -200,9 +219,9 @@ extension BuildKIRRegressionTests {
     }
 
     @Test func testNativePlatformMemoryModelLowersToRuntimeCallee() throws {
-        let ctx = try sharedNativePlatformKIRCtx()
+        let ctx = try sharedNativePlatformMemoryModelKIRCtx()
         let module = try #require(ctx.kir)
-        let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
         #expect(
