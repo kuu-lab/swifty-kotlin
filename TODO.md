@@ -400,13 +400,14 @@
   - diff: `sequence_*.kt`, `iterable_*.kt`, `collection_*.kt` 既存拡張
   - 前提: KSP-700（interface shells source-backed 後に member 移行）
 
-- [ ] KSP-702: IndexedValue / `ListIndexedAndArrayDequeStubs` 残余を Kotlin 化し削除する
+- [x] KSP-702: IndexedValue / `ListIndexedAndArrayDequeStubs` 残余を Kotlin 化し削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift`, `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` 内 `registerLateListIndexedMembers` 残余
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterators.kt`（`IndexedValue` 等）
   - 削除/降格 kk_*: 対象 public `kk_*` なし
   - 手順: T
   - diff: `indexed_value.kt` 新規 or `withIndex` 系既存
   - 前提: KSP-700, KSP-701
+  - 完了: KSP-626/KSP-630/KSP-625 で source-backed 化済みの IndexedValue/withIndex/ArrayDeque に対する空の登録関数、遅延登録呼び出し、registry entry、stub ファイルを削除。`kk_indexed_value_new` と `__kk_arraydeque_*` は runtime 内部ブリッジとして維持。
 
 - [ ] KSP-703: Map shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticMapStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMapStubs.swift`
