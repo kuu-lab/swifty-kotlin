@@ -10,7 +10,8 @@ extension BuildASTPhase {
             if depth.isAtTopLevel,
                case .keyword(.class) = token.kind,
                let previous = previousToken,
-               previous.kind == .symbol(.doubleColon) {
+               previous.kind == .symbol(.doubleColon)
+            {
                 previousToken = token
                 continue
             }
@@ -22,6 +23,48 @@ extension BuildASTPhase {
         }
         return nil
     }
+
+    private static let declarationIntroducerKeywords: Set<Keyword> = [
+        .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import,
+    ]
+
+    /// Scans `tokens` from the start, tracking balanced bracket depth, and
+    /// returns the index of the first top-level keyword that matches one of
+    /// `keywords`. This avoids treating keywords inside annotation arguments
+    /// (e.g. `::class` in `@file:OptIn(...::class)`) as declaration introducers.
+    func firstTopLevelKeywordIndex(
+        in tokens: [Token],
+        matching keywords: Set<Keyword>
+    ) -> Int? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            depth.track(token.kind)
+            if depth.isAtTopLevel,
+               case let .keyword(keyword) = token.kind,
+               keywords.contains(keyword) {
+                return index
+            }
+        }
+        return nil
+    }
+
+    /// Returns the index of the next top-level keyword after `startIndex`.
+    func firstTopLevelKeywordIndex(
+        in tokens: [Token],
+        after startIndex: Int
+    ) -> Int? {
+        var depth = BracketDepth()
+        for (index, token) in tokens.enumerated() {
+            depth.track(token.kind)
+            if index > startIndex,
+               depth.isAtTopLevel,
+               case .keyword = token.kind {
+                return index
+            }
+        }
+        return nil
+    }
+
     func makeClassDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> ClassDecl {
         let node = arena.node(nodeID)
         let primaryConstructorParams = declarationValueParameters(
@@ -49,9 +92,13 @@ extension BuildASTPhase {
             isInner: modifiers.contains(.inner),
             typeParams: typeParams,
             primaryConstructorParams: primaryConstructorParams,
-            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(from: nodeID, in: arena, interner: interner),
+            primaryConstructorModifiers: declarationPrimaryConstructorModifiers(
+                from: nodeID, in: arena, interner: interner
+            ),
             primaryConstructorAnnotations: declarationPrimaryConstructorAnnotations(from: nodeID, in: arena, interner: interner),
-            hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(from: nodeID, in: arena),
+            hasPrimaryConstructorSyntax: declarationHasPrimaryConstructorSyntax(
+                from: nodeID, in: arena, interner: interner
+            ),
             superTypeEntries: declarationSuperTypeEntries(from: nodeID, in: arena, interner: interner, astArena: astArena),
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             enumEntries: declarationEnumEntries(from: nodeID, in: arena, interner: interner, astArena: astArena, diagnostics: diagnostics),
@@ -82,6 +129,7 @@ extension BuildASTPhase {
         var sawClassName = false
         var depth = BracketDepth()
         var annotations: [AnnotationNode] = []
+
         while index < tokens.count {
             let token = tokens[index]
             if !sawClassName {
@@ -172,57 +220,11 @@ extension BuildASTPhase {
 
     /// Detects whether the class header contains explicit constructor parentheses,
     /// distinguishing `class Foo()` from `class Foo`.
-    ///
-    /// This uses token-level scanning because the CST does not distinguish
-    /// "no primary constructor" from "primary constructor with zero parameters";
-    /// both produce an empty `primaryConstructorParams` array. The function
-    /// scans tokens after the `class` keyword, skipping type-parameter angle
-    /// brackets (`<…>`), and returns `true` if it encounters `(` before `:` or `{`.
-    ///
-    /// Examples:
-    /// - `class Foo()` → `true`
-    /// - `class Foo`   → `false`
-    /// - `class Foo<T>()` → `true`
-    /// - `class Foo<T>` → `false`
-    /// - `class Foo : Bar` → `false`
-    ///
-    /// Limitation: nested generic bounds (e.g. `class Foo<T: List<Int>>()`) use
-    /// `<` and `>` tokens that are tracked via depth counting; the lexer does not
-    /// emit `>>` as a single token, so this is handled correctly.
-    func declarationHasPrimaryConstructorSyntax(from nodeID: NodeID, in arena: SyntaxArena) -> Bool {
+    func declarationHasPrimaryConstructorSyntax(
+        from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner
+    ) -> Bool {
         let tokens = collectTokens(from: nodeID, in: arena)
-        // Skip past the class keyword and name (and optional type params in `<>`).
-        // A `(` before any `:` or `{` indicates primary constructor syntax.
-        guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
-            return false
-        }
-        var depth = BracketDepth()
-        var index = classIndex + 1
-        if index < tokens.count, TypeRefParserCore.isTypeLikeNameToken(tokens[index].kind) {
-            index += 1
-        }
-        if index < tokens.count, tokens[index].kind == .symbol(.lessThan) {
-            index = skipBalancedBracket(
-                in: tokens,
-                from: index,
-                open: .symbol(.lessThan),
-                close: .symbol(.greaterThan)
-            )
-        }
-        while index < tokens.count {
-            let token = tokens[index]
-            if depth.isAtTopLevel {
-                if case .symbol(.lParen) = token.kind {
-                    return true
-                }
-                if token.kind == .symbol(.colon) || token.kind == .symbol(.lBrace) {
-                    return false
-                }
-            }
-            depth.track(token.kind)
-            index += 1
-        }
-        return false
+        return classPrimaryConstructorOpenParenIndex(in: tokens, interner: interner) != nil
     }
 
     func makeInterfaceDecl(from nodeID: NodeID, in arena: SyntaxArena, interner: StringInterner, astArena: ASTArena) -> InterfaceDecl {
@@ -514,7 +516,9 @@ extension BuildASTPhase {
         // Only look for the opening `(` that occurs before any `{` (class body).
         // This prevents picking up `(` from member function declarations like
         // `class F { operator fun invoke(x: Int) }` as constructor parameters.
-        guard let startIndex = declarationParameterOpenParenIndex(in: tokens, nodeKind: nodeKind, interner: interner) else {
+        guard let startIndex = declarationParameterOpenParenIndex(
+            in: tokens, nodeKind: nodeKind, interner: interner
+        ) else {
             return []
         }
 
@@ -547,36 +551,11 @@ extension BuildASTPhase {
     }
 
     func declarationIntroducerIndex(in tokens: [Token]) -> Int? {
-        var depth = BracketDepth()
-        var previousToken: Token?
-        for (index, token) in tokens.enumerated() {
-            depth.track(token.kind)
-            defer { previousToken = token }
-            guard depth.isAtTopLevel else { continue }
-            guard case let .keyword(keyword) = token.kind else { continue }
-            if keyword == .class,
-               let previous = previousToken,
-               previous.kind == .symbol(.doubleColon) {
-                continue
-            }
-            switch keyword {
-            case .class, .object, .interface, .fun, .val, .var, .typealias, .enum, .package, .import:
-                return index
-            case .companion:
-                if index + 1 < tokens.count, tokens[index + 1].kind == .keyword(.object) {
-                    return index + 1
-                }
-            default:
-                continue
-            }
-        }
-        return nil
+        firstTopLevelKeywordIndex(in: tokens, matching: Self.declarationIntroducerKeywords)
     }
 
     func declarationParameterOpenParenIndex(
-        in tokens: [Token],
-        nodeKind: SyntaxKind,
-        interner: StringInterner
+        in tokens: [Token], nodeKind: SyntaxKind, interner: StringInterner
     ) -> Int? {
         switch nodeKind {
         case .funDecl:
@@ -593,8 +572,7 @@ extension BuildASTPhase {
     }
 
     func classPrimaryConstructorOpenParenIndex(
-        in tokens: [Token],
-        interner: StringInterner
+        in tokens: [Token], interner: StringInterner
     ) -> Int? {
         guard let classIndex = classDeclarationKeywordIndex(in: tokens) else {
             return nil

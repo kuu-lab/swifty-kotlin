@@ -24,23 +24,9 @@ extension DataFlowSemaPhase {
 
         // Suppress, Deprecated, ReplaceWith, and DeprecatedSinceKotlin are provided by bundled Kotlin source
         // (Sources/CompilerCore/Stdlib/kotlin/Suppress.kt, Deprecated.kt, and DeprecatedSinceKotlin.kt).
-        registerSyntheticDeprecationLevelEnum(
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
 
         registerSyntheticAnnotationClass(
             named: "WasExperimental",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
-            named: "OptionalExpectation",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             symbols: symbols,
@@ -62,13 +48,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticAnnotationClass(
-            named: "ParameterName",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
@@ -219,28 +198,6 @@ extension DataFlowSemaPhase {
             symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
         }
 
-
-
-        if let optionalExpectationSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-                ),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-        }
-
-
-
         if let introducedAtSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("IntroducedAt")]) {
             appendSyntheticAnnotation(
                 MetadataAnnotationRecord(
@@ -272,36 +229,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let parameterNameSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("ParameterName")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.TYPE"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            registerSyntheticParameterNameMembers(
-                ownerSymbol: parameterNameSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("ParameterName")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
 
         // kotlin.concurrent package — `@Volatile` is a Native-target annotation.
         let kotlinConcurrentPkg = ensurePackage(

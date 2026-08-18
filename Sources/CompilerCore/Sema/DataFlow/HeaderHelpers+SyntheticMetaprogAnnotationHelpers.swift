@@ -10,96 +10,13 @@ private enum SyntheticAnnotationAPISurfaceForHelpers {
     static let retentionEntries = ["SOURCE", "BINARY", "RUNTIME"]
 }
 
-/// Helpers used by the synthetic Metaprog stub registration:
-/// annotation class registration, JVM annotation registration,
-/// AnnotationTarget / Retention / DeprecationLevel
+/// AnnotationTarget / Retention / RequiresOptInLevel
 /// enums, the throws-exception-classes property/constructor, and
 /// generic String / Boolean / Int annotation property/constructor
 /// registration helpers.
 ///
 /// Split out from `HeaderHelpers+SyntheticMetaprogStubs.swift`.
 extension DataFlowSemaPhase {
-    func registerSyntheticParameterNameMembers(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let stringType = types.stringType
-        let ownerType = types.make(.classType(ClassType(
-            classSymbol: ownerSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let name = interner.intern("name")
-        let propertyFQName = ownerFQName + [name]
-        let propertySymbol: SymbolID
-        if let existing = symbols.lookup(fqName: propertyFQName) {
-            propertySymbol = existing
-        } else {
-            propertySymbol = symbols.define(
-                kind: .property,
-                name: name,
-                fqName: propertyFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(stringType, for: propertySymbol)
-
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerFQName + [initName]
-        let ctorSymbol: SymbolID
-        if let existing = symbols.lookupAll(fqName: ctorFQName).first(where: {
-            symbols.symbol($0)?.kind == .constructor
-        }) {
-            ctorSymbol = existing
-        } else {
-            ctorSymbol = symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: ctorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-
-        let parameterFQName = ctorFQName + [name]
-        let parameterSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: parameterFQName) {
-            parameterSymbol = existing
-        } else {
-            parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: name,
-                fqName: parameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ctorSymbol, for: parameterSymbol)
-        symbols.setPropertyType(stringType, for: parameterSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [stringType],
-                returnType: ownerType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
-            ),
-            for: ctorSymbol
-        )
-    }
-
     func attachAnnotationIfNeeded(
         _ annotation: MetadataAnnotationRecord,
         to symbolFQName: [InternedString],
@@ -229,64 +146,6 @@ extension DataFlowSemaPhase {
         )))
 
         for entryName in SyntheticAnnotationAPISurfaceForHelpers.targetEntries {
-            let entry = interner.intern(entryName)
-            let entryFQName = enumFQName + [entry]
-            let entrySymbol: SymbolID
-            if let existing = symbols.lookup(fqName: entryFQName) {
-                entrySymbol = existing
-            } else {
-                entrySymbol = symbols.define(
-                    kind: .field,
-                    name: entry,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-            }
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            if symbols.propertyType(for: entrySymbol) == nil {
-                symbols.setPropertyType(enumType, for: entrySymbol)
-            }
-        }
-    }
-
-    func registerSyntheticDeprecationLevelEnum(
-        packageFQName: [InternedString],
-        packageSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let enumName = interner.intern("DeprecationLevel")
-        let enumFQName = packageFQName + [enumName]
-        let enumSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: enumFQName) {
-            enumSymbol = existing
-            if packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: existing)
-            }
-        } else {
-            enumSymbol = symbols.define(
-                kind: .enumClass,
-                name: enumName,
-                fqName: enumFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: enumSymbol)
-            }
-        }
-
-        let enumType = types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        for entryName in ["WARNING", "ERROR", "HIDDEN"] {
             let entry = interner.intern(entryName)
             let entryFQName = enumFQName + [entry]
             let entrySymbol: SymbolID

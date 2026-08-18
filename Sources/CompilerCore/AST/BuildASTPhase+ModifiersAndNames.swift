@@ -19,70 +19,33 @@ extension BuildASTPhase {
     }
 
     func declarationModifiers(from nodeID: NodeID, in arena: SyntaxArena) -> Modifiers {
+        let tokens = collectTokens(from: nodeID, in: arena)
         var modifiers: Modifiers = []
-        let children = arena.children(of: nodeID)
-        var index = children.startIndex
-        var parenDepth = 0
-        var bracketDepth = 0
-        var braceDepth = 0
-
-        func updateDepth(for token: Token) {
-            switch token.kind {
-            case .symbol(.lParen): parenDepth += 1
-            case .symbol(.rParen): parenDepth = max(0, parenDepth - 1)
-            case .symbol(.lBracket): bracketDepth += 1
-            case .symbol(.rBracket): bracketDepth = max(0, bracketDepth - 1)
-            case .symbol(.lBrace): braceDepth += 1
-            case .symbol(.rBrace): braceDepth = max(0, braceDepth - 1)
-            default: break
-            }
-        }
-
-        func isAtTopLevel() -> Bool { parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 }
-
-        while index < children.endIndex {
-            let child = children[index]
-            if case let .token(tokenID) = child,
-               let token = resolveToken(tokenID, in: arena)
-            {
-                updateDepth(for: token)
-                if isAtTopLevel(), case let .keyword(keyword) = token.kind {
-                    switch keyword {
-                    case .fun:
-                        let nextKeyword: Keyword? = if children.index(after: index) < children.endIndex {
-                            children[children.index(after: index)...].compactMap { child -> Keyword? in
-                                guard case let .token(nextTokenID) = child,
-                                      let nextToken = resolveToken(nextTokenID, in: arena),
-                                      case let .keyword(nextKeyword) = nextToken.kind
-                                else {
-                                    return nil
-                                }
-                                return nextKeyword
-                            }.first
-                        } else {
-                            nil
-                        }
-                        if nextKeyword == .interface {
-                            modifiers.insert(.funModifier)
-                            index = children.index(after: index)
-                            continue
-                        }
-                        return modifiers
-                    case .class, .object, .interface, .val, .var, .typealias:
-                        return modifiers
-                    default:
-                        break
+        var depth = BracketDepth()
+        var index = 0
+        while index < tokens.count {
+            let token = tokens[index]
+            depth.track(token.kind)
+            if depth.isAtTopLevel, case let .keyword(keyword) = token.kind {
+                switch keyword {
+                case .fun:
+                    if let nextKeywordIndex = firstTopLevelKeywordIndex(in: tokens, after: index),
+                       case .keyword(.interface) = tokens[nextKeywordIndex].kind {
+                        modifiers.insert(.funModifier)
+                        index += 1
+                        continue
                     }
+                    return modifiers
+                case .class, .object, .interface, .val, .var, .typealias:
+                    return modifiers
+                default:
+                    break
                 }
-                if isAtTopLevel(), let modifier = modifier(from: token) {
-                    modifiers.insert(modifier)
-                    index = children.index(after: index)
-                    continue
-                }
-                index = children.index(after: index)
-                continue
             }
-            index = children.index(after: index)
+            if depth.isAtTopLevel, let modifier = modifier(from: token) {
+                modifiers.insert(modifier)
+            }
+            index += 1
         }
         return modifiers
     }

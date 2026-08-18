@@ -1346,6 +1346,33 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-719: The bundled `kotlin/Annotation.kt` source declares
+    /// `public interface Annotation {}` with no explicit supertype. That causes
+    /// `bindInheritanceEdges` to overwrite the synthetic `Annotation` symbol's
+    /// direct supertype list with an empty array, losing the `kotlin.Any`
+    /// supertype that `registerSyntheticAnyStub` had installed. Restore it so
+    /// `Any` member dispatch and nominal-subtype traversal stay intact.
+    func patchBundledAnnotationSupertype(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let annotationSymbol = types.annotationInterfaceSymbol else { return }
+        let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+        guard let anySymbol = symbols.lookup(fqName: anyFQName) else { return }
+
+        let symbolSups = symbols.directSupertypes(for: annotationSymbol)
+        if !symbolSups.contains(anySymbol) {
+            let newSups = Array(Set(symbolSups + [anySymbol])).sorted(by: { $0.rawValue < $1.rawValue })
+            symbols.setDirectSupertypes(newSups, for: annotationSymbol)
+        }
+
+        let typeSups = types.directNominalSupertypes(for: annotationSymbol)
+        if !typeSups.contains(anySymbol) {
+            types.setNominalDirectSupertypes(typeSups + [anySymbol], for: annotationSymbol)
+        }
+    }
+
     func resolveNumberClassSymbol(
         symbols: SymbolTable,
         types: TypeSystem,
