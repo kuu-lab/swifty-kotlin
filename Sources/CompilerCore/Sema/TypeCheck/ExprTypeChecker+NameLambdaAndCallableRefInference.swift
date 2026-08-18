@@ -1188,13 +1188,40 @@ extension ExprTypeChecker {
         return sema.types.make(.classType(ClassType(classSymbol: classSymbol, args: args, nullability: .nonNull)))
     }
 
-    /// Adopts `expectedType` as a property callable reference's inferred type only when the
-    /// reference's natural type (see `naturalPropertyReferenceType`) is actually a subtype of
-    /// it. Otherwise falls back to the property's own value type, so the ordinary
-    /// declared-type subtype check downstream produces a normal type-mismatch diagnostic
-    /// instead of silently accepting an incompatible annotation (e.g.
-    /// `val r: KProperty0<String> = ::someIntProperty`, or `val f: (Int) -> Int =
-    /// ::someIntProperty`, whose natural `KProperty0<Int>` isn't a `(Int) -> Int`).
+    /// Whether `type` is (possibly nullable) `KProperty0`/`KMutableProperty0`/`KProperty1`/
+    /// `KMutableProperty1` -- the shapes `naturalPropertyReferenceType` can build and compare.
+    private func isKPropertyFamilyClassType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let classSymbol = sema.symbols.symbol(classType.classSymbol)
+        else { return false }
+        switch interner.resolve(classSymbol.name) {
+        case "KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1": return true
+        default: return false
+        }
+    }
+
+    /// Adopts `expectedType` as a property callable reference's inferred type, validating it
+    /// against the reference's natural type (see `naturalPropertyReferenceType`) only when a
+    /// precise comparison is actually possible and meaningful:
+    ///
+    /// - `expectedType` must concretely be a `KProperty0`/`KMutableProperty0`/`KProperty1`/
+    ///   `KMutableProperty1` -- anything else (an unrelated nominal type, or a structurally
+    ///   compatible but non-KProperty shape such as `() -> V` via KProperty0's declared
+    ///   `Function0` supertype, e.g. `val f: () -> String = person::name`) is legal Kotlin
+    ///   this compiler already accepted before this validation existed, so it's adopted
+    ///   unchecked as before.
+    /// - `expectedType`, `propertyType`, and `ownerType` must not mention any type parameter.
+    ///   An expected type still mentioning type parameters belongs to a generic signature
+    ///   whose type arguments are inferred from this very argument (`fun <T, V> read(p:
+    ///   KProperty1<T, V>)`, `listOf(Type::prop)`), which a subtype check can't validate.
+    ///   A property/owner type still mentioning a type parameter (`Box<T>::v`, `box::v` for
+    ///   a generic `box: Box<Int>`) means the natural type built from the unsubstituted
+    ///   declaration can't be compared precisely either. Both keep the unchecked adoption.
+    ///
+    /// Only a same-shape KProperty annotation with an actually mismatched value/owner type or
+    /// mutability (e.g. `val r: KProperty0<String> = ::someIntProperty`) falls back to the
+    /// property's own value type, so the ordinary declared-type subtype check downstream
+    /// produces a normal type-mismatch diagnostic instead of silently accepting it.
     private func propertyReferenceResultType(
         expectedType: TypeID?,
         propertyType: TypeID,
@@ -1203,13 +1230,18 @@ extension ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        guard let expectedType,
-              let naturalType = naturalPropertyReferenceType(
-                  propertyType: propertyType, ownerType: ownerType, propertySymbol: propertySymbol,
-                  sema: sema, interner: interner
-              ),
-              sema.types.isSubtype(naturalType, expectedType)
+        guard let expectedType else { return propertyType }
+        guard !sema.types.typeContainsAnyTypeParam(expectedType),
+              !sema.types.typeContainsAnyTypeParam(propertyType),
+              ownerType.map({ !sema.types.typeContainsAnyTypeParam($0) }) ?? true,
+              isKPropertyFamilyClassType(expectedType, sema: sema, interner: interner)
         else {
+            return expectedType
+        }
+        guard let naturalType = naturalPropertyReferenceType(
+            propertyType: propertyType, ownerType: ownerType, propertySymbol: propertySymbol,
+            sema: sema, interner: interner
+        ), sema.types.isSubtype(naturalType, expectedType) else {
             return propertyType
         }
         return expectedType
