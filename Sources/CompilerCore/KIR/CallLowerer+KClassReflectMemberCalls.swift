@@ -11,6 +11,10 @@
 /// argument, which this compiler only supports via a small compiler-side
 /// allowlist (like `typeOf<T>()`), so they remain here.
 ///
+/// `properties` also remains here: unlike its `member`/`declaredMember`
+/// siblings, it is not a real kotlin-stdlib name, and diff cases rely on
+/// being able to freely shadow it with a real user-declared extension.
+///
 /// Split out from `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
     // MARK: - REFL-005: KClass.findAnnotation / findAssociatedObject Lowering
@@ -188,82 +192,11 @@ extension CallLowerer {
                 fallbackType: sema.types.makeNullable(sema.types.anyType)
             )
 
-        // KSP-496: the collection APIs remain compiler special cases because
-        // their generic public signatures are not yet represented by bundled
-        // Kotlin declarations. The returned handles are interface-compatible.
-        case "members":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_members",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "constructors":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_constructors",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "nestedClasses":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_nested_classes",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "primaryConstructor":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_primary_constructor",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
+        // KSP-496: `properties` stays a compiler special case — see the NOTE in
+        // KClassMemberIntrospection.kt for why.
         case "properties":
             return emitRuntimeCall(
                 callee: "__kk_kclass_properties",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "memberProperties":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_member_properties",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "declaredMemberProperties":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_declared_member_properties",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "functions":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_functions",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "memberFunctions":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_member_functions",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "declaredMemberFunctions":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_declared_member_functions",
-                arguments: [kclassExpr],
-                fallbackType: sema.types.anyType
-            )
-
-        case "supertypes":
-            return emitRuntimeCall(
-                callee: "__kk_kclass_supertypes",
                 arguments: [kclassExpr],
                 fallbackType: sema.types.anyType
             )
