@@ -133,6 +133,10 @@ final class LocalDeclTypeChecker {
                 if sema.bindings.isFloatingPointRangeExpr(initializer) {
                     sema.bindings.markFloatingPointRangeExpr(id)
                     sema.bindings.markFloatingPointRangeSymbol(localSymbol)
+                    if let elementType = sema.bindings.floatingPointRangeElementType(forExpr: initializer) {
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                        sema.bindings.bindFloatingPointRangeElementType(elementType, forSymbol: localSymbol)
+                    }
                 }
             }
         }

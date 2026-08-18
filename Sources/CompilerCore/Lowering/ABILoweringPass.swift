@@ -374,6 +374,31 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     boxedArguments = arguments
                 }
 
+                // `generateSequence` reaches this private runtime bridge after
+                // its generic source wrapper is expanded. The bridge stores the
+                // seed in an erased sequence element slot, so a raw primitive or
+                // enum ordinal must be boxed here; otherwise enum ordinal zero
+                // loses its entry name and prints as `0`.
+                let generateSequenceBridgeLink = effectiveCallSymbol.flatMap { symbol in
+                    symbols?.externalLinkName(for: symbol)
+                }
+                if (effectiveCallee == ctx.interner.intern("__kk_sequence_generate")
+                    || generateSequenceBridgeLink == "__kk_sequence_generate"),
+                   let types,
+                   let seed = boxedArguments.first,
+                   let seedType = intrinsicArgType(seed, arena: module.arena, types: types)
+                {
+                    boxedArguments[0] = boxValueForAnySlot(
+                        seed,
+                        sourceType: seedType,
+                        types: types,
+                        symbols: symbols,
+                        interner: ctx.interner,
+                        arena: module.arena,
+                        into: &newBody
+                    )
+                }
+
                 // Unbox Any/reference-typed arguments for inline arithmetic
                 // calls (kk_op_add, etc.) when the result is a primitive.
                 // These calls have no FunctionSignature so the normal

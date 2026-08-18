@@ -4,8 +4,6 @@ symbol fq=golden.sema.testFQNAbsInt kind=function vis=public flags=_ sig=recv=_ 
 symbol fq=golden.sema.testFQNAbsInt.$1.x kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.testFQNSqrt kind=function vis=public flags=_ sig=recv=_ params=[Double] ret=Double
 symbol fq=golden.sema.testFQNSqrt.$2.x kind=valueParameter vis=private flags=_
-symbol fq=kotlin.math.sqrt#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Double] ret=Double
-symbol fq=kotlin.math.sqrt.x kind=valueParameter vis=private flags=synthetic
 file fmath_fqn_call package=golden.sema
   decl golden.sema.testFQNAbsInt fun testFQNAbsInt sym=golden.sema.testFQNAbsInt
   decl golden.sema.testFQNAbsDouble fun testFQNAbsDouble sym=golden.sema.testFQNAbsDouble

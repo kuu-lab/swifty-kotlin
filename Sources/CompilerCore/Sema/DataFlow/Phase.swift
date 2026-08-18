@@ -69,6 +69,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        normalizeImportedLibraryMemberSignatures(
+            importDeferredWork,
+            symbols: symbols,
+            types: types,
+            diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
@@ -79,6 +86,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
+            interner: ctx.interner
+        )
+        registerSyntheticThrowsAnnotationMembersIfNeeded(
+            symbols: symbols,
+            types: types,
             interner: ctx.interner
         )
         assignCompilationModuleFQNames(
@@ -213,6 +225,15 @@ final class DataFlowSemaPhase: CompilerPhase {
                 interner: ctx.interner, into: &predeclared
             )
         }
+        // Resolve kotlin.Number as early as possible. Number is a builtin type
+        // name (BuiltinTypeNames.number), so signatures that mention `Number`
+        // need types.numberClassSymbol set before they are resolved.
+        resolveNumberClassSymbol(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+
         // Type aliases are collected before the remaining headers so that their
         // underlying type is available to signatures that mention the alias.
         for collectsTypeAliases in [true, false] {
@@ -251,6 +272,15 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem, ctx: CompilationContext
     ) {
         bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
+        // kotlin.Annotation source, because its source declaration has no
+        // explicit supertype clause and would otherwise erase the synthetic
+        // supertype installed by registerSyntheticAnyStub.
+        patchBundledAnnotationSupertype(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         // BUG-166: StringBuilder's Appendable/CharSequence conformance is
         // synthetic (not written in the bundled Kotlin source's `class
         // StringBuilder { ... }` declaration), so bindInheritanceEdges above —

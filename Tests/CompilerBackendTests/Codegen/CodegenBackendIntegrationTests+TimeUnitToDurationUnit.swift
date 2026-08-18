@@ -1,7 +1,7 @@
 // STDLIB-TIME-FN-006: End-to-end execution tests for TimeUnit.toDurationUnit().
 // kk_time_unit_to_duration_unit maps a java.util.concurrent.TimeUnit ordinal to the
-// matching kotlin.time.DurationUnit ordinal. Synthetic enums have no $enumOrdinalToName
-// helper, so println prints the DurationUnit ordinal integer.
+// matching kotlin.time.DurationUnit. DurationUnit is a source-backed bundled enum,
+// so its toString() prints the entry name via the exported $enumOrdinalToName helper.
 #if canImport(Testing)
 @testable import CompilerCore
 @testable import CompilerBackend
@@ -91,13 +91,13 @@ struct CodegenBackendTimeUnitToDurationUnitTests {
             moduleName: "TimeUnitToDurationUnitOrdinals",
             expected:
                 """
-                0
-                1
-                2
-                3
-                4
-                5
-                6
+                NANOSECONDS
+                MICROSECONDS
+                MILLISECONDS
+                SECONDS
+                MINUTES
+                HOURS
+                DAYS
                 """
                 + "\n"
         )

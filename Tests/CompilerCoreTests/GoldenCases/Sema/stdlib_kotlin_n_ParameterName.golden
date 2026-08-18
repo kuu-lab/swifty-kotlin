@@ -1,0 +1,3 @@
+symbol fq=golden.sema.Host kind=interface vis=public flags=_
+file fstdlib_kotlin_n_ParameterName package=golden.sema
+  decl golden.sema.Host interface Host sym=golden.sema.Host

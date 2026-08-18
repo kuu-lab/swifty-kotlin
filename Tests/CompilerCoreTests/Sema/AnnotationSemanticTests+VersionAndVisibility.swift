@@ -997,7 +997,8 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(symbol.declSite != nil, "SinceKotlin should be source-backed")
+            #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbolID)
@@ -1050,7 +1051,7 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbolID)
@@ -1075,9 +1076,11 @@ extension AnnotationSemanticTests {
                 v4,
                 "DslMarker should carry MustBeDocumented, got: \(annotations)"
             )
-            let v5 = annotations.contains {
-                KnownCompilerAnnotation.sinceKotlin.matches($0.annotationFQName)
-                    && $0.arguments == ["1.1"]
+            let v5 = annotations.contains { ann in
+                guard KnownCompilerAnnotation.sinceKotlin.matches(ann.annotationFQName) else {
+                    return false
+                }
+                return ann.arguments.first?.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) == "1.1"
             }
             #expect(
                 v5,
@@ -1141,7 +1144,7 @@ extension AnnotationSemanticTests {
             #expect(ctx.interner.resolve(parameter.name) == "version")
 
             }
-            // testOptionalExpectationSurfaceIsSyntheticTargetedAndExperimental
+            // testOptionalExpectationSurfaceIsSourceBackedTargetedAndExperimental
             do {
             let optionalExpectationFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1154,7 +1157,7 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbolID)
@@ -1186,7 +1189,7 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbolID)

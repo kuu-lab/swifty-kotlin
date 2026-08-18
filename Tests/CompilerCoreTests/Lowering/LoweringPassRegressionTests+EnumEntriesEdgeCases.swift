@@ -169,15 +169,18 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumEntriesOrder"
         )
 
+        let enumName = interner.intern("Season")
+        let classSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), enumName], interner: interner)
+
         // Per-entry ordinal functions must return 0, 1, 2, 3 in declaration order.
         for (expectedOrdinal, name) in ["SPRING", "SUMMER", "AUTUMN", "WINTER"].enumerated() {
-            let fn = try findKIRFunction(named: "\(name)$enumOrdinal", in: module, interner: interner)
+            let fn = try findKIRFunction(named: "\(name)$enumOrdinal$\(classSuffix)", in: module, interner: interner)
             let consts = fn.body.compactMap { inst -> Int64? in
                 guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
                 return v
             }
             #expect(consts.contains(Int64(expectedOrdinal)),
-                    "\(name)$enumOrdinal should be \(expectedOrdinal); got: \(consts)")
+                    "\(name)$enumOrdinal$\(classSuffix) should be \(expectedOrdinal); got: \(consts)")
         }
     }
 
@@ -234,6 +237,8 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumEntriesSingle"
         )
 
+        let singletonSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), interner.intern("Singleton")], interner: interner)
+
         let countFn = try findKIRFunction(named: "Singleton$enumValuesCount", in: module, interner: interner)
         let countConsts = countFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
@@ -241,20 +246,20 @@ extension LoweringPassRegressionTests {
         }
         #expect(countConsts.contains(1), "Single-variant enum count should be 1; got: \(countConsts)")
 
-        let ordinalFn = try findKIRFunction(named: "ONLY$enumOrdinal", in: module, interner: interner)
+        let ordinalFn = try findKIRFunction(named: "ONLY$enumOrdinal$\(singletonSuffix)", in: module, interner: interner)
         let ordinalConsts = ordinalFn.body.compactMap { inst -> Int64? in
             guard case let .constValue(_, value) = inst, case let .intLiteral(v) = value else { return nil }
             return v
         }
-        #expect(ordinalConsts.contains(0), "ONLY ordinal should be 0; got: \(ordinalConsts)")
+        #expect(ordinalConsts.contains(0), "ONLY$enumOrdinal$\(singletonSuffix) should be 0; got: \(ordinalConsts)")
 
-        let nameFn = try findKIRFunction(named: "ONLY$enumName", in: module, interner: interner)
+        let nameFn = try findKIRFunction(named: "ONLY$enumName$\(singletonSuffix)", in: module, interner: interner)
         let nameConsts = nameFn.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s
         }
         #expect(nameConsts.contains(interner.intern("ONLY")),
-                "ONLY$enumName should return \"ONLY\"")
+                "ONLY$enumName$\(singletonSuffix) should return \"ONLY\"")
     }
 
     // MARK: - STDLIB-023-07: values() synthesized separately from entries$get
@@ -373,26 +378,28 @@ extension LoweringPassRegressionTests {
             moduleName: "EnumPerEntryHelpers"
         )
 
+        let greekSuffix = NameMangler.enumClassNameSuffix(for: [interner.intern("test"), interner.intern("Greek")], interner: interner)
+
         let functionNames = findAllKIRFunctions(in: module).map { fn in
             interner.resolve(fn.name)
         }
 
         for name in entryNames {
-            #expect(functionNames.contains("\(name)$enumOrdinal"),
-                    "Missing \(name)$enumOrdinal; got: \(functionNames)")
-            #expect(functionNames.contains("\(name)$enumName"),
-                    "Missing \(name)$enumName; got: \(functionNames)")
+            #expect(functionNames.contains("\(name)$enumOrdinal$\(greekSuffix)"),
+                    "Missing \(name)$enumOrdinal$\(greekSuffix); got: \(functionNames)")
+            #expect(functionNames.contains("\(name)$enumName$\(greekSuffix)"),
+                    "Missing \(name)$enumName$\(greekSuffix); got: \(functionNames)")
         }
 
         // Verify per-entry name strings are correct.
         for name in entryNames {
-            let nameFn = try findKIRFunction(named: "\(name)$enumName", in: module, interner: interner)
+            let nameFn = try findKIRFunction(named: "\(name)$enumName$\(greekSuffix)", in: module, interner: interner)
             let nameConsts = nameFn.body.compactMap { inst -> InternedString? in
                 guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
                 return s
             }
             #expect(nameConsts.contains(interner.intern(name)),
-                    "\(name)$enumName should return \"\(name)\"")
+                    "\(name)$enumName$\(greekSuffix) should return \"\(name)\"")
         }
     }
 

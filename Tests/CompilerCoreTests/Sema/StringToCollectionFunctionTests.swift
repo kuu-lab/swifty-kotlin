@@ -35,14 +35,11 @@ struct StringToCollectionFunctionTests {
 
         let sema = try #require(ctx.sema)
         let fqName = ["kotlin", "text", "toCollection"].map { ctx.interner.intern($0) }
-        let links = Set(
-            sema.symbols.lookupAll(fqName: fqName)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-
+        let symbols = sema.symbols.lookupAll(fqName: fqName)
+        #expect(!symbols.isEmpty, "CharSequence.toCollection should be registered as bundled Kotlin source")
         #expect(
-            links.contains("kk_string_toCollection_flat"),
-            "CharSequence.toCollection should link to kk_string_toCollection"
+            symbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil },
+            "CharSequence.toCollection must not have a C runtime link after Kotlinization"
         )
     }
 }

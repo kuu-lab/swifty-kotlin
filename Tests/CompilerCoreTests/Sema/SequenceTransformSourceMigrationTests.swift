@@ -119,7 +119,7 @@ struct SequenceTransformSourceMigrationTests {
                     return ctx.sourceManager.path(of: fileID) == "__bundled_kotlin/sequences/Sequences.kt"
                 }
 
-                let expectedCount = name == "asSequence" ? 2 : 1
+                let expectedCount = name == "asSequence" ? 3 : 1
                 #expect(
                     sourceSymbols.count == expectedCount,
                     "Expected \(expectedCount) source definitions for \(name), got \(sourceSymbols.count)"

@@ -429,9 +429,12 @@ final class KIRLoweringContext {
 
     // MARK: - Synthetic Symbol Management
 
-    func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule) {
+    func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule, stdlibOnly: Bool = false) {
         _ = sema
-        nextSyntheticLambdaSymbolRawValue = -60_000_000
+        // Stdlib-only and consumer modules are linked together, but synthetic
+        // lambda IDs are allocated per module. Keep their closure symbol bands
+        // disjoint so a consumer lambda cannot collide with a stdlib wrapper.
+        nextSyntheticLambdaSymbolRawValue = stdlibOnly ? -70_000_000 : -60_000_000
     }
 
     func syntheticLambdaSymbol(for exprID: ExprID) -> SymbolID {

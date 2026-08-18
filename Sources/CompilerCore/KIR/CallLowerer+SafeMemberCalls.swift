@@ -247,69 +247,8 @@ extension CallLowerer {
             }
         }
 
-        // Int bit extraction functions (STDLIB-BIT-007).
-        // NOTE: This lowering logic is intentionally duplicated in
-        // CallLowerer+MemberCalls.swift for the non-safe-call path.
-        // Keep the callee-name -> runtime-name mapping in sync.
-        if args.isEmpty {
-            let calleeStr = interner.resolve(effectiveCalleeName)
-            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
-                let intType = sema.types.intType
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType {
-                    let runtimeName: String
-                    switch calleeStr {
-                    case "highestOneBit": runtimeName = "kk_int_highestOneBit"
-                    case "lowestOneBit": runtimeName = "kk_int_lowestOneBit"
-                    case "takeHighestOneBit": runtimeName = "kk_int_takeHighestOneBit"
-                    case "takeLowestOneBit": runtimeName = "kk_int_takeLowestOneBit"
-                    default: fatalError("unreachable: calleeStr already guarded to bit operation functions")
-                    }
-                    emitNonThrowingCall(
-                        callee: interner.intern(runtimeName),
-                        arg: loweredReceiverID,
-                        result: result,
-                        into: &instructions.instructions
-                    )
-                    return result
-                }
-            }
-        }
-
         // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
         // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
-
-        // Long bit manipulation functions (STDLIB-BIT-007)
-        let longType = sema.types.longType
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-
-        if nonNullReceiverType == longType {
-            let calleeStr = interner.resolve(effectiveCalleeName)
-
-            // Zero-argument functions
-            if args.isEmpty {
-                let runtimeName: String?
-                switch calleeStr {
-                case "highestOneBit": runtimeName = "kk_long_highestOneBit"
-                case "lowestOneBit": runtimeName = "kk_long_lowestOneBit"
-                case "takeHighestOneBit": runtimeName = "kk_long_takeHighestOneBit"
-                case "takeLowestOneBit": runtimeName = "kk_long_takeLowestOneBit"
-                default: runtimeName = nil
-                }
-
-                if let name = runtimeName {
-                    emitNonThrowingCall(
-                        callee: interner.intern(name),
-                        arg: loweredReceiverID,
-                        result: result,
-                        into: &instructions.instructions
-                    )
-                    return result
-                }
-            }
-        }
 
         // Float?.mod(other) / Double?.mod(other): keep safe-call argument
         // evaluation behind the null check and use Kotlin floor-style modulo.
@@ -1121,35 +1060,49 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRDispatchKind? {
         guard let receiverTypeID,
-              case let .classType(classType) = sema.types.kind(of: receiverTypeID)
+              let methodSlot = layout.vtableSlots[callee]
         else { return nil }
-        let receiverClassSymID = classType.classSymbol
-        guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
-        guard let methodSlot = layout.vtableSlots[callee] else { return nil }
 
-        if receiverClassSym.kind == .class {
-            // If the receiver is a concrete class with no subtypes, use direct
-            // dispatch.  Kotlin classes are final by default, so this is safe and
-            // avoids the itable path which requires runtime typeInfo support.
-            if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
-            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
-        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverTypeID)
+        switch sema.types.kind(of: nonNullReceiverType) {
+        case let .classType(classType):
+            let receiverClassSymID = classType.classSymbol
+            guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
 
-        // The receiver's static type is the interface itself (e.g. a function
-        // parameter typed `d: Describable`) — the concrete implementing class,
-        // and therefore the itable slot that class assigned to this interface,
-        // is unknown at this call site. Falling back to slot 0 here previously
-        // dispatched to whatever interface happened to occupy slot 0 on the
-        // object actually passed in (e.g. Printable instead of Describable).
-        // Defer the slot lookup to runtime instead, keyed by the interface's
-        // stable type ID (see kk_itable_lookup_dynamic).
-        if receiverClassSym.kind == .interface {
+            if receiverClassSym.kind == .class {
+                // If the receiver is a concrete class with no subtypes, use direct
+                // dispatch.  Kotlin classes are final by default, so this is safe and
+                // avoids the itable path which requires runtime typeInfo support.
+                if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
+                guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
+                let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
+                return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+            }
+
+            // The receiver's static type is the interface itself (e.g. a function
+            // parameter typed `d: Describable`) — the concrete implementing class,
+            // and therefore the itable slot that class assigned to this interface,
+            // is unknown at this call site. Falling back to slot 0 here previously
+            // dispatched to whatever interface happened to occupy slot 0 on the
+            // object actually passed in (e.g. Printable instead of Describable).
+            // Defer the slot lookup to runtime instead, keyed by the interface's
+            // stable type ID (see kk_itable_lookup_dynamic).
+            if receiverClassSym.kind == .interface {
+                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: parentID, sema: sema, interner: interner
+                )
+                return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            }
+        case .typeParam:
+            // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
+            // has an unknown concrete class at compile time, so the interface
+            // itable must be resolved dynamically at runtime.
             let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                 symbol: parentID, sema: sema, interner: interner
             )
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+        default:
+            break
         }
         return nil
     }

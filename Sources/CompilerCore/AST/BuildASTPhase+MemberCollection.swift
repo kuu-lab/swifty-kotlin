@@ -206,12 +206,27 @@ extension BuildASTPhase {
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         // Primary constructors may use the explicit `constructor` keyword with an
-        // optional visibility modifier; skip it (and its parameter list) before
+        // optional visibility modifier and/or annotations; skip them before
         // looking for the supertype colon.
-        while index < tokens.count, isConstructorVisibilityModifier(tokens[index].kind) {
-            index += 1
+        while index < tokens.count {
+            let token = tokens[index]
+            if token.kind == .symbol(.at) {
+                if let parsed = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                ) {
+                    index = parsed.nextIndex
+                    continue
+                }
+                break
+            }
+            if isConstructorVisibilityModifier(token.kind) {
+                index += 1
+                continue
+            }
+            break
         }
-        if index < tokens.count, tokens[index].kind == .keyword(.constructor) {
+        if index < tokens.count,
+           tokens[index].kind == .keyword(.constructor) || tokens[index].kind == .softKeyword(.constructor) {
             index += 1
             index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         }

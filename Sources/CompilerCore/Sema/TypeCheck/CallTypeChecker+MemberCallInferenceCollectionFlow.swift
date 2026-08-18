@@ -393,7 +393,12 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
-            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver),
+            // Sequence.asSequence() is an identity conversion. The bundled
+            // Iterable.asSequence() implementation is only valid for an
+            // Iterable receiver; binding it to Sequence produces an empty
+            // result because Sequence is not an Iterable in Kotlin.
+            guard !isSequenceReceiver,
+                  (isCollectionReceiver || isIterableReceiver),
                   !isArrayReceiver,
                   args.isEmpty else {
                 return false

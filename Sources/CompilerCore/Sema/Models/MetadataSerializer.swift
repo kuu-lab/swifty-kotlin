@@ -1,5 +1,11 @@
 import Foundation
 
+package enum MetadataModality: String {
+    case final
+    case open
+    case abstract
+}
+
 // MARK: - Shared Metadata Record
 
 /// Unified metadata record used by both export (MetadataEncoder) and import (MetadataDecoder).
@@ -56,6 +62,9 @@ package struct MetadataRecord {
     /// Whether a nominal declaration is explicitly open and may be subclassed.
     /// This must survive library metadata import; Kotlin classes are final by default.
     package let isOpenClass: Bool
+    /// Declaration modality for classes and members. Final is omitted from the
+    /// wire format so older artifacts remain compact and decode as final.
+    package let modality: MetadataModality
 
     // P5-74: sealed class flag
     package let isSealedClass: Bool
@@ -140,6 +149,7 @@ package struct MetadataRecord {
         enumStaticInitLinkName: String? = nil,
         isDataClass: Bool = false,
         isOpenClass: Bool = false,
+        modality: MetadataModality = .final,
         isSealedClass: Bool = false,
         isFunInterface: Bool = false,
         annotations: [MetadataAnnotationRecord] = [],
@@ -189,6 +199,7 @@ package struct MetadataRecord {
         self.enumStaticInitLinkName = enumStaticInitLinkName
         self.isDataClass = isDataClass
         self.isOpenClass = isOpenClass
+        self.modality = modality
         self.isSealedClass = isSealedClass
         self.isFunInterface = isFunInterface
         self.annotations = annotations
@@ -268,7 +279,13 @@ package final class MetadataEncoder {
                         symbols: symbols,
                         excludedSourceFileIDs: excludeSourceFileIDs
                     )
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember {
+                let keepAsEnumClassMember = !includeSynthetic
+                    && Self.isSourceBackedEnumClassMember(
+                        symbol.id,
+                        symbols: symbols,
+                        excludedSourceFileIDs: excludeSourceFileIDs
+                    )
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -288,7 +305,7 @@ package final class MetadataEncoder {
                 // Source-backed declarations (e.g. bundled stdlib functions under a
                 // synthetic package stub) are still exported; only synthesized helpers
                 // without a source declSite are pruned by parent synthetics.
-                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember {
+                if !includeSynthetic, symbol.declSite == nil, !keepAsDataClassMember, !keepAsEnumClassMember {
                     var parentID = symbols.parentSymbol(for: symbol.id)
                     while let p = parentID, let parent = symbols.symbol(p) {
                         if parent.flags.contains(.synthetic) {
@@ -637,6 +654,9 @@ package final class MetadataEncoder {
                     superFQName: computedSuperFQName,
                     isDataClass: symbol.flags.contains(.dataType),
                     isOpenClass: symbol.flags.contains(.openType),
+                    modality: symbol.flags.contains(.abstractType)
+                        ? .abstract
+                        : (symbol.flags.contains(.openType) ? .open : .final),
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
@@ -651,6 +671,9 @@ package final class MetadataEncoder {
                 superFQName: computedSuperFQName,
                 isDataClass: symbol.flags.contains(.dataType),
                 isOpenClass: symbol.flags.contains(.openType),
+                modality: symbol.flags.contains(.abstractType)
+                    ? .abstract
+                    : (symbol.flags.contains(.openType) ? .open : .final),
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
@@ -864,6 +887,13 @@ package final class MetadataEncoder {
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isOpenClass = symbol.flags.contains(.openType)
+        let modality: MetadataModality = if symbol.flags.contains(.abstractType) {
+            .abstract
+        } else if symbol.flags.contains(.openType) {
+            .open
+        } else {
+            .final
+        }
         let isSealedClass = symbol.flags.contains(.sealedType)
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
@@ -932,6 +962,7 @@ package final class MetadataEncoder {
             enumStaticInitLinkName: enumStaticInitLinkName,
             isDataClass: isDataClass,
             isOpenClass: isOpenClass,
+            modality: modality,
             isSealedClass: isSealedClass,
             isFunInterface: isFunInterface,
             annotations: annotationEntries,
@@ -1009,6 +1040,52 @@ package final class MetadataEncoder {
                     return false
                 }
                 return true
+            }
+            currentID = symbols.parentSymbol(for: parentID)
+        }
+        return false
+    }
+
+    /// True when `symbolID` is a compiler-generated member of a source-backed enum
+    /// class (name, ordinal, values) or its companion (valueOf, entries). These
+    /// symbols are synthesized by HeaderCollection but are part of the public
+    /// surface of an enum class, so consumers that import the class from a
+    /// precompiled artifact must be able to resolve them.
+    private static func isSourceBackedEnumClassMember(
+        _ symbolID: SymbolID,
+        symbols: SymbolTable,
+        excludedSourceFileIDs: Set<Int32>
+    ) -> Bool {
+        var currentID = symbols.parentSymbol(for: symbolID)
+        while let parentID = currentID, let parent = symbols.symbol(parentID) {
+            if Self.nominalKinds.contains(parent.kind) {
+                if parent.kind == .enumClass,
+                   !parent.flags.contains(.synthetic),
+                   parent.declSite != nil {
+                    if let sourceFileID = symbols.sourceFileID(for: parent.id),
+                       excludedSourceFileIDs.contains(sourceFileID.rawValue)
+                    {
+                        return false
+                    }
+                    return true
+                }
+                // Synthetic companions / nested anchors may sit between the
+                // member and the owning enum class; keep walking.
+                if parent.flags.contains(.synthetic) {
+                    currentID = symbols.parentSymbol(for: parentID)
+                    continue
+                }
+                // valueOf / entries are synthesized on the companion object,
+                // which may be a user-declared (non-synthetic) companion. Walk
+                // through it to reach the owning enum class.
+                if parent.kind == .object,
+                   let grandparentID = symbols.parentSymbol(for: parentID),
+                   symbols.companionObjectSymbol(for: grandparentID) == parentID
+                {
+                    currentID = grandparentID
+                    continue
+                }
+                return false
             }
             currentID = symbols.parentSymbol(for: parentID)
         }
@@ -1152,6 +1229,9 @@ package final class MetadataEncoder {
             }
             if record.isOpenClass {
                 fields.append("openClass=1")
+            }
+            if record.modality != .final {
+                fields.append("modality=\(record.modality.rawValue)")
             }
             if record.isSealedClass {
                 fields.append("sealedClass=1")
@@ -1422,6 +1502,7 @@ final class MetadataDecoder {
                 enumStaticInitLinkName: rec.enumStaticInitLinkName,
                 isDataClass: rec.isDataClass,
                 isOpenClass: rec.isOpenClass,
+                modality: rec.modality,
                 isSealedClass: rec.isSealedClass,
                 isFunInterface: rec.isFunInterface,
                 annotations: rec.annotations,
@@ -1477,6 +1558,7 @@ final class MetadataDecoder {
         var enumStaticInitLinkName: String?
         var isDataClass: Bool = false
         var isOpenClass: Bool = false
+        var modality: MetadataModality = .final
         var isSealedClass: Bool = false
         var isFunInterface: Bool = false
         var isValueClass: Bool = false
@@ -1565,6 +1647,8 @@ final class MetadataDecoder {
             record.isDataClass = value == "1" || value == "true"
         case "openClass":
             record.isOpenClass = value == "1" || value == "true"
+        case "modality":
+            record.modality = MetadataModality(rawValue: value) ?? .final
         case "sealedClass":
             record.isSealedClass = value == "1" || value == "true"
         case "funInterface":

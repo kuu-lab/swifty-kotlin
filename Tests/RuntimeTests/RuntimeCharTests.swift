@@ -76,38 +76,6 @@ struct RuntimeCharTests {
         #expect(__kk_char_digit_value(0x03B2) == -1) // Greek small beta 'β'
     }
 
-    // MARK: - STDLIB-003-ABI-003: Char(code: Int)
-
-    @Test func charFromCode_validCode() {
-        var thrown = 0
-        #expect(kk_char_fromCode(65, &thrown) == 65) // 'A'
-        #expect(thrown == 0)
-    }
-
-    @Test func charFromCode_zero() {
-        var thrown = 0
-        #expect(kk_char_fromCode(0, &thrown) == 0)
-        #expect(thrown == 0)
-    }
-
-    @Test func charFromCode_maxValidCode() {
-        var thrown = 0
-        #expect(kk_char_fromCode(0xFFFF, &thrown) == 0xFFFF)
-        #expect(thrown == 0)
-    }
-
-    @Test func charFromCode_throwsForNegativeCode() {
-        var thrown = 0
-        _ = kk_char_fromCode(-1, &thrown)
-        #expect(thrown != 0, "negative code should throw")
-    }
-
-    @Test func charFromCode_throwsForCodeAbove0xFFFF() {
-        var thrown = 0
-        _ = kk_char_fromCode(0x10000, &thrown)
-        #expect(thrown != 0, "code > 0xFFFF should throw")
-    }
-
     private func runtimeStringValue(_ raw: Int) -> String {
         extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? ""
     }

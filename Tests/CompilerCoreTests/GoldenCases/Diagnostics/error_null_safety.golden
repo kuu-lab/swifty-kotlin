@@ -22,9 +22,9 @@
       },
       "severity": 1,
       "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
+      "code": "KSWIFTK-SEMA-0026",
       "source": "kswiftk",
-      "message": "No viable overload found for call.",
+      "message": "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver.",
       "codeActions": []
     },
     {

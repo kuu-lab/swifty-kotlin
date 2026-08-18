@@ -694,9 +694,36 @@ extension CallLowerer {
         instructions: inout [KIRInstruction]
     ) -> (fnPtr: KIRExprID, closureRaw: KIRExprID) {
         var fnPtr = loweredArgID
-        var callableInfo = sema.bindings.isCollectionHOFLambdaExpr(argExprID)
-            ? driver.ctx.callableValueInfo(for: loweredArgID)
-            : nil
+        // Runtime sequence bridges consume the same `(closureRaw, value,
+        // outThrown)` ABI as collection HOFs. The source-backed wrapper is
+        // generic and does not need a name-specific semantic marker, so recover
+        // callable metadata directly from the materialized function value.
+        var callableInfo = driver.ctx.callableValueInfo(for: loweredArgID)
+        if callableInfo == nil {
+            // A function-typed argument can already be boxed as a Kotlin
+            // function value before this bridge is lowered. Recover its ABI
+            // pair instead of passing the object handle as a C function pointer.
+            let intType = sema.types.intType
+            let fnPtr = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_fn_ptr"),
+                arguments: [loweredArgID],
+                result: fnPtr,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            let closureRaw = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_function_value_closure_raw"),
+                arguments: [loweredArgID],
+                result: closureRaw,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return (fnPtr, closureRaw)
+        }
         if let originalCallableInfo = callableInfo,
            let nextFunctionType = sema.bindings.exprTypes[argExprID],
            case let .functionType(nextFT) = sema.types.kind(of: nextFunctionType),
@@ -826,8 +853,8 @@ extension CallLowerer {
             )
         }
 
-        // STDLIB-SEQ-002: 1-arg generateSequence(nextFunction) → kk_sequence_generate_noarg(fnPtr, closureRaw)
-        if externalLinkName == "kk_sequence_generate_noarg", loweredArguments.count == 1 {
+        // STDLIB-SEQ-002: 1-arg generateSequence(nextFunction) uses the private bridge.
+        if externalLinkName == "__kk_sequence_generate_noarg", loweredArguments.count == 1 {
             let expanded = expandGenerateSequenceNextFunction(
                 loweredArgID: loweredArguments[0],
                 argExprID: originalArgs[0].expr,
@@ -853,10 +880,10 @@ extension CallLowerer {
             )
         }
 
-        let legacyNames: Set = ["kk_sequence_generate"]
+        let legacyNames: Set = ["__kk_sequence_generate"]
         if legacyNames.contains(externalLinkName), loweredArguments.count == 2 {
             var seedArgument = loweredArguments[0]
-            if externalLinkName == "kk_sequence_generate",
+            if externalLinkName == "__kk_sequence_generate",
                let seedCallableInfo = driver.ctx.callableValueInfo(for: loweredArguments[0]),
                let seedFunctionType = sema.bindings.exprTypes[originalArgs[0].expr],
                case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
@@ -876,7 +903,7 @@ extension CallLowerer {
             }
 
             var finalArgs = [seedArgument]
-            if externalLinkName == "kk_sequence_generate" {
+            if externalLinkName == "__kk_sequence_generate" {
                 let expanded = expandGenerateSequenceNextFunction(
                     loweredArgID: loweredArguments[1],
                     argExprID: originalArgs[1].expr,
@@ -1047,7 +1074,7 @@ extension CallLowerer {
         }
 
         switch sema.types.kind(of: functionType.returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
+        case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(callResult))

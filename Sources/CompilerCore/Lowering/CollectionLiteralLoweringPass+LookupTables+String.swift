@@ -6,20 +6,10 @@ import RuntimeABI
 struct StringLookupNames {
     // Set predicate HOF ABI names (STDLIB-SET-PRED)
     let kkStringSplitName: InternedString
-    let kkStringAsSequenceName: InternedString
-    let kkStringAsIterableName: InternedString
-    let kkStringIteratorName: InternedString
-    let kkStringIteratorHasNextName: InternedString
-    let kkStringIteratorNextName: InternedString
     let stringProducingCallees: Set<InternedString>
 
     init(interner: StringInterner) {
         kkStringSplitName = interner.intern("__kk_string_split")
-        kkStringAsSequenceName = interner.intern("kk_string_asSequence_flat")
-        kkStringAsIterableName = interner.intern("kk_string_asIterable_flat")
-        kkStringIteratorName = interner.intern("kk_string_iterator_flat")
-        kkStringIteratorHasNextName = interner.intern("kk_string_iterator_hasNext")
-        kkStringIteratorNextName = interner.intern("kk_string_iterator_next")
         stringProducingCallees = [
             interner.intern("kk_string_concat_flat"),
             interner.intern("kk_string_intern"),

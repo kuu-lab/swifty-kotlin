@@ -430,9 +430,7 @@ extension BuildASTPhase {
     }
 
     func functionKeywordIndex(in tokens: [Token]) -> Int? {
-        tokens.firstIndex(where: { token in
-            token.kind == .keyword(.fun)
-        })
+        firstTopLevelKeywordIndex(in: tokens, matching: [.fun])
     }
 
     /// Returns the opening parenthesis index of the function parameter list.

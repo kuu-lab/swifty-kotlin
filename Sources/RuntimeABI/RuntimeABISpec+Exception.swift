@@ -102,18 +102,20 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_index_out_of_bounds_exception_new",
+            name: "__kk_array_index_out_of_bounds_exception_new",
             parameters: [],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_index_out_of_bounds_exception_new_message",
+            name: "__kk_array_index_out_of_bounds_exception_new_message",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception"
+            section: "Exception",
+            isThrowing: false
         ),
         // Per-type explicit constructor entry points (catch-clause sibling-type
         // discrimination fix). Each built-in exception class below gets its own
@@ -192,6 +194,41 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_nothing_value_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_nothing_value_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_nothing_value_exception_new_message_cause",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_kotlin_nothing_value_exception_new_cause",
+            parameters: [
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_error_new",
             parameters: [],
             returnType: .intptr,
@@ -237,6 +274,24 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_not_implemented_error_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        // Bridge-only allocation entry points for the bundled Kotlin
+        // `kotlin.OutOfMemoryError` declaration (KSP-750).
+        RuntimeABIFunctionSpec(
+            name: "__kk_out_of_memory_error_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_out_of_memory_error_new_message",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
@@ -432,6 +487,22 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_class_cast_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_type_cast_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_type_cast_exception_new_message",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],

@@ -23,68 +23,13 @@ extension DataFlowSemaPhase {
                 fqName: rootLazyFQName + [rootLazyTypeParamName],
                 declSite: nil,
                 visibility: .private,
-                flags: [.synthetic]
+                flags: []
             )
             symbols.setParentSymbol(rootLazyInterfaceSymbol, for: symbol)
             return symbol
         }()
         types.setNominalTypeParameterSymbols([rootLazyTypeParamSymbol], for: rootLazyInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: rootLazyInterfaceSymbol)
-        let rootLazyTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: rootLazyTypeParamSymbol,
-            nullability: .nonNull
-        )))
-        let rootLazyInterfaceType = types.make(.classType(ClassType(
-            classSymbol: rootLazyInterfaceSymbol,
-            args: [.invariant(rootLazyTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let lazyValueName = interner.intern("value")
-        let lazyValueFQName = rootLazyFQName + [lazyValueName]
-        if symbols.lookup(fqName: lazyValueFQName) == nil {
-            let valueSymbol = symbols.define(
-                kind: .property,
-                name: lazyValueName,
-                fqName: lazyValueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rootLazyInterfaceSymbol, for: valueSymbol)
-            symbols.setPropertyType(rootLazyTypeParamType, for: valueSymbol)
-            symbols.setExternalLinkName("kk_lazy_get_value", for: valueSymbol)
-        }
-
-        let lazyIsInitializedName = interner.intern("isInitialized")
-        let lazyIsInitializedFQName = rootLazyFQName + [lazyIsInitializedName]
-        if symbols.lookup(fqName: lazyIsInitializedFQName) == nil {
-            let isInitializedSymbol = symbols.define(
-                kind: .function,
-                name: lazyIsInitializedName,
-                fqName: lazyIsInitializedFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(rootLazyInterfaceSymbol, for: isInitializedSymbol)
-            symbols.setExternalLinkName("kk_lazy_is_initialized", for: isInitializedSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: rootLazyInterfaceType,
-                    parameterTypes: [],
-                    returnType: types.booleanType,
-                    isSuspend: false,
-                    valueParameterSymbols: [],
-                    valueParameterHasDefaultValues: [],
-                    valueParameterIsVararg: [],
-                    typeParameterSymbols: [rootLazyTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: isInitializedSymbol
-            )
-        }
-
         // ObservableProperty and Delegates remain synthetic until KSP-681, so
         // they need a nominal ReadWriteProperty anchor during the pre-source
         // synthetic registration pass. Interfaces.kt reuses this shell when
@@ -601,78 +546,7 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // MIGRATION-PROP-002: Register kotlin.LazyThreadSafetyMode enum so that
-        // `lazy(LazyThreadSafetyMode.NONE) { }` and other explicit-mode overloads
-        // resolve correctly at the sema level.
-        registerLazyThreadSafetyModeStub(
-            kotlinPkg: kotlinPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
 
-    // MARK: - LazyThreadSafetyMode (MIGRATION-PROP-002)
-
-    /// Registers the `kotlin.LazyThreadSafetyMode` enum class and its three entries
-    /// so that Kotlin source referencing `LazyThreadSafetyMode.NONE` etc. resolves.
-    ///
-    /// Entry declaration order matches the Kotlin stdlib definition:
-    ///   ordinal 0 = SYNCHRONIZED, ordinal 1 = PUBLICATION, ordinal 2 = NONE.
-    ///
-    /// Note: the ABI rawValues used by `kk_lazy_create` differ (NONE=0, SYNCHRONIZED=1,
-    /// PUBLICATION=2) and are managed by `LazyThreadSafetyMode` in RuntimeTypes.swift.
-    /// The lowering pass maps the compiler-option enum (Swift rawValue) directly; ordinal-
-    /// to-rawValue conversion for explicit source-level mode is deferred to RF-STDLIB-004+.
-    private func registerLazyThreadSafetyModeStub(
-        kotlinPkg: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let enumName = interner.intern("LazyThreadSafetyMode")
-        let enumFQName = kotlinPkg + [enumName]
-
-        let enumSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: enumFQName) {
-            enumSymbol = existing
-        } else {
-            enumSymbol = symbols.define(
-                kind: .enumClass,
-                name: enumName,
-                fqName: enumFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            if let pkgSymbol = symbols.lookup(fqName: kotlinPkg) {
-                symbols.setParentSymbol(pkgSymbol, for: enumSymbol)
-            }
-        }
-
-        let enumType = types.make(.classType(ClassType(
-            classSymbol: enumSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(enumType, for: enumSymbol)
-
-        // Register entries in Kotlin stdlib declaration order: SYNCHRONIZED, PUBLICATION, NONE.
-        for entryName in ["SYNCHRONIZED", "PUBLICATION", "NONE"] {
-            let internedEntry = interner.intern(entryName)
-            let entryFQName = enumFQName + [internedEntry]
-            if symbols.lookup(fqName: entryFQName) != nil { continue }
-            let entrySymbol = symbols.define(
-                kind: .field,
-                name: internedEntry,
-                fqName: entryFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(enumSymbol, for: entrySymbol)
-            symbols.setPropertyType(enumType, for: entrySymbol)
-        }
     }
 
     /// `ReadWriteProperty<Any?, valueType>` — the delegate type the

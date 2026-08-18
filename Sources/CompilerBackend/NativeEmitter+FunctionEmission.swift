@@ -499,6 +499,21 @@ extension NativeEmitter {
             return true
         }
 
+        /// Raw scalar values use Int64.min as the nullable sentinel, so zero
+        /// remains a valid value for nullable primitives and enum ordinals.
+        /// Reference-like values still use zero as the null representation.
+        func nullableRawScalarPreservesZero(_ type: TypeID?) -> Bool {
+            guard let type, let typeSystem else { return false }
+            switch typeSystem.kind(of: type) {
+            case .primitive(_, let nullability):
+                return nullability != .nonNull
+            case let .classType(classType):
+                return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+            default:
+                return false
+            }
+        }
+
         func isCharSequenceRuntimeStringType(_ type: TypeID?) -> Bool {
             guard let type,
                   let typeSystem,
@@ -965,51 +980,6 @@ extension NativeEmitter {
                 "kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
                     flatName: "kk_locale_new_language_country_flat",
                     stringArgumentCount: 2,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toList_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toList_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCharArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCharArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toTypedArray_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toTypedArray_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toSortedSet_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toSortedSet_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_toCollection_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_toCollection_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1
-                ),
-                "kk_string_withIndex_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_withIndex_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_iterator_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_iterator_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asIterable_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asIterable_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0
-                ),
-                "kk_string_asSequence_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_string_asSequence_flat",
-                    stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
                 "kk_string_split_flat": FlatScalarReturnCallSpec(
@@ -2975,7 +2945,8 @@ extension NativeEmitter {
                     continue
                 }
                 let resolved = resolveValue(value)
-                if let valueType = module.arena.exprType(value),
+                let valueType = module.arena.exprType(value)
+                if let valueType,
                    let typeLowering,
                    let typeSystem,
                    case .stringStruct = typeSystem.kind(of: valueType),
@@ -3021,14 +2992,21 @@ extension NativeEmitter {
                     rhs: nullSentinel,
                     name: "jnn_nonsentinel_\(instructionIndex)"
                 )
-                if let isNonZero,
-                   let isNotSentinel,
-                   let condition = bindings.buildAnd(
-                       builder,
-                       lhs: isNonZero,
-                       rhs: isNotSentinel,
-                       name: "jnn_cond_\(instructionIndex)"
-                   ),
+                let condition: LLVMCAPIBindings.LLVMValueRef? = if nullableRawScalarPreservesZero(valueType) {
+                    isNotSentinel
+                } else if let isNonZero,
+                          let isNotSentinel
+                {
+                    bindings.buildAnd(
+                        builder,
+                        lhs: isNonZero,
+                        rhs: isNotSentinel,
+                        name: "jnn_cond_\(instructionIndex)"
+                    )
+                } else {
+                    nil
+                }
+                if let condition,
                    let targetBlock = blockForLabel(target),
                    let fallthroughBlock = bindings.appendBasicBlock(
                        context: context,
@@ -3279,10 +3257,6 @@ extension NativeEmitter {
         case "__floatRoundToInt": "kk_float_roundToInt"
         case "__doubleRoundToLong": "kk_double_roundToLong"
         case "__floatRoundToLong": "kk_float_roundToLong"
-        case "__intHighestOneBit": "kk_int_highestOneBit"
-        case "__intLowestOneBit": "kk_int_lowestOneBit"
-        case "__longHighestOneBit": "kk_long_highestOneBit"
-        case "__longLowestOneBit": "kk_long_lowestOneBit"
         case "__assert": "kk_precondition_assert"
         case "__assertLazy": "kk_precondition_assert_lazy"
         default: nil

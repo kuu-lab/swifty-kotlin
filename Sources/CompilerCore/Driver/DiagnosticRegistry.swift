@@ -300,6 +300,12 @@ enum DiagnosticRegistry {
             summary: "Type mismatch in argument."
         ),
         DiagnosticDescriptor(
+            code: "KSWIFTK-SEMA-0026",
+            pass: "SEMA",
+            defaultSeverity: .error,
+            summary: "Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver."
+        ),
+        DiagnosticDescriptor(
             code: "KSWIFTK-SEMA-0031",
             pass: "SEMA",
             defaultSeverity: .error,

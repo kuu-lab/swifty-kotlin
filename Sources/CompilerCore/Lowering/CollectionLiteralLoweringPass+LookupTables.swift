@@ -33,7 +33,6 @@ struct CollectionLiteralLookupTables {
         sequenceRuntimeBridgeReturningNames = [
             interner.intern("lineSequence"),
             interner.intern("splitToSequence"),
-            stringLookup.kkStringAsSequenceName,
             arrayLookup.kkListAsSequenceName,
             arrayLookup.kkArrayAsSequenceName
         ]
@@ -201,9 +200,6 @@ struct CollectionLiteralLookupTables {
     var kkIteratorBuilderBuildName: InternedString { sequenceLookup.kkIteratorBuilderBuildName }
     var kkIteratorBuilderHasNextName: InternedString { sequenceLookup.kkIteratorBuilderHasNextName }
     var kkIteratorBuilderNextName: InternedString { sequenceLookup.kkIteratorBuilderNextName }
-    var kkSequenceOfName: InternedString { sequenceLookup.kkSequenceOfName }
-    var kkSequenceGenerateName: InternedString { sequenceLookup.kkSequenceGenerateName }
-    var kkSequenceGenerateNoArgName: InternedString { sequenceLookup.kkSequenceGenerateNoArgName }
     var kkSequenceForEachName: InternedString { sequenceLookup.kkSequenceForEachName }
     var kkSequenceFlatMapName: InternedString { sequenceLookup.kkSequenceFlatMapName }
     var kkSequenceFlatMapIndexedName: InternedString { sequenceLookup.kkSequenceFlatMapIndexedName }
@@ -259,8 +255,6 @@ struct CollectionLiteralLookupTables {
     var iteratorBuilderName: InternedString { sequenceLookup.iteratorBuilderName }
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
-    var sequenceOfName: InternedString { sequenceLookup.sequenceOfName }
-    var generateSequenceName: InternedString { sequenceLookup.generateSequenceName }
 
     // MARK: - Array lookup names (see CollectionLiteralLoweringPass+LookupTables+Array.swift)
 
@@ -366,11 +360,6 @@ struct CollectionLiteralLookupTables {
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 
     var kkStringSplitName: InternedString { stringLookup.kkStringSplitName }
-    var kkStringAsSequenceName: InternedString { stringLookup.kkStringAsSequenceName }
-    var kkStringAsIterableName: InternedString { stringLookup.kkStringAsIterableName }
-    var kkStringIteratorName: InternedString { stringLookup.kkStringIteratorName }
-    var kkStringIteratorHasNextName: InternedString { stringLookup.kkStringIteratorHasNextName }
-    var kkStringIteratorNextName: InternedString { stringLookup.kkStringIteratorNextName }
     var stringProducingCallees: Set<InternedString> { stringLookup.stringProducingCallees }
 
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)

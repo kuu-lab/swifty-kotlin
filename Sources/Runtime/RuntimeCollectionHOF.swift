@@ -153,13 +153,13 @@ private let runtimeAutoCloseableCloseThunk: @convention(c) (Int, UnsafeMutablePo
     return 0
 }
 
-/// AutoCloseable is a typealias for Closeable (see
-/// HeaderHelpers+SyntheticCloseableStubs.swift), so its stable nominal type ID
-/// for itableDynamic dispatch is Closeable's, keyed by "kotlin.io.Closeable".
-private let runtimeCloseableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.io.Closeable")
+/// AutoCloseable is now a source-backed interface in `kotlin` (KSP-721);
+/// `kotlin.io.Closeable` extends it. The stable nominal type ID used for
+/// itableDynamic dispatch of `AutoCloseable.close()` is keyed by "kotlin.AutoCloseable".
+private let runtimeAutoCloseableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.AutoCloseable")
 
-/// `AutoCloseable { closeAction }` factory. KSP-611: the public factory is Kotlin
-/// source (Stdlib/kotlin/io/Closeable.kt) delegating to this demoted bridge.
+/// `AutoCloseable { closeAction }` factory. KSP-721: the public factory is Kotlin
+/// source (Stdlib/kotlin/AutoCloseable.kt) delegating to this demoted bridge.
 @_cdecl("__kk_auto_closeable_create")
 public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let resourceRaw = registerRuntimeObject(RuntimeAutoCloseableBox(fnPtr: fnPtr, closureRaw: closureRaw))
@@ -173,7 +173,7 @@ public func kk_auto_closeable_create(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     // calls `c.close()` directly (not through the inline-expanded `use {}`)
     // dispatches via kk_itable_lookup_dynamic, which needs this registration
     // — see the identical Comparator gap fixed in RuntimeComparator.swift.
-    _ = kk_object_register_itable_iface(resourceRaw, Int(runtimeCloseableInterfaceTypeID), 0)
+    _ = kk_object_register_itable_iface(resourceRaw, Int(runtimeAutoCloseableInterfaceTypeID), 0)
     return resourceRaw
 }
 

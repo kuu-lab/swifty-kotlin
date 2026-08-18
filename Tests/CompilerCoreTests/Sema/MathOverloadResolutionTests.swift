@@ -19,14 +19,12 @@ struct MathOverloadResolutionTests {
     fun absLong(x: Long): Long = abs(x)
     fun absDouble(x: Double): Double = abs(x)
     fun absFloat(x: Float): Float = abs(x)
-
     fun sqrtDouble(x: Double): Double = sqrt(x)
     fun sqrtFloat(x: Float): Float = sqrt(x)
-    fun powDouble(x: Double, y: Double): Double = pow(x, y)
-    fun powFloat(x: Float, y: Float): Float = pow(x, y)
-    fun powDoubleInt(x: Double, n: Int): Double = pow(x, n)
-    fun powFloatInt(x: Float, n: Int): Float = pow(x, n)
-
+    fun powDouble(x: Double, y: Double): Double = x.pow(y)
+    fun powFloat(x: Float, y: Float): Float = x.pow(y)
+    fun powDoubleInt(x: Double, n: Int): Double = x.pow(n)
+    fun powFloatInt(x: Float, n: Int): Float = x.pow(n)
     fun ieeeRemDouble(x: Double, y: Double): Double = x.IEEErem(y)
     fun ieeeRemFloat(x: Float, y: Float): Float = x.IEEErem(y)
     fun nextTowardsDouble(x: Double, y: Double): Double = x.nextTowards(y)
@@ -35,14 +33,12 @@ struct MathOverloadResolutionTests {
     fun withSignDoubleInt(x: Double, sign: Int): Double = x.withSign(sign)
     fun withSignFloatFloat(x: Float, y: Float): Float = x.withSign(y)
     fun withSignFloatInt(x: Float, sign: Int): Float = x.withSign(sign)
-
     fun roundDouble(x: Double): Double = round(x)
     fun roundFloat(x: Float): Float = round(x)
     fun ceilDouble(x: Double): Double = ceil(x)
     fun ceilFloat(x: Float): Float = ceil(x)
     fun floorDouble(x: Double): Double = floor(x)
     fun floorFloat(x: Float): Float = floor(x)
-
     fun trigDouble(x: Double): Double {
         val a = sin(x); val b = cos(x); val c = tan(x)
         val d = asin(x); val e = acos(x); val f = atan(x)
@@ -55,7 +51,6 @@ struct MathOverloadResolutionTests {
     }
     fun atan2Double(y: Double, x: Double): Double = atan2(y, x)
     fun atan2Float(y: Float, x: Float): Float = atan2(y, x)
-
     fun hyperbolicDouble(x: Double): Double {
         val a = sinh(x); val b = cosh(x); val c = tanh(x)
         return a + b + c
@@ -86,7 +81,6 @@ struct MathOverloadResolutionTests {
     fun logTwoArgFloat(x: Float, base: Float): Float = log(x, base)
     fun hypotDouble(x: Double, y: Double): Double = hypot(x, y)
     fun hypotFloat(x: Float, y: Float): Float = hypot(x, y)
-
     fun maxDouble(a: Double, b: Double): Double = max(a, b)
     fun maxFloat(a: Float, b: Float): Float = max(a, b)
     fun maxInt(a: Int, b: Int): Int = max(a, b)
@@ -99,7 +93,6 @@ struct MathOverloadResolutionTests {
     fun minLong(a: Long, b: Long): Long = min(a, b)
     fun minUInt(a: UInt, b: UInt): UInt = min(a, b)
     fun minULong(a: ULong, b: ULong): ULong = min(a, b)
-
     fun cbrtDouble(x: Double): Double = cbrt(x)
     fun cbrtFloat(x: Float): Float = cbrt(x)
     fun signDouble(x: Double): Double = sign(x)
@@ -110,52 +103,34 @@ struct MathOverloadResolutionTests {
     fun roundToIntFloat(x: Float): Int = x.roundToInt()
     fun roundToLongDouble(x: Double): Long = x.roundToLong()
     fun roundToLongFloat(x: Float): Long = x.roundToLong()
-
-    fun precisionDouble(x: Double) {
+    fun precisionHelpers(x: Double, y: Float) {
         val a = x.ulp; val b = x.nextUp(); val c = x.nextDown()
+        val d = y.ulp; val e = y.nextUp(); val f = y.nextDown()
     }
-    fun precisionFloat(x: Float) {
-        val a = x.ulp; val b = x.nextUp(); val c = x.nextDown()
-    }
-
-    fun fqnAbsInt(x: Int): Int = kotlin.math.abs(x)
-    fun fqnAbsDouble(x: Double): Double = kotlin.math.abs(x)
-    fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
     fun absDistinct(i: Int, l: Long, d: Double, flt: Float) {
         val ai = abs(i); val al = abs(l); val ad = abs(d); val af = abs(flt)
     }
-    fun sqrtDistinct(d: Double, flt: Float) {
-        val sd = sqrt(d); val sf = sqrt(flt)
-    }
-    fun memberOnlyTopLevel(d: Double, f: Float, i: Int) {
-        IEEErem(d, d); IEEErem(f, f); nextTowards(d, d); nextTowards(f, f)
-        withSign(d, d); withSign(d, i); withSign(f, f); withSign(f, i)
-    }
-    fun unofficialRounding(x: Double) {
-        val a = roundUp(x); val b = roundDown(x); val c = roundHalfEven(x)
-    }
+    fun fqnAbsInt(x: Int): Int = kotlin.math.abs(x)
+    fun fqnAbsDouble(x: Double): Double = kotlin.math.abs(x)
+    fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
     """#
 
     private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
 
     private func sharedCtx() throws -> CompilationContext {
         if let cached = Self._sharedCtx { return cached }
-        let ctx = makeContextFromSource(Self.sharedSource)
-        do { try runSema(ctx) } catch { }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: Self.sharedSource) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
         Self._sharedCtx = ctx
         return ctx
     }
 
     // MARK: - Helpers
-
-    /// Kotlin does not default-import `kotlin.math`; tests must opt in explicitly.
-    private func withKotlinMathImport(_ source: String) -> String {
-        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.hasPrefix("import kotlin.math") {
-            return source
-        }
-        return "import kotlin.math.*\n\n" + source
-    }
 
     /// Bundled stdlib sources share the AST arena with the test input, so call
     /// lookups must be restricted to the user file (always the last one).
@@ -182,86 +157,54 @@ struct MathOverloadResolutionTests {
         }
     }
 
-    private func firstCallExpr(
-        named callName: String,
-        in function: FunDecl,
-        ast: ASTModule,
-        interner: StringInterner
-    ) -> ExprID? {
-        guard let functionBodyRange = bodyRange(of: function) else { return nil }
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let exprRange = ast.arena.exprRange(exprID),
-                  functionBodyRange.contains(exprRange) else { continue }
-            switch expr {
-            case let .call(calleeExpr, _, _, _):
-                guard case let .nameRef(callee, _) = ast.arena.expr(calleeExpr),
-                      interner.resolve(callee) == callName else { continue }
-            case let .memberCall(_, callee, _, _, _):
-                guard interner.resolve(callee) == callName else { continue }
-            default: continue
-            }
-            return exprID
-        }
-        return nil
+    private func renderedSignature(for symbol: SymbolID, sema: SemaModule) -> String? {
+        guard let signature = sema.symbols.functionSignature(for: symbol) else { return nil }
+        let parameters = signature.parameterTypes
+            .map { sema.types.renderType($0) }
+            .joined(separator: ", ")
+        return "(\(parameters)) -> \(sema.types.renderType(signature.returnType))"
     }
 
-    private func diagnostics(
-        in functionName: String,
-        ctx: CompilationContext
-    ) throws -> [Diagnostic] {
-        let ast = try #require(ctx.ast)
-        let function = try #require(functionDecl(named: functionName, in: ast, interner: ctx.interner))
-        guard let range = bodyRange(of: function) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { diagnostic in
-            guard let primaryRange = diagnostic.primaryRange else { return false }
-            return range.contains(primaryRange)
+    private func sourceBackedSignature(for symbol: SymbolID, sema: SemaModule) -> String? {
+        guard sema.symbols.externalLinkName(for: symbol) == nil else { return nil }
+        return renderedSignature(for: symbol, sema: sema)
+    }
+
+    private func sourceMatchesSignature(_ source: String, _ signature: String) -> Bool {
+        ["Double", "Float", "Int", "Long", "UInt", "ULong"].allSatisfy { type in
+            signature.range(of: "\\b\(type)\\b", options: .regularExpression) == nil
+                || source.range(of: "\\b\(type)\\b", options: .regularExpression) != nil
         }
     }
 
     private func matchingCallExpressions(
         named callName: String,
         source: String,
-        ctx: CompilationContext
+        in ctx: CompilationContext
     ) throws -> [(ExprID, SymbolID)] {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let wantsFloat = source.contains("Float")
-        let wantsIntExponent = source.contains("n: Int") || source.contains("sign: Int")
         var matches: [(ExprID, SymbolID)] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
             guard let expr = ast.arena.expr(exprID), isInUserFile(exprID, ast: ast) else { continue }
             let name: String
             switch expr {
             case let .call(calleeExpr, _, _, _):
-                guard case let .nameRef(callee, _) = ast.arena.expr(calleeExpr) else { continue }
-                name = ctx.interner.resolve(callee)
-            case let .memberCall(_, callee, _, _, _):
-                name = ctx.interner.resolve(callee)
-            default: continue
-            }
-            guard name == callName,
-                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee else { continue }
-            let link = sema.symbols.externalLinkName(for: chosen)
-            if wantsFloat && wantsIntExponent {
-                guard link?.contains("_float_int") == true || link == nil else { continue }
-            } else if wantsFloat {
-                guard link?.contains("_float") == true || link == nil else { continue }
-            } else if wantsIntExponent {
-                guard link?.contains("_int") == true || link == nil else { continue }
-            } else if let link, link.contains("_float") {
+                guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else { continue }
+                name = ctx.interner.resolve(calleeName)
+            case let .memberCall(_, calleeName, _, _, _):
+                name = ctx.interner.resolve(calleeName)
+            default:
                 continue
             }
+            guard name == callName,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let signature = renderedSignature(for: chosen, sema: sema),
+                  sourceMatchesSignature(source, signature) else { continue }
             matches.append((exprID, chosen))
         }
         return matches
-    }
-
-    private func sourceMatchesSignature(_ source: String, _ signature: String) -> Bool {
-        let typeNames = ["Double", "Float", "Int", "Long", "UInt", "ULong"]
-        return typeNames.filter { signature.contains($0) }.allSatisfy { source.contains($0) }
     }
 
     private func resolvedLink(
@@ -271,27 +214,28 @@ struct MathOverloadResolutionTests {
         line: UInt = #line
     ) throws -> String? {
         let ctx = try sharedCtx()
-        let matches = try matchingCallExpressions(named: callName, source: source, ctx: ctx)
-        return matches.first.flatMap { ctx.sema?.symbols.externalLinkName(for: $0.1) }
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Unexpected sema error for '\(callName)': \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+        let sema = try #require(ctx.sema)
+        return try matchingCallExpressions(named: callName, source: source, in: ctx)
+            .first
+            .flatMap { sema.symbols.externalLinkName(for: $0.1) }
     }
 
-    /// Kotlin-source backed overloads (KSP-635) carry no runtime link, so the
+    /// Kotlin-source backed overloads carry no runtime link, so the
     /// selected overload is identified by its resolved signature instead.
     private func resolvedSourceBackedSignature(
         forCall callName: String,
         withSource source: String
     ) throws -> String? {
         let ctx = try sharedCtx()
+        #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
         let sema = try #require(ctx.sema)
-        for (_, chosenCallee) in try matchingCallExpressions(named: callName, source: source, ctx: ctx) {
-            guard sema.symbols.externalLinkName(for: chosenCallee) == nil,
-                  let signature = sema.symbols.functionSignature(for: chosenCallee) else { continue }
-            let parameters = signature.parameterTypes
-                .map { sema.types.renderType($0) }
-                .joined(separator: ", ")
-            let rendered = "(" + parameters + ") -> " + sema.types.renderType(signature.returnType)
-            if sourceMatchesSignature(source, rendered) {
-                return rendered
+        for (_, chosenCallee) in try matchingCallExpressions(named: callName, source: source, in: ctx) {
+            if let signature = sourceBackedSignature(for: chosenCallee, sema: sema) {
+                return signature
             }
         }
         return nil
@@ -304,13 +248,14 @@ struct MathOverloadResolutionTests {
         line: UInt = #line
     ) throws -> [String: String] {
         let ctx = try sharedCtx()
+        #expect(!(ctx.diagnostics.hasError), "Unexpected sema error")
         let sema = try #require(ctx.sema)
         var results: [String: String] = [:]
         for name in names {
-            let matches = try matchingCallExpressions(named: name, source: source, ctx: ctx)
-            if let link = matches.compactMap({ sema.symbols.externalLinkName(for: $0.1) }).first {
-                results[name] = link
+            guard let chosenCallee = try matchingCallExpressions(named: name, source: source, in: ctx).first?.1 else {
+                continue
             }
+            results[name] = sema.symbols.externalLinkName(for: chosenCallee) ?? "<source>"
         }
         return results
     }
@@ -346,28 +291,28 @@ struct MathOverloadResolutionTests {
     @Test func testSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = sqrt(x)"
         let link = try resolvedLink(forCall: "sqrt", withSource: source)
-        #expect(link == "kk_math_sqrt")
+        #expect(link == nil)
     }
 
     @Test func testSqrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = sqrt(x)"
         let link = try resolvedLink(forCall: "sqrt", withSource: source)
-        #expect(link == "kk_math_sqrt_float")
+        #expect(link == nil)
     }
 
     // MARK: - pow family (Double / Float, floating and Int exponents)
 
     @Test func testPowDoubleOverload() throws {
-        let source = "fun f(x: Double, y: Double): Double = pow(x, y)"
+        let source = "fun f(x: Double, y: Double): Double = x.pow(y)"
         let link = try resolvedLink(forCall: "pow", withSource: source)
-        #expect(link == "kk_math_pow")
+        #expect(link == nil)
     }
 
     @Test func testPowRemainingOverloads() throws {
-        let cases: [(source: String, expectedLink: String)] = [
-            ("fun f(x: Float, y: Float): Float = pow(x, y)", "kk_math_pow_float"),
-            ("fun f(x: Double, n: Int): Double = pow(x, n)", "kk_math_pow_int"),
-            ("fun f(x: Float, n: Int): Float = pow(x, n)", "kk_math_pow_float_int"),
+        let cases: [(source: String, expectedLink: String?)] = [
+            ("fun f(x: Float, y: Float): Float = x.pow(y)", nil),
+            ("fun f(x: Double, n: Int): Double = x.pow(n)", nil),
+            ("fun f(x: Float, n: Int): Float = x.pow(n)", nil),
         ]
 
         for testCase in cases {
@@ -378,10 +323,10 @@ struct MathOverloadResolutionTests {
 
     @Test func testIEEEremNextTowardsAndWithSignOverloads() throws {
         let cases: [(name: String, source: String, expectedLink: String?)] = [
-            ("IEEErem", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", "kk_math_IEEErem"),
-            ("IEEErem", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", "kk_math_IEEErem_float"),
-            ("nextTowards", "fun f(x: Double, y: Double): Double = x.nextTowards(y)", "kk_math_nextTowards"),
-            ("nextTowards", "fun f(x: Float, y: Float): Float = x.nextTowards(y)", "kk_math_nextTowards_float"),
+            ("IEEErem", "fun f(x: Double, y: Double): Double = x.IEEErem(y)", nil),
+            ("IEEErem", "fun f(x: Float, y: Float): Float = x.IEEErem(y)", nil),
+            ("nextTowards", "fun f(x: Double, y: Double): Double = x.nextTowards(y)", nil),
+            ("nextTowards", "fun f(x: Float, y: Float): Float = x.nextTowards(y)", nil),
             ("withSign", "fun f(x: Double, y: Double): Double = x.withSign(y)", nil),
             ("withSign", "fun f(x: Double, sign: Int): Double = x.withSign(sign)", nil),
             ("withSign", "fun f(x: Float, y: Float): Float = x.withSign(y)", nil),
@@ -395,9 +340,26 @@ struct MathOverloadResolutionTests {
     }
 
     @Test func testFloatingMemberOnlyMathFunctionsRejectTopLevelCalls() throws {
-        let ctx = try sharedCtx()
-        let errors = try diagnostics(in: "memberOnlyTopLevel", ctx: ctx)
-        #expect(errors.contains { $0.severity == .error }, "Expected member-only math helpers to reject top-level calls.")
+        let source = """
+        import kotlin.math.*
+
+        fun sample(d: Double, f: Float, i: Int) {
+            IEEErem(d, d)
+            IEEErem(f, f)
+            nextTowards(d, d)
+            nextTowards(f, f)
+            withSign(d, d)
+            withSign(d, i)
+            withSign(f, f)
+            withSign(f, i)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.hasError, "Expected member-only math helpers to reject top-level calls.")
+        }
     }
 
     // MARK: - round / ceil / floor family (Double / Float)
@@ -456,12 +418,12 @@ struct MathOverloadResolutionTests {
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
             withSource: source
         )
-        #expect(links["sin"] == "kk_math_sin")
-        #expect(links["cos"] == "kk_math_cos")
-        #expect(links["tan"] == "kk_math_tan")
-        #expect(links["asin"] == "kk_math_asin")
-        #expect(links["acos"] == "kk_math_acos")
-        #expect(links["atan"] == "kk_math_atan")
+        #expect(links["sin"] == "<source>")
+        #expect(links["cos"] == "<source>")
+        #expect(links["tan"] == "<source>")
+        #expect(links["asin"] == "<source>")
+        #expect(links["acos"] == "<source>")
+        #expect(links["atan"] == "<source>")
     }
 
     @Test func testTrigFloatFamilyOverloads() throws {
@@ -480,12 +442,12 @@ struct MathOverloadResolutionTests {
             names: ["sin", "cos", "tan", "asin", "acos", "atan"],
             withSource: source
         )
-        #expect(links["sin"] == "kk_math_sin_float")
-        #expect(links["cos"] == "kk_math_cos_float")
-        #expect(links["tan"] == "kk_math_tan_float")
-        #expect(links["asin"] == "kk_math_asin_float")
-        #expect(links["acos"] == "kk_math_acos_float")
-        #expect(links["atan"] == "kk_math_atan_float")
+        #expect(links["sin"] == "<source>")
+        #expect(links["cos"] == "<source>")
+        #expect(links["tan"] == "<source>")
+        #expect(links["asin"] == "<source>")
+        #expect(links["acos"] == "<source>")
+        #expect(links["atan"] == "<source>")
     }
 
     // MARK: - atan2 family (Double / Float)
@@ -493,13 +455,13 @@ struct MathOverloadResolutionTests {
     @Test func testAtan2DoubleOverload() throws {
         let source = "fun f(y: Double, x: Double): Double = atan2(y, x)"
         let link = try resolvedLink(forCall: "atan2", withSource: source)
-        #expect(link == "kk_math_atan2")
+        #expect(link == nil)
     }
 
     @Test func testAtan2FloatOverload() throws {
         let source = "fun f(y: Float, x: Float): Float = atan2(y, x)"
         let link = try resolvedLink(forCall: "atan2", withSource: source)
-        #expect(link == "kk_math_atan2_float")
+        #expect(link == nil)
     }
 
     // MARK: - Hyperbolic family (Double / Float): sinh / cosh / tanh
@@ -517,9 +479,9 @@ struct MathOverloadResolutionTests {
             names: ["sinh", "cosh", "tanh"],
             withSource: source
         )
-        #expect(links["sinh"] == "kk_math_sinh")
-        #expect(links["cosh"] == "kk_math_cosh")
-        #expect(links["tanh"] == "kk_math_tanh")
+        #expect(links["sinh"] == "<source>")
+        #expect(links["cosh"] == "<source>")
+        #expect(links["tanh"] == "<source>")
     }
 
     @Test func testHyperbolicFloatFamilyOverloads() throws {
@@ -535,9 +497,9 @@ struct MathOverloadResolutionTests {
             names: ["sinh", "cosh", "tanh"],
             withSource: source
         )
-        #expect(links["sinh"] == "kk_math_sinh_float")
-        #expect(links["cosh"] == "kk_math_cosh_float")
-        #expect(links["tanh"] == "kk_math_tanh_float")
+        #expect(links["sinh"] == "<source>")
+        #expect(links["cosh"] == "<source>")
+        #expect(links["tanh"] == "<source>")
     }
 
     // MARK: - Inverse hyperbolic family (Double / Float): acosh / asinh / atanh
@@ -555,9 +517,9 @@ struct MathOverloadResolutionTests {
             names: ["acosh", "asinh", "atanh"],
             withSource: source
         )
-        #expect(links["acosh"] == "kk_math_acosh")
-        #expect(links["asinh"] == "kk_math_asinh")
-        #expect(links["atanh"] == "kk_math_atanh")
+        #expect(links["acosh"] == "<source>")
+        #expect(links["asinh"] == "<source>")
+        #expect(links["atanh"] == "<source>")
     }
 
     @Test func testInverseHyperbolicFloatFamilyOverloads() throws {
@@ -573,9 +535,9 @@ struct MathOverloadResolutionTests {
             names: ["acosh", "asinh", "atanh"],
             withSource: source
         )
-        #expect(links["acosh"] == "kk_math_acosh_float")
-        #expect(links["asinh"] == "kk_math_asinh_float")
-        #expect(links["atanh"] == "kk_math_atanh_float")
+        #expect(links["acosh"] == "<source>")
+        #expect(links["asinh"] == "<source>")
+        #expect(links["atanh"] == "<source>")
     }
 
     // MARK: - log / exp family (Double / Float)
@@ -596,12 +558,12 @@ struct MathOverloadResolutionTests {
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
             withSource: source
         )
-        #expect(links["exp"] == "kk_math_exp")
-        #expect(links["ln"] == "kk_math_ln")
-        #expect(links["log2"] == "kk_math_log2")
-        #expect(links["log10"] == "kk_math_log10")
-        #expect(links["expm1"] == "kk_math_expm1")
-        #expect(links["ln1p"] == "kk_math_ln1p")
+        #expect(links["exp"] == "<source>")
+        #expect(links["ln"] == "<source>")
+        #expect(links["log2"] == "<source>")
+        #expect(links["log10"] == "<source>")
+        #expect(links["expm1"] == "<source>")
+        #expect(links["ln1p"] == "<source>")
     }
 
     @Test func testLogExpFloatFamilyOverloads() throws {
@@ -620,24 +582,24 @@ struct MathOverloadResolutionTests {
             names: ["exp", "ln", "log2", "log10", "expm1", "ln1p"],
             withSource: source
         )
-        #expect(links["exp"] == "kk_math_exp_float")
-        #expect(links["ln"] == "kk_math_ln_float")
-        #expect(links["log2"] == "kk_math_log2_float")
-        #expect(links["log10"] == "kk_math_log10_float")
-        #expect(links["expm1"] == "kk_math_expm1_float")
-        #expect(links["ln1p"] == "kk_math_ln1p_float")
+        #expect(links["exp"] == "<source>")
+        #expect(links["ln"] == "<source>")
+        #expect(links["log2"] == "<source>")
+        #expect(links["log10"] == "<source>")
+        #expect(links["expm1"] == "<source>")
+        #expect(links["ln1p"] == "<source>")
     }
 
     @Test func testLogTwoArgDoubleOverload() throws {
         let source = "fun f(x: Double, base: Double): Double = log(x, base)"
         let link = try resolvedLink(forCall: "log", withSource: source)
-        #expect(link == "kk_math_log")
+        #expect(link == nil)
     }
 
     @Test func testLogTwoArgFloatOverload() throws {
         let source = "fun f(x: Float, base: Float): Float = log(x, base)"
         let link = try resolvedLink(forCall: "log", withSource: source)
-        #expect(link == "kk_math_log_float")
+        #expect(link == nil)
     }
 
     // MARK: - hypot family (Double / Float)
@@ -645,13 +607,13 @@ struct MathOverloadResolutionTests {
     @Test func testHypotDoubleOverload() throws {
         let source = "fun f(x: Double, y: Double): Double = hypot(x, y)"
         let link = try resolvedLink(forCall: "hypot", withSource: source)
-        #expect(link == "kk_math_hypot")
+        #expect(link == nil)
     }
 
     @Test func testHypotFloatOverload() throws {
         let source = "fun f(x: Float, y: Float): Float = hypot(x, y)"
         let link = try resolvedLink(forCall: "hypot", withSource: source)
-        #expect(link == "kk_math_hypot_float")
+        #expect(link == nil)
     }
 
     // MARK: - min / max family (Double / Float / Int / Long / UInt / ULong)
@@ -674,13 +636,13 @@ struct MathOverloadResolutionTests {
     @Test func testCbrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = cbrt(x)"
         let link = try resolvedLink(forCall: "cbrt", withSource: source)
-        #expect(link == "kk_math_cbrt")
+        #expect(link == nil)
     }
 
     @Test func testCbrtFloatOverload() throws {
         let source = "fun f(x: Float): Float = cbrt(x)"
         let link = try resolvedLink(forCall: "cbrt", withSource: source)
-        #expect(link == "kk_math_cbrt_float")
+        #expect(link == nil)
     }
 
     // MARK: - sign family (Double / Float)
@@ -756,11 +718,25 @@ struct MathOverloadResolutionTests {
     // MARK: - Unofficial rounding mode helpers
 
     @Test func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {
-        let ctx = try sharedCtx()
-        let errors = try diagnostics(in: "unofficialRounding", ctx: ctx)
-        #expect(errors.contains { $0.severity == .error })
-        #expect(errors.contains { $0.code.hasPrefix("KSWIFTK-SEMA") },
-                "Expected sema diagnostics for unofficial rounding helpers")
+        let source = """
+        fun f(x: Double): Double {
+            val a = roundUp(x)
+            val b = roundDown(x)
+            val c = roundHalfEven(x)
+            return a + b + c
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError)
+            let v = ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
+            #expect(v,
+                "Expected sema diagnostics for unofficial rounding helpers"
+            )
+        }
     }
 
     // MARK: - Mixed-type overload disambiguation (Int vs Double vs Float in same scope)
@@ -770,41 +746,35 @@ struct MathOverloadResolutionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let function = try #require(functionDecl(named: "absDistinct", in: ast, interner: ctx.interner))
-        let range = try #require(bodyRange(of: function))
-        let chosenCallees = ast.arena.exprs.indices.compactMap { index -> SymbolID? in
-            let exprID = ExprID(rawValue: Int32(index))
+        let functionRange = try #require(bodyRange(of: function))
+        var chosenCallees: [SymbolID] = []
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
             guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
+                  functionRange.contains(exprRange),
                   case let .call(calleeExpr, _, _, _) = expr,
                   case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
                   ctx.interner.resolve(calleeName) == "abs",
-                  let exprRange = ast.arena.exprRange(exprID),
-                  range.contains(exprRange) else { return nil }
-            return sema.bindings.callBinding(for: exprID)?.chosenCallee
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+            else { continue }
+            chosenCallees.append(chosenCallee)
         }
         #expect(chosenCallees.count == 4, "Expected one chosen callee per abs call")
         #expect(Set(chosenCallees).count == 4, "Each abs overload should resolve to a different declaration")
     }
 
-    @Test func testSqrtSelectsDistinctOverloadsForDoubleAndFloat() throws {
-        let ctx = try sharedCtx()
-        let ast = try #require(ctx.ast)
-        let sema = try #require(ctx.sema)
-        let function = try #require(functionDecl(named: "sqrtDistinct", in: ast, interner: ctx.interner))
-        let range = try #require(bodyRange(of: function))
-        let links = ast.arena.exprs.indices.compactMap { index -> String? in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .call(calleeExpr, _, _, _) = expr,
-                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
-                  ctx.interner.resolve(calleeName) == "sqrt",
-                  let exprRange = ast.arena.exprRange(exprID),
-                  range.contains(exprRange),
-                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee else { return nil }
-            return sema.symbols.externalLinkName(for: chosenCallee)
-        }
-        #expect(links.contains("kk_math_sqrt"), "Double sqrt should resolve to kk_math_sqrt")
-        #expect(links.contains("kk_math_sqrt_float"), "Float sqrt should resolve to kk_math_sqrt_float")
-        #expect(links.count == 2)
+    @Test func testSqrtSelectsDistinctSourceBackedOverloadsForDoubleAndFloat() throws {
+        let doubleSignature = try resolvedSourceBackedSignature(
+            forCall: "sqrt",
+            withSource: "fun f(x: Double): Double = sqrt(x)"
+        )
+        let floatSignature = try resolvedSourceBackedSignature(
+            forCall: "sqrt",
+            withSource: "fun f(x: Float): Float = sqrt(x)"
+        )
+        #expect(doubleSignature == "(Double) -> Double")
+        #expect(floatSignature == "(Float) -> Float")
     }
 
     // MARK: - FQN (fully-qualified) call resolution (PARITY-SEMA-003)
@@ -816,17 +786,20 @@ struct MathOverloadResolutionTests {
         line: UInt = #line
     ) throws -> String? {
         let ctx = try sharedCtx()
+        #expect(!(ctx.diagnostics.hasError),
+                "Unexpected sema error for FQN call '\(lastComponent)'")
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
+        for exprIndex in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(exprIndex))
             guard let expr = ast.arena.expr(exprID),
                   case let .memberCall(_, calleeMember, _, _, _) = expr,
                   ctx.interner.resolve(calleeMember) == lastComponent,
-                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee else { continue }
-            if lastComponent == "abs" && source.contains("Double") {
-                continue
-            }
+                  isInUserFile(exprID, ast: ast),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let signature = renderedSignature(for: chosenCallee, sema: sema),
+                  sourceMatchesSignature(source, signature)
+            else { continue }
             return sema.symbols.externalLinkName(for: chosenCallee)
         }
         return nil
@@ -843,7 +816,7 @@ struct MathOverloadResolutionTests {
     @Test func testFQNSqrtDoubleOverload() throws {
         let source = "fun f(x: Double): Double = kotlin.math.sqrt(x)"
         let link = try resolvedLinkForFQNCall(lastComponent: "sqrt", withSource: source)
-        #expect(link == "kk_math_sqrt")
+        #expect(link == nil)
     }
 }
 #endif
