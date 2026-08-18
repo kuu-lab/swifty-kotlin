@@ -1,0 +1,16 @@
+symbol fq=golden.sema.AllowedSubclassFamily kind=class vis=public flags=_
+symbol fq=golden.sema.BaseSubclassFamily kind=class vis=public flags=_
+symbol fq=golden.sema.ExperimentalSubclassFamily kind=annotationClass vis=public flags=_
+symbol fq=golden.sema.acceptsSubclassOptInRequired kind=function vis=public flags=_ sig=recv=_ params=[kotlin.SubclassOptInRequired?] ret=Int
+symbol fq=golden.sema.acceptsSubclassOptInRequired.$0.value kind=valueParameter vis=private flags=_
+file fstdlib_kotlin_n_SubclassOptInRequired package=golden.sema
+  decl golden.sema.ExperimentalSubclassFamily class ExperimentalSubclassFamily sym=golden.sema.ExperimentalSubclassFamily
+  decl golden.sema.BaseSubclassFamily class BaseSubclassFamily sym=golden.sema.BaseSubclassFamily
+  decl golden.sema.AllowedSubclassFamily class AllowedSubclassFamily sym=golden.sema.AllowedSubclassFamily
+  decl golden.sema.acceptsSubclassOptInRequired fun acceptsSubclassOptInRequired sym=golden.sema.acceptsSubclassOptInRequired
+expr e@13:9 name(value) type=kotlin.SubclassOptInRequired? ref=golden.sema.acceptsSubclassOptInRequired.$0.value
+expr e@13:18 name(null) type=Nothing?
+expr e@13:9#1 binary(equal) lhs=e@13:9 rhs=e@13:18 type=Boolean
+expr e@13:24 int(0) type=Int
+expr e@13:31 int(1) type=Int
+expr e@13:5 if cond=e@13:9#1 then=e@13:24 else=e@13:31 type=Int

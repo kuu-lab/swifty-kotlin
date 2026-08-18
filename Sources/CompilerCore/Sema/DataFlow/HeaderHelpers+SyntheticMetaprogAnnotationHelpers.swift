@@ -584,45 +584,6 @@ extension DataFlowSemaPhase {
         }
     }
 
-    func registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let valueName = interner.intern("markerClass")
-        let valueFQName = ownerFQName + [valueName]
-        let valueSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: valueFQName) {
-            valueSymbol = existing
-        } else {
-            valueSymbol = symbols.define(
-                kind: .property,
-                name: valueName,
-                fqName: valueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        symbols.setParentSymbol(ownerSymbol, for: valueSymbol)
-
-        let annotationFQName = [interner.intern("kotlin"), interner.intern("Annotation")]
-        let annotationType: TypeID
-        if let annotationSymbol = symbols.lookup(fqName: annotationFQName) {
-            annotationType = types.make(.classType(ClassType(
-                classSymbol: annotationSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            annotationType = types.anyType
-        }
-        symbols.setPropertyType(types.makeKClassType(argument: annotationType), for: valueSymbol)
-    }
-
     func registerSyntheticThrowsExceptionClassesPropertyAndConstructor(
         ownerSymbol: SymbolID,
         ownerFQName: [InternedString],

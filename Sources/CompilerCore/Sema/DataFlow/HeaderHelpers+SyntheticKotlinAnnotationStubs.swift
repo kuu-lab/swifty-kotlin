@@ -162,13 +162,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "SubclassOptInRequired",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ConsistentCopyVisibility",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -461,24 +454,6 @@ extension DataFlowSemaPhase {
                 ownerSymbol: requiresOptInSymbol,
                 ownerFQName: kotlinPkg + [interner.intern("RequiresOptIn")],
                 packageSymbol: kotlinPkgSymbol,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-        if let subclassOptInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SubclassOptInRequired")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: subclassOptInSymbol,
-                symbols: symbols
-            )
-            registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-                ownerSymbol: subclassOptInSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("SubclassOptInRequired")],
                 symbols: symbols,
                 types: types,
                 interner: interner
