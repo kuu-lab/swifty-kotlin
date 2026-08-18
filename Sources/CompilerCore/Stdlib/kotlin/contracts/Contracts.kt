@@ -8,17 +8,29 @@
 package kotlin.contracts
 
 /** Marker for the experimental contract declaration API. */
-@Retention(AnnotationRetention.BINARY)
-@SinceKotlin("1.3")
-@RequiresOptIn
-@MustBeDocumented
+@kotlin.annotation.Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPEALIAS
+)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.SinceKotlin("1.3")
+@kotlin.RequiresOptIn
+@kotlin.annotation.MustBeDocumented
 public annotation class ExperimentalContracts
 
 /** Marker for the experimental extended contract declaration API. */
-@Retention(AnnotationRetention.BINARY)
-@SinceKotlin("2.2")
-@RequiresOptIn
-@MustBeDocumented
+@kotlin.annotation.Target(
+    AnnotationTarget.CLASS,
+    AnnotationTarget.FUNCTION,
+    AnnotationTarget.PROPERTY,
+    AnnotationTarget.TYPEALIAS
+)
+@kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.SinceKotlin("2.2")
+@kotlin.RequiresOptIn
+@kotlin.annotation.MustBeDocumented
 public annotation class ExperimentalExtendedContracts
 
 /** Specifies how many times a function invokes a lambda parameter in place. */
