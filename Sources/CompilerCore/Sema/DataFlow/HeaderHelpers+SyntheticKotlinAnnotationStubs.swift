@@ -81,14 +81,6 @@ extension DataFlowSemaPhase {
         )
 
         registerSyntheticAnnotationClass(
-            named: "OptIn",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerSyntheticAnnotationClass(
             named: "SubclassOptInRequired",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -109,29 +101,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        if let optInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("OptIn")]) {
-            let record = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.ANNOTATION_CLASS",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.FIELD",
-                    "AnnotationTarget.LOCAL_VARIABLE",
-                    "AnnotationTarget.VALUE_PARAMETER",
-                    "AnnotationTarget.CONSTRUCTOR",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.TYPEALIAS",
-                    "AnnotationTarget.EXPRESSION",
-                    "AnnotationTarget.FILE",
-                ]
-            )
-            var annotations = symbols.annotations(for: optInSymbol)
-            if !annotations.contains(record) {
-                annotations.append(record)
-            }
-            symbols.setAnnotations(annotations, for: optInSymbol)
-        }
 
 
 
@@ -373,28 +342,6 @@ extension DataFlowSemaPhase {
                 symbols: symbols,
                 types: types,
                 interner: interner
-            )
-        }
-
-        if let optInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("OptIn")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: [
-                        "AnnotationTarget.CLASS",
-                        "AnnotationTarget.PROPERTY",
-                        "AnnotationTarget.LOCAL_VARIABLE",
-                        "AnnotationTarget.VALUE_PARAMETER",
-                        "AnnotationTarget.CONSTRUCTOR",
-                        "AnnotationTarget.FUNCTION",
-                        "AnnotationTarget.TYPE",
-                        "AnnotationTarget.EXPRESSION",
-                        "AnnotationTarget.FILE",
-                        "AnnotationTarget.TYPEALIAS",
-                    ]
-                ),
-                to: optInSymbol,
-                symbols: symbols
             )
         }
 
