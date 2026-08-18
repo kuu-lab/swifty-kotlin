@@ -82,6 +82,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
+        types.functionInterfaceSymbol = symbols.lookupAll(
+            fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
+        ).first { symbols.symbol($0)?.kind == .interface }
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,
