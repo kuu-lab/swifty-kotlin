@@ -8,6 +8,9 @@ struct CoroutineIntrinsicsSyntheticStubTests {
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
+        if let cached = Self._sharedSema {
+            return cached
+        }
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
             let ctx = makeCompilationContext(inputs: [path])

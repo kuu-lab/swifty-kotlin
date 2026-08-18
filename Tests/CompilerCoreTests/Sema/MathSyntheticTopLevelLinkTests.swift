@@ -20,6 +20,111 @@ struct MathSyntheticTopLevelLinkTests {
         return semaResult
     }
 
+    private static let sharedUsageSources = [
+        #"""
+        package sample0
+        import kotlin.math.*
+
+        fun sample(x: Int, y: Double): Double {
+            val ai = abs(-x)
+            val ad = abs(y)
+            return sqrt(ad * ad) + pow(ad, 2.0) + ceil(ad) + floor(ad) + round(ad)
+        }
+        """#,
+        #"""
+        package sample1
+        import kotlin.math.*
+
+        fun sample(x: Double, y: Float) {
+            val a = x.ulp
+            val b = x.nextUp()
+            val c = x.nextDown()
+            val d = y.ulp
+            val e = y.nextUp()
+            val f = y.nextDown()
+        }
+        """#,
+        #"""
+        package sample2
+        import kotlin.math.*
+
+        fun sample(i: Int, l: Long, f: Float, d: Double) {
+            val ai = i.absoluteValue
+            val al = l.absoluteValue
+            val af = f.absoluteValue
+            val ad = d.absoluteValue
+            val si = i.sign
+            val sl = l.sign
+            val sf = f.sign
+            val sd = d.sign
+            val uf = f.ulp
+            val ud = d.ulp
+        }
+        """#,
+        #"""
+        package sample3
+        import kotlin.math.*
+
+        fun sample(): Double {
+            return 2.0.pow(3.0)
+        }
+        """#,
+        #"""
+        package sample4
+        import kotlin.math.*
+
+        fun sample(d: Double, f: Float, i: Int) {
+            val ieeeD = d.IEEErem(d)
+            val ieeeF = f.IEEErem(f)
+            val nextD = d.nextTowards(d)
+            val nextF = f.nextTowards(f)
+            val powF = f.pow(f)
+            val powDI = d.pow(i)
+            val powFI = f.pow(i)
+        }
+        """#,
+    ]
+
+    private static nonisolated(unsafe) var _sharedUsage: (CompilationContext, [String])?
+
+    private func sharedUsage() throws -> (CompilationContext, [String]) {
+        if let cached = Self._sharedUsage { return cached }
+        var result: (CompilationContext, [String])?
+        try withTemporaryFiles(contents: Self.sharedUsageSources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            result = (ctx, paths)
+        }
+        let shared = try #require(result)
+        Self._sharedUsage = shared
+        return shared
+    }
+
+    private func userExprIDs(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> [ExprID] {
+        ast.arena.exprs.indices.compactMap { index in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let range = ast.arena.exprRange(exprID),
+                  ctx.sourceManager.path(of: range.start.file) == path,
+                  predicate(exprID, expr) else { return nil }
+            return exprID
+        }
+    }
+
+    private func firstExprID(
+        in ast: ASTModule,
+        path: String,
+        ctx: CompilationContext,
+        where predicate: (ExprID, Expr) -> Bool
+    ) -> ExprID? {
+        userExprIDs(in: ast, path: path, ctx: ctx, where: predicate).first
+    }
+
     private func externalLink(for member: String, sema: SemaModule, interner: StringInterner) -> String? {
         let fq = ["kotlin", "math", member].map { interner.intern($0) }
         guard let sym = sema.symbols.lookup(fqName: fq) else { return nil }
@@ -100,19 +205,8 @@ struct MathSyntheticTopLevelLinkTests {
     }
 
     @Test func testMathTopLevelCallsResolveWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(x: Int, y: Double): Double {
-            val ai = abs(-x)
-            val ad = abs(y)
-            return sqrt(ad * ad) + pow(ad, 2.0) + ceil(ad) + floor(ad) + round(ad)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[0]
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -125,7 +219,8 @@ struct MathSyntheticTopLevelLinkTests {
                 guard case let .call(calleeExpr, _, _, _) = expr else { continue }
                 guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else { continue }
                 // Bundled stdlib sources share the arena; keep user-file calls only.
-                guard ast.arena.exprRange(exprID)?.start.file == ast.sortedFiles.last?.fileID else {
+                guard let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path else {
                     continue
                 }
                 let name = ctx.interner.resolve(calleeName)
@@ -175,26 +270,11 @@ struct MathSyntheticTopLevelLinkTests {
                     "Expected \(name) to resolve"
                 )
             }
-        }
     }
 
     @Test func testFloatingPrecisionHelpersAreSourceBackedWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(x: Double, y: Float) {
-            val a = x.ulp
-            val b = x.nextUp()
-            val c = x.nextDown()
-            val d = y.ulp
-            val e = y.nextUp()
-            val f = y.nextDown()
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[1]
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -204,7 +284,8 @@ struct MathSyntheticTopLevelLinkTests {
                 let exprID = ExprID(rawValue: Int32(exprIndex))
                 guard let expr = ast.arena.expr(exprID),
                       case let .memberCall(_, calleeName, _, _, _) = expr,
-                      ast.arena.exprRange(exprID)?.start.file == ast.sortedFiles.last?.fileID,
+                      let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
                       ["ulp", "nextUp", "nextDown"].contains(ctx.interner.resolve(calleeName)),
                       let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
                 else { continue }
@@ -216,7 +297,6 @@ struct MathSyntheticTopLevelLinkTests {
 
             #expect(resolvedCount == 6, "Expected all six precision helpers to resolve")
             #expect(resolvedLinks.isEmpty, "Source-backed precision helpers must not carry runtime links")
-        }
     }
 
     @Test func testMathExtensionPropertySymbolsUseOfficialShape() throws {
@@ -250,26 +330,8 @@ struct MathSyntheticTopLevelLinkTests {
     }
 
     @Test func testMathExtensionPropertiesResolveWithKotlinMathImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(i: Int, l: Long, f: Float, d: Double) {
-            val ai = i.absoluteValue
-            val al = l.absoluteValue
-            val af = f.absoluteValue
-            val ad = d.absoluteValue
-            val si = i.sign
-            val sl = l.sign
-            val sf = f.sign
-            val sd = d.sign
-            val uf = f.ulp
-            val ud = d.ulp
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[2]
 
             #expect(!(ctx.diagnostics.hasError), "Expected math extension properties to resolve without diagnostics.")
             let ast = try #require(ctx.ast)
@@ -281,6 +343,8 @@ struct MathSyntheticTopLevelLinkTests {
                 guard let expr = ast.arena.expr(exprID),
                       case let .memberCall(_, calleeName, _, _, _) = expr,
                       propertyNames.contains(ctx.interner.resolve(calleeName)),
+                      let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
                       let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                       let link = sema.symbols.externalLinkName(for: chosenCallee)
                 else {
@@ -290,28 +354,18 @@ struct MathSyntheticTopLevelLinkTests {
             }
 
             #expect(resolvedLinks.isEmpty, "Math extension properties are Kotlin-source backed, got \(resolvedLinks)")
-        }
     }
 
     @Test func testDoublePowMemberCallResolvesViaMathExtensionStub() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(): Double {
-            return 2.0.pow(3.0)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[3]
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
             #expect(!(ctx.diagnostics.hasError), "Expected Double.pow member call to resolve without diagnostics.")
 
             let callExpr = try #require(
-                firstExprID(in: ast) { _, expr in
+                firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == "pow"
                 },
@@ -325,27 +379,11 @@ struct MathSyntheticTopLevelLinkTests {
             #expect(
                 sema.symbols.externalLinkName(for: chosenCallee) == "kk_math_pow"
             )
-        }
     }
 
     @Test func testRemainingFloatingMathMemberCallsResolveViaDefaultImport() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(d: Double, f: Float, i: Int) {
-            val ieeeD = d.IEEErem(d)
-            val ieeeF = f.IEEErem(f)
-            val nextD = d.nextTowards(d)
-            val nextF = f.nextTowards(f)
-            val powF = f.pow(f)
-            val powDI = d.pow(i)
-            val powFI = f.pow(i)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        let (ctx, paths) = try sharedUsage()
+        let path = paths[4]
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
@@ -357,6 +395,8 @@ struct MathSyntheticTopLevelLinkTests {
                 guard let expr = ast.arena.expr(exprID),
                       case let .memberCall(_, calleeName, _, _, _) = expr,
                       ["IEEErem", "nextTowards", "pow"].contains(ctx.interner.resolve(calleeName)),
+                      let range = ast.arena.exprRange(exprID),
+                      ctx.sourceManager.path(of: range.start.file) == path,
                       let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
                       let link = sema.symbols.externalLinkName(for: chosenCallee)
                 else {
@@ -376,7 +416,6 @@ struct MathSyntheticTopLevelLinkTests {
             ] {
                 #expect(resolvedLinks.contains(expectedLink), "Expected \(expectedLink), got \(resolvedLinks)")
             }
-        }
     }
 }
 #endif

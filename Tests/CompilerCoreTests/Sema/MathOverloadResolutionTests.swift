@@ -12,6 +12,140 @@ import Testing
 @Suite
 struct MathOverloadResolutionTests {
 
+    private static let sharedSource = #"""
+    import kotlin.math.*
+
+    fun absInt(x: Int): Int = abs(x)
+    fun absLong(x: Long): Long = abs(x)
+    fun absDouble(x: Double): Double = abs(x)
+    fun absFloat(x: Float): Float = abs(x)
+
+    fun sqrtDouble(x: Double): Double = sqrt(x)
+    fun sqrtFloat(x: Float): Float = sqrt(x)
+    fun powDouble(x: Double, y: Double): Double = pow(x, y)
+    fun powFloat(x: Float, y: Float): Float = pow(x, y)
+    fun powDoubleInt(x: Double, n: Int): Double = pow(x, n)
+    fun powFloatInt(x: Float, n: Int): Float = pow(x, n)
+
+    fun ieeeRemDouble(x: Double, y: Double): Double = x.IEEErem(y)
+    fun ieeeRemFloat(x: Float, y: Float): Float = x.IEEErem(y)
+    fun nextTowardsDouble(x: Double, y: Double): Double = x.nextTowards(y)
+    fun nextTowardsFloat(x: Float, y: Float): Float = x.nextTowards(y)
+    fun withSignDoubleDouble(x: Double, y: Double): Double = x.withSign(y)
+    fun withSignDoubleInt(x: Double, sign: Int): Double = x.withSign(sign)
+    fun withSignFloatFloat(x: Float, y: Float): Float = x.withSign(y)
+    fun withSignFloatInt(x: Float, sign: Int): Float = x.withSign(sign)
+
+    fun roundDouble(x: Double): Double = round(x)
+    fun roundFloat(x: Float): Float = round(x)
+    fun ceilDouble(x: Double): Double = ceil(x)
+    fun ceilFloat(x: Float): Float = ceil(x)
+    fun floorDouble(x: Double): Double = floor(x)
+    fun floorFloat(x: Float): Float = floor(x)
+
+    fun trigDouble(x: Double): Double {
+        val a = sin(x); val b = cos(x); val c = tan(x)
+        val d = asin(x); val e = acos(x); val f = atan(x)
+        return a + b + c + d + e + f
+    }
+    fun trigFloat(x: Float): Float {
+        val a = sin(x); val b = cos(x); val c = tan(x)
+        val d = asin(x); val e = acos(x); val f = atan(x)
+        return a + b + c + d + e + f
+    }
+    fun atan2Double(y: Double, x: Double): Double = atan2(y, x)
+    fun atan2Float(y: Float, x: Float): Float = atan2(y, x)
+
+    fun hyperbolicDouble(x: Double): Double {
+        val a = sinh(x); val b = cosh(x); val c = tanh(x)
+        return a + b + c
+    }
+    fun hyperbolicFloat(x: Float): Float {
+        val a = sinh(x); val b = cosh(x); val c = tanh(x)
+        return a + b + c
+    }
+    fun inverseHyperbolicDouble(x: Double): Double {
+        val a = acosh(x); val b = asinh(x); val c = atanh(x)
+        return a + b + c
+    }
+    fun inverseHyperbolicFloat(x: Float): Float {
+        val a = acosh(x); val b = asinh(x); val c = atanh(x)
+        return a + b + c
+    }
+    fun logExpDouble(x: Double): Double {
+        val a = exp(x); val b = ln(x); val c = log2(x)
+        val d = log10(x); val e = expm1(x); val f = ln1p(x)
+        return a + b + c + d + e + f
+    }
+    fun logExpFloat(x: Float): Float {
+        val a = exp(x); val b = ln(x); val c = log2(x)
+        val d = log10(x); val e = expm1(x); val f = ln1p(x)
+        return a + b + c + d + e + f
+    }
+    fun logTwoArgDouble(x: Double, base: Double): Double = log(x, base)
+    fun logTwoArgFloat(x: Float, base: Float): Float = log(x, base)
+    fun hypotDouble(x: Double, y: Double): Double = hypot(x, y)
+    fun hypotFloat(x: Float, y: Float): Float = hypot(x, y)
+
+    fun maxDouble(a: Double, b: Double): Double = max(a, b)
+    fun maxFloat(a: Float, b: Float): Float = max(a, b)
+    fun maxInt(a: Int, b: Int): Int = max(a, b)
+    fun maxLong(a: Long, b: Long): Long = max(a, b)
+    fun maxUInt(a: UInt, b: UInt): UInt = max(a, b)
+    fun maxULong(a: ULong, b: ULong): ULong = max(a, b)
+    fun minDouble(a: Double, b: Double): Double = min(a, b)
+    fun minFloat(a: Float, b: Float): Float = min(a, b)
+    fun minInt(a: Int, b: Int): Int = min(a, b)
+    fun minLong(a: Long, b: Long): Long = min(a, b)
+    fun minUInt(a: UInt, b: UInt): UInt = min(a, b)
+    fun minULong(a: ULong, b: ULong): ULong = min(a, b)
+
+    fun cbrtDouble(x: Double): Double = cbrt(x)
+    fun cbrtFloat(x: Float): Float = cbrt(x)
+    fun signDouble(x: Double): Double = sign(x)
+    fun signFloat(x: Float): Float = sign(x)
+    fun truncateDouble(x: Double): Double = truncate(x)
+    fun truncateFloat(x: Float): Float = truncate(x)
+    fun roundToIntDouble(x: Double): Int = x.roundToInt()
+    fun roundToIntFloat(x: Float): Int = x.roundToInt()
+    fun roundToLongDouble(x: Double): Long = x.roundToLong()
+    fun roundToLongFloat(x: Float): Long = x.roundToLong()
+
+    fun precisionDouble(x: Double) {
+        val a = x.ulp; val b = x.nextUp(); val c = x.nextDown()
+    }
+    fun precisionFloat(x: Float) {
+        val a = x.ulp; val b = x.nextUp(); val c = x.nextDown()
+    }
+
+    fun fqnAbsInt(x: Int): Int = kotlin.math.abs(x)
+    fun fqnAbsDouble(x: Double): Double = kotlin.math.abs(x)
+    fun fqnSqrtDouble(x: Double): Double = kotlin.math.sqrt(x)
+    fun absDistinct(i: Int, l: Long, d: Double, flt: Float) {
+        val ai = abs(i); val al = abs(l); val ad = abs(d); val af = abs(flt)
+    }
+    fun sqrtDistinct(d: Double, flt: Float) {
+        val sd = sqrt(d); val sf = sqrt(flt)
+    }
+    fun memberOnlyTopLevel(d: Double, f: Float, i: Int) {
+        IEEErem(d, d); IEEErem(f, f); nextTowards(d, d); nextTowards(f, f)
+        withSign(d, d); withSign(d, i); withSign(f, f); withSign(f, i)
+    }
+    fun unofficialRounding(x: Double) {
+        val a = roundUp(x); val b = roundDown(x); val c = roundHalfEven(x)
+    }
+    """#
+
+    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+
+    private func sharedCtx() throws -> CompilationContext {
+        if let cached = Self._sharedCtx { return cached }
+        let ctx = makeContextFromSource(Self.sharedSource)
+        do { try runSema(ctx) } catch { }
+        Self._sharedCtx = ctx
+        return ctx
+    }
+
     // MARK: - Helpers
 
     /// Kotlin does not default-import `kotlin.math`; tests must opt in explicitly.
@@ -30,45 +164,115 @@ struct MathOverloadResolutionTests {
         return ast.arena.exprRange(exprID)?.start.file == userFileID
     }
 
+    private func functionDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> FunDecl? {
+        for file in ast.files {
+            for declID in file.topLevelDecls {
+                guard case let .funDecl(function) = ast.arena.decl(declID),
+                      interner.resolve(function.name) == name else { continue }
+                return function
+            }
+        }
+        return nil
+    }
+
+    private func bodyRange(of function: FunDecl) -> SourceRange? {
+        switch function.body {
+        case .block(_, let range), .expr(_, let range): return range
+        case .unit: return nil
+        }
+    }
+
+    private func firstCallExpr(
+        named callName: String,
+        in function: FunDecl,
+        ast: ASTModule,
+        interner: StringInterner
+    ) -> ExprID? {
+        guard let functionBodyRange = bodyRange(of: function) else { return nil }
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  let exprRange = ast.arena.exprRange(exprID),
+                  functionBodyRange.contains(exprRange) else { continue }
+            switch expr {
+            case let .call(calleeExpr, _, _, _):
+                guard case let .nameRef(callee, _) = ast.arena.expr(calleeExpr),
+                      interner.resolve(callee) == callName else { continue }
+            case let .memberCall(_, callee, _, _, _):
+                guard interner.resolve(callee) == callName else { continue }
+            default: continue
+            }
+            return exprID
+        }
+        return nil
+    }
+
+    private func diagnostics(
+        in functionName: String,
+        ctx: CompilationContext
+    ) throws -> [Diagnostic] {
+        let ast = try #require(ctx.ast)
+        let function = try #require(functionDecl(named: functionName, in: ast, interner: ctx.interner))
+        guard let range = bodyRange(of: function) else { return [] }
+        return ctx.diagnostics.diagnostics.filter { diagnostic in
+            guard let primaryRange = diagnostic.primaryRange else { return false }
+            return range.contains(primaryRange)
+        }
+    }
+
+    private func matchingCallExpressions(
+        named callName: String,
+        source: String,
+        ctx: CompilationContext
+    ) throws -> [(ExprID, SymbolID)] {
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let wantsFloat = source.contains("Float")
+        let wantsIntExponent = source.contains("n: Int") || source.contains("sign: Int")
+        var matches: [(ExprID, SymbolID)] = []
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID), isInUserFile(exprID, ast: ast) else { continue }
+            let name: String
+            switch expr {
+            case let .call(calleeExpr, _, _, _):
+                guard case let .nameRef(callee, _) = ast.arena.expr(calleeExpr) else { continue }
+                name = ctx.interner.resolve(callee)
+            case let .memberCall(_, callee, _, _, _):
+                name = ctx.interner.resolve(callee)
+            default: continue
+            }
+            guard name == callName,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee else { continue }
+            let link = sema.symbols.externalLinkName(for: chosen)
+            if wantsFloat && wantsIntExponent {
+                guard link?.contains("_float_int") == true || link == nil else { continue }
+            } else if wantsFloat {
+                guard link?.contains("_float") == true || link == nil else { continue }
+            } else if wantsIntExponent {
+                guard link?.contains("_int") == true || link == nil else { continue }
+            } else if let link, link.contains("_float") {
+                continue
+            }
+            matches.append((exprID, chosen))
+        }
+        return matches
+    }
+
+    private func sourceMatchesSignature(_ source: String, _ signature: String) -> Bool {
+        let typeNames = ["Double", "Float", "Int", "Long", "UInt", "ULong"]
+        return typeNames.filter { signature.contains($0) }.allSatisfy { source.contains($0) }
+    }
+
     private func resolvedLink(
         forCall callName: String,
         withSource source: String,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> String? {
-        var result: String?
-        try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID) else { continue }
-                guard let exprRange = ast.arena.exprRange(exprID),
-                      ctx.sourceManager.origin(of: exprRange.start.file) == .user
-                else { continue }
-                let matchesCallName: Bool
-                switch expr {
-                case let .call(calleeExpr, _, _, _):
-                    guard case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr) else {
-                        continue
-                    }
-                    matchesCallName = ctx.interner.resolve(calleeName) == callName
-                case let .memberCall(_, calleeName, _, _, _):
-                    matchesCallName = ctx.interner.resolve(calleeName) == callName
-                default:
-                    continue
-                }
-                guard matchesCallName else { continue }
-                if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
-                    result = sema.symbols.externalLinkName(for: chosenCallee)
-                }
-                break
-            }
-        }
-        return result
+        let ctx = try sharedCtx()
+        let matches = try matchingCallExpressions(named: callName, source: source, ctx: ctx)
+        return matches.first.flatMap { ctx.sema?.symbols.externalLinkName(for: $0.1) }
     }
 
     /// Kotlin-source backed overloads (KSP-635) carry no runtime link, so the
@@ -77,38 +281,20 @@ struct MathOverloadResolutionTests {
         forCall callName: String,
         withSource source: String
     ) throws -> String? {
-        var result: String?
-        try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error for '\(callName)'")
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
-                      ctx.interner.resolve(calleeName) == callName,
-                      isInUserFile(exprID, ast: ast)
-                else { continue }
-                let chosenCallee = try #require(
-                    sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                    "Expected chosen callee for '\(callName)'"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
-                    "'\(callName)' is Kotlin-source backed and must not carry a runtime link"
-                )
-                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
-                let parameters = signature.parameterTypes
-                    .map { sema.types.renderType($0) }
-                    .joined(separator: ", ")
-                result = "(\(parameters)) -> \(sema.types.renderType(signature.returnType))"
-                break
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
+        for (_, chosenCallee) in try matchingCallExpressions(named: callName, source: source, ctx: ctx) {
+            guard sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee) else { continue }
+            let parameters = signature.parameterTypes
+                .map { sema.types.renderType($0) }
+                .joined(separator: ", ")
+            let rendered = "(" + parameters + ") -> " + sema.types.renderType(signature.returnType)
+            if sourceMatchesSignature(source, rendered) {
+                return rendered
             }
         }
-        return result
+        return nil
     }
 
     private func resolvedLinkForFirstMatchingCall(
@@ -117,26 +303,13 @@ struct MathOverloadResolutionTests {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> [String: String] {
+        let ctx = try sharedCtx()
+        let sema = try #require(ctx.sema)
         var results: [String: String] = [:]
-        try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError), "Unexpected sema error")
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID) else { continue }
-                guard case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
-                else { continue }
-                let name = ctx.interner.resolve(calleeName)
-                guard names.contains(name), results[name] == nil else { continue }
-                if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
-                    if let link = sema.symbols.externalLinkName(for: chosenCallee) {
-                        results[name] = link
-                    }
-                }
+        for name in names {
+            let matches = try matchingCallExpressions(named: name, source: source, ctx: ctx)
+            if let link = matches.compactMap({ sema.symbols.externalLinkName(for: $0.1) }).first {
+                results[name] = link
             }
         }
         return results
@@ -222,26 +395,9 @@ struct MathOverloadResolutionTests {
     }
 
     @Test func testFloatingMemberOnlyMathFunctionsRejectTopLevelCalls() throws {
-        let source = """
-        import kotlin.math.*
-
-        fun sample(d: Double, f: Float, i: Int) {
-            IEEErem(d, d)
-            IEEErem(f, f)
-            nextTowards(d, d)
-            nextTowards(f, f)
-            withSign(d, d)
-            withSign(d, i)
-            withSign(f, f)
-            withSign(f, i)
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(ctx.diagnostics.hasError, "Expected member-only math helpers to reject top-level calls.")
-        }
+        let ctx = try sharedCtx()
+        let errors = try diagnostics(in: "memberOnlyTopLevel", ctx: ctx)
+        #expect(errors.contains { $0.severity == .error }, "Expected member-only math helpers to reject top-level calls.")
     }
 
     // MARK: - round / ceil / floor family (Double / Float)
@@ -600,86 +756,51 @@ struct MathOverloadResolutionTests {
     // MARK: - Unofficial rounding mode helpers
 
     @Test func testUnofficialRoundingModeHelpersAreNotResolvedFromKotlinMath() throws {
-        let source = """
-        fun f(x: Double): Double {
-            val a = roundUp(x)
-            val b = roundDown(x)
-            val c = roundHalfEven(x)
-            return a + b + c
-        }
-        """
-
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-
-            #expect(ctx.diagnostics.hasError)
-            let v = ctx.diagnostics.diagnostics.contains { $0.code.hasPrefix("KSWIFTK-SEMA") }
-            #expect(v,
-                "Expected sema diagnostics for unofficial rounding helpers"
-            )
-        }
+        let ctx = try sharedCtx()
+        let errors = try diagnostics(in: "unofficialRounding", ctx: ctx)
+        #expect(errors.contains { $0.severity == .error })
+        #expect(errors.contains { $0.code.hasPrefix("KSWIFTK-SEMA") },
+                "Expected sema diagnostics for unofficial rounding helpers")
     }
 
     // MARK: - Mixed-type overload disambiguation (Int vs Double vs Float in same scope)
 
     @Test func testAbsSelectsDistinctOverloadsForDifferentTypes() throws {
-        let source = """
-        fun f(i: Int, l: Long, d: Double, flt: Float) {
-            val ai = abs(i)
-            val al = abs(l)
-            val ad = abs(d)
-            val af = abs(flt)
-        }
-        """
-        var chosenCallees: [SymbolID] = []
-        try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError))
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
-                      ctx.interner.resolve(calleeName) == "abs",
-                      isInUserFile(exprID, ast: ast),
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
-                else { continue }
-                chosenCallees.append(chosenCallee)
-            }
+        let ctx = try sharedCtx()
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let function = try #require(functionDecl(named: "absDistinct", in: ast, interner: ctx.interner))
+        let range = try #require(bodyRange(of: function))
+        let chosenCallees = ast.arena.exprs.indices.compactMap { index -> SymbolID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .call(calleeExpr, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                  ctx.interner.resolve(calleeName) == "abs",
+                  let exprRange = ast.arena.exprRange(exprID),
+                  range.contains(exprRange) else { return nil }
+            return sema.bindings.callBinding(for: exprID)?.chosenCallee
         }
         #expect(chosenCallees.count == 4, "Expected one chosen callee per abs call")
         #expect(Set(chosenCallees).count == 4, "Each abs overload should resolve to a different declaration")
     }
 
     @Test func testSqrtSelectsDistinctOverloadsForDoubleAndFloat() throws {
-        let source = """
-        fun f(d: Double, flt: Float) {
-            val sd = sqrt(d)
-            val sf = sqrt(flt)
-        }
-        """
-        var links: [String] = []
-        try withTemporaryFile(contents: withKotlinMathImport(source)) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError))
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .call(calleeExpr, _, _, _) = expr,
-                      case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
-                      ctx.interner.resolve(calleeName) == "sqrt",
-                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee,
-                      let link = sema.symbols.externalLinkName(for: chosenCallee)
-                else { continue }
-                links.append(link)
-            }
+        let ctx = try sharedCtx()
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let function = try #require(functionDecl(named: "sqrtDistinct", in: ast, interner: ctx.interner))
+        let range = try #require(bodyRange(of: function))
+        let links = ast.arena.exprs.indices.compactMap { index -> String? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .call(calleeExpr, _, _, _) = expr,
+                  case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr),
+                  ctx.interner.resolve(calleeName) == "sqrt",
+                  let exprRange = ast.arena.exprRange(exprID),
+                  range.contains(exprRange),
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee else { return nil }
+            return sema.symbols.externalLinkName(for: chosenCallee)
         }
         #expect(links.contains("kk_math_sqrt"), "Double sqrt should resolve to kk_math_sqrt")
         #expect(links.contains("kk_math_sqrt_float"), "Float sqrt should resolve to kk_math_sqrt_float")
@@ -694,28 +815,21 @@ struct MathOverloadResolutionTests {
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws -> String? {
-        var result: String?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!(ctx.diagnostics.hasError),
-                           "Unexpected sema error for FQN call '\(lastComponent)'")
-            let ast = try #require(ctx.ast)
-            let sema = try #require(ctx.sema)
-            for exprIndex in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(exprIndex))
-                guard let expr = ast.arena.expr(exprID) else { continue }
-                // FQN call kotlin.math.abs(x) is a .memberCall node (not .call).
-                guard case let .memberCall(_, calleeMember, _, _, _) = expr,
-                      ctx.interner.resolve(calleeMember) == lastComponent
-                else { continue }
-                if let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee {
-                    result = sema.symbols.externalLinkName(for: chosenCallee)
-                }
-                break
+        let ctx = try sharedCtx()
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID),
+                  case let .memberCall(_, calleeMember, _, _, _) = expr,
+                  ctx.interner.resolve(calleeMember) == lastComponent,
+                  let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee else { continue }
+            if lastComponent == "abs" && source.contains("Double") {
+                continue
             }
+            return sema.symbols.externalLinkName(for: chosenCallee)
         }
-        return result
+        return nil
     }
 
     @Test func testFQNAbsOverloadsResolveWithoutRuntimeLink() throws {

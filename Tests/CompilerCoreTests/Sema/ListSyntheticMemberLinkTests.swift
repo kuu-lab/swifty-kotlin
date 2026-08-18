@@ -5,6 +5,23 @@ import Testing
 
 @Suite
 struct ListSyntheticMemberLinkTests {
+    static nonisolated(unsafe) var _sharedListSema: CompilationContext?
+
+    func sharedListSemaContext() throws -> CompilationContext {
+        if let cached = Self._sharedListSema {
+            return cached
+        }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedListSema = ctx
+        return ctx
+    }
+
     @Test
     func testListLastIndexExtensionFunctionResolvesToBundledSource() throws {
         let source = """
@@ -450,9 +467,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListAggregateMembersUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let expectedExternalLinks: [String: String?] = [
@@ -523,9 +539,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testBundledListAggregateHOFsSuppressSyntheticStubs() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -683,9 +698,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListSearchHOFsHaveBundledSourceDefinitions() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1328,9 +1342,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testComparableSyntheticStubUsesContravariantTypeParameter() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let comparableSymbol = try #require(sema.types.comparableInterfaceSymbol)
@@ -1409,9 +1422,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testPrimitiveIteratorSurfacesAreRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1485,9 +1497,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractIteratorSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let abstractIteratorFQName = ["kotlin", "collections", "AbstractIterator"]
@@ -1558,9 +1569,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractCollectionSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let abstractCollectionFQName = ["kotlin", "collections", "AbstractCollection"]
@@ -1678,9 +1688,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractListSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1713,9 +1722,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractSetSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1846,9 +1854,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableCollectionSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1972,9 +1979,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableSetSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2008,9 +2014,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableMapSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2099,9 +2104,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListIteratorSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2148,9 +2152,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableIterableSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2429,9 +2432,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListBinarySearchComparatorOverloadHasDefaultedRange() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let symbolID = try #require(sema.symbols.lookupAll(fqName: [

@@ -611,7 +611,7 @@
 > 目標: 同一ファイル / 同一スイート内で同じ入力を使う箇所を 1 回の pipeline 呼び出しにまとめ、上記カウントを再び半減させる。
 > 進行中 PR: #5765 (Batch 83)。未 PR の作業ブランチ: `devin/consolidate-sema-api-tests-batch84` (Batch 84)。
 
-- [~] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
+- [x] REFACT-TEST-001: 同一 Sema ソースで複数 `runSema(ctx)` を呼んでいる `Tests/CompilerCoreTests/Sema` テストを共有 `runSema(ctx)` に集約
   - 対象例: `ListSyntheticMemberLinkTests+MutableAndAdvancedMembers.swift` (60), `ListSyntheticMemberLinkTests.swift` (58), `RegexSemaLoweringTests.swift` (13), `MathOverloadResolutionTests.swift` (8), `ContinuationSyntheticStubTests.swift` (6), `KotlinAnnotationAPIInventoryTests.swift` (6), `MatchResultTypeTests.swift` (6), `MathSyntheticTopLevelLinkTests.swift` (6), `CoroutineIntrinsicsSyntheticStubTests.swift` (5), `KotlinIOCommonEdgeCaseTests.swift` (5)
 - [ ] REFACT-TEST-002: 各テストで `makeSema()` を作り直している surface-inventory 系 Sema スイートに `sharedSema()` キャッシュを導入
   - 対象例: `IntegerNarrowingPassTests.swift` (8), `EnumAPISurfaceInventoryTests.swift` (8), `ExceptionSyntheticStubTests.swift` (4), `GenericInterfaceInheritanceTests.swift` (4), `ReflectKMutablePropertySyntheticTests.swift` (4), `ReflectKProperty2SyntheticTests.swift` (4), `ThrowableMemberSourceTests.swift` (4), `ReflectK*` 系・`NativeCInteropBetaInteropApiTests` など (2-3 件×多数)
