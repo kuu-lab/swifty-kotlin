@@ -168,13 +168,13 @@
 
 #### kotlin.uuid [M12 実行体]
 
-- [~] KSP-507: kotlin.uuid.Uuid の実 API 未実装分を追加する（KSP-310 訂正のフォローアップ） — PR #5006 で実装・検証済み、マージ後 [x] 化
+- [x] KSP-507: kotlin.uuid.Uuid の実 API 未実装分を追加する（KSP-310 訂正のフォローアップ） — PR #5006 でマージ済み
   - 対象: `mostSignificantBits`/`leastSignificantBits` を `public` から `@PublishedApi internal` へ変更（KSwiftK がバンドル stdlib とユーザーコード間のモジュール境界可視性を実際に強制するか未検証のため、まず spike で確認する）
   - 対象: `toULongs`, `toUByteArray`, `fromUByteArray`, `fromULongs`, `toHexDashString`, `generateV4()` を追加
   - 対象外（別途再調査してから着手）: `generateV7()` / `generateV7NonMonotonicAt()` は `kotlin.concurrent.atomics.AtomicLong` と `kotlin.time.Clock`/`Instant` に依存。Atomics サポートの有無が未確認、Clock/Instant も KSP-472 で部分配線のみのため、実現可能性を先に確認する
   - 前提: KSP-309（Comparators 配線、`naturalOrder`）が未着手のため、`naturalOrder<Uuid>()` を使う置き換え例は現状 `Uuid.compareTo()` 直接呼び出しで代替中
   - ブロッカー候補（2026-07-09 発見、要再調査）: `toLongs`/`toULongs` と同型の `inline fun <T> foo(action: (X, Y) -> T): T` パターンで、ラムダ本体が (a) 引数をそのまま返す恒等関数（`{ m, l -> m }`）→ `KSWIFTK-TYPE-0001: Conflicting bounds ... T is not a subtype of Long` で失敗、(b) `Uuid.fromLongs(m, l)` や `Pair(m, l)` のようなネストしたコンストラクタ/コンパニオン呼び出し → `KSWIFTK-SEMA-0002/0003` で失敗、(c) `Boolean` を直接返す（`{ m, _ -> (...).toInt() == 4 }`）→ コンパイル・実行は成功するが文字列補間時に `true`/`false` ではなく `1`/`0` を出力（プリミティブが `T` を経由してボックス化される際の unboxing 不整合と推測、[[primitive-autoboxing-mutable-collection-add]] や [[comparison-unboxing-peer-type]] と同系統）。`toLongs` 自体は `m + l` のような二項演算のみを返す形（ジェネリック呼び出しの外側で比較・再構築する）であれば安全に動作することを確認済み（`Scripts/diff_cases/uuid_basic.kt` 参照）。`toULongs`/`toUByteArray` 等を実装する際は同じ制約に当たる可能性が高く、Sema/TypeCheck の型変数解決（`CallTypeChecker` 系）と ABI Lowering のプリミティブ boxing 経路の両方を先に調査すること
-[x] KSP-508: `ByteArray.getUuid`/`uuid`/`putUuid` を実 API（`ByteBuffer.getUuid`/`putUuid`）に置き換える（PR #5011 でマージ済み）
+- [x] KSP-508: `ByteArray.getUuid`/`uuid`/`putUuid` を実 API（`ByteBuffer.getUuid`/`putUuid`）に置き換える（PR #5011 でマージ済み）
   - 問題: KSP-476（#4605）が実装した `kotlin.uuid.ByteArray.getUuid(offset)` / `ByteArray.uuid(at)` / `ByteArray.putUuid(at, uuid)` は実際の `kotlin.uuid` パッケージには存在しない。kotlinc 2.4.0 の `kotlin-stdlib-sources.jar`（`jvmMain/kotlin/uuid/UuidJVM.kt`）で裏取りした実 API は `java.nio.ByteBuffer` の拡張関数 `ByteBuffer.getUuid()` / `ByteBuffer.getUuid(index: Int)` / `ByteBuffer.putUuid(uuid): ByteBuffer` / `ByteBuffer.putUuid(index, uuid): ByteBuffer`（いずれも `@SinceKotlin("2.4")` `@WasExperimental(ExperimentalUuidApi::class)`）であり、`ByteArray` ではなく `ByteBuffer` がレシーバ。
   - 対応: (a) を実施。`java.nio.ByteBuffer` の bundled 実装を新規追加し、`Uuid.kt` の拡張を `ByteBuffer` レシーバに置き換えた。`Scripts/diff_cases/uuid_put_uuid.kt` から `SKIP-DIFF` を解除。
   - 検証: `swift build` / `swift test --filter Uuid` / `bash Scripts/swift_test.sh --filter SmokeTests` / `git diff --check` / `bash Scripts/validate_runtime_abi_links.sh` pass。`bash Scripts/diff_kotlinc.sh` はローカルに `kotlinc` が無いため未実行（CI diff ジョブで確認）。
