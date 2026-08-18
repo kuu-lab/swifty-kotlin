@@ -33,13 +33,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "OptionalExpectation",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "IntroducedAt",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -231,23 +224,6 @@ extension DataFlowSemaPhase {
         }
 
 
-        if let optionalExpectationSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-                ),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-        }
 
 
 
