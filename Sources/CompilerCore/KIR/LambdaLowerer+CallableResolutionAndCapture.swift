@@ -165,19 +165,58 @@ extension LambdaLowerer {
         return classType.classSymbol
     }
 
-    /// True when `symbol` is a class/interface/object/enum declaration —
-    /// i.e. something that has instances a `this` receiver could refer to.
-    /// Used to distinguish a bare `::member` reference to an instance member
-    /// of the enclosing class (needs an implicit-receiver capture) from one
-    /// to a genuine top-level declaration (`parentSymbol` is nil or not a
-    /// nominal type container, so no capture applies).
-    func isNominalTypeContainerSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
-        switch sema.symbols.symbol(symbol)?.kind {
-        case .class, .interface, .object, .enumClass:
-            return true
-        default:
+    /// True when `symbol` is an ordinary `class` declaration — i.e.
+    /// something whose instances a plain `this` receiver capture is known to
+    /// work correctly for. Used to distinguish a bare `::member` reference
+    /// to an instance member of the enclosing class (needs an
+    /// implicit-receiver capture) from one to a genuine top-level
+    /// declaration (`parentSymbol` is nil, so no capture applies).
+    ///
+    /// Deliberately narrower than "has instances a `this` could refer to"
+    /// (which would also include `.interface`/`.object`/`.enumClass`):
+    /// singleton owners (companion objects, plain `object`s, enum entries)
+    /// were observed to still crash even once `implicitReceiverMatchesOwner`
+    /// reports a type match, likely from a separate, deeper issue in how
+    /// their instance is represented/reached at this lowering point —
+    /// tracked as a follow-up rather than risked here. `.interface` is
+    /// excluded too, simply for not having been exercised/verified yet.
+    func isCaptureEligibleInstanceContainerSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        sema.symbols.symbol(symbol)?.kind == .class
+    }
+
+    /// True when `implicitReceiver`'s KIR-level type is `ownerSymbol` itself
+    /// or a subtype of it — i.e. it's actually safe to treat as the `this`
+    /// for a member of `ownerSymbol`.
+    ///
+    /// `driver.ctx.activeImplicitReceiverExprID()` reflects whichever
+    /// receiver-introducing scope is innermost at the current lowering
+    /// point (KIRLoweringContext keeps only one "current" receiver, not a
+    /// stack), which is *not* always the property's own enclosing instance
+    /// — e.g. inside `with(sb) { ::v }`, it's `sb` while `v` belongs to the
+    /// outer class. Capturing a mismatched receiver would make the
+    /// generated accessor read/write the wrong object's fields.
+    func implicitReceiverMatchesOwner(
+        _ implicitReceiver: KIRExprID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> Bool {
+        guard let receiverType = arena.exprType(implicitReceiver) else {
             return false
         }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard let receiverSymbol = nominalSymbol(for: nonNullReceiverType, types: sema.types) else {
+            return false
+        }
+        if receiverSymbol == ownerSymbol {
+            return true
+        }
+        let ownerType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(nonNullReceiverType, ownerType)
     }
 
     func computeCaptureSymbolsForLambda(

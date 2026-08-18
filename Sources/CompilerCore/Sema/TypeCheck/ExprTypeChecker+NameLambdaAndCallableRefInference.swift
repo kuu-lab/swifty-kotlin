@@ -1313,19 +1313,38 @@ extension ExprTypeChecker {
             if let propertySymbol = propertyCandidates.first {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
                 let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
-                let inferredType = kPropertyReferenceType(
-                    ownerType: nil,
-                    valueType: propertyType,
-                    isMutable: isMutable,
-                    sema: sema,
-                    interner: interner
-                ) ?? propertyType
-                let resultType = resolvedPropertyReferenceResultType(
-                    expectedType: expectedType,
-                    inferredType: inferredType,
-                    sema: sema,
-                    interner: interner
-                )
+                // KSP-496: a bare `::member` reference to a member property of
+                // the enclosing class is implicitly bound to `this`, and KIR
+                // lowering (LambdaLowerer.isCaptureEligibleInstanceContainerSymbol)
+                // correctly captures that receiver — but only for `.class`
+                // owners; it's deliberately restricted there because
+                // singleton owners (companion object / plain `object` / enum
+                // entry) still crash even with a type-correct receiver
+                // (observed SIGSEGV, a deeper singleton-representation issue,
+                // not merely a missing/mismatched capture). Keep those on the
+                // pre-existing, safe fallback (ignore expectedType entirely,
+                // same as before this whole fix) rather than newly making
+                // "compiles but crashes" reachable for them.
+                let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                let resultType: TypeID
+                if let ownerKind, ownerKind != .class {
+                    resultType = propertyType
+                } else {
+                    let inferredType = kPropertyReferenceType(
+                        ownerType: nil,
+                        valueType: propertyType,
+                        isMutable: isMutable,
+                        sema: sema,
+                        interner: interner
+                    ) ?? propertyType
+                    resultType = resolvedPropertyReferenceResultType(
+                        expectedType: expectedType,
+                        inferredType: inferredType,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
                 sema.bindings.bindExprType(id, type: resultType)

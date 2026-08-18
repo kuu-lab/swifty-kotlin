@@ -1221,8 +1221,14 @@ final class LambdaLowerer {
                   sema.bindings.callableRefKind(for: exprID) == .propertyRef,
                   let targetSymbol,
                   let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
-                  isNominalTypeContainerSymbol(parentSymbol, sema: sema),
-                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID()
+                  isCaptureEligibleInstanceContainerSymbol(parentSymbol, sema: sema),
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  implicitReceiverMatchesOwner(
+                      implicitReceiver,
+                      ownerSymbol: parentSymbol,
+                      sema: sema,
+                      arena: arena
+                  )
         {
             // KSP-496: a bare `::member` reference to a member property of the
             // enclosing class is implicitly bound to `this` in Kotlin (the
@@ -1230,6 +1236,23 @@ final class LambdaLowerer {
             // receiver capture — otherwise the generated wrapper's accessor
             // has no instance to read/write, and calling `.get()`/`.set()`
             // on it crashes (KSWIFTK-RUNTIME-0001 out-of-bounds read).
+            //
+            // Restricted to `.class` (see isCaptureEligibleInstanceContainerSymbol)
+            // and guarded by implicitReceiverMatchesOwner: the implicit
+            // receiver at this lowering point is a single "current" value
+            // (KIRLoweringContext has no receiver stack), so it can be a
+            // *different* receiver-scope's instance — e.g. `with(sb) { ::v }`
+            // inside a member function sees `sb` (StringBuilder), not `this`
+            // (the property's real owner), while it's active — or, for
+            // `.object`/`.enumClass` owners (companion objects, singletons,
+            // enum entries), a same-typed but still-wrong receiver (observed
+            // to still crash — likely a separate, deeper singleton-instance
+            // representation issue, not merely a type mismatch). When this
+            // guard doesn't hold, no capture is added and the reference falls
+            // through to the same (pre-existing, argument-count-mismatch)
+            // crash bare `::member` already had for a receiver it can't
+            // safely resolve — not memory corruption from reading a
+            // wrong-typed or wrongly-represented object's fields.
             captureArguments.append(implicitReceiver)
         }
 
