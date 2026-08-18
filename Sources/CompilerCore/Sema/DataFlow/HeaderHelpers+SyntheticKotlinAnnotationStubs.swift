@@ -63,13 +63,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "ParameterName",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -289,36 +282,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        if let parameterNameSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("ParameterName")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.TYPE"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.annotation.Retention",
-                    arguments: ["AnnotationRetention.BINARY"]
-                ),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
-                to: parameterNameSymbol,
-                symbols: symbols
-            )
-            registerSyntheticParameterNameMembers(
-                ownerSymbol: parameterNameSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("ParameterName")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
 
         // kotlin.concurrent package — `@Volatile` is a Native-target annotation.
         let kotlinConcurrentPkg = ensurePackage(
