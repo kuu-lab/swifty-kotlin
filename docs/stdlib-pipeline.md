@@ -265,7 +265,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
-| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | Kotlin/JS number bridge; cleanup candidate. |
+| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | ~~Kotlin/JS number bridge; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127, 2026-08-18)。`JsNumber` synthetic Sema surface と stale RuntimeABI spec を除去。 |
 | `HeaderHelpers+SyntheticJsStringInteropStubs.swift` | 183 | (a) | Kotlin/JS string interop; cleanup candidate. |
 | `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` | 790 | (c) | Core annotation and opt-in metadata surface. |
 | `HeaderHelpers+SyntheticKotlinIOExceptionStubs.swift` | 133 | (b) | `kotlin.io` exception shell; source/runtime migration owner. |
@@ -357,7 +357,7 @@ should follow the same shape:
 ### Follow-up order
 
 1. Finish small (a) deletions that still have direct central calls:
-   `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs`.
+   `SyntheticJsAnyStubs`.
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
    `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.

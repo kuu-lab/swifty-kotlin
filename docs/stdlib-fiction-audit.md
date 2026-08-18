@@ -205,3 +205,23 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 
 この値は CLEANUP-STUB-123 後の master 上の削減を含むため、前回記録との差分を URL 単独の削減量としては扱わない。
 今回の対象では `java.net.URL` の synthetic shell、公開 URL exports、URL runtime/ABI exports を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-18 CLEANUP-STUB-127（`kotlin.js.JsNumber` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+標準の Swift Testing dump が成功し、`makeCompilationContext` / `runSema` pipeline の実測値を取得した。
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-18 CLEANUP-STUB-127 | `.synthetic` フラグ付き残留サーフェス | 2900 | `kotlin=2065`, `java=266`, `kotlinx=191`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+参考値として、同じ実行時の `SymbolTable.allSymbols()` 総数は **14502**。
+`kotlin.js.JsNumber` の synthetic Sema 登録、stale RuntimeABI spec、ABI parity の spec-only allowlist を除去した。
+`JsAny` と他の Kotlin/JS surface は対象外として保持している。
