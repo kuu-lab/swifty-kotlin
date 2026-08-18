@@ -1,7 +1,9 @@
 import RuntimeABI
 
-/// Synthetic stubs for residual `Sequence` member operations (`takeLast`, `takeLastWhile`,
-/// `shuffled`, `reversed`, `filterIsInstance`) that are not yet migrated to bundled Kotlin source.
+/// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`,
+/// `forEach`, `forEachIndexed`, `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`,
+/// `takeLastWhile`, `shuffled`, `reversed`, `filterIsInstance`) that are not yet migrated
+/// to bundled Kotlin source.
 ///
 /// KSP-694: Consolidated residual Sequence stubs after KSP-441..446 and KSP-308
 /// migrations of terminal/HOF Sequence APIs to bundled Kotlin source.
@@ -76,6 +78,185 @@ extension DataFlowSemaPhase {
             interner.intern("collections"),
             interner.intern("List"),
         ], elementType: typeParamType)
+
+        let actionType = types.make(.functionType(FunctionType(
+            params: [typeParamType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        // random(): T
+        registerSequenceMemberStub(
+            named: "random",
+            externalLinkName: "kk_sequence_random",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: typeParamType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner,
+            canThrow: true
+        )
+
+        // randomOrNull(): T?
+        registerSequenceMemberStub(
+            named: "randomOrNull",
+            externalLinkName: "kk_sequence_randomOrNull",
+            receiverType: receiverType,
+            parameters: [],
+            returnType: types.makeNullable(typeParamType),
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // forEach(action: (T) -> Unit): Unit
+        registerSequenceMemberStub(
+            named: "forEach",
+            externalLinkName: "kk_sequence_forEach",
+            receiverType: receiverType,
+            parameters: [("action", actionType)],
+            returnType: types.unitType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // forEachIndexed(action: (Int, T) -> Unit): Unit
+        let forEachIndexedActionType = types.make(.functionType(FunctionType(
+            params: [types.intType, typeParamType],
+            returnType: types.unitType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+        registerSequenceMemberStub(
+            named: "forEachIndexed",
+            externalLinkName: "kk_sequence_forEachIndexed",
+            receiverType: receiverType,
+            parameters: [("action", forEachIndexedActionType)],
+            returnType: types.unitType,
+            sequenceSymbol: sequenceSymbol,
+            sequenceFQName: sequenceFQName,
+            typeParamSymbol: typeParamSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        // firstNotNullOf<T, R>(transform: (T) -> R?): R
+        // Use a method-local T parameter (independent of Sequence's `out T`)
+        // so the projection on the receiver does not block referencing T in
+        // the transform's `in` position.
+        do {
+            let memberName = interner.intern("firstNotNullOf")
+            let methodTName = interner.intern("T")
+            let methodTSymbol = symbols.lookup(fqName: sequenceFQName + [memberName, methodTName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: methodTName,
+                fqName: sequenceFQName + [memberName, methodTName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let methodTType = types.make(.typeParam(TypeParamType(symbol: methodTSymbol, nullability: .nonNull)))
+            let methodReceiverType = types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(methodTType)],
+                nullability: .nonNull
+            )))
+            let rName = interner.intern("R")
+            let rSymbol = symbols.lookup(fqName: sequenceFQName + [memberName, rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: sequenceFQName + [memberName, rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let nullableRType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nullable)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [methodTType],
+                returnType: nullableRType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "firstNotNullOf",
+                externalLinkName: "kk_sequence_firstNotNullOf",
+                receiverType: methodReceiverType,
+                parameters: [("transform", transformType)],
+                returnType: rType,
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: methodTSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol],
+                additionalTypeParameterUpperBoundsList: [[]],
+                flags: [.synthetic, .inlineFunction]
+            )
+        }
+
+        // firstNotNullOfOrNull<T, R>(transform: (T) -> R?): R?
+        do {
+            let memberName = interner.intern("firstNotNullOfOrNull")
+            let methodTName = interner.intern("T")
+            let methodTSymbol = symbols.lookup(fqName: sequenceFQName + [memberName, methodTName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: methodTName,
+                fqName: sequenceFQName + [memberName, methodTName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let methodTType = types.make(.typeParam(TypeParamType(symbol: methodTSymbol, nullability: .nonNull)))
+            let methodReceiverType = types.make(.classType(ClassType(
+                classSymbol: sequenceSymbol,
+                args: [.out(methodTType)],
+                nullability: .nonNull
+            )))
+            let rName = interner.intern("R")
+            let rSymbol = symbols.lookup(fqName: sequenceFQName + [memberName, rName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: rName,
+                fqName: sequenceFQName + [memberName, rName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            let rType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nonNull)))
+            let nullableRType = types.make(.typeParam(TypeParamType(symbol: rSymbol, nullability: .nullable)))
+            let transformType = types.make(.functionType(FunctionType(
+                params: [methodTType],
+                returnType: nullableRType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            registerSequenceMemberStub(
+                named: "firstNotNullOfOrNull",
+                externalLinkName: "kk_sequence_firstNotNullOfOrNull",
+                receiverType: methodReceiverType,
+                parameters: [("transform", transformType)],
+                returnType: types.makeNullable(rType),
+                sequenceSymbol: sequenceSymbol,
+                sequenceFQName: sequenceFQName,
+                typeParamSymbol: methodTSymbol,
+                symbols: symbols,
+                interner: interner,
+                canThrow: true,
+                additionalTypeParameterSymbols: [rSymbol],
+                additionalTypeParameterUpperBoundsList: [[]],
+                flags: [.synthetic, .inlineFunction]
+            )
+        }
 
         // takeLast(n: Int): List<T> (STDLIB-SEQ-FN-120)
         registerSequenceMemberStub(
