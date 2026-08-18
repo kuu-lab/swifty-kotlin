@@ -738,10 +738,30 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
+        // A source-backed top-level function with the same name and arity owns
+        // the public overload. Keep the compiler primitive only for allocation
+        // forms that do not have a source implementation (KSP-763).
+        let hasSourceBackedArrayConstructor: Bool = if let calleeName {
+            ctx.cachedScopeLookup(calleeName).contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType == nil,
+                      signature.parameterTypes.count == args.count
+                else {
+                    return false
+                }
+                return !signature.valueParameterIsVararg.contains(true)
+            }
+        } else {
+            false
+        }
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           !hasSourceBackedArrayConstructor
         {
             let intType = sema.types.intType
             let calleeNameStr = interner.resolve(calleeName)
