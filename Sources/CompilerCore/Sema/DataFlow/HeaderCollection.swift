@@ -273,6 +273,13 @@ extension DataFlowSemaPhase {
     /// narrow slice of `predeclareNominalTypeHeaders` first gives them the real
     /// class symbol directly, instead of routing through a throwaway synthetic
     /// placeholder that `collectHeader` swaps out later.
+    ///
+    /// Configurations with neither bundled stdlib source nor a merged library
+    /// import (e.g. `--no-stdlib`) never get a real declaration for `Pair`/
+    /// `Triple` at all, so a bare synthetic shell is defined as a fallback for
+    /// whichever of the two names is still unresolved afterward -- matching
+    /// what the deleted `HeaderHelpers+SyntheticPairTripleAnchors.swift` did
+    /// unconditionally, but only as a last resort now.
     func predeclareBundledTupleHeaders(
         ast: ASTModule,
         fileScopes: [Int32: FileScope],
@@ -296,6 +303,26 @@ extension DataFlowSemaPhase {
                 sourceManager: sourceManager, diagnostics: diagnostics,
                 interner: interner, into: &predeclared
             )
+        }
+        for name in [pairName, tripleName] {
+            let fqName = kotlinPkg + [name]
+            if let existing = symbols.lookup(fqName: fqName) {
+                // Compatibility shells intentionally keep a nil declSite so bundled
+                // source declarations do not displace them in golden semantic dumps
+                // (`GoldenHarnessDump.isExcludedBundledSymbol` filters bundled-file
+                // declSites out; the pre-KSP-706 anchor never restored declSite for
+                // Pair/Triple either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`).
+                symbols.setDeclSite(nil, for: existing)
+            } else {
+                _ = symbols.define(
+                    kind: .class,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
         }
     }
 
