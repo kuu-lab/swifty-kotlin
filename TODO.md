@@ -1096,7 +1096,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DslMarker` — class kotlin.DslMarker  -- `open annotation class kotlin/DslMarker : kotlin/Annotation {`
 
-- [ ] KSP-732: kotlin.Enum-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-732: kotlin.Enum-family の未実装 stdlib API を実装する（1 件）。完了確認（2026-08-16、PR #5868）：`Sources/CompilerCore/Stdlib/kotlin/Enum.kt` に bundled Kotlin 実装を追加し、`HeaderCollection.swift` の `reusableSyntheticSourceDeclarationKeys` に `__bundled_kotlin/Enum.kt` を登録して合成 `kotlin.Enum` shell を再利用。Sema golden `stdlib_kotlin_n_Enum`、diff ケース `stdlib_kotlin_n_Enum.kt` を追加。`__kk_*` / `kk_*` / `RuntimeABISpec` / `CallTypeChecker` / `CallLowerer` から `kotlin.Enum` クラス本体に対する bridge/stub 削除対象はなし。検証：`UPDATE_GOLDEN=1 ...` 更新後 `bash Scripts/swift_test.sh --filter Golden` pass、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` で `failed=0 passed=895 skipped=35`（JDK 21 + kotlinc 2.3.10）、`bash Scripts/check_todo_ids.sh` pass、`bash Scripts/validate_runtime_abi_links.sh` pass。
   - 対象: `kotlin` / top-level / family `Enum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
