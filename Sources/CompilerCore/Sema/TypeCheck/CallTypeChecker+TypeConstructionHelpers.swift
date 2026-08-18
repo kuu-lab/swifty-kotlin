@@ -357,17 +357,33 @@ extension CallTypeChecker {
             return
         }
         let conditionExpr = args[parameterIndex].expr
-        let branch = ctx.dataFlow.branchOnCondition(
-            conditionExpr,
-            base: ctx.flowState,
-            locals: locals,
-            ast: ctx.ast,
-            sema: sema,
-            interner: ctx.interner,
-            scope: ctx.scope
-        )
+        // Synthetic precondition effects describe a Boolean condition, while
+        // source-backed contract effects point directly at the nullable
+        // argument from a returns() implies clause.
+        let narrowedState: DataFlowState
+        if argTypes[parameterIndex] == sema.types.booleanType {
+            let branch = ctx.dataFlow.branchOnCondition(
+                conditionExpr,
+                base: ctx.flowState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner,
+                scope: ctx.scope
+            )
+            narrowedState = branch.trueState
+        } else {
+            narrowedState = ctx.dataFlow.narrowNonNull(
+                conditionExpr,
+                base: ctx.flowState,
+                locals: locals,
+                ast: ctx.ast,
+                sema: sema,
+                interner: ctx.interner
+            )
+        }
         driver.exprChecker.applyFlowStateToLocals(
-            branch.trueState,
+            narrowedState,
             locals: &locals,
             sema: sema
         )
