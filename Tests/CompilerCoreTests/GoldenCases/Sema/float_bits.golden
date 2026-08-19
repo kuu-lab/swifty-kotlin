@@ -4,9 +4,6 @@ symbol fq=__local_2.doubleValue kind=local vis=private flags=_ type=Double
 symbol fq=__local_3.floatRaw kind=local vis=private flags=_ type=Int
 symbol fq=__local_4.floatCanonical kind=local vis=private flags=_ type=Int
 symbol fq=__local_5.floatValue kind=local vis=private flags=_ type=Float
-symbol fq=kotlin.fromBits#0 kind=function vis=public flags=synthetic sig=recv=_ params=[Int] ret=Float
-symbol fq=kotlin.fromBits#1 kind=function vis=public flags=synthetic sig=recv=_ params=[Long] ret=Double
-symbol fq=kotlin.fromBits.bits kind=valueParameter vis=private flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file ffloat_bits package=_
   decl main fun main sym=main
