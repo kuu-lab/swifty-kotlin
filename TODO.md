@@ -1703,6 +1703,7 @@
     - `kotlin.run` — fun run(Function0): #A  -- `final inline fun <#A: kotlin/Any?> kotlin/run(kotlin/Function0<#A>): #A`
     - `kotlin.run` — fun run(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/run(kotlin/Function1<#A, #B>): #B`
     - `kotlin.runCatching` — fun runCatching(Function1): Result  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/runCatching(kotlin/Function1<#A, #B>): kotlin/Result<#B>`
+  - 完了確認（2026-08-19、PR #5950、commit `c0f678dee`）：`UPDATE_GOLDEN=1 ... --filter matchesGolden` の対象 shard（8 cases）pass・Golden 差分は機械的な式ノード参照更新のみ、`--filter Golden`（18 tests / 8 suites）pass、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（JDK 26、950 pass / 33 skip / 0 fail）、`bash Scripts/check_todo_ids.sh` pass、`bash Scripts/validate_runtime_abi_links.sh`（4 tests）pass。source migration 回帰テストと対象 diff ケースも pass。
 
 - [ ] KSP-786: kotlin.short-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `short`
