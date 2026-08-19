@@ -12,10 +12,9 @@
 //   - kotlin.math.PI, kotlin.math.E  (top-level math package constants)
 //   - Double companion object constants: POSITIVE_INFINITY, NEGATIVE_INFINITY,
 //     NaN, MAX_VALUE, MIN_VALUE
-//   - Int companion object constants:  MAX_VALUE, MIN_VALUE
 //   - Long companion object constants: MAX_VALUE, MIN_VALUE
 //
-// Most companion-object constants (Int/Long/Double bounds, infinities, NaN) are
+// Most companion-object constants (Long/Double bounds, infinities, NaN) are
 // resolved at compile time as inline literals in CallTypeChecker+MemberCallInference.swift
 // and never require a runtime call. The functions below serve as fallback runtime
 // entry points and explicit documentation of all constant values.
@@ -92,22 +91,6 @@ public func kk_float_max_value() -> Int {
 @_cdecl("kk_float_min_value")
 public func kk_float_min_value() -> Int {
     kk_float_to_bits(Float.leastNonzeroMagnitude)
-}
-
-// MARK: - Int companion constants
-
-/// Returns Int.MAX_VALUE (2^31 - 1 = 2147483647).
-/// Kotlin: Int.MAX_VALUE
-@_cdecl("kk_int_max_value")
-public func kk_int_max_value() -> Int {
-    return Int(Int32.max)
-}
-
-/// Returns Int.MIN_VALUE (-2^31 = -2147483648).
-/// Kotlin: Int.MIN_VALUE
-@_cdecl("kk_int_min_value")
-public func kk_int_min_value() -> Int {
-    return Int(Int32.min)
 }
 
 // MARK: - Long companion constants
