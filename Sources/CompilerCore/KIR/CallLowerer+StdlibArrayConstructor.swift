@@ -10,8 +10,32 @@ extension CallLowerer {
         propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor,
-              args.count == 1 || args.count == 2
+        // Bundled source bodies are omitted from regular `kirDump`/library
+        // output, so a source-backed primitive-array initializer can reach
+        // this lowerer without a body to inline. Preserve its Sema binding
+        // while reusing the compiler-provided array allocation and loop path.
+        let isSourceBackedArrayInitializer: Bool = {
+            guard args.count == 2,
+                  sema.bindings.stdlibSpecialCallKind(for: exprID) == nil,
+                  let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee,
+                  let symbol = sema.symbols.symbol(chosen),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosen),
+                  symbol.fqName.count == 2,
+                  symbol.fqName[0] == interner.intern("kotlin"),
+                  let signature = sema.symbols.functionSignature(for: chosen),
+                  signature.receiverType == nil,
+                  signature.parameterTypes.count == args.count
+            else {
+                return false
+            }
+            let knownNames = KnownCompilerNames(interner: interner)
+            return knownNames.isPrimitiveArrayConstructorTypeName(symbol.name)
+                && ReceiverClassifier(sema: sema, interner: interner).isArrayLikeType(signature.returnType)
+        }()
+        guard (sema.bindings.stdlibSpecialCallKind(for: exprID) == .arrayConstructor
+            || isSourceBackedArrayInitializer),
+            args.count == 1 || args.count == 2
         else {
             return nil
         }

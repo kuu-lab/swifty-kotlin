@@ -758,6 +758,7 @@ final class CallTypeChecker {
                 case "LongArray": sema.types.longType
                 case "ShortArray": sema.types.shortType
                 case "ByteArray": sema.types.byteType
+                case "UByteArray": sema.types.ubyteType
                 case "UShortArray": sema.types.ushortType
                 case "UIntArray": sema.types.uintType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
