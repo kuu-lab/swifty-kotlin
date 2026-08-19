@@ -41,10 +41,6 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         let fqName = resolved.fqName
-        let isSourceBackedPrimitiveArrayFactory = ctx.sema?.symbols.isSourceBackedSymbol(sym) == true
-            && fqName.count == 2
-            && ctx.interner.resolve(fqName[0]) == "kotlin"
-            && lookup.arrayOfFactoryNames.contains(fqName[1])
         // Match against known stdlib collection factory FQNs
         return fqName == lookup.emptyListFQName
             || fqName == lookup.emptyArrayFQName
@@ -63,7 +59,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || fqName == lookup.mutableMapOfFQName
             || fqName == lookup.hashMapOfFQName
             || fqName == lookup.linkedMapOfFQName
-            || isSourceBackedPrimitiveArrayFactory
     }
 
     func isStdlibArrayFactoryCall(
@@ -72,10 +67,20 @@ extension CollectionLiteralConstructionLoweringPass {
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        guard lookup.arrayOfFactoryNames.contains(callee) else {
+        if lookup.arrayOfFactoryNames.contains(callee) {
+            return isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        }
+        guard let symbol,
+              let sema = ctx.sema,
+              sema.symbols.isSourceBackedSymbol(symbol),
+              let resolved = sema.symbols.symbol(symbol),
+              resolved.fqName.count == 2,
+              ctx.interner.resolve(resolved.fqName[0]) == "kotlin",
+              lookup.arrayOfFactoryNames.contains(resolved.fqName[1])
+        else {
             return false
         }
-        return isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        return true
     }
 
     func isCollectionCopyConstructorArgument(

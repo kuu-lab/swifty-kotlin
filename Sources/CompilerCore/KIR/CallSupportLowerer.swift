@@ -266,9 +266,10 @@ final class CallSupportLowerer {
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
-        if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner),
-           !isSourceBackedPrimitiveArrayFactory
-        {
+        if isSourceBackedPrimitiveArrayFactory {
+            return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
+        }
+        if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner) {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
         var boxedArguments = providedArguments
@@ -386,7 +387,7 @@ final class CallSupportLowerer {
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: !preserveArrayVarargs && !isSourceBackedPrimitiveArrayFactory,
+                        boxPrimitiveElements: !preserveArrayVarargs,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -521,7 +522,7 @@ final class CallSupportLowerer {
         switch interner.resolve(symbol.fqName[1]) {
         case "intArrayOf", "longArrayOf", "floatArrayOf", "doubleArrayOf",
              "booleanArrayOf", "charArrayOf", "byteArrayOf", "shortArrayOf",
-             "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf":
+             "uintArrayOf":
             return true
         default:
             return false
