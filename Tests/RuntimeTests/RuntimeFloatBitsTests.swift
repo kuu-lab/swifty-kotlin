@@ -38,6 +38,29 @@ struct RuntimeFloatBitsTests {
     }
 
     @Test
+    func testFromBitsRoundTripsNegativeFloats() {
+        for value in [-1.0 as Float, -0.0, 0.0, 1.0, Float.infinity, -Float.infinity] {
+            let raw = __kk_float_toRawBits(Self.abiBits(value))
+            #expect(__kk_float_fromBits(raw) == Self.abiBits(value))
+        }
+    }
+
+    @Test
+    func testFromBitsPreservesFloatBoxEqualityForNegativeBits() {
+        let raw = __kk_float_fromBits(Int(Int32(bitPattern: 0xBF80_0000)))
+        let boxed = kk_box_float(raw)
+        #expect(runtimeValuesEqual(boxed, raw))
+    }
+
+    @Test
+    func testFloatNaNPayloadRawAndCanonicalBitsDiffer() {
+        let payload = Int(Int32(bitPattern: 0x7F80_0123))
+        #expect(__kk_float_toRawBits(payload) == payload)
+        #expect(__kk_float_toBits(payload) == Int(Int32(bitPattern: 0x7FC0_0000)))
+        #expect(__kk_float_fromBits(payload) == Int(UInt32(bitPattern: 0x7F80_0123)))
+    }
+
+    @Test
     func testDoublePreservesSignedZeroInfinityAndNaNPayload() {
         let negativeZero = Int(bitPattern: UInt(0x8000_0000_0000_0000 as UInt64))
         let positiveInfinity = Int(bitPattern: UInt(0x7FF0_0000_0000_0000 as UInt64))

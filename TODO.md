@@ -1604,7 +1604,7 @@
   - 未実装シンボル一覧:
     - `kotlin.fromBits` — fun fromBits(Int): Float  -- `final fun kotlin/fromBits(kotlin/Int): kotlin/Float`
     - `kotlin.fromBits` — fun fromBits(Long): Double  -- `final fun kotlin/fromBits(kotlin/Long): kotlin/Double`
-  - 完了確認（2026-08-19）: `from.kt` のsource-backed overload、fromBits専用Runtime/RuntimeABI/Synthetic登録・name-string特例の削除、Golden/diff/ABI/TODO IDゲートを確認。
+  - 完了確認（2026-08-19）: `from.kt` のsource-backed overload、DoubleのfromBits専用Runtime/RuntimeABI/Synthetic登録・name-string特例の削除、FloatのABI再拡張bridge、Golden/diff/ABI/TODO IDゲートを確認。
 
 - [ ] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `int`

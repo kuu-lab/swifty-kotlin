@@ -976,6 +976,14 @@ public func __kk_float_toRawBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
 }
 
+/// Float.Companion.fromBits(bits: Int): Float.
+/// Kotlin exposes the 32-bit IEEE pattern as a sign-extended Int, while the
+/// runtime ABI carries Float payloads as a zero-extended word.
+@_cdecl("__kk_float_fromBits")
+public func __kk_float_fromBits(_ bits: Int) -> Int {
+    Int(UInt32(truncatingIfNeeded: bits))
+}
+
 // MARK: - STDLIB-514: truncate, IEEErem, nextTowards
 
 @_cdecl("__kk_math_truncate")
