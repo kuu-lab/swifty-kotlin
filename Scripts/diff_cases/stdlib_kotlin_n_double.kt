@@ -1,8 +1,14 @@
 fun main() {
     val values = doubleArrayOf(1.5, -2.0, 3.25)
+    val spreadValues = doubleArrayOf(4.0, 5.0)
+    val spreadResult = doubleArrayOf(-1.0, *spreadValues, 6.0)
     println(values.size)
     println(values[0] == 1.5)
     println(values[1] == -2.0)
+    println(spreadResult.size)
+    println(spreadResult[1] == 4.0)
+    println(spreadResult[2] == 5.0)
+    println(spreadResult[3] == 6.0)
 
     println((-1.5).toUInt())
     println(3.99.toUInt())

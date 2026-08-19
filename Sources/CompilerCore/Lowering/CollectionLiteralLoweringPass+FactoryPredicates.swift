@@ -72,17 +72,11 @@ extension CollectionLiteralConstructionLoweringPass {
         {
             return true
         }
-        guard let symbol,
-              let sema = ctx.sema,
-              sema.symbols.isSourceBackedSymbol(symbol),
-              let resolved = sema.symbols.symbol(symbol),
-              resolved.fqName.count == 2,
-              ctx.interner.resolve(resolved.fqName[0]) == "kotlin",
-              lookup.arrayOfFactoryNames.contains(resolved.fqName[1])
-        else {
-            return false
-        }
-        return true
+        return isSourceBackedPrimitiveArrayFactory(
+            symbol,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
     }
 
     func isCollectionCopyConstructorArgument(
