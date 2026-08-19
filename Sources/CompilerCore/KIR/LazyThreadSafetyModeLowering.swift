@@ -80,30 +80,6 @@ enum LazyThreadSafetyModeLowering {
         return nil
     }
 
-    /// Returns a non-constant mode argument so callers can preserve its KIR
-    /// value instead of silently replacing it with the compiler default.
-    static func modeExpression(
-        from delegateExpression: ExprID?,
-        ast: ASTModule,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> ExprID? {
-        guard let delegateExpression,
-              case let .call(_, _, arguments, _) = ast.arena.expr(delegateExpression)
-        else {
-            return nil
-        }
-        for argument in arguments.dropLast().reversed() {
-            guard let type = sema.bindings.exprTypes[argument.expr],
-                  isModeType(type, sema: sema, interner: interner)
-            else {
-                continue
-            }
-            return argument.expr
-        }
-        return nil
-    }
-
     /// Returns the non-mode argument of a lazy factory call, if it is the
     /// explicit lock overload (`lazy(lock) { ... }`). A value typed as
     /// `LazyThreadSafetyMode` is deliberately not treated as a lock because

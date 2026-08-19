@@ -632,15 +632,11 @@ extension KIRLoweringDriver {
                 let modeValue = Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
                 modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
                 body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
-            } else if constantModeValue == nil,
-                      let modeArgument = LazyThreadSafetyModeLowering.modeExpression(
-                from: propertyDecl.delegateExpression,
-                ast: shared.ast,
-                sema: shared.sema,
-                interner: interner
-            ) {
-                modeExpr = lowerExpr(modeArgument, shared: shared, emit: &body)
             } else {
+                // The runtime bridge consumes a raw mode ordinal, while a
+                // non-constant enum expression lowers to an object handle.
+                // Keep the documented delegate fallback instead of passing
+                // that handle through the integer ABI.
                 let modeValue = constantModeValue ?? Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
                 modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
                 body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))

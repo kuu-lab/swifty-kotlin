@@ -129,7 +129,7 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
-    func testDynamicLazyThreadSafetyModeReachesRuntimeCreate() throws {
+    func testDynamicLazyThreadSafetyModeFallsBackToDefaultRuntimeMode() throws {
         let source = """
         var selectedMode = LazyThreadSafetyMode.NONE
         val top by lazy(selectedMode) { 1 }
@@ -152,26 +152,29 @@ struct DelegatePropertyKIRTests {
                 "dynamic lazy mode should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
             )
             let module = try #require(ctx.kir)
-            let createCalls = module.arena.declarations.flatMap { declaration -> [([KIRExprID], KIRExprID)] in
+            let createCalls = module.arena.declarations.flatMap { declaration -> [[KIRExprID]] in
                 guard case let .function(function) = declaration else { return [] }
                 return function.body.compactMap { instruction in
-                    guard case let .call(_, callee, arguments, result, _, _, _, _ ) = instruction,
+                    guard case let .call(_, callee, arguments, _, _, _, _, _ ) = instruction,
                           ctx.interner.resolve(callee) == "kk_lazy_create",
                           arguments.count == 2
                     else {
                         return nil
                     }
-                    return (arguments, result ?? .invalid)
+                    return arguments
                 }
             }
-            #expect(createCalls.count == 3, "expected three dynamic lazy creates, got: (createCalls.count)")
-            let dynamicModeCount = createCalls.filter { arguments, _ in
-                if case .intLiteral = module.arena.expr(arguments[1]) {
-                    return false
+            #expect(createCalls.count == 3, "expected three dynamic lazy creates, got: \(createCalls.count)")
+            let modeValues = createCalls.compactMap { arguments -> Int64? in
+                guard case let .intLiteral(value)? = module.arena.expr(arguments[1]) else {
+                    return nil
                 }
-                return true
-            }.count
-            #expect(dynamicModeCount == 3, "dynamic mode must be passed as a KIR value, got (dynamicModeCount) dynamic calls")
+                return value
+            }
+            #expect(
+                modeValues == Array(repeating: Int64(ctx.options.lazyThreadSafetyMode.rawValue), count: 3),
+                "dynamic modes must use the compiler default raw value, got: \(modeValues)"
+            )
 
             let lazyImplConstructors = module.arena.declarations.flatMap { declaration -> [String] in
                 guard case let .function(function) = declaration else { return [] }

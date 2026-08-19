@@ -100,9 +100,6 @@ extension ExprLowerer {
                 from: $0, arena: arena, sema: sema, interner: interner
             )
         }
-        let modeArgumentIsTyped = modeArgument.flatMap { arena.exprType($0) }.map {
-            LazyThreadSafetyModeLowering.isModeType($0, sema: sema, interner: interner)
-        } ?? false
         let runtimeCallIndex: Int
         if lockExpr != nil {
             let modeValue = Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
@@ -113,15 +110,11 @@ extension ExprLowerer {
             modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
             instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
             runtimeCallIndex = callIndex + 1
-        } else if let modeArgument, modeArgumentIsTyped {
-            modeExpr = modeArgument
-            // The source-backed LazyImpl constructor is replaced by the
-            // runtime handle just like the source-backed lazy factory. Leaving
-            // the constructor in place would overwrite the runtime handle
-            // when the constructor result is copied into the local delegate.
-            instructions.remove(at: callIndex)
-            runtimeCallIndex = callIndex
         } else {
+            // The runtime bridge consumes a raw mode ordinal, while a
+            // non-constant enum expression lowers to an object handle. Keep
+            // the documented delegate fallback instead of passing that
+            // handle through the integer ABI.
             let modeValue = LazyThreadSafetyModeLowering.rawValue(
                 from: modeArgument,
                 arena: arena,
