@@ -25,7 +25,7 @@ internal class LazyImpl<T>(
     initialComputed: Boolean
 ) : Lazy<T> {
     private var cached: Any? = initialValue
-    private var computed: Boolean = initialComputed
+    private var hasValue: Boolean = initialComputed
 
     @Suppress("UNCHECKED_CAST")
     private fun computeValue(): T {
@@ -35,22 +35,22 @@ internal class LazyImpl<T>(
         if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
             // Keep every read under the same monitor as initialization. A
             // double-checked fast path would require volatile storage for
-            // `cached` and `computed`, which is not available to this
+            // `cached` and `hasValue`, which is not available to this
             // source-backed implementation.
             __lazySyncLock(synchronizationLock ?: this)
             try {
-                if (!computed) {
+                if (!hasValue) {
                     cached = initializer()
-                    computed = true
+                    hasValue = true
                 }
                 return cached as T
             } finally {
                 __lazySyncUnlock(synchronizationLock ?: this)
             }
         }
-        if (!computed) {
+        if (!hasValue) {
             cached = initializer()
-            computed = true
+            hasValue = true
         }
         return cached as T
     }
@@ -63,7 +63,7 @@ internal class LazyImpl<T>(
         var published: Any? = null
         var wasInitialized = false
         synchronized(this) {
-            if (computed) {
+            if (hasValue) {
                 published = cached
                 wasInitialized = true
             }
@@ -74,9 +74,9 @@ internal class LazyImpl<T>(
 
         val candidate = initializer()
         synchronized(this) {
-            if (!computed) {
+            if (!hasValue) {
                 cached = candidate
-                computed = true
+                hasValue = true
             }
             published = cached
         }
@@ -88,12 +88,12 @@ internal class LazyImpl<T>(
 
     override fun isInitialized(): Boolean {
         if (mode == LazyThreadSafetyMode.NONE) {
-            return computed
+            return hasValue
         }
         var initialized = false
         __lazySyncLock(synchronizationLock ?: this)
         try {
-            initialized = computed
+            initialized = hasValue
         } finally {
             __lazySyncUnlock(synchronizationLock ?: this)
         }
