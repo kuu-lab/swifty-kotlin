@@ -1679,7 +1679,7 @@
   - 未実装シンボル一覧:
     - `kotlin.longArrayOf` — fun longArrayOf(Array): LongArray  -- `final inline fun kotlin/longArrayOf(kotlin/LongArray...): kotlin/LongArray`
 
-- [ ] KSP-784: kotlin.require-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-784: kotlin.require-family の未実装 stdlib API を実装する（2 件。KSP-606 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin` / top-level / family `require`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
