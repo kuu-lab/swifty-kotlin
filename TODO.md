@@ -1692,7 +1692,7 @@
     - `kotlin.requireNotNull` — fun requireNotNull(): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?): #A`
     - `kotlin.requireNotNull` — fun requireNotNull(, Function0): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?, kotlin/Function0<kotlin/Any>): #A`
 
-- [ ] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin` / top-level / family `run`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

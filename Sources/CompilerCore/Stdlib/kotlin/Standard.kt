@@ -26,7 +26,7 @@ public inline fun <T, R> T.run(block: T.() -> R): R = block()
 
 public inline fun <T, R> T.runCatching(block: T.() -> R): Result<R> {
     val receiver = this
-    return runCatching { receiver.run { block() } }
+    return __kkRuntimeResultRunCatching { receiver.run { block() } }
 }
 
 public inline fun <T> T.apply(block: T.() -> Unit): T {
