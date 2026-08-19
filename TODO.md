@@ -1669,7 +1669,7 @@
   - 未実装シンボル一覧:
     - `kotlin.let` — fun let(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/let(kotlin/Function1<#A, #B>): #B`
 
-- [ ] KSP-783: kotlin.long-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-783: kotlin.long-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `long`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/long.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
