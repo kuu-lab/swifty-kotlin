@@ -1693,7 +1693,7 @@
     - `kotlin.floatToUInt` — fun floatToUInt(Float): UInt  -- `final inline fun kotlin/floatToUInt(kotlin/Float): kotlin/UInt`
     - `kotlin.floatToULong` — fun floatToULong(Float): ULong  -- `final inline fun kotlin/floatToULong(kotlin/Float): kotlin/ULong`
 
-- [ ] KSP-778: kotlin.from-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-778: kotlin.from-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `from`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/from.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1703,6 +1703,7 @@
   - 未実装シンボル一覧:
     - `kotlin.fromBits` — fun fromBits(Int): Float  -- `final fun kotlin/fromBits(kotlin/Int): kotlin/Float`
     - `kotlin.fromBits` — fun fromBits(Long): Double  -- `final fun kotlin/fromBits(kotlin/Long): kotlin/Double`
+  - 完了確認（2026-08-19）: `from.kt` のsource-backed overload、Double/FloatのfromBits専用Runtime/RuntimeABI bridge、fromBitsに限定したname-string特例、FloatのABI再拡張、Golden/diff/ABI/TODO IDゲートを確認。
 
 - [ ] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `int`

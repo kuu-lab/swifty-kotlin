@@ -41,33 +41,60 @@ struct FloatBitsSourceTests {
 
                 let name = ctx.interner.resolve(calleeName)
                 resolvedNames.append(name)
-                if name == "fromBits" {
-                    #expect(
-                        !sema.symbols.isSourceBackedSymbol(chosenCallee),
-                        "fromBits must use the primitive companion fallback"
-                    )
-                    #expect(
-                        ["__kk_double_fromBits", "__kk_float_fromBits"].contains(
-                            sema.symbols.externalLinkName(for: chosenCallee)
-                        ),
-                        "fromBits must resolve to a demoted runtime bridge"
-                    )
-                } else {
-                    #expect(
-                        sema.symbols.isSourceBackedSymbol(chosenCallee),
-                        "Floating-point member conversion must resolve to bundled Kotlin source"
-                    )
-                    #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
-                        "The public member conversion wrapper must not carry a runtime link"
-                    )
-                }
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "Floating-point bit API must resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "The public source-backed API must not carry a runtime link"
+                )
             }
 
             #expect(resolvedNames.count == 6, "Expected six floating-point bit API calls")
             #expect(resolvedNames.filter { $0 == "fromBits" }.count == 2)
             #expect(resolvedNames.filter { $0 == "toBits" }.count == 2)
             #expect(resolvedNames.filter { $0 == "toRawBits" }.count == 2)
+        }
+    }
+
+    @Test
+    func testFloatingPointBitConversionsAcceptUnsuffixedIntegerLiterals() throws {
+        let source = """
+        fun main() {
+            val doublePayload = Double.fromBits(0)
+            val floatPayload = Float.fromBits(0)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Unsuffixed integer literals should widen for fromBits parameters: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
+    func testNumericCompanionInferenceDoesNotAcceptUnrelatedKotlinFunctions() throws {
+        let source = """
+        package kotlin
+
+        fun unrelated(bits: Long): Double = 1.0
+
+        fun main() {
+            Double.unrelated(0L)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError, "Only fromBits should use numeric companion inference")
         }
     }
 }
