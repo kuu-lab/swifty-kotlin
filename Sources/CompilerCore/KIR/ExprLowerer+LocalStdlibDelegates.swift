@@ -15,8 +15,8 @@ extension ExprLowerer {
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
-    ) {
-        guard delegateKind == .lazy else { return }
+    ) -> Bool {
+        guard delegateKind == .lazy else { return true }
 
         let lazyName = interner.intern("lazy")
         let lazyFQName = [interner.intern("kotlin"), lazyName]
@@ -32,13 +32,13 @@ extension ExprLowerer {
             }
             return symbolInfo.fqName == lazyFQName
         }) else {
-            return
+            return false
         }
 
         guard case let .call(_, _, arguments, result, _, _, _, _) = instructions[callIndex],
               let initializer = arguments.last
         else {
-            return
+            return false
         }
 
         let modeValue = LazyThreadSafetyModeLowering.rawValue(
@@ -64,6 +64,7 @@ extension ExprLowerer {
             ),
             at: callIndex + 1
         )
+        return true
     }
 
     /// Runtime accessor called to read a local `by`-delegated value for the stdlib

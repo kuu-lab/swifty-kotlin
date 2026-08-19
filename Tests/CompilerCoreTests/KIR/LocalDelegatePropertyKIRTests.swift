@@ -39,6 +39,37 @@ struct LocalDelegatePropertyKIRTests {
         }
     }
 
+    @Test func testLocalDelegateFactoryNamedLazyUsesCustomGetValue() throws {
+        let source = """
+        class IntProp(private val initializer: () -> Int) {
+            operator fun getValue(thisRef: Any?, property: Any?): Int = initializer()
+        }
+        fun main() {
+            fun lazy(initializer: () -> Int): IntProp = IntProp(initializer)
+            val x by lazy { 42 }
+            println(x)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "a user-defined lazy factory should compile without errors: \(diagnosticMessages)"
+            )
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+
+            #expect(callees.contains("getValue"), "user-defined lazy should call getValue, got: \(callees)")
+            #expect(!callees.contains("kk_lazy_create"), "user-defined lazy must not create a runtime Lazy handle, got: \(callees)")
+            #expect(!callees.contains("kk_lazy_get_value"), "user-defined lazy must not use the runtime Lazy accessor, got: \(callees)")
+        }
+    }
+
     @Test func testLocalValCustomDelegatePrintsGetValueResultNotDelegateInstance() throws {
         let source = """
         class IntProp {
