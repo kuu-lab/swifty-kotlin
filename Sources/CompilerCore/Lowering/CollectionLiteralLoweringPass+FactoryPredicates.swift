@@ -67,8 +67,10 @@ extension CollectionLiteralConstructionLoweringPass {
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        if lookup.arrayOfFactoryNames.contains(callee) {
-            return isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        if lookup.arrayOfFactoryNames.contains(callee),
+           isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        {
+            return true
         }
         guard let symbol,
               let sema = ctx.sema,
