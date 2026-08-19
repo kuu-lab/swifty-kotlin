@@ -1149,7 +1149,6 @@ extension DataFlowSemaPhase {
             ("floatArrayOf", "FloatArray", types.floatType),
             ("booleanArrayOf", "BooleanArray", types.booleanType),
             ("charArrayOf", "CharArray", types.charType),
-            ("byteArrayOf", "ByteArray", types.byteType),
             ("shortArrayOf", "ShortArray", types.shortType),
             ("ubyteArrayOf", "UByteArray", types.ubyteType),
             ("ushortArrayOf", "UShortArray", types.ushortType),
