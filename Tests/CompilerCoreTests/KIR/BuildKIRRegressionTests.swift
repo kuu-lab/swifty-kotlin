@@ -5,6 +5,131 @@ import Testing
 
 @Suite
 struct BuildKIRRegressionTests {
+
+    private static nonisolated(unsafe) var _sharedBuildKIRCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedBuildKIRLoweredCtx: CompilationContext?
+
+    private func sharedBuildKIRCtx() throws -> CompilationContext {
+        if let cached = Self._sharedBuildKIRCtx {
+            return cached
+        }
+
+        let sources: [String] = [
+            """
+            package buildkir.raw0
+            fun main0() = "a" + "b"
+            """,
+            """
+            package buildkir.raw1
+            fun lengthOf1(value: String): Int {
+                return value.length
+            }
+            """,
+            """
+            package buildkir.raw2
+            fun parse2(value: String): Int = value.toInt()
+            fun trimValue2(value: String): String = value.trim()
+            fun takeTwo2(value: String): String = value.take(2)
+            """,
+            """
+            package buildkir.raw3
+            fun String.implicitOneArg3(n: Int): String = substring(n)
+            fun String.implicitTwoArgs3(a: Int, b: Int): String = substring(a, b)
+            fun String.explicitOneArg3(n: Int): String = this.substring(n)
+            """,
+            """
+            package buildkir.raw4
+            fun main4(): Int {
+                val x = 2
+                val a = -x
+                val b = +x
+                if (!false) return a + b
+                return 0
+            }
+            """,
+            """
+            package buildkir.raw5
+            fun main5(): Int {
+                val x = 3
+                val a = x != 2
+                val b = x < 5
+                val c = x <= 3
+                val d = x > 1
+                val e = x >= 3
+                if (a && b && c && d && e) return 1
+                return 0
+            }
+            """,
+            """
+            package buildkir.raw6
+            fun main6() {
+                val f = true && false
+                val g = false || true
+                println(f)
+                println(g)
+            }
+            """,
+            """
+            package buildkir.raw7
+            operator fun Int.plus(other: Int): Int = this - other
+            fun main7(): Int = 7 + 3
+            """,
+        ]
+
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        Self._sharedBuildKIRCtx = ctx
+        return ctx
+    }
+
+    private func sharedBuildKIRLoweredCtx() throws -> CompilationContext {
+        if let cached = Self._sharedBuildKIRLoweredCtx {
+            return cached
+        }
+
+        let sources: [String] = [
+            """
+            package buildkir.lower0
+            fun mainLower0() {
+                val x: Any = 42L
+                println(x)
+            }
+            """,
+            """
+            package buildkir.lower1
+            fun mainLower1() {
+                val x = 42L
+                println(x)
+            }
+            """,
+            """
+            package buildkir.lower2
+            fun mainLower2() {
+                var v: Any = 42
+                v = 100L
+                println(v)
+            }
+            """,
+        ]
+
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        Self._sharedBuildKIRLoweredCtx = ctx
+        return ctx
+    }
     @Test func testLoadSourcesPhaseReportsMissingInputsAndUnreadableFiles() {
         let emptyCtx = makeCompilationContext(inputs: [])
         #expect(throws: (any Error).self) { try LoadSourcesPhase().run(emptyCtx) }
@@ -65,244 +190,136 @@ struct BuildKIRRegressionTests {
     }
 
     @Test func testBuildKIRLowersStringAdditionToRuntimeConcatCall() throws {
-        let source = """
-        fun main() = "a" + "b"
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("kk_string_concat_flat"))
-            #expect(!(body.contains { instruction in
-                guard case let .binary(op, _, _, _) = instruction else {
-                    return false
-                }
-                return op == .add
-            }))
-        }
-    }
-
-    @Test func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
-        let source = """
-        fun lengthOf(value: String): Int {
-            return value.length
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("__kk_string_struct_get_length"))
-            #expect(!callees.contains("kk_string_struct_get_length"))
-        }
-    }
-
-    @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeOrSourceCalls() throws {
-        let source = """
-        fun parse(value: String): Int = value.toInt()
-        fun trimValue(value: String): String = value.trim()
-        fun takeTwo(value: String): String = value.take(2)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let parseCallees = Set(extractCallees(
-                from: try findKIRFunctionBody(named: "parse", in: module, interner: ctx.interner),
-                interner: ctx.interner
-            ))
-            let trimCallees = Set(extractCallees(
-                from: try findKIRFunctionBody(named: "trimValue", in: module, interner: ctx.interner),
-                interner: ctx.interner
-            ))
-            let takeCallees = Set(extractCallees(
-                from: try findKIRFunctionBody(named: "takeTwo", in: module, interner: ctx.interner),
-                interner: ctx.interner
-            ))
-
-            // String.toInt is source-backed after the KSP-414 migration.
-            #expect(parseCallees.contains("toInt"))
-            #expect(!parseCallees.contains("kk_string_toInt_flat"))
-            // String.trim is source-backed after the KSP-403 migration.
-            #expect(trimCallees.contains("trim"))
-            #expect(!trimCallees.contains("kk_string_trim_flat"))
-            // String.take is source-backed after the KSP-405 migration.
-            #expect(takeCallees.contains("take"))
-            #expect(!takeCallees.contains("kk_string_take_flat"))
-        }
-    }
-
-    /// BUG-145: `substring(...)` called with an implicit receiver inside a
-    /// `String` extension must pass the same arguments (receiver first) as the
-    /// explicit `this.substring(...)` form. `String.substring` is source-backed
-    /// after the KSP-406 migration, so the call targets the bundled Kotlin
-    /// declaration instead of `kk_string_substring_flat`.
-    @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {
-        let source = """
-        fun String.implicitOneArg(n: Int): String = substring(n)
-        fun String.implicitTwoArgs(a: Int, b: Int): String = substring(a, b)
-        fun String.explicitOneArg(n: Int): String = this.substring(n)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            let module = try #require(ctx.kir)
-
-            let expectedArgumentCounts = [
-                "implicitOneArg": 2,
-                "implicitTwoArgs": 3,
-                "explicitOneArg": 2,
-            ]
-            for (functionName, expectedArgumentCount) in expectedArgumentCounts {
-                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_string_substring_flat"))
-
-                let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
-                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "substring"
-                    else {
-                        return nil
-                    }
-                    return arguments
-                }.first, "\(functionName) should lower to a source-backed substring call")
-
-                #expect(
-                    substringCall.count == expectedArgumentCount,
-                    "\(functionName) should pass \(expectedArgumentCount) arguments, got \(substringCall.count)"
-                )
-            }
-        }
-    }
-
-    @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
-        let source = """
-        fun main(): Int {
-            val x = 2
-            val a = -x
-            val b = +x
-            if (!false) return a + b
-            return 0
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-
-            let binaryOps = body.compactMap { instruction -> KIRBinaryOp? in
-                guard case let .binary(op, _, _, _) = instruction else {
-                    return nil
-                }
-                return op
-            }
-            #expect(binaryOps.contains(.subtract))
-            #expect(binaryOps.contains(.equal))
-        }
-    }
-
-    @Test func testBuildKIRLowersComparisonOperatorsToRuntimeCalls() throws {
-        let source = """
-        fun main(): Int {
-            val x = 3
-            val a = x != 2
-            val b = x < 5
-            val c = x <= 3
-            val d = x > 1
-            val e = x >= 3
-            if (a && b && c && d && e) return 1
-            return 0
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
-
-            #expect(callees.contains("kk_op_ne"))
-            #expect(callees.contains("kk_op_lt"))
-            #expect(callees.contains("kk_op_le"))
-            #expect(callees.contains("kk_op_gt"))
-            #expect(callees.contains("kk_op_ge"))
-        }
-    }
-
-    // `&&`/`||` must short-circuit, so they lower to conditional branches
-    // (jumpIfEqual/label) rather than a runtime call that would evaluate both
-    // operands unconditionally.
-    @Test func testBuildKIRLowersLogicalOperatorsToShortCircuitBranches() throws {
-        let source = """
-        fun main() {
-            val f = true && false
-            val g = false || true
-            println(f)
-            println(g)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
-
-            #expect(!callees.contains("kk_op_and"))
-            #expect(!callees.contains("kk_op_or"))
-            let jumpIfEqualCount = body.count { instruction in
-                if case .jumpIfEqual = instruction { return true }
+        #expect(callees.contains("kk_string_concat_flat"))
+        #expect(!(body.contains { instruction in
+            guard case let .binary(op, _, _, _) = instruction else {
                 return false
             }
-            #expect(jumpIfEqualCount >= 2)
+            return op == .add
+        }))
+    }
+    @Test func testBuildKIRLowersStringLengthToInternalAggregateAccessor() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "lengthOf1", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("__kk_string_struct_get_length"))
+        #expect(!callees.contains("kk_string_struct_get_length"))
+    }
+    @Test func testBuildKIRLowersTableDrivenStringMembersToRuntimeOrSourceCalls() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let parseCallees = Set(extractCallees(
+            from: try findKIRFunctionBody(named: "parse2", in: module, interner: ctx.interner),
+            interner: ctx.interner
+        ))
+        let trimCallees = Set(extractCallees(
+            from: try findKIRFunctionBody(named: "trimValue2", in: module, interner: ctx.interner),
+            interner: ctx.interner
+        ))
+        let takeCallees = Set(extractCallees(
+            from: try findKIRFunctionBody(named: "takeTwo2", in: module, interner: ctx.interner),
+            interner: ctx.interner
+        ))
+
+        #expect(parseCallees.contains("toInt"))
+        #expect(!parseCallees.contains("kk_string_toInt_flat"))
+        #expect(trimCallees.contains("trim"))
+        #expect(!trimCallees.contains("kk_string_trim_flat"))
+        #expect(takeCallees.contains("take"))
+        #expect(!takeCallees.contains("kk_string_take_flat"))
+    }
+    @Test func testBuildKIRLowersImplicitReceiverSubstringWithReceiverArgument() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let expectedArgumentCounts = [
+            "implicitOneArg3": 2,
+            "implicitTwoArgs3": 3,
+            "explicitOneArg3": 2,
+        ]
+        for (functionName, expectedArgumentCount) in expectedArgumentCounts {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            #expect(!extractCallees(from: body, interner: ctx.interner).contains("kk_string_substring_flat"))
+
+            let substringCall = try #require(body.compactMap { instruction -> [KIRExprID]? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "substring"
+                else {
+                    return nil
+                }
+                return arguments
+            }.first, "\(functionName) should lower to a source-backed substring call")
+
+            #expect(
+                substringCall.count == expectedArgumentCount,
+                "\(functionName) should pass \(expectedArgumentCount) arguments, got \(substringCall.count)"
+            )
         }
     }
+    @Test func testBuildKIRLowersUnaryOperatorsToExpectedOperations() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main4", in: module, interner: ctx.interner)
 
+        let binaryOps = body.compactMap { instruction -> KIRBinaryOp? in
+            guard case let .binary(op, _, _, _) = instruction else {
+                return nil
+            }
+            return op
+        }
+        #expect(binaryOps.contains(.subtract))
+        #expect(binaryOps.contains(.equal))
+    }
+    @Test func testBuildKIRLowersComparisonOperatorsToRuntimeCalls() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main5", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+        #expect(callees.contains("kk_op_ne"))
+        #expect(callees.contains("kk_op_lt"))
+        #expect(callees.contains("kk_op_le"))
+        #expect(callees.contains("kk_op_gt"))
+        #expect(callees.contains("kk_op_ge"))
+    }
+    @Test func testBuildKIRLowersLogicalOperatorsToShortCircuitBranches() throws {
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main6", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
+
+        #expect(!callees.contains("kk_op_and"))
+        #expect(!callees.contains("kk_op_or"))
+        let jumpIfEqualCount = body.count { instruction in
+            if case .jumpIfEqual = instruction { return true }
+            return false
+        }
+        #expect(jumpIfEqualCount >= 2)
+    }
     @Test func testBuildKIRUsesResolvedOperatorOverloadCallForBinaryExpression() throws {
-        // Kotlin member functions take precedence over extensions with the same
-        // signature.  Int.plus is a built-in member, so `operator fun Int.plus`
-        // defined as an extension must NOT shadow the built-in `+`.
-        let source = """
-        operator fun Int.plus(other: Int): Int = this - other
-        fun main(): Int = 7 + 3
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = try sharedBuildKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main7", in: module, interner: ctx.interner)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-
-            // The built-in binary .add instruction should be used, not a call.
-            #expect(body.contains { instruction in
-                guard case let .binary(op, _, _, _) = instruction else {
-                    return false
-                }
-                return op == .add
-            })
-            #expect(!(body.contains { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
-                }
-                return ctx.interner.resolve(callee) == "plus"
-            }))
-        }
+        #expect(body.contains { instruction in
+            guard case let .binary(op, _, _, _) = instruction else {
+                return false
+            }
+            return op == .add
+        })
+        #expect(!(body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                return false
+            }
+            return ctx.interner.resolve(callee) == "plus"
+        }))
     }
-
-    // MARK: - Member operator/member call integration (P5-19)
-
     @Test func testBuildKIRUsesChosenMemberOperatorSymbolForBinaryPlusExpression() throws {
         let source = """
         class Vec {
@@ -503,74 +520,29 @@ struct BuildKIRRegressionTests {
     // symbol's Sema-recorded declared type (Any), so the local aliased the
     // raw unboxed literal register and no box call was ever emitted.
     @Test func testLocalDeclBoxesLiteralWhenWidenedToAny() throws {
-        let source = """
-        fun main() {
-            val x: Any = 42L
-            println(x)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = try sharedBuildKIRLoweredCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "mainLower0", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
-
-            #expect(callees.contains("kk_box_long_nonnull"))
-        }
+        #expect(callees.contains("kk_box_long_nonnull"))
     }
-
-    // Companion to the above: an unannotated local (`val x = 42L`) must NOT
-    // gain a spurious box/copy — the declared and initializer types coincide,
-    // so the direct-alias fast path should still apply.
     @Test func testLocalDeclDoesNotBoxWhenDeclaredTypeMatchesInitializer() throws {
-        let source = """
-        fun main() {
-            val x = 42L
-            println(x)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = try sharedBuildKIRLoweredCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "mainLower1", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
-
-            #expect(!callees.contains("kk_box_long"))
-        }
+        #expect(!callees.contains("kk_box_long"))
     }
-
-    // The same widening gap affected reassignment of a widened local: since
-    // the *first* declaration never established an Any-typed storage slot,
-    // later `v = <primitive>` copies inherited the initializer's narrow type
-    // and skipped boxing too. Verify both the initial box and the
-    // reassignment's box are now emitted.
     @Test func testLocalDeclWideningFixAlsoBoxesLaterReassignment() throws {
-        let source = """
-        fun main() {
-            var v: Any = 42
-            v = 100L
-            println(v)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = try sharedBuildKIRLoweredCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "mainLower2", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("kk_box_int"))
-            #expect(callees.contains("kk_box_long_nonnull"))
-        }
+        #expect(callees.contains("kk_box_int"))
+        #expect(callees.contains("kk_box_long_nonnull"))
     }
-
 }
 #endif
