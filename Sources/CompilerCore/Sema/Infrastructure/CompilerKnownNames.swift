@@ -30,6 +30,7 @@ package enum KnownCompilerAnnotation {
     case experimentalTypeInference
     case overloadResolutionByLambdaReturnType
     case contextFunctionTypeParams
+    case unsafeVariance
     case ksSymbolName
 
     var simpleName: String {
@@ -94,6 +95,8 @@ package enum KnownCompilerAnnotation {
             "OverloadResolutionByLambdaReturnType"
         case .contextFunctionTypeParams:
             "ContextFunctionTypeParams"
+        case .unsafeVariance:
+            "UnsafeVariance"
         case .ksSymbolName:
             "KsSymbolName"
         }
@@ -161,6 +164,8 @@ package enum KnownCompilerAnnotation {
             "kotlin.OverloadResolutionByLambdaReturnType"
         case .contextFunctionTypeParams:
             "kotlin.ContextFunctionTypeParams"
+        case .unsafeVariance:
+            "kotlin.UnsafeVariance"
         case .ksSymbolName:
             "kotlin.internal.KsSymbolName"
         }

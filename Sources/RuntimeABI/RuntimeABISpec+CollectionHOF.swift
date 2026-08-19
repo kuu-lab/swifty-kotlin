@@ -499,46 +499,6 @@ public extension RuntimeABISpec {
                     returnType: .intptr,
                     section: "Collection"
                 ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_plus_element",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_plus_collection",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherList", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minus_element",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "element", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
-                RuntimeABIFunctionSpec(
-                    name: "kk_list_minus_collection",
-                    parameters: [
-                        RuntimeABIParameter(name: "listRaw", type: .intptr),
-                        RuntimeABIParameter(name: "otherList", type: .intptr),
-                    ],
-                    returnType: .intptr,
-                    section: "Collection",
-            isThrowing: false
-                ),
                 // ArrayDeque (STDLIB-240 / KSP-625 ring-buffer bridges)
                 RuntimeABIFunctionSpec(
                     name: "__kk_arraydeque_new",

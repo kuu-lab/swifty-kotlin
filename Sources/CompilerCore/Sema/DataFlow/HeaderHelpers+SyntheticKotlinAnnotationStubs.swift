@@ -48,13 +48,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticAnnotationClass(
-            named: "SubclassOptInRequired",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
         // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
         // (KSP-668). No synthetic registration is needed here.
@@ -188,28 +181,6 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(retentionType, for: valueSymbol)
             symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
         }
-
-        if let subclassOptInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SubclassOptInRequired")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: subclassOptInSymbol,
-                symbols: symbols
-            )
-            registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-                ownerSymbol: subclassOptInSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("SubclassOptInRequired")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-
-
-
 
         if let introducedAtSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("IntroducedAt")]) {
             appendSyntheticAnnotation(

@@ -1214,14 +1214,6 @@ extension DataFlowSemaPhase {
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPreconditionStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
@@ -1234,8 +1226,6 @@ extension DataFlowSemaPhase {
         } else {
             registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
         }
-        registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticTODOAndIOStubs(
             symbols: symbols,
             types: types,
@@ -1250,13 +1240,6 @@ extension DataFlowSemaPhase {
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerLateListIndexedMembers(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }
@@ -1373,6 +1356,70 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-707: The bundled `kotlin/Preconditions.kt` source declares `require`/
+    /// `check`/`assert` without a `contract { ... }` block, so their smart-cast
+    /// narrowing (e.g. `require(x != null); x.length`) is not derived from the
+    /// AST. Attach the `ContractNonNullEffect` directly to the source-backed
+    /// symbols once header collection has registered them, so
+    /// `applyContractEffects` can branch on the passed-in condition expression.
+    func patchSourceBackedPreconditionContractEffects(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
+        let lazyMessageType = types.make(.functionType(FunctionType(
+            params: [],
+            returnType: types.anyType,
+            isSuspend: false,
+            nullability: .nonNull
+        )))
+
+        let preconditionFunctions: [(name: String, parameterTypes: [TypeID])] = [
+            ("require", [types.booleanType]),
+            ("require", [types.booleanType, lazyMessageType]),
+            ("check", [types.booleanType]),
+            ("check", [types.booleanType, lazyMessageType]),
+            ("assert", [types.booleanType]),
+            ("assert", [types.booleanType, lazyMessageType]),
+        ]
+
+        for entry in preconditionFunctions {
+            let functionName = interner.intern(entry.name)
+            let functionFQName = kotlinPkg + [functionName]
+            guard let symbol = symbols.lookupAll(fqName: functionFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID),
+                      symbol.kind == .function,
+                      // Symbols loaded from a precompiled stdlib library artifact
+                      // (`--stdlib-library`, used by Scripts/diff_kotlinc.sh) carry
+                      // both `.importedLibrary` and `.synthetic`, so only exclude
+                      // synthetic placeholders that are NOT backed by an import.
+                      !symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary),
+                      let signature = symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType == nil
+                    && signature.parameterTypes == entry.parameterTypes
+                    && signature.returnType == types.unitType
+            }) else {
+                continue
+            }
+            guard let signature = symbols.functionSignature(for: symbol),
+                  !signature.valueParameterSymbols.isEmpty
+            else {
+                continue
+            }
+            symbols.setContractNonNullEffect(
+                ContractNonNullEffect(
+                    parameterSymbol: signature.valueParameterSymbols[0],
+                    appliesOnAnyReturn: true
+                ),
+                for: symbol
+            )
+        }
+    }
+
     func resolveNumberClassSymbol(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1400,457 +1447,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
         types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
         types.numberClassSymbol = numberSymbol
-    }
-
-    func registerSyntheticContractStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let contractsFQName = ensurePackage(
-            path: ["kotlin", "contracts"],
-            symbols: symbols,
-            interner: interner
-        )
-        let contractsPkg = symbols.lookup(fqName: contractsFQName) ?? SymbolID.invalid
-        let builderSymbol = ensureClassSymbol(
-            named: "ContractBuilder",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let contractEffectSymbol = ensureInterfaceSymbol(
-            named: "ContractEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let effectSymbol = ensureInterfaceSymbol(
-            named: "Effect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let callsInPlaceSymbol = ensureInterfaceSymbol(
-            named: "CallsInPlace",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let simpleEffectSymbol = ensureInterfaceSymbol(
-            named: "SimpleEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let returnsSymbol = ensureInterfaceSymbol(
-            named: "Returns",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let returnsNotNullSymbol = ensureInterfaceSymbol(
-            named: "ReturnsNotNull",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let conditionalEffectSymbol = ensureInterfaceSymbol(
-            named: "ConditionalEffect",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        let holdsInSymbol = ensureInterfaceSymbol(
-            named: "HoldsIn",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: builderSymbol)
-            symbols.setParentSymbol(contractsPkg, for: contractEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: effectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: callsInPlaceSymbol)
-            symbols.setParentSymbol(contractsPkg, for: simpleEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: returnsSymbol)
-            symbols.setParentSymbol(contractsPkg, for: returnsNotNullSymbol)
-            symbols.setParentSymbol(contractsPkg, for: conditionalEffectSymbol)
-            symbols.setParentSymbol(contractsPkg, for: holdsInSymbol)
-        }
-
-        let experimentalContractsSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalContracts",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: experimentalContractsSymbol)
-        }
-        let experimentalContractsAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var existingAnnotations = symbols.annotations(for: experimentalContractsSymbol)
-        for annotation in experimentalContractsAnnotations where !existingAnnotations.contains(annotation) {
-            existingAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingAnnotations, for: experimentalContractsSymbol)
-
-        let experimentalExtendedContractsSymbol = ensureAnnotationClassSymbol(
-            named: "ExperimentalExtendedContracts",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: experimentalExtendedContractsSymbol)
-        }
-        let experimentalExtendedContractsAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.RequiresOptIn"
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: [
-                    "AnnotationTarget.CLASS",
-                    "AnnotationTarget.FUNCTION",
-                    "AnnotationTarget.PROPERTY",
-                    "AnnotationTarget.TYPEALIAS",
-                ]
-            ),
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Retention",
-                arguments: ["AnnotationRetention.BINARY"]
-            ),
-        ]
-        var existingExtendedAnnotations = symbols.annotations(for: experimentalExtendedContractsSymbol)
-        for annotation in experimentalExtendedContractsAnnotations where !existingExtendedAnnotations.contains(annotation) {
-            existingExtendedAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingExtendedAnnotations, for: experimentalExtendedContractsSymbol)
-
-        // kotlin.experimental.ExperimentalTypeInference is now provided by the
-        // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
-        // (KSP-668). No synthetic registration is needed here.
-
-        let builderType = types.make(.classType(ClassType(classSymbol: builderSymbol, args: [], nullability: .nonNull)))
-        let contractEffectType = types.make(.classType(ClassType(classSymbol: contractEffectSymbol, args: [], nullability: .nonNull)))
-        let effectType = types.make(.classType(ClassType(classSymbol: effectSymbol, args: [], nullability: .nonNull)))
-        let callsInPlaceType = types.make(.classType(ClassType(classSymbol: callsInPlaceSymbol, args: [], nullability: .nonNull)))
-        let simpleEffectType = types.make(.classType(ClassType(classSymbol: simpleEffectSymbol, args: [], nullability: .nonNull)))
-        let returnsType = types.make(.classType(ClassType(classSymbol: returnsSymbol, args: [], nullability: .nonNull)))
-        let returnsNotNullType = types.make(.classType(ClassType(classSymbol: returnsNotNullSymbol, args: [], nullability: .nonNull)))
-        let conditionalEffectType = types.make(.classType(ClassType(classSymbol: conditionalEffectSymbol, args: [], nullability: .nonNull)))
-        let holdsInType = types.make(.classType(ClassType(classSymbol: holdsInSymbol, args: [], nullability: .nonNull)))
-
-        symbols.setPropertyType(contractEffectType, for: contractEffectSymbol)
-        symbols.setPropertyType(effectType, for: effectSymbol)
-        symbols.setPropertyType(callsInPlaceType, for: callsInPlaceSymbol)
-        symbols.setPropertyType(simpleEffectType, for: simpleEffectSymbol)
-        symbols.setPropertyType(returnsType, for: returnsSymbol)
-        symbols.setPropertyType(returnsNotNullType, for: returnsNotNullSymbol)
-        symbols.setPropertyType(conditionalEffectType, for: conditionalEffectSymbol)
-        symbols.setPropertyType(holdsInType, for: holdsInSymbol)
-
-        symbols.setDirectSupertypes([contractEffectSymbol], for: effectSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: callsInPlaceSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: simpleEffectSymbol)
-        symbols.setDirectSupertypes([simpleEffectSymbol], for: returnsSymbol)
-        symbols.setDirectSupertypes([simpleEffectSymbol], for: returnsNotNullSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: conditionalEffectSymbol)
-        symbols.setDirectSupertypes([effectSymbol], for: holdsInSymbol)
-
-        let callsInPlaceAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingCallsInPlaceAnnotations = symbols.annotations(for: callsInPlaceSymbol)
-        for annotation in callsInPlaceAnnotations where !existingCallsInPlaceAnnotations.contains(annotation) {
-            existingCallsInPlaceAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingCallsInPlaceAnnotations, for: callsInPlaceSymbol)
-
-        let returnsAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingReturnsAnnotations = symbols.annotations(for: returnsSymbol)
-        for annotation in returnsAnnotations where !existingReturnsAnnotations.contains(annotation) {
-            existingReturnsAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingReturnsAnnotations, for: returnsSymbol)
-
-        let returnsNotNullAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-        ]
-        var existingReturnsNotNullAnnotations = symbols.annotations(for: returnsNotNullSymbol)
-        for annotation in returnsNotNullAnnotations where !existingReturnsNotNullAnnotations.contains(annotation) {
-            existingReturnsNotNullAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingReturnsNotNullAnnotations, for: returnsNotNullSymbol)
-
-        let holdsInAnnotations = [
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalContracts"),
-            MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalExtendedContracts"),
-        ]
-        var existingHoldsInAnnotations = symbols.annotations(for: holdsInSymbol)
-        for annotation in holdsInAnnotations where !existingHoldsInAnnotations.contains(annotation) {
-            existingHoldsInAnnotations.append(annotation)
-        }
-        symbols.setAnnotations(existingHoldsInAnnotations, for: holdsInSymbol)
-
-        let contractName = interner.intern("contract")
-        let contractFQName = contractsFQName + [contractName]
-        if symbols.lookup(fqName: contractFQName) == nil {
-            let symbol = symbols.define(
-                kind: .function,
-                name: contractName,
-                fqName: contractFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .inlineFunction]
-            )
-            let blockType = types.make(.functionType(FunctionType(
-                receiver: builderType,
-                params: [],
-                returnType: types.unitType
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(parameterTypes: [blockType], returnType: types.unitType),
-                for: symbol
-            )
-            if contractsPkg != .invalid {
-                symbols.setParentSymbol(contractsPkg, for: symbol)
-            }
-        }
-
-        func ensureMember(
-            owner: SymbolID,
-            ownerFQName: [InternedString],
-            name: String,
-            receiverType: TypeID,
-            params: [TypeID],
-            returnType: TypeID
-        ) {
-            let interned = interner.intern(name)
-            let fqName = ownerFQName + [interned]
-            // Check existing overloads by full signature (receiver type + parameter
-            // types + return type) to allow functions with the same fqName but
-            // different signatures, while preventing true duplicates.  Comparing
-            // only parameter count would incorrectly treat overloads with the same
-            // arity but different parameter types as duplicates.
-            let existingIDs = symbols.lookupAll(fqName: fqName)
-            let alreadyRegistered = existingIDs.contains { id in
-                guard let sig = symbols.functionSignature(for: id) else { return false }
-                return sig.receiverType == receiverType
-                    && sig.parameterTypes == params
-                    && sig.returnType == returnType
-            }
-            guard !alreadyRegistered else { return }
-            let symbol = symbols.define(
-                kind: .function,
-                name: interned,
-                fqName: fqName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setFunctionSignature(
-                FunctionSignature(receiverType: receiverType, parameterTypes: params, returnType: returnType),
-                for: symbol
-            )
-            symbols.setParentSymbol(owner, for: symbol)
-        }
-
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returns",
-            receiverType: builderType,
-            params: [],
-            returnType: returnsType
-        )
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returns",
-            receiverType: builderType,
-            params: [types.booleanType],
-            returnType: returnsType
-        )
-        ensureMember(
-            owner: simpleEffectSymbol,
-            ownerFQName: contractsFQName + [interner.intern("SimpleEffect")],
-            name: "implies",
-            receiverType: simpleEffectType,
-            params: [types.booleanType],
-            returnType: conditionalEffectType
-        )
-        // STDLIB-593 stub: `ContractBuilder.returnsNotNull()` -- forward declaration
-        // so that user code containing `contract { returnsNotNull() }` resolves.
-        ensureMember(
-            owner: builderSymbol,
-            ownerFQName: contractsFQName + [interner.intern("ContractBuilder")],
-            name: "returnsNotNull",
-            receiverType: builderType,
-            params: [],
-            returnType: returnsNotNullType
-        )
-
-        let holdsInName = interner.intern("holdsIn")
-        let holdsInFQName = contractsFQName + [interner.intern("ContractBuilder"), holdsInName]
-        let holdsInAlreadyDefined = symbols.lookupAll(fqName: holdsInFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .function,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.receiverType == builderType
-                && signature.parameterTypes.count == 2
-                && signature.returnType == holdsInType
-        }
-        if !holdsInAlreadyDefined {
-            let typeParamName = interner.intern("R")
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: holdsInFQName + [typeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let typeParamType = types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            let symbol = symbols.define(
-                kind: .function,
-                name: holdsInName,
-                fqName: holdsInFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(builderSymbol, for: symbol)
-            symbols.setParentSymbol(symbol, for: typeParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: builderType,
-                    parameterTypes: [types.booleanType, typeParamType],
-                    returnType: holdsInType,
-                    typeParameterSymbols: [typeParamSymbol]
-                ),
-                for: symbol
-            )
-            symbols.setAnnotations(
-                [MetadataAnnotationRecord(annotationFQName: "kotlin.contracts.ExperimentalExtendedContracts")],
-                for: symbol
-            )
-        }
-
-        // STDLIB-592: InvocationKind enum class stub
-        let invocationKindSymbol = ensureEnumClassSymbol(
-            named: "InvocationKind",
-            in: contractsFQName,
-            symbols: symbols,
-            interner: interner
-        )
-        if contractsPkg != .invalid {
-            symbols.setParentSymbol(contractsPkg, for: invocationKindSymbol)
-        }
-        let invocationKindType = types.make(.classType(ClassType(
-            classSymbol: invocationKindSymbol, args: [], nullability: .nonNull
-        )))
-        // Register enum entries: AT_MOST_ONCE, AT_LEAST_ONCE, EXACTLY_ONCE, UNKNOWN
-        let invocationKindFQName = contractsFQName + [interner.intern("InvocationKind")]
-        for entry in ["AT_MOST_ONCE", "AT_LEAST_ONCE", "EXACTLY_ONCE", "UNKNOWN"] {
-            let entryName = interner.intern(entry)
-            let entryFQName = invocationKindFQName + [entryName]
-            if symbols.lookup(fqName: entryFQName) == nil {
-                let entrySymbol = symbols.define(
-                    kind: .property,
-                    name: entryName,
-                    fqName: entryFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .constValue]
-                )
-                symbols.setParentSymbol(invocationKindSymbol, for: entrySymbol)
-            }
-        }
-
-        // STDLIB-592: callsInPlace overloads on ContractBuilder.
-        let callsInPlaceName = interner.intern("callsInPlace")
-        let callsInPlaceFQBase = contractsFQName + [interner.intern("ContractBuilder"), callsInPlaceName]
-        func registerCallsInPlaceOverload(
-            extraParameterTypes: [TypeID] = []
-        ) {
-            let parameterCount = extraParameterTypes.count + 1
-            let alreadyDefined = symbols.lookupAll(fqName: callsInPlaceFQBase).contains { symbolID in
-                guard let symbol = symbols.symbol(symbolID),
-                      symbol.kind == .function,
-                      let signature = symbols.functionSignature(for: symbolID)
-                else {
-                    return false
-                }
-                return signature.receiverType == builderType
-                    && signature.parameterTypes.count == parameterCount
-                    && signature.returnType == callsInPlaceType
-            }
-            guard !alreadyDefined else {
-                return
-            }
-
-            let typeParamName = interner.intern("P")
-            let typeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: callsInPlaceFQBase + [typeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            let typeParamType = types.make(.typeParam(TypeParamType(
-                symbol: typeParamSymbol,
-                nullability: .nonNull
-            )))
-            let parameterTypes = [typeParamType] + extraParameterTypes
-            let symbol = symbols.define(
-                kind: .function,
-                name: callsInPlaceName,
-                fqName: callsInPlaceFQBase,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(builderSymbol, for: symbol)
-            symbols.setParentSymbol(symbol, for: typeParamSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: builderType,
-                    parameterTypes: parameterTypes,
-                    returnType: callsInPlaceType,
-                    typeParameterSymbols: [typeParamSymbol]
-                ),
-                for: symbol
-            )
-        }
-        // Single-arg: callsInPlace(lambda)
-        registerCallsInPlaceOverload()
-        // Two-arg: callsInPlace(lambda, kind)
-        registerCallsInPlaceOverload(extraParameterTypes: [invocationKindType])
     }
 
     /// Look up or define a synthetic interface symbol in the given package.
