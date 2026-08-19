@@ -630,7 +630,11 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        let exprTokens = tokens[start...].filter { $0.kind != .symbol(.semicolon) }
+        // The trailing lambda of a source-backed `lazy` factory is included in
+        // these tokens so that its initializer participates in overload
+        // resolution. Remove only declaration-level semicolons; semicolons in
+        // the lambda body must remain available to the block parser.
+        let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {
             return nil
         }
