@@ -16,7 +16,7 @@ enum LazyThreadSafetyModeLowering {
         else {
             return fallback
         }
-        return rawValue(for: symbol.fqName.last, owner: Array(symbol.fqName.dropLast()), sema: sema, interner: interner)
+        return constantRawValue(from: modeExpr, arena: arena, sema: sema, interner: interner)
             ?? fallback
     }
 
@@ -33,6 +33,39 @@ enum LazyThreadSafetyModeLowering {
             return fallback
         }
 
+        return constantRawValue(
+            from: delegateExpression,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ) ?? fallback
+    }
+
+    static func constantRawValue(
+        from modeExpr: KIRExprID,
+        arena: KIRArena,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int64? {
+        guard case let .symbolRef(modeSymbol) = arena.expr(modeExpr),
+              let symbol = sema.symbols.symbol(modeSymbol)
+        else {
+            return nil
+        }
+        return rawValue(for: symbol, sema: sema, interner: interner)
+    }
+
+    static func constantRawValue(
+        from delegateExpression: ExprID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Int64? {
+        guard let delegateExpression,
+              case let .call(_, _, arguments, _) = ast.arena.expr(delegateExpression)
+        else {
+            return nil
+        }
         for argument in arguments.dropLast().reversed() {
             guard let symbol = modeSymbol(
                 for: argument.expr,
@@ -42,10 +75,33 @@ enum LazyThreadSafetyModeLowering {
             ) else {
                 continue
             }
-
-            return rawValue(for: symbol, sema: sema, interner: interner) ?? fallback
+            return rawValue(for: symbol, sema: sema, interner: interner)
         }
-        return fallback
+        return nil
+    }
+
+    /// Returns a non-constant mode argument so callers can preserve its KIR
+    /// value instead of silently replacing it with the compiler default.
+    static func modeExpression(
+        from delegateExpression: ExprID?,
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> ExprID? {
+        guard let delegateExpression,
+              case let .call(_, _, arguments, _) = ast.arena.expr(delegateExpression)
+        else {
+            return nil
+        }
+        for argument in arguments.dropLast().reversed() {
+            guard let type = sema.bindings.exprTypes[argument.expr],
+                  isModeType(type, sema: sema, interner: interner)
+            else {
+                continue
+            }
+            return argument.expr
+        }
+        return nil
     }
 
     /// Returns the non-mode argument of a lazy factory call, if it is the
@@ -121,7 +177,7 @@ enum LazyThreadSafetyModeLowering {
         return sema.symbols.symbol(member)
     }
 
-    private static func isModeType(
+    static func isModeType(
         _ type: TypeID,
         sema: SemaModule,
         interner: StringInterner

@@ -129,6 +129,53 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
+    func testDynamicLazyThreadSafetyModeReachesRuntimeCreate() throws {
+        let source = """
+        var selectedMode = LazyThreadSafetyMode.NONE
+        val top by lazy(selectedMode) { 1 }
+        class Box {
+            val member by lazy(selectedMode) { 2 }
+        }
+        fun main() {
+            val local by lazy(selectedMode) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "dynamic lazy mode should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let createCalls = module.arena.declarations.flatMap { declaration -> [([KIRExprID], KIRExprID)] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, result, _, _, _, _ ) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2
+                    else {
+                        return nil
+                    }
+                    return (arguments, result ?? .invalid)
+                }
+            }
+            #expect(createCalls.count == 3, "expected three dynamic lazy creates, got: (createCalls.count)")
+            let dynamicModeCount = createCalls.filter { arguments, _ in
+                if case .intLiteral = module.arena.expr(arguments[1]) {
+                    return false
+                }
+                return true
+            }.count
+            #expect(dynamicModeCount == 3, "dynamic mode must be passed as a KIR value, got (dynamicModeCount) dynamic calls")
+        }
+    }
+
+    @Test
     func testLazyLockOverloadReachesLockAwareRuntimeCreate() throws {
         let source = """
         class Lock

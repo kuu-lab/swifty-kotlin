@@ -47,22 +47,43 @@ extension ExprLowerer {
             sema: sema,
             interner: interner
         )
-        let modeValue: Int64 = if lockExpr != nil {
-            Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+        let modeExpr: KIRExprID
+        let modeArgument = arguments.dropLast().last
+        let constantModeValue = modeArgument.flatMap {
+            LazyThreadSafetyModeLowering.constantRawValue(
+                from: $0, arena: arena, sema: sema, interner: interner
+            )
+        }
+        let modeArgumentIsTyped = modeArgument.flatMap { arena.exprType($0) }.map {
+            LazyThreadSafetyModeLowering.isModeType($0, sema: sema, interner: interner)
+        } ?? false
+        let runtimeCallIndex: Int
+        if lockExpr != nil {
+            let modeValue = Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+            modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
+            instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
+            runtimeCallIndex = callIndex + 1
+        } else if let modeArgument, let modeValue = constantModeValue {
+            modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
+            instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
+            _ = modeArgument
+            runtimeCallIndex = callIndex + 1
+        } else if let modeArgument, modeArgumentIsTyped {
+            modeExpr = modeArgument
+            instructions.remove(at: callIndex)
+            runtimeCallIndex = callIndex
         } else {
-            LazyThreadSafetyModeLowering.rawValue(
-                from: arguments.dropLast().last,
+            let modeValue = LazyThreadSafetyModeLowering.rawValue(
+                from: modeArgument,
                 arena: arena,
                 sema: sema,
                 interner: interner,
                 fallback: Int64(driver.ctx.lazyThreadSafetyMode.rawValue)
             )
+            modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
+            instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
+            runtimeCallIndex = callIndex + 1
         }
-        let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
-        instructions[callIndex] = .constValue(
-            result: modeExpr,
-            value: .intLiteral(modeValue)
-        )
         let runtimeCallee = lockExpr == nil
             ? interner.intern("kk_lazy_create")
             : interner.intern("kk_lazy_create_with_lock")
@@ -77,7 +98,7 @@ extension ExprLowerer {
                 canThrow: false,
                 thrownResult: nil
             ),
-            at: callIndex + 1
+            at: runtimeCallIndex
         )
         return true
     }

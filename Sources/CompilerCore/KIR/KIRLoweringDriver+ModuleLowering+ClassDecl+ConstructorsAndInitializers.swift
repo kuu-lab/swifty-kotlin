@@ -621,19 +621,30 @@ extension KIRLoweringDriver {
                 interner: interner
             )
             let lockValue = lockExpression.map { lowerExpr($0, shared: shared, emit: &body) }
-            let modeValue: Int64 = if lockValue != nil {
-                Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+            let constantModeValue = LazyThreadSafetyModeLowering.constantRawValue(
+                from: propertyDecl.delegateExpression,
+                ast: shared.ast,
+                sema: shared.sema,
+                interner: interner
+            )
+            let modeExpr: KIRExprID
+            if lockValue != nil {
+                let modeValue = Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+                modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
+                body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
+            } else if constantModeValue == nil,
+                      let modeArgument = LazyThreadSafetyModeLowering.modeExpression(
+                from: propertyDecl.delegateExpression,
+                ast: shared.ast,
+                sema: shared.sema,
+                interner: interner
+            ) {
+                modeExpr = lowerExpr(modeArgument, shared: shared, emit: &body)
             } else {
-                LazyThreadSafetyModeLowering.rawValue(
-                    from: propertyDecl.delegateExpression,
-                    ast: shared.ast,
-                    sema: shared.sema,
-                    interner: interner,
-                    fallback: Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
-                )
+                let modeValue = constantModeValue ?? Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+                modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
+                body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
             }
-            let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
-            body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
             createResult = arena.appendTemporary(type: delegateType)
             let runtimeCallee = lockValue == nil
                 ? interner.intern("kk_lazy_create")
