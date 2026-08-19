@@ -41,7 +41,13 @@ extension ExprLowerer {
             return
         }
 
-        let modeValue = Int64(driver.ctx.lazyThreadSafetyMode.rawValue)
+        let modeValue = LazyThreadSafetyModeLowering.rawValue(
+            from: arguments.dropLast().last,
+            arena: arena,
+            sema: sema,
+            interner: interner,
+            fallback: Int64(driver.ctx.lazyThreadSafetyMode.rawValue)
+        )
         let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
         instructions[callIndex] = .constValue(
             result: modeExpr,

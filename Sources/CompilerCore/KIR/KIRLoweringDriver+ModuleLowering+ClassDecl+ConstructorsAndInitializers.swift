@@ -614,7 +614,13 @@ extension KIRLoweringDriver {
                 delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
-            let modeValue = Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+            let modeValue = LazyThreadSafetyModeLowering.rawValue(
+                from: propertyDecl.delegateExpression,
+                ast: shared.ast,
+                sema: shared.sema,
+                interner: interner,
+                fallback: Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+            )
             let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
             body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
             createResult = arena.appendTemporary(type: delegateType)

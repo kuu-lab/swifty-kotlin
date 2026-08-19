@@ -56,6 +56,46 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
+    func testExplicitLazyThreadSafetyModesReachRuntimeCreate() throws {
+        let source = """
+        val top by lazy(LazyThreadSafetyMode.NONE) { 1 }
+        class Box {
+            val member by lazy(LazyThreadSafetyMode.PUBLICATION) { 2 }
+        }
+        fun main() {
+            val local by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let modeValues = module.arena.declarations.flatMap { declaration -> [Int64] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2,
+                          case let .intLiteral(value)? = module.arena.expr(arguments[1])
+                    else {
+                        return nil
+                    }
+                    return value
+                }
+            }
+
+            #expect(
+                modeValues.sorted() == [0, 1, 2],
+                "explicit lazy modes should reach kk_lazy_create, got \\(modeValues)"
+            )
+        }
+    }
+
+    @Test
     func testObservableDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         import kotlin.properties.Delegates
