@@ -79,10 +79,26 @@ extension LambdaLowerer {
              .nameRef,
              .breakExpr,
              .continueExpr,
-             .objectLiteral,
              .superRef,
              .thisRef:
             return
+
+        // KSP-CAP-018: the object literal's own member bodies are lowered
+        // independently (KSP-CAP-001), but `superTypeConstructorArgs`
+        // (`object : Base(x) { ... }`) is lowered inline in whatever context
+        // contains the literal — including a lambda's body — so a symbol
+        // referenced only there must still be visible to this collector or
+        // the lambda closure it appears in won't capture it.
+        case let .objectLiteral(_, declID, _):
+            guard let declID,
+                  let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return
+            }
+            for arg in objectDecl.superTypeConstructorArgs {
+                collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            }
 
         case let .stringTemplate(parts, _):
             for part in parts {
@@ -273,9 +289,23 @@ extension LambdaLowerer {
              .stringLiteral,
              .nameRef,
              .breakExpr,
-             .continueExpr,
-             .objectLiteral:
+             .continueExpr:
             return false
+
+        // KSP-CAP-018: see the matching case in `collectBoundIdentifierSymbols`
+        // — `superTypeConstructorArgs` is lowered wherever the object literal
+        // itself sits, so an implicit-`this`/`super` reference there must
+        // still be seen by whatever lambda contains the literal.
+        case let .objectLiteral(_, declID, _):
+            guard let declID,
+                  let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return false
+            }
+            return objectDecl.superTypeConstructorArgs.contains {
+                containsImplicitReceiverReference(in: $0.expr, ast: ast)
+            }
 
         case let .stringTemplate(parts, _):
             for part in parts {

@@ -98,8 +98,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticTupleNominalAnchors(symbols: symbols, interner: interner)
-
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         if symbols.lookup(fqName: kotlinCollectionsPkg) == nil {
             _ = symbols.define(

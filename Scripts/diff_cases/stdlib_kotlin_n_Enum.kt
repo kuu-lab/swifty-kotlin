@@ -8,4 +8,9 @@ fun main() {
     println(Direction.NORTH.ordinal)
     println(Direction.values().size)
     println(Direction.NORTH.compareTo(Direction.SOUTH))
+    val values = enumValues<Direction>()
+    println(values.size)
+    println(values[0])
+    println(enumValueOf<Direction>("SOUTH"))
+    println(enumValueOf<Direction>("WEST"))
 }

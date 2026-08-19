@@ -309,7 +309,7 @@ final class CallTypeChecker {
         // The helper makes the first argument available as a context receiver
         // for the block type, but does not make it an implicit receiver.
         let contextHelperName = interner.intern("context")
-        if let calleeName, args.count >= 2, args.count <= 7,
+        if let calleeName, args.count >= 2, args.count <= 23,
            calleeName == contextHelperName,
            locals[calleeName] == nil,
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in

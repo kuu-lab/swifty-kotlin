@@ -1,0 +1,5 @@
+symbol fq=golden.sema.ContextTag kind=class vis=public flags=_
+symbol fq=golden.sema.useContextHelpers kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
+file fstdlib_kotlin_n_context package=golden.sema
+  decl golden.sema.ContextTag class ContextTag sym=golden.sema.ContextTag
+  decl golden.sema.useContextHelpers fun useContextHelpers sym=golden.sema.useContextHelpers
