@@ -117,6 +117,19 @@ import Testing
         """)
     }
 
+    @Test func testCompile_delegate_lazyInitializerContainingGetCall() throws {
+        try assertKotlinCompilesToKIR("""
+        class Lookup {
+            fun get(key: Int): Int = key
+        }
+        fun main() {
+            val lookup = Lookup()
+            val value: Int by lazy { lookup.get(42) }
+            println(value)
+        }
+        """)
+    }
+
     @Test func testCompile_destructuring_dataClass() throws {
         try assertKotlinCompilesToKIR("""
         data class Point(val x: Int, val y: Int)

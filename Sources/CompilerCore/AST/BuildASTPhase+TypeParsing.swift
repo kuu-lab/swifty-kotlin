@@ -343,21 +343,28 @@ extension BuildASTPhase {
         includingTrailingLambdaTokens: Bool = false
     ) -> [Token] {
         var tokens: [Token] = []
+        var inlineAccessorScanEnd = 0
+        var enteredNestedBlock = false
         for child in arena.children(of: nodeID) {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
                     // Stop before inline `get(`/`set(` accessor keywords so that
                     // type and initializer parsing don't consume accessor tokens.
-                    switch token.kind {
-                    case .softKeyword(.get), .softKeyword(.set):
-                        if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
-                            return Array(tokens.prefix(idx))
+                    if !enteredNestedBlock {
+                        switch token.kind {
+                        case .softKeyword(.get), .softKeyword(.set):
+                            if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
+                                return Array(tokens.prefix(idx))
+                            }
+                        default:
+                            break
                         }
-                    default:
-                        break
                     }
                     tokens.append(token)
+                    if !enteredNestedBlock {
+                        inlineAccessorScanEnd = tokens.count
+                    }
                 }
             case let .node(childID):
                 let childKind = arena.node(childID).kind
@@ -365,6 +372,10 @@ extension BuildASTPhase {
                     return tokens
                 }
                 if childKind == .block {
+                    // Do not scan tokens from a trailing lambda for inline
+                    // accessors: a call such as `map.get(key)` uses the same
+                    // soft keyword spelling as a property `get()` accessor.
+                    enteredNestedBlock = true
                     // Genuine get()/set() and explicit-backing-field bodies are
                     // always wrapped as `.propertyAccessor` (see
                     // parsePropertyAccessor/parseExplicitBackingField), handled
@@ -390,8 +401,11 @@ extension BuildASTPhase {
                 }
             }
         }
-        // Final check: scan collected tokens for inline accessor start.
-        if let idx = inlineAccessorStartIndex(in: tokens) {
+        // Final check: scan only the direct-token prefix for inline accessor
+        // start.  Recursed trailing-lambda tokens may contain calls to `get` or
+        // `set`, which are not property accessors.
+        let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+        if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
             return Array(tokens.prefix(idx))
         }
         return tokens
