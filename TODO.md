@@ -1722,16 +1722,8 @@
   - 未実装シンボル一覧:
     - `kotlin.suspend` — fun suspend(SuspendFunction0): SuspendFunction0  -- `final inline fun <#A: kotlin/Any?> kotlin/suspend(noinline kotlin.coroutines/SuspendFunction0<#A>): kotlin.coroutines/SuspendFunction0<#A>`
 
-- [ ] KSP-788: kotlin.take-family の未実装 stdlib API を実装する（2 件）
-  - 対象: `kotlin` / top-level / family `take`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_take.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_take.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_take.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.takeIf` — fun takeIf(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (#A).kotlin/takeIf(kotlin/Function1<#A, kotlin/Boolean>): #A?`
-    - `kotlin.takeUnless` — fun takeUnless(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (#A).kotlin/takeUnless(kotlin/Function1<#A, kotlin/Boolean>): #A?`
+- [x] KSP-788: kotlin.take-family の未実装 stdlib API を実装する（KSP-601 と重複のため別実装不要。`takeIf` / `takeUnless` は KSP-601 / PR #5698（merge commit `7b3e7cc47`）で `Sources/CompilerCore/Stdlib/kotlin/Standard.kt` に実装済み）
+  - 完了確認: 既存の `Tests/CompilerCoreTests/GoldenCases/Sema/take_if_take_unless.kt` / `.golden`、`Scripts/diff_cases/take_if_take_unless.kt` / `takeif_takeunless*.kt` を根拠とする。対象 `kk_*` / `__kk_*` Runtime、synthetic stub、RuntimeABI、CallTypeChecker/CallLowerer name-string 特例の残留はない。
 
 - [ ] KSP-789: kotlin.ubyte-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ubyte`
