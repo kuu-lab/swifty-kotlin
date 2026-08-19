@@ -111,18 +111,21 @@ struct CallableRefTypeIdentityTests {
         #expect(ctx.diagnostics.hasError, "A KProperty1<Person, String> annotation on an Int property reference must be a type error, not silently accepted.")
     }
 
-    // A second Devin review round found the validation above too strict: it must not
-    // attempt (and fail) a natural-type comparison when the annotation is a plain function
-    // type -- `sema.types.isSubtype` only recognizes classType-to-functionType for
-    // `fun interface` declarations, not KProperty0's declared `Function0` supertype -- or
-    // when the expected/property/owner type still mentions a type parameter from an
-    // enclosing generic call or owner (`fun <T, V> read(p: KProperty1<T, V>)`,
-    // `listOf(Type::prop)`, `Box<T>::v`). Those cases keep the prior unchecked-adoption
-    // behavior (propertyReferenceResultType's early-return branch), matching what this
-    // compiler already accepted before the validation existed; only a same-shape KProperty
-    // annotation with a genuinely mismatched value/owner type or mutability is rejected
-    // (covered by the tests above).
-    @Test func testSemaAcceptsFunctionShapedExpectedTypeForPropertyReference() throws {
+    // A second Devin review round found the validation above too strict: it rejected a plain
+    // function-type annotation like `() -> V` even though `KProperty0<V>` declares
+    // `Function0<V>` as a supertype, and rejected an expected type that still mentions a type
+    // parameter from an enclosing generic call/owner (`fun <T, V> read(p: KProperty1<T, V>)`,
+    // `Box<T>::v`). A third review round then found that blindly adopting a non-KProperty
+    // expected type (round 2's fix) was worse: `LambdaLowerer` only knows how to lower a
+    // property reference bound to a KProperty0/KMutableProperty0/KProperty1/KMutableProperty1
+    // classType, so a plain function type (or a still-unresolved generic type parameter, which
+    // is never itself a KProperty classType either) compiles but then fails to *link* --
+    // silently producing broken code instead of a clear diagnostic. The final design in
+    // propertyReferenceResultType therefore adopts `expectedType` only when it concretely
+    // names one of the four KProperty interfaces (validating a same-shape match when possible,
+    // skipping validation but still adopting it when the property/owner is generic); anything
+    // else reports `propertyType`, restoring the ordinary declared-type diagnostic.
+    @Test func testSemaRejectsFunctionShapedExpectedTypeForPropertyReference() throws {
         let source = """
         class Person(val name: String)
 
@@ -134,7 +137,7 @@ struct CallableRefTypeIdentityTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        #expect(!ctx.diagnostics.hasError, "A bound property reference assigned to its structurally-compatible () -> V shape must keep type-checking. Diagnostics: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.hasError, "A property reference bound to a plain function type has no working KIR lowering; this must be a type error, not a silent link failure.")
     }
 
     @Test func testSemaAcceptsGenericOwnerPropertyReference() throws {
@@ -150,10 +153,10 @@ struct CallableRefTypeIdentityTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        #expect(!ctx.diagnostics.hasError, "A property reference on a generic owner must keep type-checking even though its natural type can't be precisely compared. Diagnostics: \(ctx.diagnostics.diagnostics)")
+        #expect(!ctx.diagnostics.hasError, "A property reference on a generic owner must keep type-checking (still KProperty-shaped, so lowering-safe) even though its natural type can't be precisely compared. Diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test func testSemaAcceptsPropertyReferenceInferredThroughGenericCallSite() throws {
+    @Test func testSemaRejectsPropertyReferenceInferredThroughGenericCallSite() throws {
         let source = """
         class Person(val name: String)
 
@@ -167,7 +170,7 @@ struct CallableRefTypeIdentityTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        #expect(!ctx.diagnostics.hasError, "A property reference whose expected type still mentions a generic call's type parameters must keep type-checking. Diagnostics: \(ctx.diagnostics.diagnostics)")
+        #expect(ctx.diagnostics.hasError, "A property reference inferred against a plain function-typed generic parameter has no working KIR lowering; this must be a type error, not a silent link failure.")
     }
 
     @Test func testSemaRejectsImmutablePropertyReferenceAsKMutableProperty() throws {

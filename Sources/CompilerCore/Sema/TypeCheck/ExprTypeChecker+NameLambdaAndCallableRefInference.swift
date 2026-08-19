@@ -1200,28 +1200,33 @@ extension ExprTypeChecker {
         }
     }
 
-    /// Adopts `expectedType` as a property callable reference's inferred type, validating it
-    /// against the reference's natural type (see `naturalPropertyReferenceType`) only when a
-    /// precise comparison is actually possible and meaningful:
+    /// Adopts `expectedType` as a property callable reference's inferred type, but only when
+    /// the KIR lowering can actually handle the result -- `LambdaLowerer` only knows how to
+    /// lower a property reference bound to a `KProperty0`/`KMutableProperty0`/`KProperty1`/
+    /// `KMutableProperty1` classType (`lowerPropertyReferenceWrapperValue`). Any other shape,
+    /// including a structurally-compatible-looking plain function type (`KProperty0<V>`
+    /// declares `Function0<V>` as a supertype, but `TypeSystem.isSubtype`'s classType ->
+    /// functionType rule only recognizes `fun interface` declarations, not this), falls
+    /// through to a broken fallback that calls the property's bare name as if it were a
+    /// function symbol and fails to *link* -- confirmed for every such shape, not just a
+    /// genuinely mismatched one. So `expectedType` is adopted only if it concretely names one
+    /// of the four KProperty interfaces; anything else (an unrelated nominal type, a bare
+    /// function type, or a still-unresolved generic call-site type parameter) reports
+    /// `propertyType` instead, letting the ordinary declared-type subtype check downstream
+    /// produce a normal compile-time diagnostic rather than a confusing link failure.
     ///
-    /// - `expectedType` must concretely be a `KProperty0`/`KMutableProperty0`/`KProperty1`/
-    ///   `KMutableProperty1` -- anything else (an unrelated nominal type, or a structurally
-    ///   compatible but non-KProperty shape such as `() -> V` via KProperty0's declared
-    ///   `Function0` supertype, e.g. `val f: () -> String = person::name`) is legal Kotlin
-    ///   this compiler already accepted before this validation existed, so it's adopted
-    ///   unchecked as before.
-    /// - `expectedType`, `propertyType`, and `ownerType` must not mention any type parameter.
-    ///   An expected type still mentioning type parameters belongs to a generic signature
-    ///   whose type arguments are inferred from this very argument (`fun <T, V> read(p:
-    ///   KProperty1<T, V>)`, `listOf(Type::prop)`), which a subtype check can't validate.
-    ///   A property/owner type still mentioning a type parameter (`Box<T>::v`, `box::v` for
-    ///   a generic `box: Box<Int>`) means the natural type built from the unsubstituted
-    ///   declaration can't be compared precisely either. Both keep the unchecked adoption.
-    ///
-    /// Only a same-shape KProperty annotation with an actually mismatched value/owner type or
-    /// mutability (e.g. `val r: KProperty0<String> = ::someIntProperty`) falls back to the
-    /// property's own value type, so the ordinary declared-type subtype check downstream
-    /// produces a normal type-mismatch diagnostic instead of silently accepting it.
+    /// Within that KProperty-shaped case, a precise value/owner-type/mutability match is
+    /// validated via the reference's natural type (`naturalPropertyReferenceType`) only when
+    /// `expectedType`, `propertyType`, and `ownerType` are all fully concrete. An expected type
+    /// still mentioning type parameters belongs to a generic signature whose type arguments are
+    /// inferred from this very argument (`fun <T, V> read(p: KProperty1<T, V>)`); a
+    /// property/owner type still mentioning a type parameter (`Box<T>::v`, `box::v` for a
+    /// generic `box: Box<Int>`) means the natural type built from the unsubstituted declaration
+    /// can't be compared precisely either. Both cases still adopt `expectedType` unchecked --
+    /// it's already known lowering-safe by virtue of being KProperty-shaped, regardless of
+    /// argument concreteness. Only a same-shape KProperty annotation with an actually
+    /// mismatched value/owner type or mutability (e.g. `val r: KProperty0<String> =
+    /// ::someIntProperty`) falls back to `propertyType`.
     private func propertyReferenceResultType(
         expectedType: TypeID?,
         propertyType: TypeID,
@@ -1230,11 +1235,14 @@ extension ExprTypeChecker {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID {
-        guard let expectedType else { return propertyType }
+        guard let expectedType,
+              isKPropertyFamilyClassType(expectedType, sema: sema, interner: interner)
+        else {
+            return propertyType
+        }
         guard !sema.types.typeContainsAnyTypeParam(expectedType),
               !sema.types.typeContainsAnyTypeParam(propertyType),
-              ownerType.map({ !sema.types.typeContainsAnyTypeParam($0) }) ?? true,
-              isKPropertyFamilyClassType(expectedType, sema: sema, interner: interner)
+              ownerType.map({ !sema.types.typeContainsAnyTypeParam($0) }) ?? true
         else {
             return expectedType
         }
