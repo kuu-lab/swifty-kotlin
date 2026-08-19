@@ -191,18 +191,41 @@ extension BuildASTPhase {
                 }
             }
             // Inline accessors have a declaration body after their parameter
-            // list. Requiring `=` or `{` avoids treating a standalone
-            // `get(...)`/`set(...)` call in an initializer as an accessor.
+            // list. An accessor may optionally declare its return type before
+            // the body, as in `get(): Int = value`.
             let afterClose = skipBalancedBracket(
                 in: tokens,
                 from: index + 1,
                 open: .symbol(.lParen),
                 close: .symbol(.rParen)
             )
-            guard afterClose > index + 1, afterClose < tokens.count else {
+            guard afterClose > index + 1 else {
                 continue
             }
-            switch tokens[afterClose].kind {
+            var bodyStart = afterClose
+            if bodyStart < tokens.count, tokens[bodyStart].kind == .symbol(.colon) {
+                bodyStart += 1
+                var typeDepth = BracketDepth()
+                while bodyStart < tokens.count {
+                    if typeDepth.isAtTopLevel {
+                        switch tokens[bodyStart].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(tokens[bodyStart].kind)
+                            bodyStart += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(tokens[bodyStart].kind)
+                    bodyStart += 1
+                }
+            }
+            guard bodyStart < tokens.count else {
+                continue
+            }
+            switch tokens[bodyStart].kind {
             case .symbol(.assign), .symbol(.lBrace):
                 return index
             default:
@@ -275,8 +298,30 @@ extension BuildASTPhase {
                 parameterName = nil
             }
 
-            // Determine accessor body: either `= expr` or `{ block }`.
-            let afterParen = closeParenIdx + 1
+            // Determine accessor body: either `= expr` or `{ block }`, with
+            // an optional explicit return type between `)` and the body.
+            var afterParen = closeParenIdx + 1
+            if afterParen < remaining.endIndex,
+               remaining[afterParen].kind == .symbol(.colon)
+            {
+                afterParen += 1
+                var typeDepth = BracketDepth()
+                while afterParen < remaining.endIndex {
+                    if typeDepth.isAtTopLevel {
+                        switch remaining[afterParen].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(remaining[afterParen].kind)
+                            afterParen += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(remaining[afterParen].kind)
+                    afterParen += 1
+                }
+            }
             let body: FunctionBody
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.assign)

@@ -143,6 +143,17 @@ import Testing
         """)
     }
 
+    @Test func testCompile_propertyAccessorWithExplicitReturnType() throws {
+        try assertKotlinCompilesToKIR("""
+        class Holder {
+            val value: Int get(): Int = 42
+        }
+        fun main() {
+            println(Holder().value)
+        }
+        """)
+    }
+
     @Test func testLazyDelegateInitializerDiagnosticIsNotDuplicated() throws {
         let ctx = makeContextFromSource("""
         fun main() {
