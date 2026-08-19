@@ -87,17 +87,9 @@ internal class LazyImpl<T>(
         get() = computeValue()
 
     override fun isInitialized(): Boolean {
-        if (mode == LazyThreadSafetyMode.NONE) {
-            return hasValue
-        }
-        var initialized = false
-        __lazySyncLock(synchronizationLock ?: this)
-        try {
-            initialized = hasValue
-        } finally {
-            __lazySyncUnlock(synchronizationLock ?: this)
-        }
-        return initialized
+        // Match Kotlin's non-blocking initialization-state query. In
+        // particular, do not wait for a synchronized initializer to finish.
+        return hasValue
     }
 }
 
