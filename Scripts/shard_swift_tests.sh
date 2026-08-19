@@ -428,7 +428,18 @@ fi
 
 declare -a filter_args=()
 if (( ${#own_types[@]} > 0 )); then
-    chunk_size=50
+    # Serialized runs (--no-parallel) exec the whole matched test-identifier
+    # list as a single process argument, so their suite chunks must stay far
+    # below Linux MAX_ARG_STRLEN once expanded to concrete test IDs. Parallel
+    # runs fan matched tests out across workers and only carry the suite-name
+    # alternation inside the one --filter argument (~40 bytes per name), so a
+    # much larger chunk keeps a shard in a single swift test invocation and
+    # avoids draining worker parallelism at every serial chunk boundary.
+    if [[ "${SWIFT_TEST_PARALLEL:-}" == "0" || "${SWIFT_TEST_PARALLEL:-}" == "false" ]]; then
+        chunk_size=50
+    else
+        chunk_size=300
+    fi
     while IFS= read -r chunk; do
         filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
     done < <(

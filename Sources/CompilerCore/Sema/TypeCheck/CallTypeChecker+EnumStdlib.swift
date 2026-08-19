@@ -23,11 +23,20 @@ extension CallTypeChecker {
             return nil
         }
         let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
+        let kotlinPackage = interner.intern("kotlin")
+        let sourceBackedIntrinsicFQName = [kotlinPackage, calleeName]
         let hasNonSyntheticUserCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else {
                 return false
             }
-            return !symbol.flags.contains(.synthetic)
+            if symbol.flags.contains(.synthetic) {
+                return false
+            }
+            // KSP-776: enumValues/enumValueOf are now declared by the bundled
+            // Kotlin source. Keep the intrinsic path for that declaration, but
+            // let a real user declaration with the same short name shadow it.
+            return symbol.fqName != sourceBackedIntrinsicFQName
+                || !ctx.sema.symbols.isSourceBackedSymbol(candidate)
         }
         if locals[calleeName] != nil || hasNonSyntheticUserCandidate {
             return nil
