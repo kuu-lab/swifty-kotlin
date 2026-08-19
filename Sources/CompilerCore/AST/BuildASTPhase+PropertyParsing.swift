@@ -175,10 +175,38 @@ extension BuildASTPhase {
             }
             guard isAccessorKeyword else { continue }
             // Require `(` immediately after to distinguish from identifiers.
-            if index + 1 < tokens.count,
-               tokens[index + 1].kind == .symbol(.lParen)
-            {
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .symbol(.lParen)
+            else {
+                continue
+            }
+            // A member call such as `lookup.get(...)` or `lookup?.set(...)`
+            // uses the same soft-keyword spelling as an inline accessor.
+            if index > 0 {
+                switch tokens[index - 1].kind {
+                case .symbol(.dot), .symbol(.questionDot):
+                    continue
+                default:
+                    break
+                }
+            }
+            // Inline accessors have a declaration body after their parameter
+            // list. Requiring `=` or `{` avoids treating a standalone
+            // `get(...)`/`set(...)` call in an initializer as an accessor.
+            let afterClose = skipBalancedBracket(
+                in: tokens,
+                from: index + 1,
+                open: .symbol(.lParen),
+                close: .symbol(.rParen)
+            )
+            guard afterClose > index + 1, afterClose < tokens.count else {
+                continue
+            }
+            switch tokens[afterClose].kind {
+            case .symbol(.assign), .symbol(.lBrace):
                 return index
+            default:
+                continue
             }
         }
         return nil
