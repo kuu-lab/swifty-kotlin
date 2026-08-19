@@ -20,35 +20,81 @@ extension ExprLowerer {
 
         let lazyName = interner.intern("lazy")
         let lazyFQName = [interner.intern("kotlin"), lazyName]
-        guard let callIndex = instructions.lastIndex(where: { instruction in
-            guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction,
-                  result == delegateHandle,
-                  callee == lazyName,
+        let lazyImplFQName = [interner.intern("kotlin"), interner.intern("LazyImpl")]
+        let callMatch = instructions.indices.reversed().compactMap({ index -> (Int, Bool)? in
+            guard case let .call(symbol, _, arguments, result, _, _, _, _) = instructions[index],
+                  let result,
                   !arguments.isEmpty,
                   let symbol,
                   let symbolInfo = sema.symbols.symbol(symbol)
             else {
-                return false
+                return nil
             }
-            return symbolInfo.fqName == lazyFQName
-        }) else {
+
+            let isFactoryCall = symbolInfo.fqName == lazyFQName
+            let isLazyImplConstructor: Bool
+            if symbolInfo.kind == .constructor,
+               let parentSymbol = sema.symbols.parentSymbol(for: symbol),
+               let parentInfo = sema.symbols.symbol(parentSymbol)
+            {
+                isLazyImplConstructor = parentInfo.fqName == lazyImplFQName
+            } else {
+                isLazyImplConstructor = false
+            }
+            guard isFactoryCall || isLazyImplConstructor else { return nil }
+
+            // The source-backed factory is auto-inlined because it takes a
+            // function parameter. Its result is therefore often copied from
+            // the LazyImpl constructor result into the local handle.
+            let storesIntoHandle = result == delegateHandle || instructions.dropFirst(index + 1).first.map {
+                if case let .copy(from, to) = $0 {
+                    return from == result && to == delegateHandle
+                }
+                return false
+            } ?? false
+            guard storesIntoHandle else { return nil }
+            return (index, isLazyImplConstructor)
+        }).first
+        guard let callMatch else {
             return false
         }
+        let callIndex = callMatch.0
+        let isLazyImplConstructor = callMatch.1
 
         guard case let .call(_, _, arguments, result, _, _, _, _) = instructions[callIndex],
-              let initializer = arguments.last
+              let result,
+              let initializer: KIRExprID = {
+                  if isLazyImplConstructor {
+                      guard arguments.count >= 6 else { return nil }
+                      return arguments[1]
+                  }
+                  return arguments.last
+              }()
         else {
             return false
         }
 
-        let lockExpr = LazyThreadSafetyModeLowering.lockExpression(
-            from: arguments,
-            arena: arena,
-            sema: sema,
-            interner: interner
-        )
+        let lockExpr: KIRExprID?
+        let modeArgument: KIRExprID?
+        if isLazyImplConstructor {
+            guard arguments.count >= 6 else { return false }
+            modeArgument = arguments[2]
+            let constructorLock = arguments[3]
+            if case .null = arena.expr(constructorLock) {
+                lockExpr = nil
+            } else {
+                lockExpr = constructorLock
+            }
+        } else {
+            lockExpr = LazyThreadSafetyModeLowering.lockExpression(
+                from: arguments,
+                arena: arena,
+                sema: sema,
+                interner: interner
+            )
+            modeArgument = arguments.dropLast().last
+        }
         let modeExpr: KIRExprID
-        let modeArgument = arguments.dropLast().last
         let constantModeValue = modeArgument.flatMap {
             LazyThreadSafetyModeLowering.constantRawValue(
                 from: $0, arena: arena, sema: sema, interner: interner
@@ -63,15 +109,18 @@ extension ExprLowerer {
             modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
             instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
             runtimeCallIndex = callIndex + 1
-        } else if let modeArgument, let modeValue = constantModeValue {
+        } else if let modeValue = constantModeValue {
             modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
             instructions[callIndex] = .constValue(result: modeExpr, value: .intLiteral(modeValue))
-            _ = modeArgument
             runtimeCallIndex = callIndex + 1
         } else if let modeArgument, modeArgumentIsTyped {
             modeExpr = modeArgument
-            instructions.remove(at: callIndex)
-            runtimeCallIndex = callIndex
+            if isLazyImplConstructor {
+                runtimeCallIndex = callIndex
+            } else {
+                instructions.remove(at: callIndex)
+                runtimeCallIndex = callIndex
+            }
         } else {
             let modeValue = LazyThreadSafetyModeLowering.rawValue(
                 from: modeArgument,
@@ -89,17 +138,15 @@ extension ExprLowerer {
             : interner.intern("kk_lazy_create_with_lock")
         let runtimeArguments = lockExpr.map { [initializer, modeExpr, $0] }
             ?? [initializer, modeExpr]
-        instructions.insert(
-            .call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: runtimeArguments,
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ),
-            at: runtimeCallIndex
+        let runtimeCall = KIRInstruction.call(
+            symbol: nil,
+            callee: runtimeCallee,
+            arguments: runtimeArguments,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
         )
+        instructions.insert(runtimeCall, at: runtimeCallIndex)
         return true
     }
 

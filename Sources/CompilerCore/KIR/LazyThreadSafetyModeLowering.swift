@@ -12,7 +12,7 @@ enum LazyThreadSafetyModeLowering {
     ) -> Int64 {
         guard let modeExpr,
               case let .symbolRef(modeSymbol) = arena.expr(modeExpr),
-              let symbol = sema.symbols.symbol(modeSymbol)
+              sema.symbols.symbol(modeSymbol) != nil
         else {
             return fallback
         }
@@ -28,7 +28,7 @@ enum LazyThreadSafetyModeLowering {
         fallback: Int64
     ) -> Int64 {
         guard let delegateExpression,
-              case let .call(_, _, arguments, _) = ast.arena.expr(delegateExpression)
+              case .call = ast.arena.expr(delegateExpression)
         else {
             return fallback
         }
