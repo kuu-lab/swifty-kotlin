@@ -387,6 +387,111 @@ extension DataFlowSemaPhase {
         return sequenceSymbol
     }
 
+    /// Idempotent fallback for contexts without the bundled Sequence declaration.
+    func ensureSyntheticSequenceStub(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinCollectionsPkg: [InternedString],
+        bundledIndex: BundledDeclarationIndex = .empty
+    ) -> SymbolID {
+        let kotlinSequencesPkg: [InternedString] = [
+            interner.intern("kotlin"), interner.intern("sequences")
+        ]
+        if symbols.lookup(fqName: kotlinSequencesPkg) == nil {
+            _ = symbols.define(
+                kind: .package,
+                name: interner.intern("sequences"),
+                fqName: kotlinSequencesPkg,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+
+        let sequenceName = interner.intern("Sequence")
+        let sequenceFQName = kotlinSequencesPkg + [sequenceName]
+        let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .interface,
+                name: sequenceName,
+                fqName: sequenceFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+
+        let seqTypeParamName = interner.intern("T")
+        let seqTypeParamFQName = sequenceFQName + [seqTypeParamName]
+        if symbols.lookup(fqName: seqTypeParamFQName) == nil {
+            let seqTypeParamSymbol = symbols.define(
+                kind: .typeParameter,
+                name: seqTypeParamName,
+                fqName: seqTypeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            types.setNominalTypeParameterSymbols([seqTypeParamSymbol], for: sequenceSymbol)
+            types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
+        }
+
+        // Register iterator() independently of the type parameter block above,
+        // so it's added even when Sequence<T> was created elsewhere.
+        let iterFnName = interner.intern("iterator")
+        let iterFnFQName = sequenceFQName + [iterFnName]
+        let hasSourceIterator = bundledIndex.contains(
+            owner: sequenceFQName,
+            name: iterFnName,
+            arity: 0
+        )
+        if !hasSourceIterator, symbols.lookup(fqName: iterFnFQName) == nil {
+            if let seqTypeParamSymbol = symbols.lookup(fqName: seqTypeParamFQName) {
+                let seqTypeParamType = types.make(.typeParam(TypeParamType(
+                    symbol: seqTypeParamSymbol, nullability: .nonNull
+                )))
+                let iteratorName = interner.intern("Iterator")
+                let iteratorFQName = kotlinCollectionsPkg + [iteratorName]
+                if let iteratorSymbol = symbols.lookup(fqName: iteratorFQName) {
+                    let iteratorReturnType = types.make(.classType(ClassType(
+                        classSymbol: iteratorSymbol,
+                        args: [.out(seqTypeParamType)],
+                        nullability: .nonNull
+                    )))
+                    let iterFnSymbol = symbols.define(
+                        kind: .function,
+                        name: iterFnName,
+                        fqName: iterFnFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic, .operatorFunction]
+                    )
+                    symbols.setParentSymbol(sequenceSymbol, for: iterFnSymbol)
+                    let seqReceiverType = types.make(.classType(ClassType(
+                        classSymbol: sequenceSymbol,
+                        args: [.out(seqTypeParamType)],
+                        nullability: .nonNull
+                    )))
+                    symbols.setFunctionSignature(
+                        FunctionSignature(
+                            receiverType: seqReceiverType,
+                            parameterTypes: [],
+                            returnType: iteratorReturnType,
+                            typeParameterSymbols: [seqTypeParamSymbol],
+                            classTypeParameterCount: 1
+                        ),
+                        for: iterFnSymbol
+                    )
+                }
+            }
+        }
+
+        return sequenceSymbol
+    }
+
     private func registerSyntheticSequenceIteratorMember(
         sequenceSymbol: SymbolID,
         sequenceFQName: [InternedString],

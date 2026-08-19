@@ -907,20 +907,9 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-               case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-               classType.classSymbol == charSequenceSymbol
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_char_sequence_length"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
+            // KSP-724: `CharSequence.length` is resolved through the bundled
+            // `kotlin.CharSequence` interface property, so the `kk_char_sequence_length`
+            // name-string fallback is no longer needed here.
         }
 
         // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)

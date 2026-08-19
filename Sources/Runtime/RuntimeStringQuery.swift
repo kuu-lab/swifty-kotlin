@@ -31,13 +31,13 @@ func runtimeRegisterCharSequenceLengthItable(_ raw: Int) {
 
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
-    // Match the flat String aggregate length field used by String.length lowering.
-    // The receiver may be any CharSequence implementation, so StringBuilder
-    // handles are accepted in addition to String handles.
+    // KSP-724: Match the flat String aggregate length field used by String.length
+    // lowering, which stores the Unicode scalar count. The receiver may be any
+    // CharSequence implementation (String or StringBuilder handles).
     if let text = runtimeCharSequenceText(from: raw) {
-        return text.utf8.count
+        return text.unicodeScalars.count
     }
-    return runtimeStringFromRawOrPanic(raw, caller: #function).utf8.count
+    return runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars.count
 }
 
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull

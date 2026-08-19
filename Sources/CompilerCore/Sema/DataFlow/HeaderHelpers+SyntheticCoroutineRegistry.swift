@@ -314,7 +314,7 @@ extension DataFlowSemaPhase {
         // — see SemanticsModels.swift). Flow is read-only and covariant
         // (`Flow<out T>` in kotlinx.coroutines).
         // Pattern mirrors `registerSyntheticIterableStub` in
-        // HeaderHelpers+SyntheticIterableRegistry.swift.
+        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift.
         func declareFlowFamilyTypeParameter(
             owner: SymbolID,
             ownerFQName: [InternedString],
@@ -402,7 +402,7 @@ extension DataFlowSemaPhase {
         )))
         // KSP-499 Stage 2: use each class's own type parameter as the receiver
         // "self type" (matching `iterableReceiverType` in
-        // HeaderHelpers+SyntheticIterableRegistry.swift) instead of a raw,
+        // HeaderHelpers+SyntheticCollectionTypeFallbacks.swift) instead of a raw,
         // argument-less ClassType. This is the generic *declaration* shape used
         // as an owner/receiver/return type placeholder throughout this file —
         // callers substitute concrete element types at actual call sites.

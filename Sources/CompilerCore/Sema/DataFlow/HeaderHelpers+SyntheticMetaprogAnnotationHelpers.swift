@@ -17,87 +17,6 @@ private enum SyntheticAnnotationAPISurfaceForHelpers {
 ///
 /// Split out from `HeaderHelpers+SyntheticMetaprogStubs.swift`.
 extension DataFlowSemaPhase {
-    func registerSyntheticParameterNameMembers(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let stringType = types.stringType
-        let ownerType = types.make(.classType(ClassType(
-            classSymbol: ownerSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-
-        let name = interner.intern("name")
-        let propertyFQName = ownerFQName + [name]
-        let propertySymbol: SymbolID
-        if let existing = symbols.lookup(fqName: propertyFQName) {
-            propertySymbol = existing
-        } else {
-            propertySymbol = symbols.define(
-                kind: .property,
-                name: name,
-                fqName: propertyFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(stringType, for: propertySymbol)
-
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerFQName + [initName]
-        let ctorSymbol: SymbolID
-        if let existing = symbols.lookupAll(fqName: ctorFQName).first(where: {
-            symbols.symbol($0)?.kind == .constructor
-        }) {
-            ctorSymbol = existing
-        } else {
-            ctorSymbol = symbols.define(
-                kind: .constructor,
-                name: initName,
-                fqName: ctorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-
-        let parameterFQName = ctorFQName + [name]
-        let parameterSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: parameterFQName) {
-            parameterSymbol = existing
-        } else {
-            parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: name,
-                fqName: parameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-        }
-        symbols.setParentSymbol(ctorSymbol, for: parameterSymbol)
-        symbols.setPropertyType(stringType, for: parameterSymbol)
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: [stringType],
-                returnType: ownerType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false]
-            ),
-            for: ctorSymbol
-        )
-    }
-
     func attachAnnotationIfNeeded(
         _ annotation: MetadataAnnotationRecord,
         to symbolFQName: [InternedString],
@@ -305,45 +224,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(enumType, for: entrySymbol)
             }
         }
-    }
-
-    func registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let valueName = interner.intern("markerClass")
-        let valueFQName = ownerFQName + [valueName]
-        let valueSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: valueFQName) {
-            valueSymbol = existing
-        } else {
-            valueSymbol = symbols.define(
-                kind: .property,
-                name: valueName,
-                fqName: valueFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        symbols.setParentSymbol(ownerSymbol, for: valueSymbol)
-
-        let annotationFQName = [interner.intern("kotlin"), interner.intern("Annotation")]
-        let annotationType: TypeID
-        if let annotationSymbol = symbols.lookup(fqName: annotationFQName) {
-            annotationType = types.make(.classType(ClassType(
-                classSymbol: annotationSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        } else {
-            annotationType = types.anyType
-        }
-        symbols.setPropertyType(types.makeKClassType(argument: annotationType), for: valueSymbol)
     }
 
     func registerSyntheticThrowsExceptionClassesPropertyAndConstructor(

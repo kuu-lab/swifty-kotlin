@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-14
+最終更新: 2026-08-18
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -38,7 +38,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
-| DEBT-DIFF-007 | 15 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除して36→16、2026-08-18 に `mock_objects.kt` を追加解除（VisibilityChecker 包含クラスアクセス是正・テスト入力修正）して16→15 へ。詳細は該当節） |
+| DEBT-DIFF-007 | 14 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。詳細は該当節） |
 | DEBT-DIFF-008 | 2 | primitive Number virtual dispatch 未実装 | runtime / lowering で boxed primitive に対する `Number.to*` メソッド dispatch を実装（`KSP-1540` 参照）。対象ケースは `stdlib_kotlin_n_Number_primitive.kt` / `stdlib_kotlin_n_Number_primitive_generic.kt` |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
@@ -265,7 +265,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 2026-08-13 追記: 上記36件からさらに19件を追加解除(36→16)。内訳はグループ2・グループ3・グループ5・グループ6の「解除済み」行を参照。
 
-- **診断/ネガティブテスト(旧グループ1、22件)**: 全件解消。JVM kotlinc の stderr はこのハーネスで比較されないため、複数シナリオを1ファイルに束ねた「意図的なコンパイルエラー」ケースは本質的に JVM kotlinc を oracle にできない。既存の `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` に近い golden テストがある5件(`error_type_mismatch.kt`→`type_mismatch.golden`, `type_error.kt`→同, `error_unresolved_reference.kt`→`unresolved_reference.golden`, `deprecated_error.kt`→`deprecated_annotation.golden`, `override_variance_errors.kt`→`visibility_narrowing_override.golden`)は削除。残り15件(`abstract_property_errors`, `builder_dsl_invalid_arg`, `char_get_error`, `error_abstract_instantiation`, `error_interface_conflicts`, `error_null_safety`, `error_override_mismatch`, `error_parameters`, `error_redeclaration`, `error_return_type`, `error_semantic_basic`, `error_visibility`, `is_type_check_non_reified_error`, `val_member_compound_assign_error`, `val_reassign_error`)は `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` へ移設し `UPDATE_GOLDEN=1` で golden 生成、`Scripts/diff_cases` から削除した。`contract_returns.kt`/`contracts_basic.kt` の2件は実は負テストではなく、`kotlin.contracts.contract { }` の実機能バグ(下記参照)と判明したため別枠で継続 skip。
+- **診断/ネガティブテスト(旧グループ1、22件)**: 全件解消。JVM kotlinc の stderr はこのハーネスで比較されないため、複数シナリオを1ファイルに束ねた「意図的なコンパイルエラー」ケースは本質的に JVM kotlinc を oracle にできない。既存の `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` に近い golden テストがある5件(`error_type_mismatch.kt`→`type_mismatch.golden`, `type_error.kt`→同, `error_unresolved_reference.kt`→`unresolved_reference.golden`, `deprecated_error.kt`→`deprecated_annotation.golden`, `override_variance_errors.kt`→`visibility_narrowing_override.golden`)は削除。残り15件(`abstract_property_errors`, `builder_dsl_invalid_arg`, `char_get_error`, `error_abstract_instantiation`, `error_interface_conflicts`, `error_null_safety`, `error_override_mismatch`, `error_parameters`, `error_redeclaration`, `error_return_type`, `error_semantic_basic`, `error_visibility`, `is_type_check_non_reified_error`, `val_member_compound_assign_error`, `val_reassign_error`)は `Tests/CompilerCoreTests/GoldenCases/Diagnostics/` へ移設し `UPDATE_GOLDEN=1` で golden 生成、`Scripts/diff_cases` から削除した。`contract_returns.kt`/`contracts_basic.kt` は bundled source-backed 契約APIの解決確認後、`@file:OptIn(ExperimentalContracts::class)` を追加して通常 diff に復帰した。
 - **finally routing(旧グループ7、1件)**: 解消。`finally_exception_routing.kt` はテスト自体の欠陥(catch節に`return`が無く、real kotlinc も"missing return statement"で最初からコンパイル不能だった)で、`return "caught"` を追加して通常 diff に復帰。
 - **その他のテスト入力ミス修正による解消(14件)**: `interface_super_call.kt`(曖昧な`super.greet()`を`super<B>.greet()`に), `math_extended.kt`(`IEEErem`/`withSign`/`nextTowards`をトップレベル関数呼び出しからメンバー呼び出しに), `null_receiver_is_null_or_empty.kt`(型無し`null`への`isNullOrEmpty()`はkotlinc側も曖昧で削除), `nullable_receiver_ext.kt`(`String`と`String?`の拡張関数はJVM erasureで衝突するため片方削除), `string_format_positional.kt`(`$`エスケープ漏れ), `uint_range.kt`/`ulong_range.kt`(`Int`と`UInt`/`ULong`の`mapIndexed`内混在に`.toUInt()`/`.toULong()`追加), `temp_files.kt`(`kotlin.io.createTempFile`/`createTempDir`はDeprecationLevel.ERRORのため`kotlin.io.path`版に書き換え), `kclass_ktype_basic.kt`/`metadata_api.kt`(`kotlin.reflect`系importの追加、および存在しない`KClass.type`参照の削除)。
 - **ハーネス側の修正(1件)**: `Scripts/diff_kotlinc.sh` に `KOTLINC_TEST_JAR`(`kotlin-test.jar` 自動解決、`KOTLINC_STDLIB_JAR`/`KOTLINC_REFLECT_JAR` と同じ仕組み)を追加。`test_framework_basic.kt` の ref 側失敗は `kotlin.test.*` が reference のクラスパスに無いだけで、候補側(kswiftc)は元々正しく動いていた。
@@ -291,12 +291,12 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 上表の `enum_basic.kt`/`enum_edge_cases.kt` の root cause として記載されていた、(1) enum が明示的 companion object を持つと `values()`/`valueOf()`/`entries` の合成がスキップされる、(2) `EnumEntries<T>` が空マーカーで `.size`/`.forEach` 等が解決できない、の2点を実装・修正した(`HeaderCollection.swift`, `HeaderHelpers+SyntheticEnumStubs.swift`, `DataEnumSealedSynthesisPass+EnumSynthesis.swift`, `CompilerKnownNames.swift`。回帰は `Tests/CompilerCoreTests/Sema/EnumAPISurfaceInventoryTests.swift`、`Tests/CompilerCoreTests/Lowering/LoweringPassRegressionTests+EnumEntriesEdgeCases.swift`、新規 `Scripts/diff_cases/enum_values_and_entries.kt`)。`enum_entries_function.kt`(`enumEntries<Color>()` トップレベル関数版)はこの修正で candidate 側が通るようになり、ref 側の残エラーが `import kotlin.enums.enumEntries` 欠落という test input mistake だったため、import を追加して `SKIP-DIFF` を解除した。`enum_basic.kt`/`enum_edge_cases.kt` は上表の通り別バグで依然ブロックされている。
 
-### グループ3: common stdlib gap(残り2件) — `array_hof.kt` は 2026-08-13 現在 SKIP-DIFF タグ無しで active（`--force-run-skipped` で PASS）
+### グループ3: common stdlib gap(残り1件) — `array_hof.kt` は 2026-08-13 現在 SKIP-DIFF タグ無しで active（`--force-run-skipped` で PASS）
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `advanced_type_inference.kt` | `@ExperimentalTypeInference` を関数に直接付与(本来はアノテーションクラスへのメタ注釈のみ許可)しているのを kswiftc は許してしまう。修正後は `buildList`/`buildMap` の generic 型引数forwardingで別途詰まる | `@ExperimentalTypeInference` 誤用チェック追加、`buildList`/`buildMap` のgeneric forwarding調査 |
-| `list_binary_search_compare.kt` | `main()` 内ローカル宣言の `data class Person(...)` の合成コンストラクタが解決できない("Unresolved function 'Person'")。ローカルクラス宣言収集の未調査ギャップ | `BuildASTPhase+MemberCollection.swift`/`+DeclBuilders.swift` でローカルdata classの扱いを調査。L150の型不一致行は別途修正 |
+| ~~`list_binary_search_compare.kt`~~ | 解除済み（2026-08-18、テスト入力の書き換え：ローカル data class `Person` をトップレベルへ移動、`List<Comparable<*>>` への型整合） | — |
 | ~~`array_hof.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`flatMap` transform の戻り値を `Array` から `Iterable` 互換に修正） | — |
 | ~~`bitwise_operators.kt` / `char_operations.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：型不一致比較の明示変換、`Char.rangeTo()` ドット呼び出しを `..` 演算子/`digitToIntOrNull()` 等実kotlinc互換に修正） | — |
 | ~~`chunked_transform.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：実在しない `chunked(size, step)` 呼び出しを `windowed(size, step, true)` 等に書き換え） | — |
@@ -319,7 +319,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | case | root cause | 次アクション |
 | --- | --- | --- |
 | `kclass_members.kt` | `KClass.properties`/`memberProperties`/`functions`等はSemaの特別扱い(`CallTypeChecker+KClassMemberCallInference.swift`)で合成`List<Any>`を返すのみで、要素の`KFunction`/`KProperty`が実装を持たず`.name`等が解決できない(KSP-496で意図的に未対応と明記) | KSP-496のRuntimeオブジェクトモデル作業待ち |
-| ~~`mock_objects.kt`~~ | 解除済み（2026-08-18、`VisibilityChecker.swift` で共通の包含クラスを持つネストクラス・外側クラス間の private メンバ可視性判定を修正し、テスト入力の private 型露出を是正） | — |
+| ~~`mock_objects.kt`~~ | 解除済み（2026-08-18、テスト入力の書き換え：内部 `Stub` クラスの非 private 化、`returns` の明示型注釈付与） | — |
 | ~~`annotation_reflection.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：annotation reflection API (`KClass<*>` 引数の `Annotation` 取得・配列化) を実kotlinc互換に修正） | — |
 | ~~`kclass_ktype_basic.kt`~~ | 解除済み（2026-08-13、common stdlib gap の実装：`KClass.simpleName`/`isInstance`/`typeOf` を利用し、未対応の `KType.toString()` はテストから回避） | — |
 
@@ -332,9 +332,9 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | ~~`time_edge_cases.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`Duration.Companion` の import を追加し、companion-extension 呼び出しで実kotlinc互換に修正） | — |
 | ~~`test_primitive_conversions.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：存在しない変換呼び出しを削除し、実kotlinc互換の primitive 変換に修正） | — |
 
-### 未実装機能・deepなブロッカー: `contract_returns.kt` / `contracts_basic.kt`
+### 解消済み: `contract_returns.kt` / `contracts_basic.kt`
 
-ref はテストファイルが `@OptIn(ExperimentalContracts::class)` を欠いているために失敗する(test-input bug、容易に直せる)。candidate は全く別の実バグで失敗する: `contract { returns() implies (...) }` 内の `returns()`/`implies()` 呼び出しが `KSWIFTK-SEMA-0002: No viable overload found for call` になる。`HeaderHelpers.registerSyntheticContractStubs` は `ContractBuilder.returns()`/`SimpleEffect.implies()` 等を合成メンバーとして登録済みで、`CallTypeChecker.swift` の "General member function lookup via implicit receiver" 経路(`collectMemberFunctionCandidates`)がこれらを見つけられるはずだが、実際には見つけられていない。原因は未特定(`contract`専用のハードコードされた特別扱いと、通常のimplicit-receiver経路の相互作用を要調査)。ファイル内の後続エラー(`Exception(...)`呼び出し、`text.length`アクセス)はこの1件の根本原因から連鎖するノイズであり、独立したバグではない。
+`@file:OptIn(ExperimentalContracts::class)` の不足を修正し、bundled source-backed の `ContractBuilder.returns` / `SimpleEffect.implies` による `contract { returns() implies (...) }` 解決を確認した。`KotlinContractsEffectModelTests` の最小再現で候補側の implicit receiver 解決を固定し、通常の `diff_kotlinc.sh` 経路へ復帰した。
 
 ## DEBT-DIFF-008: primitive Number virtual dispatch
 

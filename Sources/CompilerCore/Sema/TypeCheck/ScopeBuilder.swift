@@ -17,6 +17,9 @@ struct TypeCheckScopeBuilder {
             let defaultImportScope = ImportScope(parent: nil, symbols: sema.symbols)
             for packagePath in defaultImportPackages {
                 for importedSymbol in topLevelSymbolsByPackage[packagePath] ?? [] {
+                    if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                        continue
+                    }
                     defaultImportScope.insert(importedSymbol)
                 }
             }
@@ -131,6 +134,9 @@ struct TypeCheckScopeBuilder {
                 let packageSymbols = topLevelSymbolsByPackage[importDecl.path] ?? []
                 if !packageSymbols.isEmpty {
                     for packageSymbol in packageSymbols {
+                        if shouldSkipDefaultImport(packageSymbol, sema: sema, interner: interner) {
+                            continue
+                        }
                         wildcardImportScope.insert(packageSymbol)
                     }
                 }
@@ -160,6 +166,9 @@ struct TypeCheckScopeBuilder {
 
             if hasPackageImport {
                 for importedSymbol in topLevelSymbolsByPackage[importDecl.path] ?? [] {
+                    if shouldSkipDefaultImport(importedSymbol, sema: sema, interner: interner) {
+                        continue
+                    }
                     wildcardImportScope.insert(importedSymbol)
                 }
             }
@@ -209,28 +218,82 @@ struct TypeCheckScopeBuilder {
             {
                 continue
             }
-            // STDLIB-SHARED-009: Pure synthetic operator extension functions
-            // (e.g. CharSequence.get, String.get) must not be injected into the
-            // default-import scope. When a lambda has an implicit receiver that
-            // also inherits/conforms to the extension's receiver type, the
-            // simple-call resolver can choose the synthetic extension instead of
-            // the source-backed member (StringBuilder.get) and then invoke the
-            // wrong runtime helper. Member-style calls and operator syntax
-            // (a[1]) still recover these through CallTypeChecker's synthetic
-            // fallback paths. Source-backed operator extensions (Duration.compareTo)
-            // and non-operator extension properties (List.indices) remain visible.
-            let isExtensionFunction = symbol.kind == .function &&
-                sema.symbols.functionSignature(for: symbol.id)?.receiverType != nil
-            if isExtensionFunction,
-               symbol.flags.contains(.synthetic),
-               symbol.flags.contains(.operatorFunction),
-               !sema.symbols.isSourceBackedSymbol(symbol.id)
-            {
+            // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get)
+            // out of the library package mapping. Source-backed operator extensions
+            // remain so they are visible to other bundled source in the same package.
+            if isSyntheticOperatorExtensionToExclude(symbol.id, sema: sema, interner: interner) {
                 continue
             }
             mapping[candidatePackage, default: []].append(symbol.id)
         }
         return mapping
+    }
+
+    /// Returns true for synthetic operator extension functions that must not be
+    /// entered into package/default-import scope mappings. These would shadow
+    /// source-backed member implementations in implicit-receiver calls.
+    /// Member-style and operator syntax still resolve them through CallTypeChecker
+    /// fallback paths.
+    private func isSyntheticOperatorExtensionToExclude(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              signature.receiverType != nil,
+              symbol.flags.contains(.operatorFunction),
+              symbol.flags.contains(.synthetic),
+              !sema.symbols.isSourceBackedSymbol(symbolID)
+        else {
+            return false
+        }
+
+        // STDLIB-SHARED-009: Keep synthetic operator extensions (e.g. String.get,
+        // CharSequence.get) out of scope mappings. They are reachable through
+        // CallTypeChecker fallback paths when needed.
+        return true
+    }
+
+    /// Returns true for symbols that should not be inserted into the
+    /// default-import or wildcard-import scopes. This includes the synthetic
+    /// operator extensions covered by STDLIB-SHARED-009 and, after KSP-724, the
+    /// bundled `kotlin.text.CharSequence.get` extension, which has the same
+    /// implicit-receiver shadowing problem. Member-style and operator syntax
+    /// (e.g. `cs[0]`) still resolve these through CallTypeChecker fallback paths.
+    private func shouldSkipDefaultImport(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        if isSyntheticOperatorExtensionToExclude(symbolID, sema: sema, interner: interner) {
+            return true
+        }
+
+        // KSP-724: Keep the bundled kotlin.text.CharSequence.get extension out of
+        // default/wildcard import scopes so it does not shadow StringBuilder.get
+        // on implicit receivers. The FQ-name guard limits the exclusion to the
+        // bundled stdlib declaration; user-defined CharSequence.get extensions in
+        // other packages are still imported normally.
+        let bundledKotlinTextGet = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("get"),
+        ]
+        guard let symbol = sema.symbols.symbol(symbolID),
+              symbol.kind == .function,
+              symbol.fqName == bundledKotlinTextGet,
+              let signature = sema.symbols.functionSignature(for: symbolID),
+              let receiverType = signature.receiverType,
+              sema.symbols.isSourceBackedSymbol(symbolID),
+              case let .classType(receiverClassType) = sema.types.kind(of: receiverType),
+              receiverClassType.classSymbol == sema.types.charSequenceInterfaceSymbol
+        else {
+            return false
+        }
+
+        return true
     }
 
     func makeDefaultImportPackages(interner: StringInterner) -> [[InternedString]] {
