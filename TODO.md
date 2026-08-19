@@ -1637,7 +1637,7 @@
   - 未実装シンボル一覧:
     - `kotlin.intArrayOf` — fun intArrayOf(Array): IntArray  -- `final inline fun kotlin/intArrayOf(kotlin/IntArray...): kotlin/IntArray`
 
-- [ ] KSP-780: kotlin.is-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-780: kotlin.is-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `is`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/is.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
