@@ -2,6 +2,7 @@
 extension BuildASTPhase.ExpressionParser {
     func parseObjectLiteralDecl(
         superTypes: [TypeRefID],
+        superTypeConstructorArgs: [CallArgument] = [],
         bodyTokens: [Token],
         range: SourceRange
     ) -> DeclID? {
@@ -39,6 +40,7 @@ extension BuildASTPhase.ExpressionParser {
             name: syntheticName,
             modifiers: [.private],
             superTypes: superTypes,
+            superTypeConstructorArgs: superTypeConstructorArgs,
             memberFunctions: functionDeclIDs,
             memberProperties: propertyDeclIDs
         )

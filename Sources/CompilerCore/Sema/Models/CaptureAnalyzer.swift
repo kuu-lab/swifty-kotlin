@@ -260,6 +260,16 @@ struct CaptureAnalyzer {
                 else {
                     break
                 }
+                // KSP-CAP-018: the superclass constructor call's arguments
+                // (`object : Base(x) { ... }`) are lowered in the enclosing
+                // function's context (ObjectLiteralLowerer.
+                // emitObjectLiteralSuperConstructorCall), same as a member
+                // property initializer below — an outer local referenced only
+                // here must still be recorded as captured when the object
+                // literal itself sits inside a lambda.
+                for arg in objectDecl.superTypeConstructorArgs {
+                    visit(arg.expr)
+                }
                 for memberFunctionID in objectDecl.memberFunctions {
                     guard let memberDecl = ast.arena.decl(memberFunctionID),
                           case let .funDecl(memberFunction) = memberDecl
