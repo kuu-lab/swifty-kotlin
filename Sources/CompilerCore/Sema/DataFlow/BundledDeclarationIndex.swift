@@ -460,33 +460,6 @@ struct BundledDeclarationIndex: Sendable {
         )
     }
 
-    /// Resolves the nominal owner symbol for a bundled extension receiver.
-    ///
-    /// `KClass<T>` has a dedicated type representation, so it does not carry
-    /// the interface symbol in the type itself. Map it back to the registered
-    /// synthetic interface before attaching source-backed extensions.
-    static func receiverOwnerSymbol(
-        for receiverType: TypeID,
-        types: TypeSystem
-    ) -> SymbolID? {
-        let nonNullType = types.makeNonNullable(receiverType)
-        switch types.kind(of: nonNullType) {
-        case let .classType(classType):
-            return classType.classSymbol
-        case .kClassType:
-            return types.kClassInterfaceSymbol
-        case let .intersection(parts):
-            for part in parts {
-                if let owner = receiverOwnerSymbol(for: part, types: types) {
-                    return owner
-                }
-            }
-            return nil
-        default:
-            return nil
-        }
-    }
-
     private static func receiverOwnerFQName(
         for receiverType: TypeID,
         symbols: SymbolTable,
@@ -568,25 +541,14 @@ struct BundledDeclarationIndex: Sendable {
         ])
         // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
         // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with
-        // `size`/`this[i]` indexed access, which only List supports. Aliasing
-        // these to Iterable suppressed the dedicated Iterable synthetic stub
-        // that some of these members have (e.g. reduce, via
-        // registerIterableReduceMember, which links to the generic
-        // runtimeCollectionElements(from:)-based kk_sequence_reduce bridge),
-        // leaving a plain Iterable receiver (e.g. Set<T>, or a value
-        // statically typed Iterable<T>) with no matching candidate at all.
-        // Sema's overload fallback then picked an unrelated same-named source
-        // declaration (observed: Set<Int>.reduce resolving to
-        // Sequence<T>.reduce), which crashed at runtime with "Virtual
-        // dispatch failed" since the receiver has no itable entry for the
-        // Sequence-shaped call. Regardless of arity, keep these unaliased so
-        // the dedicated Iterable stub (where one exists) stays registered.
-        // The remaining names here (fold and friends, scan/runningFold/...)
-        // have no Iterable synthetic stub at all; for those,
-        // tryInferMemberCallCollectionFlowSpecials falls back to the bundled
-        // Sequence<T> source body instead (plain iteration, valid for any
-        // Iterable receiver) via bindBundledSequenceSourceIfAvailable(...,
-        // allowIterableReceiver: true).
+        // `size`/`this[i]` indexed access, which only List supports. Keep these
+        // List declarations unaliased so List receivers select the specialized
+        // source implementation instead of the generic Iterable declaration.
+        // Iterable reduce/reduceIndexed/reduceRight* declarations are now
+        // source-backed in Iterables.kt; no synthetic member is needed for the
+        // plain Iterable receiver. The remaining names here (fold and friends,
+        // scan/runningFold/...) use the bundled Sequence source body when the
+        // collection-flow fallback explicitly permits an Iterable receiver.
         let nonAliasedIndexedAccessNames = Set([
             interner.intern("fold"),
             interner.intern("foldIndexed"),
