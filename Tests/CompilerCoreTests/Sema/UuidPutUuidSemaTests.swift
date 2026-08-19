@@ -9,7 +9,7 @@ import Testing
 // expected ByteBuffer receiver, parameter/return types, and @ExperimentalUuidApi
 // opt-in annotations.
 
-@Suite
+@Suite(.serialized)
 struct UuidPutUuidSemaTests {
 
     // MARK: - Shared fixture
@@ -25,14 +25,18 @@ struct UuidPutUuidSemaTests {
         return try #require(result)
     }
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static nonisolated(unsafe) var _sharedSema: (CompilationContext, SemaModule, StringInterner)?
+
+    private func sharedSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSemaWithContext()
+        Self._sharedSema = triple
+        return triple
+    }
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let (_, sema, interner) = try makeSemaWithContext()
-        let pair = (sema, interner)
-        Self._sharedSema = pair
-        return pair
+        let (_, sema, interner) = try sharedSemaWithContext()
+        return (sema, interner)
     }
 
     private func byteBufferSymbol(sema: SemaModule, interner: StringInterner) -> SymbolID? {
@@ -72,7 +76,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidExtensionFunctionIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSemaWithContext()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 2, sema: sema, interner: interner)
         )
@@ -156,7 +160,7 @@ struct UuidPutUuidSemaTests {
 
     @Test
     func testPutUuidSingleOverloadIsSourceBacked() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSemaWithContext()
         let sym = try #require(
             findPutUuidSymbol(parameterCount: 1, sema: sema, interner: interner)
         )

@@ -43,6 +43,14 @@ public fun String.subSequence(startIndex: Int, endIndex: Int): String =
 public fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence =
     this.toString().substring(startIndex, endIndex)
 
+// KSP-724: `CharSequence.get` is implemented as an extension so that the
+// bundled `kotlin.CharSequence` interface can remain method-slot-free; the
+// runtime CharSequence itable length getter therefore stays at property slot 0.
+// The implementation delegates to `String.get` on the string view, which lowers
+// to the flat ABI runtime call `kk_string_get_flat` and avoids allocating a
+// `List<Char>` on every character access.
+public operator fun CharSequence.get(index: Int): Char = this.toString()[index]
+
 public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""
     return this.substring(indices.first, indices.last + 1)

@@ -5,8 +5,31 @@ import Testing
 /// STDLIB-REFLECT-067: Sema inference for KClass kind/modifier boolean members
 /// (`isData` / `isSealed` / `isValue`) on both a class-literal receiver and a
 /// stored `KClass<T>` variable receiver.
-@Suite
+@Suite(.serialized)
 struct ReflectKClassBooleanIntrospectionTests {
+    private static let sharedSource = """
+    import kotlin.reflect.KClass
+
+    data class Point(val x: Int)
+
+    fun isDataOf(): Boolean = Point::class.isData
+    fun isSealedOf(): Boolean = Point::class.isSealed
+    fun isValueOf(): Boolean = Point::class.isValue
+
+    fun variableIsDataOf(k: KClass<Point>): Boolean = k.isData
+    fun variableIsSealedOf(k: KClass<Point>): Boolean = k.isSealed
+    fun variableIsValueOf(k: KClass<Point>): Boolean = k.isValue
+    """
+
+    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner, CompilationContext)?
+
+    private func sharedSema() throws -> (SemaModule, StringInterner, CompilationContext) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSema(source: Self.sharedSource)
+        Self._sharedSema = triple
+        return triple
+    }
+
     private func makeSema(source: String) throws -> (SemaModule, StringInterner, CompilationContext) {
         var result: (SemaModule, StringInterner, CompilationContext)?
         try withTemporaryFile(contents: source) { path in
@@ -22,13 +45,7 @@ struct ReflectKClassBooleanIntrospectionTests {
     }
 
     @Test func testClassLiteralBooleanMembersInferBoolean() throws {
-        let source = """
-        data class Point(val x: Int)
-        fun isDataOf(): Boolean = Point::class.isData
-        fun isSealedOf(): Boolean = Point::class.isSealed
-        fun isValueOf(): Boolean = Point::class.isValue
-        """
-        let (sema, interner, _) = try makeSema(source: source)
+        let (sema, interner, _) = try sharedSema()
         for functionName in ["isDataOf", "isSealedOf", "isValueOf"] {
             let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
@@ -40,15 +57,8 @@ struct ReflectKClassBooleanIntrospectionTests {
     }
 
     @Test func testVariableReceiverBooleanMembersInferBoolean() throws {
-        let source = """
-        import kotlin.reflect.KClass
-        data class Point(val x: Int)
-        fun isDataOf(k: KClass<Point>): Boolean = k.isData
-        fun isSealedOf(k: KClass<Point>): Boolean = k.isSealed
-        fun isValueOf(k: KClass<Point>): Boolean = k.isValue
-        """
-        let (sema, interner, _) = try makeSema(source: source)
-        for functionName in ["isDataOf", "isSealedOf", "isValueOf"] {
+        let (sema, interner, _) = try sharedSema()
+        for functionName in ["variableIsDataOf", "variableIsSealedOf", "variableIsValueOf"] {
             let symbol = try #require(sema.symbols.lookup(fqName: [interner.intern(functionName)]))
             let signature = try #require(sema.symbols.functionSignature(for: symbol))
             #expect(

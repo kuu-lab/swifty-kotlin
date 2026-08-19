@@ -10,6 +10,171 @@ import Testing
 
 @Suite
 struct BlockExpressionTests {
+    private static nonisolated(unsafe) var _sharedBlockKIRCtx: CompilationContext?
+
+    private func sharedBlockKIRCtx() throws -> CompilationContext {
+        if let cached = Self._sharedBlockKIRCtx {
+            return cached
+        }
+
+        let sources: [String] = [
+            """
+            package blockcase0
+            fun compute0(): Int {
+                return if (true) {
+                    val a = 10
+                    val b = 20
+                    a + b
+                } else {
+                    0
+                }
+            }
+            fun main0() = compute0()
+            """,
+            """
+            package blockcase1
+            fun greet1(): String {
+                return if (true) {
+                    val x = 42
+                    "hello"
+                } else {
+                    "world"
+                }
+            }
+            fun main1() = greet1()
+            """,
+            """
+            package blockcase2
+            fun classify2(x: Int): Int {
+                return when (x) {
+                    1 -> {
+                        val a = 10
+                        a + 1
+                    }
+                    else -> {
+                        val b = 99
+                        b
+                    }
+                }
+            }
+            fun main2() = classify2(1)
+            """,
+            """
+            package blockcase3
+            fun compute3(): Int {
+                return try {
+                    val x = 1
+                    val y = 2
+                    x + y
+                } catch (e: Exception) {
+                    0
+                }
+            }
+            fun main3() = compute3()
+            """,
+            """
+            package blockcase4
+            fun doNothing4(): Unit {
+                if (true) {
+                } else {
+                }
+            }
+            fun main4() = doNothing4()
+            """,
+            """
+            package blockcase5
+            fun main5(): Unit {
+                if (true) {
+                    val x = 42
+                    val y = 99
+                }
+            }
+            """,
+            """
+            package blockcase6
+            fun compute6(): Int {
+                return if (true) {
+                    val a = 1
+                    val b = 2
+                    val c = 3
+                    a + b + c
+                } else {
+                    0
+                }
+            }
+            fun main6() = compute6()
+            """,
+            """
+            package blockcase7
+            fun compute7(): Int {
+                return if (true) {
+                    var x = 10
+                    x = x + 5
+                    x
+                } else {
+                    0
+                }
+            }
+            fun main7() = compute7()
+            """,
+            """
+            package blockcase8
+            fun compute8(): Int {
+                return if (true) {
+                    val x = 42
+                    x
+                } else {
+                    0
+                }
+            }
+            fun main8() = compute8()
+            """,
+            """
+            package blockcase9
+            fun compute9(): Int {
+                return try {
+                    val a = 10
+                    val b = 20
+                    a + b
+                } catch (e: Exception) {
+                    val fallback = -1
+                    fallback
+                }
+            }
+            fun main9() = compute9()
+            """,
+            """
+            package blockcase10
+            fun classify10(x: Int): Int = when (x) {
+                1 -> {
+                    val base = 100
+                    base + x
+                }
+                2 -> {
+                    val multiplier = 10
+                    multiplier * x
+                }
+                else -> {
+                    val fallback = -1
+                    fallback
+                }
+            }
+            fun main10() = classify10(2)
+            """,
+        ]
+
+        var result: CompilationContext?
+        try withTemporaryFiles(contents: sources) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runToKIR(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        Self._sharedBlockKIRCtx = ctx
+        return ctx
+    }
+
     // MARK: - AST: single expression block always produces blockExpr
 
     @Test
@@ -36,270 +201,105 @@ struct BlockExpressionTests {
 
     @Test
     func testIfBranchMultiStatementBlockReturnPattern() throws {
-        let source = """
-        fun compute(): Int {
-            return if (true) {
-                val a = 10
-                val b = 20
-                a + b
-            } else {
-                0
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let sema = try #require(ctx.sema)
+        #expect(!(sema.bindings.exprTypes.isEmpty))
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - if branch with multi-statement block and String trailing expr (return pattern)
 
     @Test
     func testIfBranchMultiStatementBlockStringTrailingExpr() throws {
-        let source = """
-        fun greet(): String {
-            return if (true) {
-                val x = 42
-                "hello"
-            } else {
-                "world"
-            }
-        }
-        fun main() = greet()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - when branch with multi-statement block
 
     @Test
     func testWhenBranchMultiStatementBlockInfersTrailingExprType() throws {
-        let source = """
-        fun classify(x: Int): Int {
-            return when (x) {
-                1 -> {
-                    val a = 10
-                    a + 1
-                }
-                else -> {
-                    val b = 99
-                    b
-                }
-            }
-        }
-        fun main() = classify(1)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let sema = try #require(ctx.sema)
+        #expect(!(sema.bindings.exprTypes.isEmpty))
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - try/catch with multi-statement block
 
     @Test
     func testTryCatchMultiStatementBlockInfersTrailingExprType() throws {
-        let source = """
-        fun compute(): Int {
-            return try {
-                val x = 1
-                val y = 2
-                x + y
-            } catch (e: Exception) {
-                0
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let sema = try #require(ctx.sema)
-            #expect(!(sema.bindings.exprTypes.isEmpty))
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let sema = try #require(ctx.sema)
+        #expect(!(sema.bindings.exprTypes.isEmpty))
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - Empty block has Unit type
 
     @Test
     func testEmptyBlockHasUnitType() throws {
-        let source = """
-        fun doNothing(): Unit {
-            if (true) {
-            } else {
-            }
-        }
-        fun main() = doNothing()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - Block expression with only declarations (no trailing expr -> Unit)
 
     @Test
     func testBlockWithOnlyDeclarationsHasUnitType() throws {
-        let source = """
-        fun main(): Unit {
-            if (true) {
-                val x = 42
-                val y = 99
-            }
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - Multi-statement block with three val declarations and trailing expr
 
     @Test
     func testThreeValDeclarationsAndTrailingExpr() throws {
-        let source = """
-        fun compute(): Int {
-            return if (true) {
-                val a = 1
-                val b = 2
-                val c = 3
-                a + b + c
-            } else {
-                0
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - Multi-statement block with var reassignment (return pattern)
 
     @Test
     func testMultiStatementBlockWithVarReassignment() throws {
-        let source = """
-        fun compute(): Int {
-            return if (true) {
-                var x = 10
-                x = x + 5
-                x
-            } else {
-                0
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - if branch with single val and trailing expr (return pattern)
 
     @Test
     func testIfBranchSingleValAndTrailingExpr() throws {
-        let source = """
-        fun compute(): Int {
-            return if (true) {
-                val x = 42
-                x
-            } else {
-                0
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - try/catch both branches with multi-statement blocks
 
     @Test
     func testTryCatchBothBranchesMultiStatement() throws {
-        let source = """
-        fun compute(): Int {
-            return try {
-                val a = 10
-                val b = 20
-                a + b
-            } catch (e: Exception) {
-                val fallback = -1
-                fallback
-            }
-        }
-        fun main() = compute()
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - when expression-body with multi-statement branches
 
     @Test
     func testWhenExpressionBodyMultiStatementBranches() throws {
-        let source = """
-        fun classify(x: Int): Int = when (x) {
-            1 -> {
-                val base = 100
-                base + x
-            }
-            2 -> {
-                val multiplier = 10
-                multiplier * x
-            }
-            else -> {
-                val fallback = -1
-                fallback
-            }
-        }
-        fun main() = classify(2)
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runToKIR(ctx)
-            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
-            #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
-        }
+        let ctx = try sharedBlockKIRCtx()
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
     // MARK: - AST structure: blockExpr has statements and trailing expression

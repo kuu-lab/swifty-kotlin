@@ -172,8 +172,10 @@ public func __kk_string_builder_toString(_ sbRaw: Int) -> Int {
 
 @_cdecl("__kk_string_builder_length_prop")
 public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
+    // KSP-724: StringBuilder.length must agree with String.length and with
+    // CharSequence.length dispatch, all of which count Unicode scalars.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return sb.value.utf8.count
+    return sb.value.unicodeScalars.count
 }
 
 @_cdecl("__kk_string_builder_clear")

@@ -1,0 +1,18 @@
+symbol fq=__local_0.values kind=local vis=private flags=_ type=kotlin.UShortArray
+symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
+symbol fq=kotlin.UShortArray.toList kind=function vis=public flags=synthetic sig=recv=kotlin.UShortArray params=[] ret=kotlin.collections.List<UShort>
+symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+file fstdlib_kotlin_n_UShortArray package=golden.sema
+  decl golden.sema.main fun main sym=golden.sema.main
+expr e@4:30 int(4) type=Int
+expr e@4:36 name(it) type=Int ref=s-0
+expr e@4:41 int(1) type=Int
+expr e@4:36#1 binary(add) lhs=e@4:36 rhs=e@4:41 type=Int
+expr e@4:36#2 memberCall recv=e@4:36#1 callee=toUShort args=[] type=UShort
+expr e@4:33 lambda params=[] body=e@4:36#2 label=UShortArray type=(Int) -> UShort
+expr e@4:18 call callee=e@4:18#1 args=[_:e@4:30,_:e@4:33] type=kotlin.UShortArray call=kotlin.UShortArray#1
+expr e@4:5 localDecl values mutable=0 type=_ init=e@4:18 type=Unit ref=__local_0.values
+expr e@5:13 name(values) type=kotlin.UShortArray ref=__local_0.values
+expr e@5:13#1 memberCall recv=e@5:13 callee=toList args=[] type=kotlin.collections.List<UShort> call=kotlin.UShortArray.toList
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1

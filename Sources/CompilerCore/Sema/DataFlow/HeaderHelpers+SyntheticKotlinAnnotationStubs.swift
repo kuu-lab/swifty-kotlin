@@ -33,13 +33,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticAnnotationClass(
-            named: "OptionalExpectation",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticAnnotationClass(
             named: "IntroducedAt",
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
@@ -55,13 +48,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticAnnotationClass(
-            named: "SubclassOptInRequired",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
         registerSyntheticAnnotationClass(
             named: "ExperimentalStdlibApi",
             packageFQName: kotlinPkg,
@@ -211,45 +197,6 @@ extension DataFlowSemaPhase {
             symbols.setPropertyType(retentionType, for: valueSymbol)
             symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
         }
-
-        if let subclassOptInSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("SubclassOptInRequired")]) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.CLASS"]
-                ),
-                to: subclassOptInSymbol,
-                symbols: symbols
-            )
-            registerSyntheticSubclassOptInRequiredMarkerClassProperty(
-                ownerSymbol: subclassOptInSymbol,
-                ownerFQName: kotlinPkg + [interner.intern("SubclassOptInRequired")],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-
-        if let optionalExpectationSymbol = symbols.lookup(
-            fqName: kotlinPkg + [interner.intern("OptionalExpectation")]
-        ) {
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(
-                    annotationFQName: KnownCompilerAnnotation.target.qualifiedName,
-                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
-                ),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-            appendSyntheticAnnotation(
-                MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
-                to: optionalExpectationSymbol,
-                symbols: symbols
-            )
-        }
-
-
 
         if let introducedAtSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("IntroducedAt")]) {
             appendSyntheticAnnotation(

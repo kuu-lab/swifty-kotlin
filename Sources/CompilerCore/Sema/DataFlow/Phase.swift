@@ -82,6 +82,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx
         )
+        types.functionInterfaceSymbol = symbols.lookupAll(
+            fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
+        ).first { symbols.symbol($0)?.kind == .interface }
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,
@@ -272,6 +275,15 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem, ctx: CompilationContext
     ) {
         bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
+        // kotlin.Annotation source, because its source declaration has no
+        // explicit supertype clause and would otherwise erase the synthetic
+        // supertype installed by registerSyntheticAnyStub.
+        patchBundledAnnotationSupertype(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         // BUG-166: StringBuilder's Appendable/CharSequence conformance is
         // synthetic (not written in the bundled Kotlin source's `class
         // StringBuilder { ... }` declaration), so bindInheritanceEdges above —
