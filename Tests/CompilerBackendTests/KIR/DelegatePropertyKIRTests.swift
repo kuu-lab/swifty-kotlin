@@ -11,6 +11,34 @@ import Testing
 @Suite(.serialized)
 struct DelegatePropertyKIRTests {
     @Test
+    func testLazyFactoryHandleMatchAllowsNonAdjacentCopy() {
+        let result = KIRExprID(rawValue: 1)
+        let delegateHandle = KIRExprID(rawValue: 2)
+        let instructions: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: StringInterner().intern("kotlin.lazy"),
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .beginBlock,
+            .label(7),
+            .copy(from: result, to: delegateHandle),
+        ]
+
+        #expect(
+            ExprLowerer.lazyFactoryResultStoresIntoHandle(
+                result: result,
+                delegateHandle: delegateHandle,
+                callIndex: 0,
+                instructions: instructions
+            )
+        )
+    }
+
+    @Test
     func testLazyDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         val x by lazy { 42 }

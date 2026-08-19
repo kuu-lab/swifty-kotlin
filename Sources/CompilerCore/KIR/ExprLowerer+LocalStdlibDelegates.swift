@@ -1,5 +1,21 @@
 
 extension ExprLowerer {
+    /// Returns whether a factory result is eventually stored in the local
+    /// delegate handle. Inlined stdlib factories can emit bookkeeping
+    /// instructions between the factory call and the storage copy.
+    static func lazyFactoryResultStoresIntoHandle(
+        result: KIRExprID,
+        delegateHandle: KIRExprID,
+        callIndex: Int,
+        instructions: [KIRInstruction]
+    ) -> Bool {
+        guard result != delegateHandle else { return true }
+        return instructions.dropFirst(callIndex + 1).contains { instruction in
+            guard case let .copy(from, to) = instruction else { return false }
+            return from == result && to == delegateHandle
+        }
+    }
+
     /// Replaces the source-backed `kotlin.lazy` factory used by a local
     /// `by lazy` declaration with the runtime handle consumed by the local
     /// delegate accessors.
@@ -46,12 +62,12 @@ extension ExprLowerer {
             // The source-backed factory is auto-inlined because it takes a
             // function parameter. Its result is therefore often copied from
             // the LazyImpl constructor result into the local handle.
-            let storesIntoHandle = result == delegateHandle || instructions.dropFirst(index + 1).first.map {
-                if case let .copy(from, to) = $0 {
-                    return from == result && to == delegateHandle
-                }
-                return false
-            } ?? false
+            let storesIntoHandle = Self.lazyFactoryResultStoresIntoHandle(
+                result: result,
+                delegateHandle: delegateHandle,
+                callIndex: index,
+                instructions: instructions
+            )
             guard storesIntoHandle else { return nil }
             return (index, isLazyImplConstructor)
         }).first
