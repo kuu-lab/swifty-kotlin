@@ -13,6 +13,7 @@ func isSourceBackedPrimitiveArrayFactory(
           let sema,
           sema.symbols.isSourceBackedSymbol(symbolID),
           let symbol = sema.symbols.symbol(symbolID),
+          sema.symbols.externalLinkName(for: symbolID) == nil,
           symbol.kind == .function,
           symbol.fqName.count == 2,
           interner.resolve(symbol.fqName[0]) == "kotlin",

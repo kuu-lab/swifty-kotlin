@@ -290,20 +290,14 @@ final class CallSupportLowerer {
                 return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
             }
 
-            // Inline source bodies receive their vararg parameter in the
-            // bundled List representation. Non-inline external factories are
-            // lowered directly from the packed primitive array by the
-            // collection bridge below.
-            let listifyResult = sema.symbols.symbol(chosenCallee)?.flags.contains(.inlineFunction) == true
-
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let packed = packVarargArguments(
                 argIndices: argIndices,
                 providedArguments: providedArguments,
                 spreadFlags: spreadFlags,
-                listifyResult: listifyResult,
+                listifyResult: false,
                 boxPrimitiveElements: false,
-                resultType: listifyResult ? nil : signature.returnType,
+                resultType: signature.returnType,
                 arena: arena,
                 interner: interner,
                 intType: intType,
