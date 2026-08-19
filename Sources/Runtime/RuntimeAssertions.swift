@@ -659,6 +659,28 @@ private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> 
     return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? defaultMessage
 }
 
+private func runtimeCauseToString(from raw: Int) -> String? {
+    guard raw != 0,
+          raw != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
+    else {
+        return nil
+    }
+
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer, let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) else {
+        return nil
+    }
+
+    let simpleName = throwable.exceptionFQName.split(separator: ".").last.map(String.init) ?? "Throwable"
+    guard let message = throwable.message else {
+        return "java.lang.\(simpleName)"
+    }
+    return "java.lang.\(simpleName): \(message)"
+}
+
 private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
     if raw == 0 || raw == runtimeNullSentinelInt {
         return nil
@@ -752,8 +774,8 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // own external symbol (instead of sharing the type-erased `__kk_throwable_new`/
 // `__kk_throwable_new_with_cause`), so the allocated box carries the correct
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
-// exception types apart. See Stdlib/kotlin/Exceptions.kt for the source-backed
-// constructor declarations that reference these link names.
+// exception types apart. See the source-backed constructor declarations in
+// Stdlib/kotlin/Exceptions.kt and Stdlib/kotlin/IllegalStateException/Stdlib.kt.
 
 @_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {
@@ -775,9 +797,10 @@ public func kk_illegal_state_exception_new_message_cause(_ messageRaw: Int, _ ca
 
 @_cdecl("__kk_illegal_state_exception_new_cause")
 public func kk_illegal_state_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateIllegalStateException(
-        message: nil,
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    return runtimeAllocateIllegalStateException(
+        message: runtimeCauseToString(from: cause),
+        cause: cause
     )
 }
 
