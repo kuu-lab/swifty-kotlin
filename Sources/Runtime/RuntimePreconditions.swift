@@ -10,9 +10,8 @@ import Foundation
 @_cdecl("__kk_synchronized")
 public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let nsLock = runtimeGetOrCreateLock(for: lock)
-    nsLock.lock()
-    defer { nsLock.unlock() }
+    let nsLock = runtimeAcquireLock(for: lock)
+    defer { runtimeReleaseLock(for: lock, lock: nsLock) }
 
     var thrown = 0
     let result = runtimeInvokeClosureThunk(fnPtr: fnPtr, closureRaw: closureRaw, outThrown: &thrown)
@@ -24,65 +23,46 @@ public func __kk_synchronized(_ lock: Int, _ fnPtr: Int, _ closureRaw: Int, _ ou
 }
 
 private let runtimeLockStorage = NSLock()
-private nonisolated(unsafe) var runtimeLocks: [Int: NSRecursiveLock] = [:]
-
-// Lazy synchronization entries are retained only while a caller owns or is
-// waiting for the corresponding lock. This avoids keeping one lock per Lazy
-// instance alive for the lifetime of the process.
-private struct RuntimeLazyLockEntry {
+// Lock entries are retained only while a caller owns or is waiting for the
+// corresponding lock. Both `synchronized(lock)` and `lazy(lock)` use this
+// table so they honor Kotlin's shared-monitor semantics without leaking one
+// lock per object for the lifetime of the process.
+private struct RuntimeLockEntry {
     let lock: NSRecursiveLock
     var users: Int
 }
 
-private nonisolated(unsafe) var runtimeLazyLocks: [Int: RuntimeLazyLockEntry] = [:]
+private nonisolated(unsafe) var runtimeLocks: [Int: RuntimeLockEntry] = [:]
 
-private func runtimeGetOrCreateLock(for key: Int) -> NSRecursiveLock {
-    runtimeLockStorage.lock()
-    defer { runtimeLockStorage.unlock() }
-    if let existing = runtimeLocks[key] {
-        return existing
-    }
-    let newLock = NSRecursiveLock()
-    runtimeLocks[key] = newLock
-    return newLock
-}
-
-private func runtimeAcquireLazyLock(for key: Int) {
+private func runtimeAcquireLock(for key: Int) -> NSRecursiveLock {
     runtimeLockStorage.lock()
     let lock: NSRecursiveLock
-    if var entry = runtimeLazyLocks[key] {
+    if var entry = runtimeLocks[key] {
         entry.users += 1
         lock = entry.lock
-        runtimeLazyLocks[key] = entry
+        runtimeLocks[key] = entry
     } else {
-        let newEntry = RuntimeLazyLockEntry(lock: NSRecursiveLock(), users: 1)
+        let newEntry = RuntimeLockEntry(lock: NSRecursiveLock(), users: 1)
         lock = newEntry.lock
-        runtimeLazyLocks[key] = newEntry
+        runtimeLocks[key] = newEntry
     }
     runtimeLockStorage.unlock()
     lock.lock()
+    return lock
 }
 
-private func runtimeReleaseLazyLock(for key: Int) {
+private func runtimeReleaseLock(for key: Int, lock: NSRecursiveLock) {
+    lock.unlock()
     runtimeLockStorage.lock()
-    guard let entry = runtimeLazyLocks[key] else {
+    guard var entry = runtimeLocks[key], entry.lock === lock else {
         runtimeLockStorage.unlock()
         return
     }
-    runtimeLockStorage.unlock()
-
-    entry.lock.unlock()
-
-    runtimeLockStorage.lock()
-    guard var current = runtimeLazyLocks[key], current.lock === entry.lock else {
-        runtimeLockStorage.unlock()
-        return
-    }
-    current.users -= 1
-    if current.users == 0 {
-        runtimeLazyLocks.removeValue(forKey: key)
+    entry.users -= 1
+    if entry.users == 0 {
+        runtimeLocks.removeValue(forKey: key)
     } else {
-        runtimeLazyLocks[key] = current
+        runtimeLocks[key] = entry
     }
     runtimeLockStorage.unlock()
 }
@@ -90,12 +70,19 @@ private func runtimeReleaseLazyLock(for key: Int) {
 // KSP-781: synchronization used by the bundled Lazy implementation.
 @_cdecl("__kk_lazy_sync_lock")
 public func __kk_lazy_sync_lock(_ handle: Int) -> Int {
-    runtimeAcquireLazyLock(for: handle)
+    _ = runtimeAcquireLock(for: handle)
     return 0
 }
 
 @_cdecl("__kk_lazy_sync_unlock")
 public func __kk_lazy_sync_unlock(_ handle: Int) -> Int {
-    runtimeReleaseLazyLock(for: handle)
+    // The bridge ABI carries only the key. The shared lock table guarantees
+    // that the current key resolves to the same lock while it is held.
+    runtimeLockStorage.lock()
+    let lock = runtimeLocks[handle]?.lock
+    runtimeLockStorage.unlock()
+    if let lock {
+        runtimeReleaseLock(for: handle, lock: lock)
+    }
     return 0
 }

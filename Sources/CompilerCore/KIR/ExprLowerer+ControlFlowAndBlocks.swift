@@ -1100,6 +1100,14 @@ extension ExprLowerer {
                         // `kk_*_get_value` accessor. Without this the raw handle was
                         // used as the value itself (`println(x)` printing
                         // `<object 0x...>` instead of the lazily computed value).
+                        lowerLocalLazyFactory(
+                            delegateKind: delegateKind,
+                            delegateHandle: initializerID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
                         driver.ctx.setLocalStdlibDelegateKind(delegateKind, for: symbol)
                         driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
                         if let propertyType = sema.symbols.propertyType(for: symbol) {

@@ -152,17 +152,6 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
         module.arena.transformFunctions { function in
             var updated = function
 
-            // Local `by lazy` accessors are lowered to direct runtime reads before
-            // this pass, while ordinary `lazy { ... }` calls are read through the
-            // Lazy interface. Use that consumer shape to keep the runtime-backed
-            // compatibility path limited to local delegate values.
-            let lazyDelegateResults: Set<KIRExprID> = Set(function.body.compactMap { instruction in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                      ["kk_lazy_get_value", "kk_lazy_is_initialized"].contains(interner.resolve(callee))
-                else { return nil }
-                return arguments.first
-            })
-
             // Rewrite delegate initialization sequences.
             // Look for copy to $delegate_ fields preceded by a call, and wrap
             // with the appropriate kk_*_create runtime call.
@@ -334,31 +323,6 @@ final class StdlibDelegateLoweringPass: LoweringPass, ParallelLoweringPass {
                         ))
                         continue
                     }
-                }
-
-                if case let .call(symbol, callee, callArgs, callResult, _, _, _, _) = instruction,
-                   interner.resolve(callee) == "lazy",
-                   symbol != nil,
-                   let callResult,
-                   lazyDelegateResults.contains(callResult),
-                   let initializer = callArgs.last
-                {
-                    let modeExpr = module.arena.appendExpr(
-                        .intLiteral(lazyThreadSafetyModeValue), type: nil
-                    )
-                    finalBody.append(.constValue(
-                        result: modeExpr,
-                        value: .intLiteral(lazyThreadSafetyModeValue)
-                    ))
-                    finalBody.append(.call(
-                        symbol: symbol,
-                        callee: lazyCreateName,
-                        arguments: [initializer, modeExpr],
-                        result: callResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    continue
                 }
 
                 finalBody.append(instruction)

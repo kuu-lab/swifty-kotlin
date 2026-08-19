@@ -412,9 +412,9 @@ struct LocalDelegatePropertyKIRTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            // The `lazy` factory call is only rewritten to `kk_lazy_create` by
-            // StdlibDelegateLoweringPass, which runs after this stage.
-            let createIndex = try #require(callees.firstIndex(of: "lazy"))
+            // Local delegate factories are rewritten while lowering the
+            // declaration so a captured local keeps the runtime-backed handle.
+            let createIndex = try #require(callees.firstIndex(of: "kk_lazy_create"))
             let getValueIndex = try #require(callees.firstIndex(of: "kk_lazy_get_value"))
             let printIndices = callees.indices.filter { callees[$0] == "println" }
             let firstPrintIndex = try #require(printIndices.first)

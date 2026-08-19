@@ -9,7 +9,8 @@ private func runCodegenPipeline(
     moduleName: String,
     emit: EmitMode,
     outputPath: String,
-    irFlags: [String] = []
+    irFlags: [String] = [],
+    allowDefaultStdlibLibrary: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -17,7 +18,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     let ctx = CompilationContext(
         options: options,
@@ -43,7 +45,8 @@ private func runCodegenPipeline(
 private func assertKotlinOutput(
     _ source: String,
     moduleName: String,
-    expected: String
+    expected: String,
+    allowDefaultStdlibLibrary: Bool = true
 ) throws {
     try withTemporaryFile(contents: source) { path in
         let outputBase = FileManager.default.temporaryDirectory
@@ -52,7 +55,8 @@ private func assertKotlinOutput(
             inputPath: path,
             moduleName: moduleName,
             emit: .executable,
-            outputPath: outputBase
+            outputPath: outputBase,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
         try LinkPhase().run(ctx)
         let result = try CommandRunner.run(executable: outputBase, arguments: [])
@@ -160,6 +164,30 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 """
                 42
                 """ + "\n"
+        )
+    }
+
+    // KSP-781: a local `by lazy` delegate can be captured by a nested lambda.
+    // The delegate factory must be rewritten at declaration lowering time;
+    // a later same-function consumer scan cannot see the nested read.
+    @Test
+    func testCodegenCompilesLazyDelegateCapturedByNestedLambda() throws {
+        let source = """
+        fun main() {
+            val value by lazy { 42 }
+            val read = { value }
+            println(read())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LazyDelegateCapturedByNestedLambda",
+            expected:
+                """
+                42
+                """ + "\n",
+            allowDefaultStdlibLibrary: false
         )
     }
 
