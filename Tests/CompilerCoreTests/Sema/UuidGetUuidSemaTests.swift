@@ -7,7 +7,7 @@ import Testing
 // both overloads are source-backed with the expected ByteBuffer receiver,
 // parameter/return signatures, and @ExperimentalUuidApi annotation.
 
-@Suite
+@Suite(.serialized)
 struct UuidGetUuidSemaTests {
 
     private func makeSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
@@ -21,14 +21,18 @@ struct UuidGetUuidSemaTests {
         return try #require(result)
     }
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static nonisolated(unsafe) var _sharedSema: (CompilationContext, SemaModule, StringInterner)?
+
+    private func sharedSemaWithContext() throws -> (CompilationContext, SemaModule, StringInterner) {
+        if let cached = Self._sharedSema { return cached }
+        let triple = try makeSemaWithContext()
+        Self._sharedSema = triple
+        return triple
+    }
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let (_, sema, interner) = try makeSemaWithContext()
-        let pair = (sema, interner)
-        Self._sharedSema = pair
-        return pair
+        let (_, sema, interner) = try sharedSemaWithContext()
+        return (sema, interner)
     }
 
     private func byteBufferSymbol(sema: SemaModule, interner: StringInterner) -> SymbolID? {
@@ -70,7 +74,7 @@ struct UuidGetUuidSemaTests {
 
     @Test
     func testGetUuidIsSourceBackedNotSynthetic() throws {
-        let (ctx, sema, interner) = try makeSemaWithContext()
+        let (ctx, sema, interner) = try sharedSemaWithContext()
         let uuidSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt")
         let sym = try #require(
             findGetUuidSymbol(parameterCount: 1, sema: sema, interner: interner)

@@ -172,6 +172,39 @@ struct CallableRefTypeIdentityTests {
         }
     }
 
+    /// KSP-496 follow-up: a bare `::member` reference to a member property
+    /// of the enclosing class must capture the implicit `this` receiver into
+    /// the generated KProperty wrapper object, the same way an explicit
+    /// `this::member` reference does — otherwise `.get()`/`.set()` on the
+    /// wrapper has no instance to read/write and crashes at runtime. This
+    /// checks the KIR-level signal for that capture: a `kk_array_set` store
+    /// into the wrapper's capture slot, which only exists when there's a
+    /// non-empty capture argument list.
+    @Test func testKIRCapturesImplicitReceiverForBareMemberPropertyRef() throws {
+        let source = """
+        class C(val v: Int) {
+            fun r(): Int {
+                val ref = ::v
+                return ref.get()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let rBody = try findKIRFunctionBody(named: "r", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: rBody, interner: ctx.interner)
+
+            #expect(
+                callees.contains("kk_array_set"),
+                "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
+            )
+        }
+    }
+
     @Test func testKIREmitsKPropertyTagForPropertyCallableRef() throws {
         let source = """
         val answer: Int = 42

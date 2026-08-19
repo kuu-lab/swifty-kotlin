@@ -630,10 +630,30 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
+        // A source-backed top-level function with the same name and arity owns
+        // the public overload. Keep the compiler primitive only for allocation
+        // forms that do not have a source implementation (KSP-763).
+        let hasSourceBackedArrayConstructor: Bool = if let calleeName {
+            ctx.cachedScopeLookup(calleeName).contains { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.receiverType == nil,
+                      signature.parameterTypes.count == args.count
+                else {
+                    return false
+                }
+                return !signature.valueParameterIsVararg.contains(true)
+            }
+        } else {
+            false
+        }
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
-           locals[calleeName] == nil
+           locals[calleeName] == nil,
+           !hasSourceBackedArrayConstructor
         {
             let intType = sema.types.intType
             let calleeNameStr = interner.resolve(calleeName)
@@ -738,8 +758,8 @@ final class CallTypeChecker {
                 case "LongArray": sema.types.longType
                 case "ShortArray": sema.types.shortType
                 case "ByteArray": sema.types.byteType
-                case "UShortArray": sema.types.ushortType
                 case "UByteArray": sema.types.ubyteType
+                case "UShortArray": sema.types.ushortType
                 case "UIntArray": sema.types.uintType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
                 case "FloatArray": sema.types.make(.primitive(.float, .nonNull))
@@ -2397,7 +2417,6 @@ final class CallTypeChecker {
             applyContractEffects(
                 chosen: chosen,
                 args: args,
-                argTypes: argTypes,
                 ctx: ctx,
                 locals: &locals
             )
@@ -2538,7 +2557,6 @@ final class CallTypeChecker {
                     applyContractEffects(
                         chosen: chosen,
                         args: args,
-                        argTypes: argTypes,
                         ctx: ctx,
                         locals: &locals
                     )
