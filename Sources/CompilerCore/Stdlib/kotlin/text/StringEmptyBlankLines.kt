@@ -12,10 +12,6 @@ private fun ksp401StringFromCharSequence(value: CharSequence): String {
     return builder.toString()
 }
 
-private fun ksp401IsWhitespace(value: Char): Boolean {
-    return value == ' ' || value == '\t' || value == '\n' || value == '\r'
-}
-
 public fun CharSequence.isEmpty(): Boolean = this.length == 0
 
 public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
@@ -23,7 +19,7 @@ public fun CharSequence.isNotEmpty(): Boolean = this.length != 0
 public fun CharSequence.isBlank(): Boolean {
     var i = 0
     while (i < this.length) {
-        if (!ksp401IsWhitespace(this[i])) return false
+        if (!this[i].isWhitespace()) return false
         i++
     }
     return true
