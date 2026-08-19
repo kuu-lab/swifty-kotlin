@@ -367,7 +367,14 @@ extension CompilerCoreTests {
         #expect(functionType.returnType == intType)
     }
 
-    @Test func testPropertyCallableReferenceUsesPropertyTypeForFallbackBinding() throws {
+    /// KSP-496 follow-up: a property callable reference with no expected type
+    /// used to fall back to the property's own value type (`Int` here), which
+    /// silently broke `is KProperty<*>` checks and printed the reference as
+    /// its value type's default instead of a real `KProperty0`. See
+    /// `Tests/CompilerCoreTests/Sema/PropertyCallableReferenceDefaultTypeTests.swift`
+    /// for the full coverage of this fix; this test just keeps pinning the
+    /// symbol binding for `::answer` while asserting the corrected type.
+    @Test func testPropertyCallableReferenceInfersKProperty0ForFallbackBinding() throws {
         let source = """
         val answer: Int = 42
         fun use(): Int {
@@ -389,7 +396,17 @@ extension CompilerCoreTests {
         })?.id)
 
         #expect(sema.bindings.identifierSymbols[callableRefExprID] == answerSymbol)
-        #expect(sema.bindings.exprTypes[callableRefExprID] == sema.symbols.propertyType(for: answerSymbol))
+
+        let exprType = try #require(sema.bindings.exprTypes[callableRefExprID])
+        guard case let .classType(classType) = sema.types.kind(of: exprType) else {
+            Issue.record("Expected ::answer to infer a class type (KProperty0<Int>), got \(sema.types.kind(of: exprType))")
+            return
+        }
+        let classSymbol = try #require(sema.symbols.symbol(classType.classSymbol))
+        #expect(
+            classSymbol.fqName.map { ctx.interner.resolve($0) } == ["kotlin", "reflect", "KProperty0"],
+            "::answer without an expected type should infer KProperty0<Int>, got fqName \(classSymbol.fqName.map { ctx.interner.resolve($0) })"
+        )
     }
 }
 #endif

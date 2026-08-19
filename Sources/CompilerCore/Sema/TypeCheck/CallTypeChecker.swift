@@ -309,7 +309,7 @@ final class CallTypeChecker {
         // The helper makes the first argument available as a context receiver
         // for the block type, but does not make it an implicit receiver.
         let contextHelperName = interner.intern("context")
-        if let calleeName, args.count >= 2, args.count <= 7,
+        if let calleeName, args.count >= 2, args.count <= 23,
            calleeName == contextHelperName,
            locals[calleeName] == nil,
            !ctx.cachedScopeLookup(calleeName).contains(where: { candidate in
@@ -758,8 +758,8 @@ final class CallTypeChecker {
                 case "LongArray": sema.types.longType
                 case "ShortArray": sema.types.shortType
                 case "ByteArray": sema.types.byteType
-                case "UShortArray": sema.types.ushortType
                 case "UByteArray": sema.types.ubyteType
+                case "UShortArray": sema.types.ushortType
                 case "UIntArray": sema.types.uintType
                 case "DoubleArray": sema.types.make(.primitive(.double, .nonNull))
                 case "FloatArray": sema.types.make(.primitive(.float, .nonNull))
@@ -2417,7 +2417,6 @@ final class CallTypeChecker {
             applyContractEffects(
                 chosen: chosen,
                 args: args,
-                argTypes: argTypes,
                 ctx: ctx,
                 locals: &locals
             )
@@ -2558,7 +2557,6 @@ final class CallTypeChecker {
                     applyContractEffects(
                         chosen: chosen,
                         args: args,
-                        argTypes: argTypes,
                         ctx: ctx,
                         locals: &locals
                     )

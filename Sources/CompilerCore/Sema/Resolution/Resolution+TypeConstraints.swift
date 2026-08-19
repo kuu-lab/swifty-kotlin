@@ -389,6 +389,29 @@ extension OverloadResolver {
            containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
+            // Kotlin function types are represented as `Function<R>` in source
+            // declarations such as `callsInPlace` and `holdsIn`. Preserve the
+            // lambda return-type constraint when the source-backed interface is
+            // generic, even though the lambda itself is modeled as a function type.
+            if superClass.classSymbol == typeSystem.functionInterfaceSymbol,
+               case let .functionType(subFunction) = subtypeKind,
+               superClass.args.count == 1,
+               let returnArg = superClass.args.first
+            {
+                switch returnArg {
+                case let .out(type), let .invariant(type):
+                    return decomposeSubtypeConstraintImpl(
+                        subtype: subFunction.returnType,
+                        supertype: type,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange,
+                        depth: depth + 1
+                    )
+                case .in, .star:
+                    break
+                }
+            }
             if case let .kClassType(subKClass) = subtypeKind,
                superClass.classSymbol == typeSystem.kClassInterfaceSymbol,
                subKClass.nullability == superClass.nullability || superClass.nullability == .nullable,

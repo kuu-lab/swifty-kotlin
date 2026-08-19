@@ -98,8 +98,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerSyntheticTupleNominalAnchors(symbols: symbols, interner: interner)
-
         let kotlinCollectionsPkg: [InternedString] = [interner.intern("kotlin"), interner.intern("collections")]
         if symbols.lookup(fqName: kotlinCollectionsPkg) == nil {
             _ = symbols.define(
@@ -122,29 +120,6 @@ extension DataFlowSemaPhase {
         let iterableInterfaceSymbol = registerSyntheticIterableStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-
-        registerIterableReduceIndexedMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
-        registerIterableReduceMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableReduceRightMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableReduceRightIndexedMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
         )
 
         // STDLIB-021: Iterable mutable conversion members are registered later once
@@ -194,60 +169,6 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             abstractCollectionSymbol: abstractCollectionSymbol,
             listInterfaceSymbol: listInterfaceSymbol
-        )
-
-        registerIterableFilterMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-
-        registerIterablePlusElementMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableMinusElementMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableMinusMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            listInterfaceSymbol: listInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableReduceRightIndexedOrNullMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableReduceRightOrNullMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableSumByMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        registerIterableSumByDoubleMember(
-            symbols: symbols, types: types, interner: interner,
-            iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
         )
 
         registerSyntheticMutableListStub(

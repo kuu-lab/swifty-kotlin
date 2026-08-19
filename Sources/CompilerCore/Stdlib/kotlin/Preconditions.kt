@@ -77,13 +77,13 @@ public fun <T : Any> requireNotNull(value: T?, lazyMessage: () -> Any): T {
 }
 
 /** Throws [IllegalStateException] if [value] is null. Returns the non-null [value]. */
-public fun <T : Any> checkNotNull(value: T?): T {
+public inline fun <T : Any> checkNotNull(value: T?): T {
     if (value == null) throw IllegalStateException("Required value was null.")
     return value as T
 }
 
 /** Throws [IllegalStateException] with the result of [lazyMessage] if [value] is null. Returns the non-null [value]. */
-public fun <T : Any> checkNotNull(value: T?, lazyMessage: () -> Any): T {
+public inline fun <T : Any> checkNotNull(value: T?, lazyMessage: () -> Any): T {
     if (value == null) throw IllegalStateException(lazyMessage().toString())
     return value as T
 }

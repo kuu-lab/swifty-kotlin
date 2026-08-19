@@ -48,6 +48,40 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+// KSP-701: generic Iterable HOFs formerly registered by the compiler-side
+// synthetic member registry now use bundled Kotlin source bodies.
+public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (predicate(element)) result.add(element)
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
+    val elements = this.toMutableList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> Iterable<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
+    val elements = this.toMutableList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
 public fun <T> Iterable<T>.any(): Boolean {
     for (element in this) return true
     return false

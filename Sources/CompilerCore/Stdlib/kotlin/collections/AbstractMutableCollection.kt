@@ -8,9 +8,9 @@
 package kotlin.collections
 
 // KSP-633: the nominal `AbstractMutableCollection<E>` declaration is
-// source-backed here; on bundle load it reuses the synthetic shell registered
-// by `HeaderHelpers+SyntheticIterableRegistry.swift`, which remains as the
-// fallback for contexts without the bundled stdlib.
+// source-backed here; the compiler-side shell in
+// `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
+// for contexts without the bundled stdlib.
 
 /**
  * Provides a skeletal implementation of the [MutableCollection] interface.

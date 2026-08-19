@@ -7,13 +7,13 @@ symbol fq=__local_5.ushortList kind=local vis=private flags=_ type=kotlin.collec
 symbol fq=__local_6.uintList kind=local vis=private flags=_ type=kotlin.collections.List<UInt>
 symbol fq=__local_7.ulongList kind=local vis=private flags=_ type=kotlin.collections.List<ULong>
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.UByteArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.UByteArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UByteArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UByteArray params=[] ret=kotlin.collections.List<UByte>
-symbol fq=kotlin.UIntArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.UIntArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UIntArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UIntArray params=[] ret=kotlin.collections.List<UInt>
 symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.ULongArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.ULongArray params=[] ret=kotlin.collections.List<ULong>
-symbol fq=kotlin.UShortArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UShortArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UShortArray params=[] ret=kotlin.collections.List<UShort>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ubyteArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UByte] ret=kotlin.UByteArray vararg=[1]
