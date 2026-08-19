@@ -57,5 +57,25 @@ struct FloatBitsSourceTests {
             #expect(resolvedNames.filter { $0 == "toRawBits" }.count == 2)
         }
     }
+
+    @Test
+    func testNumericCompanionInferenceDoesNotAcceptUnrelatedKotlinFunctions() throws {
+        let source = """
+        package kotlin
+
+        fun unrelated(bits: Long): Double = 1.0
+
+        fun main() {
+            Double.unrelated(0L)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError, "Only fromBits should use numeric companion inference")
+        }
+    }
 }
 #endif

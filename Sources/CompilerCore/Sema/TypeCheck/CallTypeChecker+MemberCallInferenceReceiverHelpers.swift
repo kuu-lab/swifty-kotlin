@@ -596,7 +596,8 @@ extension CallTypeChecker {
         // top-level functions until primitive Companion types are modeled.
         // Select a matching overload by its signature rather than by a
         // function-name or runtime-link special case.
-        guard args.count == 1,
+        guard memberStr == "fromBits",
+              args.count == 1,
               let receiverType = driver.helpers.resolveBuiltinTypeName(
                   receiverName, types: sema.types, interner: interner
               )

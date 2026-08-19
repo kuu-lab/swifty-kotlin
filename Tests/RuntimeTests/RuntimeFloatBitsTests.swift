@@ -71,5 +71,14 @@ struct RuntimeFloatBitsTests {
         #expect(__kk_double_toRawBits(payload) == payload)
         #expect(__kk_double_toBits(payload) == Int(bitPattern: UInt(0x7FF8_0000_0000_0000 as UInt64)))
     }
+
+    @Test
+    func testDoubleFromBitsIsIdentity() {
+        let negativeZero = Int(bitPattern: UInt(0x8000_0000_0000_0000 as UInt64))
+        let payload = Int(bitPattern: UInt(0x7FF0_0000_0000_0123 as UInt64))
+
+        #expect(__kk_double_fromBits(negativeZero) == negativeZero)
+        #expect(__kk_double_fromBits(payload) == payload)
+    }
 }
 #endif

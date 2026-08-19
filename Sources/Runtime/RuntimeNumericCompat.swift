@@ -959,6 +959,13 @@ public func __kk_double_toRawBits(_ value: Int) -> Int {
     value  // bit pattern is already canonical in our ABI
 }
 
+/// Double.Companion.fromBits(bits: Long): Double.
+/// Double bit patterns occupy the full runtime ABI word, so this is an identity.
+@_cdecl("__kk_double_fromBits")
+public func __kk_double_fromBits(_ bits: Int) -> Int {
+    bits
+}
+
 /// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
 /// Canonicalizes NaN to the standard quiet NaN bit pattern per Kotlin semantics.
 /// The ABI carries Float as a zero-extended 32-bit pattern, so the result is
