@@ -203,8 +203,9 @@ struct ConstantCollector {
 
     private func negatedConstant(_ inner: KIRExprKind) -> KIRExprKind? {
         switch inner {
-        case let .intLiteral(v): .intLiteral(-v)
-        case let .longLiteral(v): .longLiteral(-v)
+        // Kotlin integer negation wraps at the type's minimum value.
+        case let .intLiteral(v): .intLiteral(0 &- v)
+        case let .longLiteral(v): .longLiteral(0 &- v)
         case let .floatLiteral(v): .floatLiteral(-v)
         case let .doubleLiteral(v): .doubleLiteral(-v)
         default: nil

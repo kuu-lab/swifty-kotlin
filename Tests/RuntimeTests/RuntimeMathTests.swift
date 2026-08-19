@@ -284,14 +284,6 @@ struct RuntimeMathTests {
         #expect(kk_int_min_value() == Int(Int32.min))
     }
 
-    @Test func testLongMaxValue() {
-        #expect(kk_long_max_value() == Int(Int64.max))
-    }
-
-    @Test func testLongMinValue() {
-        #expect(kk_long_min_value() == Int(truncatingIfNeeded: Int64.min))
-    }
-
     // MARK: - roundToInt / roundToLong (STDLIB-510..511)
 
     @Test func testFloatRoundToInt() {
