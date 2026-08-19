@@ -110,12 +110,16 @@ private final class LazyPublicationCallbackState: @unchecked Sendable {
     private var callCount = 0
     private var enteredSemaphore = DispatchSemaphore(value: 0)
     private var releaseSemaphore = DispatchSemaphore(value: 0)
+    private var initializedQueryCompleted = DispatchSemaphore(value: 0)
+    private var initializedQueryResult = false
 
     func reset() {
         lock.lock()
         callCount = 0
         enteredSemaphore = DispatchSemaphore(value: 0)
         releaseSemaphore = DispatchSemaphore(value: 0)
+        initializedQueryCompleted = DispatchSemaphore(value: 0)
+        initializedQueryResult = false
         lock.unlock()
     }
 
@@ -150,6 +154,23 @@ private final class LazyPublicationCallbackState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return callCount
+    }
+
+    func recordInitializedQuery(_ result: Bool) {
+        lock.lock()
+        initializedQueryResult = result
+        lock.unlock()
+        initializedQueryCompleted.signal()
+    }
+
+    func waitForInitializedQuery(timeout: DispatchTimeInterval = .seconds(5)) -> Bool {
+        initializedQueryCompleted.wait(timeout: .now() + timeout) == .success
+    }
+
+    func initializedQueryResultSnapshot() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return initializedQueryResult
     }
 }
 
@@ -204,6 +225,16 @@ private func lazyPublicationInit() -> Int {
     return lazyPublicationValue
 }
 
+private func lazyLockContentionInit() -> Int {
+    gLazyPublicationState.recordInitializerEntry()
+    guard gLazyPublicationState.waitForRelease() else {
+        return 0
+    }
+    return 456
+}
+
+private let lazyLockContentionInitCConv: KKThunkEntryPoint = { _ in lazyLockContentionInit() }
+
 private let lazyPublicationInitCConv: KKThunkEntryPoint = { _ in lazyPublicationInit() }
 
 private let observableNoopCallback: KKFunctionEntryPoint3 = { _, _, _, _ in 0 }
@@ -246,6 +277,28 @@ struct RuntimeDelegateTests {
         let handle = kk_lazy_create_with_lock(fnPtr, 1, 0x4B5350373831)
         #expect(handle != 0)
         #expect(kk_lazy_get_value(handle) == 42)
+    }
+
+    @Test func lazyCreateWithLockSerializesInitializedQuery() {
+        let fnPtr = unsafeBitCast(lazyLockContentionInitCConv, to: Int.self)
+        let handle = kk_lazy_create_with_lock(fnPtr, 1, 0x4B5350373832)
+
+        DispatchQueue.global().async {
+            _ = kk_lazy_get_value(handle)
+        }
+        #expect(gLazyPublicationState.waitForInitializerEntries(1))
+
+        DispatchQueue.global().async {
+            gLazyPublicationState.recordInitializedQuery(kk_lazy_is_initialized(handle) == 1)
+        }
+        #expect(
+            !gLazyPublicationState.waitForInitializedQuery(timeout: .milliseconds(100)),
+            "isInitialized should wait for the lock-aware initializer"
+        )
+
+        gLazyPublicationState.releaseInitializers(1)
+        #expect(gLazyPublicationState.waitForInitializedQuery())
+        #expect(gLazyPublicationState.initializedQueryResultSnapshot())
     }
 
     @Test func lazyGetValueInvokesInitializerOnce() {

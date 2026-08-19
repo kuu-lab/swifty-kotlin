@@ -1473,7 +1473,9 @@ final class RuntimeLazyBox {
         case .synchronized:
             if let synchronizationLockKey {
                 return runtimeWithLock(for: synchronizationLockKey) {
-                    getValueLocked()
+                    lock.lock()
+                    defer { lock.unlock() }
+                    return getValueLocked()
                 }
             }
             lock.lock()
