@@ -115,12 +115,12 @@ extension ExprLowerer {
             runtimeCallIndex = callIndex + 1
         } else if let modeArgument, modeArgumentIsTyped {
             modeExpr = modeArgument
-            if isLazyImplConstructor {
-                runtimeCallIndex = callIndex
-            } else {
-                instructions.remove(at: callIndex)
-                runtimeCallIndex = callIndex
-            }
+            // The source-backed LazyImpl constructor is replaced by the
+            // runtime handle just like the source-backed lazy factory. Leaving
+            // the constructor in place would overwrite the runtime handle
+            // when the constructor result is copied into the local delegate.
+            instructions.remove(at: callIndex)
+            runtimeCallIndex = callIndex
         } else {
             let modeValue = LazyThreadSafetyModeLowering.rawValue(
                 from: modeArgument,

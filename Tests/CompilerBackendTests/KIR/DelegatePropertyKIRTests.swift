@@ -172,6 +172,19 @@ struct DelegatePropertyKIRTests {
                 return true
             }.count
             #expect(dynamicModeCount == 3, "dynamic mode must be passed as a KIR value, got (dynamicModeCount) dynamic calls")
+
+            let lazyImplConstructors = module.arena.declarations.flatMap { declaration -> [String] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                    let resolvedCallee = ctx.interner.resolve(callee)
+                    return resolvedCallee.contains("LazyImpl") ? resolvedCallee : nil
+                }
+            }
+            #expect(
+                lazyImplConstructors.isEmpty,
+                "dynamic local lazy lowering must replace the LazyImpl constructor, got: (lazyImplConstructors)"
+            )
         }
     }
 
