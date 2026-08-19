@@ -220,7 +220,9 @@ struct PropertyDelegateSyntheticStubTests {
         #expect(isInitializedSignature.classTypeParameterCount == 1)
 
         let lazyOfSymbol = try #require(sema.symbols.lookup(fqName: kotlinFQName + [interner.intern("lazyOf")]))
-        #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == "kk_lazy_of")
+        let lazyOfInfo = try #require(sema.symbols.symbol(lazyOfSymbol))
+        #expect(sema.symbols.externalLinkName(for: lazyOfSymbol) == nil)
+        #expect(!lazyOfInfo.flags.contains(.synthetic))
         let lazyOfSignature = try #require(sema.symbols.functionSignature(for: lazyOfSymbol))
         #expect(lazyOfSignature.parameterTypes.count == 1)
         #expect(lazyOfSignature.valueParameterHasDefaultValues == [false])

@@ -262,13 +262,6 @@ struct RuntimeDelegateTests {
         #expect(value == 77)
     }
 
-    @Test func lazyOfCreatesInitializedLazyValue() {
-        let handle = kk_lazy_of(123)
-        #expect(handle != 0)
-        #expect(kk_lazy_is_initialized(handle) == 1)
-        #expect(kk_lazy_get_value(handle) == 123)
-    }
-
     @Test func lazyGetValueWithInvalidHandleReturnsZero() {
         let value = kk_lazy_get_value(0)
         #expect(value == 0)

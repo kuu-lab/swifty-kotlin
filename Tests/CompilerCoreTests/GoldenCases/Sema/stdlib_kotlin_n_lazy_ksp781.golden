@@ -1,0 +1,24 @@
+symbol fq=golden.sema.useLazyFactory kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
+symbol fq=golden.sema.useLazyOf kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
+symbol fq=golden.sema.useLazyWithLock kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<String>
+symbol fq=golden.sema.useLazyWithMode kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
+symbol fq=kotlin.Lazy kind=interface vis=public flags=_
+file fstdlib_kotlin_n_lazy_ksp781 package=golden.sema
+  decl golden.sema.useLazyFactory fun useLazyFactory sym=golden.sema.useLazyFactory
+  decl golden.sema.useLazyWithLock fun useLazyWithLock sym=golden.sema.useLazyWithLock
+  decl golden.sema.useLazyWithMode fun useLazyWithMode sym=golden.sema.useLazyWithMode
+  decl golden.sema.useLazyOf fun useLazyOf sym=golden.sema.useLazyOf
+expr e@3:42#1 int(1) type=Int
+expr e@3:40 lambda params=[] body=e@3:42#1 label=lazy type=() -> Int
+expr e@3:35#1 call callee=e@3:35#0 args=[_:e@3:40] type=kotlin.Lazy<Int> call=kotlin.lazy#0 targs=[Int]
+expr e@5:44 name(null) type=Nothing?
+expr e@5:52#1 string(locked) type=String
+expr e@5:50 lambda params=[] body=e@5:52#1 label=lazy type=() -> String
+expr e@5:39#1 call callee=e@5:39#0 args=[_:e@5:44,_:e@5:50] type=kotlin.Lazy<String> call=kotlin.lazy#1 targs=[String]
+expr e@7:41#0 name(LazyThreadSafetyMode) type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode
+expr e@7:41#1 memberCall recv=e@7:41#0 callee=NONE args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.NONE
+expr e@7:70#1 int(2) type=Int
+expr e@7:68 lambda params=[] body=e@7:70#1 label=lazy type=() -> Any
+expr e@7:36#1 call callee=e@7:36#0 args=[_:e@7:41#1,_:e@7:68] type=kotlin.Lazy<Int> call=kotlin.lazy#2 targs=[Int]
+expr e@9:37 int(3) type=Int
+expr e@9:30#3 call callee=e@9:30#2 args=[_:e@9:37] type=kotlin.Lazy<Int> call=kotlin.lazyOf targs=[Int]

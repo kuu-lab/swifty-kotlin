@@ -36,3 +36,16 @@ private func runtimeGetOrCreateLock(for key: Int) -> NSRecursiveLock {
     runtimeLocks[key] = newLock
     return newLock
 }
+
+// KSP-781: synchronization used by the bundled Lazy implementation.
+@_cdecl("__kk_lazy_sync_lock")
+public func __kk_lazy_sync_lock(_ handle: Int) -> Int {
+    runtimeGetOrCreateLock(for: handle).lock()
+    return 0
+}
+
+@_cdecl("__kk_lazy_sync_unlock")
+public func __kk_lazy_sync_unlock(_ handle: Int) -> Int {
+    runtimeGetOrCreateLock(for: handle).unlock()
+    return 0
+}
