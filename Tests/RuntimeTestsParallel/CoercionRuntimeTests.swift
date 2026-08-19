@@ -249,21 +249,6 @@ struct CoercionRuntimeTests {
     // MARK: - Additional Conversion Tests (STDLIB-PRIM-002)
 
     @Test
-    func testDoubleToUIntConversion() {
-        #expect(kk_double_to_uint(kk_double_to_bits(3.14)) == 3)
-        #expect(kk_double_to_uint(kk_double_to_bits(-1.5)) == 0)
-        #expect(kk_double_to_uint(kk_double_to_bits(Double.nan)) == 0)
-        #expect(kk_double_to_uint(kk_double_to_bits(Double(UInt32.max))) == Int(UInt32.max))
-    }
-
-    @Test
-    func testDoubleToULongConversion() {
-        #expect(kk_double_to_ulong(kk_double_to_bits(3.14)) == 3)
-        #expect(kk_double_to_ulong(kk_double_to_bits(-1.5)) == 0)
-        #expect(kk_double_to_ulong(kk_double_to_bits(Double.nan)) == 0)
-    }
-
-    @Test
     func testByteToUIntConversion() {
         #expect(kk_byte_to_uint(100) == 100)
         #expect(kk_byte_to_uint(-5) == 251)
