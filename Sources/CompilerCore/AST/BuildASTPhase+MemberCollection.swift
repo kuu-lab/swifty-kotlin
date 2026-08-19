@@ -570,13 +570,52 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let headTokens = propertyHeadTokens(from: nodeID, in: arena)
+        guard !headTokens.isEmpty else {
+            return nil
+        }
+
+        var initialByIndex: Int?
+        var depth = BracketDepth()
+        for (index, token) in headTokens.enumerated() {
+            if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
+                initialByIndex = index
+                break
+            }
+            depth.track(token.kind)
+        }
+
+        guard let initialByIndex else {
+            return nil
+        }
+
+        // A lazy factory's trailing lambda is part of its source-level call
+        // signature. Keep it in the delegate expression so overload
+        // resolution sees the required initializer parameter. The other
+        // stdlib delegate factories intentionally keep their callbacks in
+        // PropertyDecl.delegateBody because their lowering path consumes the
+        // initial value and callback separately.
+        let lazyName = interner.intern("lazy")
+        let isLazyFactory = headTokens.dropFirst(initialByIndex + 1).first.map { token in
+            if case let .identifier(name) = token.kind {
+                return name == lazyName
+            }
+            if case let .backtickedIdentifier(name) = token.kind {
+                return name == lazyName
+            }
+            return false
+        } ?? false
+        let tokens = propertyHeadTokens(
+            from: nodeID,
+            in: arena,
+            includingTrailingLambdaTokens: isLazyFactory
+        )
         guard !tokens.isEmpty else {
             return nil
         }
 
         var byIndex: Int?
-        var depth = BracketDepth()
+        depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
@@ -584,7 +623,6 @@ extension BuildASTPhase {
             }
             depth.track(token.kind)
         }
-
         guard let byIndex else {
             return nil
         }

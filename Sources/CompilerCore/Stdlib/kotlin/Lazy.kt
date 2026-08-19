@@ -67,7 +67,7 @@ public fun <T> lazy(lock: Any?, initializer: () -> T): Lazy<T> =
 
 public fun <T> lazy(
     mode: LazyThreadSafetyMode,
-    initializer: () -> T = { throw IllegalStateException() }
+    initializer: () -> T
 ): Lazy<T> = LazyImpl(initializer, mode, null, null, false)
 
 public fun <T> lazyOf(value: T): Lazy<T> = LazyImpl(

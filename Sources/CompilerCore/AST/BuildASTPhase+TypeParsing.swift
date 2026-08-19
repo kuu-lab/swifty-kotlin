@@ -374,16 +374,14 @@ extension BuildASTPhase {
                     // `= Comparator<Int> { a, b -> a - b }`).
                     //
                     // Only recurse for `declarationPropertyInitializer`, which
-                    // opts in via `includingTrailingLambdaTokens`. Delegate
-                    // expressions (`by lazy { ... }`, `by Delegates.observable(x) { ... }`)
-                    // deliberately keep the old truncating behavior here:
-                    // `declarationDelegateExpression` re-parses these same
-                    // tokens expecting the trailing lambda excluded (it's
-                    // captured separately as `PropertyDecl.delegateBody`), and
-                    // the synthetic `observable`/`vetoable` signatures only
-                    // accept the initial-value argument -- folding the lambda
-                    // back in as a second call argument would make that
-                    // resolution fail.
+                    // opts in via `includingTrailingLambdaTokens`, and for the
+                    // source-backed `lazy` delegate factory. The latter has a
+                    // required initializer parameter in its real Kotlin
+                    // signature, so `declarationDelegateExpression` opts in
+                    // after identifying the factory. The synthetic
+                    // `observable`/`vetoable` paths keep their callbacks in
+                    // `PropertyDecl.delegateBody` because their compatibility
+                    // signatures resolve only the initial-value argument.
                     guard includingTrailingLambdaTokens else {
                         return tokens
                     }
