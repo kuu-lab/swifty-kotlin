@@ -1151,7 +1151,6 @@ extension DataFlowSemaPhase {
             ("charArrayOf", "CharArray", types.charType),
             ("byteArrayOf", "ByteArray", types.byteType),
             ("shortArrayOf", "ShortArray", types.shortType),
-            ("ubyteArrayOf", "UByteArray", types.ubyteType),
             ("ushortArrayOf", "UShortArray", types.ushortType),
             ("uintArrayOf", "UIntArray", types.uintType),
             ("ulongArrayOf", "ULongArray", types.ulongType),
