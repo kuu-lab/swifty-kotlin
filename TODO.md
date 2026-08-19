@@ -1236,7 +1236,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalMultiplatform` — class kotlin.ExperimentalMultiplatform  -- `open annotation class kotlin/ExperimentalMultiplatform : kotlin/Annotation {`
 
-- [ ] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalStdlibApi`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1726,7 +1726,7 @@
     - `kotlin.isAssertionArgumentEvaluationEnabled` — fun isAssertionArgumentEvaluationEnabled(): Boolean  -- `final fun kotlin/isAssertionArgumentEvaluationEnabled(): kotlin/Boolean`
     - `kotlin.isAssertionThrowingErrorEnabled` — fun isAssertionThrowingErrorEnabled(): Boolean  -- `final fun kotlin/isAssertionThrowingErrorEnabled(): kotlin/Boolean`
 
-- [ ] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin` / top-level / family `lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1770,7 +1770,7 @@
     - `kotlin.requireNotNull` — fun requireNotNull(): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?): #A`
     - `kotlin.requireNotNull` — fun requireNotNull(, Function0): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?, kotlin/Function0<kotlin/Any>): #A`
 
-- [ ] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin` / top-level / family `run`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1781,6 +1781,7 @@
     - `kotlin.run` — fun run(Function0): #A  -- `final inline fun <#A: kotlin/Any?> kotlin/run(kotlin/Function0<#A>): #A`
     - `kotlin.run` — fun run(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/run(kotlin/Function1<#A, #B>): #B`
     - `kotlin.runCatching` — fun runCatching(Function1): Result  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/runCatching(kotlin/Function1<#A, #B>): kotlin/Result<#B>`
+  - 完了確認（2026-08-19、PR #5950、commit `c0f678dee`）：`UPDATE_GOLDEN=1 ... --filter matchesGolden` の対象 shard（8 cases）pass・Golden 差分は機械的な式ノード参照更新のみ、`--filter Golden`（18 tests / 8 suites）pass、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（JDK 26、950 pass / 33 skip / 0 fail）、`bash Scripts/check_todo_ids.sh` pass、`bash Scripts/validate_runtime_abi_links.sh`（4 tests）pass。source migration 回帰テストと対象 diff ケースも pass。
 
 - [ ] KSP-786: kotlin.short-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `short`

@@ -3,7 +3,26 @@
 /// `RuntimeABISpec.delegateFunctions` extracted from `RuntimeABISpec.swift`.
 public extension RuntimeABISpec {
     static let delegateFunctions: [RuntimeABIFunctionSpec] = [
-        // Lazy
+        // Lazy factory synchronization (KSP-781)
+        RuntimeABIFunctionSpec(
+            name: "__kk_lazy_sync_lock",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_lazy_sync_unlock",
+            parameters: [
+                RuntimeABIParameter(name: "handle", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Delegate",
+            isThrowing: false
+        ),
+        // Lazy delegate lowering
         RuntimeABIFunctionSpec(
             name: "kk_lazy_create",
             parameters: [
@@ -15,9 +34,11 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_lazy_of",
+            name: "kk_lazy_create_with_lock",
             parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "initFnPtr", type: .intptr),
+                RuntimeABIParameter(name: "mode", type: .intptr),
+                RuntimeABIParameter(name: "lock", type: .intptr),
             ],
             returnType: .intptr,
             section: "Delegate",
