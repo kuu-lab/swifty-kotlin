@@ -32,23 +32,25 @@ internal class LazyImpl<T>(
         if (mode == LazyThreadSafetyMode.PUBLICATION) {
             return computePublicationValue()
         }
-        if (!computed) {
-            if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
-                __lazySyncLock(synchronizationLock ?: this)
-                try {
-                    if (!computed) {
-                        cached = initializer()
-                        computed = true
-                    }
-                } finally {
-                    __lazySyncUnlock(synchronizationLock ?: this)
-                }
-            } else {
+        if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
+            // Keep every read under the same monitor as initialization. A
+            // double-checked fast path would require volatile storage for
+            // `cached` and `computed`, which is not available to this
+            // source-backed implementation.
+            __lazySyncLock(synchronizationLock ?: this)
+            try {
                 if (!computed) {
                     cached = initializer()
                     computed = true
                 }
+                return cached as T
+            } finally {
+                __lazySyncUnlock(synchronizationLock ?: this)
             }
+        }
+        if (!computed) {
+            cached = initializer()
+            computed = true
         }
         return cached as T
     }
@@ -85,12 +87,15 @@ internal class LazyImpl<T>(
         get() = computeValue()
 
     override fun isInitialized(): Boolean {
-        if (mode != LazyThreadSafetyMode.PUBLICATION) {
+        if (mode == LazyThreadSafetyMode.NONE) {
             return computed
         }
         var initialized = false
-        synchronized(this) {
+        __lazySyncLock(synchronizationLock ?: this)
+        try {
             initialized = computed
+        } finally {
+            __lazySyncUnlock(synchronizationLock ?: this)
         }
         return initialized
     }

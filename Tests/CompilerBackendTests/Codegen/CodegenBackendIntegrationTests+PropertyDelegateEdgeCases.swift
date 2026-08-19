@@ -360,6 +360,39 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
+    // KSP-781 regression: the body lowered for a member lazy delegate must
+    // retain Sema bindings for both implicit member calls and field reads.
+    @Test
+    func testMemberLazyDelegateBodyUsesTypedInstanceState() throws {
+        let source = """
+        class Foo {
+            var count = 0
+            fun next(): Int {
+                count += 1
+                return count
+            }
+            val x: Int by lazy { next() + count }
+        }
+        fun main() {
+            val foo = Foo()
+            println(foo.x)
+            println(foo.x)
+            println(foo.count)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MemberLazyDelegateUsesTypedInstanceState",
+            expected:
+                """
+                2
+                2
+                1
+                """ + "\n"
+        )
+    }
+
     // The delegate handle (`$delegate_x`, holding the `Lazy` instance) used to
     // be stored in a single module-global slot shared by every instance of the
     // class, so constructing a second `Foo` clobbered the first instance's
