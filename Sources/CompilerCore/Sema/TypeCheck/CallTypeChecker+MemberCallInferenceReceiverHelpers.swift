@@ -615,9 +615,19 @@ extension CallTypeChecker {
             return nil
         }
 
+        // Unsuffixed integer literals widen to the parameter type only when
+        // the expression is inferred with an expected type. Numeric companion
+        // fromBits overloads take Long for Double and Int for Float.
+        let expectedArgumentType = receiverType == sema.types.doubleType
+            ? sema.types.longType
+            : sema.types.intType
         let argumentTypes = args.map { argument in
-            sema.bindings.exprType(for: argument.expr)
-                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+            driver.inferExpr(
+                argument.expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: expectedArgumentType
+            )
         }
         let sourceFQName = [interner.intern("kotlin"), calleeName]
         guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in

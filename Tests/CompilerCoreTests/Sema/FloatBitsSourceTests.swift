@@ -59,6 +59,26 @@ struct FloatBitsSourceTests {
     }
 
     @Test
+    func testFloatingPointBitConversionsAcceptUnsuffixedIntegerLiterals() throws {
+        let source = """
+        fun main() {
+            val doublePayload = Double.fromBits(0)
+            val floatPayload = Float.fromBits(0)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Unsuffixed integer literals should widen for fromBits parameters: \(ctx.diagnostics.diagnostics)"
+            )
+        }
+    }
+
+    @Test
     func testNumericCompanionInferenceDoesNotAcceptUnrelatedKotlinFunctions() throws {
         let source = """
         package kotlin
