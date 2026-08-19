@@ -8,15 +8,33 @@ source "$SCRIPT_DIR/lib/common.sh"
 # Retry `swift build` a few times on intermittent crashes observed with the
 # Swift 6.3+ swiftbuild backend on Linux (SIGSEGV/SIGBUS/SIGILL). Normal
 # compile errors are not retried.
+#
+# When SWIFT_ENABLE_COMPILE_CACHE=1, the build output is also scanned for the
+# swift-driver warning that silently turns compilation caching back off (seen
+# when -cache-compile-job is passed without -explicit-module-build). Caching
+# silently degrading to a full rebuild burned ~11 CI minutes per job before
+# this guard existed, so a successful build that dropped caching is a failure.
 kswiftk_build_with_retry() {
     local max_attempts=3
     local attempt=0
+    local build_log="${TMPDIR:-/tmp}/kswiftk_build_swift_tests_$$.log"
     while true; do
         attempt=$((attempt + 1))
-        swift build "$@" && return 0
-        local exit_code=$?
+        local exit_code=0
+        swift build "$@" 2>&1 | tee "$build_log" || exit_code=$?
+        if [[ $exit_code -eq 0 ]]; then
+            if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]] \
+                && grep -q "turn off caching" "$build_log"; then
+                echo "build_swift_tests.sh: SWIFT_ENABLE_COMPILE_CACHE=1 but swift-driver disabled compilation caching (see 'turn off caching' warning above)." >&2
+                rm -f "$build_log"
+                return 1
+            fi
+            rm -f "$build_log"
+            return 0
+        fi
         if [[ $attempt -ge $max_attempts ]]; then
             echo "build_swift_tests.sh: swift build failed after $attempt attempt(s) (exit $exit_code)" >&2
+            rm -f "$build_log"
             return $exit_code
         fi
         case $exit_code in
@@ -24,6 +42,7 @@ kswiftk_build_with_retry() {
                 echo "build_swift_tests.sh: swift build crashed with signal $exit_code on attempt $attempt; retrying..." >&2
                 ;;
             *)
+                rm -f "$build_log"
                 return $exit_code
                 ;;
         esac
