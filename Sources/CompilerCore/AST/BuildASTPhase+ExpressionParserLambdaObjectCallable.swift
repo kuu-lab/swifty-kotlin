@@ -81,6 +81,10 @@ extension BuildASTPhase.ExpressionParser {
             return nil
         }
         var superTypes: [TypeRefID] = []
+        // Only the (at most one) class supertype can carry a constructor
+        // call `(args)` — interfaces are listed bare. Kept as a single list
+        // rather than per-supertype since that is all `ObjectDecl` needs.
+        var superTypeConstructorArgs: [CallArgument] = []
         var end = objectToken.range.end
         var bodyTokens: [Token] = []
 
@@ -97,7 +101,12 @@ extension BuildASTPhase.ExpressionParser {
                     end = tokens[index - 1].range.end
                 }
                 if matches(.symbol(.lParen)) {
-                    skipBalancedParenthesisIfNeeded()
+                    _ = consume()
+                    let args = parseCallArguments()
+                    _ = consumeIf(.symbol(.rParen))
+                    if !args.isEmpty {
+                        superTypeConstructorArgs = args
+                    }
                     if index > 0 {
                         end = tokens[index - 1].range.end
                     }
@@ -137,7 +146,12 @@ extension BuildASTPhase.ExpressionParser {
         }
 
         let range = SourceRange(start: objectToken.range.start, end: end)
-        let declID = parseObjectLiteralDecl(superTypes: superTypes, bodyTokens: bodyTokens, range: range)
+        let declID = parseObjectLiteralDecl(
+            superTypes: superTypes,
+            superTypeConstructorArgs: superTypeConstructorArgs,
+            bodyTokens: bodyTokens,
+            range: range
+        )
         return astArena.appendExpr(.objectLiteral(superTypes: superTypes, decl: declID, range: range))
     }
 

@@ -371,9 +371,9 @@ LLVM 必要: `build`, `smoke-tests`, `CompilerBackendTests`, `KSwiftKCLITests`, 
 
 Swift 6.3 の `swiftbuild` ビルドシステムでは、環境変数 `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を設定すると統合コンパイルキャッシュが有効になり、`.build/out/CompilationCache.noindex` / `.build/out/ModuleCache.noindex` に CAS 相当の成果物を蓄える。`Scripts/lib/common.sh` の `kswiftk_setup_compile_cache_env` は `SWIFT_ENABLE_COMPILE_CACHE=1` かつ `SWIFT_BUILD_SYSTEM=swiftbuild` のときこれらの環境変数を自動でエクスポートする。
 
-同時に、従来のドライバー向けフラグとして `-Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <path>` も `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。ビルド時と `swift test --skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、厳密に同一のフラグを共有する。
+同時に、従来のドライバー向けフラグとして `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <path>` も `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。ビルド時と `swift test --skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、厳密に同一のフラグを共有する。
 
-`SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH` を設定すると、スクリプトが自動でキャッシュフラグを追加する。`verify-core` では `actions/cache@v5` で `.build/out/CompilationCache.noindex` と `.build/out/ModuleCache.noindex` を永続化する（verify-core のみ actions/cache を使用）。`verify-self-hosted` はワークスペースを永続化するため、同じ `.build/out/CompilationCache.noindex` / `.build/out/ModuleCache.noindex` を使用する。
+`SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH` を設定すると、スクリプトが自動でキャッシュフラグを追加する。CI では `SWIFT_CAS_PATH` を `.build/out/CompilationCache.noindex` に置き、`verify-core` / `verify-self-hosted` の両ジョブが `.github/actions/setup-swiftpm-cache` で `.build` 全体（CAS を含む）を actions/cache に永続化する。保存は非 PR run（merge_group / workflow_dispatch）のみで、PR run は restore-only。
 
 計測例（ローカル Swift 6.3.1、CompilerCoreTests-test-runner）: キャッシュなし初回ビルドは約 170 秒、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` を復元した再ビルドは約 7 秒まで短縮された。これは各モジュールのコンパイル成果物が CAS 的に再利用できていることを示している。
 

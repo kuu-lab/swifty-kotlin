@@ -28,7 +28,7 @@ extension KotlinParser {
                 atBlockStart = false
                 continue
             }
-            if isDeclarationStart(token.kind), hasLeadingNewline(token) || atBlockStart {
+            if isDeclarationStart(token.kind), !isObjectExpressionStart(token), hasLeadingNewline(token) || atBlockStart {
                 children.append(.node(parseDeclaration()))
                 atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {
@@ -654,6 +654,26 @@ extension KotlinParser {
         ParserBoundaryPolicy.shouldSplitStatementOnNewline(kind)
     }
 
+    /// `object` is ambiguous as a bare token: `object Foo : Base { ... }` starts
+    /// a new top-level declaration, but `object : Base(x) { ... }` / `object { ... }`
+    /// is an anonymous object *expression* continuing the current one (e.g. as the
+    /// value of an expression-bodied function's `= object : Base(x) { ... }`,
+    /// possibly on its own line). `isDeclarationStart` cannot tell these apart
+    /// since it only sees the `object` keyword itself — an identifier following it
+    /// means a name is present (named declaration); `:`/`{` immediately after
+    /// means there is none (object expression).
+    private func isObjectExpressionStart(_ token: Token) -> Bool {
+        guard case .keyword(.object) = token.kind else {
+            return false
+        }
+        switch stream.peek(1).kind {
+        case .symbol(.colon), .symbol(.lBrace):
+            return true
+        default:
+            return false
+        }
+    }
+
     func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var progress = false
         var sawTryKeyword = false
@@ -664,7 +684,7 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
-            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock) {
+            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token) {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
@@ -735,7 +755,7 @@ extension KotlinParser {
                     {
                         break
                     }
-                    if isDeclarationStart(nextToken.kind) {
+                    if isDeclarationStart(nextToken.kind), !isObjectExpressionStart(nextToken) {
                         break
                     }
                     continue

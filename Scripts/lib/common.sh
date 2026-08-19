@@ -85,6 +85,10 @@ kswiftk_append_compile_cache_flags() {
     local -n __flags_array="$1"
     if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]]; then
         local cas_path="${SWIFT_CAS_PATH:-${TMPDIR:-/tmp}/swift-cas}"
+        # swift-driver silently disables caching unless the build also uses
+        # explicit modules ("warning: -cache-compile-job cannot be used without
+        # explicit module build, turn off caching").
+        __flags_array+=(-Xswiftc -explicit-module-build)
         __flags_array+=(-Xswiftc -cache-compile-job)
         __flags_array+=(-Xswiftc -cas-path -Xswiftc "$cas_path")
     fi

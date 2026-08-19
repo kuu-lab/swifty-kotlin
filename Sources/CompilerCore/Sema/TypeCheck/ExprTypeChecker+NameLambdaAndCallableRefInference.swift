@@ -1313,22 +1313,44 @@ extension ExprTypeChecker {
             if let propertySymbol = propertyCandidates.first {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
                 let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
-                // KSP-496: a bare `::member` reference to a member property of
-                // the enclosing class is implicitly bound to `this`, and KIR
-                // lowering (LambdaLowerer.isCaptureEligibleInstanceContainerSymbol)
-                // correctly captures that receiver — but only for `.class`
-                // owners; it's deliberately restricted there because
-                // singleton owners (companion object / plain `object` / enum
-                // entry) still crash even with a type-correct receiver
-                // (observed SIGSEGV, a deeper singleton-representation issue,
-                // not merely a missing/mismatched capture). Keep those on the
-                // pre-existing, safe fallback (ignore expectedType entirely,
-                // same as before this whole fix) rather than newly making
-                // "compiles but crashes" reachable for them.
+                // KSP-496/KSP-505: a bare `::member` reference to a member
+                // property of the enclosing class or singleton is implicitly
+                // bound to `this`. For `.class` owners the receiver is a
+                // genuine instance captured by KIR lowering
+                // (LambdaLowerer.isCaptureEligibleInstanceContainerSymbol).
+                // For `.object` owners (companion objects, plain `object`s)
+                // there is exactly one instance ever, stored in a
+                // module-level global slot rather than a captured
+                // per-instance field — so KIR lowering (see
+                // LambdaLowerer+PropertyReferenceLowering.swift's
+                // `ensurePropertyReferenceAccessor`) reads/writes that slot
+                // directly and never needs a captured receiver at all.
+                //
+                // `.enumClass` stays excluded (kept on the pre-existing, safe
+                // fallback), even though an *enum entry* is also a singleton:
+                // a property declared directly in the enum class's own body
+                // (e.g. a constructor-promoted `val`) is a genuine per-entry
+                // *instance* field — each entry has its own value — not
+                // shared global storage the way `.object` is. Confirmed by
+                // testing: treating `.enumClass` the same as `.object` here
+                // made `enum class E(val v: Int) { A(1), B(2) }`'s `::v`
+                // read back `0` for every entry instead of each entry's own
+                // value. A property declared inside one specific *entry's*
+                // own body (`A { val x = 5 }`) might be a distinct, safely
+                // includable case — its owner could plausibly be that
+                // entry's own synthesized subclass rather than `.enumClass`
+                // itself — but this could not be verified: referencing an
+                // entry with a body at all (`EnumClass.ENTRY`) hits a
+                // separate, pre-existing, unrelated bug (see
+                // docs/diff-skip-inventory.md's `enum_edge_cases.kt` entry).
+                // `.interface` stays excluded here too: interface-owned
+                // properties have no storage of their own (always dispatched
+                // through whichever class implements them), which this
+                // bare-reference path does not handle yet.
                 let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
                     .flatMap { sema.symbols.symbol($0)?.kind }
                 let resultType: TypeID
-                if let ownerKind, ownerKind != .class {
+                if let ownerKind, ownerKind != .class, ownerKind != .object {
                     resultType = propertyType
                 } else {
                     let inferredType = kPropertyReferenceType(
@@ -1555,19 +1577,6 @@ extension ExprTypeChecker {
     /// silently defeat that wrapper and fall back to a non-conforming legacy
     /// value, so `inferredType` (the correct concrete shape this reference
     /// actually has) is used instead in that case.
-    ///
-    /// A KProperty-shaped `expectedType` is further validated against
-    /// `inferredType` (the reference's own correctly-typed shape) when both
-    /// are fully concrete, so a same-shape-but-mismatched annotation (e.g.
-    /// `val r: KProperty0<String> = ::someIntProperty`) is rejected rather
-    /// than silently adopted — it would otherwise compile cleanly and read
-    /// back garbage at runtime, since the KIR wrapper it builds still keys
-    /// off the property's real value type regardless of what the annotation
-    /// claims. Skipped when either side still mentions a type parameter (a
-    /// generic owner like `Box<T>::v`, or a call-site type still being
-    /// solved) since `inferredType` itself can't be built precisely there;
-    /// in that case the annotation is trusted unchecked, same as before —
-    /// it's already known lowering-safe by virtue of being KProperty-shaped.
     private func resolvedPropertyReferenceResultType(
         expectedType: TypeID?,
         inferredType: TypeID,
@@ -1584,14 +1593,6 @@ extension ExprTypeChecker {
             return expectedType
         }
         guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
-            return inferredType
-        }
-        guard !sema.types.typeContainsAnyTypeParam(expectedType),
-              !sema.types.typeContainsAnyTypeParam(inferredType)
-        else {
-            return expectedType
-        }
-        guard sema.types.isSubtype(inferredType, expectedType) else {
             return inferredType
         }
         return expectedType
