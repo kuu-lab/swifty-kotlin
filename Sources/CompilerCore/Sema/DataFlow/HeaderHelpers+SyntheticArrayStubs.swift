@@ -1143,7 +1143,6 @@ extension DataFlowSemaPhase {
         }
 
         let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [
-            ("longArrayOf", "LongArray", types.longType),
             ("doubleArrayOf", "DoubleArray", types.doubleType),
             ("booleanArrayOf", "BooleanArray", types.booleanType),
             ("charArrayOf", "CharArray", types.charType),
