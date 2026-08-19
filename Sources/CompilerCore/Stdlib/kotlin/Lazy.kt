@@ -29,6 +29,9 @@ internal class LazyImpl<T>(
 
     @Suppress("UNCHECKED_CAST")
     private fun computeValue(): T {
+        if (mode == LazyThreadSafetyMode.PUBLICATION) {
+            return computePublicationValue()
+        }
         if (!computed) {
             if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
                 __lazySyncLock(synchronizationLock ?: this)
@@ -41,9 +44,6 @@ internal class LazyImpl<T>(
                     __lazySyncUnlock(synchronizationLock ?: this)
                 }
             } else {
-                // PUBLICATION and NONE are intentionally lock-free here. The
-                // single-threaded semantics match the Kotlin standard library;
-                // the runtime-backed delegate path retains its own mode handling.
                 if (!computed) {
                     cached = initializer()
                     computed = true
@@ -53,10 +53,47 @@ internal class LazyImpl<T>(
         return cached as T
     }
 
+    @Suppress("UNCHECKED_CAST")
+    private fun computePublicationValue(): T {
+        // PUBLICATION may run the initializer more than once, but only the
+        // first completed value is published. Synchronize both the fast-path
+        // read and the commit so the published value is never overwritten.
+        var published: Any? = null
+        var wasInitialized = false
+        synchronized(this) {
+            if (computed) {
+                published = cached
+                wasInitialized = true
+            }
+        }
+        if (wasInitialized) {
+            return published as T
+        }
+
+        val candidate = initializer()
+        synchronized(this) {
+            if (!computed) {
+                cached = candidate
+                computed = true
+            }
+            published = cached
+        }
+        return published as T
+    }
+
     override val value: T
         get() = computeValue()
 
-    override fun isInitialized(): Boolean = computed
+    override fun isInitialized(): Boolean {
+        if (mode != LazyThreadSafetyMode.PUBLICATION) {
+            return computed
+        }
+        var initialized = false
+        synchronized(this) {
+            initialized = computed
+        }
+        return initialized
+    }
 }
 
 public fun <T> lazy(initializer: () -> T): Lazy<T> =

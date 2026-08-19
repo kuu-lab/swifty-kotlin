@@ -130,6 +130,16 @@ import Testing
         """)
     }
 
+    @Test func testLazyDelegateInitializerDiagnosticIsNotDuplicated() throws {
+        let ctx = makeContextFromSource("""
+        fun main() {
+            val value: Int by lazy { missingValue }
+        }
+        """)
+        try runSema(ctx)
+        assertDiagnosticCount("KSWIFTK-SEMA-0022", expected: 1, in: ctx)
+    }
+
     @Test func testCompile_destructuring_dataClass() throws {
         try assertKotlinCompilesToKIR("""
         data class Point(val x: Int, val y: Int)

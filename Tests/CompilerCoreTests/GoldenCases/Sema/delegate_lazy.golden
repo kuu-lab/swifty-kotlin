@@ -7,6 +7,5 @@ file fdelegate_lazy package=golden.sema
 expr e@4:5 string(hello) type=String
 expr e@3:29 lambda params=[] body=e@4:5 label=lazy type=() -> String
 expr e@3:24 call callee=e@3:24#1 args=[_:e@3:29] type=kotlin.Lazy<String> call=kotlin.lazy#0 targs=[String]
-expr e@4:5#1 string(hello) type=String
 expr e@8:13 name(message) type=String ref=golden.sema.message
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println#1

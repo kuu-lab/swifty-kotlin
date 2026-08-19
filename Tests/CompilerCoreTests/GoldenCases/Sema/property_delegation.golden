@@ -10,7 +10,6 @@ file fproperty_delegation package=golden.sema
 expr e@4:26 int(42) type=Int
 expr e@4:24 lambda params=[] body=e@4:26 label=lazy type=() -> Int
 expr e@4:19 call callee=e@4:19#1 args=[_:e@4:24] type=kotlin.Lazy<Int> call=kotlin.lazy#0 targs=[Int]
-expr e@4:26#1 int(42) type=Int
 expr e@8:68 string(hello) type=String
 expr e@13:25 call callee=e@13:25#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
 expr e@14:28 call callee=e@14:28#1 args=[] type=golden.sema.CustomDelegate call=golden.sema.CustomDelegate.<init>
