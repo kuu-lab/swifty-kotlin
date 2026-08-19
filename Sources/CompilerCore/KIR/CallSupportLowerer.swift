@@ -258,10 +258,17 @@ final class CallSupportLowerer {
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
+            chosenCallee,
+            sema: sema,
+            interner: interner
+        )
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
             || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
-        if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner) {
+        if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner),
+           !isSourceBackedPrimitiveArrayFactory
+        {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
         }
         var boxedArguments = providedArguments
@@ -379,7 +386,7 @@ final class CallSupportLowerer {
                         providedArguments: boxedArguments,
                         spreadFlags: spreadFlags,
                         listifyResult: !preserveArrayVarargs,
-                        boxPrimitiveElements: !preserveArrayVarargs,
+                        boxPrimitiveElements: !preserveArrayVarargs && !isSourceBackedPrimitiveArrayFactory,
                         arena: arena,
                         interner: interner,
                         intType: intType,
@@ -480,8 +487,10 @@ final class CallSupportLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard let symbol = sema.symbols.symbol(symbolID),
-              symbol.fqName.count == 3,
+        guard let symbol = sema.symbols.symbol(symbolID) else {
+            return false
+        }
+        guard symbol.fqName.count == 3,
               interner.resolve(symbol.fqName[0]) == "kotlin",
               interner.resolve(symbol.fqName[1]) == "collections"
         else {
@@ -491,6 +500,28 @@ final class CallSupportLowerer {
         case "emptyList", "listOf", "listOfNotNull", "mutableListOf", "arrayListOf",
              "emptySet", "setOf", "setOfNotNull", "mutableSetOf", "hashSetOf", "linkedSetOf",
              "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func isSourceBackedPrimitiveArrayFactory(
+        _ symbolID: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.symbols.isSourceBackedSymbol(symbolID),
+              let symbol = sema.symbols.symbol(symbolID),
+              symbol.fqName.count == 2,
+              interner.resolve(symbol.fqName[0]) == "kotlin"
+        else {
+            return false
+        }
+        switch interner.resolve(symbol.fqName[1]) {
+        case "intArrayOf", "longArrayOf", "floatArrayOf", "doubleArrayOf",
+             "booleanArrayOf", "charArrayOf", "byteArrayOf", "shortArrayOf",
+             "ubyteArrayOf", "ushortArrayOf", "uintArrayOf", "ulongArrayOf":
             return true
         default:
             return false

@@ -41,6 +41,10 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
         let fqName = resolved.fqName
+        let isSourceBackedPrimitiveArrayFactory = ctx.sema?.symbols.isSourceBackedSymbol(sym) == true
+            && fqName.count == 2
+            && ctx.interner.resolve(fqName[0]) == "kotlin"
+            && lookup.arrayOfFactoryNames.contains(fqName[1])
         // Match against known stdlib collection factory FQNs
         return fqName == lookup.emptyListFQName
             || fqName == lookup.emptyArrayFQName
@@ -59,6 +63,7 @@ extension CollectionLiteralConstructionLoweringPass {
             || fqName == lookup.mutableMapOfFQName
             || fqName == lookup.hashMapOfFQName
             || fqName == lookup.linkedMapOfFQName
+            || isSourceBackedPrimitiveArrayFactory
     }
 
     func isStdlibArrayFactoryCall(

@@ -12,6 +12,7 @@ fun main() {
     println((-1.5).toULong())
     println(3.99.toULong())
     println(Long.MAX_VALUE.toDouble().toULong())
+    println(1.0e19.toULong())
     println(Double.NaN.toULong())
     println(Double.POSITIVE_INFINITY.toULong())
 }

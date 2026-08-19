@@ -31,7 +31,7 @@ public fun Double.toULong(): ULong {
     // the low bits as ULong.
     val signedLimit = 9223372036854775808.0
     if (this >= signedLimit) {
-        return 9223372036854775807uL + (this - signedLimit + 1.0).toLong().toULong()
+        return 9223372036854775807uL + 1uL + (this - signedLimit).toLong().toULong()
     }
     return this.toLong().toULong()
 }
