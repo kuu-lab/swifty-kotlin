@@ -556,9 +556,6 @@ extension CallTypeChecker {
     ///
     ///   - **Constants** (STDLIB-153): `Int.MAX_VALUE`, `Double.NaN`, `Float.POSITIVE_INFINITY`, etc.
     ///     when `args.isEmpty` — looked up via `numericCompanionConstant`.
-    ///   - **Static functions** (STDLIB-NUM-130): `Double.fromBits(Long)` and
-    ///     `Float.fromBits(Int)` use a top-level synthetic registration because
-    ///     primitive types have no source-level Companion object.
     /// Returns the inferred type when handled, or `nil` to fall through. Both
     /// branches require the receiver to be a `nameRef` (typed identifier) that
     /// is not currently bound as a local — an Int *value* named `Int` shadows
@@ -595,49 +592,65 @@ extension CallTypeChecker {
             return constantType
         }
 
-        // STDLIB-NUM-130: Numeric companion static functions — Double.fromBits(Long), Float.fromBits(Int).
-        if args.count == 1,
-           let companionFunction = numericCompanionFunction(
-               typeName: receiverStr, memberName: memberStr, sema: sema
-           )
-        {
-            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
-            let fromBitsName = interner.intern(memberStr)
-            let kotlinPkgName: [InternedString] = [interner.intern("kotlin")]
-            let funcFQName = kotlinPkgName + [fromBitsName]
-            let allCandidates = sema.symbols.lookupAll(fqName: funcFQName)
-            if let funcSymbol = allCandidates.first(where: { sid in
-                guard sema.symbols.symbol(sid)?.kind == .function,
-                      let signature = sema.symbols.functionSignature(for: sid),
-                      signature.receiverType == nil,
-                      signature.parameterTypes == [companionFunction.parameterType],
-                      signature.returnType == companionFunction.returnType
-                else {
-                    return false
-                }
-                if sema.symbols.symbol(sid)?.flags.contains(.importedLibrary) == true {
-                    return true
-                }
-                return sema.symbols.externalLinkName(for: sid) == companionFunction.externalLinkName
-            }) {
-                sema.bindings.bindIdentifier(id, symbol: funcSymbol)
-                sema.bindings.bindCall(
-                    id,
-                    binding: CallBinding(
-                        chosenCallee: funcSymbol,
-                        substitutedTypeArguments: [],
-                        parameterMapping: [0: 0]
-                    )
-                )
-                sema.bindings.bindCallableTarget(id, target: .symbol(funcSymbol))
-                sema.bindings.bindExprType(id, type: companionFunction.returnType)
-                // Bind receiver as Unit so lowering does not pass the class name as argument.
-                sema.bindings.bindExprType(receiverID, type: sema.types.unitType)
-                return companionFunction.returnType
-            }
+        // Primitive companion functions are represented as source-backed
+        // top-level functions until primitive Companion types are modeled.
+        // Select a matching overload by its signature rather than by a
+        // function-name or runtime-link special case.
+        guard args.count == 1,
+              let receiverType = driver.helpers.resolveBuiltinTypeName(
+                  receiverName, types: sema.types, interner: interner
+              )
+        else {
+            return nil
+        }
+        let resultType: TypeID? = if receiverType == sema.types.doubleType {
+            sema.types.doubleType
+        } else if receiverType == sema.types.floatType {
+            sema.types.floatType
+        } else {
+            nil
+        }
+        guard let resultType else {
+            return nil
         }
 
-        return nil
+        let argumentTypes = args.map { argument in
+            sema.bindings.exprType(for: argument.expr)
+                ?? driver.inferExpr(argument.expr, ctx: ctx, locals: &locals)
+        }
+        let sourceFQName = [interner.intern("kotlin"), calleeName]
+        guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.receiverType == nil,
+                  signature.returnType == resultType,
+                  signature.parameterTypes.count == argumentTypes.count
+            else {
+                return false
+            }
+            return zip(signature.parameterTypes, argumentTypes).allSatisfy { parameterType, argumentType in
+                argumentType == parameterType || sema.types.isSubtype(argumentType, parameterType)
+            }
+        }) else {
+            return nil
+        }
+
+        sema.bindings.bindIdentifier(id, symbol: chosenCallee)
+        sema.bindings.bindCall(
+            id,
+            binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: [],
+                parameterMapping: [0: 0]
+            )
+        )
+        sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+        sema.bindings.bindExprType(id, type: resultType)
+        // Lowering must not pass the type-name receiver as a runtime value.
+        sema.bindings.bindExprType(receiverID, type: sema.types.unitType)
+        return resultType
     }
 
     /// This legacy inference path still owns many special cases while the split-out helpers

@@ -38,34 +38,15 @@ struct RuntimeFloatBitsTests {
     }
 
     @Test
-    func testFromBitsRoundTripsNegativeFloats() {
-        for value in [-1.0 as Float, -0.0, 0.0, 1.0, Float.infinity, -Float.infinity] {
-            let raw = __kk_float_toRawBits(Self.abiBits(value))
-            #expect(__kk_float_fromBits(raw) == Self.abiBits(value))
-        }
-    }
-
-    @Test
-    func testFloatNaNPayloadRawAndCanonicalBitsDiffer() {
-        let payload = Int(Int32(bitPattern: 0x7F80_0123))
-        #expect(__kk_float_toRawBits(payload) == payload)
-        #expect(__kk_float_toBits(payload) == Int(Int32(bitPattern: 0x7FC0_0000)))
-        #expect(__kk_float_fromBits(payload) == payload)
-    }
-
-    @Test
     func testDoublePreservesSignedZeroInfinityAndNaNPayload() {
         let negativeZero = Int(bitPattern: UInt(0x8000_0000_0000_0000 as UInt64))
         let positiveInfinity = Int(bitPattern: UInt(0x7FF0_0000_0000_0000 as UInt64))
         let payload = Int(bitPattern: UInt(0x7FF0_0000_0000_0123 as UInt64))
 
         #expect(__kk_double_toRawBits(negativeZero) == negativeZero)
-        #expect(__kk_double_fromBits(negativeZero) == negativeZero)
         #expect(__kk_double_toRawBits(positiveInfinity) == positiveInfinity)
-        #expect(__kk_double_fromBits(positiveInfinity) == positiveInfinity)
         #expect(__kk_double_toRawBits(payload) == payload)
         #expect(__kk_double_toBits(payload) == Int(bitPattern: UInt(0x7FF8_0000_0000_0000 as UInt64)))
-        #expect(__kk_double_fromBits(payload) == payload)
     }
 }
 #endif

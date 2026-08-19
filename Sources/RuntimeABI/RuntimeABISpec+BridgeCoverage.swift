@@ -175,8 +175,6 @@ public extension RuntimeABISpec {
             "kk_char_toIntOrNull",
         ].map { bridgeSpec($0, section: "Char", params: ["value"]) }
         + [
-            bridgeSpec("__kk_double_fromBits", section: "NumericConversion", params: ["bits"],
-            isThrowing: false),
             bridgeSpec("__kk_double_toBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("__kk_double_toRawBits", section: "NumericConversion", params: ["value"],
@@ -184,8 +182,6 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_double_to_char", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_double_to_uint", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_double_to_ulong", section: "NumericConversion", params: ["value"]),
-            bridgeSpec("__kk_float_fromBits", section: "NumericConversion", params: ["bits"],
-            isThrowing: false),
             bridgeSpec("__kk_float_toBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("__kk_float_toRawBits", section: "NumericConversion", params: ["value"],

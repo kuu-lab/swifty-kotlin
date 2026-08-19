@@ -41,27 +41,14 @@ struct FloatBitsSourceTests {
 
                 let name = ctx.interner.resolve(calleeName)
                 resolvedNames.append(name)
-                if name == "fromBits" {
-                    #expect(
-                        !sema.symbols.isSourceBackedSymbol(chosenCallee),
-                        "fromBits must use the primitive companion fallback"
-                    )
-                    #expect(
-                        ["__kk_double_fromBits", "__kk_float_fromBits"].contains(
-                            sema.symbols.externalLinkName(for: chosenCallee)
-                        ),
-                        "fromBits must resolve to a demoted runtime bridge"
-                    )
-                } else {
-                    #expect(
-                        sema.symbols.isSourceBackedSymbol(chosenCallee),
-                        "Floating-point member conversion must resolve to bundled Kotlin source"
-                    )
-                    #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
-                        "The public member conversion wrapper must not carry a runtime link"
-                    )
-                }
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "Floating-point bit API must resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "The public source-backed API must not carry a runtime link"
+                )
             }
 
             #expect(resolvedNames.count == 6, "Expected six floating-point bit API calls")
