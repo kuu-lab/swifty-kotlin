@@ -191,8 +191,6 @@ public extension RuntimeABISpec {
             bridgeSpec("kk_float_to_char", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_float_to_double_bits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
-            bridgeSpec("kk_float_to_uint", section: "NumericConversion", params: ["value"]),
-            bridgeSpec("kk_float_to_ulong", section: "NumericConversion", params: ["value"]),
             bridgeSpec("kk_int_to_double_bits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("kk_int_to_float_bits", section: "NumericConversion", params: ["value"],

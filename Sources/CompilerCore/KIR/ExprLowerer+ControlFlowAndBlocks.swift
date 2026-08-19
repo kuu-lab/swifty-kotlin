@@ -155,6 +155,22 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // kotlin.Unit has a source-backed object symbol for stdlib
+            // completeness, but its runtime value remains the builtin zero
+            // representation. Do not materialize a nominal singleton handle:
+            // the precompiled stdlib object has no reference-backed storage.
+            if let symbol = sema.bindings.identifierSymbols[exprID],
+               let symbolInfo = sema.symbols.symbol(symbol),
+               symbolInfo.kind == .object,
+               symbolInfo.fqName == [
+                   interner.intern("kotlin"),
+                   KnownCompilerNames(interner: interner).unit
+               ]
+            {
+                let id = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: id, value: .unit))
+                return id
+            }
             // STDLIB-004: Implicit receiver member access (e.g. `length` inside
             // `run { length }` resolves as `this.length`).
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
