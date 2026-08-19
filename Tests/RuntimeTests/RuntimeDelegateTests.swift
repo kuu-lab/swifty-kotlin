@@ -301,6 +301,24 @@ struct RuntimeDelegateTests {
         #expect(gLazyPublicationState.initializedQueryResultSnapshot())
     }
 
+    @Test func lazyCreateWithNullLockUsesIndependentSynchronization() {
+        let fnPtr = unsafeBitCast(lazyLockContentionInitCConv, to: Int.self)
+        let firstHandle = kk_lazy_create_with_lock(fnPtr, 1, runtimeNullSentinelInt)
+        let secondHandle = kk_lazy_create_with_lock(fnPtr, 1, runtimeNullSentinelInt)
+
+        DispatchQueue.global().async {
+            _ = kk_lazy_get_value(firstHandle)
+        }
+        DispatchQueue.global().async {
+            _ = kk_lazy_get_value(secondHandle)
+        }
+        #expect(
+            gLazyPublicationState.waitForInitializerEntries(2),
+            "lazy(null) instances should not share one global synchronization lock"
+        )
+        gLazyPublicationState.releaseInitializers(2)
+    }
+
     @Test func lazyGetValueInvokesInitializerOnce() {
         let fnPtr = unsafeBitCast(lazyCountingInitCConv, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1) // SYNCHRONIZED

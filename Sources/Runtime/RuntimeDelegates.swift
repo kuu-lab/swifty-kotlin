@@ -235,7 +235,7 @@ public func kk_lazy_create(_ initFnPtr: Int, _ mode: Int) -> Int {
 @_cdecl("kk_lazy_create_with_lock")
 public func kk_lazy_create_with_lock(_ initFnPtr: Int, _ mode: Int, _ lock: Int) -> Int {
     let safetyMode = LazyThreadSafetyMode(rawValue: mode) ?? .synchronized
-    let synchronizationLockKey = lock == 0 ? nil : lock
+    let synchronizationLockKey = lock == 0 || lock == runtimeNullSentinelInt ? nil : lock
     return registerRuntimeObject(RuntimeLazyBox(
         initializerFnPtr: initFnPtr,
         mode: safetyMode,
