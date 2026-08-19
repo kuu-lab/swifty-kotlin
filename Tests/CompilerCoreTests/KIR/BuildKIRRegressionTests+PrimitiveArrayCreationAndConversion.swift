@@ -140,15 +140,31 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
-    func testCharArrayOfFactoryLowersToKkArrayOf() throws {
+    func testCharArrayOfFactoryUsesSourceBackedVarargPath() throws {
         let ctx = try sharedPrimitiveArrayCtx()
         let module = try #require(ctx.kir)
         let makeBody = try findKIRFunctionBody(named: "make2", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_of"),
-            "charArrayOf must lower to kk_array_of; got: \(callNames)"
+            callNames.contains("charArrayOf"),
+            "source-backed charArrayOf call must remain resolvable; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_new"),
+            "source-backed charArrayOf must materialize its vararg array; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_box_char"),
+            "source-backed charArrayOf must box Char vararg elements; got: \(callNames)"
+        )
+        #expect(
+            callNames.contains("kk_array_toList"),
+            "source-backed charArrayOf must pass varargs through the List path; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_of"),
+            "source-backed charArrayOf must not lower to kk_array_of; got: \(callNames)"
         )
     }
 
