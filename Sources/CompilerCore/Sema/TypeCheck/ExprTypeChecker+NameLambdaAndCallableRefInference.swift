@@ -1164,97 +1164,6 @@ extension ExprTypeChecker {
         return inferredFunctionType
     }
 
-    /// Builds the natural `KProperty0<V>`/`KMutableProperty0<V>`/`KProperty1<T, V>`/
-    /// `KMutableProperty1<T, V>` type for a property callable reference (selected by
-    /// receiver-boundness and mutability), so callers can verify an explicit expected-type
-    /// annotation is actually compatible before adopting it as the reference's inferred type.
-    private func naturalPropertyReferenceType(
-        propertyType: TypeID,
-        ownerType: TypeID?,
-        propertySymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
-        let interfaceName: String = switch (ownerType != nil, isMutable) {
-        case (false, false): "KProperty0"
-        case (false, true): "KMutableProperty0"
-        case (true, false): "KProperty1"
-        case (true, true): "KMutableProperty1"
-        }
-        let fqName = [interner.intern("kotlin"), interner.intern("reflect"), interner.intern(interfaceName)]
-        guard let classSymbol = sema.symbols.lookup(fqName: fqName) else { return nil }
-        let args: [TypeArg] = ownerType.map { [.invariant($0), .invariant(propertyType)] } ?? [.invariant(propertyType)]
-        return sema.types.make(.classType(ClassType(classSymbol: classSymbol, args: args, nullability: .nonNull)))
-    }
-
-    /// Whether `type` is (possibly nullable) `KProperty0`/`KMutableProperty0`/`KProperty1`/
-    /// `KMutableProperty1` -- the shapes `naturalPropertyReferenceType` can build and compare.
-    private func isKPropertyFamilyClassType(_ type: TypeID, sema: SemaModule, interner: StringInterner) -> Bool {
-        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
-              let classSymbol = sema.symbols.symbol(classType.classSymbol)
-        else { return false }
-        switch interner.resolve(classSymbol.name) {
-        case "KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1": return true
-        default: return false
-        }
-    }
-
-    /// Adopts `expectedType` as a property callable reference's inferred type, but only when
-    /// the KIR lowering can actually handle the result -- `LambdaLowerer` only knows how to
-    /// lower a property reference bound to a `KProperty0`/`KMutableProperty0`/`KProperty1`/
-    /// `KMutableProperty1` classType (`lowerPropertyReferenceWrapperValue`). Any other shape,
-    /// including a structurally-compatible-looking plain function type (`KProperty0<V>`
-    /// declares `Function0<V>` as a supertype, but `TypeSystem.isSubtype`'s classType ->
-    /// functionType rule only recognizes `fun interface` declarations, not this), falls
-    /// through to a broken fallback that calls the property's bare name as if it were a
-    /// function symbol and fails to *link* -- confirmed for every such shape, not just a
-    /// genuinely mismatched one. So `expectedType` is adopted only if it concretely names one
-    /// of the four KProperty interfaces; anything else (an unrelated nominal type, a bare
-    /// function type, or a still-unresolved generic call-site type parameter) reports
-    /// `propertyType` instead, letting the ordinary declared-type subtype check downstream
-    /// produce a normal compile-time diagnostic rather than a confusing link failure.
-    ///
-    /// Within that KProperty-shaped case, a precise value/owner-type/mutability match is
-    /// validated via the reference's natural type (`naturalPropertyReferenceType`) only when
-    /// `expectedType`, `propertyType`, and `ownerType` are all fully concrete. An expected type
-    /// still mentioning type parameters belongs to a generic signature whose type arguments are
-    /// inferred from this very argument (`fun <T, V> read(p: KProperty1<T, V>)`); a
-    /// property/owner type still mentioning a type parameter (`Box<T>::v`, `box::v` for a
-    /// generic `box: Box<Int>`) means the natural type built from the unsubstituted declaration
-    /// can't be compared precisely either. Both cases still adopt `expectedType` unchecked --
-    /// it's already known lowering-safe by virtue of being KProperty-shaped, regardless of
-    /// argument concreteness. Only a same-shape KProperty annotation with an actually
-    /// mismatched value/owner type or mutability (e.g. `val r: KProperty0<String> =
-    /// ::someIntProperty`) falls back to `propertyType`.
-    private func propertyReferenceResultType(
-        expectedType: TypeID?,
-        propertyType: TypeID,
-        ownerType: TypeID?,
-        propertySymbol: SymbolID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let expectedType,
-              isKPropertyFamilyClassType(expectedType, sema: sema, interner: interner)
-        else {
-            return propertyType
-        }
-        guard !sema.types.typeContainsAnyTypeParam(expectedType),
-              !sema.types.typeContainsAnyTypeParam(propertyType),
-              ownerType.map({ !sema.types.typeContainsAnyTypeParam($0) }) ?? true
-        else {
-            return expectedType
-        }
-        guard let naturalType = naturalPropertyReferenceType(
-            propertyType: propertyType, ownerType: ownerType, propertySymbol: propertySymbol,
-            sema: sema, interner: interner
-        ), sema.types.isSubtype(naturalType, expectedType) else {
-            return propertyType
-        }
-        return expectedType
-    }
-
     func inferCallableRefExpr(
         _ id: ExprID,
         receiver: ExprID?,
@@ -1358,11 +1267,18 @@ extension ExprTypeChecker {
                     }
                     if let propertySymbol = propertyCandidates.first {
                         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        let resultType = propertyReferenceResultType(
+                        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+                        let ownerTypeForReference = unboundClassType != nil ? nonNullReceiver : nil
+                        let inferredType = kPropertyReferenceType(
+                            ownerType: ownerTypeForReference,
+                            valueType: propertyType,
+                            isMutable: isMutable,
+                            sema: sema,
+                            interner: interner
+                        ) ?? propertyType
+                        let resultType = resolvedPropertyReferenceResultType(
                             expectedType: expectedType,
-                            propertyType: propertyType,
-                            ownerType: unboundClassType != nil ? nonNullReceiver : nil,
-                            propertySymbol: propertySymbol,
+                            inferredType: inferredType,
                             sema: sema,
                             interner: interner
                         )
@@ -1396,14 +1312,39 @@ extension ExprTypeChecker {
             }
             if let propertySymbol = propertyCandidates.first {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                let resultType = propertyReferenceResultType(
-                    expectedType: expectedType,
-                    propertyType: propertyType,
-                    ownerType: nil,
-                    propertySymbol: propertySymbol,
-                    sema: sema,
-                    interner: interner
-                )
+                let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+                // KSP-496: a bare `::member` reference to a member property of
+                // the enclosing class is implicitly bound to `this`, and KIR
+                // lowering (LambdaLowerer.isCaptureEligibleInstanceContainerSymbol)
+                // correctly captures that receiver — but only for `.class`
+                // owners; it's deliberately restricted there because
+                // singleton owners (companion object / plain `object` / enum
+                // entry) still crash even with a type-correct receiver
+                // (observed SIGSEGV, a deeper singleton-representation issue,
+                // not merely a missing/mismatched capture). Keep those on the
+                // pre-existing, safe fallback (ignore expectedType entirely,
+                // same as before this whole fix) rather than newly making
+                // "compiles but crashes" reachable for them.
+                let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                let resultType: TypeID
+                if let ownerKind, ownerKind != .class {
+                    resultType = propertyType
+                } else {
+                    let inferredType = kPropertyReferenceType(
+                        ownerType: nil,
+                        valueType: propertyType,
+                        isMutable: isMutable,
+                        sema: sema,
+                        interner: interner
+                    ) ?? propertyType
+                    resultType = resolvedPropertyReferenceResultType(
+                        expectedType: expectedType,
+                        inferredType: inferredType,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
                 sema.bindings.bindExprType(id, type: resultType)
@@ -1552,6 +1493,126 @@ extension ExprTypeChecker {
         sema.bindings.bindCaptureSymbols(id, symbols: fallbackCaptures)
         sema.bindings.bindExprType(id, type: fallbackType)
         return fallbackType
+    }
+
+    /// Builds the concrete `KProperty0<V>` / `KMutableProperty0<V>` /
+    /// `KProperty1<Owner, V>` / `KMutableProperty1<Owner, V>` type for a plain
+    /// property callable reference (`Type::property`, `instance::property`, or
+    /// bare `::property`), so a reference used without an expected type (e.g.
+    /// `val ref = C::v`, or as an argument whose parameter type is itself
+    /// inferred, like `listOf(C::v)`) still gets a real KProperty-conforming
+    /// type instead of degrading to the property's own value type.
+    ///
+    /// `ownerType` is `nil` for a bound (`instance::property`) or top-level
+    /// (bare `::property`) reference (arity 0: `KProperty0`/`KMutableProperty0`),
+    /// and the receiver's class type for an unbound (`Type::property`)
+    /// reference (arity 1: `KProperty1`/`KMutableProperty1`).
+    ///
+    /// Returns `nil` when the interface symbol isn't registered (e.g.
+    /// `kotlin.reflect` wasn't injected), in which case callers should keep
+    /// their previous fallback behavior.
+    private func kPropertyReferenceType(
+        ownerType: TypeID?,
+        valueType: TypeID,
+        isMutable: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let reflectPkg = [interner.intern("kotlin"), interner.intern("reflect")]
+        let interfaceName: String
+        let typeArgs: [TypeArg]
+        if let ownerType {
+            interfaceName = isMutable ? "KMutableProperty1" : "KProperty1"
+            typeArgs = [.invariant(ownerType), .invariant(valueType)]
+        } else {
+            interfaceName = isMutable ? "KMutableProperty0" : "KProperty0"
+            typeArgs = [.invariant(valueType)]
+        }
+        guard let interfaceSymbol = sema.symbols.lookup(fqName: reflectPkg + [interner.intern(interfaceName)]) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: typeArgs,
+            nullability: .nonNull
+        )))
+    }
+
+    /// Decides the expression type for a property callable reference.
+    ///
+    /// A property reference is also a valid function value — Kotlin allows
+    /// `list.map(Person::name)` or `val f: (Person) -> String = Person::name`
+    /// — so an `expectedType` that is a function type (or SAM-convertible
+    /// interface) is always trusted as-is, exactly like before this fix and
+    /// exactly like the sibling function-reference branch above.
+    ///
+    /// Otherwise, `expectedType` is only trusted when it is itself one of the
+    /// four concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
+    /// `KProperty1`/`KMutableProperty1`) — the same set
+    /// `propertyReferenceShape` in `LambdaLowerer+PropertyReferenceLowering.swift`
+    /// recognizes to build the real KIR wrapper object. A broader or unrelated
+    /// expected type (`Any`, `KProperty<*>`, `KCallable<*>`, ...) would
+    /// silently defeat that wrapper and fall back to a non-conforming legacy
+    /// value, so `inferredType` (the correct concrete shape this reference
+    /// actually has) is used instead in that case.
+    ///
+    /// A KProperty-shaped `expectedType` is further validated against
+    /// `inferredType` (the reference's own correctly-typed shape) when both
+    /// are fully concrete, so a same-shape-but-mismatched annotation (e.g.
+    /// `val r: KProperty0<String> = ::someIntProperty`) is rejected rather
+    /// than silently adopted — it would otherwise compile cleanly and read
+    /// back garbage at runtime, since the KIR wrapper it builds still keys
+    /// off the property's real value type regardless of what the annotation
+    /// claims. Skipped when either side still mentions a type parameter (a
+    /// generic owner like `Box<T>::v`, or a call-site type still being
+    /// solved) since `inferredType` itself can't be built precisely there;
+    /// in that case the annotation is trusted unchecked, same as before —
+    /// it's already known lowering-safe by virtue of being KProperty-shaped.
+    private func resolvedPropertyReferenceResultType(
+        expectedType: TypeID?,
+        inferredType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let expectedType else {
+            return inferredType
+        }
+        if case .functionType = sema.types.kind(of: expectedType) {
+            return expectedType
+        }
+        if driver.helpers.samFunctionType(for: expectedType, sema: sema) != nil {
+            return expectedType
+        }
+        guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
+            return inferredType
+        }
+        guard !sema.types.typeContainsAnyTypeParam(expectedType),
+              !sema.types.typeContainsAnyTypeParam(inferredType)
+        else {
+            return expectedType
+        }
+        guard sema.types.isSubtype(inferredType, expectedType) else {
+            return inferredType
+        }
+        return expectedType
+    }
+
+    private func isConcreteKPropertyReferenceShape(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        switch interner.resolve(symbol.name) {
+        case "KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1":
+            return true
+        default:
+            return false
+        }
     }
 
     private func inferClassRefExpr(

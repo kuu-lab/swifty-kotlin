@@ -504,30 +504,31 @@ extension LambdaLowerer {
                 body.append(.returnUnit)
             }
         } else if kind == .getter {
-            // Top-level/object `val`s whose initializer is a compile-time
-            // literal never get a runtime store emitted for their backing
-            // global (see lowerPropertyInitializer's `needsInit` check) —
-            // ordinary reads bypass the global entirely via this same
-            // constant-substitution path (ExprLowerer.lowerExpr's `.nameRef`
-            // case). A raw `loadGlobal` here would read that never-initialized
-            // global and return its zero value instead of the constant.
-            if let symInfo = sema.symbols.symbol(propertySymbol),
-               !symInfo.flags.contains(.mutable),
-               let constant = propertyConstantInitializers[propertySymbol]
-                   ?? sema.symbols.constValueExprKind(for: propertySymbol)
+            // KSP-496: an immutable top-level (or object-member) property
+            // with a compile-time-constant initializer is never actually
+            // written via `.storeGlobal` — every ordinary read inlines the
+            // constant directly instead (see the equivalent check in
+            // ExprLowerer+ControlFlowAndBlocks.swift). Emitting a bare
+            // `.loadGlobal` here read that permanently-unwritten (zero)
+            // slot. Mirror the same constant-inlining check before falling
+            // back to `.loadGlobal` for genuinely global-backed properties
+            // (`var`s, or `val`s with a non-constant initializer).
+            let propertyInfo = sema.symbols.symbol(propertySymbol)
+            if let constant = propertyConstantInitializers[propertySymbol] ?? sema.symbols.constValueExprKind(for: propertySymbol),
+               propertyInfo?.flags.contains(.mutable) != true
             {
                 let result = arena.appendExpr(constant, type: propertyType)
                 body.append(.constValue(result: result, value: constant))
                 body.append(.returnValue(result))
             } else {
                 let result = arena.appendTemporary(type: propertyType)
-                body.append(.loadGlobal(result: result, symbol: propertySymbol))
+                body.append(.loadGlobal(result: result, symbol: fieldKey))
                 body.append(.returnValue(result))
             }
         } else if let valueSymbol {
             let valueExpr = arena.appendExpr(.symbolRef(valueSymbol), type: propertyType)
             body.append(.constValue(result: valueExpr, value: .symbolRef(valueSymbol)))
-            body.append(.storeGlobal(value: valueExpr, symbol: propertySymbol))
+            body.append(.storeGlobal(value: valueExpr, symbol: fieldKey))
             body.append(.returnUnit)
         } else {
             let result = arena.appendExpr(.null, type: propertyType)

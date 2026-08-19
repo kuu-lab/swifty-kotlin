@@ -112,34 +112,14 @@ struct CallableRefTypeIdentityTests {
     }
 
     // A second Devin review round found the validation above too strict: it rejected a plain
-    // function-type annotation like `() -> V` even though `KProperty0<V>` declares
-    // `Function0<V>` as a supertype, and rejected an expected type that still mentions a type
-    // parameter from an enclosing generic call/owner (`fun <T, V> read(p: KProperty1<T, V>)`,
-    // `Box<T>::v`). A third review round then found that blindly adopting a non-KProperty
-    // expected type (round 2's fix) was worse: `LambdaLowerer` only knows how to lower a
-    // property reference bound to a KProperty0/KMutableProperty0/KProperty1/KMutableProperty1
-    // classType, so a plain function type (or a still-unresolved generic type parameter, which
-    // is never itself a KProperty classType either) compiles but then fails to *link* --
-    // silently producing broken code instead of a clear diagnostic. The final design in
-    // propertyReferenceResultType therefore adopts `expectedType` only when it concretely
-    // names one of the four KProperty interfaces (validating a same-shape match when possible,
-    // skipping validation but still adopting it when the property/owner is generic); anything
-    // else reports `propertyType`, restoring the ordinary declared-type diagnostic.
-    @Test func testSemaRejectsFunctionShapedExpectedTypeForPropertyReference() throws {
-        let source = """
-        class Person(val name: String)
-
-        fun main() {
-            val person = Person("A")
-            val f: () -> String = person::name
-        }
-        """
-        let ctx = makeContextFromSource(source)
-        try runSema(ctx)
-
-        #expect(ctx.diagnostics.hasError, "A property reference bound to a plain function type has no working KIR lowering; this must be a type error, not a silent link failure.")
-    }
-
+    // function-type annotation like `() -> V`. `KProperty0<V>` declares `Function0<V>` as a
+    // supertype, and Kotlin allows a property reference wherever a matching function type is
+    // expected (`list.map(C::v)`, `val f: (C) -> Int = C::v`), so this must stay accepted --
+    // see `resolvedPropertyReferenceResultType`'s explicit function-type/SAM trust, and the
+    // dedicated coverage in PropertyCallableReferenceDefaultTypeTests.swift
+    // (testExplicitFunctionTypeExpectedTypeStillWinsOverKPropertyDefault). Whether the
+    // resulting KIR/codegen path actually links and runs is a separate, tracked concern
+    // (TODO.md, KSP-496) -- reproducible on stock master independent of this validation.
     @Test func testSemaAcceptsGenericOwnerPropertyReference() throws {
         let source = """
         import kotlin.reflect.KProperty1
@@ -156,7 +136,7 @@ struct CallableRefTypeIdentityTests {
         #expect(!ctx.diagnostics.hasError, "A property reference on a generic owner must keep type-checking (still KProperty-shaped, so lowering-safe) even though its natural type can't be precisely compared. Diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test func testSemaRejectsPropertyReferenceInferredThroughGenericCallSite() throws {
+    @Test func testSemaAcceptsPropertyReferenceInferredThroughGenericCallSite() throws {
         let source = """
         class Person(val name: String)
 
@@ -170,7 +150,7 @@ struct CallableRefTypeIdentityTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
 
-        #expect(ctx.diagnostics.hasError, "A property reference inferred against a plain function-typed generic parameter has no working KIR lowering; this must be a type error, not a silent link failure.")
+        #expect(!ctx.diagnostics.hasError, "A property reference whose expected type is a function type inferred through a generic call must keep type-checking. Diagnostics: \(ctx.diagnostics.diagnostics)")
     }
 
     @Test func testSemaRejectsImmutablePropertyReferenceAsKMutableProperty() throws {
@@ -256,6 +236,39 @@ struct CallableRefTypeIdentityTests {
             #expect(
                 callees.contains("kk_callable_ref_tag_kfunction"),
                 "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
+            )
+        }
+    }
+
+    /// KSP-496 follow-up: a bare `::member` reference to a member property
+    /// of the enclosing class must capture the implicit `this` receiver into
+    /// the generated KProperty wrapper object, the same way an explicit
+    /// `this::member` reference does — otherwise `.get()`/`.set()` on the
+    /// wrapper has no instance to read/write and crashes at runtime. This
+    /// checks the KIR-level signal for that capture: a `kk_array_set` store
+    /// into the wrapper's capture slot, which only exists when there's a
+    /// non-empty capture argument list.
+    @Test func testKIRCapturesImplicitReceiverForBareMemberPropertyRef() throws {
+        let source = """
+        class C(val v: Int) {
+            fun r(): Int {
+                val ref = ::v
+                return ref.get()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let rBody = try findKIRFunctionBody(named: "r", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: rBody, interner: ctx.interner)
+
+            #expect(
+                callees.contains("kk_array_set"),
+                "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
             )
         }
     }
