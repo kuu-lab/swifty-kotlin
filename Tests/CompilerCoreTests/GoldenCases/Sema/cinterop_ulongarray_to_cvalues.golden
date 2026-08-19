@@ -1,6 +1,6 @@
 symbol fq=golden.sema.convertToNative kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ULongArray] ret=kotlinx.cinterop.CValues<kotlinx.cinterop.ULongVar>
 symbol fq=golden.sema.convertToNative.$0.ulongs kind=valueParameter vis=private flags=_
-symbol fq=kotlin.ULongArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlinx.cinterop.CValues kind=class vis=public flags=synthetic|abstractType type=kotlinx.cinterop.CValues<kotlinx.cinterop.CValues.T>
 symbol fq=kotlinx.cinterop.CValues.T kind=typeParameter vis=private flags=_
 symbol fq=kotlinx.cinterop.ULongVar kind=class vis=public flags=synthetic type=kotlinx.cinterop.ULongVar

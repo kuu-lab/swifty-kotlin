@@ -82,6 +82,42 @@ final class DataFlowAnalyzer {
         }
     }
 
+    /// Narrows a stable local expression to its non-null type after a contract
+    /// guarantees that the expression is non-null on normal return.
+    func narrowNonNull(
+        _ expressionID: ExprID,
+        base: DataFlowState,
+        locals: [InternedString: (type: TypeID, symbol: SymbolID, isMutable: Bool, isInitialized: Bool)],
+        ast: ASTModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> DataFlowState {
+        guard let (symbol, currentType, isStable) = resolveLocalVariable(
+            expressionID,
+            locals: locals,
+            ast: ast,
+            sema: sema,
+            interner: interner
+        ), isStable else {
+            return base
+        }
+        let effectiveType: TypeID = if let baseState = base.variables[symbol],
+                                       baseState.possibleTypes.count == 1,
+                                       let baseType = baseState.possibleTypes.first
+        {
+            baseType
+        } else {
+            currentType
+        }
+        var variables = base.variables
+        variables[symbol] = VariableFlowState(
+            possibleTypes: [makeTypeNonNullable(effectiveType, types: sema.types)],
+            nullability: .nonNull,
+            isStable: true
+        )
+        return DataFlowState(variables: variables)
+    }
+
     private func branchOnBinary(
         op: BinaryOp,
         lhsID: ExprID,

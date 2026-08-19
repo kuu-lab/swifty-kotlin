@@ -129,6 +129,16 @@ extension ExprTypeChecker {
             sema.types.setNominalSupertypeTypeArgs(args, for: objectSymbol, supertype: superSymbol)
         }
 
+        // KSP-CAP-018: the superclass constructor call's arguments
+        // (`object : Base(x) { ... }`) are evaluated in the *enclosing*
+        // scope — same as a class header's `: Base(x)` — so they are
+        // type-checked against the outer `ctx`/`locals`, not `objectScope`
+        // below. Without this, `arg.expr` reaches KIR lowering with no type
+        // binding or resolved symbol reference and lowers to a stray value.
+        for arg in objectDecl.superTypeConstructorArgs {
+            _ = driver.inferExpr(arg.expr, ctx: ctx, locals: &locals, expectedType: nil)
+        }
+
         var propertySymbolsByDecl: [DeclID: SymbolID] = [:]
         for propertyDeclID in objectDecl.memberProperties {
             guard let decl = ast.arena.decl(propertyDeclID),
@@ -344,13 +354,37 @@ extension ExprTypeChecker {
         let inheritedVtableSize = inheritedLayout?.vtableSize
         let inheritedItableSize = inheritedLayout?.itableSize
 
+        // An object literal's own members are only known once the enclosing
+        // function body is type-checked, well after `synthesizeNominalLayouts`
+        // has already assigned vtable slots for every named class/object/interface
+        // (see `runValidationPasses` vs. `runBodyAnalysis` in Phase.swift). So
+        // unlike a named `class`/`object`, this nominal never goes through that
+        // pass — without this, `vtableSlots` would stay a bare copy of the
+        // superclass's own slots and an `override fun` here would leave its
+        // inherited slot pointing at the base class's implementation (the base
+        // method would keep running instead of the override, silently).
+        var vtableSlots = inheritedVtableSlots
+        let inheritedCandidatesByKey = vtableInheritedCandidatesByKey(
+            inheritedVtableSlots: inheritedVtableSlots, symbols: sema.symbols
+        )
+        for memberSymbolID in memberFunctionSymbolsByDecl.values.sorted(by: { $0.rawValue < $1.rawValue }) {
+            guard let method = sema.symbols.symbol(memberSymbolID),
+                  method.flags.contains(.overrideMember),
+                  let candidates = inheritedCandidatesByKey[vtableMethodDispatchKey(for: method, symbols: sema.symbols)]
+            else { continue }
+            let parameterTypes = sema.symbols.functionSignature(for: method.id)?.parameterTypes ?? []
+            if let matchedSlot = resolveOverriddenVtableSlot(parameterTypes: parameterTypes, candidates: candidates, types: sema.types) {
+                vtableSlots[method.id] = matchedSlot
+            }
+        }
+
         sema.symbols.setNominalLayout(
             NominalLayout(
                 objectHeaderWords: objectHeaderWords,
                 instanceFieldCount: instanceFieldCount,
                 instanceSizeWords: instanceSizeWords,
                 fieldOffsets: fieldOffsets,
-                vtableSlots: inheritedVtableSlots,
+                vtableSlots: vtableSlots,
                 itableSlots: inheritedItableSlots,
                 vtableSize: inheritedVtableSize,
                 itableSize: inheritedItableSize,

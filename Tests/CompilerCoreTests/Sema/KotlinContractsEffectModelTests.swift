@@ -484,7 +484,63 @@ struct KotlinContractsEffectModelTests {
 
                     @OptIn(ExperimentalContracts::class, ExperimentalExtendedContracts::class)
                     inline fun guarded(flag: Boolean, block: () -> Unit) {
-                        contract { holdsIn(flag, block) }
+                        contract { flag.holdsIn(block) }
+                    }
+
+            """,
+            // testNonInlineContractPreservesNullableArgumentSmartCast
+            """
+            package sample16
+
+                    import kotlin.contracts.*
+
+                    @OptIn(ExperimentalContracts::class)
+                    fun assertNotNull(value: Any?) {
+                        contract {
+                            returns() implies (value != null)
+                        }
+                        if (value == null) throw IllegalArgumentException("null")
+                    }
+
+                    fun main() {
+                        val value: String? = "source-backed"
+                        assertNotNull(value)
+                        println(value.length)
+                    }
+
+            """,
+            // testNonNullContractDoesNotNarrowVariablesInsideBooleanArgument
+            """
+            package sample17
+
+                    import kotlin.contracts.*
+
+                    @OptIn(ExperimentalContracts::class)
+                    fun assertNotNull(value: Any?) {
+                        contract {
+                            returns() implies (value != null)
+                        }
+                        if (value == null) throw IllegalArgumentException("null")
+                    }
+
+                    fun nullableText(): String? = null
+
+                    fun main() {
+                        val value: String? = nullableText()
+                        assertNotNull(value != null)
+                        println(value.length)
+                    }
+
+            """,
+            // testNonexistentBooleanImpliesReturnsNotNullIsRejected
+            """
+            package sample18
+
+                    import kotlin.contracts.*
+
+                    @OptIn(ExperimentalContracts::class, ExperimentalExtendedContracts::class)
+                    fun invalidContract() {
+                        contract { true implies returnsNotNull() }
                     }
 
             """,
@@ -670,7 +726,8 @@ struct KotlinContractsEffectModelTests {
                 )
 
                 let expectedSymbols: [(name: String, kind: SymbolKind)] = [
-                    ("ContractBuilder", .class),
+                    ("ContractBuilder", .interface),
+                    ("ContractEffect", .interface),
                     ("Effect", .interface),
                     ("CallsInPlace", .interface),
                     ("SimpleEffect", .interface),
@@ -685,9 +742,64 @@ struct KotlinContractsEffectModelTests {
                     let fqName = contractsFQName + [interner.intern(expected.name)]
                     let symbol = try #require(
                         sema.symbols.lookup(fqName: fqName),
-                        "\(expected.name) should be synthesized inside kotlin.contracts"
+                        "\(expected.name) should be source-backed inside kotlin.contracts"
                     )
                     #expect(sema.symbols.symbol(symbol)?.kind == expected.kind)
+                    #expect(
+                        !(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) ?? true),
+                        "\(expected.name) must not be synthetic"
+                    )
+                    #expect(
+                        sema.symbols.symbol(symbol)?.declSite != nil,
+                        "\(expected.name) must have a bundled source declaration"
+                    )
+                    if let fileID = sema.symbols.sourceFileID(for: symbol) {
+                        #expect(
+                            ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_kotlin/contracts/"),
+                            "\(expected.name) must come from bundled kotlin/contracts source"
+                        )
+                    } else {
+                        #expect(Bool(false), "\(expected.name) must have a bundled source file")
+                    }
+                    #expect(
+                        sema.symbols.externalLinkName(for: symbol) == nil,
+                        "\(expected.name) must not have an external link"
+                    )
+                }
+
+                let markerDeclarations = [
+                    "ExperimentalContracts",
+                    "ExperimentalExtendedContracts",
+                ]
+                for markerName in markerDeclarations {
+                    let markerSymbol = try #require(
+                        sema.symbols.lookup(
+                            fqName: contractsFQName + [interner.intern(markerName)]
+                        ),
+                        "\(markerName) should be source-backed inside kotlin.contracts"
+                    )
+                    let markerAnnotations = sema.symbols.annotations(for: markerSymbol)
+                    #expect(
+                        markerAnnotations.contains {
+                            $0.annotationFQName.hasSuffix("RequiresOptIn")
+                        },
+                        "\(markerName) should carry RequiresOptIn metadata"
+                    )
+                    #expect(
+                        markerAnnotations.contains {
+                            $0.annotationFQName.hasSuffix("MustBeDocumented")
+                        },
+                        "\(markerName) should carry MustBeDocumented metadata"
+                    )
+                    #expect(
+                        markerAnnotations.contains {
+                            $0.annotationFQName.hasSuffix("Retention")
+                                && $0.arguments.contains {
+                                    $0.hasSuffix("AnnotationRetention.BINARY")
+                                }
+                        },
+                        "\(markerName) should carry BINARY retention metadata"
+                    )
                 }
 
             }
@@ -718,7 +830,8 @@ struct KotlinContractsEffectModelTests {
                 )
                 let callsInPlaceAnnotations = sema.symbols.annotations(for: callsInPlaceSymbol)
                 let callsInPlaceHasExperimentalContracts = callsInPlaceAnnotations.contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "ExperimentalContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     callsInPlaceHasExperimentalContracts,
@@ -740,25 +853,16 @@ struct KotlinContractsEffectModelTests {
                 let callsInPlaceOverloads = sema.symbols.lookupAll(
                     fqName: builderFQName + [interner.intern("callsInPlace")]
                 )
-                let hasOneParamOverload = callsInPlaceOverloads.contains { symbol in
-                    guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
-                    return signature.receiverType == builderType
-                        && signature.parameterTypes.count == 1
-                        && signature.returnType == callsInPlaceType
-                }
-                #expect(
-                    hasOneParamOverload,
-                    "ContractBuilder.callsInPlace(lambda) should return CallsInPlace"
-                )
-                let hasTwoParamOverload = callsInPlaceOverloads.contains { symbol in
+                let hasDefaultKindParameter = callsInPlaceOverloads.contains { symbol in
                     guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
                     return signature.receiverType == builderType
                         && signature.parameterTypes.count == 2
                         && signature.returnType == callsInPlaceType
+                        && signature.valueParameterHasDefaultValues == [false, true]
                 }
                 #expect(
-                    hasTwoParamOverload,
-                    "ContractBuilder.callsInPlace(lambda, kind) should return CallsInPlace"
+                    hasDefaultKindParameter,
+                    "ContractBuilder.callsInPlace(lambda, kind = InvocationKind.UNKNOWN) should return CallsInPlace"
                 )
 
             }
@@ -789,7 +893,8 @@ struct KotlinContractsEffectModelTests {
                 )
                 let returnsAnnotations = sema.symbols.annotations(for: returnsSymbol)
                 let returnsHasExperimentalContracts = returnsAnnotations.contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "ExperimentalContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     returnsHasExperimentalContracts,
@@ -824,7 +929,7 @@ struct KotlinContractsEffectModelTests {
                 let hasValueParamReturns = returnsOverloads.contains { symbol in
                     guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
                     return signature.receiverType == builderType
-                        && signature.parameterTypes == [sema.types.booleanType]
+                        && signature.parameterTypes == [sema.types.nullableAnyType]
                         && signature.returnType == returnsType
                 }
                 #expect(
@@ -860,7 +965,8 @@ struct KotlinContractsEffectModelTests {
                 )
                 let returnsNotNullAnnotations = sema.symbols.annotations(for: returnsNotNullSymbol)
                 let returnsNotNullHasExperimentalContracts = returnsNotNullAnnotations.contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "ExperimentalContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     returnsNotNullHasExperimentalContracts,
@@ -921,48 +1027,50 @@ struct KotlinContractsEffectModelTests {
                 )
                 let holdsInAnnotations = sema.symbols.annotations(for: holdsInSymbol)
                 let holdsInHasExperimentalContracts = holdsInAnnotations.contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
+                    $0.annotationFQName == "ExperimentalContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalContracts"
                 }
                 #expect(
                     holdsInHasExperimentalContracts,
                     "HoldsIn should carry ExperimentalContracts"
                 )
                 let holdsInHasExperimentalExtended = holdsInAnnotations.contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
+                    $0.annotationFQName == "ExperimentalExtendedContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
                 }
                 #expect(
                     holdsInHasExperimentalExtended,
                     "HoldsIn should carry ExperimentalExtendedContracts"
                 )
 
-                let builderFQName = contractsFQName + [interner.intern("ContractBuilder")]
-                let builderSymbol = try #require(sema.symbols.lookup(fqName: builderFQName))
-                let builderType = sema.types.make(.classType(ClassType(
-                    classSymbol: builderSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
+                let holdsInName = interner.intern("holdsIn")
+                let holdsInFQName = contractsFQName + [holdsInName]
                 let holdsInType = sema.types.make(.classType(ClassType(
                     classSymbol: holdsInSymbol,
                     args: [],
                     nullability: .nonNull
                 )))
                 let holdsInFunction = try #require(
-                    sema.symbols.lookupAll(fqName: builderFQName + [interner.intern("holdsIn")]).first { symbol in
+                    (
+                        sema.symbols.lookupAll(fqName: holdsInFQName)
+                    ).first { symbol in
                         guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
-                        return signature.receiverType == builderType
-                            && signature.parameterTypes.first == sema.types.booleanType
+                        return signature.receiverType == sema.types.booleanType
                             && signature.returnType == holdsInType
                     },
-                    "ContractBuilder.holdsIn should be synthesized"
+                    "Boolean.holdsIn should be source-backed"
                 )
                 let holdsInFnHasExperimentalExtended = sema.symbols.annotations(for: holdsInFunction).contains {
-                    $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
+                    $0.annotationFQName == "ExperimentalExtendedContracts"
+                        || $0.annotationFQName == "kotlin.contracts.ExperimentalExtendedContracts"
                 }
                 #expect(
                     holdsInFnHasExperimentalExtended,
-                    "ContractBuilder.holdsIn should carry ExperimentalExtendedContracts"
+                    "Boolean.holdsIn should carry ExperimentalExtendedContracts"
                 )
+                #expect(!(sema.symbols.symbol(holdsInFunction)?.flags.contains(.synthetic) ?? true))
+                #expect(sema.symbols.symbol(holdsInFunction)?.declSite != nil)
+                #expect(sema.symbols.externalLinkName(for: holdsInFunction) == nil)
 
             }
 
@@ -977,6 +1085,83 @@ struct KotlinContractsEffectModelTests {
                 #expect(
                     !sample15Diagnostics.contains { $0.severity == .error },
                     "Expected holdsIn contract surface to resolve: \(sample15Diagnostics.map(\.message))"
+                )
+
+            }
+
+            // === testNonInlineContractPreservesNullableArgumentSmartCast ===
+
+            do {
+
+                let sample16Path = paths[16]
+
+                let sample16Diagnostics = diagnosticsForPath(sample16Path, in: ctx)
+
+                #expect(
+                    !sample16Diagnostics.contains { $0.severity == .error },
+                    "Expected non-inline contract smart cast to resolve: \(sample16Diagnostics.map(\.message))"
+                )
+                let assertNotNullSymbol = try #require(
+                    sema.symbols.lookup(fqName: [
+                        interner.intern("sample16"),
+                        interner.intern("assertNotNull"),
+                    ]),
+                    "Non-inline assertNotNull should retain its source-backed contract effect"
+                )
+                #expect(sema.symbols.contractNonNullEffect(for: assertNotNullSymbol) != nil)
+                let assertNotNullCalls = allExprIDsInPath(
+                    in: ast,
+                    path: sample16Path,
+                    ctx: ctx
+                ) { _, expr in
+                    guard case let .call(calleeID, _, _, _) = expr,
+                          let callee = ast.arena.expr(calleeID),
+                          case let .nameRef(name, _) = callee
+                    else {
+                        return false
+                    }
+                    return interner.resolve(name) == "assertNotNull"
+                }
+                let chosenAssertNotNullCandidates = assertNotNullCalls.compactMap {
+                    sema.bindings.callBinding(for: $0)?.chosenCallee
+                }
+                let chosenAssertNotNull = try #require(
+                    chosenAssertNotNullCandidates.first,
+                    "The sample16 assertNotNull call should have a chosen callee"
+                )
+                #expect(
+                    chosenAssertNotNull == assertNotNullSymbol,
+                    "The sample16 call should use its source-backed assertNotNull declaration"
+                )
+
+            }
+
+            // === testNonNullContractDoesNotNarrowVariablesInsideBooleanArgument ===
+
+            do {
+
+                let sample17Path = paths[17]
+
+                let sample17Diagnostics = diagnosticsForPath(sample17Path, in: ctx)
+
+                #expect(
+                    sample17Diagnostics.contains { $0.code == "KSWIFTK-SEMA-0026" },
+                    "Expected nullable access to remain rejected after a Boolean argument: \(sample17Diagnostics.map(\.message))"
+                )
+
+            }
+
+            // === testNonexistentBooleanImpliesReturnsNotNullIsRejected ===
+
+            do {
+
+                let sample18Path = paths[18]
+
+                let sample18Diagnostics = diagnosticsForPath(sample18Path, in: ctx)
+
+                #expect(
+                    sample18Diagnostics.contains { $0.severity == .error },
+                    "Expected nonexistent Boolean.implies(ReturnsNotNull) API to be rejected: \(sample18Diagnostics.map(\.message))"
                 )
 
             }

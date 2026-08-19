@@ -219,7 +219,10 @@ extension DataFlowSemaPhase {
                 checkTypeRefVariance(partRef, position: position,
                                      varianceMap: varianceMap, env: env, memberRange: memberRange)
             }
-        case let .annotated(base, _):
+        case let .annotated(base, annotations):
+            if annotations.contains(where: { KnownCompilerAnnotation.unsafeVariance.matches($0.name) }) {
+                return
+            }
             checkTypeRefVariance(base, position: position,
                                  varianceMap: varianceMap, env: env, memberRange: memberRange)
         }
