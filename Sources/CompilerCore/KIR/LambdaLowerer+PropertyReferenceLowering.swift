@@ -335,15 +335,40 @@ extension LambdaLowerer {
         else { return nil }
 
         let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol)
-        let ownerType = ownerSymbol.flatMap { owner in
-            sema.symbols.symbol(owner).map {
-                sema.types.make(.classType(ClassType(
-                    classSymbol: $0.id,
-                    args: [],
-                    nullability: .nonNull
-                )))
+        let ownerKind = ownerSymbol.flatMap { sema.symbols.symbol($0)?.kind }
+        // KSP-505: a genuine `.object` owner (companion object or plain
+        // `object`) is a singleton — Kotlin guarantees exactly one instance,
+        // so the compiler stores such properties in a single module-level
+        // global slot rather than a per-instance field (see the matching
+        // `pk == .object` branch in ExprLowerer+ControlFlowAndBlocks.swift's
+        // ordinary member read path). Passing `ownerType: nil` here routes
+        // emitPropertyReferenceAccessor's fallback below (loadGlobal /
+        // storeGlobal, no receiver) instead of the field-offset path, which
+        // would otherwise read/write through a receiver that is frequently a
+        // null placeholder (object singletons that implement no interface
+        // and declare no virtual dispatch never allocate a real heap
+        // instance) — this used to crash with SIGSEGV.
+        //
+        // Every other owner kind — including `.class`/`.interface` (real
+        // per-instance field storage) and `.enumClass` (per-*entry*
+        // instance storage — confirmed by testing that it must NOT be
+        // treated like `.object` here, or a per-entry constructor property
+        // like `enum class E(val v: Int) { A(1), B(2) }`'s `v` silently
+        // reads back `0` for every entry instead of each entry's own value;
+        // see isCaptureEligibleInstanceContainerSymbol's doc comment) —
+        // keeps the original unconditional ownerType computation, unchanged
+        // from before this fix.
+        let ownerType: TypeID? = ownerKind == .object
+            ? nil
+            : ownerSymbol.flatMap { owner in
+                sema.symbols.symbol(owner).map {
+                    sema.types.make(.classType(ClassType(
+                        classSymbol: $0.id,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                }
             }
-        }
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
