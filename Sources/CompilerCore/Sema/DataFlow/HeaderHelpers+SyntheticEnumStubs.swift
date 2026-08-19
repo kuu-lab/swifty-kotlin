@@ -1,7 +1,9 @@
 
 extension DataFlowSemaPhase {
-    /// Registers synthetic enum stdlib stubs: kotlin.Enum<T>, EnumEntries<T>,
-    /// enumValues<T>(), enumValueOf<T>(String).
+    /// Registers synthetic enum type/container stubs: kotlin.Enum<T>,
+    /// EnumEntries<T>, and enumEntries<T>(). The public enumValues<T>() and
+    /// enumValueOf<T>(String) declarations are bundled source intrinsics; their
+    /// concrete calls are expanded by the enum-specific type checker/lowerer.
     func registerSyntheticEnumStubs(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -62,22 +64,6 @@ extension DataFlowSemaPhase {
             interner: interner,
             kotlinEnumsPkg: kotlinEnumsPkg,
             enumEntriesSymbol: enumEntriesInterfaceSymbol
-        )
-
-        // enumValues<T>(): Array<T> — top-level inline reified
-        registerEnumValuesFunction(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinPkg: kotlinPkg
-        )
-
-        // enumValueOf<T>(name: String): T — top-level inline reified
-        registerEnumValueOfFunction(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinPkg: kotlinPkg
         )
 
         // enumEntries<T>(): EnumEntries<T> — top-level inline reified (Kotlin 1.9+)
@@ -278,123 +264,6 @@ extension DataFlowSemaPhase {
                 classTypeParameterCount: 1
             ),
             for: getSymbol
-        )
-    }
-
-    private func registerEnumValuesFunction(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinPkg: [InternedString]
-    ) {
-        let enumValuesName = interner.intern("enumValues")
-        let enumValuesFQName = kotlinPkg + [enumValuesName]
-        guard symbols.lookupAll(fqName: enumValuesFQName).isEmpty else { return }
-
-        let arrayName = interner.intern("Array")
-        let arrayFQName = kotlinPkg + [arrayName]
-        guard let arraySymbol = symbols.lookup(fqName: arrayFQName) else { return }
-
-        let tParamName = interner.intern("T")
-        let tParamFQName = enumValuesFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let arrayType = types.make(.classType(ClassType(
-            classSymbol: arraySymbol,
-            args: [.invariant(tParamType)],
-            nullability: .nonNull
-        )))
-
-        let funcSymbol = symbols.define(
-            kind: .function,
-            name: enumValuesName,
-            fqName: enumValuesFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: funcSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [],
-                returnType: arrayType,
-                isSuspend: false,
-                typeParameterSymbols: [tParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[]],
-                classTypeParameterCount: 0
-            ),
-            for: funcSymbol
-        )
-    }
-
-    private func registerEnumValueOfFunction(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinPkg: [InternedString]
-    ) {
-        let enumValueOfName = interner.intern("enumValueOf")
-        let enumValueOfFQName = kotlinPkg + [enumValueOfName]
-        guard symbols.lookupAll(fqName: enumValueOfFQName).isEmpty else { return }
-
-        let tParamName = interner.intern("T")
-        let tParamFQName = enumValueOfFQName + [tParamName]
-        let tParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tParamName,
-            fqName: tParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.reifiedTypeParameter]
-        )
-        let tParamType = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-        let stringType = types.stringType
-
-        let paramName = interner.intern("name")
-        let paramFQName = enumValueOfFQName + [paramName]
-        let paramSymbol = symbols.define(
-            kind: .valueParameter,
-            name: paramName,
-            fqName: paramFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-
-        let funcSymbol = symbols.define(
-            kind: .function,
-            name: enumValueOfName,
-            fqName: enumValueOfFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .inlineFunction]
-        )
-        if let pkg = symbols.lookup(fqName: kotlinPkg), pkg != .invalid {
-            symbols.setParentSymbol(pkg, for: funcSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [stringType],
-                returnType: tParamType,
-                isSuspend: false,
-                valueParameterSymbols: [paramSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [tParamSymbol],
-                reifiedTypeParameterIndices: [0],
-                typeParameterUpperBoundsList: [[]]
-            ),
-            for: funcSymbol
         )
     }
 
