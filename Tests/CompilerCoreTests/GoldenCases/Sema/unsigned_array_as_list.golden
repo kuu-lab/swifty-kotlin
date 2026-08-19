@@ -9,7 +9,7 @@ symbol fq=__local_7.ulongList kind=local vis=private flags=_ type=kotlin.collect
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.UByteArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UByteArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UByteArray params=[] ret=kotlin.collections.List<UByte>
-symbol fq=kotlin.UIntArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.UIntArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UIntArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UIntArray params=[] ret=kotlin.collections.List<UInt>
 symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.ULongArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.ULongArray params=[] ret=kotlin.collections.List<ULong>
