@@ -23,8 +23,17 @@ extension CollectionLiteralConstructionLoweringPass {
            let argumentType = module.arena.exprType(arguments[0]),
            isPrimitiveArrayType(argumentType, sema: sema, interner: ctx.interner)
         {
+            let copiedArray = module.arena.appendTemporary(type: argumentType)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayCopyOfName,
+                arguments: [arguments[0]],
+                result: copiedArray,
+                canThrow: false,
+                thrownResult: nil
+            ))
             if let result {
-                loweredBody.append(.copy(from: arguments[0], to: result))
+                loweredBody.append(.copy(from: copiedArray, to: result))
             }
             return true
         }

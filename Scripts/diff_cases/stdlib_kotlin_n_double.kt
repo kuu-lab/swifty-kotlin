@@ -10,6 +10,12 @@ fun main() {
     println(spreadResult[2] == 5.0)
     println(spreadResult[3] == 6.0)
 
+    val spreadOnlySource = doubleArrayOf(7.0, 8.0)
+    val spreadOnlyCopy = doubleArrayOf(*spreadOnlySource)
+    spreadOnlyCopy[0] = 9.0
+    println(spreadOnlySource[0] == 7.0)
+    println(spreadOnlyCopy[0] == 9.0)
+
     println((-1.5).toUInt())
     println(3.99.toUInt())
     println(4294967296.0.toUInt())
