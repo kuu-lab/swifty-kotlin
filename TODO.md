@@ -1605,7 +1605,7 @@
     - `kotlin.fromBits` — fun fromBits(Int): Float  -- `final fun kotlin/fromBits(kotlin/Int): kotlin/Float`
     - `kotlin.fromBits` — fun fromBits(Long): Double  -- `final fun kotlin/fromBits(kotlin/Long): kotlin/Double`
 
-- [ ] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `int`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ArrayIntrinsics.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
