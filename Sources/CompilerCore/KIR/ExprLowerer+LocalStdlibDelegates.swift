@@ -41,23 +41,38 @@ extension ExprLowerer {
             return false
         }
 
-        let modeValue = LazyThreadSafetyModeLowering.rawValue(
-            from: arguments.dropLast().last,
+        let lockExpr = LazyThreadSafetyModeLowering.lockExpression(
+            from: arguments,
             arena: arena,
             sema: sema,
-            interner: interner,
-            fallback: Int64(driver.ctx.lazyThreadSafetyMode.rawValue)
+            interner: interner
         )
+        let modeValue: Int64 = if lockExpr != nil {
+            Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+        } else {
+            LazyThreadSafetyModeLowering.rawValue(
+                from: arguments.dropLast().last,
+                arena: arena,
+                sema: sema,
+                interner: interner,
+                fallback: Int64(driver.ctx.lazyThreadSafetyMode.rawValue)
+            )
+        }
         let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: nil)
         instructions[callIndex] = .constValue(
             result: modeExpr,
             value: .intLiteral(modeValue)
         )
+        let runtimeCallee = lockExpr == nil
+            ? interner.intern("kk_lazy_create")
+            : interner.intern("kk_lazy_create_with_lock")
+        let runtimeArguments = lockExpr.map { [initializer, modeExpr, $0] }
+            ?? [initializer, modeExpr]
         instructions.insert(
             .call(
                 symbol: nil,
-                callee: interner.intern("kk_lazy_create"),
-                arguments: [initializer, modeExpr],
+                callee: runtimeCallee,
+                arguments: runtimeArguments,
                 result: result,
                 canThrow: false,
                 thrownResult: nil

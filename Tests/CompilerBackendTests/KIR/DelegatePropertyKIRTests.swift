@@ -96,6 +96,79 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
+    func testImportedLazyThreadSafetyModeReachesRuntimeCreate() throws {
+        let source = """
+        import kotlin.LazyThreadSafetyMode.NONE
+        val importedNone by lazy(NONE) { 1 }
+        fun main() = println(importedNone)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "imported lazy mode should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let modeValues = module.arena.declarations.flatMap { declaration -> [Int64] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2,
+                          case let .intLiteral(value)? = module.arena.expr(arguments[1])
+                    else {
+                        return nil
+                    }
+                    return value
+                }
+            }
+            #expect(modeValues.contains(0), "imported NONE should reach kk_lazy_create as mode 0, got: \(modeValues)")
+        }
+    }
+
+    @Test
+    func testLazyLockOverloadReachesLockAwareRuntimeCreate() throws {
+        let source = """
+        class Lock
+        val sharedLock = Lock()
+        val top by lazy(sharedLock) { 1 }
+        class Box {
+            val member by lazy(sharedLock) { 2 }
+        }
+        fun main() {
+            val local by lazy(sharedLock) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "lazy lock overload should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let lockCreateCalls = module.arena.declarations.flatMap { declaration -> [KIRInstruction] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.filter { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return ctx.interner.resolve(callee) == "kk_lazy_create_with_lock"
+                }
+            }
+            #expect(lockCreateCalls.count == 3, "expected lock-aware create for top, member, and local, got (lockCreateCalls.count)")
+            for instruction in lockCreateCalls {
+                guard case let .call(_, _, arguments, _, _, _, _, _) = instruction else { continue }
+                #expect(arguments.count == 3, "lock-aware lazy create should receive initializer, mode, and lock")
+            }
+        }
+    }
+
+    @Test
     func testObservableDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         import kotlin.properties.Delegates

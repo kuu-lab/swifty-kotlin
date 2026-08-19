@@ -375,19 +375,35 @@ extension KIRLoweringDriver {
             delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: symbol,
             paramCount: 0, shared: shared, emit: &initInstructions
         )
-        let modeValue = LazyThreadSafetyModeLowering.rawValue(
+        let lockExpression = LazyThreadSafetyModeLowering.lockExpression(
             from: propertyDecl.delegateExpression,
             ast: shared.ast,
             sema: shared.sema,
-            interner: interner,
-            fallback: Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+            interner: interner
         )
+        let lockValue = lockExpression.map { lowerExpr($0, shared: shared, emit: &initInstructions) }
+        let modeValue: Int64 = if lockValue != nil {
+            Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
+        } else {
+            LazyThreadSafetyModeLowering.rawValue(
+                from: propertyDecl.delegateExpression,
+                ast: shared.ast,
+                sema: shared.sema,
+                interner: interner,
+                fallback: Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
+            )
+        }
         let modeExpr = arena.appendExpr(.intLiteral(modeValue), type: shared.sema.types.anyType)
         initInstructions.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
         let createResult = arena.appendTemporary(type: delegateType)
+        let runtimeCallee = lockValue == nil
+            ? interner.intern("kk_lazy_create")
+            : interner.intern("kk_lazy_create_with_lock")
+        let runtimeArguments = lockValue.map { [lambdaFnPtr, modeExpr, $0] }
+            ?? [lambdaFnPtr, modeExpr]
         initInstructions.append(.call(
-            symbol: nil, callee: interner.intern("kk_lazy_create"),
-            arguments: [lambdaFnPtr, modeExpr],
+            symbol: nil, callee: runtimeCallee,
+            arguments: runtimeArguments,
             result: createResult, canThrow: false, thrownResult: nil
         ))
         initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))

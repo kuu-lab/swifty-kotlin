@@ -232,6 +232,17 @@ public func kk_lazy_create(_ initFnPtr: Int, _ mode: Int) -> Int {
     return registerRuntimeObject(RuntimeLazyBox(initializerFnPtr: initFnPtr, mode: safetyMode))
 }
 
+@_cdecl("kk_lazy_create_with_lock")
+public func kk_lazy_create_with_lock(_ initFnPtr: Int, _ mode: Int, _ lock: Int) -> Int {
+    let safetyMode = LazyThreadSafetyMode(rawValue: mode) ?? .synchronized
+    let synchronizationLockKey = lock == 0 ? nil : lock
+    return registerRuntimeObject(RuntimeLazyBox(
+        initializerFnPtr: initFnPtr,
+        mode: safetyMode,
+        synchronizationLockKey: synchronizationLockKey
+    ))
+}
+
 @_cdecl("kk_lazy_get_value")
 public func kk_lazy_get_value(_ handle: Int) -> Int {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: handle) else {

@@ -241,6 +241,13 @@ struct RuntimeDelegateTests {
         #expect(handle != 0)
     }
 
+    @Test func lazyCreateWithLockReturnsValue() {
+        let fnPtr = unsafeBitCast(lazySimple42, to: Int.self)
+        let handle = kk_lazy_create_with_lock(fnPtr, 1, 0x4B5350373831)
+        #expect(handle != 0)
+        #expect(kk_lazy_get_value(handle) == 42)
+    }
+
     @Test func lazyGetValueInvokesInitializerOnce() {
         let fnPtr = unsafeBitCast(lazyCountingInitCConv, to: Int.self)
         let handle = kk_lazy_create(fnPtr, 1) // SYNCHRONIZED

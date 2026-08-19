@@ -34,7 +34,7 @@ private struct RuntimeLockEntry {
 
 private nonisolated(unsafe) var runtimeLocks: [Int: RuntimeLockEntry] = [:]
 
-private func runtimeAcquireLock(for key: Int) -> NSRecursiveLock {
+func runtimeAcquireLock(for key: Int) -> NSRecursiveLock {
     runtimeLockStorage.lock()
     let lock: NSRecursiveLock
     if var entry = runtimeLocks[key] {
@@ -51,7 +51,7 @@ private func runtimeAcquireLock(for key: Int) -> NSRecursiveLock {
     return lock
 }
 
-private func runtimeReleaseLock(for key: Int, lock: NSRecursiveLock) {
+func runtimeReleaseLock(for key: Int, lock: NSRecursiveLock) {
     lock.unlock()
     runtimeLockStorage.lock()
     guard var entry = runtimeLocks[key], entry.lock === lock else {
@@ -65,6 +65,12 @@ private func runtimeReleaseLock(for key: Int, lock: NSRecursiveLock) {
         runtimeLocks[key] = entry
     }
     runtimeLockStorage.unlock()
+}
+
+func runtimeWithLock<T>(for key: Int, _ body: () -> T) -> T {
+    let lock = runtimeAcquireLock(for: key)
+    defer { runtimeReleaseLock(for: key, lock: lock) }
+    return body()
 }
 
 // KSP-781: synchronization used by the bundled Lazy implementation.
