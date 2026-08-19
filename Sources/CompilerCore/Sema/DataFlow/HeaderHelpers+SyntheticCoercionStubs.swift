@@ -693,10 +693,6 @@ extension DataFlowSemaPhase {
             }
             return
         }
-        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
-            return
-        }
-
         let functionSymbol = symbols.define(
             kind: .function,
             name: functionName,
