@@ -966,7 +966,7 @@ extension AnnotationSemanticTests {
             package sample5
             annotation class ExperimentalApi
             """,
-            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
+            // testExperimentalContractsAnnotationIsSourceBackedAnnotationClass
             """
             package sample6
             annotation class ExperimentalApi
@@ -1254,7 +1254,7 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testExperimentalContractsAnnotationIsSyntheticAnnotationClass
+            // testExperimentalContractsAnnotationIsSourceBackedAnnotationClass
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -1265,7 +1265,8 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(symbol.declSite != nil)
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbol.id)
@@ -1296,7 +1297,7 @@ extension AnnotationSemanticTests {
             )
 
             }
-            // testExperimentalExtendedContractsAnnotationIsSyntheticOptInMarker
+            // testExperimentalExtendedContractsAnnotationIsSourceBackedOptInMarker
             do {
             let fqName = [
                 ctx.interner.intern("kotlin"),
@@ -1307,7 +1308,8 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(symbol.declSite != nil)
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbol.id)
