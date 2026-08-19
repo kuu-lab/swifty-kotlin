@@ -21,15 +21,7 @@ public external fun <T> emptyArray(): Array<T>
 @KsSymbolName("kk_array_of_nulls")
 public external fun <T> arrayOfNulls(size: Int): Array<T?>
 
-// KSP-779: Keep the primitive IntArray factory source-backed. The vararg
-// parameter is represented as an IntArray, so copy its elements into the
-// result allocated by the primitive-array constructor.
-public inline fun intArrayOf(vararg elements: Int): IntArray {
-    val result = IntArray(elements.size)
-    var index = 0
-    while (index < elements.size) {
-        result[index] = elements[index]
-        index += 1
-    }
-    return result
-}
+// KSP-779: Keep primitive vararg packing on the raw runtime path so Int
+// elements are not boxed into a temporary container before array creation.
+@KsSymbolName("kk_array_of")
+public external fun intArrayOf(vararg elements: Int): IntArray
