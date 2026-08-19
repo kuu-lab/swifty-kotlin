@@ -84,10 +84,11 @@ enum LazyThreadSafetyModeLowering {
         sema: SemaModule,
         interner: StringInterner
     ) -> KIRExprID? {
-        guard let candidate = arguments.dropLast().last,
-              let type = arena.exprType(candidate)
-        else {
+        guard let candidate = arguments.dropLast().last else {
             return nil
+        }
+        guard let type = arena.exprType(candidate) else {
+            return candidate
         }
         return isModeType(type, sema: sema, interner: interner) ? nil : candidate
     }

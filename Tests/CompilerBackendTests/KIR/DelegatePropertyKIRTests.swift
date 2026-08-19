@@ -169,6 +169,28 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
+    func testLocalLazyUnknownLockUsesLockAwareRuntimeCreate() throws {
+        let source = """
+        fun main() {
+            val local by lazy(unknownLock) { 3 }
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            #expect(
+                callees.contains("kk_lazy_create_with_lock"),
+                "an unresolved local lazy lock must remain lock-aware, got: \(callees)"
+            )
+        }
+    }
+
+    @Test
     func testObservableDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         import kotlin.properties.Delegates
