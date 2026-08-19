@@ -1574,7 +1574,7 @@
     - `kotlin.context` — fun context(, , , , , , , , , , , , , , , , , , , , , , Function22): #W  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin/Any?, #E: kotlin/Any?, #F: kotlin/Any?, #G: kotlin/Any?, #H: kotlin/Any?, #I: kotlin/Any?, #J: kotlin/Any?, #K: kotlin/Any?, #L: kotlin/Any?, #M: kotlin/Any?, #N: kotlin/Any?, #O: kotlin/Any?, #P: kotlin/Any?, #Q: kotlin/Any?, #R: kotlin/Any?, #S: kotlin/Any?, #T: kotlin/Any?, #U: kotlin/Any?, #V: kotlin/Any?, #W: kotlin/Any?> kotlin/context(#A, #B, #C, #D, #E, #F, #G, #H, #I, #J, #K, #L, #M, #N, #O, #P, #Q, #R, #S, #T, #U, #V, kotlin/Function22<#A, #B, #C, #D, #E, #F, #G, #H, #I, #J, #K, #L, #M, #N, #O, #P, #Q, #R, #S, #T, #U, #V, #W>): #W`
     - `kotlin.contextOf` — fun contextOf(): #A  -- `final inline fun <#A: kotlin/Any?> (context(#A)).kotlin/contextOf(): #A`
 
-- [ ] KSP-774: kotlin.create-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-774: kotlin.create-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `create`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/create.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
