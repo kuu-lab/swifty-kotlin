@@ -2820,7 +2820,7 @@
   - 未実装シンボル一覧:
     - `kotlin.PublishedApi.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-879: kotlin.ReplaceWith top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-879: kotlin.ReplaceWith top-level の未実装 stdlib API を実装する（1 件。KSP-754 で実装済みのため重複実装はせず、vararg コンストラクタの専用 Golden/diff 証跡を追加）
   - 対象: `kotlin.ReplaceWith` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ReplaceWith/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
