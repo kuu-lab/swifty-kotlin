@@ -2862,6 +2862,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ReplaceWith.expression` — val ReplaceWith.expression: String  -- `final val expression`
     - `kotlin.ReplaceWith.imports` — val ReplaceWith.imports: Array  -- `final val imports`
+  - 備考: 既存の `ReplaceWith.kt` の primary-constructor properties を重複実装せず、vararg property の `Array<out String>` 型保持と annotation class member-property lowering を修正し、専用 Golden/diff 証跡を追加。
 
 - [ ] KSP-881: kotlin.RequiresOptIn top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.RequiresOptIn` / top-level
