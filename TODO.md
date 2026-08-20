@@ -1236,7 +1236,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalMultiplatform` — class kotlin.ExperimentalMultiplatform  -- `open annotation class kotlin/ExperimentalMultiplatform : kotlin/Annotation {`
 
-- [ ] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ExperimentalStdlibApi`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1693,7 +1693,7 @@
     - `kotlin.floatToUInt` — fun floatToUInt(Float): UInt  -- `final inline fun kotlin/floatToUInt(kotlin/Float): kotlin/UInt`
     - `kotlin.floatToULong` — fun floatToULong(Float): ULong  -- `final inline fun kotlin/floatToULong(kotlin/Float): kotlin/ULong`
 
-- [ ] KSP-778: kotlin.from-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-778: kotlin.from-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `from`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/from.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1703,6 +1703,7 @@
   - 未実装シンボル一覧:
     - `kotlin.fromBits` — fun fromBits(Int): Float  -- `final fun kotlin/fromBits(kotlin/Int): kotlin/Float`
     - `kotlin.fromBits` — fun fromBits(Long): Double  -- `final fun kotlin/fromBits(kotlin/Long): kotlin/Double`
+  - 完了確認（2026-08-19）: `from.kt` のsource-backed overload、Double/FloatのfromBits専用Runtime/RuntimeABI bridge、fromBitsに限定したname-string特例、FloatのABI再拡張、Golden/diff/ABI/TODO IDゲートを確認。
 
 - [ ] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `int`
@@ -1725,7 +1726,7 @@
     - `kotlin.isAssertionArgumentEvaluationEnabled` — fun isAssertionArgumentEvaluationEnabled(): Boolean  -- `final fun kotlin/isAssertionArgumentEvaluationEnabled(): kotlin/Boolean`
     - `kotlin.isAssertionThrowingErrorEnabled` — fun isAssertionThrowingErrorEnabled(): Boolean  -- `final fun kotlin/isAssertionThrowingErrorEnabled(): kotlin/Boolean`
 
-- [ ] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin` / top-level / family `lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1769,7 +1770,7 @@
     - `kotlin.requireNotNull` — fun requireNotNull(): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?): #A`
     - `kotlin.requireNotNull` — fun requireNotNull(, Function0): #A  -- `final inline fun <#A: kotlin/Any> kotlin/requireNotNull(#A?, kotlin/Function0<kotlin/Any>): #A`
 
-- [ ] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-785: kotlin.run-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin` / top-level / family `run`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1780,6 +1781,7 @@
     - `kotlin.run` — fun run(Function0): #A  -- `final inline fun <#A: kotlin/Any?> kotlin/run(kotlin/Function0<#A>): #A`
     - `kotlin.run` — fun run(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/run(kotlin/Function1<#A, #B>): #B`
     - `kotlin.runCatching` — fun runCatching(Function1): Result  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/runCatching(kotlin/Function1<#A, #B>): kotlin/Result<#B>`
+  - 完了確認（2026-08-19、PR #5950、commit `c0f678dee`）：`UPDATE_GOLDEN=1 ... --filter matchesGolden` の対象 shard（8 cases）pass・Golden 差分は機械的な式ノード参照更新のみ、`--filter Golden`（18 tests / 8 suites）pass、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（JDK 26、950 pass / 33 skip / 0 fail）、`bash Scripts/check_todo_ids.sh` pass、`bash Scripts/validate_runtime_abi_links.sh`（4 tests）pass。source migration 回帰テストと対象 diff ケースも pass。
 
 - [ ] KSP-786: kotlin.short-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `short`
@@ -2517,7 +2519,7 @@
     - `kotlin.IllegalStateException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.IllegalStateException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-852: kotlin.IndexOutOfBoundsException top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-852: kotlin.IndexOutOfBoundsException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.IndexOutOfBoundsException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IndexOutOfBoundsException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2552,10 +2554,11 @@
     - `kotlin.IntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.IntArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Int>)`
 
-- [ ] KSP-855: kotlin.KotlinNothingValueException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-855: kotlin.KotlinNothingValueException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.KotlinNothingValueException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinNothingValueException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 既存実装監査: KSP-742（PR #5876）が `Sources/CompilerCore/Stdlib/kotlin/KotlinNothingValueException.kt` に 4 constructor を実装済み。型付き例外の runtime identity/message/cause を担う対象 bridge は現行実装に必要なため、重複クラスの追加や削除は行わない。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_KotlinNothingValueException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_KotlinNothingValueException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_KotlinNothingValueException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
@@ -2577,7 +2580,7 @@
     - `kotlin.KotlinVersion.<init>` — constructor (Int, Int, Int)  -- `constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int)`
     - `kotlin.KotlinVersion.Companion` — object kotlin.KotlinVersion.Companion  -- `final object Companion {`
 
-- [ ] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件）
+- [x] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件。KSP-610 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.KotlinVersion` / receiver `KotlinVersion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion/KotlinVersion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

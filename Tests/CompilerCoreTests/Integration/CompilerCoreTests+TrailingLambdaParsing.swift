@@ -78,6 +78,12 @@ extension CompilerCoreTests {
             fun apply(block: () -> Int): Int = block()
             val topLevelValue8 = apply { val x = 42; x }
             """,
+
+            // 9: source-backed lazy delegate trailing lambda preserves inner semicolons
+            """
+            package sample9
+            val topLevelLazyValue9 by lazy { val x = 42; x }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -333,6 +339,26 @@ extension CompilerCoreTests {
                     Issue.record("Expected trailing lambda argument.")
                     return
                 }
+            }
+
+            // 9
+            do {
+                let property = try #require(topLevelProperty(named: "topLevelLazyValue9", in: ast, interner: interner))
+                let delegateID = try #require(property.delegateExpression)
+                guard let delegateExpr = ast.arena.expr(delegateID),
+                      case let .call(_, _, args, _) = delegateExpr,
+                      args.count == 1,
+                      let lambdaExpr = ast.arena.expr(args[0].expr),
+                      case let .lambdaLiteral(_, bodyID, _, _) = lambdaExpr,
+                      let bodyExpr = ast.arena.expr(bodyID),
+                      case let .blockExpr(bodyStatements, trailingExpr, _) = bodyExpr
+                else {
+                    Issue.record("Expected lazy delegate trailing lambda to preserve its block structure.")
+                    return
+                }
+
+                #expect(bodyStatements.count == 1)
+                #expect(trailingExpr != nil)
             }
         }
     }
