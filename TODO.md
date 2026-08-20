@@ -2678,7 +2678,7 @@
     - `kotlin.NullPointerException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.NullPointerException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
 
-- [ ] KSP-866: kotlin.Number top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-866: kotlin.Number top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Number` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Number/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2687,6 +2687,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Number.<init>` — constructor ()  -- `constructor <init>()`
+  - 実装 (2026-08-20): 既存の `Number` source-backed 宣言を `kotlin/Number/Stdlib.kt` に整理し、`Number()` 継承の Golden/diff 回帰ケースを追加。対象の Runtime/ABI bridge は存在しない。
 
 - [ ] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Number` / receiver `Number`
