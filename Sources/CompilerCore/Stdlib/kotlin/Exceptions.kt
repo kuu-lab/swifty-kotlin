@@ -106,14 +106,6 @@ public open class NumberFormatException : IllegalArgumentException {
     public constructor(message: String?)
 }
 
-public open class NullPointerException : RuntimeException {
-    @KsSymbolName("__kk_null_pointer_exception_new")
-    public constructor()
-
-    @KsSymbolName("__kk_null_pointer_exception_new_message")
-    public constructor(message: String?)
-}
-
 public open class ClassCastException : RuntimeException {
     @KsSymbolName("__kk_class_cast_exception_new")
     public constructor()

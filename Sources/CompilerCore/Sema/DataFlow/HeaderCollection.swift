@@ -1295,6 +1295,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "RuntimeException"]]
         case "__bundled_kotlin/IndexOutOfBoundsException/Stdlib.kt":
             [["kotlin", "IndexOutOfBoundsException"]]
+        case "__bundled_kotlin/NullPointerException/Stdlib.kt":
+            [["kotlin", "NullPointerException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
@@ -1304,7 +1306,6 @@ extension DataFlowSemaPhase {
                 ["kotlin", "ConcurrentModificationException"],
                 ["kotlin", "UnsupportedOperationException"],
                 ["kotlin", "NumberFormatException"],
-                ["kotlin", "NullPointerException"],
                 ["kotlin", "ClassCastException"],
                 ["kotlin", "AssertionError"],
                 ["kotlin", "NoSuchElementException"],

@@ -1042,13 +1042,3 @@ public func kk_type_cast_exception_new() -> Int {
 public func kk_type_cast_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateTypeCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }
-
-@_cdecl("__kk_null_pointer_exception_new")
-public func kk_null_pointer_exception_new() -> Int {
-    runtimeAllocateNullPointerException(message: nil)
-}
-
-@_cdecl("__kk_null_pointer_exception_new_message")
-public func kk_null_pointer_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateNullPointerException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}

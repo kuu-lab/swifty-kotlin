@@ -331,9 +331,7 @@ struct ExceptionSyntheticStubTests {
             ("NumberFormatException", "IllegalArgumentException", [0, 1], [
                 "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
             ]),
-            ("NullPointerException", "RuntimeException", [0, 1], [
-                "__kk_null_pointer_exception_new", "__kk_null_pointer_exception_new_message",
-            ]),
+            ("NullPointerException", "RuntimeException", [0, 1], []),
             ("ClassCastException", "RuntimeException", [0, 1], [
                 "__kk_class_cast_exception_new", "__kk_class_cast_exception_new_message",
             ]),

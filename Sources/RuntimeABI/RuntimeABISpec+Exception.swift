@@ -511,22 +511,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_null_pointer_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_null_pointer_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_negative_array_size_exception_new",
             parameters: [],
             returnType: .intptr,
