@@ -64,8 +64,16 @@ public enum GoldenHarness {
         }
     }
 
+    /// Renders and normalizes suite output for one source file. Normalizing here
+    /// (rather than only at comparison/persistence time) means every caller —
+    /// including a `GoldenHarnessWorker` invocation run directly from the
+    /// command line — gets output that is already a fixed point of
+    /// `normalizedForComparison`, so a `.golden` file can never be committed
+    /// with process-local ordinals (symbol namespace counters, expression
+    /// occurrence indices) baked in.
     public static func render(suiteName: String, sourcePath: String) throws -> String {
-        switch try suite(named: suiteName) {
+        let resolvedSuite = try suite(named: suiteName)
+        let raw: String = switch resolvedSuite {
         case .lexer:
             try GoldenHarnessDump.dumpLexer(sourcePath: sourcePath)
         case .parser:
@@ -75,6 +83,7 @@ public enum GoldenHarness {
         case .diagnostics:
             try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath)
         }
+        return normalizedForComparison(suite: resolvedSuite, output: raw)
     }
 
     public static func renderInSubprocess(suiteName: String, sourcePath: String) throws -> String {
