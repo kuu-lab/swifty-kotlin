@@ -467,7 +467,7 @@ extension DataFlowSemaPhase {
             let hasPrimaryCtorSyntax = classDecl.hasPrimaryConstructorSyntax
             let hasSecondaryCtors = !classDecl.secondaryConstructors.isEmpty
             if hasPrimaryCtorSyntax || !hasSecondaryCtors {
-                let primaryCtorVisibility = primaryConstructorVisibility(
+                let primaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: classDecl,
                     classKind: declaration.kind,
                     declarationVisibility: declaration.visibility
@@ -477,8 +477,8 @@ extension DataFlowSemaPhase {
                     name: declaration.name,
                     fqName: primaryCtorFQName,
                     declSite: classDecl.range,
-                    visibility: primaryCtorVisibility,
-                    flags: []
+                    visibility: primaryCtorVisibilityDetail.visibility,
+                    flags: primaryCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 scope.insert(primaryCtorSymbol)
                 symbols.setParentSymbol(symbol, for: primaryCtorSymbol)
@@ -524,13 +524,19 @@ extension DataFlowSemaPhase {
             }
 
             for (ctorIndex, secondaryCtor) in classDecl.secondaryConstructors.enumerated() {
+                let secCtorVisibilityDetail = constructorVisibilityDetail(
+                    explicitModifiers: secondaryCtor.modifiers,
+                    classKind: declaration.kind,
+                    isSealedClass: classDecl.modifiers.contains(.sealed),
+                    declarationVisibility: declaration.visibility
+                )
                 let secCtorSymbol = symbols.define(
                     kind: .constructor,
                     name: declaration.name,
                     fqName: primaryCtorFQName,
                     declSite: secondaryCtor.range,
-                    visibility: visibility(from: secondaryCtor.modifiers),
-                    flags: []
+                    visibility: secCtorVisibilityDetail.visibility,
+                    flags: secCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 scope.insert(secCtorSymbol)
                 symbols.setParentSymbol(symbol, for: secCtorSymbol)
