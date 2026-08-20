@@ -478,26 +478,6 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion static functions (STDLIB-NUM-130)
-
-    /// Returns the public signature and runtime link for primitive companion
-    /// functions whose owner type has no source-level Companion object.
-    func numericCompanionFunction(
-        typeName: String,
-        memberName: String,
-        sema: SemaModule
-    ) -> (returnType: TypeID, parameterType: TypeID, externalLinkName: String)? {
-        let types = sema.types
-        switch (typeName, memberName) {
-        case ("Double", "fromBits"):
-            return (types.doubleType, types.longType, "__kk_double_fromBits")
-        case ("Float", "fromBits"):
-            return (types.floatType, types.intType, "__kk_float_fromBits")
-        default:
-            return nil
-        }
-    }
-
     // MARK: - Numeric companion constants (STDLIB-153)
 
     func numericCompanionConstant(

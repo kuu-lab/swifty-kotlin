@@ -6,4 +6,4 @@ file fstdlib_kotlin_Result_n_n package=golden.sema
   decl golden.sema.resultType fun resultType sym=golden.sema.resultType
 expr e@3:59 name(value) type=Any? ref=golden.sema.resultType.$0.value
 expr e@3:57 lambda params=[] body=e@3:59 label=runCatching type=() -> Any?
-expr e@3:45 call callee=e@3:45#1 args=[_:e@3:57] type=kotlin.Result<Any?> call=kotlin.runCatching targs=[Any?]
+expr e@3:45 call callee=e@3:45#1 args=[_:e@3:57] type=kotlin.Result<Any?> call=kotlin.runCatching#0 targs=[Any?]

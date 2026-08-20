@@ -27,7 +27,7 @@ struct VisibilityChecker {
                    parent == companionOfEnclosing {
                     return true
                 }
-                return enclosingClass == parent || isEnclosedBy(enclosingClass, ancestor: parent)
+                return shareEnclosingClass(enclosingClass, parent)
             }
             guard let declSite = symbol.declSite else {
                 return true
@@ -66,11 +66,20 @@ struct VisibilityChecker {
         return false
     }
 
-    private func isEnclosedBy(_ candidate: SymbolID?, ancestor: SymbolID) -> Bool {
-        var current = candidate
-        while let c = current {
-            if c == ancestor { return true }
-            current = symbols.parentSymbol(for: c)
+    private func shareEnclosingClass(_ a: SymbolID?, _ b: SymbolID) -> Bool {
+        guard let a else { return false }
+        var ancestorsA: Set<SymbolID> = []
+        var currentA: SymbolID? = a
+        while let ca = currentA, !ancestorsA.contains(ca) {
+            ancestorsA.insert(ca)
+            currentA = symbols.parentSymbol(for: ca)
+        }
+        var currentB: SymbolID? = b
+        var visitedB: Set<SymbolID> = []
+        while let cb = currentB, !visitedB.contains(cb) {
+            if ancestorsA.contains(cb) { return true }
+            visitedB.insert(cb)
+            currentB = symbols.parentSymbol(for: cb)
         }
         return false
     }
