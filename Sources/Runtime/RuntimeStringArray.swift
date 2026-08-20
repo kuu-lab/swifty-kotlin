@@ -32,6 +32,16 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     return ""
 }
 
+private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
+    let typeName = object.classID == runtimeStableNominalTypeID(fqName: "kotlin.RuntimeException")
+        ? "RuntimeException"
+        : "Throwable"
+    guard let message = object.throwableMessage else {
+        return typeName
+    }
+    return "\(typeName): \(message)"
+}
+
 /// Raw stack-frame strings for a single throwable. The runtime only provides
 /// the class-specific header line here; Kotlin-side formatting walks cause and
 /// suppressed chains and adds prefixes (KSP-655).
@@ -44,6 +54,9 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return [throwable.renderedMessage]
+    }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return [runtimeSourceThrowableHeader(from: object)]
     }
     return []
 }
