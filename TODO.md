@@ -2508,10 +2508,10 @@
   - 未実装シンボル一覧:
     - `kotlin.IgnorableReturnValue.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-850: kotlin.IllegalArgumentException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-850: kotlin.IllegalArgumentException top-level の未実装 stdlib API を実装する（4 件。KSP-656 で実装済みだったため重複実装はせず、専用 Golden/diff 証跡を追加）
   - 対象: `kotlin.IllegalArgumentException` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IllegalArgumentException/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Exceptions.kt`（KSP-656 で 4 コンストラクタを source-backed 化済み）
+  - bridge/stub 整理: SyntheticExceptionStubs の対象登録は既に除去済み。`__kk_illegal_argument_exception_new*` と RuntimeABISpec エントリは source-backed コンストラクタの runtime 型識別に必要な残存 bridge のため維持する。CallTypeChecker/CallLowerer の対象 name-string 特例はない。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_IllegalArgumentException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_IllegalArgumentException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_IllegalArgumentException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
@@ -2583,17 +2583,9 @@
     - `kotlin.KotlinNothingValueException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.KotlinNothingValueException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-856: kotlin.KotlinVersion top-level の未実装 stdlib API を実装する（3 件）
-  - 対象: `kotlin.KotlinVersion` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_KotlinVersion_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_KotlinVersion_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_KotlinVersion_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.KotlinVersion.<init>` — constructor (Int, Int)  -- `constructor <init>(kotlin/Int, kotlin/Int)`
-    - `kotlin.KotlinVersion.<init>` — constructor (Int, Int, Int)  -- `constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int)`
-    - `kotlin.KotlinVersion.Companion` — object kotlin.KotlinVersion.Companion  -- `final object Companion {`
+- [x] KSP-856: kotlin.KotlinVersion top-level の未実装 stdlib API を実装する（3 件。KSP-610 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
+  - 完了確認: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion.kt` に 2 引数／3 引数 constructor と `Companion` が既に bundled Kotlin source として実装済み。`__kk_kotlin_version_current` 以外の対象 `__kk_*` / `kk_*` Runtime、synthetic stub、RuntimeABI、CallTypeChecker/CallLowerer name-string 特例は残留なし。
+  - 回帰証跡: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_KotlinVersion_n_n.kt` / `.golden`、`Scripts/diff_cases/stdlib_kotlin_KotlinVersion_n_n.kt`。
 
 - [x] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件。KSP-610 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.KotlinVersion` / receiver `KotlinVersion`
@@ -2643,7 +2635,7 @@
     - `kotlin.Long.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.Long.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-861: kotlin.LongArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-861: kotlin.LongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.LongArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/LongArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2656,15 +2648,11 @@
 
 - [ ] KSP-862: kotlin.MustUseReturnValues top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.MustUseReturnValues` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/MustUseReturnValues/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_MustUseReturnValues_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_MustUseReturnValues_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_MustUseReturnValues_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.MustUseReturnValues.<init>` — constructor ()  -- `constructor <init>()`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/MustUseReturnValues.kt`（KSP-745 の既存 source-backed 宣言に no-arg constructor を明示）
+  - bridge/stub 整理: 対象の `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例は残留なし。
+  - 回帰証跡: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_MustUseReturnValues_n_n.kt` / `.golden`、`Scripts/diff_cases/stdlib_kotlin_MustUseReturnValues_n_n.kt`。
 
-- [ ] KSP-863: kotlin.NoSuchElementException top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-863: kotlin.NoSuchElementException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.NoSuchElementException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/NoSuchElementException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2675,10 +2663,10 @@
     - `kotlin.NoSuchElementException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.NoSuchElementException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
 
-- [ ] KSP-864: kotlin.NotImplementedError top-level の未実装 stdlib API を実装する（1 件）
+- [ ] KSP-864: kotlin.NotImplementedError top-level の未実装 stdlib API を実装する（KSP-616 で実装済みだったため重複実装はせず、専用 Golden/diff 証跡を追加。全体 Golden/diff ゲート未完了のため保留）
   - 対象: `kotlin.NotImplementedError` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/NotImplementedError/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt`（KSP-616 で no-arg / String constructor を source-backed 化済み）
+  - bridge/stub 整理: `HeaderHelpers+SyntheticExceptionStubs.swift` の対象登録と CallTypeChecker/CallLowerer の対象 name-string 特例は残留なし。`__kk_not_implemented_error_new*` と `RuntimeABISpec` エントリは `NotImplementedError` 固有の runtime 型識別に必要な bridge のため維持する。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_NotImplementedError_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_NotImplementedError_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_NotImplementedError_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
