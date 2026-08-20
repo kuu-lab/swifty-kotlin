@@ -1291,6 +1291,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/text/CharacterCodingException.kt":
             [["kotlin", "text", "CharacterCodingException"]]
+        case "__bundled_kotlin/NullPointerException/Stdlib.kt":
+            [["kotlin", "NullPointerException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
@@ -1302,7 +1304,6 @@ extension DataFlowSemaPhase {
                 ["kotlin", "ConcurrentModificationException"],
                 ["kotlin", "UnsupportedOperationException"],
                 ["kotlin", "NumberFormatException"],
-                ["kotlin", "NullPointerException"],
                 ["kotlin", "ClassCastException"],
                 ["kotlin", "AssertionError"],
                 ["kotlin", "NoSuchElementException"],
