@@ -9,6 +9,11 @@ fun <T> describe(values: Iterable<T>) {
     println(values.joinToString(", "))
     println(values.joinToString("|") { "<" + it.toString() + ">" })
     println(values.joinTo(StringBuilder("seed:"), "-", "[", "]").toString())
+    // KSP-621: limit/truncated through a generic Iterable<T> receiver (not just
+    // concrete List/Array, which KSP-620's diff case already covers).
+    println(values.joinToString("|", "<", ">", 2, "..."))
+    println(values.joinToString("|", "<", ">", 2, "...") { "<" + it.toString() + ">" })
+    println(values.joinTo(StringBuilder("seed:"), "-", "[", "]", 2, "...").toString())
     println(values.last().toString())
     println(values.asSequence().toList().size)
 }
