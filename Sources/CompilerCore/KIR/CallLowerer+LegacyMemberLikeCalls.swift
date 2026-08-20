@@ -1205,26 +1205,6 @@ extension CallLowerer {
             }
         }
 
-        // String stdlib: 2-arg overloads (STDLIB-009, STDLIB-549)
-        // KNOWN LIMITATION: The dispatch below matches purely on function name + receiver
-        // type (String). User-defined extension functions with the same name (e.g.
-        // `fun String.windowed(...)`) will be incorrectly intercepted. A future fix
-        // should check the resolved symbol's origin (synthetic vs user-defined) before
-        // rewriting to the runtime call.
-        if args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeStr = interner.resolve(calleeName)
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
-        }
-
         // Sequence joinTo (STDLIB-SEQ-FN-052): buffer plus separator/prefix/postfix defaults.
         // Also reached by Set receivers whose joinTo call never resolves to a real
         // candidate; those must dispatch to the iterable-generic bridge rather than
