@@ -240,8 +240,8 @@ public class Uuid private constructor(
     }
 
     public override fun hashCode(): Int {
-        return (mostSignificantBits xor (mostSignificantBits ushr 32)).toInt() * 31 +
-            (leastSignificantBits xor (leastSignificantBits ushr 32)).toInt()
+        val combined = mostSignificantBits xor leastSignificantBits
+        return (combined xor (combined ushr 32)).toInt()
     }
 
     private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {

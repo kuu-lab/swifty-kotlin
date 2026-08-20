@@ -20,6 +20,7 @@ fun main() {
     println("nil.equals(fromLongs(0,0)): ${nil.equals(Uuid.fromLongs(0L, 0L))}")
     println("nil hashCode consistent: ${nil.hashCode() == Uuid.fromLongs(0L, 0L).hashCode()}")
     println("nil not equal to fromULongs: ${nil != fromULongs}")
+    println("fromULongs hashCode: ${fromULongs.hashCode()}")
 
     println("OK")
 }
