@@ -2765,10 +2765,11 @@
   - 未実装シンボル一覧:
     - `kotlin.OptionalExpectation.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-872: kotlin.OutOfMemoryError top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-872: kotlin.OutOfMemoryError top-level の未実装 stdlib API を実装する（2 件。KSP-750 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.OutOfMemoryError` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/OutOfMemoryError/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 既存実装監査: KSP-750（PR #5886）が `Sources/CompilerCore/Stdlib/kotlin/OutOfMemoryError.kt` に 2 constructor を実装済み。型付き例外の runtime identity/message を担う `__kk_out_of_memory_error_new*` bridge と RuntimeABI エントリは現行実装に必要で、synthetic stub／CallTypeChecker／CallLowerer の対象特例は残留なし。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_OutOfMemoryError_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_OutOfMemoryError_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_OutOfMemoryError_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
