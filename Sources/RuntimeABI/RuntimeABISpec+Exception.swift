@@ -361,22 +361,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_index_out_of_bounds_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_index_out_of_bounds_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_unsupported_operation_exception_new",
             parameters: [],
             returnType: .intptr,
@@ -624,6 +608,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_throwable_setMessage",
+            parameters: [
+                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_throwable_cause",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
@@ -656,16 +650,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_throwable_setMessage",
-            parameters: [
-                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Exception",

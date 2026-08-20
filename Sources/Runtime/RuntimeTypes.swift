@@ -1456,22 +1456,32 @@ final class RuntimeLazyBox {
     private let initializerFnPtr: Int
     private var cachedState: CachedState = .uninitialized
     private let mode: LazyThreadSafetyMode
+    private let synchronizationLockKey: Int?
     private let lock = NSLock()
 
-    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode) {
+    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode, synchronizationLockKey: Int? = nil) {
         self.initializerFnPtr = initializerFnPtr
         self.mode = mode
+        self.synchronizationLockKey = synchronizationLockKey
     }
 
     init(initializedValue: Int) {
         initializerFnPtr = 0
         cachedState = .initialized(initializedValue)
         mode = .none
+        synchronizationLockKey = nil
     }
 
     func getValue() -> Int {
         switch mode {
         case .synchronized:
+            if let synchronizationLockKey {
+                return runtimeWithLock(for: synchronizationLockKey) {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    return getValueLocked()
+                }
+            }
             lock.lock()
             defer { lock.unlock() }
             return getValueLocked()

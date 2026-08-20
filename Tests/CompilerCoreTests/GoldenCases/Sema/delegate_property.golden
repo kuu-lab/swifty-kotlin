@@ -1,12 +1,11 @@
 symbol fq=golden.sema.lazyVal kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.Lazy kind=interface vis=public flags=_
-symbol fq=kotlin.lazy kind=function vis=public flags=synthetic sig=recv=_ params=[() -> kotlin.lazy.T] ret=kotlin.Lazy<kotlin.lazy.T>
-symbol fq=kotlin.lazy.T kind=typeParameter vis=private flags=synthetic
 file fdelegate_property package=golden.sema
   decl golden.sema.lazyVal property lazyVal var=0 sym=golden.sema.lazyVal
   decl golden.sema.main fun main sym=golden.sema.main
-expr e@3:24 name(lazy) type=kotlin.Lazy<kotlin.lazy.T> ref=kotlin.lazy
 expr e@4:5 string(hello) type=String
+expr e@3:29 lambda params=[] body=e@4:5 label=lazy type=() -> String
+expr e@3:24 call callee=e@3:24#1 args=[_:e@3:29] type=kotlin.Lazy<String> call=kotlin.lazy#0 targs=[String]
 expr e@8:13 name(lazyVal) type=String ref=golden.sema.lazyVal
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13] type=Unit call=kotlin.io.println#1
