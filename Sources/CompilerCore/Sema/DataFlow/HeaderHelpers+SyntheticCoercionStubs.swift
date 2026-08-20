@@ -469,32 +469,6 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            registerSyntheticCoercionFunction(
-                named: "toUInt",
-                externalLinkName: "kk_double_to_uint",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.uintType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toULong",
-                externalLinkName: "kk_double_to_ulong",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.ulongType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
             // Char conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
