@@ -507,6 +507,22 @@ struct RuntimeAssertionsTests {
     }
 
     @Test
+    func testIllegalStateExceptionCauseOnlyUsesJVMExceptionFQName() throws {
+        let messageRaw = makeRuntimeString("root")
+        let runtimeCause = kk_runtime_exception_new_message(messageRaw)
+        let runtimeWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(runtimeCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(runtimeWrapped.message == "java.lang.RuntimeException: root")
+
+        let javaUtilCause = kk_no_such_element_exception_new_message(messageRaw)
+        let javaUtilWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(javaUtilCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(javaUtilWrapped.message == "java.util.NoSuchElementException: root")
+    }
+
+    @Test
     func testArrayIndexOutOfBoundsExceptionRuntimeConstructors() throws {
         let messageRaw = makeRuntimeString("bad index")
         let messageOnly = kk_array_index_out_of_bounds_exception_new_message(messageRaw)

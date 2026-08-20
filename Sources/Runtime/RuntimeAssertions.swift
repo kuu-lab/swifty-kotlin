@@ -659,6 +659,54 @@ private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> 
     return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? defaultMessage
 }
 
+private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
+    switch kotlinFQName {
+    case "kotlin.Throwable":
+        return "java.lang.Throwable"
+    case "kotlin.Exception":
+        return "java.lang.Exception"
+    case "kotlin.RuntimeException":
+        return "java.lang.RuntimeException"
+    case "kotlin.IllegalArgumentException":
+        return "java.lang.IllegalArgumentException"
+    case "kotlin.IllegalStateException":
+        return "java.lang.IllegalStateException"
+    case "kotlin.ArithmeticException":
+        return "java.lang.ArithmeticException"
+    case "kotlin.AssertionError":
+        return "java.lang.AssertionError"
+    case "kotlin.ClassCastException":
+        return "java.lang.ClassCastException"
+    case "kotlin.IndexOutOfBoundsException":
+        return "java.lang.IndexOutOfBoundsException"
+    case "kotlin.ArrayIndexOutOfBoundsException":
+        return "java.lang.ArrayIndexOutOfBoundsException"
+    case "kotlin.StringIndexOutOfBoundsException":
+        return "java.lang.StringIndexOutOfBoundsException"
+    case "kotlin.NegativeArraySizeException":
+        return "java.lang.NegativeArraySizeException"
+    case "kotlin.NullPointerException":
+        return "java.lang.NullPointerException"
+    case "kotlin.NumberFormatException":
+        return "java.lang.NumberFormatException"
+    case "kotlin.UnsupportedOperationException":
+        return "java.lang.UnsupportedOperationException"
+    case "kotlin.Error":
+        return "java.lang.Error"
+    case "kotlin.OutOfMemoryError":
+        return "java.lang.OutOfMemoryError"
+    case "kotlin.ConcurrentModificationException":
+        return "java.util.ConcurrentModificationException"
+    case "kotlin.NoSuchElementException":
+        return "java.util.NoSuchElementException"
+    case "kotlin.io.IOException":
+        return "java.io.IOException"
+    default:
+        // Preserve unknown or user-defined FQ names instead of guessing java.lang.
+        return kotlinFQName
+    }
+}
+
 private func runtimeCauseToString(from raw: Int) -> String? {
     guard raw != 0,
           raw != runtimeNullSentinelInt,
@@ -674,11 +722,11 @@ private func runtimeCauseToString(from raw: Int) -> String? {
         return nil
     }
 
-    let simpleName = throwable.exceptionFQName.split(separator: ".").last.map(String.init) ?? "Throwable"
+    let exceptionFQName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
     guard let message = throwable.message else {
-        return "java.lang.\(simpleName)"
+        return exceptionFQName
     }
-    return "java.lang.\(simpleName): \(message)"
+    return "\(exceptionFQName): \(message)"
 }
 
 private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
