@@ -6,6 +6,7 @@ extension KIRLoweringDriver {
         compilationCtx: CompilationContext
     ) -> KIRModule {
         ctx.resetModuleState()
+        ctx.lazyThreadSafetyMode = compilationCtx.options.lazyThreadSafetyMode
         ctx.initializeSyntheticLambdaSymbolAllocator(
             sema: sema,
             stdlibOnly: compilationCtx.options.stdlibOnly

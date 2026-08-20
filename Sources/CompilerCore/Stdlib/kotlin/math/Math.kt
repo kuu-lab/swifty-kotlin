@@ -2,6 +2,7 @@ package kotlin.math
 
 import kotlin.comparisons.maxOf
 import kotlin.comparisons.minOf
+import kotlin.fromBits
 import kotlin.internal.KsSymbolName
 
 // KSP-635
@@ -130,7 +131,7 @@ public fun Double.withSign(sign: Double): Double {
     val xBits = this.toRawBits()
     val signBit = sign.toRawBits() and Long.MIN_VALUE
     val mag = xBits and Long.MAX_VALUE
-    return Double.fromBits(mag or signBit)
+    return fromBits(mag or signBit)
 }
 
 public fun Double.withSign(sign: Int): Double =
@@ -140,7 +141,7 @@ public fun Float.withSign(sign: Float): Float {
     val xBits = this.toRawBits()
     val signBit = sign.toRawBits() and Int.MIN_VALUE
     val mag = xBits and Int.MAX_VALUE
-    return Float.fromBits(mag or signBit)
+    return fromBits(mag or signBit)
 }
 
 public fun Float.withSign(sign: Int): Float =

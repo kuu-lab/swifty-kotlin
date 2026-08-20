@@ -673,8 +673,5 @@ public extension RuntimeABISpec {
         RuntimeABIFunctionSpec(name: "kk_float_nan", parameters: [], returnType: .intptr, section: "Math"),
         RuntimeABIFunctionSpec(name: "kk_float_max_value", parameters: [], returnType: .intptr, section: "Math"),
         RuntimeABIFunctionSpec(name: "kk_float_min_value", parameters: [], returnType: .intptr, section: "Math"),
-        // STDLIB-MATH-112: numeric constants — Long bounds
-        RuntimeABIFunctionSpec(name: "kk_long_max_value", parameters: [], returnType: .intptr, section: "Math"),
-        RuntimeABIFunctionSpec(name: "kk_long_min_value", parameters: [], returnType: .intptr, section: "Math"),
     ]
 }

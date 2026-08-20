@@ -48,16 +48,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticAnnotationClass(
-            named: "ExperimentalStdlibApi",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-
-
         // kotlin.experimental.ExperimentalTypeInference is now provided by the
         // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
         // (KSP-668). No synthetic registration is needed here.
@@ -145,12 +135,6 @@ extension DataFlowSemaPhase {
             }
             symbols.setAnnotations(annotations, for: retentionSymbol)
         }
-
-        attachAnnotationIfNeeded(
-            MetadataAnnotationRecord(annotationFQName: "kotlin.RequiresOptIn"),
-            to: kotlinPkg + [interner.intern("ExperimentalStdlibApi")],
-            symbols: symbols
-        )
 
         registerSyntheticAnnotationTargetEnum(
             packageFQName: kotlinAnnotationPkg,
