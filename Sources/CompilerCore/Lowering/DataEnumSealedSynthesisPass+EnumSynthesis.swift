@@ -582,6 +582,20 @@ extension DataEnumSealedSynthesisPass {
         )
         let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
+        // BUG-217: walk the full transitive closure of declared supertypes
+        // (e.g. `enum class E : Ranked` where `Ranked : Comparable<Ranked>`),
+        // not just the direct ones.
+        appendTypeAncestryRegistrations(
+            rootSymbol: owner.id,
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
+        // kotlin.Enum/Comparable conformance is implicit and not reflected in
+        // Sema's declared-supertypes graph, so register these two directly;
+        // the transitive walk above only covers supertypes reachable from
+        // `owner.id`'s own declared clause.
         let kotlinPkg = [interner.intern("kotlin")]
         var extraEnumSupers: [SymbolID] = []
         if let enumBaseSymbol = sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Enum")]) {
@@ -590,7 +604,7 @@ extension DataEnumSealedSynthesisPass {
         if let comparableSymbol = sema.types.comparableInterfaceSymbol {
             extraEnumSupers.append(comparableSymbol)
         }
-        for superSymbol in sema.symbols.directSupertypes(for: owner.id) + extraEnumSupers {
+        for superSymbol in extraEnumSupers {
             let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                 symbol: superSymbol, sema: sema, interner: interner
             )

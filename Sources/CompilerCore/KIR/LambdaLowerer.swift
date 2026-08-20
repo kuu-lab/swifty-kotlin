@@ -990,6 +990,19 @@ final class LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
+        // BUG-217: `wrapperSymbol` is a KIR-synthetic identity with no Sema
+        // supertype entry of its own, so the edge above must stay explicit —
+        // but `interfaceSymbol` (the SAM/fun interface being implemented) is
+        // a real declared nominal, and if it itself extends another
+        // interface that edge needs registering too, or a comparison through
+        // that further ancestor would never reach this wrapper.
+        appendTypeAncestryRegistrations(
+            rootSymbol: interfaceSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         let ifaceSlot = Int64(sema.symbols.nominalLayout(for: wrapperSymbol)?.itableSlots[interfaceSymbol] ?? 0)
         let methodSlot = Int64(sema.symbols.nominalLayout(for: interfaceSymbol)?.vtableSlots[samMethod.symbol] ?? 0)
