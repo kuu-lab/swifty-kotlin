@@ -6,16 +6,12 @@ fun main() {
     val deferred = lazy { 7 }
     println(deferred.isInitialized())
     println(deferred.value)
+    println(deferred.value)
     println(deferred.isInitialized())
 
-    val custom: Lazy<Int> = CustomLazy(99)
-    println(custom.isInitialized())
-    println(custom.value)
-    println(custom.isInitialized())
-}
+    val locked = lazy(null) { "locked" }
+    println(locked.value)
 
-class CustomLazy<T>(private var v: T?) : Lazy<T> {
-    override val value: T
-        get() = v ?: throw IllegalStateException("not initialized")
-    override fun isInitialized(): Boolean = v != null
+    val mode = lazy(LazyThreadSafetyMode.NONE) { "none" }
+    println(mode.value)
 }

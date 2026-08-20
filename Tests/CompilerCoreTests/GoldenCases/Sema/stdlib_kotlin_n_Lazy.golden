@@ -1,30 +1,24 @@
-symbol fq=__local_0.l kind=local vis=private flags=_ type=kotlin.Lazy<Int>
-symbol fq=__local_1.l kind=local vis=private flags=_ type=kotlin.Lazy<Int>
-symbol fq=__local_2.x kind=local vis=private flags=_ type=Int
-symbol fq=golden.sema.useLazyBy kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=golden.sema.useLazyIsInitialized kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
-symbol fq=golden.sema.useLazyValue kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.useLazyFactory kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
+symbol fq=golden.sema.useLazyOf kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
+symbol fq=golden.sema.useLazyWithLock kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<String>
+symbol fq=golden.sema.useLazyWithMode kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
 symbol fq=kotlin.Lazy kind=interface vis=public flags=_
-symbol fq=kotlin.Lazy.T kind=typeParameter vis=private flags=_
-file fstdlib_kotlin_n_Lazy package=golden.sema
-  decl golden.sema.useLazyValue fun useLazyValue sym=golden.sema.useLazyValue
-  decl golden.sema.useLazyIsInitialized fun useLazyIsInitialized sym=golden.sema.useLazyIsInitialized
-  decl golden.sema.useLazyBy fun useLazyBy sym=golden.sema.useLazyBy
-expr e@4:20 int(42) type=Int
-expr e@4:13 call callee=e@4:13#1 args=[_:e@4:20] type=kotlin.Lazy<Int> call=kotlin.lazyOf targs=[Int]
-expr e@4:5 localDecl l mutable=0 type=_ init=e@4:13 type=Unit ref=__local_0.l
-expr e@5:12 name(l) type=kotlin.Lazy<Int> ref=__local_0.l
-expr e@5:12#1 memberCall recv=e@5:12 callee=value args=[] type=Int ref=kotlin.Lazy.value
-expr e@5:5 return value=e@5:12#1 type=Nothing
-expr e@9:20 int(42) type=Int
-expr e@9:13 call callee=e@9:13#1 args=[_:e@9:20] type=kotlin.Lazy<Int> call=kotlin.lazyOf targs=[Int]
-expr e@9:5 localDecl l mutable=0 type=_ init=e@9:13 type=Unit ref=__local_1.l
-expr e@10:12 name(l) type=kotlin.Lazy<Int> ref=__local_1.l
-expr e@10:12#1 memberCall recv=e@10:12 callee=isInitialized args=[] type=Boolean call=kotlin.Lazy.isInitialized targs=[Int]
-expr e@10:5 return value=e@10:12#1 type=Nothing
-expr e@14:21 int(42) type=Int
-expr e@14:19 lambda params=[] body=e@14:21 label=lazy type=() -> Int
-expr e@14:14 call callee=e@14:14#1 args=[_:e@14:19] type=kotlin.Lazy<Int> call=kotlin.lazy#0 targs=[Int]
-expr e@14:5 localDecl x mutable=0 type=_ init=e@14:14 delegated=1 type=Unit ref=__local_2.x
-expr e@15:12 name(x) type=Int ref=__local_2.x
-expr e@15:5 return value=e@15:12 type=Nothing
+file fstdlib_kotlin_n_lazy package=golden.sema
+  decl golden.sema.useLazyFactory fun useLazyFactory sym=golden.sema.useLazyFactory
+  decl golden.sema.useLazyWithLock fun useLazyWithLock sym=golden.sema.useLazyWithLock
+  decl golden.sema.useLazyWithMode fun useLazyWithMode sym=golden.sema.useLazyWithMode
+  decl golden.sema.useLazyOf fun useLazyOf sym=golden.sema.useLazyOf
+expr e@3:42 int(1) type=Int
+expr e@3:40 lambda params=[] body=e@3:42 label=lazy type=() -> Int
+expr e@3:35 call callee=e@3:35#1 args=[_:e@3:40] type=kotlin.Lazy<Int> call=kotlin.lazy#0 targs=[Int]
+expr e@5:44 name(null) type=Nothing?
+expr e@5:52 string(locked) type=String
+expr e@5:50 lambda params=[] body=e@5:52 label=lazy type=() -> String
+expr e@5:39 call callee=e@5:39#1 args=[_:e@5:44,_:e@5:50] type=kotlin.Lazy<String> call=kotlin.lazy#1 targs=[String]
+expr e@7:41 name(LazyThreadSafetyMode) type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode
+expr e@7:41#1 memberCall recv=e@7:41 callee=NONE args=[] type=kotlin.LazyThreadSafetyMode ref=kotlin.LazyThreadSafetyMode.NONE
+expr e@7:70 int(2) type=Int
+expr e@7:68 lambda params=[] body=e@7:70 label=lazy type=() -> Any
+expr e@7:36 call callee=e@7:36#1 args=[_:e@7:41#1,_:e@7:68] type=kotlin.Lazy<Int> call=kotlin.lazy#2 targs=[Int]
+expr e@9:37 int(3) type=Int
+expr e@9:30 call callee=e@9:30#1 args=[_:e@9:37] type=kotlin.Lazy<Int> call=kotlin.lazyOf targs=[Int]

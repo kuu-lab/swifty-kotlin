@@ -1,16 +1,9 @@
 package golden.sema
 
-fun useLazyValue(): Int {
-    val l = lazyOf(42)
-    return l.value
-}
+fun useLazyFactory(): Lazy<Int> = lazy { 1 }
 
-fun useLazyIsInitialized(): Boolean {
-    val l = lazyOf(42)
-    return l.isInitialized()
-}
+fun useLazyWithLock(): Lazy<String> = lazy(null) { "locked" }
 
-fun useLazyBy(): Int {
-    val x by lazy { 42 }
-    return x
-}
+fun useLazyWithMode(): Lazy<Int> = lazy(LazyThreadSafetyMode.NONE) { 2 }
+
+fun useLazyOf(): Lazy<Int> = lazyOf(3)
