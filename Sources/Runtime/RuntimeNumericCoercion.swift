@@ -299,23 +299,6 @@ public func kk_char_to_ulong(_ value: Int) -> Int {
 
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
-@_cdecl("kk_double_to_uint")
-public func kk_double_to_uint(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN { return 0 }
-    if d >= Double(UInt32.max) { return Int(UInt32.max) }
-    if d <= 0 { return 0 }
-    return Int(UInt32(d))
-}
-
-@_cdecl("kk_double_to_ulong")
-public func kk_double_to_ulong(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN { return 0 }
-    if d >= Double(UInt64.max) { return Int(UInt64.max) }
-    if d <= 0 { return 0 }
-    return Int(UInt64(d))
-}
 
 @_cdecl("kk_byte_to_uint")
 public func kk_byte_to_uint(_ value: Int) -> Int {

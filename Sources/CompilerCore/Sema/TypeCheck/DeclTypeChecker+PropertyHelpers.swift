@@ -257,21 +257,18 @@ extension DeclTypeChecker {
             )
         }
 
-        // A stdlib delegate factory's trailing lambda (`lazy { ... }`,
-        // `Delegates.observable(init) { property, old, new -> ... }`) is parsed
-        // into `delegateBody` separately from `delegateExpr` -- see
+        // A stdlib delegate factory's trailing lambda is usually parsed into
+        // `delegateBody` separately from `delegateExpr` -- see
         // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
         // repackage it into a standalone synthetic function
-        // (`lowerDelegateLambdaBody`). Because it's never part of `delegateExpr`,
-        // the ordinary call-argument inference above never visits it, so without
-        // this, none of its identifiers -- not even a reference to an unrelated
-        // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
-        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
-        // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
-        // allocates them with, then type-check the body in the same `ctx` used
-        // for this property's getter/initializer above so implicit-`this` member
-        // references resolve the same way theirs already do.
-        if isKnownStdlibDelegate, let delegateBody {
+        // (`lowerDelegateLambdaBody`). Because it's not part of `delegateExpr`,
+        // the ordinary call-argument inference above would otherwise skip its
+        // identifiers (BUG-170). `lazy` is the exception: its required
+        // initializer lambda is included in `delegateExpr` so overload
+        // resolution sees the real call signature, and inference above already
+        // type-checks its body. Checking `delegateBody` again would duplicate
+        // every diagnostic from that initializer.
+        if isKnownStdlibDelegate, stdlibDelegateKind != .lazy, let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
                 let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(

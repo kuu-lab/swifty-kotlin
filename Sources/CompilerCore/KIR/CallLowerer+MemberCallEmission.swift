@@ -198,12 +198,10 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "__kk_iterable_joinTo"
-            || externalLinkName.hasSuffix("_joinToString")
+           externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
-                firstDefaultParameterIndex: externalLinkName == "__kk_iterable_joinTo" ? 1 : 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -411,32 +409,6 @@ extension CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArguments
             )
-        }
-        if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
-        {
-            let originalArgumentCount = finalArguments.count
-            let lambdaArgIndex = originalArgumentCount - 1
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[lambdaArgIndex],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[lambdaArgIndex] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-            // `joinToString(transform)` / `joinToString(separator, transform)` / ... each
-            // expand to the full `(separator, prefix, postfix, transform)` shape the
-            // runtime ABI expects, materializing whichever trailing string defaults
-            // (from the end of the real parameter list) the call site omitted.
-            let stringDefaults = [", ", "", ""]
-            let missingCount = Swift.max(0, 5 - originalArgumentCount)
-            for (offset, defaultValue) in stringDefaults.suffix(missingCount).enumerated() {
-                let interned = interner.intern(defaultValue)
-                let exprID = arena.appendExpr(.stringLiteral(interned), type: sema.types.stringType)
-                instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
-                finalArguments.insert(exprID, at: lambdaArgIndex + offset)
-            }
         }
         if loweredCallee == interner.intern("kk_list_zip_transform"),
            finalArguments.count == 3

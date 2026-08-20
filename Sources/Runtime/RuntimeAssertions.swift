@@ -1071,16 +1071,6 @@ public func __kk_not_implemented_error_new_message(_ messageRaw: Int) -> Int {
     )
 }
 
-@_cdecl("__kk_index_out_of_bounds_exception_new")
-public func kk_index_out_of_bounds_exception_new() -> Int {
-    runtimeAllocateIndexOutOfBoundsException(message: nil)
-}
-
-@_cdecl("__kk_index_out_of_bounds_exception_new_message")
-public func kk_index_out_of_bounds_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateIndexOutOfBoundsException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}
-
 @_cdecl("__kk_unsupported_operation_exception_new")
 public func kk_unsupported_operation_exception_new() -> Int {
     runtimeAllocateUnsupportedOperationException(message: nil)

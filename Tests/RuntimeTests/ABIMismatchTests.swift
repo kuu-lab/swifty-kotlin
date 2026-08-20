@@ -196,6 +196,23 @@ struct ABIMismatchTests {
         #expect(privateBridge.returnType == .intptr)
     }
 
+    // KSP-621: Iterable.joinTo/joinToString and Sequence.joinTo/joinToString share
+    // one bundled Kotlin implementation (Iterables.kt's appendJoinToPlain/
+    // appendJoinToTransform, called via iterator()), so the runtime bridges these
+    // names used to route through when Sema left the callee unresolved are gone.
+    @Test
+    func iterableJoinToABIsAreSourceBacked() throws {
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinTo" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString_transform" }) == nil
+        )
+    }
+
     @Test
     func kkThrowableIsCancellationSignature() throws {
         let spec = try requireSpec("kk_throwable_is_cancellation")
