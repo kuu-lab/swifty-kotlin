@@ -859,52 +859,106 @@ extension DataEnumSealedSynthesisPass {
                 ))
             }
 
-            // Convert to string via kk_any_to_string using the same tag convention
-            // as Any.toString lowering.
-            let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
-            let tagExpr = module.arena.appendTemporary(type: intType
-            )
-            body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
-
             let propStr = module.arena.appendTemporary(type: stringType
             )
-            // Nullable Float?/Double?/ULong? properties need an explicit null
-            // guard before kk_any_to_string: tags 5/6/7 are decoded before the
-            // null-sentinel check (their in-range values can share Int.min's
-            // bit pattern), so an actually-null property would otherwise
-            // render as -0.0/a large ULong instead of "null" (see
-            // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
             let propIsNullable = sema.types.makeNonNullable(propType) != propType
-            if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
-                let nonNullLabel = allocateLabel()
-                let endLabel = allocateLabel()
-                let nullStr = interner.intern("null")
-                let nullStrExpr = module.arena.appendTemporary(type: stringType)
-                body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
-                body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
-                body.append(.copy(from: nullStrExpr, to: propStr))
-                body.append(.jump(endLabel))
-                body.append(.label(nonNullLabel))
-                let innerPropStr = module.arena.appendTemporary(type: stringType)
+
+            // A statically enum-typed property is stored as its bare ordinal
+            // and a statically class-typed property (including a value class)
+            // is stored as a heap pointer or raw unboxed primitive — neither
+            // representation is recoverable by the generic kk_any_to_string
+            // tag path below. Prefer the enum ordinal-to-name helper, then the
+            // property type's own toString(), before falling back to the tag
+            // path, mirroring CallLowerer.emitAnyToStringWithNullGuard (shared
+            // via resolveEnumOrdinalToNameCallee/resolveClassOwnToStringCallee
+            // since this pass runs standalone, with no KIRLoweringDriver to
+            // construct a CallLowerer).
+            if let nameHelper = resolveEnumOrdinalToNameCallee(for: propType, sema: sema, interner: interner) {
                 body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [propValue, tagExpr],
-                    result: innerPropStr,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                body.append(.copy(from: innerPropStr, to: propStr))
-                body.append(.label(endLabel))
-            } else {
-                body.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_any_to_string"),
-                    arguments: [propValue, tagExpr],
+                    symbol: nameHelper.symbol,
+                    callee: nameHelper.callee,
+                    arguments: [propValue],
                     result: propStr,
                     canThrow: false,
                     thrownResult: nil
                 ))
+            } else if let classToString = resolveClassOwnToStringCallee(for: propType, sema: sema, interner: interner) {
+                if propIsNullable {
+                    let nonNullLabel = allocateLabel()
+                    let endLabel = allocateLabel()
+                    let nullStr = interner.intern("null")
+                    let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                    body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                    body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                    body.append(.copy(from: nullStrExpr, to: propStr))
+                    body.append(.jump(endLabel))
+                    body.append(.label(nonNullLabel))
+                    let innerPropStr = module.arena.appendTemporary(type: stringType)
+                    body.append(.call(
+                        symbol: classToString.symbol,
+                        callee: classToString.callee,
+                        arguments: [propValue],
+                        result: innerPropStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    body.append(.copy(from: innerPropStr, to: propStr))
+                    body.append(.label(endLabel))
+                } else {
+                    body.append(.call(
+                        symbol: classToString.symbol,
+                        callee: classToString.callee,
+                        arguments: [propValue],
+                        result: propStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
+            } else {
+                // Convert to string via kk_any_to_string using the same tag convention
+                // as Any.toString lowering.
+                let anyTag = computeAnyFallbackTag(for: propType, sema: sema)
+                let tagExpr = module.arena.appendTemporary(type: intType
+                )
+                body.append(.constValue(result: tagExpr, value: .intLiteral(anyTag)))
+
+                // Nullable Float?/Double?/ULong? properties need an explicit null
+                // guard before kk_any_to_string: tags 5/6/7 are decoded before the
+                // null-sentinel check (their in-range values can share Int.min's
+                // bit pattern), so an actually-null property would otherwise
+                // render as -0.0/a large ULong instead of "null" (see
+                // CallLowerer.emitAnyToStringWithNullGuard for the full rationale).
+                if propIsNullable, anyTag == 5 || anyTag == 6 || anyTag == 7 {
+                    let nonNullLabel = allocateLabel()
+                    let endLabel = allocateLabel()
+                    let nullStr = interner.intern("null")
+                    let nullStrExpr = module.arena.appendTemporary(type: stringType)
+                    body.append(.constValue(result: nullStrExpr, value: .stringLiteral(nullStr)))
+                    body.append(.jumpIfNotNull(value: propValue, target: nonNullLabel))
+                    body.append(.copy(from: nullStrExpr, to: propStr))
+                    body.append(.jump(endLabel))
+                    body.append(.label(nonNullLabel))
+                    let innerPropStr = module.arena.appendTemporary(type: stringType)
+                    body.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_to_string"),
+                        arguments: [propValue, tagExpr],
+                        result: innerPropStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    body.append(.copy(from: innerPropStr, to: propStr))
+                    body.append(.label(endLabel))
+                } else {
+                    body.append(.call(
+                        symbol: nil,
+                        callee: interner.intern("kk_any_to_string"),
+                        arguments: [propValue, tagExpr],
+                        result: propStr,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                }
             }
 
             body.append(.call(
