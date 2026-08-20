@@ -492,11 +492,6 @@ extension CallTypeChecker {
         case ("Int", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int32.min)))
         case ("Int", "SIZE_BITS"): return (types.intType, .intLiteral(32))
         case ("Int", "SIZE_BYTES"): return (types.intType, .intLiteral(4))
-        // Long (64-bit)
-        case ("Long", "MAX_VALUE"): return (types.longType, .longLiteral(Int64.max))
-        case ("Long", "MIN_VALUE"): return (types.longType, .longLiteral(Int64.min))
-        case ("Long", "SIZE_BITS"): return (types.intType, .intLiteral(64))
-        case ("Long", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
         // Short
         case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
         case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))

@@ -26,7 +26,6 @@ extension CallTypeChecker {
                  "kk_sequence_contains", "kk_sequence_indexOf",
                  "kk_sequence_plus_element", "kk_sequence_minus",
                  "kk_list_windowed_transform",
-                 "__kk_iterable_joinToString_transform",
                  "kk_array_joinToString_transform",
                  "__kk_set_contains",
                  "__kk_map_get":
