@@ -84,14 +84,6 @@ public open class IllegalStateException : RuntimeException {
     public constructor(cause: Throwable?)
 }
 
-public open class IndexOutOfBoundsException : RuntimeException {
-    @KsSymbolName("__kk_index_out_of_bounds_exception_new")
-    public constructor()
-
-    @KsSymbolName("__kk_index_out_of_bounds_exception_new_message")
-    public constructor(message: String?)
-}
-
 public open class ConcurrentModificationException : RuntimeException {
     @KsSymbolName("__kk_concurrent_modification_exception_new")
     public constructor()

@@ -1291,6 +1291,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/text/CharacterCodingException.kt":
             [["kotlin", "text", "CharacterCodingException"]]
+        case "__bundled_kotlin/IndexOutOfBoundsException/Stdlib.kt":
+            [["kotlin", "IndexOutOfBoundsException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
@@ -1298,7 +1300,6 @@ extension DataFlowSemaPhase {
                 ["kotlin", "RuntimeException"],
                 ["kotlin", "IllegalArgumentException"],
                 ["kotlin", "IllegalStateException"],
-                ["kotlin", "IndexOutOfBoundsException"],
                 ["kotlin", "ConcurrentModificationException"],
                 ["kotlin", "UnsupportedOperationException"],
                 ["kotlin", "NumberFormatException"],
