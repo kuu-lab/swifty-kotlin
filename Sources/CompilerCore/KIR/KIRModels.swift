@@ -248,6 +248,25 @@ public final class KIRArena {
         return id
     }
 
+    public func replaceExpr(_ id: KIRExprID, with expr: KIRExprKind) {
+        if isParallelTransformActive {
+            parallelLock.lock()
+            let index = Int(id.rawValue)
+            guard index >= 0, index < expressions.count else {
+                parallelLock.unlock()
+                return
+            }
+            expressions[index] = expr
+            parallelLock.unlock()
+            return
+        }
+        let index = Int(id.rawValue)
+        guard index >= 0, index < expressions.count else {
+            return
+        }
+        expressions[index] = expr
+    }
+
     public func decl(_ id: KIRDeclID) -> KIRDecl? {
         let index = Int(id.rawValue)
         guard index >= 0, index < declarations.count else {
