@@ -548,7 +548,7 @@ struct RuntimeAssertionsTests {
         let genericWrapped = try #require(
             runtimeBox(from: kk_illegal_state_exception_new_cause(genericCause), as: RuntimeIllegalStateExceptionBox.self)
         )
-        #expect(genericWrapped.message == "kotlin.Throwable: root")
+        #expect(genericWrapped.message == "java.lang.Throwable: root")
     }
 
     @Test
