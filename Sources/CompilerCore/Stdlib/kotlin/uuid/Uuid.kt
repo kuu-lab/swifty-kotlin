@@ -233,6 +233,17 @@ public class Uuid private constructor(
         return 0
     }
 
+    public override fun equals(other: Any?): Boolean {
+        return other is Uuid &&
+            mostSignificantBits == other.mostSignificantBits &&
+            leastSignificantBits == other.leastSignificantBits
+    }
+
+    public override fun hashCode(): Int {
+        return (mostSignificantBits xor (mostSignificantBits ushr 32)).toInt() * 31 +
+            (leastSignificantBits xor (leastSignificantBits ushr 32)).toInt()
+    }
+
     private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {
         var shift = (digits - 1) * 4
         while (shift >= 0) {
