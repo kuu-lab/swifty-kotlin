@@ -1,9 +1,20 @@
+/*
+ * Portions of this file (the generateV7()/generateV7NonMonotonicAt() UUID
+ * version 7 generation algorithm) are derived from kotlin-stdlib
+ * <commonMain/kotlin/uuid/Uuid.kt> (UuidV7Generator), Copyright 2010-2024
+ * JetBrains s.r.o. and Kotlin Programming Language contributors, licensed
+ * under the Apache License, Version 2.0.
+ */
 package kotlin.uuid
 
 @file:OptIn(ExperimentalUuidApi::class)
 
 import java.nio.ByteBuffer
 import kotlin.internal.KsSymbolName
+import kotlin.time.Instant
+import kotlin.time.epochSeconds
+import kotlin.time.nanosecondsOfSecond
+import kotlin.time.now
 
 private const val UUID_HEX_DIGITS: String = "0123456789abcdef"
 
@@ -107,6 +118,64 @@ public class Uuid private constructor(
         }
 
         public fun generateV4(): Uuid = random()
+
+        // Ported from kotlin-stdlib's UuidV7Generator (see file header for
+        // attribution). Bit layout per RFC 9562 section-4.2:
+        //   msb = unix_ts_ms(48) | ver(4)=0111 | rand_a/counter(12)
+        //   lsb = var(2)=10 | rand_b(62)
+        // Randomness is drawn from random()'s existing secure entropy bridge
+        // (__kk_uuid_random) rather than a new bridge; only the fixed
+        // version/variant bit positions of that v4 source are avoided when
+        // slicing bits out, so the reused entropy stays uniformly random.
+        //
+        // Deviation from upstream (tracked in docs/stdlib-pipeline.md §13-8):
+        // upstream uses a CAS loop over an AtomicLong for thread-safe
+        // monotonicity; this port uses a plain var since kswiftc's
+        // diff/golden harness is single-threaded. Resolution condition:
+        // adopt kotlin.concurrent.atomics.AtomicLong once its load()/
+        // compareAndSet() are verified working end-to-end.
+        private val v7State: UuidV7MonotonicState = UuidV7MonotonicState()
+
+        public fun generateV7(): Uuid {
+            val entropy = random()
+            val seedCounter = ((entropy.mostSignificantBits ushr 53).toInt() and 0x7FF) or 0x7000
+            val nowMillis = run {
+                val now = Instant.now()
+                now.epochSeconds * 1000L + (now.nanosecondsOfSecond / 1_000_000).toLong()
+            }
+            val previous = v7State.timestampAndCounter
+            val previousMillis = previous ushr 16
+            val updated = if (previousMillis < nowMillis) {
+                (nowMillis shl 16) or seedCounter.toLong()
+            } else {
+                val incremented = previous + 1L
+                if ((incremented and 0x8000L) != 0L) {
+                    ((previousMillis + 1L) shl 16) or seedCounter.toLong()
+                } else {
+                    incremented
+                }
+            }
+            v7State.timestampAndCounter = updated
+
+            val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
+            val variantAndRandB = (0x2L shl 62) or randB
+            return fromLongs(updated, variantAndRandB)
+        }
+
+        // See generateV7() above for bit-layout and entropy-reuse notes.
+        // Unlike generateV7(), this is a pure function of [timestamp] with no
+        // shared state, so repeated calls with the same timestamp are not
+        // guaranteed to sort in call order (hence "NonMonotonic").
+        public fun generateV7NonMonotonicAt(timestamp: Instant): Uuid {
+            val entropy = random()
+            val randA = (entropy.mostSignificantBits ushr 52).toInt() and 0xFFF
+            val unixTsMs = timestamp.epochSeconds * 1000L + (timestamp.nanosecondsOfSecond / 1_000_000).toLong()
+            val tsVerAndRandA = (unixTsMs shl 16) or (0x7000L or randA.toLong())
+
+            val randB = entropy.leastSignificantBits and ((1L shl 62) - 1L)
+            val variantAndRandB = (0x2L shl 62) or randB
+            return fromLongs(tsVerAndRandA, variantAndRandB)
+        }
 
         private fun parseStringOrNull(uuidString: String): Uuid? {
             if (uuidString.length == 36) {
@@ -241,6 +310,14 @@ public class Uuid private constructor(
             shift -= 4
         }
     }
+}
+
+// Holds Uuid.Companion's monotonic generateV7() state: the last-used
+// (timestamp << 16 | version | counter) value, packed identically to a v7
+// uuid's own msb so it can be reused as one directly. See generateV7()'s
+// doc comment for why this is a plain var rather than an AtomicLong.
+internal class UuidV7MonotonicState {
+    var timestampAndCounter: Long = 0L
 }
 
 @KsSymbolName("__kk_uuid_random")
