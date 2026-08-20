@@ -1,5 +1,5 @@
-@testable import CompilerCore
-@testable import CompilerBackend
+import CompilerBackend
+import CompilerCore
 import Foundation
 
 #if canImport(Darwin)
@@ -35,13 +35,13 @@ private enum TestStdlibCacheError: Error, CustomStringConvertible {
 /// process or separate `swift test` child processes) coordinate on a single
 /// build. The published `.kklib` is immutable after creation, so concurrent tests
 /// only read object files and `inline-kir`.
-final class TestStdlibCache: @unchecked Sendable {
-    static let shared = TestStdlibCache()
+public final class TestStdlibCache: @unchecked Sendable {
+    public static let shared = TestStdlibCache()
 
     private let lock = NSRecursiveLock()
     private var didPrepare = false
 
-    func prepare() {
+    public func prepare() {
         lock.lock()
         defer { lock.unlock() }
 
@@ -102,13 +102,20 @@ final class TestStdlibCache: @unchecked Sendable {
         try? fm.removeItem(atPath: buildingBase)
         try? fm.removeItem(atPath: buildingArtifactPath)
 
-        let ctx = makeCompilationContext(
-            inputs: [],
+        let options = CompilerOptions(
             moduleName: "KSwiftKStdlib",
-            emit: .library,
+            inputs: [],
             outputPath: buildingBase,
+            emit: .library,
+            target: TargetTriple.hostDefault(),
             includeStdlib: true,
             stdlibOnly: true
+        )
+        let ctx = CompilationContext(
+            options: options,
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: StringInterner()
         )
 
         try runToKIR(ctx)
@@ -129,6 +136,15 @@ final class TestStdlibCache: @unchecked Sendable {
         }
 
         return artifactPath
+    }
+
+    private func runToKIR(_ ctx: CompilationContext) throws {
+        try LoadSourcesPhase().run(ctx)
+        try LexPhase().run(ctx)
+        try ParsePhase().run(ctx)
+        try BuildASTPhase().run(ctx)
+        try SemaPhase().run(ctx)
+        try BuildKIRPhase().run(ctx)
     }
 
     /// A cheap fingerprint (mtime + size) of the `KSwiftKPackageTests` test
@@ -160,13 +176,13 @@ final class TestStdlibCache: @unchecked Sendable {
         candidates.append(contentsOf: [
             cwd.appendingPathComponent(".build/debug/\(workerName).xctest"),
             cwd.appendingPathComponent(".build/x86_64-unknown-linux-gnu/debug/\(workerName).xctest"),
-            cwd.appendingPathComponent(".build/aarch64-unknown-linux-gnu/debug/\(workerName).xctest")
+            cwd.appendingPathComponent(".build/aarch64-unknown-linux-gnu/debug/\(workerName).xctest"),
         ])
         #else
         candidates.append(contentsOf: [
             cwd.appendingPathComponent(".build/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
             cwd.appendingPathComponent(".build/arm64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
-            cwd.appendingPathComponent(".build/x86_64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)")
+            cwd.appendingPathComponent(".build/x86_64-apple-macosx/debug/\(workerName).xctest/Contents/MacOS/\(workerName)"),
         ])
         #endif
 
