@@ -19,4 +19,4 @@ expr e@10:9#1 memberCall recv=e@10:9 callee=message args=[] type=String? ref=kot
 expr e@10:22 string(caught) type=String
 expr e@10:9#2 binary(elvis) lhs=e@10:9#1 rhs=e@10:22 type=String
 expr e@9:39 blockExpr stmts=[] trailing=e@10:9#2 type=String ref=__try_0_catch_0.e
-expr e@7:5 try body=e@7:9 catches=[e@9:44] finally=_ type=String
+expr e@7:5 try body=e@7:9 catches=[e@9:39] finally=_ type=String
