@@ -121,6 +121,62 @@ extension CallLowerer {
         return (helperName, helperSymbol)
     }
 
+    /// The class's own `toString(): String` -- source-declared or synthesized
+    /// (e.g. a data class's member-wise `toString()`) -- when `type` is a
+    /// `class` (not `object`/`interface`/`enumClass` -- enums are handled by
+    /// `enumOrdinalToNameCallee` above). Mirrors
+    /// `ConsolePrintLoweringPass.classToStringExpression`'s resolution
+    /// (including its exact synthetic-symbol filter: reject only the
+    /// `kotlin.Any.toString` fallback, not every `.synthetic`-flagged
+    /// symbol -- a data class's toString is `.synthetic` too, but Sema
+    /// registers its signature at header-collection time, well before this
+    /// BuildKIR-time funnel runs, and `DataEnumSealedSynthesisPass` reliably
+    /// gives it a body before codegen ever needs one, the same guarantee
+    /// `println`/`print` already rely on for a data class argument) so `+`/
+    /// string-template stringification of a class value calls the same
+    /// override `println`/explicit `.toString()` already do, instead of
+    /// falling through to `kk_any_to_string`'s generic "<object 0x...>"
+    /// rendering. `lookupAll` is an exact-fqName lookup (not inheritance-
+    /// aware), so this only matches a class whose own static type directly
+    /// declares (or has synthesized for it) a `toString`; a class that only
+    /// inherits one from a base class, referenced at its own (sub)type
+    /// rather than the declaring base type, still falls through to the
+    /// generic path (BUG-217).
+    func classToStringCallee(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (callee: InternedString, symbol: SymbolID)? {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let classSymbol = sema.symbols.symbol(classType.classSymbol),
+              classSymbol.kind == .class
+        else {
+            return nil
+        }
+        let toStringName = interner.intern("toString")
+        let toStringFQName = classSymbol.fqName + [toStringName]
+        let toStringSymbol: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
+            guard let sym = sema.symbols.symbol(id), sym.kind == .function else { return false }
+            let sig = sema.symbols.functionSignature(for: id)
+            return sig?.parameterTypes.isEmpty ?? true
+        }
+        guard let toStringSym = toStringSymbol,
+              let toStringFnSymbol = sema.symbols.symbol(toStringSym),
+              !(toStringFnSymbol.flags.contains(.synthetic) && toStringFnSymbol.fqName == [
+                  interner.intern("kotlin"), interner.intern("Any"), toStringName,
+              ])
+        else {
+            return nil
+        }
+        let externalLinkName = sema.symbols.externalLinkName(for: toStringSym)
+        let callee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+            interner.intern(externalLinkName)
+        } else {
+            toStringName
+        }
+        return (callee, toStringSym)
+    }
+
     /// Converts `valueID` (of static type `valueType`) to a `String` via
     /// `kk_any_to_string`, using `anyFallbackTag`'s tag for `valueType` and
     /// guarding against the null-sentinel collision for nullable
@@ -160,6 +216,57 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return name
+        }
+        // Classes with their own overridden toString() need the same override
+        // dispatch that `+`/string-template stringification should use;
+        // kk_any_to_string's generic fallback has no notion of user-defined
+        // toString() and would otherwise render the raw handle
+        // ("<object 0x...>"). Route through the override (virtually, when the
+        // receiver's declared toString is overridable) instead, matching what
+        // ConsolePrintLoweringPass already does for println/print. A class
+        // that only inherits toString from a base class (no direct override)
+        // still falls through to the generic path below.
+        if let classCallee = classToStringCallee(for: valueType, sema: sema, interner: interner) {
+            let converted = arena.appendTemporary(type: stringType)
+            func emitToStringCall(into result: KIRExprID) -> KIRInstruction {
+                tryEmitVirtualDispatch(
+                    chosenCallee: classCallee.symbol,
+                    calleeName: classCallee.callee,
+                    receiverExpr: nil,
+                    loweredReceiverID: valueID,
+                    isSuperCall: false,
+                    finalArguments: [],
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) ?? .call(
+                    symbol: classCallee.symbol,
+                    callee: classCallee.callee,
+                    arguments: [valueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                )
+            }
+            guard isNullable else {
+                instructions.append(emitToStringCall(into: converted))
+                return converted
+            }
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            let nullStr = interner.intern("null")
+            let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
+            instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
+            instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+            instructions.append(.copy(from: nullStrID, to: converted))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let innerConverted = arena.appendTemporary(type: stringType)
+            instructions.append(emitToStringCall(into: innerConverted))
+            instructions.append(.copy(from: innerConverted, to: converted))
+            instructions.append(.label(endLabel))
+            return converted
         }
         let tag = anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)
