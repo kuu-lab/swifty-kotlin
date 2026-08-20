@@ -181,6 +181,31 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
+    /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the
+    /// Runtime-side `RuntimeNumberConversionTargetKind` by raw value — the two
+    /// enums live in separate modules linked only through the C ABI, so they
+    /// must be kept in sync manually.
+    enum NumberConversionTargetKind: Int32 {
+        case double = 0
+        case float = 1
+        case long = 2
+        case int = 3
+        case short = 4
+        case byte = 5
+    }
+
+    func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
+        switch interner.resolve(calleeName) {
+        case "toDouble": return .double
+        case "toFloat": return .float
+        case "toLong": return .long
+        case "toInt": return .int
+        case "toShort": return .short
+        case "toByte": return .byte
+        default: return nil
+        }
+    }
+
     func enumOrdinalToNameCallee(
         for type: TypeID,
         sema: SemaModule,
