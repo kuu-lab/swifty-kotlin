@@ -209,33 +209,53 @@ public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) ->
 /// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
 @_cdecl("__kk_throwable_appendSuppressed")
 public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
+    guard let suppressedPtr = UnsafeMutableRawPointer(bitPattern: suppressedRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: suppressedPtr))
+          }),
+          (tryCast(suppressedPtr, to: RuntimeThrowableBox.self) != nil
+              || tryCast(suppressedPtr, to: RuntimeObjectBox.self) != nil)
     else {
         return 0
     }
 
-    guard let suppressed = runtimeThrowableBox(from: suppressedRaw) else {
+    guard let throwablePtr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: throwablePtr))
+          })
+    else {
         return 0
     }
 
     // Match Kotlin/JVM's major behavior by rejecting self-suppression while
     // remaining ABI-compatible with this non-throwing runtime entrypoint.
-    guard throwable !== suppressed else { return 0 }
+    guard throwableRaw != suppressedRaw else { return 0 }
+    if let throwable = tryCast(throwablePtr, to: RuntimeThrowableBox.self) {
+        throwable.suppressed.append(suppressedRaw)
+    } else if let throwable = tryCast(throwablePtr, to: RuntimeObjectBox.self) {
+        throwable.throwableSuppressed.append(suppressedRaw)
+    } else {
+        return 0
+    }
 
-    throwable.suppressed.append(suppressedRaw)
     return 0
 }
 
 /// Storage bridge for `Throwable.getSuppressed`: the raw `Array<Throwable>`.
 @_cdecl("__kk_throwable_suppressedRaw")
 public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
-    else {
+    let suppressed: [Int]
+    if let throwable = runtimeThrowableBox(from: throwableRaw) {
+        suppressed = throwable.suppressed
+    } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+              let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        suppressed = object.throwableSuppressed
+    } else {
         return runtimeAllocateArrayBox(length: 0)
     }
 
-    let arrayBox = RuntimeArrayBox(length: throwable.suppressed.count)
-    for (i, elem) in throwable.suppressed.enumerated() {
+    let arrayBox = RuntimeArrayBox(length: suppressed.count)
+    for (i, elem) in suppressed.enumerated() {
         arrayBox.elements[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
