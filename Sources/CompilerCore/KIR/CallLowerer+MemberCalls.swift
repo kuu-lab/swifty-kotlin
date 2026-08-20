@@ -127,6 +127,23 @@ extension CallLowerer {
             return primitiveCompareResult
         }
 
+        // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte() on an erased
+        //    receiver → kk_number_to_primitive(receiver, slot, kind) (KSP-1540) ──
+        if let numberConversionResult = tryLowerNumberConversion(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return numberConversionResult
+        }
+
         let callee = interner.resolve(calleeName)
         let isFlowReceiver = if sema.bindings.isFlowExpr(receiverExpr) {
             true
