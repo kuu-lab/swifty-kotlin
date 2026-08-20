@@ -2580,7 +2580,7 @@
     - `kotlin.KotlinVersion.<init>` — constructor (Int, Int, Int)  -- `constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int)`
     - `kotlin.KotlinVersion.Companion` — object kotlin.KotlinVersion.Companion  -- `final object Companion {`
 
-- [ ] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件）
+- [x] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件。KSP-610 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.KotlinVersion` / receiver `KotlinVersion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion/KotlinVersion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
