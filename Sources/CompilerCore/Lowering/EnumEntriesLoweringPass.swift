@@ -32,6 +32,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                 if let rewritten = self.rewriteEntriesConstValue(
                     instruction: instruction,
                     sema: sema,
+                    arena: module.arena,
                     entriesName: entriesName,
                     entriesGetName: entriesGetName
                 ) {
@@ -44,6 +45,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
                 if let rewritten = self.rewriteEntriesLoadGlobal(
                     instruction: instruction,
                     sema: sema,
+                    arena: module.arena,
                     entriesName: entriesName,
                     entriesGetName: entriesGetName
                 ) {
@@ -104,8 +106,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
-        let targetResult = result ?? arena.appendTemporary(type: sema.types.anyType
-        )
+        let targetResult = normalizePropertyResult(
+            result,
+            propertySymbol: propSym,
+            arena: arena
+        ) ?? arena.appendTemporary(type: sema.types.anyType)
         return .call(
             symbol: getter,
             callee: entriesGetName,
@@ -122,6 +127,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     private func rewriteEntriesConstValue(
         instruction: KIRInstruction,
         sema: SemaModule,
+        arena: KIRArena,
         entriesName: InternedString,
         entriesGetName: InternedString
     ) -> KIRInstruction? {
@@ -156,6 +162,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
+        _ = normalizePropertyResult(cvResult, propertySymbol: sym, arena: arena)
         return .call(
             symbol: getter,
             callee: entriesGetName,
@@ -172,6 +179,7 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
     private func rewriteEntriesLoadGlobal(
         instruction: KIRInstruction,
         sema: SemaModule,
+        arena: KIRArena,
         entriesName: InternedString,
         entriesGetName: InternedString
     ) -> KIRInstruction? {
@@ -205,14 +213,34 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let getter = getterSymbol else {
             return nil
         }
+        let normalizedResult = normalizePropertyResult(
+            result,
+            propertySymbol: symbol,
+            arena: arena
+        )
         return .call(
             symbol: getter,
             callee: entriesGetName,
             arguments: [],
-            result: result,
+            result: normalizedResult,
             canThrow: false,
             thrownResult: nil
         )
+    }
+
+    private func normalizePropertyResult(
+        _ result: KIRExprID?,
+        propertySymbol: SymbolID,
+        arena: KIRArena
+    ) -> KIRExprID? {
+        guard let result,
+              case let .symbolRef(referencedSymbol) = arena.expr(result),
+              referencedSymbol == propertySymbol
+        else {
+            return result
+        }
+        arena.replaceExpr(result, with: .temporary(result.rawValue))
+        return result
     }
 
     /// Walk up the parent chain to find the enum class that owns this property.

@@ -97,6 +97,8 @@ struct UuidAPISurfaceInventoryTests {
             ["kotlin", "uuid", "Uuid", "toByteArray"],
             ["kotlin", "uuid", "Uuid", "toUByteArray"],
             ["kotlin", "uuid", "Uuid", "compareTo"],
+            ["kotlin", "uuid", "Uuid", "equals"],
+            ["kotlin", "uuid", "Uuid", "hashCode"],
             ["kotlin", "uuid", "getUuid"],
             ["kotlin", "uuid", "putUuid"],
         ]

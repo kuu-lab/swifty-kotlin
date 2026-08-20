@@ -490,6 +490,7 @@ struct RuntimeAssertionsTests {
         #expect(noArgBox.message == nil)
         #expect(withCauseBox.message == "modified")
         #expect(withCauseBox.cause == noArg)
+        #expect(causeOnlyBox.message == "java.util.ConcurrentModificationException")
         #expect(causeOnlyBox.cause == noArg)
     }
 

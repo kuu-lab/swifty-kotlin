@@ -778,10 +778,34 @@ package final class MetadataEncoder {
             // Properties with custom getters are lowered as accessor functions in
             // the artifact objects. Record that function's link name so consumers
             // can call the precompiled getter directly.
-            let getterSymbol = symbols.extensionPropertyGetterAccessor(for: symbol.id)
+            // Enum `entries` is a compiler-synthesized property whose getter
+            // is emitted as `entries$get`, rather than through the ordinary
+            // property-accessor naming scheme. Preserve that getter link in a
+            // precompiled artifact so consumers do not materialize an
+            // unresolved global slot for the property itself.
+            let enumEntriesGetterSymbol: SymbolID? = {
+                guard symbol.name == interner.intern("entries"),
+                      let companionID = symbols.parentSymbol(for: symbol.id),
+                      let companion = symbols.symbol(companionID),
+                      companion.kind == .object,
+                      let enumID = symbols.parentSymbol(for: companionID),
+                      let enumSymbol = symbols.symbol(enumID),
+                      enumSymbol.kind == .enumClass,
+                      symbols.companionObjectSymbol(for: enumID) == companionID
+                else {
+                    return nil
+                }
+                let getterFQName = companion.fqName + [interner.intern("entries$get")]
+                return symbols.lookupAll(fqName: getterFQName).first { candidate in
+                    symbols.symbol(candidate)?.kind == .function
+                }
+            }()
+            let getterSymbol = enumEntriesGetterSymbol
+                ?? symbols.extensionPropertyGetterAccessor(for: symbol.id)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol.id)
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
+                || enumEntriesGetterSymbol != nil
             if hasCustomGetter,
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
