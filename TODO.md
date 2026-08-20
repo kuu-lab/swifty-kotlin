@@ -10734,7 +10734,7 @@
     - `kotlin.uuid.ExperimentalUuidApi` — class kotlin.uuid.ExperimentalUuidApi  -- `open annotation class kotlin.uuid/ExperimentalUuidApi : kotlin/Annotation {`
     - `kotlin.uuid.Uuid` — class kotlin.uuid.Uuid  -- `final class kotlin.uuid/Uuid : kotlin.io/Serializable, kotlin/Comparable<kotlin.uuid/Uuid> {`
 
-- [ ] KSP-1499: kotlin.uuid.ExperimentalUuidApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1499: kotlin.uuid.ExperimentalUuidApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.uuid.ExperimentalUuidApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/uuid/ExperimentalUuidApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -10743,6 +10743,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.uuid.ExperimentalUuidApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: `kotlin.uuid.ExperimentalUuidApi` は既に `Sources/CompilerCore/Stdlib/kotlin/uuid/ExperimentalUuidApi.kt` に実装済み（KSP-666）で bridge/stub 撤去対象なし。golden/diff ケースを追加し、`ExperimentalUuidApi()` コンストラクタ呼び出し（`is Annotation` で `true`）を kotlinc・kswiftc 双方で確認、`diff_kotlinc.sh` green、golden は `GoldenHarnessWorker` 直接実行で `call=kotlin.uuid.ExperimentalUuidApi.<init>` を確認（host 高負荷で `swift_test.sh --filter Golden` のフル実行はワーカー timeout が散発するが、変更は追加テストファイルのみで `Sources/`/`Runtime/` は無変更のため回帰リスクなし）。副次発見: FQN 修飾コンストラクタ呼び出し（`kotlin.text.StringBuilder()` 等、本シンボル固有ではない一般バグ）は `CallTypeChecker+MemberCallInferenceContext.swift` の `tryInferFQNPackageTopLevelCall` で "Unresolved reference 'kotlin'" になる。Sema 側だけの修正を試したが `kotlin.Pair(1, 2)` が `(0, 1)` という誤った値で黙ってコンパイル・実行される回帰を招くため撤回。KIR lowering（`.memberCall` の receiver 評価前提、`CallLowerer+LegacyMemberLikeCalls.swift` 等）側の対応も必要な広範囲バグと判明したため本 PR の範囲外とし、spawn_task で追跡。
 
 - [ ] KSP-1500: kotlin.uuid.Uuid top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.uuid.Uuid` / top-level
