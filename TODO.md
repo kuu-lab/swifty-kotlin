@@ -10819,7 +10819,9 @@
 
 ## Runtime follow-up
 
-- [ ] KSP-1540: primitive 値を Number 型変数に代入した際の Number.to*() 仮想メソッド dispatch を実装する
+- [x] KSP-1540: primitive 値を Number 型変数に代入した際の Number.to*() 仮想メソッド dispatch を実装する
   - 背景: KSP-747 で `kotlin.Number` を bundled stdlib ソース化したが、`val n: Number = 42` のように primitive を Number 型で受けた場合や `fun <T : Number> sumOf(a: T, b: T)` のような上限境界経由で primitive を受けた場合、`n.toDouble()` / `a.toDouble()` 等が正しく primitive 値に dispatch されていない
   - 再現ケース: `Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt`（`SKIP-DIFF (DEBT-DIFF-008)`）、`Scripts/diff_cases/stdlib_kotlin_n_Number_primitive_generic.kt`（`SKIP-DIFF (DEBT-DIFF-008)`）
   - 完了条件: `DEBT-DIFF-008` として棚卸しした上記 diff ケースの `SKIP-DIFF` を解除し、`DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Number_primitive.kt Scripts/diff_cases/stdlib_kotlin_n_Number_primitive_generic.kt` が green になること
+  - 根本原因: 組み込み primitive 型は `Subtyping.swift` のハードコード規則でのみ `Number` に適合し、シンボルテーブル上のオーバーライドクラスとして登録されないため、`resolveVtableDispatch`（`CallLowerer+SafeMemberCalls.swift`）が `Number` を継承するユーザー定義クラスが皆無な間 vtable slot 解決を諦め、抽象宣言 `kotlin.Number.toDouble` 等のプレースホルダ実装（ゼロ返却）を直接呼んでいた。vtable dispatch を強制しても組み込み box 型はコンパイラ合成のクラスメタデータを持たないため実行時クラッシュする。
+  - 実装: `CallLowerer+NumberConversionMemberCalls.swift`（`tryLowerNumberConversion`）でレシーバ静的型が `Number` 自身 / `T : Number` の場合のみ横取りし、`kk_number_to_primitive`（`Sources/Runtime/RuntimeNumberConversionDispatch.swift`）で実行時タグ判定（primitive box ならネイティブ変換、それ以外はユーザー定義サブクラスとして `kk_vtable_lookup` フォールバック）に振り分ける。BUG-170（`kk_compare_any`）と同形の修正。詳細は `docs/diff-skip-inventory.md` の DEBT-DIFF-008 節、回帰テストは `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+NumberConversionDispatch.swift`（2026-08-20 完了）
