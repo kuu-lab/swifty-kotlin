@@ -1160,6 +1160,19 @@ extension AnnotationSemanticTests {
             #expect(!symbol.flags.contains(.synthetic))
             #expect(symbol.kind == .annotationClass)
 
+            let constructorSymbol = try #require(
+                sema.symbols.lookupAll(fqName: optionalExpectationFQName + [ctx.interner.intern("<init>")])
+                    .first(where: { sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty == true }),
+                "kotlin.OptionalExpectation() constructor must be registered"
+            )
+            #expect(
+                sema.symbols.functionSignature(for: constructorSymbol)?.returnType == sema.types.make(.classType(ClassType(
+                    classSymbol: symbolID,
+                    args: [],
+                    nullability: .nonNull
+                )))
+            )
+
             let annotations = sema.symbols.annotations(for: symbolID)
             let v11 = annotations.contains {
                 $0.annotationFQName == KnownCompilerAnnotation.target.qualifiedName
