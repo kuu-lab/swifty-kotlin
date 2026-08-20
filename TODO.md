@@ -1319,11 +1319,12 @@
   - 対象: `kotlin` / top-level / family `Lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_Lazy.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_Lazy.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_Lazy.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy_interface_members.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy_interface_members.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy_interface_members.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Lazy` — interface kotlin.Lazy  -- `abstract interface <#A: out kotlin/Any?> kotlin/Lazy {`
+  - 注記（2026-08-20）: 元は `stdlib_kotlin_n_Lazy.kt` という名前だったが、KSP-781（`stdlib_kotlin_n_lazy.kt`）と大文字小文字違いのみで衝突し、macOS（APFS ケースインセンシティブ）上で同一ファイルとして扱われるバグがあったため `stdlib_kotlin_n_lazy_interface_members.kt` にリネームした。
 
 - [x] KSP-744: kotlin.LazyThreadSafetyMode-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `LazyThreadSafetyMode`
@@ -1730,14 +1731,15 @@
   - 対象: `kotlin` / top-level / family `lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy_factory.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy_factory.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy_factory.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.lazy` — fun lazy(Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazy` — fun lazy(Any, Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/Any?, kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazy` — fun lazy(LazyThreadSafetyMode, Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/LazyThreadSafetyMode, kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazyOf` — fun lazyOf(): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazyOf(#A): kotlin/Lazy<#A>`
+  - 注記（2026-08-20）: 元は `stdlib_kotlin_n_lazy.kt` という名前だったが、KSP-743（`stdlib_kotlin_n_Lazy.kt`）と大文字小文字違いのみで衝突し、macOS（APFS ケースインセンシティブ）上で同一ファイルとして扱われるバグがあったため `stdlib_kotlin_n_lazy_factory.kt` にリネームした。
 
 - [ ] KSP-782: kotlin.let-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `let`
