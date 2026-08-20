@@ -807,16 +807,6 @@ public func kk_illegal_argument_exception_new_cause(_ causeRaw: Int) -> Int {
     )
 }
 
-@_cdecl("__kk_number_format_exception_new")
-public func kk_number_format_exception_new() -> Int {
-    runtimeAllocateNumberFormatException(message: nil)
-}
-
-@_cdecl("__kk_number_format_exception_new_message")
-public func kk_number_format_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateNumberFormatException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}
-
 @_cdecl("__kk_arithmetic_exception_new")
 public func kk_arithmetic_exception_new() -> Int {
     runtimeAllocateArithmeticException(message: nil)

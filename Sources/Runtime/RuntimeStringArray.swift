@@ -107,6 +107,8 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
         message = cancellation.message
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        message = object.throwableMessage
     } else {
         return runtimeNullSentinelInt
     }
@@ -117,6 +119,25 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
         state.objectPointers.insert(UInt(bitPattern: opaque))
     }
     return Int(bitPattern: opaque)
+}
+
+/// Stores a message for a Kotlin-defined Throwable subclass allocated through
+/// the ordinary object path rather than a RuntimeThrowableBox bridge.
+@_cdecl("__kk_throwable_setMessage")
+public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) -> Int {
+    guard throwableRaw != runtimeNullSentinelInt,
+          throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          let object = tryCast(ptr, to: RuntimeObjectBox.self)
+    else {
+        return throwableRaw
+    }
+    object.throwableMessage = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
+    runtimeRegisterTypeEdge(
+        childTypeID: object.classID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+    )
+    return throwableRaw
 }
 
 @_cdecl("__kk_throwable_cause")

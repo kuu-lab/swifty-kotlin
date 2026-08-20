@@ -332,9 +332,7 @@ struct ExceptionSyntheticStubTests {
             ("UnsupportedOperationException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_unsupported_operation_exception_new", "__kk_unsupported_operation_exception_new_message", "__kk_unsupported_operation_exception_new_message_cause", "__kk_unsupported_operation_exception_new_cause",
             ]),
-            ("NumberFormatException", "IllegalArgumentException", [0, 1], [
-                "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
-            ]),
+            ("NumberFormatException", "IllegalArgumentException", [0, 1], []),
             ("NullPointerException", "RuntimeException", [0, 1], [
                 "__kk_null_pointer_exception_new", "__kk_null_pointer_exception_new_message",
             ]),
@@ -373,7 +371,7 @@ struct ExceptionSyntheticStubTests {
             let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
                 sema.symbols.symbol($0)?.kind == .constructor
             }
-            #expect(constructors.count == entry.links.count)
+            #expect(constructors.count == entry.arities.count)
             let arities = constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes.count }.sorted()
             #expect(arities == entry.arities.sorted())
             let links = constructors.compactMap { sema.symbols.externalLinkName(for: $0) }
