@@ -148,45 +148,6 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_iterable_joinTo",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_iterable_joinToString",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-            ],
-            returnType: .opaquePointer,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_iterable_joinToString_transform",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
-                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
-                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
         // Set
         RuntimeABIFunctionSpec(
             name: "__kk_set_of",
