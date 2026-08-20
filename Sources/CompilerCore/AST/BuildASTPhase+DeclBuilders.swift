@@ -77,7 +77,8 @@ extension BuildASTPhase {
         let constructorProperties = primaryConstructorPropertyDecls(
             from: primaryConstructorParams,
             classRange: node.range,
-            astArena: astArena
+            astArena: astArena,
+            interner: interner
         )
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let whereClauses = declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -758,17 +759,29 @@ extension BuildASTPhase {
     private func primaryConstructorPropertyDecls(
         from params: [ValueParamDecl],
         classRange: SourceRange,
-        astArena: ASTArena
+        astArena: ASTArena,
+        interner: StringInterner
     ) -> [DeclID] {
         params.compactMap { param in
             guard param.isProperty else {
                 return nil
             }
+            // A vararg parameter is lowered as an element-typed parameter for
+            // call resolution, but its constructor property is Array<out T>.
+            let propertyType: TypeRefID? = if param.isVararg, let elementType = param.type {
+                astArena.appendTypeRef(.named(
+                    path: [interner.intern("Array")],
+                    args: [.out(elementType)],
+                    nullable: false
+                ))
+            } else {
+                param.type
+            }
             let property = PropertyDecl(
                 range: classRange,
                 name: param.name,
                 modifiers: param.isOverrideProperty ? [.override] : [],
-                type: param.type,
+                type: propertyType,
                 isVar: param.isMutableProperty,
                 isSynthesizedPrimaryConstructorProperty: true
             )
