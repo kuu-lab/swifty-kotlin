@@ -3,7 +3,7 @@ symbol fq=golden.sema.useLazyOf kind=function vis=public flags=_ sig=recv=_ para
 symbol fq=golden.sema.useLazyWithLock kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<String>
 symbol fq=golden.sema.useLazyWithMode kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.Lazy<Int>
 symbol fq=kotlin.Lazy kind=interface vis=public flags=_
-file fstdlib_kotlin_n_lazy package=golden.sema
+file fstdlib_kotlin_n_Lazy package=golden.sema
   decl golden.sema.useLazyFactory fun useLazyFactory sym=golden.sema.useLazyFactory
   decl golden.sema.useLazyWithLock fun useLazyWithLock sym=golden.sema.useLazyWithLock
   decl golden.sema.useLazyWithMode fun useLazyWithMode sym=golden.sema.useLazyWithMode
