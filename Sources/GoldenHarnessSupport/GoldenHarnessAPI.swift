@@ -409,6 +409,21 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     private static let classScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$class)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
     private static let tpScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$tp)(\\d+)(?=\\.)")
+    // Multi-type-parameter variant of tpScopeOrdinalRegex: registerSyntheticNativeTopLevelFunction
+    // discriminates value-parameter FQNames with all of a function's reified type-parameter raw
+    // symbol IDs joined by "_" (e.g. `.$tp123_456.`) once it has 2+ type parameters. Each
+    // underscore-separated number is its own process-local ID and is renumbered independently.
+    // swiftlint:disable:next force_try
+    private static let tpMultiValueScopeOrdinalRegex = try! NSRegularExpression(
+        pattern: "(\\.\\$tp)((?:\\d+_)+\\d+)(?=\\.)"
+    )
+    // swiftlint:disable:next force_try
+    private static let ifaceScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$iface)(\\d+)(?=\\.)")
+    // Secondary-constructor local namespace: `$sec<ctorIndex>_<rawValue>`. ctorIndex is a stable,
+    // source-order position (not process-local) and is kept as part of the literal prefix; only the
+    // trailing rawValue is renumbered.
+    // swiftlint:disable:next force_try
+    private static let secScopeOrdinalRegex = try! NSRegularExpression(pattern: "(\\.\\$sec\\d+_)(\\d+)(?=\\.)")
     // swiftlint:disable:next force_try
     private static let localNameOrdinalRegex = try! NSRegularExpression(pattern: "(__local_)(\\d+)")
     // swiftlint:disable:next force_try
@@ -424,6 +439,8 @@ private enum GoldenHarnessSemaComparisonNormalizer {
     // swiftlint:disable:next force_try
     private static let localFunOrdinalRegex = try! NSRegularExpression(pattern: "(__localfun_)(\\d+)")
     // swiftlint:disable:next force_try
+    private static let importedInlineOrdinalRegex = try! NSRegularExpression(pattern: "(__imported_inline_)(\\d+)")
+    // swiftlint:disable:next force_try
     private static let fileOrdinalRegex = try! NSRegularExpression(pattern: "(file f)(\\d+)(?= package=)")
     // swiftlint:disable:next force_try
     private static let objectLiteralOrdinalRegex = try! NSRegularExpression(pattern: "(__ObjectLiteral_)(\\d+)(?=_)")
@@ -436,6 +453,9 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: semaFileIDRegex)
         // Scope prefix ordinals
         normalized = rewriteOrdinalMatches(in: normalized, regex: classScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: ifaceScopeOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: secScopeOrdinalRegex)
+        normalized = rewriteMultiValueOrdinalMatches(in: normalized, regex: tpMultiValueScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: tpScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: syntheticScopeOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: objectLiteralOrdinalRegex)
@@ -446,6 +466,7 @@ private enum GoldenHarnessSemaComparisonNormalizer {
         normalized = rewriteOrdinalMatches(in: normalized, regex: tryOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: whenOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: localFunOrdinalRegex)
+        normalized = rewriteOrdinalMatches(in: normalized, regex: importedInlineOrdinalRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: negativeSymbolReferenceRegex)
         normalized = rewriteOrdinalMatches(in: normalized, regex: fileOrdinalRegex)
         return normalized
@@ -534,6 +555,54 @@ private enum GoldenHarnessSemaComparisonNormalizer {
             }
             let prefix = nsText.substring(with: prefixRange)
             mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newID)")
+        }
+        return mutable as String
+    }
+
+    /// Multi-value variant of `rewriteOrdinalMatches` for patterns where group 2 holds several
+    /// underscore-joined process-local IDs (e.g. `$tp123_456`) instead of a single one. Every
+    /// number shares one ordinal counter across all matches of `regex`, so the same raw ID always
+    /// renumbers to the same small value wherever it appears.
+    private static func rewriteMultiValueOrdinalMatches(
+        in text: String,
+        regex: NSRegularExpression
+    ) -> String {
+        let nsText = text as NSString
+        let range = NSRange(location: 0, length: nsText.length)
+        let matches = regex.matches(in: text, range: range)
+        guard !matches.isEmpty else {
+            return text
+        }
+
+        var remappedIDs: [Int: Int] = [:]
+        for match in matches {
+            let valuesRange = match.range(at: 2)
+            guard valuesRange.location != NSNotFound else { continue }
+            for rawValue in nsText.substring(with: valuesRange).split(separator: "_") {
+                guard let oldID = Int(rawValue) else { continue }
+                if remappedIDs[oldID] == nil {
+                    remappedIDs[oldID] = remappedIDs.count
+                }
+            }
+        }
+
+        let mutable = NSMutableString(string: text)
+        for match in matches.reversed() {
+            let prefixRange = match.range(at: 1)
+            let valuesRange = match.range(at: 2)
+            guard prefixRange.location != NSNotFound,
+                  valuesRange.location != NSNotFound
+            else {
+                continue
+            }
+            let rawValues = nsText.substring(with: valuesRange).split(separator: "_")
+            let newValues = rawValues.compactMap { rawValue -> String? in
+                guard let oldID = Int(rawValue), let newID = remappedIDs[oldID] else { return nil }
+                return String(newID)
+            }
+            guard newValues.count == rawValues.count else { continue }
+            let prefix = nsText.substring(with: prefixRange)
+            mutable.replaceCharacters(in: match.range, with: "\(prefix)\(newValues.joined(separator: "_"))")
         }
         return mutable as String
     }
