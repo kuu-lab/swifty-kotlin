@@ -130,6 +130,30 @@ import Testing
         """)
     }
 
+    @Test func testCompile_propertyInitializerContainingGetCall() throws {
+        try assertKotlinCompilesToKIR("""
+        class Lookup {
+            fun get(key: Int): Int = key
+        }
+        fun main() {
+            val lookup = Lookup()
+            val value: Int = lookup.get(42)
+            println(value)
+        }
+        """)
+    }
+
+    @Test func testCompile_propertyAccessorWithExplicitReturnType() throws {
+        try assertKotlinCompilesToKIR("""
+        class Holder {
+            val value: Int get(): Int = 42
+        }
+        fun main() {
+            println(Holder().value)
+        }
+        """)
+    }
+
     @Test func testLazyDelegateInitializerDiagnosticIsNotDuplicated() throws {
         let ctx = makeContextFromSource("""
         fun main() {
