@@ -499,7 +499,6 @@ struct RuntimeAssertionsTests {
 
         #expect(runtimeBox(from: kk_error_new_cause(cause), as: RuntimeErrorBox.self) != nil)
         #expect(runtimeBox(from: kk_exception_new_cause(cause), as: RuntimeExceptionBox.self) != nil)
-        #expect(runtimeBox(from: kk_runtime_exception_new_cause(cause), as: RuntimeRuntimeExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_illegal_argument_exception_new_cause(cause), as: RuntimeIllegalArgumentExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_illegal_state_exception_new_cause(cause), as: RuntimeIllegalStateExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_unsupported_operation_exception_new_cause(cause), as: RuntimeUnsupportedOperationExceptionBox.self) != nil)

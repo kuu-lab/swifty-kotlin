@@ -107,6 +107,8 @@ public func __kk_throwable_message(_ throwableRaw: Int) -> Int {
         message = throwable.message
     } else if let cancellation = tryCast(ptr, to: RuntimeCancellationBox.self) {
         message = cancellation.message
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        message = object.throwableMessage
     } else {
         return runtimeNullSentinelInt
     }
@@ -129,6 +131,9 @@ public func __kk_throwable_cause(_ throwableRaw: Int) -> Int {
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return throwable.cause == 0 ? runtimeNullSentinelInt : throwable.cause
+    }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return object.throwableCause == 0 ? runtimeNullSentinelInt : object.throwableCause
     }
     return runtimeNullSentinelInt
 }
@@ -165,13 +170,39 @@ public func __kk_printStderr(_ messageRaw: Int) -> Int {
 @_cdecl("__kk_throwable_setCause")
 public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
-          let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
     else {
         return throwableRaw
     }
     let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    throwable.cause = causeValue
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.cause = causeValue
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        object.throwableCause = causeValue
+        runtimeRegisterTypeEdge(
+            childTypeID: object.classID,
+            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        )
+    }
+    return throwableRaw
+}
+
+/// Stores a message for a Kotlin-defined Throwable subclass allocated through
+/// the ordinary object path rather than a RuntimeThrowableBox bridge.
+@_cdecl("__kk_throwable_setMessage")
+public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) -> Int {
+    guard throwableRaw != runtimeNullSentinelInt,
+          throwableRaw != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          let object = tryCast(ptr, to: RuntimeObjectBox.self)
+    else {
+        return throwableRaw
+    }
+    object.throwableMessage = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw))
+    runtimeRegisterTypeEdge(
+        childTypeID: object.classID,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+    )
     return throwableRaw
 }
 

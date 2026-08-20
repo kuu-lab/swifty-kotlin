@@ -10,9 +10,9 @@ import kotlin.internal.KsSymbolName
 
 // KSP-656: Kotlin common exception hierarchy.
 //
-// The runtime still owns throwable storage and type identity. Each constructor
-// is therefore a direct allocation bridge instead of a Kotlin delegation to
-// Throwable, which would allocate a second storage-less object.
+// The runtime still owns throwable storage and type identity. The remaining
+// bridge-backed constructors below allocate that storage directly instead of
+// delegating to Throwable, which would allocate a second storage-less object.
 
 public open class Error : Throwable {
     @KsSymbolName("__kk_error_new")
@@ -39,20 +39,6 @@ public open class Exception : Throwable {
     public constructor(message: String?, cause: Throwable?)
 
     @KsSymbolName("__kk_exception_new_cause")
-    public constructor(cause: Throwable?)
-}
-
-public open class RuntimeException : Exception {
-    @KsSymbolName("__kk_runtime_exception_new")
-    public constructor()
-
-    @KsSymbolName("__kk_runtime_exception_new_message")
-    public constructor(message: String?)
-
-    @KsSymbolName("__kk_runtime_exception_new_message_cause")
-    public constructor(message: String?, cause: Throwable?)
-
-    @KsSymbolName("__kk_runtime_exception_new_cause")
     public constructor(cause: Throwable?)
 }
 

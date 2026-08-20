@@ -241,10 +241,14 @@ class RuntimeArrayBox {
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
     var backingSetBox: RuntimeSetBox?
+    var throwableMessage: String?
+    var throwableCause: Int
 
     init(length: Int, classID: Int64) {
         self.classID = classID
         self.backingSetBox = nil
+        self.throwableMessage = nil
+        self.throwableCause = 0
         super.init(length: length)
     }
 }
