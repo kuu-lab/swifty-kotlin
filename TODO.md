@@ -2554,10 +2554,11 @@
     - `kotlin.IntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.IntArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Int>)`
 
-- [ ] KSP-855: kotlin.KotlinNothingValueException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-855: kotlin.KotlinNothingValueException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.KotlinNothingValueException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinNothingValueException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 既存実装監査: KSP-742（PR #5876）が `Sources/CompilerCore/Stdlib/kotlin/KotlinNothingValueException.kt` に 4 constructor を実装済み。型付き例外の runtime identity/message/cause を担う対象 bridge は現行実装に必要なため、重複クラスの追加や削除は行わない。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_KotlinNothingValueException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_KotlinNothingValueException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_KotlinNothingValueException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
