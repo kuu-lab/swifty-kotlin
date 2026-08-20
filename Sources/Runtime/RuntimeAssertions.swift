@@ -661,8 +661,6 @@ private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> 
 
 private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
     switch kotlinFQName {
-    case "kotlin.Throwable":
-        return "java.lang.Throwable"
     case "kotlin.Exception":
         return "java.lang.Exception"
     case "kotlin.RuntimeException":

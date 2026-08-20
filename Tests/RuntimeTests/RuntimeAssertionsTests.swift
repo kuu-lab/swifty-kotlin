@@ -520,6 +520,12 @@ struct RuntimeAssertionsTests {
             runtimeBox(from: kk_illegal_state_exception_new_cause(javaUtilCause), as: RuntimeIllegalStateExceptionBox.self)
         )
         #expect(javaUtilWrapped.message == "java.util.NoSuchElementException: root")
+
+        let genericCause = Int(bitPattern: __kk_throwable_new(UnsafeMutableRawPointer(bitPattern: messageRaw)))
+        let genericWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(genericCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(genericWrapped.message == "kotlin.Throwable: root")
     }
 
     @Test
