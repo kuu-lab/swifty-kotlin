@@ -8,6 +8,7 @@ fun main() {
 
     println(noArg.message ?: "null")
     println(messageOnly.message ?: "null")
+    println(causeOnly.message ?: "null")
     println(causeOnly.cause?.message ?: "null")
     println(messageCause.message ?: "null")
     println(messageCause.cause?.message ?: "null")
