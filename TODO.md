@@ -2798,7 +2798,7 @@
     - `kotlin.Pair.<init>` — constructor (, )  -- `constructor <init>(#A, #B)`
   - 実装済み（ゲート保留）: `Sources/CompilerCore/Stdlib/kotlin/Pair/Stdlib.kt` に constructor の source owner を追加。`__kk_pair_new` は collection/sequence が共有する Pair box allocation bridge のため残置。Pair 単体 diff、TODO ID、Runtime ABI link は pass 済みだが、全 Golden / 全 diff_cases は共有実行環境の timeout/SIGTERM で未完了。
 
-- [ ] KSP-875: kotlin.Pair.Pair の未実装 stdlib API を実装する（5 件）
+- [x] KSP-875: kotlin.Pair.Pair の未実装 stdlib API を実装する（5 件） **完了（2026-08-20）**: `component1`/`component2`/`first`/`second` は `Sources/CompilerCore/Stdlib/kotlin/Tuples.kt` に既存実装済みだったため重複実装せず、`Sources/CompilerCore/Stdlib/kotlin/Pair/Pair.kt` に `copy` のみ追加。指定 Golden/diff ケースで 5 API の参照を固定し、共有の `__kk_pair_*` bridge は `Pair` 以外の runtime/Map.Entry 経路でも使われるため維持。
   - 対象: `kotlin.Pair` / receiver `Pair`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Pair/Pair.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
