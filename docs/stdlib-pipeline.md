@@ -231,7 +231,12 @@ fiction audit ダンプを起点に棚卸し）:
 | File | Lines | Bucket | Owner / next action |
 |---|---:|:---:|---|
 | `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c)→(b) | KSP-657 で `arrayOf`/`emptyArray`/`arrayOfNulls` を `Stdlib/kotlin/ArrayIntrinsics.kt` へ b-reclass 済み（第1弾）。primitive-array factory / HOF は後続バッチ。 |
-| `HeaderHelpers+SyntheticAtomicStubs.swift` | 2512 | (b) | `AtomicMigration.kt` owner; split Java atomic interop cleanup pockets first. |
+| `HeaderHelpers+SyntheticAtomicArrayStubs.swift` | 622 | (b) | `AtomicMigration.kt` owner; `AtomicIntArray`/`AtomicLongArray`/`AtomicArray<T>` + `atomicArrayOf(Nulls)` factories (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicNativePtrStubs.swift` | 136 | (b) | `AtomicNativePtr`; built on shared NativeConcurrent helpers, may reclassify independently of the rest of the Atomic family (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicPackageStubs.swift` | 148 | (b) | `kotlin.concurrent.atomics` package scaffolding: `@ExperimentalAtomicApi`, `MemoryOrder` enum, type aliases (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicRegistrationHelpers.swift` | 325 | (b) | Shared constructor/member/property registration primitives used across the scalar and array families (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicScalarStubs.swift` | 305 | (b) | `AtomicInt`/`AtomicLong`/`AtomicBoolean`/`AtomicReference<T>`, plus `java.util.concurrent.atomic.AtomicInteger` — a live, tested direct-construction surface sharing the `kk_atomic_int_*` box, not a target-out cleanup pocket (KSP-695 split; see `HeaderHelpers+SyntheticAtomicStubs.swift`'s classification note history below). |
+| `HeaderHelpers+SyntheticAtomicStubs.swift` | 313 | (b) | `AtomicMigration.kt` owner; entry-point/orchestration only after KSP-695 split the registration logic into the five sibling files above. The originally-suspected "Java atomic interop cleanup pocket" (`java.util.concurrent.atomic.AtomicInteger`) turned out to be live (codegen test + non-skipped diff case + `AtomicMigration.kt` extension receiver), not a deletion candidate; the only confirmed dead code was an orphaned helper (`registerAtomicExtensionFunction`, zero call sites since CLEANUP-STUB-100 deleted its callers) which KSP-695 removed. |
 | `HeaderHelpers+SyntheticBase64Stubs.swift` | 830 | (b) | MIGRATION-ENC owner; Kotlin source exists but public stubs still dispatch directly. |
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
@@ -360,7 +365,9 @@ should follow the same shape:
    `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs` (CLEANUP-STUB-127/128).
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
-   `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.
+   `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`.
+   `SyntheticAtomicStubs` split complete (KSP-695): see the five
+   `HeaderHelpers+SyntheticAtomic*.swift` rows above.
 3. After RF-STDLIB-003, migrate one narrow (b) slice end-to-end and use it as the
    template for the remaining M1-M17 rows.
 4. Continue RF-STUB-003 residual table migration only on files classified (c); do not table-drive code
