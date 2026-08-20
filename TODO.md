@@ -2740,6 +2740,7 @@
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_OptIn_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_OptIn_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_OptIn_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 監査結果: `kotlin.OptIn` は既存の `Sources/CompilerCore/Stdlib/kotlin/OptIn.kt` に constructor を含めて実装済みで、stdlib artifact metadata に `arity=1`, `vararg=1`, `paramNames=markerClass` として収録される。bridge/stub/Runtime ABI/name-string 特例の対象はなく、constructor の複数 marker 呼び出しを新規 Golden/diff ケースで固定した。aggregate Golden/diff は worker/artifact timeout のため未完了。
   - 未実装シンボル一覧:
     - `kotlin.OptIn.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin.reflect/KClass<out kotlin/Annotation>>...)`
 
