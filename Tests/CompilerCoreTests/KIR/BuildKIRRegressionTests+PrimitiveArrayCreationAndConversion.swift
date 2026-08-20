@@ -140,15 +140,35 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
-    func testCharArrayOfFactoryLowersToKkArrayOf() throws {
+    func testCharArrayOfFactoryUsesSourceBackedInlinePath() throws {
         let ctx = try sharedPrimitiveArrayCtx()
         let module = try #require(ctx.kir)
         let makeBody = try findKIRFunctionBody(named: "make2", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: makeBody, interner: ctx.interner)
 
         #expect(
-            callNames.contains("kk_array_of"),
-            "charArrayOf must lower to kk_array_of; got: \(callNames)"
+            callNames.contains("kk_array_new"),
+            "source-backed charArrayOf must allocate a primitive array; got: \(callNames)"
+        )
+        #expect(
+            callNames.filter { $0 == "kk_array_set" }.count == 3,
+            "source-backed charArrayOf must store each Char element; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_of"),
+            "source-backed charArrayOf must not lower to kk_array_of; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("charArrayOf"),
+            "inline charArrayOf should not remain as a call in KIR; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_box_char"),
+            "primitive Char elements should not be boxed; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_toList"),
+            "inline charArrayOf should not route through List varargs; got: \(callNames)"
         )
     }
 

@@ -320,9 +320,7 @@ struct ExceptionSyntheticStubTests {
             ("IllegalStateException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_illegal_state_exception_new", "__kk_illegal_state_exception_new_message", "__kk_illegal_state_exception_new_message_cause", "__kk_illegal_state_exception_new_cause",
             ]),
-            ("IndexOutOfBoundsException", "RuntimeException", [0, 1], [
-                "__kk_index_out_of_bounds_exception_new", "__kk_index_out_of_bounds_exception_new_message",
-            ]),
+            ("IndexOutOfBoundsException", "RuntimeException", [0, 1], []),
             ("ArrayIndexOutOfBoundsException", "IndexOutOfBoundsException", [0, 1], [
                 "__kk_array_index_out_of_bounds_exception_new", "__kk_array_index_out_of_bounds_exception_new_message",
             ]),

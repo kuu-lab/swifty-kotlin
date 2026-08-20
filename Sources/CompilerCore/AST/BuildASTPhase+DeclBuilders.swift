@@ -77,7 +77,8 @@ extension BuildASTPhase {
         let constructorProperties = primaryConstructorPropertyDecls(
             from: primaryConstructorParams,
             classRange: node.range,
-            astArena: astArena
+            astArena: astArena,
+            interner: interner
         )
         let rawTypeParams = declarationTypeParameters(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let whereClauses = declarationWhereClauses(from: nodeID, in: arena, interner: interner, astArena: astArena)
@@ -321,7 +322,19 @@ extension BuildASTPhase {
         // Extract it here so KIR lowering can create the lambda function from it.
         var delegateBody: FunctionBody?
         var delegateBodyParams: [InternedString] = []
-        if delegateExpr != nil {
+        if let delegateExpr,
+           let parsed = lazyDelegateLambda(
+               from: delegateExpr, interner: interner, astArena: astArena
+           )
+        {
+            // Source-backed `lazy` includes its initializer lambda in the
+            // delegate expression so overload resolution sees the required
+            // Function0 argument. Reuse that lambda's body for KIR lowering;
+            // reparsing the same block would create a second AST copy whose
+            // bindings are not visible to the lowering path.
+            delegateBodyParams = parsed.params
+            delegateBody = parsed.body
+        } else if delegateExpr != nil {
             // Find the block child node — this is the trailing lambda body.
             for child in arena.children(of: nodeID) {
                 if case let .node(childID) = child, arena.node(childID).kind == .block {
@@ -377,6 +390,39 @@ extension BuildASTPhase {
             receiverType: receiverType,
             explicitBackingField: explicitField
         )
+    }
+
+    /// Extracts the initializer lambda already parsed into a source-backed
+    /// `lazy(...)` delegate call. Member and top-level lazy lowering consumes
+    /// `delegateBody`, so it must point at the same AST body that Sema checks
+    /// as the call argument rather than a separately parsed copy.
+    private func lazyDelegateLambda(
+        from delegateExpr: ExprID,
+        interner: StringInterner,
+        astArena: ASTArena
+    ) -> (params: [InternedString], body: FunctionBody)? {
+        guard case let .call(callee, _, args, _) = astArena.expr(delegateExpr),
+              case let .nameRef(name, _) = astArena.expr(callee),
+              name == interner.intern("lazy")
+        else {
+            return nil
+        }
+
+        for argument in args.reversed() {
+            guard case let .lambdaLiteral(params, bodyExprID, _, _) = astArena.expr(argument.expr)
+            else { continue }
+            guard let bodyExpr = astArena.expr(bodyExprID) else { return nil }
+            if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
+                var expressions = statements
+                if let trailingExpr {
+                    expressions.append(trailingExpr)
+                }
+                return (params, .block(expressions, range))
+            }
+            guard let range = astArena.exprRange(bodyExprID) else { return nil }
+            return (params, .expr(bodyExprID, range))
+        }
+        return nil
     }
 
     /// Re-parses a delegate property's trailing-lambda block from its tokens so
@@ -758,17 +804,29 @@ extension BuildASTPhase {
     private func primaryConstructorPropertyDecls(
         from params: [ValueParamDecl],
         classRange: SourceRange,
-        astArena: ASTArena
+        astArena: ASTArena,
+        interner: StringInterner
     ) -> [DeclID] {
         params.compactMap { param in
             guard param.isProperty else {
                 return nil
             }
+            // A vararg parameter is lowered as an element-typed parameter for
+            // call resolution, but its constructor property is Array<out T>.
+            let propertyType: TypeRefID? = if param.isVararg, let elementType = param.type {
+                astArena.appendTypeRef(.named(
+                    path: [interner.intern("Array")],
+                    args: [.out(elementType)],
+                    nullable: false
+                ))
+            } else {
+                param.type
+            }
             let property = PropertyDecl(
                 range: classRange,
                 name: param.name,
                 modifiers: param.isOverrideProperty ? [.override] : [],
-                type: param.type,
+                type: propertyType,
                 isVar: param.isMutableProperty,
                 isSynthesizedPrimaryConstructorProperty: true
             )
