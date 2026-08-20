@@ -368,7 +368,13 @@
 #### collections
 
 - [x] KSP-620: joinToString/joinTo の List/Array 版を統一する（孤児 `kk_string_joinToString` の正式タスク第1弾。bundled `StringSplitJoin.kt` の `List<T>.joinToString` と合成スタブの二重定義解消 — 前提: KSP-INF-011 のガード漏れ修正。削除 kk_*: `kk_list_joinToString`, `kk_array_joinToString`。残留 `__kk_string_joinToString`。**併せて呼び出し元ゼロの `CallLowerer+CollectionStdlibMemberCalls.swift` をファイルごと削除**）
-- [ ] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
+- [x] KSP-621: joinToString/joinTo の Iterable/Sequence 版を統一する（前提: KSP-620。削除 kk_* 4: `kk_iterable_joinTo`, `kk_iterable_joinToString`, `kk_sequence_joinTo`, `kk_sequence_joinToString` + `CallLowerer+UnresolvedMemberCalls.swift` の収束特例。diff: Iterable 版・joinTo 単独ケース追加）
+  - 着手時調査で判明: `kk_sequence_joinTo`/`kk_sequence_joinToString` は現存する runtime `@_cdecl` としては既に存在せず（TODO記載時点で陳腐化済み）、実質的な削除対象は `__kk_iterable_joinTo` / `__kk_iterable_joinToString` / `__kk_iterable_joinToString_transform` の3ブリッジだった。また「収束特例」の実体は `CallLowerer+UnresolvedMemberCalls.swift` ではなく `CallLowerer+LegacyMemberLikeCalls.swift`（STDLIB-SEQ-FN-052 / STDLIB-275 由来のjoinTo/joinToStringフォールバック）にあった。
+  - dead code確認: 呼び出し元ゼロの Sema 合成登録 `registerSyntheticSequenceJoinToMember`/`registerSyntheticSequenceJoinToStringMember`（`HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`）と、stderrトレース計装＋全 diff_cases（joinTo/joinToString呼び出しを含む33ファイル）・複数受信型プローブ（Sequence/Set/MutableList/ArrayList/カスタムIterable実装/Map.values/Map.keys/nullable safe-call/`generateSequence`）で一度も到達しないことを確認した `CallLowerer+LegacyMemberLikeCalls.swift` の旧フォールブロック171行を削除。
+  - 実装: `Iterables.kt` の `appendIterableJoinToPlain`/`appendIterableJoinTo`（`Iterable<T>`引数）を `Iterator<T>` 引数の `internal` 関数 `appendJoinToPlain`/`appendJoinToTransform` に変更し、`SequenceAggregateHOF.kt`（`kotlin.collections`パッケージ、両ファイル同一パッケージ）からも `this.iterator()` 経由で共有。Sequence 側に欠けていた `limit`/`truncated` オーバーロード（plain・transform 双方）を新規追加し Iterable と同一 API 面に統一。
+  - 削除: Runtime `@_cdecl` 3件（`RuntimeCollections.swift`）、`RuntimeABISpec+Collection.swift` エントリ3件、`CallLowerer+MemberCallEmission.swift` の `__kk_iterable_joinTo`/`__kk_iterable_joinToString_transform` 特例、`CallTypeChecker+ProjectedReceiverVarianceChecks.swift` の該当エントリ、孤立した `isBareSetInterfaceType` ヘルパー。
+  - 検証: 実機で無限 `generateSequence` に対する `joinToString(limit=...)` が遅延短絡すること（kotlinc・自コンパイラ双方で同一出力）を確認。diff追加: `sequence_join_to_ksp621.kt`（新規、joinTo単独ケース＋limit/truncated＋遅延性ピン）、`iterable_generic_surface.kt`（ジェネリック `Iterable<T>` レシーバでの limit/truncated 追加）。Sema/Codegen テスト更新（`SequenceSyntheticMemberLinkTests`・`ABIMismatchTests`・`CodegenBackendIntegrationTests+{SequenceJoinTo,SequenceJoinToString,CollectionJoinTo}`）。
+  - ゲート: `bash Scripts/swift_test.sh`（CompilerBackendTests 1454/1454、CompilerCoreTests/RuntimeTestsの残存失敗は多重worktree同時実行によるホスト過負荷起因と特定——`RuntimeTestIsolationSupport.swift`記載の既知の「isolation lock timeout」1112件、`RuntimeSequenceTests`/`RuntimeCollectionHOFTests`は単独隔離実行でそれぞれ183/79件全PASS再確認済み）、`--filter Golden`（19/19 green）、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（970/970 green、skip 33件は本タスク範囲外）すべて green。`loc_report.sh` の関連メトリクス（`call_lowerer_legacy_total_lines`・`header_helpers_synthetic_total_lines`・`__kk_cdecl_count`）はいずれも純減、悪化なし。
 - [x] KSP-624: buildString を Kotlin 化する（前提: KSP-622, KSP-311。完了: PR #5060 で `buildString`/`buildStringBuilder` を `StringBuilder.kt` の source-backed API へ移設）
   - 実装: `builderDSLKind` の buildString 系分岐、`CallLowerer.swift` の append 引数ボクシング特例、旧 `kk_build_string*` の builder DSL 窓口を撤去。可変バッファに必要な `__kk_string_builder_*` 最小ブリッジは維持
   - 検証: KSP-311（PR #4996/#5060）、KSP-622（PR #5702）、KSP-CAP-008（PR #4991）の master 反映を確認。Sema/lowering/codegen、ABI、capacity/empty/chained append/nullable・primitive boxing/receiver lambda/nested builder の回帰、指定 diff 8 ケース、TODO-ID、`git diff --check` を実施
@@ -737,13 +743,13 @@
   - diff: `array_factory*.kt` 既存 + 各 `*ArrayOf()` 空/複数要素ケース、`ubyteArrayOf` ケース
   - 前提: KSP-657, KSP-1514, KSP-1515, KSP-1516
 
-- [ ] KSP-1518: Sequence の class shell / `iterator` / `orEmpty` / `joinTo` / `joinToString` 登録残余を Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（1178行のうち `registerSyntheticSequenceStub` / `registerSyntheticSequenceIteratorMember` / `registerSyntheticSequenceJoinTo(String)Member` / `orEmpty`）
+- [ ] KSP-1518: Sequence の class shell / `iterator` / `orEmpty` 登録残余を Kotlin 化する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（711行のうち `registerSyntheticSequenceStub` / `registerSyntheticSequenceIteratorMember` / `orEmpty`。`joinTo`/`joinToString` 登録は KSP-621 で対応済み — 呼び出し元ゼロだった `registerSyntheticSequenceJoinToMember`/`registerSyntheticSequenceJoinToStringMember` を削除し、Sequence 版は Iterable 版と共有ヘルパー（Iterables.kt の `appendJoinToPlain`/`appendJoinToTransform`）で統一実装済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/sequences/Sequence.kt` / `Sequences.kt` 追記
-  - 削除/降格 kk_*: `kk_sequence_orEmpty` + 着手時 `rg -o '@_cdecl\("kk_sequence_(joinTo|joinToString|iterator)[a-zA-Z0-9_]*"\)' Sources/Runtime`（KSP-621 完了後の残余のみ）
+  - 削除/降格 kk_*: `kk_sequence_orEmpty` + 着手時 `rg -o '@_cdecl\("kk_sequence_iterator[a-zA-Z0-9_]*"\)' Sources/Runtime`
   - 手順: T
-  - diff: `sequence_join*.kt` 既存 + `orEmpty()`、`joinTo(StringBuilder)` ケース
-  - 前提: KSP-621, KSP-701
+  - diff: `orEmpty()` ケース
+  - 前提: KSP-701
 
 - [ ] KSP-1519: `sequence {}` / `SequenceScope` / `yield` / `yieldAll` / `iterator {}` builder を Kotlin 化し `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（`registerSyntheticSequenceBuilderStub` / `registerSyntheticIteratorBuilderStub` / `registerSyntheticGenerateSequence*` / `registerSyntheticSystemMember` / `registerSyntheticIOTopLevelProperty` の残余）
@@ -911,6 +917,14 @@
   - 手順: T
   - diff: `char_conversions*.kt` 既存 + サロゲート範囲の `Char.code` ケース
   - 前提: KSP-637, KSP-1531, KSP-1536, KSP-1537, KSP-1538
+
+- [ ] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（845行。KSP-701/KSP-665 の分離先で、呼び出し元は `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ）。対象は `registerSyntheticCollectionStub`/`registerSyntheticMutableCollectionStub`/`registerSyntheticIterableStub`（`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` 型シェルと `isEmpty`/`contains`/`random`/`randomOrNull`/`add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`/`iterator`/`hasNext`/`next` メンバ）。`registerSyntheticAbstractCollectionStub`/`registerSyntheticAbstractMutableCollectionStub`/`registerSyntheticMutableIterableStub`（`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable`）は既に bundled Kotlin source を再利用する fallback 専用のため対象外——`MutableIterable.iterator()` の covariant override も `MutableIterable.kt` のコメント通り BUG-200（library metadata が再型付けを表現できない）で compiler 残置と既に結論済みのため同様に対象外
+  - 実装先: KSP-700 が新設する `Sources/CompilerCore/Stdlib/kotlin/collections/Collection.kt`/`MutableCollection.kt`/`Iterable.kt`（`Iterator`/`MutableIterator` の source 化が KSP-700 のスコープに含まれるかは着手時に確認）。型宣言が揃った後、この shell を `AbstractCollection` と同型の「既存シンボル再利用」パターンへ揃え、KSP-700 側との重複登録を除去する
+  - 削除/降格 kk_*: 対象 public `kk_*` なし。`__kk_collection_*`/`__kk_mutable_collection_*`（`isEmpty`/`add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`）・`kk_iterator_hasNext`/`kk_iterator_next`/`kk_range_iterator`・`kk_op_contains` は、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的で必須（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）——KSP-700 後も (c) 残置が濃厚。`kk_list_random`/`kk_list_randomOrNull` は **KSP-1509 が `__kk_random_*` へ降格予定の同一ブリッジ**につき削除対象に含めない。着手時に KSP-1509 の進捗を確認し、先に完了していれば `externalLinkName` 参照が dangling にならないよう追従修正する
+  - 手順: T。itable dispatch 制約により (b) 化不能と判明した分は KSP-1520 と同様「(c) 残置と結論付け、根拠を `docs/stdlib-pipeline.md` §9 に記録して完了とする」
+  - diff: `collection_*.kt`, `iterable_*.kt`, `mutable_collection_*.kt` 既存拡張
+  - 前提: KSP-700, KSP-701（着手時に KSP-1509 の削除対象ブリッジと突合）
 
 ### CLEANUP-STUB 追補（(a) 削除。2026-07-10 監査。採番は履歴最終 095 の続き。手順は RF-STUB-002 レシピ）
 
@@ -1319,12 +1333,11 @@
   - 対象: `kotlin` / top-level / family `Lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy_interface_members.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy_interface_members.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy_interface_members.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy_members.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。（元は `stdlib_kotlin_n_Lazy.kt` という大文字名だったが、後続PR #5946が独立に `stdlib_kotlin_n_lazy.kt` を追加した際にケースインセンシティブファイルシステム上で衝突したため `stdlib_kotlin_n_lazy_members.kt` にリネームした）
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy_members.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy_members.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。（同上の理由でリネーム）
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Lazy` — interface kotlin.Lazy  -- `abstract interface <#A: out kotlin/Any?> kotlin/Lazy {`
-  - 注記（2026-08-20）: 元は `stdlib_kotlin_n_Lazy.kt` という名前だったが、KSP-781（`stdlib_kotlin_n_lazy.kt`）と大文字小文字違いのみで衝突し、macOS（APFS ケースインセンシティブ）上で同一ファイルとして扱われるバグがあったため `stdlib_kotlin_n_lazy_interface_members.kt` にリネームした。
 
 - [x] KSP-744: kotlin.LazyThreadSafetyMode-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `LazyThreadSafetyMode`
@@ -1706,7 +1719,7 @@
     - `kotlin.fromBits` — fun fromBits(Long): Double  -- `final fun kotlin/fromBits(kotlin/Long): kotlin/Double`
   - 完了確認（2026-08-19）: `from.kt` のsource-backed overload、Double/FloatのfromBits専用Runtime/RuntimeABI bridge、fromBitsに限定したname-string特例、FloatのABI再拡張、Golden/diff/ABI/TODO IDゲートを確認。
 
-- [ ] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-779: kotlin.int-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `int`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ArrayIntrinsics.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1731,15 +1744,14 @@
   - 対象: `kotlin` / top-level / family `lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy_factory.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy_factory.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy_factory.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_lazy.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_lazy.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_lazy.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.lazy` — fun lazy(Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazy` — fun lazy(Any, Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/Any?, kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazy` — fun lazy(LazyThreadSafetyMode, Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/LazyThreadSafetyMode, kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazyOf` — fun lazyOf(): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazyOf(#A): kotlin/Lazy<#A>`
-  - 注記（2026-08-20）: 元は `stdlib_kotlin_n_lazy.kt` という名前だったが、KSP-743（`stdlib_kotlin_n_Lazy.kt`）と大文字小文字違いのみで衝突し、macOS（APFS ケースインセンシティブ）上で同一ファイルとして扱われるバグがあったため `stdlib_kotlin_n_lazy_factory.kt` にリネームした。
 
 - [ ] KSP-782: kotlin.let-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `let`
@@ -2582,7 +2594,7 @@
     - `kotlin.KotlinVersion.<init>` — constructor (Int, Int, Int)  -- `constructor <init>(kotlin/Int, kotlin/Int, kotlin/Int)`
     - `kotlin.KotlinVersion.Companion` — object kotlin.KotlinVersion.Companion  -- `final object Companion {`
 
-- [ ] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件）
+- [x] KSP-857: kotlin.KotlinVersion.KotlinVersion の未実装 stdlib API を実装する（3 件。KSP-610 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.KotlinVersion` / receiver `KotlinVersion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion/KotlinVersion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2617,7 +2629,7 @@
     - `kotlin.LazyThreadSafetyMode.valueOf` — fun LazyThreadSafetyMode.valueOf(String): LazyThreadSafetyMode  -- `final fun valueOf(kotlin/String): kotlin/LazyThreadSafetyMode`
     - `kotlin.LazyThreadSafetyMode.values` — fun LazyThreadSafetyMode.values(): Array  -- `final fun values(): kotlin/Array<kotlin/LazyThreadSafetyMode>`
 
-- [ ] KSP-860: kotlin.Long.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-860: kotlin.Long.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Long.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Long/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
