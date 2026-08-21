@@ -7,14 +7,6 @@
 
 package kotlin
 
-@kotlin.annotation.Target()
-@kotlin.annotation.Retention(AnnotationRetention.BINARY)
-@kotlin.annotation.MustBeDocumented
-public annotation class ReplaceWith(
-    val expression: String,
-    vararg val imports: String
-)
-
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.FUNCTION,

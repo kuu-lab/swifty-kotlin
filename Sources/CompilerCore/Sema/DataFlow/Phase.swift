@@ -38,6 +38,19 @@ final class DataFlowSemaPhase: CompilerPhase {
         let (importedInlineFunctions, importDeferredWork) = loadImports(ctx: ctx, symbols: symbols, types: types)
         sema.importedInlineFunctions = importedInlineFunctions
 
+        // KSP-706: when compiling against bundled stdlib source rather than a
+        // prebuilt library artifact, forward-declare `kotlin.Pair`/`kotlin.Triple`
+        // from `Tuples.kt` now, before `registerSyntheticDelegateStubs` below runs
+        // stub registrations that reference `Pair<...>` in their signatures. When
+        // a prebuilt library is used instead, `loadImports` above already defined
+        // the real symbols, so this pass simply finds nothing to do.
+        var predeclaredTupleHeaders: [DeclID: SymbolID] = [:]
+        predeclareBundledTupleHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredTupleHeaders
+        )
+
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                 bundledIndex: bundledIndex,
@@ -80,8 +93,12 @@ final class DataFlowSemaPhase: CompilerPhase {
         // them during normal Sema pollutes user diagnostics for unaffected code.
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
-            symbols: symbols, types: types, bindings: bindings, ctx: ctx
+            symbols: symbols, types: types, bindings: bindings, ctx: ctx,
+            predeclared: predeclaredTupleHeaders
         )
+        types.functionInterfaceSymbol = symbols.lookupAll(
+            fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
+        ).first { symbols.symbol($0)?.kind == .interface }
         bundledIndex.warnSyntheticOverlaps(
             symbols: symbols,
             types: types,
@@ -194,7 +211,8 @@ final class DataFlowSemaPhase: CompilerPhase {
     func collectAllHeaders(
         ast: ASTModule, fileScopes: [Int32: FileScope],
         symbols: SymbolTable, types: TypeSystem, bindings: BindingTable,
-        ctx: CompilationContext
+        ctx: CompilationContext,
+        predeclared initialPredeclared: [DeclID: SymbolID] = [:]
     ) {
         // Collect bundled/residual stdlib headers before user headers so that
         // source-backed stdlib declarations (e.g. `kotlin.experimental`
@@ -213,8 +231,10 @@ final class DataFlowSemaPhase: CompilerPhase {
         }
         // BUG-143: forward-declare every top-level nominal type first, so a
         // signature may reference a class/interface/object declared later in the
-        // same file (or in a file collected later).
-        var predeclared: [DeclID: SymbolID] = [:]
+        // same file (or in a file collected later). Seeded with whatever
+        // `predeclareBundledTupleHeaders` already predeclared in `Phase.run`;
+        // `predeclareNominalTypeHeaders` skips declarations already present.
+        var predeclared = initialPredeclared
         for file in orderedFiles {
             guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
             predeclareNominalTypeHeaders(
@@ -270,6 +290,15 @@ final class DataFlowSemaPhase: CompilerPhase {
         types: TypeSystem, ctx: CompilationContext
     ) {
         bindInheritanceEdges(ast: ast, symbols: symbols, bindings: bindings, types: types, interner: ctx.interner)
+        // KSP-719: Restore kotlin.Any as the direct supertype of the bundled
+        // kotlin.Annotation source, because its source declaration has no
+        // explicit supertype clause and would otherwise erase the synthetic
+        // supertype installed by registerSyntheticAnyStub.
+        patchBundledAnnotationSupertype(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         // BUG-166: StringBuilder's Appendable/CharSequence conformance is
         // synthetic (not written in the bundled Kotlin source's `class
         // StringBuilder { ... }` declaration), so bindInheritanceEdges above —

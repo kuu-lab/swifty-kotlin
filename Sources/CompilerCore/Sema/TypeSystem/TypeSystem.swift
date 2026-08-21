@@ -33,6 +33,10 @@ public final class TypeSystem {
     /// Used in subtyping to allow function types to be assigned to KFunction<R> variables.
     public internal(set) var kFunctionInterfaceSymbol: SymbolID?
 
+    /// The symbol of the bundled `kotlin.Function<R>` interface.
+    /// Function types are subtypes of this source-backed common function interface.
+    public internal(set) var functionInterfaceSymbol: SymbolID?
+
     /// The symbol ID of the synthetic `kotlin.reflect.KClass` interface.
     public internal(set) var kClassInterfaceSymbol: SymbolID?
 

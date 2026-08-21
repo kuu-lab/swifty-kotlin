@@ -219,6 +219,29 @@ struct BundledStdlibExecutionTests {
         )
     }
 
+    // KSP-781 regression: PUBLICATION may evaluate an initializer more than
+    // once under contention, but every read must observe the first published
+    // value rather than a later initializer result.
+    @Test
+    func testLazyPublicationKeepsPublishedValue() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                var count = 0
+                val value = lazy(LazyThreadSafetyMode.PUBLICATION) {
+                    count += 1
+                    count
+                }
+                println(value.isInitialized())
+                println(value.value)
+                println(value.value)
+                println(count)
+            }
+            """,
+            expectedOutput: "false\n1\n1\n1\n"
+        )
+    }
+
     // KSP-677 regression: Semaphore.withPermit is bundled Kotlin source (a generic suspend
     // extension composing the c-soft acquire/release kernel).
     @Test

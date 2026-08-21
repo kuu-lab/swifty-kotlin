@@ -17,10 +17,12 @@ fun main() {
     println(c.protectedVal)  // KSWIFTK-SEMA-0041: cannot access 'protectedVal': it is protected in 'Container'
 }
 
-// ERROR: Private type used in public API
+// Private-in-file top-level class: the implicit constructor is accessible
+// from unrelated code in the same file (BUG-217). This used to misfire as a
+// KSWIFTK-SEMA-0040 private-access violation here.
 private class InternalImpl
 
-fun publicApi(): InternalImpl = InternalImpl()  // KSWIFTK-SEMA-0042: 'InternalImpl' is private and cannot be exposed via public API
+fun publicApi(): InternalImpl = InternalImpl()
 
 // ERROR: Accessing private constructor
 class SingletonLike private constructor() {

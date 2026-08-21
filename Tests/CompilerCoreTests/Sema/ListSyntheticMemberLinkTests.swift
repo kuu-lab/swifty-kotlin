@@ -3,8 +3,25 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct ListSyntheticMemberLinkTests {
+    static nonisolated(unsafe) var _sharedListSema: CompilationContext?
+
+    func sharedListSemaContext() throws -> CompilationContext {
+        if let cached = Self._sharedListSema {
+            return cached
+        }
+        var result: CompilationContext?
+        try withTemporaryFile(contents: "fun noop() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            result = ctx
+        }
+        let ctx = try #require(result)
+        Self._sharedListSema = ctx
+        return ctx
+    }
+
     @Test
     func testListLastIndexExtensionFunctionResolvesToBundledSource() throws {
         let source = """
@@ -450,9 +467,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListAggregateMembersUseRuntimeExternalLinks() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let expectedExternalLinks: [String: String?] = [
@@ -523,9 +539,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testBundledListAggregateHOFsSuppressSyntheticStubs() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -683,9 +698,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListSearchHOFsHaveBundledSourceDefinitions() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let packageFQName = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1087,9 +1101,86 @@ struct ListSyntheticMemberLinkTests {
                 .compactMap { binding in
                 sema.symbols.externalLinkName(for: binding.chosenCallee)
             }
-            // KSP-632: Iterable.minusElement is bundled Kotlin source, so no public
+            // KSP-701: Iterable.minusElement is bundled Kotlin source, so no public
             // kk_list_minus_element runtime bridge remains.
             #expect(callLinks.filter { $0 == "kk_list_minus_element" }.count == 0)
+        }
+    }
+
+    @Test
+    func testIterableFilterAndReduceMembersResolveToSourceBacked() throws {
+        let source = """
+        fun filterValues(values: Iterable<Int>): List<Int> {
+            return values.filter { it % 2 == 0 }
+        }
+
+        fun reduceValues(values: Iterable<Int>): Int {
+            return values.reduce { acc, value -> acc + value }
+        }
+
+        fun reduceIndexedValues(values: Iterable<Int>): Int {
+            return values.reduceIndexed { index, acc, value -> acc + index + value }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!(ctx.diagnostics.hasError), "Expected KSP-701 Iterable members to resolve cleanly, got: \(diagnosticSummary)")
+
+            let sema = try #require(ctx.sema)
+            for memberName in ["filter", "reduce", "reduceIndexed"] {
+                let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                    named: memberName,
+                    sema: sema,
+                    interner: ctx.interner
+                ))
+                #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
+                #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+
+                let callLinks = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == memberSymbol }
+                    .compactMap { sema.symbols.externalLinkName(for: $0.chosenCallee) }
+                #expect(callLinks.isEmpty, "Expected Iterable.\(memberName) to avoid a runtime bridge")
+            }
+        }
+    }
+
+    @Test
+    func testRangeInitializerOnlyWidensToPlainIterableAnnotation() throws {
+        let validSource = """
+        fun valid() {
+            val values: Iterable<Int> = 1..3
+        }
+        """
+        try withTemporaryFile(contents: validSource) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(!ctx.diagnostics.hasError, "Expected Iterable<Int> range annotation to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+        }
+
+        let invalidSources: [(String, String)] = [
+            ("List", "val values: List<Int> = 1..3"),
+            ("Set", "val values: Set<Int> = 1..3"),
+            ("Collection", "val values: Collection<Int> = 1..3"),
+            ("Array", "val values: Array<Int> = 1..3"),
+            ("String", "val values: String = 'a'..'c'"),
+        ]
+        for (annotationName, declaration) in invalidSources {
+            let source = """
+            fun invalid() {
+                \(declaration)
+            }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path])
+                try runSema(ctx)
+                #expect(ctx.diagnostics.hasError, "Expected range-to-\(annotationName) assignment to produce a type error")
+            }
         }
     }
 
@@ -1328,9 +1419,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testComparableSyntheticStubUsesContravariantTypeParameter() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let comparableSymbol = try #require(sema.types.comparableInterfaceSymbol)
@@ -1409,9 +1499,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testPrimitiveIteratorSurfacesAreRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1485,9 +1574,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractIteratorSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let abstractIteratorFQName = ["kotlin", "collections", "AbstractIterator"]
@@ -1558,9 +1646,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractCollectionSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let abstractCollectionFQName = ["kotlin", "collections", "AbstractCollection"]
@@ -1678,9 +1765,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractListSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1713,9 +1799,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractSetSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1846,9 +1931,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableCollectionSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -1972,9 +2056,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableSetSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2008,9 +2091,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testAbstractMutableMapSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2099,9 +2181,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableListIteratorSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2148,9 +2229,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testMutableIterableSurfaceIsRegistered() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
@@ -2429,9 +2509,8 @@ struct ListSyntheticMemberLinkTests {
 
     @Test
     func testListBinarySearchComparatorOverloadHasDefaultedRange() throws {
-        try withTemporaryFile(contents: "fun noop() {}") { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
 
             let sema = try #require(ctx.sema)
             let symbolID = try #require(sema.symbols.lookupAll(fqName: [

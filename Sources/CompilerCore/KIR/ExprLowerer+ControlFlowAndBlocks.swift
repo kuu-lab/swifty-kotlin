@@ -155,6 +155,22 @@ extension ExprLowerer {
             {
                 return receiverExprID
             }
+            // kotlin.Unit has a source-backed object symbol for stdlib
+            // completeness, but its runtime value remains the builtin zero
+            // representation. Do not materialize a nominal singleton handle:
+            // the precompiled stdlib object has no reference-backed storage.
+            if let symbol = sema.bindings.identifierSymbols[exprID],
+               let symbolInfo = sema.symbols.symbol(symbol),
+               symbolInfo.kind == .object,
+               symbolInfo.fqName == [
+                   interner.intern("kotlin"),
+                   KnownCompilerNames(interner: interner).unit
+               ]
+            {
+                let id = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: id, value: .unit))
+                return id
+            }
             // STDLIB-004: Implicit receiver member access (e.g. `length` inside
             // `run { length }` resolves as `this.length`).
             if let memberName = sema.bindings.implicitReceiverMemberNames[exprID],
@@ -1075,16 +1091,37 @@ extension ExprLowerer {
                 if let symbol = sema.bindings.identifierSymbols[exprID] {
                     let delegateKind = StdlibDelegateKind.detect(delegateExpr: initializer, ast: ast, interner: interner)
                     let hasProvideDelegate = sema.symbols.hasProvideDelegate(for: symbol)
+                    var effectiveDelegateKind = delegateKind
+                    if isDelegated, delegateKind == .lazy {
+                        // `StdlibDelegateKind.detect` intentionally recognizes the
+                        // bare name `lazy`, so a user-defined factory can be
+                        // classified as the stdlib delegate before symbol
+                        // resolution proves otherwise. Keep such declarations on
+                        // the normal custom-delegate path instead of loading their
+                        // handle through `kk_lazy_get_value`.
+                        let didLowerLazyFactory = lowerLocalLazyFactory(
+                            delegateKind: delegateKind,
+                            delegateHandle: initializerID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        if !didLowerLazyFactory {
+                            effectiveDelegateKind = .custom
+                        }
+                    }
                     let isCustomDelegateDecl = isDelegated
-                        && delegateKind == .custom
-                    if isDelegated, delegateKind != .custom, !hasProvideDelegate {
-                        // Local stdlib-delegated declaration (BUG-052): keep the local
+                        && effectiveDelegateKind == .custom
+                    if isDelegated, effectiveDelegateKind != .custom, !hasProvideDelegate {
+                        // Local stdlib-delegated declaration (BUG-052): after the
+                        // source-backed factory has been recognized, keep the local
                         // bound to the delegate handle produced by the factory, and
                         // record the kind so each read goes through the matching
                         // `kk_*_get_value` accessor. Without this the raw handle was
                         // used as the value itself (`println(x)` printing
                         // `<object 0x...>` instead of the lazily computed value).
-                        driver.ctx.setLocalStdlibDelegateKind(delegateKind, for: symbol)
+                        driver.ctx.setLocalStdlibDelegateKind(effectiveDelegateKind, for: symbol)
                         driver.ctx.setLocalDelegateStorage(initializerID, for: symbol)
                         if let propertyType = sema.symbols.propertyType(for: symbol) {
                             driver.ctx.setLocalDeclaredType(propertyType, for: symbol)

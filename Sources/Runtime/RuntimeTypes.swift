@@ -126,7 +126,7 @@ class RuntimeThrowableBox {
     let message: String?
     var cause: Int
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
-    /// Stores raw Int pointers to other RuntimeThrowableBox instances.
+    /// Stores raw Int pointers to other runtime Throwable objects.
     var suppressed: [Int] = []
 
     var exceptionFQName: String {
@@ -241,10 +241,16 @@ class RuntimeArrayBox {
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
     var backingSetBox: RuntimeSetBox?
+    var throwableMessage: String?
+    var throwableCause: Int
+    var throwableSuppressed: [Int]
 
     init(length: Int, classID: Int64) {
         self.classID = classID
         self.backingSetBox = nil
+        self.throwableMessage = nil
+        self.throwableCause = 0
+        self.throwableSuppressed = []
         super.init(length: length)
     }
 }
@@ -1452,22 +1458,32 @@ final class RuntimeLazyBox {
     private let initializerFnPtr: Int
     private var cachedState: CachedState = .uninitialized
     private let mode: LazyThreadSafetyMode
+    private let synchronizationLockKey: Int?
     private let lock = NSLock()
 
-    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode) {
+    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode, synchronizationLockKey: Int? = nil) {
         self.initializerFnPtr = initializerFnPtr
         self.mode = mode
+        self.synchronizationLockKey = synchronizationLockKey
     }
 
     init(initializedValue: Int) {
         initializerFnPtr = 0
         cachedState = .initialized(initializedValue)
         mode = .none
+        synchronizationLockKey = nil
     }
 
     func getValue() -> Int {
         switch mode {
         case .synchronized:
+            if let synchronizationLockKey {
+                return runtimeWithLock(for: synchronizationLockKey) {
+                    lock.lock()
+                    defer { lock.unlock() }
+                    return getValueLocked()
+                }
+            }
             lock.lock()
             defer { lock.unlock() }
             return getValueLocked()

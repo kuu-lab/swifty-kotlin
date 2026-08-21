@@ -40,17 +40,8 @@ func kirInterfacePropertyGetterSlots(
             // Likewise for synthetic runtime members registered on an otherwise
             // Kotlin-declared interface: only declarations that exist in Kotlin
             // (source, or the same declaration imported from a precompiled
-            // library) own an itable getter slot. CharSequence.length is the
-            // one synthetic exception: it is an interface property whose
-            // receiver may be a user-defined CharSequence implementation.
-            let isSyntheticCharSequenceLength = interfaceInfo.fqName == [
-                interner.intern("kotlin"),
-                interner.intern("CharSequence"),
-            ] && interner.resolve(property.name) == "length"
-            guard property.declSite != nil
-                || property.flags.contains(.importedLibrary)
-                || isSyntheticCharSequenceLength
-            else {
+            // library) own an itable getter slot.
+            guard property.declSite != nil || property.flags.contains(.importedLibrary) else {
                 return nil
             }
             return id
