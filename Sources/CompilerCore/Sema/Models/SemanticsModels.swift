@@ -1277,6 +1277,12 @@ public final class BindingTable {
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Tracks `.memberCall` expressions resolved by
+    /// `CallTypeChecker.tryInferFQNPackageTopLevelCall` (e.g.
+    /// `kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`): the receiver
+    /// chain is a bare namespace path, not a real value, so it is never type
+    /// -checked and must not be lowered as one.
+    public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1742,6 +1748,19 @@ public final class BindingTable {
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a `.memberCall` expression as resolved via the FQN-package-qualified
+    /// top-level lookup (`kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`).
+    public func markFQNTopLevelCallExpr(_ expr: ExprID) {
+        fqnTopLevelCallExprIDs.insert(expr)
+    }
+
+    /// Whether the call expression was resolved via the FQN-package-qualified
+    /// top-level lookup, meaning its receiver chain is a namespace path with
+    /// no type binding and must not be lowered as a value.
+    public func isFQNTopLevelCallExpr(_ expr: ExprID) -> Bool {
+        fqnTopLevelCallExprIDs.contains(expr)
     }
 
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.

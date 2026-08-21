@@ -1,0 +1,85 @@
+name: Warm CI caches
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: warm-ci-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  warm-swiftpm:
+    name: Warm SwiftPM cache (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - label: debug tests
+            build_kind: debug-tests
+            build_variant: fast
+          - label: release kswiftc
+            build_kind: release-kswiftc
+            build_variant: release-kswiftc
+    env:
+      KSWIFTK_OPTIMIZE_COMPILER_CORE: "1"
+      KSWIFTK_CI_FAST_BUILD: "1"
+      SWIFT_BUILD_SYSTEM: native
+      SWIFT_ENABLE_COMPILE_CACHE: "1"
+      SWIFT_ENABLE_CACHE_REMARKS: "1"
+      SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
+      SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain version
+        run: swift --version
+      - name: Restore and schedule SwiftPM cache save
+        id: swiftpm-cache
+        uses: ./.github/actions/setup-swiftpm-cache
+        with:
+          swift-version: "6.3"
+          build-variant: ${{ matrix.build_variant }}
+          save: "true"
+      - name: Configure build parallelism
+        if: steps.swiftpm-cache.outputs.cache-hit != 'true'
+        run: |
+          worker_count="$(nproc)"
+          if ! [[ "$worker_count" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Unable to detect a positive logical CPU count: $worker_count" >&2
+            exit 1
+          fi
+          echo "SWIFT_BUILD_JOBS=$worker_count" >> "$GITHUB_ENV"
+          echo "Detected $worker_count logical CPUs"
+      - name: Build debug test bundle
+        if: matrix.build_kind == 'debug-tests' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Build release kswiftc
+        if: matrix.build_kind == 'release-kswiftc' && steps.swiftpm-cache.outputs.cache-hit != 'true'
+        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Summarize cache warmup
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.swiftpm-cache.outputs.cache-hit }}
+          CACHE_KEY: ${{ steps.swiftpm-cache.outputs.cache-key }}
+        run: |
+          {
+            echo "## SwiftPM cache warmup"
+            echo
+            echo "- Variant: \`${{ matrix.build_variant }}\`"
+            echo "- Exact cache hit: \`${CACHE_HIT:-false}\`"
+            echo "- Key: \`${CACHE_KEY}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

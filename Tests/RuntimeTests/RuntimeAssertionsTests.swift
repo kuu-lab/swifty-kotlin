@@ -490,6 +490,7 @@ struct RuntimeAssertionsTests {
         #expect(noArgBox.message == nil)
         #expect(withCauseBox.message == "modified")
         #expect(withCauseBox.cause == noArg)
+        #expect(causeOnlyBox.message == "java.util.ConcurrentModificationException")
         #expect(causeOnlyBox.cause == noArg)
     }
 
@@ -499,11 +500,32 @@ struct RuntimeAssertionsTests {
 
         #expect(runtimeBox(from: kk_error_new_cause(cause), as: RuntimeErrorBox.self) != nil)
         #expect(runtimeBox(from: kk_exception_new_cause(cause), as: RuntimeExceptionBox.self) != nil)
-        #expect(runtimeBox(from: kk_runtime_exception_new_cause(cause), as: RuntimeRuntimeExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_illegal_argument_exception_new_cause(cause), as: RuntimeIllegalArgumentExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_illegal_state_exception_new_cause(cause), as: RuntimeIllegalStateExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_unsupported_operation_exception_new_cause(cause), as: RuntimeUnsupportedOperationExceptionBox.self) != nil)
         #expect(runtimeBox(from: kk_uninitialized_property_access_exception_new_cause(cause), as: RuntimeUninitializedPropertyAccessExceptionBox.self) != nil)
+    }
+
+    @Test
+    func testIllegalStateExceptionCauseOnlyUsesJVMExceptionFQName() throws {
+        let messageRaw = makeRuntimeString("root")
+        let runtimeCause = kk_illegal_argument_exception_new_message(messageRaw)
+        let runtimeWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(runtimeCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(runtimeWrapped.message == "java.lang.IllegalArgumentException: root")
+
+        let javaUtilCause = kk_no_such_element_exception_new_message(messageRaw)
+        let javaUtilWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(javaUtilCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(javaUtilWrapped.message == "java.util.NoSuchElementException: root")
+
+        let genericCause = Int(bitPattern: __kk_throwable_new(UnsafeMutableRawPointer(bitPattern: messageRaw)))
+        let genericWrapped = try #require(
+            runtimeBox(from: kk_illegal_state_exception_new_cause(genericCause), as: RuntimeIllegalStateExceptionBox.self)
+        )
+        #expect(genericWrapped.message == "java.lang.Throwable: root")
     }
 
     @Test

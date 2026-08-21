@@ -20,3 +20,8 @@ public external fun <T> emptyArray(): Array<T>
 
 @KsSymbolName("kk_array_of_nulls")
 public external fun <T> arrayOfNulls(size: Int): Array<T?>
+
+// KSP-779: Keep primitive vararg packing on the raw runtime path so Int
+// elements are not boxed into a temporary container before array creation.
+@KsSymbolName("kk_array_of")
+public external fun intArrayOf(vararg elements: Int): IntArray
