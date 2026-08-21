@@ -557,6 +557,9 @@ extension ExprTypeChecker {
             }
             if sema.bindings.isFloatingPointRangeSymbol(local.symbol) {
                 sema.bindings.markFloatingPointRangeExpr(id)
+                if let elementType = sema.bindings.floatingPointRangeElementType(forSymbol: local.symbol) {
+                    sema.bindings.bindFloatingPointRangeElementType(elementType, forExpr: id)
+                }
             }
             if sema.bindings.isFlowSymbol(local.symbol) {
                 sema.bindings.markFlowExpr(id)
@@ -1264,7 +1267,21 @@ extension ExprTypeChecker {
                     }
                     if let propertySymbol = propertyCandidates.first {
                         let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
-                        let resultType = expectedType ?? propertyType
+                        let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+                        let ownerTypeForReference = unboundClassType != nil ? nonNullReceiver : nil
+                        let inferredType = kPropertyReferenceType(
+                            ownerType: ownerTypeForReference,
+                            valueType: propertyType,
+                            isMutable: isMutable,
+                            sema: sema,
+                            interner: interner
+                        ) ?? propertyType
+                        let resultType = resolvedPropertyReferenceResultType(
+                            expectedType: expectedType,
+                            inferredType: inferredType,
+                            sema: sema,
+                            interner: interner
+                        )
                         sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                         sema.bindings.bindCallableTarget(id, target: .symbol(propertySymbol))
                         sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
@@ -1295,10 +1312,65 @@ extension ExprTypeChecker {
             }
             if let propertySymbol = propertyCandidates.first {
                 let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.errorType
+                let isMutable = sema.symbols.symbol(propertySymbol)?.flags.contains(.mutable) == true
+                // KSP-496/KSP-505: a bare `::member` reference to a member
+                // property of the enclosing class or singleton is implicitly
+                // bound to `this`. For `.class` owners the receiver is a
+                // genuine instance captured by KIR lowering
+                // (LambdaLowerer.isCaptureEligibleInstanceContainerSymbol).
+                // For `.object` owners (companion objects, plain `object`s)
+                // there is exactly one instance ever, stored in a
+                // module-level global slot rather than a captured
+                // per-instance field — so KIR lowering (see
+                // LambdaLowerer+PropertyReferenceLowering.swift's
+                // `ensurePropertyReferenceAccessor`) reads/writes that slot
+                // directly and never needs a captured receiver at all.
+                //
+                // `.enumClass` stays excluded (kept on the pre-existing, safe
+                // fallback), even though an *enum entry* is also a singleton:
+                // a property declared directly in the enum class's own body
+                // (e.g. a constructor-promoted `val`) is a genuine per-entry
+                // *instance* field — each entry has its own value — not
+                // shared global storage the way `.object` is. Confirmed by
+                // testing: treating `.enumClass` the same as `.object` here
+                // made `enum class E(val v: Int) { A(1), B(2) }`'s `::v`
+                // read back `0` for every entry instead of each entry's own
+                // value. A property declared inside one specific *entry's*
+                // own body (`A { val x = 5 }`) might be a distinct, safely
+                // includable case — its owner could plausibly be that
+                // entry's own synthesized subclass rather than `.enumClass`
+                // itself — but this could not be verified: referencing an
+                // entry with a body at all (`EnumClass.ENTRY`) hits a
+                // separate, pre-existing, unrelated bug (see
+                // docs/diff-skip-inventory.md's `enum_edge_cases.kt` entry).
+                // `.interface` stays excluded here too: interface-owned
+                // properties have no storage of their own (always dispatched
+                // through whichever class implements them), which this
+                // bare-reference path does not handle yet.
+                let ownerKind = sema.symbols.parentSymbol(for: propertySymbol)
+                    .flatMap { sema.symbols.symbol($0)?.kind }
+                let resultType: TypeID
+                if let ownerKind, ownerKind != .class, ownerKind != .object {
+                    resultType = propertyType
+                } else {
+                    let inferredType = kPropertyReferenceType(
+                        ownerType: nil,
+                        valueType: propertyType,
+                        isMutable: isMutable,
+                        sema: sema,
+                        interner: interner
+                    ) ?? propertyType
+                    resultType = resolvedPropertyReferenceResultType(
+                        expectedType: expectedType,
+                        inferredType: inferredType,
+                        sema: sema,
+                        interner: interner
+                    )
+                }
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
-                sema.bindings.bindExprType(id, type: propertyType)
-                return propertyType
+                sema.bindings.bindExprType(id, type: resultType)
+                return resultType
             }
             candidates = ctx.cachedScopeLookup(member).filter { symbolID in
                 guard let symbol = ctx.cachedSymbol(symbolID) else {
@@ -1443,6 +1515,105 @@ extension ExprTypeChecker {
         sema.bindings.bindCaptureSymbols(id, symbols: fallbackCaptures)
         sema.bindings.bindExprType(id, type: fallbackType)
         return fallbackType
+    }
+
+    /// Builds the concrete `KProperty0<V>` / `KMutableProperty0<V>` /
+    /// `KProperty1<Owner, V>` / `KMutableProperty1<Owner, V>` type for a plain
+    /// property callable reference (`Type::property`, `instance::property`, or
+    /// bare `::property`), so a reference used without an expected type (e.g.
+    /// `val ref = C::v`, or as an argument whose parameter type is itself
+    /// inferred, like `listOf(C::v)`) still gets a real KProperty-conforming
+    /// type instead of degrading to the property's own value type.
+    ///
+    /// `ownerType` is `nil` for a bound (`instance::property`) or top-level
+    /// (bare `::property`) reference (arity 0: `KProperty0`/`KMutableProperty0`),
+    /// and the receiver's class type for an unbound (`Type::property`)
+    /// reference (arity 1: `KProperty1`/`KMutableProperty1`).
+    ///
+    /// Returns `nil` when the interface symbol isn't registered (e.g.
+    /// `kotlin.reflect` wasn't injected), in which case callers should keep
+    /// their previous fallback behavior.
+    private func kPropertyReferenceType(
+        ownerType: TypeID?,
+        valueType: TypeID,
+        isMutable: Bool,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        let reflectPkg = [interner.intern("kotlin"), interner.intern("reflect")]
+        let interfaceName: String
+        let typeArgs: [TypeArg]
+        if let ownerType {
+            interfaceName = isMutable ? "KMutableProperty1" : "KProperty1"
+            typeArgs = [.invariant(ownerType), .invariant(valueType)]
+        } else {
+            interfaceName = isMutable ? "KMutableProperty0" : "KProperty0"
+            typeArgs = [.invariant(valueType)]
+        }
+        guard let interfaceSymbol = sema.symbols.lookup(fqName: reflectPkg + [interner.intern(interfaceName)]) else {
+            return nil
+        }
+        return sema.types.make(.classType(ClassType(
+            classSymbol: interfaceSymbol,
+            args: typeArgs,
+            nullability: .nonNull
+        )))
+    }
+
+    /// Decides the expression type for a property callable reference.
+    ///
+    /// A property reference is also a valid function value — Kotlin allows
+    /// `list.map(Person::name)` or `val f: (Person) -> String = Person::name`
+    /// — so an `expectedType` that is a function type (or SAM-convertible
+    /// interface) is always trusted as-is, exactly like before this fix and
+    /// exactly like the sibling function-reference branch above.
+    ///
+    /// Otherwise, `expectedType` is only trusted when it is itself one of the
+    /// four concrete KProperty shapes (`KProperty0`/`KMutableProperty0`/
+    /// `KProperty1`/`KMutableProperty1`) — the same set
+    /// `propertyReferenceShape` in `LambdaLowerer+PropertyReferenceLowering.swift`
+    /// recognizes to build the real KIR wrapper object. A broader or unrelated
+    /// expected type (`Any`, `KProperty<*>`, `KCallable<*>`, ...) would
+    /// silently defeat that wrapper and fall back to a non-conforming legacy
+    /// value, so `inferredType` (the correct concrete shape this reference
+    /// actually has) is used instead in that case.
+    private func resolvedPropertyReferenceResultType(
+        expectedType: TypeID?,
+        inferredType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        guard let expectedType else {
+            return inferredType
+        }
+        if case .functionType = sema.types.kind(of: expectedType) {
+            return expectedType
+        }
+        if driver.helpers.samFunctionType(for: expectedType, sema: sema) != nil {
+            return expectedType
+        }
+        guard isConcreteKPropertyReferenceShape(expectedType, sema: sema, interner: interner) else {
+            return inferredType
+        }
+        return expectedType
+    }
+
+    private func isConcreteKPropertyReferenceShape(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        switch interner.resolve(symbol.name) {
+        case "KProperty0", "KMutableProperty0", "KProperty1", "KMutableProperty1":
+            return true
+        default:
+            return false
+        }
     }
 
     private func inferClassRefExpr(

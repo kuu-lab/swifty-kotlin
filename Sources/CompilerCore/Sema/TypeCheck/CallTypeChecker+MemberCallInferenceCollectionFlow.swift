@@ -393,7 +393,12 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
-            guard (isCollectionReceiver || isSequenceReceiver || isIterableReceiver),
+            // Sequence.asSequence() is an identity conversion. The bundled
+            // Iterable.asSequence() implementation is only valid for an
+            // Iterable receiver; binding it to Sequence produces an empty
+            // result because Sequence is not an Iterable in Kotlin.
+            guard !isSequenceReceiver,
+                  (isCollectionReceiver || isIterableReceiver),
                   !isArrayReceiver,
                   args.isEmpty else {
                 return false
@@ -1077,11 +1082,10 @@ extension CallTypeChecker {
             // `allowIterableReceiver` lets a plain `Iterable<T>`-typed receiver
             // (e.g. `val x: Iterable<Int> = setOf(...)`) fall back to the
             // bundled `Sequence<T>` source implementation for aggregate HOFs
-            // (fold/scan/runningFold/...) that have no dedicated Iterable
-            // synthetic stub (unlike reduce, which does — see
-            // registerIterableReduceMember). The Sequence source bodies are
-            // plain `for (element in this)` iteration, so they are exactly as
-            // valid for a Set/other Iterable receiver as for a real Sequence.
+            // that have no direct Iterable source declaration. The Sequence
+            // source bodies are plain `for (element in this)` iteration, so
+            // they are valid for a Set/other Iterable receiver as for a real
+            // Sequence.
             func bindBundledSequenceSourceIfAvailable(
                 resultType: TypeID,
                 otherElementType: TypeID? = nil,
@@ -1770,6 +1774,13 @@ extension CallTypeChecker {
                             )))
                         } else {
                             resultType = receiverType
+                        }
+                        if calleeStr == "filter",
+                           bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
                         }
                     case "takeLastWhile":
                         if let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
@@ -3830,21 +3841,11 @@ extension CallTypeChecker {
                     }
                 }
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull" || calleeStr == "reduceIndexed" || calleeStr == "reduceIndexedOrNull"), args.count == 1 {
-                // Do not add a bindBundledSequenceSourceIfAvailable(allowIterableReceiver:)
-                // fallback here like the fold/scan branch above: unlike those,
-                // an Iterable-receiver reduce call that neither
-                // bindBundledListSourceFunction nor bindBundledIterableSourceFunction
-                // can bind is meant to fall through with chosenCallee left
-                // unbound. CallLowerer's recoverMemberCallBinding then walks
-                // the receiver's directSupertypes at KIR-build time and finds
-                // the dedicated Iterable synthetic stub (see
-                // registerIterableReduceMember) itself. Binding eagerly here
-                // instead short-circuits that walk (an existing binding is
-                // returned as-is) and — because bindBundledSequenceSourceIfAvailable
-                // searches both kotlin.sequences and kotlin.collections —
-                // can incorrectly resolve to Sequence<T>.reduce even for a
-                // plain Set receiver, crashing with a vtable/itable dispatch
-                // failure at runtime.
+                // Iterable reduce/reduceIndexed source declarations are bound
+                // directly below. Do not fall back to a Sequence declaration
+                // for these names: the receiver may be a plain Set or another
+                // Iterable, and the source-backed Iterable implementation is
+                // the canonical dispatch target.
                 if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -3874,17 +3875,11 @@ extension CallTypeChecker {
                     }
                 }
             }
-            if let sourceBackedSequenceAggregateTypeArguments {
-                bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)
-            }
 
-            // KSP-441: Bind source-backed Sequence transform extensions (map, filter,
-            // mapIndexed, etc.) once the result element type is known. Do not override
-            // an already-bound CallBinding from a list/aggregate source path.
-            if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
-                _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
-            }
-
+            // Set-specific source declarations must be selected before the
+            // generic Iterable overloads below. Set is also a Collection, so
+            // binding Iterable.filter first would make the result depend on
+            // bundled source load order.
             if isSetReceiver, sema.bindings.callBindings[id] == nil, bindBundledSetSourceFunction() {
                 // The call now targets an ordinary Kotlin declaration, so its lambda
                 // arguments are boxed callables rather than native (closureObj, it)
@@ -3894,6 +3889,45 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(arg.expr)
                     }
                 }
+            }
+
+            // KSP-701: these generic collection extensions are ordinary
+            // bundled Kotlin declarations on Iterable<T>. Keep the explicit
+            // binding here for a statically Iterable receiver (and for
+            // concrete collection receivers without a more specific source
+            // overload) so the call never falls through to a Sequence-shaped
+            // declaration or a removed synthetic runtime bridge.
+            let iterableSourceHOFNames: Set = [
+                "filter",
+                "reduce",
+                "reduceIndexed",
+                "reduceRight",
+                "reduceRightIndexed",
+                "reduceRightOrNull",
+                "reduceRightIndexedOrNull",
+                "sumBy",
+                "sumByDouble",
+            ]
+            if sema.bindings.callBindings[id] == nil,
+               !isSequenceReceiver,
+               isCollectionReceiver,
+               iterableSourceHOFNames.contains(calleeStr),
+               bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+            {
+                for argument in args
+                where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(argument.expr)
+                }
+            }
+            if let sourceBackedSequenceAggregateTypeArguments {
+                bindBundledSequenceAggregateSource(typeArguments: sourceBackedSequenceAggregateTypeArguments)
+            }
+
+            // KSP-441: Bind source-backed Sequence transform extensions (map, filter,
+            // mapIndexed, etc.) once the result element type is known. Do not override
+            // an already-bound CallBinding from a list/aggregate source path.
+            if isSequenceReceiver, sema.bindings.callBindings[id] == nil {
+                _ = bindBundledSequenceSourceIfAvailable(resultType: resultType)
             }
 
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType

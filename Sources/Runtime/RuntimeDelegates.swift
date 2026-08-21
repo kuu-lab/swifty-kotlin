@@ -1,5 +1,25 @@
 import Foundation
 
+private let runtimeLazyInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Lazy")
+
+private let runtimeLazyValueGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_lazy_get_value(raw)
+}
+
+private let runtimeLazyIsInitialized: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_lazy_is_initialized(raw)
+}
+
+func registerRuntimeObject(_ box: RuntimeLazyBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    _ = kk_object_register_itable_iface(raw, Int(runtimeLazyInterfaceTypeID), 0)
+    _ = kk_object_register_itable_method(raw, 0, 0, unsafeBitCast(runtimeLazyIsInitialized, to: Int.self))
+    _ = kk_object_register_itable_method(raw, 0, 1, unsafeBitCast(runtimeLazyValueGetter, to: Int.self))
+    return raw
+}
+
 private let runtimeNotNullUninitializedPayload =
     "IllegalStateException: Property delegate must be assigned before being accessed."
 
@@ -209,17 +229,18 @@ private func kk_kproperty_stub_make_string(_ s: String) -> Int {
 @_cdecl("kk_lazy_create")
 public func kk_lazy_create(_ initFnPtr: Int, _ mode: Int) -> Int {
     let safetyMode = LazyThreadSafetyMode(rawValue: mode) ?? .synchronized
-    let box = RuntimeLazyBox(initializerFnPtr: initFnPtr, mode: safetyMode)
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
+    return registerRuntimeObject(RuntimeLazyBox(initializerFnPtr: initFnPtr, mode: safetyMode))
 }
 
-@_cdecl("kk_lazy_of")
-public func kk_lazy_of(_ value: Int) -> Int {
-    registerRuntimeObject(RuntimeLazyBox(initializedValue: value))
+@_cdecl("kk_lazy_create_with_lock")
+public func kk_lazy_create_with_lock(_ initFnPtr: Int, _ mode: Int, _ lock: Int) -> Int {
+    let safetyMode = LazyThreadSafetyMode(rawValue: mode) ?? .synchronized
+    let synchronizationLockKey = lock == 0 || lock == runtimeNullSentinelInt ? nil : lock
+    return registerRuntimeObject(RuntimeLazyBox(
+        initializerFnPtr: initFnPtr,
+        mode: safetyMode,
+        synchronizationLockKey: synchronizationLockKey
+    ))
 }
 
 @_cdecl("kk_lazy_get_value")

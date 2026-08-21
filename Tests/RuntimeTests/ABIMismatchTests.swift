@@ -174,13 +174,43 @@ struct ABIMismatchTests {
 
     @Test
     func kkArrayIndexOutOfBoundsExceptionConstructorsSignature() throws {
-        let noArg = try requireSpec("kk_array_index_out_of_bounds_exception_new")
+        let noArg = try requireSpec("__kk_array_index_out_of_bounds_exception_new")
         #expect(noArg.returnType == .intptr)
         #expect(noArg.parameters.count == 0)
 
-        let message = try requireSpec("kk_array_index_out_of_bounds_exception_new_message")
+        let message = try requireSpec("__kk_array_index_out_of_bounds_exception_new_message")
         #expect(message.returnType == .intptr)
         #expect(message.parameters.map(\.type) == [.intptr])
+    }
+
+    @Test
+    func genericListAndArrayJoinToStringABIsAreSourceBacked() throws {
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_list_joinToString" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_array_joinToString" }) == nil
+        )
+        let privateBridge = try requireSpec("__kk_string_joinToString")
+        #expect(privateBridge.parameters.map(\.type) == [.intptr, .intptr, .intptr, .intptr])
+        #expect(privateBridge.returnType == .intptr)
+    }
+
+    // KSP-621: Iterable.joinTo/joinToString and Sequence.joinTo/joinToString share
+    // one bundled Kotlin implementation (Iterables.kt's appendJoinToPlain/
+    // appendJoinToTransform, called via iterator()), so the runtime bridges these
+    // names used to route through when Sema left the callee unresolved are gone.
+    @Test
+    func iterableJoinToABIsAreSourceBacked() throws {
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinTo" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString" }) == nil
+        )
+        #expect(
+            RuntimeABISpec.allFunctions.first(where: { $0.name == "__kk_iterable_joinToString_transform" }) == nil
+        )
     }
 
     @Test

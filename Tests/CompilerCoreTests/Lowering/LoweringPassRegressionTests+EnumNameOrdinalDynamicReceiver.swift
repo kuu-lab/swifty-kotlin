@@ -134,18 +134,26 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
+            let sema = try #require(ctx.sema)
+            let northSymbol = try #require(sema.symbols.allSymbols().first {
+                $0.kind == .field && ctx.interner.resolve($0.name) == "NORTH"
+            })
+            let northNameHelper = ctx.interner.resolve(
+                NameMangler.enumEntryNameHelperName(for: northSymbol, interner: ctx.interner)
+            )
+
             #expect(!callees.contains(where: { $0.hasPrefix("$enumOrdinalToName$") }),
                     "a literal entry receiver should stay on the per-entry helper fast path; callees: \(callees)")
             #expect(!callees.contains("name"), "callees: \(callees)")
-            #expect(callees.contains("NORTH$enumName"),
+            #expect(callees.contains(northNameHelper),
                     "expected the literal fast path's per-entry helper call; callees: \(callees)")
 
-            let nameHelperBody = try findKIRFunctionBody(named: "NORTH$enumName", in: module, interner: ctx.interner)
+            let nameHelperBody = try findKIRFunctionBody(named: northNameHelper, in: module, interner: ctx.interner)
             let stringLiterals = nameHelperBody.compactMap { instruction -> String? in
                 guard case let .constValue(_, value) = instruction, case let .stringLiteral(s) = value else { return nil }
                 return ctx.interner.resolve(s)
             }
-            #expect(stringLiterals.contains("NORTH"), "expected NORTH$enumName to return the \"NORTH\" literal; got: \(stringLiterals)")
+            #expect(stringLiterals.contains("NORTH"), "expected \(northNameHelper) to return the \"NORTH\" literal; got: \(stringLiterals)")
         }
     }
 }

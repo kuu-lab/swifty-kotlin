@@ -135,7 +135,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
                 if let classSym = sema.symbols.symbol(classSymbol) {
-                    let helperName = ctx.interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
+                    let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: ctx.interner)
                     let fqName = classSym.fqName + [helperName]
                     if let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
                         sema.symbols.symbol(id).map { $0.kind == .function } ?? false
@@ -189,7 +189,7 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             return nil
         }
 
-        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
+        let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
         let fqName = classSym.fqName + [helperName]
         guard let helperSymbol = sema.symbols.lookupAll(fqName: fqName).first(where: { id in
             sema.symbols.symbol(id).map { $0.kind == .function } ?? false

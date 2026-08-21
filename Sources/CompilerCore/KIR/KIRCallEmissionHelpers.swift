@@ -25,7 +25,7 @@ func emitNonThrowingCall(
 /// (`.classType` never matches `BoxingCalleeTable`'s primitive-only lookup on
 /// its own), then tags the box appropriately (`emitBoxCallWithValueClassTag`:
 /// `kk_tag_value_class_box` for value classes, `kk_enum_box_ordinal` +
-/// `$enumOrdinalToName$<id>` for enums). Returns `value` unchanged when no
+/// `$enumOrdinalToName$<encodedFqName>` for enums). Returns `value` unchanged when no
 /// boxing is needed.
 func boxValueForAnySlot(
     _ value: KIRExprID,
@@ -194,7 +194,7 @@ func emitBoxCallWithValueClassTag(
     // ensureSyntheticPlatformEnumClass / rewriteSyntheticEnumEntryRefs) are
     // header-only symbols with no source declSite: they never get a
     // `.nominalType` KIR declaration, so DataEnumSealedSynthesisPass never
-    // synthesizes their `$enumOrdinalToName$<id>` helper. Fall back to a
+    // synthesizes their `$enumOrdinalToName$<encodedFqName>` helper. Fall back to a
     // plain (untagged) box for these — same as before this function grew
     // enum awareness — rather than emitting a call to a helper that will
     // never exist.
@@ -240,42 +240,47 @@ func emitBoxCallWithValueClassTag(
 
 /// Boxes an enum ordinal via `kk_enum_box_ordinal(ordinal, name, classID)`
 /// (BUG-177 / BUG-182), resolving `name` at runtime through the enum class's
-/// `$enumOrdinalToName$<id>` helper and tagging the box with the enum class's
-/// stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance` work after
-/// widening to `Any`.
+/// `$enumOrdinalToName$<encodedFqName>` helper and tagging the box with the
+/// enum class's stable nominal type ID so `is`/`as`/`as?`/`KClass.isInstance`
+/// work after widening to `Any`.
 ///
-/// The helper is called by bare name (`symbol: nil`) rather than by its
-/// `SymbolID` because boxing can be lowered *before*
-/// DataEnumSealedSynthesisPass has run: CollectionLiteralLoweringPass boxes
-/// `listOf(...)`/`setOf(...)` elements earlier in the LoweringPhase
-/// pipeline, when the helper's Sema symbol doesn't exist yet to reference.
-/// Codegen resolves unnamed calls by scanning every KIR function for one
-/// whose name and arity match (`resolveUnnamedInternalFunction`), which by
-/// then includes the synthesized helper regardless of pass order — the
-/// `<id>` suffix (the enum class's own `SymbolID`, stable and available at
-/// every pass) keeps that bare name globally unique so the scan can't
-/// resolve to a different enum class's helper.
+/// The helper is called by `SymbolID` when available (e.g. for a precompiled
+/// `.kklib` enum) and by bare name otherwise: boxing can be lowered *before*
+/// DataEnumSealedSynthesisPass has run for source enums, so the Sema symbol
+/// may not exist yet. Codegen resolves unnamed calls by scanning every KIR
+/// function for one whose name and arity match (`resolveUnnamedInternalFunction`),
+/// which by then includes the synthesized helper regardless of pass order.
 private func emitEnumOrdinalBoxCall(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
     resultType: TypeID?,
     types: TypeSystem,
-    symbols: SymbolTable?,
+    symbols: SymbolTable,
     interner: StringInterner,
     arena: KIRArena,
     into instructions: inout [KIRInstruction]
 ) {
-    let nameHelperCallee = interner.intern("$enumOrdinalToName$\(classSymbol.rawValue)")
+    guard let classSym = symbols.symbol(classSymbol),
+          classSym.kind == .enumClass,
+          !classSym.flags.contains(.synthetic)
+    else {
+        preconditionFailure("emitEnumOrdinalBoxCall requires a non-synthetic, source-backed enum class symbol")
+    }
+
+    let nameHelperCallee = NameMangler.enumOrdinalToNameHelperName(for: classSym, interner: interner)
+    let helperSymbol = symbols.lookupAll(fqName: classSym.fqName + [nameHelperCallee]).first { id in
+        symbols.symbol(id).map { $0.kind == .function } ?? false
+    }
     let nameResult = arena.appendTemporary(type: types.stringType)
     instructions.append(.call(
-        symbol: nil, callee: nameHelperCallee, arguments: [ordinal],
+        symbol: helperSymbol, callee: nameHelperCallee, arguments: [ordinal],
         result: nameResult, canThrow: false, thrownResult: nil
     ))
 
-    let classID = symbols.map {
-        RuntimeTypeCheckToken.stableNominalTypeID(symbol: classSymbol, symbols: $0, interner: interner)
-    } ?? 0
+    let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+        symbol: classSymbol, symbols: symbols, interner: interner
+    )
     let intType = types.make(.primitive(.int, .nonNull))
     let classIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
     instructions.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))

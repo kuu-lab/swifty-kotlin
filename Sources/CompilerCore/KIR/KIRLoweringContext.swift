@@ -54,6 +54,10 @@ final class KIRLoweringContext {
 
     // MARK: - Module-Level State (accumulated across entire pass)
 
+    /// Compiler-selected mode used when a local `by lazy` declaration is
+    /// lowered to the runtime-backed delegate representation.
+    var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
+
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
     /// Stdlib delegate kind (`lazy`/`observable`/`vetoable`/`notNull`) of a local
     /// `by`-delegated declaration, keyed by the local's own symbol. Reads of such a
@@ -429,9 +433,12 @@ final class KIRLoweringContext {
 
     // MARK: - Synthetic Symbol Management
 
-    func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule) {
+    func initializeSyntheticLambdaSymbolAllocator(sema: SemaModule, stdlibOnly: Bool = false) {
         _ = sema
-        nextSyntheticLambdaSymbolRawValue = -60_000_000
+        // Stdlib-only and consumer modules are linked together, but synthetic
+        // lambda IDs are allocated per module. Keep their closure symbol bands
+        // disjoint so a consumer lambda cannot collide with a stdlib wrapper.
+        nextSyntheticLambdaSymbolRawValue = stdlibOnly ? -70_000_000 : -60_000_000
     }
 
     func syntheticLambdaSymbol(for exprID: ExprID) -> SymbolID {

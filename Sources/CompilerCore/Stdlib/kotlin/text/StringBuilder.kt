@@ -12,7 +12,7 @@ public class StringBuilder {
     constructor(content: String)
     constructor(capacity: Int)
 
-    val length: Int
+    override val length: Int
         get() = __kk_string_builder_length()
 
     operator fun get(index: Int): Char {

@@ -41,9 +41,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Any") { phase, symbols, types, interner, context in
             phase.registerSyntheticAnyStub(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Number") { phase, symbols, types, interner, context in
-            phase.registerSyntheticNumberStub(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "PropertyInterfaces") { phase, symbols, types, interner, context in
             phase.registerSyntheticPropertyInterfaceStubs(
                 symbols: symbols,
@@ -107,18 +104,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Exception") { phase, symbols, types, interner, context in
             phase.registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Contract") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticContractStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Precondition") { phase, symbols, types, interner, context in
-            phase.registerSyntheticPreconditionStubs(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                bundledIndex: context.bundledIndex,
-                skipStats: context.skipStats
-            )
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
             phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -141,12 +126,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 return
             }
             phase.registerSyntheticStringBuilderStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsAny") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticJsAnyStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "JsNumber") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticJsNumberStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "TODOAndIO") { phase, symbols, types, interner, context in
             phase.registerSyntheticTODOAndIOStubs(
@@ -191,23 +170,11 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileWalkDirection") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticFileWalkDirectionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FilesUtility") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "LateListIndexedMembers") { phase, symbols, types, interner, context in
-            phase.registerLateListIndexedMembers(
-                symbols: symbols,
-                types: types,
-                interner: interner,
-                bundledIndex: context.bundledIndex,
-                skipStats: context.skipStats
-            )
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
@@ -228,9 +195,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         },
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Uuid") { phase, symbols, types, interner in
             phase.registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticStubRegistryEntry(bucket: .targetOutCleanup, name: "URL") { phase, symbols, types, interner in
-            phase.registerSyntheticURLStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
             phase.registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)

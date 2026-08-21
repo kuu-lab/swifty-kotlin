@@ -35,9 +35,9 @@ stdlib 実装は 3 系統に分散している。
 
 補足:
 
-- `LoadSourcesPhase.excludedBundledStdlibFiles` が「.kt は存在するが未配線」のファイルを
-  除外している。除外リストは**移行の暫定措置**であり、最終状態では空にする
-  （エントリ数は移行の進捗で単調減少する。現在値は `Driver/FrontendPhases.swift` の定義を参照）
+- 除外リスト機構（`BundledStdlib.excludedBundledStdlibFiles`）は「.kt は存在するが未配線」の
+  暫定措置として存在していたが、エントリが 0 件になった時点で KSP-505 が機構ごと撤廃した。
+  `Stdlib/kotlin/**/*.kt` 配下に置いた `.kt` は現在すべて無条件で配線される
 - ルート `Stdlib/kotlin/` に死蔵 .kt が残っている（RF-HYG-003/004 参照）。§6 の単一ツリーへ統合する
 - ランタイムは `@_cdecl` 関数 ~2,900 個（2026-07-06 実測。`grep -rhoE '@_cdecl\("kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include='*.swift' | sort -u | wc -l`）、署名は `RuntimeABISpec`（specVersion 管理）で宣言
 
@@ -74,7 +74,7 @@ stdlib 実装は 3 系統に分散している。
 2. 登録パスは `__bundled_{modulePath}.kt` 形式。ユーザー入力と診断上区別でき、
    fileID 順序が決定的になる（golden 安定性の前提。§8）
 3. `Sources/KSwiftKCLI/CLIParser.swift` の `--no-stdlib` で `CompilerOptions.includeStdlib` を false にし、注入全体を opt-out できる（コンパイラ自身のデバッグ用）
-4. `excludedBundledStdlibFiles` は縦切り移行（§10）の完了ごとにエントリを削除し、最終的に撤廃する
+4. ~~`excludedBundledStdlibFiles` は縦切り移行（§10）の完了ごとにエントリを削除し、最終的に撤廃する~~ **完了（KSP-505）**: エントリが 0 件になったため機構ごと撤廃済み
 
 **不変条件**: bundled ソースはユーザーソースより先に fileID を確保する。
 ユーザーコードの有無で stdlib 側のシンボル ID・診断順序が変わってはならない。
@@ -231,7 +231,12 @@ fiction audit ダンプを起点に棚卸し）:
 | File | Lines | Bucket | Owner / next action |
 |---|---:|:---:|---|
 | `HeaderHelpers+SyntheticArrayStubs.swift` | 2043 | (c)→(b) | KSP-657 で `arrayOf`/`emptyArray`/`arrayOfNulls` を `Stdlib/kotlin/ArrayIntrinsics.kt` へ b-reclass 済み（第1弾）。primitive-array factory / HOF は後続バッチ。 |
-| `HeaderHelpers+SyntheticAtomicStubs.swift` | 2512 | (b) | `AtomicMigration.kt` owner; split Java atomic interop cleanup pockets first. |
+| `HeaderHelpers+SyntheticAtomicArrayStubs.swift` | 622 | (b) | `AtomicMigration.kt` owner; `AtomicIntArray`/`AtomicLongArray`/`AtomicArray<T>` + `atomicArrayOf(Nulls)` factories (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicNativePtrStubs.swift` | 136 | (b) | `AtomicNativePtr`; built on shared NativeConcurrent helpers, may reclassify independently of the rest of the Atomic family (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicPackageStubs.swift` | 148 | (b) | `kotlin.concurrent.atomics` package scaffolding: `@ExperimentalAtomicApi`, `MemoryOrder` enum, type aliases (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicRegistrationHelpers.swift` | 325 | (b) | Shared constructor/member/property registration primitives used across the scalar and array families (KSP-695 split). |
+| `HeaderHelpers+SyntheticAtomicScalarStubs.swift` | 305 | (b) | `AtomicInt`/`AtomicLong`/`AtomicBoolean`/`AtomicReference<T>`, plus `java.util.concurrent.atomic.AtomicInteger` — a live, tested direct-construction surface sharing the `kk_atomic_int_*` box, not a target-out cleanup pocket (KSP-695 split; see `HeaderHelpers+SyntheticAtomicStubs.swift`'s classification note history below). |
+| `HeaderHelpers+SyntheticAtomicStubs.swift` | 313 | (b) | `AtomicMigration.kt` owner; entry-point/orchestration only after KSP-695 split the registration logic into the five sibling files above. The originally-suspected "Java atomic interop cleanup pocket" (`java.util.concurrent.atomic.AtomicInteger`) turned out to be live (codegen test + non-skipped diff case + `AtomicMigration.kt` extension receiver), not a deletion candidate; the only confirmed dead code was an orphaned helper (`registerAtomicExtensionFunction`, zero call sites since CLEANUP-STUB-100 deleted its callers) which KSP-695 removed. |
 | `HeaderHelpers+SyntheticBase64Stubs.swift` | 830 | (b) | MIGRATION-ENC owner; Kotlin source exists but public stubs still dispatch directly. |
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
@@ -240,6 +245,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
 | `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
+| `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 845 | (c) | KSP-701/KSP-665 の分離先（`HeaderHelpers+SyntheticIterableRegistry.swift` 削除時と `+SyntheticStringTypeHelpers.swift` 削除時の残存 fallback shell が合流）。呼び出し元は `+SyntheticComparableAndCollectionStubs.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ。`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable` の型登録は bundled Kotlin source を再利用する fallback 専用で対応不要。`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の型シェルと `isEmpty`/`contains`/`add`系/`iterator`/`hasNext`/`next` メンバは、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的の bridge（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）で (c) 残置。`random`/`randomOrNull` は KSP-1509 が降格予定の `kk_list_random`/`kk_list_randomOrNull` と同一ブリッジを共有。次アクション: KSP-1542。 |
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | 1446 | (b) | M5 comparisons/comparator source migration. |
@@ -254,25 +260,25 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` | 367 | (c) | Common opt-in markers stay; split JS/Wasm markers into (a) cleanup first. |
 | `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 828 | (b) | M8 experimental time source migration. |
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
-| `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | JVM file-walk support enum; cleanup with file-walk surface. |
+| `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
 | `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | 520 | (a) | `java.nio.file` / files utility surface; target-out cleanup. |
 | `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
 | `HeaderHelpers+SyntheticInstantStubs.swift` | 441 | (b) | M8 time source migration. |
-| `HeaderHelpers+SyntheticIterableRegistry.swift` | 2741 | (b) | RF-STUB-005 consolidated Iterable/Collection shells and member registrations. |
+| `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` に分離。 |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
-| `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | Kotlin/JS surface; cleanup candidate. |
+| `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
-| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | Kotlin/JS number bridge; cleanup candidate. |
+| `HeaderHelpers+SyntheticJsNumberStubs.swift` | 117 | (a) | ~~Kotlin/JS number bridge; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsNumber` synthetic Sema surface と stale RuntimeABI spec を除去。 |
 | `HeaderHelpers+SyntheticJsStringInteropStubs.swift` | 183 | (a) | Kotlin/JS string interop; cleanup candidate. |
 | `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` | 790 | (c) | Core annotation and opt-in metadata surface. |
 | `HeaderHelpers+SyntheticKotlinIOExceptionStubs.swift` | 133 | (b) | `kotlin.io` exception shell; source/runtime migration owner. |
 | `HeaderHelpers+SyntheticKotlinVersionStubs.swift` | 372 | (b) | Public stdlib value surface; source migration owner. |
 | `HeaderHelpers+SyntheticListAggregateMembers.swift` | 1288 | (b) | M3 list aggregate/source migration. |
 | `HeaderHelpers+SyntheticListConversionMembers.swift` | 434 | (b) | M3 list conversion/source migration. |
-| `HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift` | 623 | (b) | M3 `IndexedValue` source migration（`ArrayDeque` は KSP-625 で `.kt` 化済み）。 |
+| `HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-702。`IndexedValue`/`withIndex` は `collections/Iterators.kt`、`ArrayDeque` は KSP-625 で source-backed 化済み）。 |
 | `HeaderHelpers+SyntheticListStubs.swift` | 1967 | (b) | M3 list shell and member migration. |
 | `HeaderHelpers+SyntheticListTransformMembers.swift` | 797 | (b) | M3 list transform/source migration. |
 | `HeaderHelpers+SyntheticLocaleConstructorStubs.swift` | 401 | (a) | ~~`java.util.Locale`/locale interop~~ **完了・ファイル削除済み**（CLEANUP-STUB-112）。`Locale` コンストラクタのみ `+SyntheticStringStubs.swift` に残し、locale 付き String/Char 演算のハンドルとして使う。 |
@@ -299,7 +305,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticBucketedStubRegistry.swift` | 325 | (a/b/c) | RF-STUB-006 bucketed registry for delegate and former ExtendedStdlib calls. |
 | `HeaderHelpers+SyntheticPlatformObjectHelpers.swift` | 216 | (a) | Java class/platform object helpers; cleanup unless needed by residual annotations. |
 | `HeaderHelpers+SyntheticPlatformTimeConversionStubs.swift` | 260 | (a) | ~~JVM/JS platform time conversion; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-126, 2026-08-18)。JVM `java.time` / `java.util.concurrent.TimeUnit` interop を target-out として除去。 |
-| `HeaderHelpers+SyntheticPreconditionStubs.swift` | 205 | (b) | `check`/`require`/`error` source migration. |
+| `HeaderHelpers+SyntheticPreconditionStubs.swift` | deleted | (b) | ~~`check`/`require`/`error` source migration.~~ **完了・ファイル削除済み**（KSP-707, 2026-08-18）。`require`/`check`/`error` は `Stdlib/kotlin/Preconditions.kt` の source 実装のみで提供。`require`/`check`/`assert` の smart-cast 用 `ContractNonNullEffect` 付与ロジック（`patchSourceBackedPreconditionContractEffects`）は `HeaderHelpers.swift` へ移設。 |
 | `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` | 2564 | (c) | Delegation and reflection scaffolding; declarative residual candidate. |
 | `HeaderHelpers+SyntheticRandomStubs.swift` | 1147 | (b) | M7 random source migration; split Java random interop pockets into (a). |
 | `HeaderHelpers+SyntheticRangeInterfaceStubs.swift` | 382 | (b) | M6 range interfaces/source migration. |
@@ -310,20 +316,21 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
 | `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | deleted | (b) | `run`/`with`/`apply`/`let`/`also`/`takeIf`/`takeUnless` は bundled `kotlin/Standard.kt` へ移行済み。`use`/`usePinned`/`useContents` は compiler residual として別経路に残る。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
 | `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | 1463 | (b) | M4 sequence registration helper surface. |
-| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | 3452 | (b) | M4 sequence terminal/HOF source migration. |
+| `HeaderHelpers+SyntheticSequenceTerminalStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-694）。KSP-441〜446/KSP-308 での Kotlin 化に伴い不要スタブを削除、未移行の純残余（`random`/`randomOrNull`/`forEach`/`forEachIndexed`/`firstNotNullOf`/`firstNotNullOfOrNull`/`takeLast`/`takeLastWhile`/`shuffled`/`reversed`/`filterIsInstance`）は `+SyntheticSequenceResidualStubs.swift`（419行）へ移行。 |
+| `HeaderHelpers+SyntheticSequenceResidualStubs.swift` | 419 | (b) | M4 sequence residual stubs (`random`, `randomOrNull`, `forEach`, `forEachIndexed`, `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`, `takeLastWhile`, `shuffled`, `reversed`, `filterIsInstance`). |
 | `HeaderHelpers+SyntheticSerializationStubs.swift` | 850 | (a) | ~~`kotlinx.serialization` compatibility~~ **完了・ファイル削除済み**（CLEANUP-STUB-121, 2026-08-06）。target-out として Runtime/ABI ともに除去。 |
 | `HeaderHelpers+SyntheticSetStubs.swift` | 1068 | (b) | M3 set shell and HOF source migration. |
 | `HeaderHelpers+SyntheticStdlibLoopStubs.swift` | 88 | (b) | ~~`repeat` source migration~~ **完了・ファイル削除済み**（KSP-604、`Stdlib/kotlin/Standard.kt`）。 |
 | `HeaderHelpers+SyntheticStringBuilderStubs.swift` | 629 | (b) | M2 StringBuilder source migration; source exists. |
 | `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
-| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。型シェル生成は `+SyntheticIterableRegistry.swift` に一本化。 |
+| `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
 | `HeaderHelpers+SyntheticTODOAndIOStubs.swift` | 3698 | (b) | Mixed TODO, IO, system, duration, collection factories; `HeaderHelpers+SyntheticFileIOStubs.swift` を統合済み。 |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
 | `HeaderHelpers+SyntheticURIStubs.swift` | 178 | (a) | ~~`java.net.URI`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-123, 2026-08-14)。公開 URI surface と Path/URL の URI 変換を除去し、Network の HTTP request builder handoff は保持。 |
-| `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | `java.net.URL`; cleanup candidate. |
+| `HeaderHelpers+SyntheticURLStubs.swift` | 332 | (a) | ~~`java.net.URL`; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-124, 2026-08-14)。公開 URL surface と URL runtime/ABI exports を除去し、Network の HTTP request builder handoff は保持。 |
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
@@ -355,11 +362,13 @@ should follow the same shape:
 
 ### Follow-up order
 
-1. Finish small (a) deletions that still have direct central calls:
-   `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs`.
+1. Small (a) deletions with direct central calls are complete:
+   `SyntheticJsAnyStubs`, `SyntheticJsNumberStubs` (CLEANUP-STUB-127/128).
 2. Split mixed files before touching their residual parts:
    `SyntheticExperimentalMarkerStubs`, `SyntheticMetaprogAnnotationHelpers`,
-   `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`, `SyntheticAtomicStubs`.
+   `SyntheticRandomStubs`, `SyntheticTODOAndIOStubs`.
+   `SyntheticAtomicStubs` split complete (KSP-695): see the five
+   `HeaderHelpers+SyntheticAtomic*.swift` rows above.
 3. After RF-STDLIB-003, migrate one narrow (b) slice end-to-end and use it as the
    template for the remaining M1-M17 rows.
 4. Continue RF-STUB-003 residual table migration only on files classified (c); do not table-drive code
@@ -525,14 +534,14 @@ Atomic の内訳:
 **完了条件は「.kt 実配線 + 合成スタブ削除 + runtime 関数削除または `__kk_*` 降格」**（RF-STDLIB-008）。
 
 1. 対象 API の diff ケースを `Scripts/diff_cases/` に追加し、現行実装で green を確認する（挙動の固定）
-2. `.kt` を書く（配置・命名は §6）。ランタイム依存点は `@KsSymbolName` ブリッジで宣言する
-3. `excludedBundledStdlibFiles` からエントリを削除して配線する
-4. 優先規則（§5）により Kotlin 版が解決されることを確認し、**同一 PR で**対応する
+2. `.kt` を書く（配置・命名は §6）。ランタイム依存点は `@KsSymbolName` ブリッジで宣言する。
+   `Sources/CompilerCore/Stdlib/kotlin/` 配下に置くだけで自動配線される（除外リスト機構は KSP-505 で撤廃済み）
+3. 優先規則（§5）により Kotlin 版が解決されることを確認し、**同一 PR で**対応する
    合成スタブ・`CallTypeChecker`/`CallLowerer` の特殊処理・runtime `@_cdecl` を削除
    （または `__kk_*` へ降格）する
-5. 必須ゲート（CLAUDE.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
+4. 必須ゲート（CLAUDE.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
    `loc_report.sh` で `HeaderHelpers+Synthetic*` 行数と `"kk_` リテラル数の減少を確認する
-6. TODO.md の該当タスクを更新する
+5. TODO.md の該当タスクを更新する
 
 進捗メトリクス = `loc_report.sh` の (i) `HeaderHelpers+Synthetic*` 合計行数、(ii) `"kk_` リテラル数、
 (iii) `interner.resolve == "..."` 数。すべて単調減少がゲート。
@@ -601,10 +610,9 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    RF-GOV-004 の四半期監査に (c) 再審査を統合する。c-soft（解除条件 = CAP ID）を正式ステータスとする。
    2026-07-10 再監査の結論: 旧 (c) 計上の4〜5割が最終的に (b) へ移動し、約2,800行 + cinterop 未配線外殻が
    削除候補（詳細は TODO.md の KSP-W6 / CLEANUP-STUB-096〜103）。
-7. **移行完了の3点確認**（テンプレート T 手順6）: ①`excludedBundledStdlibFiles` 非登録
-   ②.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: `ranges/RangeCoercion.kt`）
-   ③Sema/KIR/Lowering に同名の name-string 特例が残っていない。
-   「bundled .kt が存在する = 移行済み」と誤読しないこと。
+7. **移行完了の2点確認**（テンプレート T 手順6）: ①.kt 本体が実ロジック（`= this` 等のフェイク禁止 — 実例: `ranges/RangeCoercion.kt`）
+   ②Sema/KIR/Lowering に同名の name-string 特例が残っていない。
+   「bundled .kt が存在する = 移行済み」と誤読しないこと（除外リスト機構は KSP-505 で撤廃済みのため、配置しただけで無条件に配線される点に注意）。
 8. **本家準拠度・逸脱台帳・ライセンス**: .kt は挙動だけでなく構造も本家 kotlin-stdlib 形を目標とする。
    コンパイラ制約による構造逸脱（例: KSP-466 Random の 1 クラス統合 — KSP-CAP-006 が解消条件）は
    本節配下に台帳化し、CAP 解消時に本家形へ戻す。本家からの移植ファイルには Apache 2.0 帰属ヘッダ +
@@ -620,3 +628,4 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
+| `kotlin/Throws.kt` | `exceptionClasses` プロパティと vararg コンストラクタを `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録（`vararg val exceptionClasses: KClass<out Throwable>` を bundled source から宣言するための `vararg val` プロパティおよび `KClass` 型参照の本格対応が未整備） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証）|

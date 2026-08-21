@@ -1,8 +1,8 @@
 package golden.sema
 
-// STDLIB-030-BUG-01: generic upper bound <T : AutoCloseable> should allow .use {}
-// AutoCloseable is a typealias to kotlin.io.Closeable; the constraint solver must
-// expand the alias before checking upper-bound satisfaction and member lookup.
+// KSP-721: generic upper bound <T : AutoCloseable> should allow .use {}
+// AutoCloseable is a source-backed interface and Closeable extends it, so the
+// constraint solver treats AutoCloseable receivers as closeable.
 
 class MyAutoResource : AutoCloseable {
     override fun close() {}

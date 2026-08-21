@@ -154,5 +154,93 @@ struct CodegenSuperclassInitializerTests {
             allowDefaultStdlibLibrary: false
         )
     }
+
+    /// A generic nullable backing field must preserve boxed primitive values,
+    /// nullable values, and reference values across repeated stores and loads.
+    @Test
+    func testGenericNullableFieldPreservesStoredValuesAcrossTypesAndCalls() throws {
+        let source = """
+        import kotlin.collections.AbstractIterator
+
+        abstract class NullableSlot<T> {
+            private var value: T? = null
+
+            fun store(next: T) {
+                value = next
+            }
+
+            @Suppress("UNCHECKED_CAST")
+            fun load(): T {
+                val result = value as T
+                value = null
+                return result
+            }
+        }
+
+        class IntSlot : NullableSlot<Int>()
+        class LongSlot : NullableSlot<Long>()
+        class StringSlot : NullableSlot<String>()
+        class BooleanSlot : NullableSlot<Boolean>()
+        class NullableStringSlot : NullableSlot<String?>()
+
+        class Label(val text: String)
+        class LabelSlot : NullableSlot<Label>()
+
+        class OneShot(private val value: Int) : AbstractIterator<Int>() {
+            private var used = false
+
+            override fun computeNext() {
+                if (used) {
+                    done()
+                } else {
+                    used = true
+                    setNext(value)
+                }
+            }
+        }
+
+        fun main() {
+            val iterator = OneShot(42)
+            while (iterator.hasNext()) {
+                println(iterator.next())
+            }
+
+            val ints = IntSlot()
+            ints.store(42)
+            println(ints.load())
+            ints.store(7)
+            println(ints.load())
+
+            val longs = LongSlot()
+            longs.store(9000000000L)
+            println(longs.load())
+
+            val strings = StringSlot()
+            strings.store("source")
+            println(strings.load().length)
+
+            val booleans = BooleanSlot()
+            booleans.store(true)
+            println(booleans.load())
+
+            val nullable = NullableStringSlot()
+            nullable.store(null)
+            println(nullable.load() == null)
+            nullable.store("nullable-value")
+            println(nullable.load()?.length)
+
+            val labels = LabelSlot()
+            labels.store(Label("member"))
+            println(labels.load().text)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericNullableFieldRuntime",
+            expected: "42\n42\n7\n9000000000\n6\ntrue\ntrue\n14\nmember\n",
+            allowDefaultStdlibLibrary: false
+        )
+    }
 }
 #endif

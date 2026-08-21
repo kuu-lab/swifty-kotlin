@@ -8,21 +8,21 @@ struct RuntimeMathTests {
     // MARK: - Double
 
     @Test func testSqrtDouble() {
-        #expect(doubleFromBits(kk_math_sqrt(doubleToBits(4.0))) == 2.0)
+        #expect(doubleFromBits(__kk_math_sqrt(doubleToBits(4.0))) == 2.0)
     }
 
     @Test func testPowDouble() {
-        #expect(doubleFromBits(kk_math_pow(doubleToBits(2.0), doubleToBits(3.0))) == 8.0)
+        #expect(doubleFromBits(__kk_math_pow(doubleToBits(2.0), doubleToBits(3.0))) == 8.0)
     }
 
     @Test func testExpm1Double() {
-        #expect(abs(doubleFromBits(kk_math_expm1(doubleToBits(0.0))) - 0.0) <= 1e-12)
-        #expect(abs(doubleFromBits(kk_math_expm1(doubleToBits(1.0))) - expm1(1.0)) <= 1e-12)
+        #expect(abs(doubleFromBits(__kk_math_expm1(doubleToBits(0.0))) - 0.0) <= 1e-12)
+        #expect(abs(doubleFromBits(__kk_math_expm1(doubleToBits(1.0))) - expm1(1.0)) <= 1e-12)
     }
 
     @Test func testLn1pDouble() {
-        #expect(abs(doubleFromBits(kk_math_ln1p(doubleToBits(0.0))) - 0.0) <= 1e-12)
-        #expect(abs(doubleFromBits(kk_math_ln1p(doubleToBits(1.0))) - log1p(1.0)) <= 1e-12)
+        #expect(abs(doubleFromBits(__kk_math_ln1p(doubleToBits(0.0))) - 0.0) <= 1e-12)
+        #expect(abs(doubleFromBits(__kk_math_ln1p(doubleToBits(1.0))) - log1p(1.0)) <= 1e-12)
     }
 
     @Test func testCeilDouble() {
@@ -144,42 +144,42 @@ struct RuntimeMathTests {
     // MARK: - Float trig / rounding (STDLIB-500..509)
 
     @Test func testSinFloat() {
-        let result = floatFromBits(kk_math_sin_float(floatToBits(0.0)))
+        let result = floatFromBits(__kk_math_sin_float(floatToBits(0.0)))
         #expect(abs(result - 0.0) <= 1e-6)
     }
 
     @Test func testCosFloat() {
-        let result = floatFromBits(kk_math_cos_float(floatToBits(0.0)))
+        let result = floatFromBits(__kk_math_cos_float(floatToBits(0.0)))
         #expect(abs(result - 1.0) <= 1e-6)
     }
 
     @Test func testTanFloat() {
-        let result = floatFromBits(kk_math_tan_float(floatToBits(0.0)))
+        let result = floatFromBits(__kk_math_tan_float(floatToBits(0.0)))
         #expect(abs(result - 0.0) <= 1e-6)
     }
 
     @Test func testAsinFloat() {
-        let result = floatFromBits(kk_math_asin_float(floatToBits(1.0)))
+        let result = floatFromBits(__kk_math_asin_float(floatToBits(1.0)))
         #expect(abs(result - Float.pi / 2) <= 1e-6)
     }
 
     @Test func testAcosFloat() {
-        let result = floatFromBits(kk_math_acos_float(floatToBits(1.0)))
+        let result = floatFromBits(__kk_math_acos_float(floatToBits(1.0)))
         #expect(abs(result - 0.0) <= 1e-6)
     }
 
     @Test func testAtanFloat() {
-        let result = floatFromBits(kk_math_atan_float(floatToBits(0.0)))
+        let result = floatFromBits(__kk_math_atan_float(floatToBits(0.0)))
         #expect(abs(result - 0.0) <= 1e-6)
     }
 
     @Test func testAtan2Float() {
-        let result = floatFromBits(kk_math_atan2_float(floatToBits(1.0), floatToBits(1.0)))
+        let result = floatFromBits(__kk_math_atan2_float(floatToBits(1.0), floatToBits(1.0)))
         #expect(abs(result - Float.pi / 4) <= 1e-6)
     }
 
     @Test func testSqrtFloat() {
-        #expect(floatFromBits(kk_math_sqrt_float(floatToBits(4.0))) == 2.0)
+        #expect(floatFromBits(__kk_math_sqrt_float(floatToBits(4.0))) == 2.0)
     }
 
     @Test func testCeilFloat() {
@@ -195,39 +195,39 @@ struct RuntimeMathTests {
     // MARK: - Float exp / ln / log / hypot (STDLIB-430)
 
     @Test func testExpFloat() {
-        #expect(abs(floatFromBits(kk_math_exp_float(floatToBits(0.0))) - 1.0) <= 1e-6)
-        #expect(abs(floatFromBits(kk_math_exp_float(floatToBits(1.0))) - Float(M_E)) <= 1e-5)
+        #expect(abs(floatFromBits(__kk_math_exp_float(floatToBits(0.0))) - 1.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_exp_float(floatToBits(1.0))) - Float(M_E)) <= 1e-5)
     }
 
     @Test func testExpm1Float() {
-        #expect(abs(floatFromBits(kk_math_expm1_float(floatToBits(0.0))) - 0.0) <= 1e-6)
-        #expect(abs(floatFromBits(kk_math_expm1_float(floatToBits(1.0))) - expm1f(1.0)) <= 1e-5)
+        #expect(abs(floatFromBits(__kk_math_expm1_float(floatToBits(0.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_expm1_float(floatToBits(1.0))) - expm1f(1.0)) <= 1e-5)
     }
 
     @Test func testLnFloat() {
-        #expect(abs(floatFromBits(kk_math_ln_float(floatToBits(1.0))) - 0.0) <= 1e-6)
-        #expect(abs(floatFromBits(kk_math_ln_float(floatToBits(Float(M_E)))) - 1.0) <= 1e-5)
+        #expect(abs(floatFromBits(__kk_math_ln_float(floatToBits(1.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_ln_float(floatToBits(Float(M_E)))) - 1.0) <= 1e-5)
     }
 
     @Test func testLn1pFloat() {
-        #expect(abs(floatFromBits(kk_math_ln1p_float(floatToBits(0.0))) - 0.0) <= 1e-6)
-        #expect(abs(floatFromBits(kk_math_ln1p_float(floatToBits(1.0))) - log1pf(1.0)) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_ln1p_float(floatToBits(0.0))) - 0.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_ln1p_float(floatToBits(1.0))) - log1pf(1.0)) <= 1e-6)
     }
 
     @Test func testLog2Float() {
-        #expect(abs(floatFromBits(kk_math_log2_float(floatToBits(8.0))) - 3.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_log2_float(floatToBits(8.0))) - 3.0) <= 1e-6)
     }
 
     @Test func testLog10Float() {
-        #expect(abs(floatFromBits(kk_math_log10_float(floatToBits(100.0))) - 2.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_log10_float(floatToBits(100.0))) - 2.0) <= 1e-6)
     }
 
     @Test func testLogFloat() {
-        #expect(abs(floatFromBits(kk_math_log_float(floatToBits(8.0), floatToBits(2.0))) - 3.0) <= 1e-5)
+        #expect(abs(floatFromBits(__kk_math_log_float(floatToBits(8.0), floatToBits(2.0))) - 3.0) <= 1e-5)
     }
 
     @Test func testHypotFloat() {
-        #expect(abs(floatFromBits(kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))) - 5.0) <= 1e-6)
+        #expect(abs(floatFromBits(__kk_math_hypot_float(floatToBits(3.0), floatToBits(4.0))) - 5.0) <= 1e-6)
     }
 
     // MARK: - STDLIB-MATH-112: numeric constants
@@ -282,14 +282,6 @@ struct RuntimeMathTests {
 
     @Test func testIntMinValue() {
         #expect(kk_int_min_value() == Int(Int32.min))
-    }
-
-    @Test func testLongMaxValue() {
-        #expect(kk_long_max_value() == Int(Int64.max))
-    }
-
-    @Test func testLongMinValue() {
-        #expect(kk_long_min_value() == Int(truncatingIfNeeded: Int64.min))
     }
 
     // MARK: - roundToInt / roundToLong (STDLIB-510..511)

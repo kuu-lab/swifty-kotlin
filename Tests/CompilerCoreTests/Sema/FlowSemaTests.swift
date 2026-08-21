@@ -3,7 +3,7 @@
 import Foundation
 import Testing
 
-@Suite
+@Suite(.serialized)
 struct FlowSemaTests {
 
     // MARK: - Shared Sema contexts

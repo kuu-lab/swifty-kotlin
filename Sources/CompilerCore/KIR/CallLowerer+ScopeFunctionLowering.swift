@@ -142,12 +142,33 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument:
+            // no captures -> 0, one capture -> the raw capture value, two or more
+            // -> a packed closure object built by makeBoxedCallableCaptureArguments.
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
-            if info.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArgs = info.captureArguments + [zeroExpr, loweredReceiverID]
+            if let closureRawArg {
+                callArgs = [closureRawArg, loweredReceiverID]
             } else {
                 callArgs = info.captureArguments + [loweredReceiverID]
             }
@@ -198,13 +219,12 @@ extension CallLowerer {
             let closeName = interner.intern("close")
             let closeResult = arena.appendTemporary(type: sema.types.unitType
             )
-            // Resolve the close() symbol from the Closeable interface and use
+            // Resolve the close() symbol from the AutoCloseable interface and use
             // virtualCall with interface dispatch instead of a static .call.
-            let closeableFQName: [InternedString] = [
-                interner.intern("kotlin"), interner.intern("io"), interner.intern("Closeable")
-            ]
-            let closeFQName = closeableFQName + [closeName]
-            let closeSymbol = sema.symbols.lookup(fqName: closeFQName)
+            let closeSymbol: SymbolID? = sema.types.closeableInterfaceSymbol.flatMap { closeableSymbol in
+                let closeableFQName = sema.symbols.symbol(closeableSymbol)?.fqName ?? []
+                return sema.symbols.lookup(fqName: closeableFQName + [closeName])
+            }
             let closeDispatch: KIRDispatchKind? = closeSymbol.flatMap { sym in
                 resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             }
@@ -353,12 +373,32 @@ extension CallLowerer {
             let endLabel = driver.ctx.makeLoopLabel()
 
             // try: invoke the block lambda with the pinned handle.
+            // Collection-HOF-marked lambdas take a leading closureRaw argument
+            // (see scopeUse above).
+            var closureRawArg: KIRExprID? = nil
+            if info.hasClosureParam {
+                if info.captureArguments.isEmpty {
+                    let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
+                    instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
+                    closureRawArg = zeroExpr
+                } else if info.captureArguments.count == 1 {
+                    closureRawArg = info.captureArguments[0]
+                } else {
+                    let boxedArgs = makeBoxedCallableCaptureArguments(
+                        callableInfo: info,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    closureRawArg = boxedArgs[0]
+                }
+            }
+
             var blockInstructions: [KIRInstruction] = []
             let callArgs: [KIRExprID]
-            if info.hasClosureParam {
-                let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                blockInstructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                callArgs = info.captureArguments + [zeroExpr, pinnedResult]
+            if let closureRawArg {
+                callArgs = [closureRawArg, pinnedResult]
             } else {
                 callArgs = info.captureArguments + [pinnedResult]
             }

@@ -34,7 +34,7 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin"), interner.intern("sequences")],
             symbols: symbols
         )
-        let sequenceSymbol = registerSyntheticSequenceStub(
+        _ = registerSyntheticSequenceStub(
             packageFQName: kotlinSequencesPkg,
             symbols: symbols,
             types: types,
@@ -46,48 +46,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticGenericSequenceVarargFunction(
-            named: "sequenceOf",
-            packageFQName: kotlinSequencesPkg,
-            sequenceSymbol: sequenceSymbol,
-            externalLinkName: "kk_sequence_of",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        // STDLIB-277: emptySequence<T>()
-        registerSyntheticGenericSequenceNoArgFunction(
-            named: "emptySequence",
-            packageFQName: kotlinSequencesPkg,
-            sequenceSymbol: sequenceSymbol,
-            externalLinkName: "kk_empty_sequence",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerSyntheticGenerateSequenceFunction(
-            named: "generateSequence",
-            packageFQName: kotlinSequencesPkg,
-            sequenceSymbol: sequenceSymbol,
-            externalLinkName: "kk_sequence_generate",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
-        registerSyntheticGenerateSequenceNoArgFunction(
-            named: "generateSequence",
-            packageFQName: kotlinSequencesPkg,
-            sequenceSymbol: sequenceSymbol,
-            externalLinkName: "kk_sequence_generate_noarg",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
+        // Sequence factory functions are source-backed (KSP-651).
         // STDLIB-331/564: iterator {} builder → Iterator<T>
         // Registered with SequenceScope<T> receiver so yield() resolves inside the lambda.
         registerSyntheticIteratorBuilderStub(
@@ -104,7 +63,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticSequenceTerminalMembers(
+        registerSyntheticSequenceResidualMembers(
             symbols: symbols,
             types: types,
             interner: interner,

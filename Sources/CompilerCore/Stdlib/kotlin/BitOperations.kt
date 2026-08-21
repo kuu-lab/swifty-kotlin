@@ -54,3 +54,29 @@ public fun Long.countTrailingZeroBits(): Int {
     if (this == 0L) return 64
     return ((this and (-this)) - 1L).countOneBits()
 }
+
+// KSP-644: highest/lowest one-bit operations are source-backed extensions.
+
+public fun Int.highestOneBit(): Int {
+    if (this == 0) return 0
+    if (this < 0) return Int.MIN_VALUE
+    return 1 shl (31 - countLeadingZeroBits())
+}
+
+public fun Int.lowestOneBit(): Int = this and (-this)
+
+public fun Int.takeHighestOneBit(): Int = highestOneBit()
+
+public fun Int.takeLowestOneBit(): Int = lowestOneBit()
+
+public fun Long.highestOneBit(): Long {
+    if (this == 0L) return 0L
+    if (this < 0L) return Long.MIN_VALUE
+    return 1L shl (63 - countLeadingZeroBits())
+}
+
+public fun Long.lowestOneBit(): Long = this and (-this)
+
+public fun Long.takeHighestOneBit(): Long = highestOneBit()
+
+public fun Long.takeLowestOneBit(): Long = lowestOneBit()

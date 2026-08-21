@@ -389,6 +389,29 @@ extension OverloadResolver {
            containsTypeVariable(supertype, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem)
         {
             let subtypeKind = typeSystem.kind(of: subtype)
+            // Kotlin function types are represented as `Function<R>` in source
+            // declarations such as `callsInPlace` and `holdsIn`. Preserve the
+            // lambda return-type constraint when the source-backed interface is
+            // generic, even though the lambda itself is modeled as a function type.
+            if superClass.classSymbol == typeSystem.functionInterfaceSymbol,
+               case let .functionType(subFunction) = subtypeKind,
+               superClass.args.count == 1,
+               let returnArg = superClass.args.first
+            {
+                switch returnArg {
+                case let .out(type), let .invariant(type):
+                    return decomposeSubtypeConstraintImpl(
+                        subtype: subFunction.returnType,
+                        supertype: type,
+                        typeVarBySymbol: typeVarBySymbol,
+                        typeSystem: typeSystem,
+                        blameRange: blameRange,
+                        depth: depth + 1
+                    )
+                case .in, .star:
+                    break
+                }
+            }
             if case let .kClassType(subKClass) = subtypeKind,
                superClass.classSymbol == typeSystem.kClassInterfaceSymbol,
                subKClass.nullability == superClass.nullability || superClass.nullability == .nullable,
@@ -441,14 +464,18 @@ extension OverloadResolver {
                     )]
                 }
                 var result: [VariableConstraint] = []
-                for (subArg, superArg) in zip(alignedClass.args, superClass.args) {
+                for (index, (subArg, superArg)) in zip(alignedClass.args, superClass.args).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        declarationVariance: typeSystem.normalizedNominalVariances(
+                            for: superClass.classSymbol,
+                            arity: superClass.args.count
+                        )[index]
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -577,14 +604,18 @@ extension OverloadResolver {
                subClass.nullability == superClass.nullability || superClass.nullability == .nullable
             {
                 var result: [VariableConstraint] = []
-                for (subArg, superArg) in zip(subClass.args, superClass.args) {
+                for (index, (subArg, superArg)) in zip(subClass.args, superClass.args).enumerated() {
                     let decomposed = decomposeTypeArgConstraintImpl(
                         subArg: subArg,
                         superArg: superArg,
                         typeVarBySymbol: typeVarBySymbol,
                         typeSystem: typeSystem,
                         blameRange: blameRange,
-                        depth: depth + 1
+                        depth: depth + 1,
+                        declarationVariance: typeSystem.normalizedNominalVariances(
+                            for: superClass.classSymbol,
+                            arity: superClass.args.count
+                        )[index]
                     )
                     result.append(contentsOf: decomposed)
                 }
@@ -685,9 +716,25 @@ extension OverloadResolver {
         typeVarBySymbol: [SymbolID: TypeVarID],
         typeSystem: TypeSystem,
         blameRange: SourceRange?,
-        depth: Int
+        depth: Int,
+        declarationVariance: TypeVariance = .invariant
     ) -> [VariableConstraint] {
-        switch (subArg, superArg) {
+        // Kotlin declaration-site variance applies even when source syntax uses
+        // invariant type arguments (`Sequence<T>` is still covariant because
+        // Sequence declares `out T`). Without this projection, a generic
+        // source-backed return such as Sequence<Int> cannot flow into
+        // Sequence<Any> during type-variable solving.
+        // Star projections carry their own variance, so projecting them would hide the
+        // dedicated star handling below and leave type variables unconstrained.
+        let involvesStar = isStarProjection(subArg) || isStarProjection(superArg)
+        let projectedSubArg = involvesStar
+            ? subArg
+            : applyDeclarationVariance(subArg, declarationVariance: declarationVariance)
+        let projectedSuperArg = involvesStar
+            ? superArg
+            : applyDeclarationVariance(superArg, declarationVariance: declarationVariance)
+
+        switch (projectedSubArg, projectedSuperArg) {
         case let (.invariant(subInner), .invariant(superInner)):
             // Invariant: both directions (equality).
             var result = decomposeSubtypeConstraintImpl(
@@ -758,6 +805,35 @@ extension OverloadResolver {
                 blameRange: blameRange, depth: depth
             ))
             return fallback
+        }
+    }
+
+    private func isStarProjection(_ arg: TypeArg) -> Bool {
+        if case .star = arg { return true }
+        return false
+    }
+
+    private func applyDeclarationVariance(
+        _ arg: TypeArg,
+        declarationVariance: TypeVariance
+    ) -> TypeArg {
+        switch declarationVariance {
+        case .invariant:
+            return arg
+        case .out:
+            switch arg {
+            case let .invariant(type), let .out(type):
+                return .out(type)
+            case .in, .star:
+                return arg
+            }
+        case .in:
+            switch arg {
+            case let .invariant(type), let .in(type):
+                return .in(type)
+            case .out, .star:
+                return arg
+            }
         }
     }
 

@@ -61,6 +61,13 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let throwingFunction = SymbolFlags(rawValue: 1 << 20)
     public static let readOnlyProperty = SymbolFlags(rawValue: 1 << 21)
     public static let importedLibrary = SymbolFlags(rawValue: 1 << 22)
+    /// Marks a constructor whose stored `visibility` was copied down from its
+    /// owning class/object because the constructor itself had no explicit
+    /// visibility modifier (see `constructorVisibilityDetail`). `VisibilityChecker`
+    /// uses this to fall back to the owner's own accessibility rule (e.g. file
+    /// scope for a top-level `private class`) instead of a class-hierarchy check,
+    /// without loosening genuinely explicit `private constructor` declarations.
+    public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
 }
 
 public struct SemanticSymbol: Sendable {
@@ -1235,6 +1242,8 @@ public final class BindingTable {
     public private(set) var ulongRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var floatingPointRangeSymbolIDs: Set<SymbolID> = []
     public private(set) var flowSymbolIDs: Set<SymbolID> = []
+    public private(set) var floatingPointRangeElementTypesByExpr: [ExprID: TypeID] = [:]
+    public private(set) var floatingPointRangeElementTypesBySymbol: [SymbolID: TypeID] = [:]
     public private(set) var flowElementTypesByExpr: [ExprID: TypeID] = [:]
     public private(set) var flowElementTypesBySymbol: [SymbolID: TypeID] = [:]
     /// Tracks the real element type produced by an `async { ... }` call, keyed by
@@ -1275,6 +1284,12 @@ public final class BindingTable {
     public private(set) var scopeFunctionKinds: [ExprID: ScopeFunctionKind] = [:]
     /// Tracks lambda literals that need the collection HOF closure parameter ABI.
     public private(set) var collectionHOFLambdaExprIDs: Set<ExprID> = []
+    /// Tracks `.memberCall` expressions resolved by
+    /// `CallTypeChecker.tryInferFQNPackageTopLevelCall` (e.g.
+    /// `kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`): the receiver
+    /// chain is a bare namespace path, not a real value, so it is never type
+    /// -checked and must not be lowered as one.
+    public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1445,6 +1460,15 @@ public final class BindingTable {
         floatingPointRangeExprIDs.contains(expr)
     }
 
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forExpr expr: ExprID) {
+        floatingPointRangeExprIDs.insert(expr)
+        floatingPointRangeElementTypesByExpr[expr] = type
+    }
+
+    public func floatingPointRangeElementType(forExpr expr: ExprID) -> TypeID? {
+        floatingPointRangeElementTypesByExpr[expr]
+    }
+
     public func markFlowExpr(_ expr: ExprID) {
         flowExprIDs.insert(expr)
     }
@@ -1532,6 +1556,15 @@ public final class BindingTable {
 
     public func isFloatingPointRangeSymbol(_ symbol: SymbolID) -> Bool {
         floatingPointRangeSymbolIDs.contains(symbol)
+    }
+
+    public func bindFloatingPointRangeElementType(_ type: TypeID, forSymbol symbol: SymbolID) {
+        floatingPointRangeSymbolIDs.insert(symbol)
+        floatingPointRangeElementTypesBySymbol[symbol] = type
+    }
+
+    public func floatingPointRangeElementType(forSymbol symbol: SymbolID) -> TypeID? {
+        floatingPointRangeElementTypesBySymbol[symbol]
     }
 
     public func markFlowSymbol(_ symbol: SymbolID) {
@@ -1722,6 +1755,19 @@ public final class BindingTable {
     /// Whether the lambda literal requires collection HOF closure ABI lowering.
     public func isCollectionHOFLambdaExpr(_ expr: ExprID) -> Bool {
         collectionHOFLambdaExprIDs.contains(expr)
+    }
+
+    /// Mark a `.memberCall` expression as resolved via the FQN-package-qualified
+    /// top-level lookup (`kotlin.math.abs(x)`, `kotlin.text.StringBuilder()`).
+    public func markFQNTopLevelCallExpr(_ expr: ExprID) {
+        fqnTopLevelCallExprIDs.insert(expr)
+    }
+
+    /// Whether the call expression was resolved via the FQN-package-qualified
+    /// top-level lookup, meaning its receiver chain is a namespace path with
+    /// no type binding and must not be lowered as a value.
+    public func isFQNTopLevelCallExpr(_ expr: ExprID) -> Bool {
+        fqnTopLevelCallExprIDs.contains(expr)
     }
 
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.

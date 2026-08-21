@@ -482,7 +482,7 @@ final class CallLowerer {
         if let scopeKind = sema.bindings.scopeFunctionKind(for: exprID),
            scopeKind == .scopeContext,
            args.count >= 2,
-           args.count <= 7
+           args.count <= 23
         {
             let boundType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
             let loweredContextArguments = args.dropLast().map { contextArgument in
@@ -596,136 +596,6 @@ final class CallLowerer {
             )
         }
         let knownNames = KnownCompilerNames(interner: interner)
-        // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
-        if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 1,
-           let nextFunctionType = sema.bindings.exprTypes[args[0].expr],
-           case .functionType = sema.types.kind(of: sema.types.makeNonNullable(nextFunctionType))
-        {
-            // KSP-500: expand the closure to (fnPtr, closureRaw) and box its
-            // returned primitive here, same as appendClosureArgumentsIfNeeded's
-            // "kk_sequence_generate_noarg" case — this call is constructed
-            // directly and never reaches that path, so without this the
-            // closure's captures are silently dropped (passed as closureRaw=0)
-            // and its returned elements are never boxed.
-            let expanded = expandGenerateSequenceNextFunction(
-                loweredArgID: loweredArgIDs[0],
-                argExprID: args[0].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            instructions.append(.call(
-                symbol: chosen,
-                callee: interner.intern("kk_sequence_generate_noarg"),
-                arguments: [expanded.fnPtr, expanded.closureRaw],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
-        if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2,
-           let seedFunctionType = sema.bindings.exprTypes[args[0].expr],
-           case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(seedFunctionType)),
-           functionType.params.isEmpty,
-           let seedCallableInfo = driver.ctx.callableValueInfo(for: loweredArgIDs[0])
-        {
-            let seedResult = arena.appendTemporary(type: sema.types.makeNonNullable(functionType.returnType)
-            )
-            instructions.append(.call(
-                symbol: seedCallableInfo.symbol,
-                callee: seedCallableInfo.callee,
-                arguments: seedCallableInfo.captureArguments,
-                result: seedResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            // KSP-500: box the seed function's result, same as the direct-seed-value
-            // overload's rewrite in CollectionLiteralLoweringPass+CallRewriteFactories.
-            let boxedSeedResult = boxValueForAnySlot(
-                seedResult,
-                sourceType: sema.types.makeNonNullable(functionType.returnType),
-                types: sema.types,
-                symbols: sema.symbols,
-                interner: interner,
-                arena: arena,
-                resultType: sema.types.makeNonNullable(functionType.returnType),
-                requireNonNull: true,
-                into: &instructions
-            )
-            // KSP-500: expand the nextFunction closure to (fnPtr, closureRaw) and
-            // box its returned primitive — see the 1-arg case above for why this
-            // can't be skipped (this call is constructed directly and never
-            // reaches appendClosureArgumentsIfNeeded's "kk_sequence_generate" case).
-            let expandedNextFunction = expandGenerateSequenceNextFunction(
-                loweredArgID: loweredArgIDs[1],
-                argExprID: args[1].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            instructions.append(.call(
-                symbol: chosen,
-                callee: interner.intern("kk_sequence_generate"),
-                arguments: [boxedSeedResult, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
-        // STDLIB-097: 2-arg direct-seed-value form generateSequence(seed: T?, nextFunction: (T) -> T?).
-        // KSP-500: Sema's dedicated type-check shortcut for generateSequence (see
-        // CallTypeChecker.swift) never populates sema.bindings.callBindings for
-        // this overload, so `chosen` is nil here and this call would otherwise
-        // never reach appendClosureArgumentsIfNeeded's "kk_sequence_generate"
-        // case (gated on `let chosen`) — the closure's captures would be
-        // silently dropped and its returned elements never boxed. Handle it
-        // directly, same as the other two generateSequence overloads above.
-        if sourceCalleeName == interner.intern("generateSequence"),
-           loweredArgIDs.count == 2
-        {
-            let expandedNextFunction = expandGenerateSequenceNextFunction(
-                loweredArgID: loweredArgIDs[1],
-                argExprID: args[1].expr,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            // Box the seed value. CollectionLiteralLoweringPass+CallRewriteFactories
-            // also boxes the seed on the (now-unreachable-for-this-overload, but
-            // kept as a defense-in-depth fallback) rewrite path; kk_box_int et al.
-            // are idempotent, so double-boxing here would be harmless anyway.
-            var seedArgument = loweredArgIDs[0]
-            if let seedType = sema.bindings.exprTypes[args[0].expr] {
-                seedArgument = boxValueForAnySlot(
-                    seedArgument,
-                    sourceType: seedType,
-                    types: sema.types,
-                    symbols: sema.symbols,
-                    interner: interner,
-                    arena: arena,
-                    into: &instructions
-                )
-            }
-            let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
-            instructions.append(.call(
-                symbol: chosen,
-                callee: interner.intern("kk_sequence_generate"),
-                arguments: [seedArgument, expandedNextFunction.fnPtr, expandedNextFunction.closureRaw],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
         // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623)
         // and no longer use builder-DSL runtime lowering.
         if let loweredToList = tryLowerCollectionToListCall(
@@ -768,6 +638,60 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
+        return lowerResolvedCallBody(
+            exprID,
+            args: args,
+            loweredArgIDs: loweredArgIDs,
+            chosen: chosen,
+            callBinding: callBinding,
+            callableValueCallBinding: callableValueCallBinding,
+            loweredCallable: loweredCallable,
+            loweredCalleeExprID: loweredCalleeExprID,
+            sourceCalleeName: sourceCalleeName,
+            boundType: boundType,
+            knownNames: knownNames,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    /// Emits the call/allocation instructions for an already-resolved call
+    /// target: the callee (function, constructor, or callable value) and its
+    /// arguments are already lowered by the time this runs. Shared by
+    /// `lowerCallExpr` (plain `.call` nodes, which supply
+    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding`
+    /// derived from lowering `calleeExpr`) and
+    /// `tryLowerFQNTopLevelResolvedCall` (namespace-qualified function/
+    /// constructor calls reached via `.memberCall`, e.g.
+    /// `kotlin.math.abs(x)` or `kotlin.text.StringBuilder()`, which have no
+    /// callee expression to lower at all — `chosen` and `callBinding` come
+    /// directly from Sema's FQN top-level resolution, so
+    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding` are
+    /// always nil there).
+    // swiftlint:disable:next cyclomatic_complexity
+    func lowerResolvedCallBody(
+        _ exprID: ExprID,
+        args: [CallArgument],
+        loweredArgIDs: [KIRExprID],
+        chosen: SymbolID?,
+        callBinding: CallBinding?,
+        callableValueCallBinding: CallableValueCallBinding?,
+        loweredCallable: KIRCallableValueInfo?,
+        loweredCalleeExprID: KIRExprID?,
+        sourceCalleeName: InternedString,
+        boundType: TypeID?,
+        knownNames: KnownCompilerNames,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
@@ -835,7 +759,7 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
-        if callableInvokeCallee != nil {
+        if callableInvokeCallee != nil, let loweredCalleeExprID {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
             if let callableValueCallBinding,
                case let .functionType(functionType) = sema.types.kind(
@@ -1226,36 +1150,6 @@ final class CallLowerer {
                 instructions.append(.rethrow(value: thrownResult))
                 instructions.append(.label(continueLabel))
             }
-            if loweredCalleeName == interner.intern("__kk_auto_closeable_create"),
-               let closeableSymbol = sema.types.closeableInterfaceSymbol
-            {
-                // __kk_auto_closeable_create wraps the close-action lambda in a
-                // lightweight object and hardcodes its close() method at
-                // itable slot 0 (see the kk_object_register_itable_method
-                // call inside it), but never registers that slot against the
-                // Closeable interface itself. A direct `resource.close()`
-                // call on an interface-typed receiver dispatches via
-                // kk_itable_lookup_dynamic, which requires that per-object
-                // (interfaceTypeID -> slot) registration — without it,
-                // dispatch fails at runtime with "method not found in
-                // vtable/itable".
-                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: closeableSymbol, sema: sema, interner: interner
-                )
-                let interfaceTypeIDExpr = arena.appendExpr(.intLiteral(interfaceTypeID), type: sema.types.intType)
-                instructions.append(.constValue(result: interfaceTypeIDExpr, value: .intLiteral(interfaceTypeID)))
-                let ifaceSlotExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
-                instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(0)))
-                let registerIfaceResult = arena.appendTemporary(type: sema.types.intType)
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_object_register_itable_iface"),
-                    arguments: [result, interfaceTypeIDExpr, ifaceSlotExpr],
-                    result: registerIfaceResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
         }
         return result
     }
@@ -1370,8 +1264,6 @@ final class CallLowerer {
                 interner.intern("kk_ulong_range_toList")
             case interner.intern("CharRange"), interner.intern("CharProgression"):
                 interner.intern("kk_char_range_toList")
-            case knownNames.string:
-                interner.intern("kk_string_toList_flat")
             default:
                 interner.intern("kk_sequence_to_list")
             }

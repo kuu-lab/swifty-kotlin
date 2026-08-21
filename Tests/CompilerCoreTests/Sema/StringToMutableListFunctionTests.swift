@@ -2,12 +2,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-104: Validates that `String.toMutableList()` resolves through
-/// Sema and links to the `kk_string_toMutableList` runtime entry.
-///
-/// The synthetic extension function is registered in
-/// `HeaderHelpers+SyntheticStringStubs.swift`, the call lowering routes to the
-/// runtime symbol in `CallLowerer+LegacyMemberLikeCalls.swift`, and the runtime
-/// implementation lives in `Sources/Runtime/RuntimeStringStdlib.swift`.
+/// Sema and resolves to the bundled Kotlin implementation.
 @Suite
 struct StringToMutableListFunctionTests {
     @Test

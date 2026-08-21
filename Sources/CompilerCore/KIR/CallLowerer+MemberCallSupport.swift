@@ -92,8 +92,33 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
-    /// The `$enumOrdinalToName$<id>(ordinal): String` helper for `type`, when
-    /// `type` is a non-null enum class that has one.
+    /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the
+    /// Runtime-side `RuntimeNumberConversionTargetKind` by raw value — the two
+    /// enums live in separate modules linked only through the C ABI, so they
+    /// must be kept in sync manually.
+    enum NumberConversionTargetKind: Int32 {
+        case double = 0
+        case float = 1
+        case long = 2
+        case int = 3
+        case short = 4
+        case byte = 5
+    }
+
+    func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
+        switch interner.resolve(calleeName) {
+        case "toDouble": return .double
+        case "toFloat": return .float
+        case "toLong": return .long
+        case "toInt": return .int
+        case "toShort": return .short
+        case "toByte": return .byte
+        default: return nil
+        }
+    }
+
+    /// The `$enumOrdinalToName$<encodedFqName>(ordinal): String` helper for `type`,
+    /// when `type` is a non-null enum class that has one.
     ///
     /// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
     /// header-only symbols with no source declSite, so
@@ -105,7 +130,7 @@ extension CallLowerer {
         for type: TypeID,
         sema: SemaModule,
         interner: StringInterner
-    ) -> InternedString? {
+    ) -> (callee: InternedString, symbol: SymbolID?)? {
         guard case let .classType(classType) = sema.types.kind(of: type),
               classType.nullability == .nonNull,
               let symbol = sema.symbols.symbol(classType.classSymbol),
@@ -114,7 +139,11 @@ extension CallLowerer {
         else {
             return nil
         }
-        return interner.intern("$enumOrdinalToName$\(classType.classSymbol.rawValue)")
+        let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+        let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
+            sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+        }
+        return (helperName, helperSymbol)
     }
 
     /// Converts `valueID` (of static type `valueType`) to a `String` via
@@ -142,14 +171,14 @@ extension CallLowerer {
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
         // A statically enum-typed value is represented as its bare ordinal, so
         // `kk_any_to_string` would render the number. The enum class's
-        // `$enumOrdinalToName$<id>` helper maps it back to the entry name — the
-        // same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
+        // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
+        // the same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
         // an Any-erased boundary.
         if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
             let name = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
-                callee: nameHelper,
+                symbol: nameHelper.symbol,
+                callee: nameHelper.callee,
                 arguments: [valueID],
                 result: name,
                 canThrow: false,
