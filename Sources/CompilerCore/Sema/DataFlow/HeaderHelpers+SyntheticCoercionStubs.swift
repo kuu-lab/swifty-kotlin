@@ -469,32 +469,6 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            registerSyntheticCoercionFunction(
-                named: "toUInt",
-                externalLinkName: "kk_double_to_uint",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.uintType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toULong",
-                externalLinkName: "kk_double_to_ulong",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.ulongType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
             // Char conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
@@ -575,90 +549,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // STDLIB-NUM-130: Double.fromBits(bits: Long) and Float.fromBits(bits: Int)
-        // remain top-level synthetic registrations because primitive Double and
-        // Float do not expose a Companion type in the compiler's core model.
-        registerSyntheticTopLevelFunction(
-            named: "fromBits",
-            packageFQName: kotlinPkg,
-            parameters: [(name: "bits", type: types.longType)],
-            returnType: types.doubleType,
-            externalLinkName: "__kk_double_fromBits",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "fromBits",
-            packageFQName: kotlinPkg,
-            parameters: [(name: "bits", type: types.intType)],
-            returnType: types.floatType,
-            externalLinkName: "__kk_float_fromBits",
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerSyntheticTopLevelFunction(
-        named name: String,
-        packageFQName: [InternedString],
-        parameters: [(name: String, type: TypeID)],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = packageFQName + [functionName]
-        // Avoid duplicate registration (same signature).
-        if symbols.lookupAll(fqName: functionFQName).contains(where: { symbolID in
-            guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-            return sig.receiverType == nil
-                && sig.parameterTypes == parameters.map(\.type)
-                && sig.returnType == returnType
-        }) {
-            return
-        }
-        if hasImportedLibrarySymbol(fqName: functionFQName, kind: .function, symbols: symbols) {
-            return
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        symbols.setExternalLinkName(externalLinkName, for: functionSymbol)
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let paramNameID = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: paramNameID,
-                fqName: functionFQName + [paramNameID],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: nil,
-                parameterTypes: parameters.map(\.type),
-                returnType: returnType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: functionSymbol
-        )
     }
 
     private func registerSyntheticCoercionFunction(

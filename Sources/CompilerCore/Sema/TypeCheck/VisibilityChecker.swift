@@ -27,7 +27,22 @@ struct VisibilityChecker {
                    parent == companionOfEnclosing {
                     return true
                 }
-                return enclosingClass == parent || isEnclosedBy(enclosingClass, ancestor: parent)
+                if shareEnclosingClass(enclosingClass, parent) {
+                    return true
+                }
+                // This constructor's `.private` was inherited from its owner
+                // (no explicit modifier on the constructor itself), so its real
+                // accessibility ceiling is the owner's own visibility rather than
+                // a class-hierarchy relationship — an unrelated top-level
+                // declaration in the same file as a `private class` shares no
+                // class hierarchy with it, but should still be able to construct
+                // it. Recurse into the owner's own check, which correctly falls
+                // back to file scope once its parent chain is exhausted.
+                if symbol.flags.contains(.constructorVisibilityInherited),
+                   let ownerSymbol = symbols.symbol(parent) {
+                    return isAccessible(ownerSymbol, fromFile: accessFileID, enclosingClass: enclosingClass)
+                }
+                return false
             }
             guard let declSite = symbol.declSite else {
                 return true
@@ -66,11 +81,20 @@ struct VisibilityChecker {
         return false
     }
 
-    private func isEnclosedBy(_ candidate: SymbolID?, ancestor: SymbolID) -> Bool {
-        var current = candidate
-        while let c = current {
-            if c == ancestor { return true }
-            current = symbols.parentSymbol(for: c)
+    private func shareEnclosingClass(_ a: SymbolID?, _ b: SymbolID) -> Bool {
+        guard let a else { return false }
+        var ancestorsA: Set<SymbolID> = []
+        var currentA: SymbolID? = a
+        while let ca = currentA, !ancestorsA.contains(ca) {
+            ancestorsA.insert(ca)
+            currentA = symbols.parentSymbol(for: ca)
+        }
+        var currentB: SymbolID? = b
+        var visitedB: Set<SymbolID> = []
+        while let cb = currentB, !visitedB.contains(cb) {
+            if ancestorsA.contains(cb) { return true }
+            visitedB.insert(cb)
+            currentB = symbols.parentSymbol(for: cb)
         }
         return false
     }

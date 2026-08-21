@@ -13,6 +13,31 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+        // A source-backed primitive array factory with a normalized spread
+        // argument already has the complete array value. Preserve that value
+        // directly instead of treating it as one nested element or passing it
+        // through the source body's List-shaped vararg representation.
+        if arguments.count == 1,
+           isSourceBackedPrimitiveArrayFactory(symbol, sema: ctx.sema, interner: ctx.interner),
+           let sema = ctx.sema,
+           let argumentType = module.arena.exprType(arguments[0]),
+           isPrimitiveArrayType(argumentType, sema: sema, interner: ctx.interner)
+        {
+            let copiedArray = module.arena.appendTemporary(type: argumentType)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayCopyOfName,
+                arguments: [arguments[0]],
+                result: copiedArray,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                loweredBody.append(.copy(from: copiedArray, to: result))
+            }
+            return true
+        }
+
         // --- Rewrite arrayOf → kk_array_of ---
         if isStdlibArrayFactoryCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let count = arguments.count
