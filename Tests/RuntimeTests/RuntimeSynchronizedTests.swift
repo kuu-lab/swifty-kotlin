@@ -51,6 +51,18 @@ private var synchronizedNestedClosureRaw: Int {
     }
 }
 
+private let synchronizedSharedLockProbe = DispatchSemaphore(value: 0)
+
+@_cdecl("runtime_synchronized_shared_lock_probe")
+private func runtime_synchronized_shared_lock_probe(
+    _: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    synchronizedSharedLockProbe.signal()
+    return 1
+}
+
 @_cdecl("runtime_synchronized_success_lambda")
 private func runtime_synchronized_success_lambda(
     _: Int,
@@ -172,6 +184,43 @@ struct RuntimeSynchronizedTests {
 
         #expect(thrown == 0)
         #expect(result == 124)
+    }
+
+    @Test
+    func testLazyAndSynchronizedShareLockObject() {
+        let lease = RuntimeTestIsolationLease(lockSet: .all)
+        defer { lease.release() }
+
+        let key = 505
+        _ = __kk_lazy_sync_lock(key)
+        var ownsLazyLock = true
+        defer {
+            if ownsLazyLock {
+                _ = __kk_lazy_sync_unlock(key)
+            }
+        }
+
+        let fn = unsafeBitCast(
+            runtime_synchronized_shared_lock_probe as @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int,
+            to: Int.self
+        )
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            var thrown = 0
+            _ = __kk_synchronized(key, fn, 0, &thrown)
+            group.leave()
+        }
+
+        #expect(
+            synchronizedSharedLockProbe.wait(timeout: .now() + .milliseconds(100)) == .timedOut,
+            "synchronized(lock) must wait while lazy(lock) owns the same lock"
+        )
+        _ = __kk_lazy_sync_unlock(key)
+        ownsLazyLock = false
+
+        #expect(group.wait(timeout: .now() + .seconds(5)) == .success)
+        #expect(synchronizedSharedLockProbe.wait(timeout: .now() + .seconds(1)) == .success)
     }
 }
 #endif

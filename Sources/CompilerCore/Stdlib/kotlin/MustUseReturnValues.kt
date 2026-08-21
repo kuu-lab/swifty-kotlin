@@ -19,4 +19,4 @@ package kotlin
  * or deprecation cycle. This, in particular, concerns annotation's target list.
  */
 @kotlin.annotation.Target(AnnotationTarget.FILE, AnnotationTarget.CLASS)
-public annotation class MustUseReturnValues
+public annotation class MustUseReturnValues()

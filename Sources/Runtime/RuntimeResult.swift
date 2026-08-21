@@ -304,16 +304,6 @@ func runtimeResultRecoverCatching(
 
 // MARK: - Bundled Result.kt Runtime Bridges
 
-@_cdecl("kk_runtime_result_success")
-public func kk_runtime_result_success(_ value: Int) -> Int {
-    runtimeResultSuccess(value)
-}
-
-@_cdecl("kk_runtime_result_failure")
-public func kk_runtime_result_failure(_ exception: Int) -> Int {
-    runtimeResultFailure(exception)
-}
-
 @_cdecl("kk_runtime_result_is_success")
 public func kk_runtime_result_is_success(_ resultRaw: Int) -> Int {
     runtimeResultIsSuccess(resultRaw) ? 1 : 0

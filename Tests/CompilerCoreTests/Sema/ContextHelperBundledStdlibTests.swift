@@ -31,7 +31,7 @@ struct ContextHelperBundledStdlibTests {
         #expect(blockType.returnType == signature.returnType)
     }
 
-    @Test func testContextHelperRegistersOverloadsThroughAritySix() throws {
+    @Test func testContextHelperRegistersOverloadsThroughArityTwentyTwo() throws {
         let (sema, interner) = try sharedSema()
         let contextSymbols = sema.symbols.lookupAll(fqName: ["kotlin", "context"].map { interner.intern($0) })
         let arities = Set(contextSymbols.compactMap { symbolID -> Int? in
@@ -44,7 +44,7 @@ struct ContextHelperBundledStdlibTests {
             return blockType.contextReceivers.count
         })
 
-        #expect(arities == Set(1...6))
+        #expect(arities == Set(1...22))
     }
 
     @Test func testContextOfHelperIsRegistered() throws {
@@ -124,12 +124,15 @@ struct ContextHelperBundledStdlibTests {
         #expect(diagnostics.count == 1, "Expected missing context receiver diagnostic, got: \(ctx.diagnostics.diagnostics)")
     }
 
-    @Test func testContextHelperSixValueOverloadInfersBlockReturnType() throws {
+    @Test func testContextHelperTwentyTwoValueOverloadInfersBlockReturnType() throws {
         let source = """
         import kotlin.ExperimentalContextParameters
 
         @OptIn(ExperimentalContextParameters::class)
-        fun caller(): String = context(1, 2, 3, 4, 5, 6) { "ok" }
+        fun caller(): String = context(
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+            12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+        ) { "ok" }
         """
 
         let ctx = runSemaCollectingDiagnostics(source)

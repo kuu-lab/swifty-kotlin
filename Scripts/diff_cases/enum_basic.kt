@@ -1,11 +1,11 @@
-// SKIP-DIFF (DEBT-DIFF-007): surfaced by compile-exit parity fix; triage and split or fix before re-enabling
+// SKIP-DIFF (DEBT-DIFF-007): enum instance from collection (entries.find) passes boxed RuntimeIntBox into lambda without unboxing, causing double boxing in $enumConstructorProperty and unreachable panic
 enum class Color(val rgb: Int) {
     RED(0xFF0000),
     GREEN(0x00FF00),
     BLUE(0x0000FF);
     
     companion object {
-        fun fromRgb(rgb: Int): Color? = values.find { it.rgb == rgb }
+        fun fromRgb(rgb: Int): Color? = entries.find { it.rgb == rgb }
     }
 }
 

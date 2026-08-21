@@ -17,3 +17,5 @@ fun charFromUShort() {
     println(y.code)
     println(z.code)
 }
+
+fun makeCharArray(): CharArray = charArrayOf('a', 'β', '\u0000')
