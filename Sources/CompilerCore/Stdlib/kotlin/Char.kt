@@ -23,3 +23,16 @@ public inline fun Char(code: Int): Char {
  * Creates a Char with the specified [code].
  */
 public inline fun Char(code: UShort): Char = __charFromCode(code.toInt())
+
+// KSP-771: Keep the primitive CharArray factory source-backed. KSwift's vararg
+// parameter representation is not itself a CharArray, so copy the elements
+// into the primitive array returned by the Kotlin API.
+public inline fun charArrayOf(vararg elements: Char): CharArray {
+    val result = CharArray(elements.size)
+    var index = 0
+    while (index < elements.size) {
+        result[index] = elements[index]
+        index++
+    }
+    return result
+}

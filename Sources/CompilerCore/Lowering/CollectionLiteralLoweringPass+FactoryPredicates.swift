@@ -67,10 +67,16 @@ extension CollectionLiteralConstructionLoweringPass {
         lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        guard lookup.arrayOfFactoryNames.contains(callee) else {
-            return false
+        if lookup.arrayOfFactoryNames.contains(callee),
+           isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        {
+            return true
         }
-        return isStdlibCollectionFactory(symbol: symbol, lookup: lookup, ctx: ctx)
+        return isSourceBackedPrimitiveArrayFactory(
+            symbol,
+            sema: ctx.sema,
+            interner: ctx.interner
+        )
     }
 
     func isCollectionCopyConstructorArgument(
