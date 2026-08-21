@@ -304,6 +304,11 @@ extension CallTypeChecker {
                     nullability: .nonNull
                 )))
                 if args.isEmpty,
+                   sema.bundledIndex.contains(
+                       ownerFQName: owner.fqName,
+                       name: calleeName,
+                       arity: 0
+                   ),
                    let extensionPropertyType = resolveExtensionPropertyGetter(
                        id: id,
                        calleeName: calleeName,
@@ -326,6 +331,13 @@ extension CallTypeChecker {
                     else {
                         return false
                     }
+                    guard sema.bundledIndex.contains(
+                        ownerFQName: owner.fqName,
+                        name: calleeName,
+                        arity: signature.parameterTypes.count
+                    ) else {
+                        return false
+                    }
                     return extensionSyntheticFallbackReceiverMatches(
                         callSiteReceiver: ownerType,
                         declaredReceiver: receiver,
@@ -342,6 +354,13 @@ extension CallTypeChecker {
                         else {
                             return false
                         }
+                        guard sema.bundledIndex.contains(
+                            ownerFQName: owner.fqName,
+                            name: calleeName,
+                            arity: signature.parameterTypes.count
+                        ) else {
+                            return false
+                        }
                         return extensionSyntheticFallbackReceiverMatches(
                             callSiteReceiver: ownerType,
                             declaredReceiver: receiver,
@@ -349,7 +368,17 @@ extension CallTypeChecker {
                         )
                     }
                 }
-                if !ownerExtensionCandidates.isEmpty {
+                let (visibleOwnerExtensions, invisibleOwnerExtensions) = ctx.filterByVisibility(ownerExtensionCandidates)
+                if let firstInvisible = invisibleOwnerExtensions.first {
+                    driver.helpers.emitVisibilityError(
+                        for: firstInvisible,
+                        name: interner.resolve(calleeName),
+                        range: range,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                if !visibleOwnerExtensions.isEmpty {
                     let callArgs = zip(args, argTypes).map { arg, type in
                         CallArg(label: arg.label, isSpread: arg.isSpread, type: type)
                     }
@@ -360,7 +389,7 @@ extension CallTypeChecker {
                         explicitTypeArgs: explicitTypeArgs
                     )
                     let resolved = ctx.resolver.resolveCall(
-                        candidates: ownerExtensionCandidates,
+                        candidates: visibleOwnerExtensions,
                         call: call,
                         expectedType: expectedType,
                         implicitReceiverType: ownerType,
@@ -390,6 +419,19 @@ extension CallTypeChecker {
                             in: signature.returnType,
                             substitution: resolved.substitutedTypeArguments,
                             typeVarBySymbol: typeVarBySymbol
+                        )
+                        driver.helpers.checkDeprecation(
+                            for: chosen,
+                            sema: sema,
+                            interner: interner,
+                            range: range,
+                            diagnostics: ctx.semaCtx.diagnostics
+                        )
+                        driver.helpers.checkOptIn(
+                            for: chosen,
+                            ctx: ctx,
+                            range: range,
+                            diagnostics: ctx.semaCtx.diagnostics
                         )
                         sema.bindings.bindExprType(receiverID, type: ownerType)
                         sema.bindings.bindExprType(id, type: resultType)
