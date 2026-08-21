@@ -30,7 +30,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowBundledPriority", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowBundledPriority", emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -116,7 +116,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 

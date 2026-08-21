@@ -16,7 +16,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -53,7 +53,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -78,7 +78,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -101,7 +101,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -149,7 +149,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -384,7 +384,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -567,7 +567,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -642,7 +642,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -741,7 +741,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 

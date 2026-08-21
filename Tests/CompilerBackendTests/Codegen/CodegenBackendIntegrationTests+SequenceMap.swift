@@ -92,7 +92,7 @@ struct CodegenBackendSequenceMapTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceMapKIR", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceMapKIR", emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)

@@ -9,7 +9,8 @@ private func runCodegenPipeline(
     moduleName: String,
     emit: EmitMode,
     outputPath: String,
-    irFlags: [String] = []
+    irFlags: [String] = [],
+    allowDefaultStdlibLibrary: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -17,7 +18,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     let ctx = CompilationContext(
         options: options,
@@ -220,7 +222,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringVirtualDispatchIR",
                 emit: .llvmIR,
-                outputPath: llvmBase
+                outputPath: llvmBase,
+                allowDefaultStdlibLibrary: false
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)

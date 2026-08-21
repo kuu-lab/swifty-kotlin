@@ -10,7 +10,8 @@ private func runCodegenPipeline(
     emit: EmitMode,
     outputPath: String,
     irFlags: [String] = [],
-    includeStdlib: Bool = true
+    includeStdlib: Bool = true,
+    allowDefaultStdlibLibrary: Bool = true
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -19,7 +20,8 @@ private func runCodegenPipeline(
         emit: emit,
         target: defaultTargetTriple(),
         irFlags: irFlags,
-        includeStdlib: includeStdlib
+        includeStdlib: includeStdlib,
+        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     let ctx = CompilationContext(
         options: options,
@@ -105,7 +107,8 @@ struct CodegenBackendSequenceMapIndexedNotNullTests {
                 inputPath: path,
                 moduleName: "SequenceMapIndexedNotNullKIR",
                 emit: .kirDump,
-                outputPath: outputBase
+                outputPath: outputBase,
+                allowDefaultStdlibLibrary: false
             )
 
             let module = try #require(ctx.kir)
