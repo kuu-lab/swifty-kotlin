@@ -385,11 +385,12 @@
   - 注意: 旧制約「`Byte`/`Short` が独立プリミティブでない」（KSP-645 調査記録）は BUG-199 解消（#5665 の Byte/Short 独立プリミティブ化、`ByteShortOverloadResolutionTests` で固定）により撤廃済み — ByteArray/ShortArray 系も本タスクの対象に含める（着手時に `byte_short_array.kt` 等の既存 diff で現状挙動を確認）
   - 前提: KSP-433（完了済み）/ 手順: T / diff: `array_hof_source_backed.kt` の primitive 版を新規追加
   - 完了: 12 primitive array 型のHOFを `PrimitiveArrayHOF.kt` へ移し、source優先解決・fold accumulator raw表現・`Array<T>.joinToString(transform)` のsynthetic優先問題を回帰固定。40 runtime関数、旧fallback/ABI表、synthetic join登録を削除し、allocation/element bridgeは維持。全primitiveのsource実行、probe、diff_kotlinc、Golden、ABI、Runtime focused testを確認済み。
-- [ ] KSP-718: `HeaderHelpers+SyntheticIterableRegistry.swift` をメンバ単位の Kotlin 移行で縮小する（RF-STUB-005 consolidated Iterable/Collection レジストリ。並行 stdlib PR 間のマージ衝突回避のため意図的に1ファイルへ consolidated されており、KSP-692 型の「責務別に機械分割」は統合意図に反するため行わない。縮小手段は (b) メンバ単位の Kotlin 移行（`.kt` 化して合成登録・ブリッジ・特例を削除）とする）
+- [x] KSP-718: `HeaderHelpers+SyntheticIterableRegistry.swift` をメンバ単位の Kotlin 移行で縮小する（RF-STUB-005 consolidated Iterable/Collection レジストリ。並行 stdlib PR 間のマージ衝突回避のため意図的に1ファイルへ consolidated されており、KSP-692 型の「責務別に機械分割」は統合意図に反するため行わない。縮小手段は (b) メンバ単位の Kotlin 移行（`.kt` 化して合成登録・ブリッジ・特例を削除）とする）
   - 目的: 現存する大型合成レジストリ `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift`（`docs/stdlib-pipeline.md` 記載で約 2,741 行、分類 (b)）を、`Iterable<E>`/`Collection<E>` の (b) メンバを Kotlin source 実装（`Sources/CompilerCore/Stdlib/kotlin/collections/` の既存ファイル、例 `Iterables.kt`）へ移行して合成登録を削除することで縮小する。粒度ルール（1タスク=1PR、削除 kk_* ≤ 15）を超える場合は枝番でなく新番号で分割する前提を明記する。
   - 着手手順: まず `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift` で登録メンバを全列挙し、各メンバを「①既に bundled Kotlin source-backed 化済みで `BundledSyntheticStubRegistration.shouldSkipRegistration`／`BundledDeclarationIndex` によりスキップされている残骸（削除候補）」「②純ロジックで Kotlin 化可能な未移行 (b) メンバ（`.kt` 化して登録・`kk_sequence_*`/`kk_list_*` ブリッジ・関連特例を削除）」「③`Iterable`/`Collection`/`Iterator` の型シェル自体や `__kk_collection_*` の言語コア相当（残留）」に仕分ける。②が本タスクの縮小対象。移行は移行テンプレート T（TODO.md 冒頭の手順、diff ケース確認 → `.kt` 実装 → 同一PRで合成登録/CallTypeChecker・CallLowerer 特例/Runtime `@_cdecl`/`RuntimeABISpec` 削除 → U → G → rg 完了チェック 0 件）に従う。
   - 関連タスクとの調整: 既存の `KSP-620`/`KSP-621`（joinToString/joinTo の List/Array/Iterable/Sequence 版統一）とスコープが重複しうるため、着手時に削除対象登録を突合し二重作業を避ける。
   - 完了条件: 移行部分は挙動変更ゼロ（diff ケースが real kotlinc と一致）/ `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数・`"kk_` リテラル数の悪化なし / 共通ゲート G（`bash Scripts/swift_test.sh`、`bash Scripts/swift_test.sh --filter Golden`、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green）。
+  - 完了（2026-08-20）: 着手前に対象ファイルの現況を確認したところ、`HeaderHelpers+SyntheticIterableRegistry.swift` は KSP-701（`a1716ae92` / PR #5915、2026-08-18 マージ、現 HEAD の祖先）で既に削除済みと判明（`docs/stdlib-pipeline.md` 該当行も「完了・ファイル削除済み」を記録済み）。メンバ単位の縮小ではなく registry 全体を Kotlin source-backed 化した上での一括削除により、本タスクの目的（(b) メンバの Kotlin 移行によるファイル縮小）はより徹底した形で既に達成されているため、追加のメンバ移行作業は不要と判断し完了扱いとする。削除後の残余（Collection/Sequence fallback shell）は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（845行）と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（907行）に分離され、これらのさらなる縮小・削除は KSP-700/703/704/705/1518/1519 が個別担当としてすでに TODO.md に登録済みのため、KSP-718 名義での追加作業は行わない。検証: `rg -n 'SyntheticIterableRegistry' Sources Tests Scripts` はコード/テスト/スクリプトへの参照ゼロ（`docs/`・`TODO.md` の記述のみ残存）。KSP-701 側に残っていた「検証ゲート保留」は本タスクの一環で解消済み（下記 KSP-701 完了メモ参照）。なお `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（KSP-701 新設、845行）は `docs/stdlib-pipeline.md` の分類表に未掲載かつ専属の縮小タスクが存在しないギャップを発見、別途起票のため切り出した。
 
 #### math / numbers
 
@@ -481,7 +482,7 @@
   - diff: `comparable_interface.kt` 等既存 + 新規 collection interface 宣言ケース
   - 前提: KSP-701, KSP-703, KSP-704, KSP-705, KSP-699（orchestrator 削除前に内部呼び出しを独立化）
 
-- [ ] KSP-701: Iterable / Collection / Sequence consolidated registry を Kotlin 化し `HeaderHelpers+SyntheticIterableRegistry.swift` を削除する（実装済み、検証ゲート保留）
+- [x] KSP-701: Iterable / Collection / Sequence consolidated registry を Kotlin 化し `HeaderHelpers+SyntheticIterableRegistry.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticIterableRegistry.swift`（削除済み）、残存 fallback は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` / `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` および既存の bundled Kotlin collection/sequence source
   - 実装: `Iterable.filter`/`reduce`/`reduceIndexed` を `Iterables.kt` に追加し、旧 registry の member 登録と `kk_list_plus_*`/`kk_list_minus_*` Runtime/ABI export を削除。interface fallback shell と Sequence fallback は別 helper に移動。
@@ -489,6 +490,7 @@
   - 手順: T
   - diff: `sequence_*.kt`, `iterable_*.kt`, `collection_*.kt` 既存拡張
   - 前提: KSP-700（interface shells source-backed 後に member 移行）
+  - 完了（2026-08-20）: 実装は PR #5915（`a1716ae92`、2026-08-18 マージ）で完了済みだったが「検証ゲート保留」のまま TODO.md に残っていたため、KSP-718 着手時に検証して解消。CI（`gh pr checks 5915` / run 32179909772）は全 Verification job が pass。特に kotlinc Diff は `continue-on-error` で名目 pass だけでは本文の FAIL 有無が保証されないため（CLAUDE.md 記載の既知の落とし穴）、両 shard の本文ログを個別に確認: shard 1/2 `total=468 failed=0 passed=468 skipped=20`、shard 2/2 `total=472 failed=0 passed=472 skipped=15`。CompilerCore/Smoke（3 shard）・Backend/Runtime/CLI/LSP・Repository Checks も pass。ローカルでも現 HEAD で `swift build` 後 `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/ksp701_iterable_registry.kt` PASS を再確認し、`rg -n 'SyntheticIterableRegistry' Sources Tests Scripts` で参照ゼロを確認。前提として挙げていた KSP-700 は未完了のまま進んだ実績だが、実装内容（`Iterable.filter`/`reduce`/`reduceIndexed` の Kotlin 化と registry 削除）はブロックされずに完了しているため、この前提列挙は実態と異なっていた（KSP-700 は依然未着手・独立して有効なタスクとして残置）。
 
 - [x] KSP-702: IndexedValue / `ListIndexedAndArrayDequeStubs` 残余を Kotlin 化し削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListIndexedAndArrayDequeStubs.swift`, `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` 内 `registerLateListIndexedMembers` 残余
