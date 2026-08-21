@@ -38,7 +38,7 @@ symbol fq=kotlin.DoubleArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.DoubleArray.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.FloatArray kind=class vis=public flags=synthetic
 symbol fq=kotlin.FloatArray.size kind=property vis=public flags=synthetic type=Int
-symbol fq=kotlin.IntArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.IntArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.IntArray.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.LongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.LongArray.size kind=property vis=public flags=synthetic type=Int
