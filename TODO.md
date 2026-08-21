@@ -116,6 +116,7 @@
   - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
+
 #### kotlin.time [M8 実行体]
 
 - [ ] KSP-683: Duration/DurationUnit 本体を Kotlin 化する（2026-08-12 ギャップ再調査で追補: §9 分類表は `HeaderHelpers+SyntheticDurationStubs.swift` を「(b) M8 duration source migration」と分類しているのに、M8 実行体には Instant/Clock/measureTime（KSP-472）と TimeMark/TimeSource 系（KSP-648〜650）しか無く、**M8 中核の Duration 本体タスクが欠落していた**）
