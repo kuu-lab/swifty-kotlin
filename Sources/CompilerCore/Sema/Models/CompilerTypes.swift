@@ -153,7 +153,7 @@ public struct CompilerOptions: Equatable {
         self.stdlibSearchPaths = stdlibSearchPaths
 
         let shouldUseDefaultStdlib = allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
-            && stdlibLibraryPath == nil && emit == .executable
+            && stdlibLibraryPath == nil
         let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
         self.stdlibLibraryPath = resolvedStdlibLibraryPath
         self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil

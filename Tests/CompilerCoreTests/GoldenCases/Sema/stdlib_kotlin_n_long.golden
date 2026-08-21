@@ -1,7 +1,7 @@
 symbol fq=__local_0.empty kind=local vis=private flags=_ type=kotlin.LongArray
 symbol fq=__local_1.values kind=local vis=private flags=_ type=kotlin.LongArray
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.LongArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.LongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.LongArray.size kind=property vis=public flags=synthetic type=Int
 file fstdlib_kotlin_n_long package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
