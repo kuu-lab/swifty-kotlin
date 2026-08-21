@@ -22,7 +22,18 @@ struct ResultSourceMigrationTests {
             let resultInfo = try #require(sema.symbols.symbol(resultSymbol))
             #expect(resultInfo.kind == .class)
             #expect(!resultInfo.flags.contains(.synthetic), "kotlin.Result should be backed by bundled source")
-            #expect(sourcePath(for: resultSymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+            #expect(sourcePath(for: resultSymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result/Stdlib.kt") == true)
+
+            let resultConstructorFQName = resultFQName + [ctx.interner.intern("<init>")]
+            let resultConstructor = try #require(sema.symbols.lookupAll(fqName: resultConstructorFQName).first { symbolID in
+                guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else { return false }
+                return signature.parameterTypes == [sema.types.nullableAnyType]
+            })
+            #expect(sema.symbols.symbol(resultConstructor)?.visibility == .public)
+            #expect(sema.symbols.externalLinkName(for: resultConstructor) == nil)
+            #expect(sema.symbols.symbol(resultConstructor)?.declSite != nil)
 
             let runCatchingFQName = ["kotlin", "runCatching"].map(ctx.interner.intern)
             let runCatchingSymbol = try #require(sema.symbols.lookupAll(fqName: runCatchingFQName).first { symbolID in
@@ -110,6 +121,7 @@ struct ResultSourceMigrationTests {
             try expectCallUsesBundledResultSource(
                 runCatchingCall,
                 expectedExternalLink: "kk_runtime_result_run_catching",
+                expectedSourcePath: "__bundled_kotlin/Result.kt",
                 sema: sema,
                 ctx: ctx
             )
@@ -190,6 +202,7 @@ struct ResultSourceMigrationTests {
                 try expectCallUsesBundledResultSource(
                     call,
                     expectedExternalLink: "kk_runtime_result_run_catching",
+                    expectedSourcePath: "__bundled_kotlin/Result.kt",
                     sema: sema,
                     ctx: ctx
                 )
@@ -266,7 +279,7 @@ struct ResultSourceMigrationTests {
                 })
                 let propertySymbol = try #require(sema.bindings.identifierSymbol(for: memberRead))
                 #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
-                #expect(sourcePath(for: propertySymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+                #expect(sourcePath(for: propertySymbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result/Stdlib.kt") == true)
             }
         }
     }
@@ -296,12 +309,13 @@ struct ResultSourceMigrationTests {
     private func expectCallUsesBundledResultSource(
         _ exprID: ExprID,
         expectedExternalLink: String?,
+        expectedSourcePath: String = "__bundled_kotlin/Result/Stdlib.kt",
         sema: SemaModule,
         ctx: CompilationContext
     ) throws {
         let chosenCallee = try #require(sema.bindings.callBinding(for: exprID)?.chosenCallee)
         #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink)
-        #expect(sourcePath(for: chosenCallee, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/Result.kt") == true)
+        #expect(sourcePath(for: chosenCallee, sema: sema, ctx: ctx)?.contains(expectedSourcePath) == true)
     }
 }
 #endif
