@@ -107,8 +107,7 @@ struct BundledDeclarationIndexTests {
                     values.all { it >= 0 } &&
                     joined.isNotEmpty()
             }
-            """,
-            allowDefaultStdlibLibrary: false
+            """
         )
         try runSema(ctx)
 

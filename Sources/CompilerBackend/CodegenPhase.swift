@@ -2,12 +2,12 @@ import Foundation
 
 import CompilerCore
 
-public final class CodegenPhase: CompilerPhase {
-    public static let name = "Codegen"
+final class CodegenPhase: CompilerPhase {
+    static let name = "Codegen"
 
-    public init() {}
+    init() {}
 
-    public func run(_ ctx: CompilationContext) throws {
+    func run(_ ctx: CompilationContext) throws {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }

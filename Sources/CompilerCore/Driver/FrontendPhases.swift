@@ -116,12 +116,12 @@ private func collectPerFileResultsWithBundledStdlibTiming<Result: Sendable>(
     return (bundledResults + otherResults).sorted(by: { $0.0.rawValue < $1.0.rawValue })
 }
 
-public final class LoadSourcesPhase: CompilerPhase {
-    public static let name = "LoadSources"
+final class LoadSourcesPhase: CompilerPhase {
+    static let name = "LoadSources"
 
-    public init() {}
+    init() {}
 
-    public func run(_ ctx: CompilationContext) throws {
+    func run(_ ctx: CompilationContext) throws {
         if ctx.options.inputs.isEmpty && !ctx.options.stdlibOnly {
             ctx.diagnostics.error(
                 "KSWIFTK-SOURCE-0001",
@@ -207,12 +207,12 @@ public final class LoadSourcesPhase: CompilerPhase {
 
 }
 
-public final class LexPhase: CompilerPhase {
-    public static let name = "Lex"
+final class LexPhase: CompilerPhase {
+    static let name = "Lex"
 
-    public init() {}
+    init() {}
 
-    public func run(_ ctx: CompilationContext) throws {
+    func run(_ ctx: CompilationContext) throws {
         let fileIDs = ctx.sourceManager.fileIDs()
             .filter { ctx.needsRecompilation(fileID: $0) }
             .sorted(by: { $0.rawValue < $1.rawValue })
@@ -262,12 +262,12 @@ public final class LexPhase: CompilerPhase {
     }
 }
 
-public final class ParsePhase: CompilerPhase {
-    public static let name = "Parse"
+final class ParsePhase: CompilerPhase {
+    static let name = "Parse"
 
-    public init() {}
+    init() {}
 
-    public func run(_ ctx: CompilationContext) throws {
+    func run(_ ctx: CompilationContext) throws {
         let interner = ctx.interner
         let diagnostics = ctx.diagnostics
         let tokensByFile = Dictionary(uniqueKeysWithValues: ctx.tokensByFile.map { ($0.0, $0.1) })
@@ -295,8 +295,8 @@ public final class ParsePhase: CompilerPhase {
     }
 }
 
-public final class BuildASTPhase: CompilerPhase {
-    public static let name = "BuildAST"
+final class BuildASTPhase: CompilerPhase {
+    static let name = "BuildAST"
 
     struct PerFileASTResult {
         let fileRawID: Int32
@@ -315,11 +315,11 @@ public final class BuildASTPhase: CompilerPhase {
 
     let diagnostics: DiagnosticEngine?
 
-    public init(diagnostics: DiagnosticEngine? = nil) {
+    init(diagnostics: DiagnosticEngine? = nil) {
         self.diagnostics = diagnostics
     }
 
-    public func run(_ ctx: CompilationContext) throws {
+    func run(_ ctx: CompilationContext) throws {
         if ctx.syntaxTrees.isEmpty {
             if let cst = ctx.syntaxTree {
                 let fileID: FileID = if let firstToken = ctx.tokens.first, firstToken.range.start.file != FileID.invalid {

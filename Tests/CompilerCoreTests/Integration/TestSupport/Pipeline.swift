@@ -1,6 +1,5 @@
 @testable import CompilerCore
 import Foundation
-import TestStdlibCache
 
 func makeSemaModule(
     symbols: SymbolTable = SymbolTable(),
@@ -31,10 +30,7 @@ func makeCompilationContext(
     frontendFlags: [String] = [],
     includeStdlib: Bool = true,
     interner: StringInterner? = nil,
-    diagnostics: DiagnosticEngine? = nil,
-    stdlibOnly: Bool = false,
-    stdlibLibraryPath: String? = nil,
-    allowDefaultStdlibLibrary: Bool = false
+    diagnostics: DiagnosticEngine? = nil
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -48,10 +44,7 @@ func makeCompilationContext(
         target: defaultTargetTriple(),
         frontendFlags: frontendFlags,
         irFlags: irFlags,
-        includeStdlib: includeStdlib,
-        stdlibOnly: stdlibOnly,
-        stdlibLibraryPath: stdlibLibraryPath,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        includeStdlib: includeStdlib
     )
     return CompilationContext(
         options: options,
@@ -86,34 +79,22 @@ func runToLowering(_ ctx: CompilationContext) throws {
 func makeContextFromSource(
     _ source: String,
     frontendFlags: [String] = [],
-    emit: EmitMode = .kirDump,
-    allowDefaultStdlibLibrary: Bool = false
+    emit: EmitMode = .kirDump
 ) -> CompilationContext {
     let fakePath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(
-        inputs: [fakePath],
-        emit: emit,
-        frontendFlags: frontendFlags,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-    )
+    let ctx = makeCompilationContext(inputs: [fakePath], emit: emit, frontendFlags: frontendFlags)
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }
 
-func makeContextFromSources(
-    _ sources: [String],
-    allowDefaultStdlibLibrary: Bool = false
-) -> CompilationContext {
+func makeContextFromSources(_ sources: [String]) -> CompilationContext {
     let tempDir = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
     let fakePaths = sources.indices.map { index in
         tempDir.appendingPathComponent("input\(index).kt").path
     }
-    let ctx = makeCompilationContext(
-        inputs: fakePaths,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-    )
+    let ctx = makeCompilationContext(inputs: fakePaths)
     for (path, source) in zip(fakePaths, sources) {
         _ = ctx.sourceManager.addFile(path: path, contents: Data(source.utf8))
     }

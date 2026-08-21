@@ -5,7 +5,7 @@ import Testing
 
 @Suite struct SmokeTests {
     @Test func testSmokeDriverKirDumpSucceedsForMinimalProgram() throws {
-        try assertKotlinCompilesToKIR("fun main() = 0", moduleName: "SmokeKir", allowDefaultStdlibLibrary: true)
+        try assertKotlinCompilesToKIR("fun main() = 0", moduleName: "SmokeKir")
     }
 
     @Test func testSmokeDriverSemanticErrorReportsNonZeroExit() throws {
@@ -26,8 +26,7 @@ import Testing
                 moduleName: "SmokeSema",
                 inputs: [path],
                 outputPath: outputBase,
-                emit: .kirDump,
-            allowDefaultStdlibLibrary: true
+                emit: .kirDump
             )
             let result = makeTestDriver().runForTesting(options: options)
 
@@ -55,8 +54,7 @@ import Testing
             moduleName: "SmokeMissingInput",
             inputs: [missingPath],
             outputPath: outputBase,
-            emit: .kirDump,
-            allowDefaultStdlibLibrary: true
+            emit: .kirDump
         )
         let result = makeTestDriver().runForTesting(options: options)
 
@@ -78,8 +76,7 @@ import Testing
                 moduleName: "SmokeEmpty",
                 inputs: [path],
                 outputPath: outputBase,
-                emit: .kirDump,
-            allowDefaultStdlibLibrary: true
+                emit: .kirDump
             )
             let result = makeTestDriver().runForTesting(options: options)
 
@@ -95,8 +92,7 @@ import Testing
     @Test func testSmokeDriverMultipleInputFilesCompilesToKIR() throws {
         try assertKotlinSourcesToKIR(
             ["fun greet(): String = \"hello\"", "fun main() = 0"],
-            moduleName: "SmokeMultiFile",
-            allowDefaultStdlibLibrary: true
+            moduleName: "SmokeMultiFile"
         )
     }
 
@@ -105,7 +101,7 @@ import Testing
         // under a larger-than-trivial input without triggering semantic errors.
         var lines: [String] = (0 ..< 200).map { "fun smokeFunc\($0)(x: Int): Int = x + \($0)" }
         lines.append("fun main() = 0")
-        try assertKotlinCompilesToKIR(lines.joined(separator: "\n"), moduleName: "SmokeLargeFile", allowDefaultStdlibLibrary: true)
+        try assertKotlinCompilesToKIR(lines.joined(separator: "\n"), moduleName: "SmokeLargeFile")
     }
 
     // MARK: - New smoke tests (TEST-SMOKE-005)
@@ -132,7 +128,7 @@ import Testing
             area(c)
             area(r)
         }
-        """, moduleName: "SmokeSealedWhen", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeSealedWhen")
     }
 
     @Test func testSmokeEnumClassWhenExpressionCompilesToKIR() throws {
@@ -154,7 +150,7 @@ import Testing
             describe(Direction.NORTH)
             describe(Direction.WEST)
         }
-        """, moduleName: "SmokeEnumWhen", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeEnumWhen")
     }
 
     @Test func testSmokeDefaultParameterForwardingCompilesToKIR() throws {
@@ -170,7 +166,7 @@ import Testing
             greet("Kotlin", greeting = "Hi")
             greet("KSwiftK", greeting = "Hey", punctuation = ".")
         }
-        """, moduleName: "SmokeDefaultParams", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeDefaultParams")
     }
 
     @Test func testSmokeTypealiasAndExtensionFunctionCompilesToKIR() throws {
@@ -190,7 +186,7 @@ import Testing
             val s: Score = 85
             s.grade()
         }
-        """, moduleName: "SmokeTypealiasExtension", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeTypealiasExtension")
     }
 
     @Test func testSmokeEnumClassConstructorPropertyCompilesToKIR() throws {
@@ -206,7 +202,7 @@ import Testing
             val s = Status.OK
             println(s.code)
         }
-        """, moduleName: "SmokeEnumCtorProp", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeEnumCtorProp")
     }
 
     @Test func testSmokeUsePinnedCompilesToKIR() throws {
@@ -232,7 +228,7 @@ import Testing
             val box = Box(42)
             readBoxed(box)
         }
-        """, moduleName: "SmokeUsePinned", allowDefaultStdlibLibrary: true)
+        """, moduleName: "SmokeUsePinned")
     }
 
 }

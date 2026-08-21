@@ -1,7 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-import TestStdlibCache
 
 func makeSemaModule(
     symbols: SymbolTable = SymbolTable(),
@@ -35,8 +34,7 @@ func makeCompilationContext(
     interner: StringInterner? = nil,
     diagnostics: DiagnosticEngine? = nil,
     stdlibOnly: Bool = false,
-    stdlibLibraryPath: String? = nil,
-    allowDefaultStdlibLibrary: Bool = true
+    stdlibLibraryPath: String? = nil
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -52,8 +50,7 @@ func makeCompilationContext(
         irFlags: irFlags,
         includeStdlib: includeStdlib,
         stdlibOnly: stdlibOnly,
-        stdlibLibraryPath: stdlibLibraryPath,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        stdlibLibraryPath: stdlibLibraryPath
     )
     return CompilationContext(
         options: options,
@@ -85,16 +82,10 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
-func makeContextFromSource(
-    _ source: String,
-    allowDefaultStdlibLibrary: Bool = true
-) -> CompilationContext {
+func makeContextFromSource(_ source: String) -> CompilationContext {
     let fakePath = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(
-        inputs: [fakePath],
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-    )
+    let ctx = makeCompilationContext(inputs: [fakePath])
     _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
     return ctx
 }

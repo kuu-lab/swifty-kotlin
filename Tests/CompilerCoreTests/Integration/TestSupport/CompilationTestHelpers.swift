@@ -2,7 +2,6 @@
 @testable import CompilerCore
 import Foundation
 import Testing
-import TestStdlibCache
 
 /// Create a ``CompilerDriver`` instance configured for testing.
 func makeTestDriver() -> CompilerDriver {
@@ -14,19 +13,14 @@ func makeTestOptions(
     moduleName: String,
     inputs: [String],
     outputPath: String,
-    emit: EmitMode,
-    allowDefaultStdlibLibrary: Bool = true
+    emit: EmitMode
 ) -> CompilerOptions {
-    if allowDefaultStdlibLibrary {
-        TestStdlibCache.shared.prepare()
-    }
-    return CompilerOptions(
+    CompilerOptions(
         moduleName: moduleName,
         inputs: inputs,
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple(),
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        target: defaultTargetTriple()
     )
 }
 
@@ -35,17 +29,10 @@ func assertKotlinCompilesToKIR(
     _ source: String,
     moduleName: String = "TestMod",
     file: StaticString = #filePath,
-    line: UInt = #line,
-    allowDefaultStdlibLibrary: Bool = false
+    line: UInt = #line
 ) throws {
     try withTemporaryFile(contents: source) { path in
-        try assertKotlinInputsToKIR(
-            inputs: [path],
-            moduleName: moduleName,
-            file: file,
-            line: line,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-        )
+        try assertKotlinInputsToKIR(inputs: [path], moduleName: moduleName, file: file, line: line)
     }
 }
 
@@ -54,17 +41,10 @@ func assertKotlinSourcesToKIR(
     _ sources: [String],
     moduleName: String = "TestMod",
     file: StaticString = #filePath,
-    line: UInt = #line,
-    allowDefaultStdlibLibrary: Bool = false
+    line: UInt = #line
 ) throws {
     try withTemporaryFiles(contents: sources) { paths in
-        try assertKotlinInputsToKIR(
-            inputs: paths,
-            moduleName: moduleName,
-            file: file,
-            line: line,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-        )
+        try assertKotlinInputsToKIR(inputs: paths, moduleName: moduleName, file: file, line: line)
     }
 }
 
@@ -72,8 +52,7 @@ private func assertKotlinInputsToKIR(
     inputs: [String],
     moduleName: String,
     file _: StaticString,
-    line _: UInt,
-    allowDefaultStdlibLibrary: Bool = false
+    line _: UInt
 ) throws {
     let fm = FileManager.default
     let outputBase = fm.temporaryDirectory
@@ -85,8 +64,7 @@ private func assertKotlinInputsToKIR(
         moduleName: moduleName,
         inputs: inputs,
         outputPath: outputBase,
-        emit: .kirDump,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        emit: .kirDump
     )
     let result = makeTestDriver().runForTesting(options: options)
 
