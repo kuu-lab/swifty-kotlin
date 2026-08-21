@@ -110,7 +110,12 @@ struct CodegenBackendSequenceJoinToTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains("joinTo"))
             #expect(!callees.contains("kk_sequence_joinTo"), "Sequence.joinTo should no longer route through the retired native bridge, got: \(callees)")
+            // KSP-621: the CallLowerer fallback that used to rescue unresolved
+            // joinTo calls onto this runtime bridge has been removed; Sequence.joinTo
+            // always binds to the bundled Kotlin source (SequenceAggregateHOF.kt).
+            #expect(!callees.contains("__kk_iterable_joinTo"), "Sequence.joinTo should bind to bundled source, got: \(callees)")
         }
     }
 }

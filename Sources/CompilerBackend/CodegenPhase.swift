@@ -2,12 +2,12 @@ import Foundation
 
 import CompilerCore
 
-final class CodegenPhase: CompilerPhase {
-    static let name = "Codegen"
+public final class CodegenPhase: CompilerPhase {
+    public static let name = "Codegen"
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         guard let kir = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for codegen.")
         }
@@ -297,10 +297,16 @@ final class CodegenPhase: CompilerPhase {
             let calleeName = base64Encode(interner.resolve(callee))
             let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
             let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
+            let symbolFQName = symbol.flatMap {
+                inlineSymbolFQName($0, interner: interner, symbols: symbols)
+            }
+            let symbolFQNameField = symbolFQName.map {
+                " symbolFQNameB64=\(base64Encode($0))"
+            } ?? ""
             return "call symbol=\(symbolValue) calleeB64=\(calleeName) args=[\(args)]"
                 + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
                 + " thrownResult=\(thrownResultValue) isSuperCall=\(isSuperCall ? 1 : 0)"
-                + " qualifiedSuperType=\(qualifiedSuperValue)" + linkField
+                + " qualifiedSuperType=\(qualifiedSuperValue)" + linkField + symbolFQNameField
         case let .virtualCall(symbol, callee, receiver, arguments, result, canThrow, thrownResult, dispatch):
             let args = arguments.map { String($0.rawValue) }.joined(separator: ",")
             let symbolValue = symbol.map { String($0.rawValue) } ?? "_"
@@ -309,6 +315,12 @@ final class CodegenPhase: CompilerPhase {
             let calleeName = base64Encode(interner.resolve(callee))
             let linkName = symbol.flatMap { functionLinkNames[$0] ?? symbols?.externalLinkName(for: $0) } ?? ""
             let linkField = linkName.isEmpty ? "" : " linkB64=\(base64Encode(linkName))"
+            let symbolFQName = symbol.flatMap {
+                inlineSymbolFQName($0, interner: interner, symbols: symbols)
+            }
+            let symbolFQNameField = symbolFQName.map {
+                " symbolFQNameB64=\(base64Encode($0))"
+            } ?? ""
             let dispatchStr = switch dispatch {
             case let .vtable(slot):
                 "vtable:\(slot)"
@@ -320,15 +332,24 @@ final class CodegenPhase: CompilerPhase {
             return "virtualCall symbol=\(symbolValue) calleeB64=\(calleeName)"
                 + " receiver=\(receiver.rawValue) args=[\(args)]"
                 + " result=\(resultValue) canThrow=\(canThrow ? 1 : 0)"
-                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)" + linkField
+                + " thrownResult=\(thrownResultValue) dispatch=\(dispatchStr)"
+                + linkField + symbolFQNameField
         case let .jumpIfNotNull(value, target):
             return "jumpIfNotNull value=\(value.rawValue) target=\(target)"
         case let .copy(from, to):
             return "copy from=\(from.rawValue) to=\(to.rawValue)"
         case let .storeGlobal(value, symbol):
-            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)"
+            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
+            let symbolFQNameField = symbolFQName.map {
+                " symbolFQNameB64=\(base64Encode($0))"
+            } ?? ""
+            return "storeGlobal value=\(value.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
         case let .loadGlobal(result, symbol):
-            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)"
+            let symbolFQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols)
+            let symbolFQNameField = symbolFQName.map {
+                " symbolFQNameB64=\(base64Encode($0))"
+            } ?? ""
+            return "loadGlobal result=\(result.rawValue) symbol=\(symbol.rawValue)" + symbolFQNameField
         case let .rethrow(value):
             return "rethrow value=\(value.rawValue)"
         case let .nonLocalReturn(value):
@@ -375,6 +396,8 @@ final class CodegenPhase: CompilerPhase {
                 "symbol:\(symbol.rawValue)"
             } else if let linkName = functionLinkNames[symbol] ?? symbols?.externalLinkName(for: symbol), !linkName.isEmpty {
                 "externB64:\(base64Encode(linkName))"
+            } else if let fQName = inlineSymbolFQName(symbol, interner: interner, symbols: symbols) {
+                "symbolFQNameB64:\(base64Encode(fQName))"
             } else {
                 "symbol:\(symbol.rawValue)"
             }
@@ -391,6 +414,21 @@ final class CodegenPhase: CompilerPhase {
 
     private func base64Encode(_ value: String) -> String {
         Data(value.utf8).base64EncodedString()
+    }
+
+    private func inlineSymbolFQName(
+        _ symbol: SymbolID,
+        interner: StringInterner,
+        symbols: SymbolTable?
+    ) -> String? {
+        // Imported inline KIR is consumed by a different symbol table, so raw
+        // positive IDs are not stable across library boundaries.
+        guard let semanticSymbol = symbols?.symbol(symbol),
+              !semanticSymbol.fqName.isEmpty
+        else {
+            return nil
+        }
+        return semanticSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
     }
 
     private func libraryOutputPath(base: String) -> String {
