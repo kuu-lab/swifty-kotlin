@@ -17,8 +17,8 @@ extension LoweringPass {
 /// when parallel mode is active) and per-function-local variables.
 protocol ParallelLoweringPass: LoweringPass {}
 
-final class LoweringPhase: CompilerPhase {
-    static let name = "Lowerings"
+public final class LoweringPhase: CompilerPhase {
+    public static let name = "Lowerings"
 
     private let passes: [any LoweringPass] = [
         TailrecLoweringPass(), // Must run before NormalizeBlocksPass (relies on beginBlock)
@@ -47,9 +47,9 @@ final class LoweringPhase: CompilerPhase {
         ABILoweringPass(),
     ]
 
-    init() {}
+    public init() {}
 
-    func run(_ ctx: CompilationContext) throws {
+    public func run(_ ctx: CompilationContext) throws {
         guard let module = ctx.kir else {
             throw CompilerPipelineError.invalidInput("KIR not available for lowering.")
         }
