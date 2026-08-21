@@ -412,7 +412,7 @@ func kirFindOverrideMethod(
         current = kirSuperclass(of: nominal, sema: sema)
     }
 
-    // BUG-217: the loop above only walks the class superclass chain
+    // BUG-219: the loop above only walks the class superclass chain
     // (`kirSuperclass` returns `.class`/`.enumClass`/`.object` ancestors
     // only), so a method whose sole body comes from an interface's own
     // default implementation — rather than an override on `nominalSymbol` or

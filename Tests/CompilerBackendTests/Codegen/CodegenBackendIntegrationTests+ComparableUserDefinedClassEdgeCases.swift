@@ -151,7 +151,7 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
         )
     }
 
-    // BUG-217: identical to the scenario above, but with `gold` declared (and
+    // BUG-219: identical to the scenario above, but with `gold` declared (and
     // therefore heap-allocated) before `bronze`. Before the fix, dispatch for
     // `compareTo` reached only through an interface's default implementation
     // (never through an override on the constructed class or a class
