@@ -175,10 +175,61 @@ extension BuildASTPhase {
             }
             guard isAccessorKeyword else { continue }
             // Require `(` immediately after to distinguish from identifiers.
-            if index + 1 < tokens.count,
-               tokens[index + 1].kind == .symbol(.lParen)
-            {
+            guard index + 1 < tokens.count,
+                  tokens[index + 1].kind == .symbol(.lParen)
+            else {
+                continue
+            }
+            // A member call such as `lookup.get(...)` or `lookup?.set(...)`
+            // uses the same soft-keyword spelling as an inline accessor.
+            if index > 0 {
+                switch tokens[index - 1].kind {
+                case .symbol(.dot), .symbol(.questionDot):
+                    continue
+                default:
+                    break
+                }
+            }
+            // Inline accessors have a declaration body after their parameter
+            // list. An accessor may optionally declare its return type before
+            // the body, as in `get(): Int = value`.
+            let afterClose = skipBalancedBracket(
+                in: tokens,
+                from: index + 1,
+                open: .symbol(.lParen),
+                close: .symbol(.rParen)
+            )
+            guard afterClose > index + 1 else {
+                continue
+            }
+            var bodyStart = afterClose
+            if bodyStart < tokens.count, tokens[bodyStart].kind == .symbol(.colon) {
+                bodyStart += 1
+                var typeDepth = BracketDepth()
+                while bodyStart < tokens.count {
+                    if typeDepth.isAtTopLevel {
+                        switch tokens[bodyStart].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(tokens[bodyStart].kind)
+                            bodyStart += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(tokens[bodyStart].kind)
+                    bodyStart += 1
+                }
+            }
+            guard bodyStart < tokens.count else {
+                continue
+            }
+            switch tokens[bodyStart].kind {
+            case .symbol(.assign), .symbol(.lBrace):
                 return index
+            default:
+                continue
             }
         }
         return nil
@@ -247,8 +298,30 @@ extension BuildASTPhase {
                 parameterName = nil
             }
 
-            // Determine accessor body: either `= expr` or `{ block }`.
-            let afterParen = closeParenIdx + 1
+            // Determine accessor body: either `= expr` or `{ block }`, with
+            // an optional explicit return type between `)` and the body.
+            var afterParen = closeParenIdx + 1
+            if afterParen < remaining.endIndex,
+               remaining[afterParen].kind == .symbol(.colon)
+            {
+                afterParen += 1
+                var typeDepth = BracketDepth()
+                while afterParen < remaining.endIndex {
+                    if typeDepth.isAtTopLevel {
+                        switch remaining[afterParen].kind {
+                        case .symbol(.assign), .symbol(.lBrace):
+                            break
+                        default:
+                            typeDepth.track(remaining[afterParen].kind)
+                            afterParen += 1
+                            continue
+                        }
+                        break
+                    }
+                    typeDepth.track(remaining[afterParen].kind)
+                    afterParen += 1
+                }
+            }
             let body: FunctionBody
             if afterParen < remaining.endIndex,
                remaining[afterParen].kind == .symbol(.assign)

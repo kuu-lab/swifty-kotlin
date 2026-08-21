@@ -10,10 +10,7 @@ permissions:
 
 env:
   # A/B measurements showed that compiling CompilerCore with -O in debug builds
-  # reduces the longest CI job (verify-core CompilerCore shards) by ~40% while
-  # keeping all tests green. This only affects debug builds; release builds in
-  # verify-diff are unchanged because the Package.swift guard is gated on
-  # .when(configuration: .debug).
+  # reduces the longest CompilerCore shards while preserving test coverage.
   KSWIFTK_OPTIMIZE_COMPILER_CORE: "1"
 
 # Successive pushes to the same PR cancel all in-flight verification jobs.
@@ -23,22 +20,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Self-hosted TODO ID duplicate check. Gating once TODO.md duplicate IDs are cleaned up.
   verify-todo-ids:
     name: Verification 0/5 (TODO ID duplicate check)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-      - name: Prepare self-hosted runner
+      - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
 
-  # CompilerCore and kotlinc-diff shards build in independent hosted workspaces.
-  # Verification 2-3 splits CompilerBackendTests across two shards; shard 1
-  # additionally owns the fast Runtime/CLI/LSP targets so the heavy backend
-  # suites dominate both lanes equally.
   verify-core:
     name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
     runs-on: ubuntu-latest
@@ -59,14 +51,12 @@ jobs:
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
-      # The compilation cache (cache-compile-job) CAS path, used by the legacy
-      # native build system as well as swiftbuild.
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
       SWIFT_TEST_BUILD_TARGETS: CompilerCoreTests
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
       - uses: actions/checkout@v7
-      - name: Prepare self-hosted runner
+      - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
@@ -78,7 +68,7 @@ jobs:
         uses: ./.github/actions/setup-swiftpm-cache
         with:
           swift-version: "6.3"
-          build-variant: ${{ env.KSWIFTK_CI_FAST_BUILD == '1' && 'fast' || 'default' }}
+          build-variant: fast
           save: ${{ github.event_name != 'pull_request' && matrix.shard_index == 0 && 'true' || 'false' }}
       - name: Configure CompilerCore test parallelism
         run: |
@@ -100,9 +90,6 @@ jobs:
         env:
           SWIFT_TEST_PARALLEL: "1"
         run: bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS
-      # Method-level sharding avoids assigning large Swift Testing suites as
-      # indivisible units. Golden parameter batches and the serialized frontend
-      # benchmark are handled separately below.
       - name: Run CompilerCoreTests method shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
@@ -125,7 +112,8 @@ jobs:
         env:
           SWIFT_TEST_PARALLEL: "0"
         run: |
-          bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
+          bash Scripts/swift_test.sh --skip-build \
+            --filter '^CompilerCoreTests\.FrontendParallelBenchmarkTests/' \
             $SWIFT_XSWIFTC_FLAGS
       - name: Reproduce hints
         if: always()
@@ -162,16 +150,12 @@ jobs:
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
-      # The compilation cache (cache-compile-job) CAS path, used by the legacy
-      # native build system as well as swiftbuild.
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
-      # Shard 1 owns the fast Runtime/CLI/LSP targets alongside its backend
-      # share; shard 2 only needs CompilerBackendTests built.
       SWIFT_TEST_BUILD_TARGETS: ${{ matrix.shard_index == 0 && 'CompilerBackendTests RuntimeTests RuntimeTestsParallel KSwiftKCLITests LSPServerTests' || 'CompilerBackendTests' }}
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
       - uses: actions/checkout@v7
-      - name: Prepare self-hosted runner
+      - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
@@ -185,9 +169,7 @@ jobs:
         uses: ./.github/actions/setup-swiftpm-cache
         with:
           swift-version: "6.3"
-          build-variant: ${{ env.KSWIFTK_CI_FAST_BUILD == '1' && 'fast' || 'default' }}
-          # Only shard 1 saves: it builds every test target in this lane, so
-          # its .build tree is a superset of what shard 2 needs to restore.
+          build-variant: fast
           save: ${{ github.event_name != 'pull_request' && matrix.shard_index == 0 && 'true' || 'false' }}
       - name: Configure backend test parallelism
         run: |
@@ -204,17 +186,12 @@ jobs:
           echo "Backend parallelization width: $worker_count"
       - name: Build compiler and tests
         run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
-      # Suite-level static filters ensure test-discovery failures cannot be
-      # mistaken for an empty test set; the weighted greedy assignment in
-      # shard_swift_tests.sh balances the heavy backend suites across shards.
       - name: Run CompilerBackendTests shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests \
             --shard-index "${{ matrix.shard_index }}" --shard-count 2 \
             -- $SWIFT_XSWIFTC_FLAGS
-      # The remaining targets take well under a minute combined, so they all
-      # ride on shard 1 instead of paying another sharding split.
       - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
         if: matrix.shard_index == 0
         env:
@@ -223,9 +200,6 @@ jobs:
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests \
             -- $SWIFT_XSWIFTC_FLAGS
-      # native SwiftPM produces a single PackageTests bundle; --test-product
-      # (SWIFT_TEST_PRODUCT) is only valid with SWIFT_BUILD_SYSTEM=swiftbuild.
-      # shard_swift_tests.sh already gates SWIFT_TEST_PRODUCT the same way.
       - name: Run RuntimeTestsParallel with strict concurrency warnings
         if: matrix.shard_index == 0
         env:
@@ -347,8 +321,63 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  build-release-kswiftc:
+    name: Build release kswiftc once
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Setup release SwiftPM cache
+        uses: ./.github/actions/setup-swiftpm-cache
+        with:
+          swift-version: "6.3"
+          build-variant: release-kswiftc
+          save: "false"
+      - name: Build release kswiftc
+        env:
+          SWIFT_BUILD_JOBS: "4"
+          SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Package release compiler and resources
+        run: |
+          archive_name="kswiftc-release.tar.zst"
+          archive_path="$RUNNER_TEMP/$archive_name"
+          release_bin_dir="$(swift build -c release --show-bin-path)"
+          test -x "$release_bin_dir/kswiftc"
+          tar -I 'zstd -T0 -1' -cf "$archive_path" -C "$release_bin_dir" .
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum "$archive_name" > "$archive_name.sha256"
+          )
+          {
+            echo "## Release compiler artifact"
+            echo
+            echo "- Source directory: \`$release_bin_dir\`"
+            echo "- Archive size: \`$(du -h "$archive_path" | cut -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload release compiler artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/kswiftc-release.tar.zst
+            ${{ runner.temp }}/kswiftc-release.tar.zst.sha256
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
   verify-diff:
     name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
+    needs: build-release-kswiftc
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
@@ -364,8 +393,13 @@ jobs:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
     steps:
+      - name: Fail when the shared release build failed
+        if: needs.build-release-kswiftc.result != 'success'
+        run: |
+          echo "Shared release kswiftc build concluded: ${{ needs.build-release-kswiftc.result }}" >&2
+          exit 1
       - uses: actions/checkout@v7
-      - name: Prepare self-hosted runner
+      - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
         uses: ./.github/actions/setup-swift
@@ -373,12 +407,24 @@ jobs:
           swift-version: "6.3"
       - name: Show toolchain versions
         run: swift --version
-      # This required lane owns release-compiler E2E coverage. Every selected
-      # diff case is compiled and executed; shard 1 includes hello.kt.
-      - name: Build release kswiftc
-        env:
-          SWIFT_BUILD_JOBS: "4"
-        run: swift build -c release --product kswiftc -j "$SWIFT_BUILD_JOBS" -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+      - name: Download release compiler artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: kswiftc-release-${{ github.run_id }}
+          path: ${{ runner.temp }}/kswiftc-release-artifact
+      - name: Verify and extract release compiler artifact
+        run: |
+          artifact_dir="$RUNNER_TEMP/kswiftc-release-artifact"
+          install_dir="$RUNNER_TEMP/kswiftc-release"
+          (
+            cd "$artifact_dir"
+            sha256sum --check kswiftc-release.tar.zst.sha256
+          )
+          rm -rf "$install_dir"
+          mkdir -p "$install_dir"
+          tar -I zstd -xf "$artifact_dir/kswiftc-release.tar.zst" -C "$install_dir"
+          test -x "$install_dir/kswiftc"
+          echo "KSWIFTC=$install_dir/kswiftc" >> "$GITHUB_ENV"
       - name: Cache Kotlin compiler and coroutines jar
         id: cache-kotlin
         uses: actions/cache@v5
@@ -426,6 +472,7 @@ jobs:
         run: |
           java -version
           kotlinc -version
+          "$KSWIFTC" --version || true
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
@@ -437,7 +484,6 @@ jobs:
           DIFF_LOG_PASS: "0"
           KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
-          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \

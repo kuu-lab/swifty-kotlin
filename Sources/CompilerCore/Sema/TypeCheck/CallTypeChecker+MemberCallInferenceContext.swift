@@ -80,6 +80,7 @@ extension CallTypeChecker {
         let explicitTypeArgs = request.explicitTypeArgs
         let sema = ctx.sema
         let ast = ctx.ast
+        let interner = ctx.interner
 
         guard let receiverPath = qualifiedCalleePath(for: receiverID, ast: ast),
               !receiverPath.isEmpty,
@@ -109,11 +110,46 @@ extension CallTypeChecker {
         }
 
         let fqnPath = receiverPath + [calleeName]
-        let fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
+        var fqnCandidates = sema.symbols.lookupAll(fqName: fqnPath).filter { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else { return false }
             return symbol.kind == .function || symbol.kind == .constructor
         }
-        guard !fqnCandidates.isEmpty else { return nil }
+        if fqnCandidates.isEmpty {
+            // fqnPath may itself name a class rather than a top-level function
+            // (e.g. `kotlin.text.StringBuilder` in `kotlin.text.StringBuilder()`,
+            // or `kotlin.Pair` in `kotlin.Pair(1, 2)`): the class's own
+            // declaration symbol lives at fqnPath, while its constructor(s)
+            // live one level deeper at fqnPath + ["<init>"] (see
+            // HeaderCollection's constructor registration). Mirrors the
+            // unqualified-name constructor fallback in CallTypeChecker.swift,
+            // minus `.object`: a singleton `object` is never callable as
+            // `Obj()` in real Kotlin (verified against kotlinc), unlike a
+            // bare class/enum-class/annotation-class reference.
+            guard let classSymbolID = sema.symbols.lookup(fqName: fqnPath),
+                  let classSymbol = ctx.cachedSymbol(classSymbolID)
+            else { return nil }
+            switch classSymbol.kind {
+            case .class, .enumClass, .annotationClass:
+                break
+            default:
+                return nil
+            }
+            if classSymbol.flags.contains(.abstractType) {
+                let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                ctx.semaCtx.diagnostics.error(
+                    "KSWIFTK-SEMA-ABSTRACT",
+                    "Cannot create an instance of abstract class '\(className)'.",
+                    range: range
+                )
+                sema.bindings.bindExprType(id, type: sema.types.errorType)
+                return sema.types.errorType
+            }
+            let ctorFQName = fqnPath + [interner.intern("<init>")]
+            fqnCandidates = sema.symbols.lookupAll(fqName: ctorFQName).filter { candidate in
+                ctx.cachedSymbol(candidate)?.kind == .constructor
+            }
+            guard !fqnCandidates.isEmpty else { return nil }
+        }
 
         let (vis, _) = ctx.filterByVisibility(fqnCandidates)
         guard !vis.isEmpty else { return nil }
@@ -151,6 +187,10 @@ extension CallTypeChecker {
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+        // The receiver chain (e.g. `kotlin.math`, `kotlin.text`) is a bare
+        // namespace path, never type-checked above, so KIR lowering must not
+        // treat it as a real value — see tryLowerFQNTopLevelResolvedCall.
+        sema.bindings.markFQNTopLevelCallExpr(id)
         let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
         let resultType = sema.types.substituteTypeParameters(
             in: signature.returnType,
