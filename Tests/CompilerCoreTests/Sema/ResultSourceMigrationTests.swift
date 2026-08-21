@@ -81,6 +81,37 @@ struct ResultSourceMigrationTests {
         }
     }
 
+    @Test func testResultConstructorResolvesToRuntimeSuccessBridge() throws {
+        let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
+        fun construct(): Result<Int> = Result(1)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Expected direct Result construction to type-check, got: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let constructorCall = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      let calleeExpr = ast.arena.expr(callee),
+                      case let .nameRef(name, _) = calleeExpr
+                else { return false }
+                return ctx.interner.resolve(name) == "Result"
+            })
+            let chosenCallee = try #require(sema.bindings.callBinding(for: constructorCall)?.chosenCallee)
+            #expect(sema.symbols.symbol(chosenCallee)?.kind == .constructor)
+            #expect(sema.symbols.symbol(chosenCallee)?.visibility == .internal)
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_runtime_result_success")
+        }
+    }
+
     @Test func testResultCallsResolveToBundledKotlinSourceSymbols() throws {
         let source = """
         fun failInt(): Int {
