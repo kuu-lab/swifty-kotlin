@@ -94,7 +94,8 @@ struct CodegenBackendSequenceMapNotNullTests {
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "SequenceMapNotNullKIR",
-                emit: .kirDump
+                emit: .kirDump,
+                allowDefaultStdlibLibrary: false
             )
             try runToLowering(ctx)
 
