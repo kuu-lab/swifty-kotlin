@@ -690,15 +690,29 @@ private func runtimeCauseToString(from raw: Int) -> String? {
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: ptr))
     }
-    guard isObjectPointer, let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) else {
+    guard isObjectPointer else {
         return nil
     }
 
-    let exceptionFQName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
-    guard let message = throwable.message else {
-        return exceptionFQName
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        let exceptionFQName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+        guard let message = throwable.message else {
+            return exceptionFQName
+        }
+        return "\(exceptionFQName): \(message)"
     }
-    return "\(exceptionFQName): \(message)"
+
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        let exceptionFQName = runtimeJVMExceptionFQName(
+            from: runtimeSourceThrowableQualifiedName(for: object.classID)
+        )
+        guard let message = object.throwableMessage else {
+            return exceptionFQName
+        }
+        return "\(exceptionFQName): \(message)"
+    }
+
+    return nil
 }
 
 private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
