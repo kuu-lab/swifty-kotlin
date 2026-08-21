@@ -302,6 +302,19 @@ public class Uuid private constructor(
         return 0
     }
 
+    public override fun equals(other: Any?): Boolean {
+        if (other !is Uuid) return false
+        // Explicit re-cast: `is`-checks do not smart-cast in bundled source yet.
+        val that = other as Uuid
+        return mostSignificantBits == that.mostSignificantBits &&
+            leastSignificantBits == that.leastSignificantBits
+    }
+
+    public override fun hashCode(): Int {
+        val hilo = mostSignificantBits xor leastSignificantBits
+        return ((hilo ushr 32) xor hilo).toInt()
+    }
+
     private fun appendHex(sb: StringBuilder, value: Long, digits: Int) {
         var shift = (digits - 1) * 4
         while (shift >= 0) {
