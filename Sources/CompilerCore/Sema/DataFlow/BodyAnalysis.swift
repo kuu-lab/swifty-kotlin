@@ -925,6 +925,12 @@ extension DataFlowSemaPhase {
             rootClassSymbol = types.stringClassSymbol
         } else if first == interner.intern("Any") {
             rootClassSymbol = types.anyClassSymbol
+        } else if first == interner.intern("Long") {
+            let kotlinFQName = [interner.intern("kotlin"), first]
+            rootClassSymbol = symbols.lookupAll(fqName: kotlinFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .class
+            })
         } else {
             rootClassSymbol = nil
         }

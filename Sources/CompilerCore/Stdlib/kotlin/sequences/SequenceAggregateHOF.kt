@@ -601,73 +601,56 @@ public fun <T> Sequence<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, L
     return Pair(matched.toList(), unmatched.toList())
 }
 
+// Shares appendJoinToPlain/appendJoinToTransform (Iterables.kt, kotlin.collections)
+// with Iterable.joinTo/joinToString: both only need iterator() (KSP-621).
 public fun <T> Sequence<T>.joinTo(
     buffer: StringBuilder,
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): StringBuilder {
-    buffer.append(prefix)
-    val elements = this.toList()
-    var first = true
-    var i = 0
-    while (i < elements.size) {
-        if (!first) buffer.append(separator)
-        buffer.append(elements[i].toString())
-        first = false
-        i += 1
-    }
-    buffer.append(postfix)
-    return buffer
-}
+): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, -1, "...")
 
 public fun <T> Sequence<T>.joinTo(
     buffer: StringBuilder,
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = "",
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
+
+public fun <T> Sequence<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
     transform: (T) -> Any
-): StringBuilder {
-    buffer.append(prefix)
-    val elements = this.toList()
-    var first = true
-    var i = 0
-    while (i < elements.size) {
-        if (!first) buffer.append(separator)
-        buffer.append(transform(elements[i]).toString())
-        first = false
-        i += 1
-    }
-    buffer.append(postfix)
-    return buffer
-}
+): StringBuilder = appendJoinToTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
 
 public fun <T> Sequence<T>.joinToString(
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): String = joinTo(StringBuilder(), separator, prefix, postfix).toString()
+): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...").toString()
 
 public fun <T> Sequence<T>.joinToString(
     separator: String,
     prefix: String,
     postfix: String,
+    limit: Int,
+    truncated: String
+): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
+
+// The `transform` overloads are spelled per arity because a trailing lambda
+// cannot be bound to the defaulted `String` parameters above.
+public fun <T> Sequence<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
     transform: (T) -> Any
-): String {
-    val buffer = StringBuilder()
-    buffer.append(prefix)
-    val elements = this.toList()
-    var first = true
-    var i = 0
-    while (i < elements.size) {
-        if (!first) buffer.append(separator)
-        buffer.append(transform(elements[i]).toString())
-        first = false
-        i += 1
-    }
-    buffer.append(postfix)
-    return buffer.toString()
-}
+): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...", transform).toString()
 
 public fun <T> Sequence<T>.joinToString(
     separator: String,
@@ -679,6 +662,15 @@ public fun <T> Sequence<T>.joinToString(
     separator: String,
     transform: (T) -> Any
 ): String = joinToString(separator, "", "", transform)
+
+public fun <T> Sequence<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
 public fun <T> Sequence<T>.joinToString(
     transform: (T) -> Any

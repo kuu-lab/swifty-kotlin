@@ -487,6 +487,33 @@ struct VisibilityAccessControlTests {
 
             }
 
+            // === testVisibilityCheckerSharedEnclosingClassPrivateAccess ===
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let outerClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "OuterClass", visibility: .public)
+                let nestedASym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedA", visibility: .private)
+                symbols.setParentSymbol(outerClassSym, for: nestedASym)
+                let nestedBSym = defineSymbol(symbols, interner: interner, kind: .class, name: "NestedB", visibility: .public)
+                symbols.setParentSymbol(outerClassSym, for: nestedBSym)
+
+                let nestedAMemberSym = defineSymbol(symbols, interner: interner, kind: .function, name: "privA", visibility: .private)
+                symbols.setParentSymbol(nestedASym, for: nestedAMemberSym)
+                let nestedAMember = try #require(symbols.symbol(nestedAMemberSym))
+
+                let unrelatedClassSym = defineSymbol(symbols, interner: interner, kind: .class, name: "UnrelatedClass", visibility: .public)
+
+                // Access from outer class to nested private member
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: outerClassSym))
+                // Access from sibling nested class to nested private member
+                #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedBSym))
+                // Access from unrelated class should be rejected
+                #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: unrelatedClassSym))
+
+            }
+
         }
     }
 
