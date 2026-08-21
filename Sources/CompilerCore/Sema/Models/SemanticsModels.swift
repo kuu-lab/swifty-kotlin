@@ -61,6 +61,13 @@ public struct SymbolFlags: OptionSet, Sendable {
     public static let throwingFunction = SymbolFlags(rawValue: 1 << 20)
     public static let readOnlyProperty = SymbolFlags(rawValue: 1 << 21)
     public static let importedLibrary = SymbolFlags(rawValue: 1 << 22)
+    /// Marks a constructor whose stored `visibility` was copied down from its
+    /// owning class/object because the constructor itself had no explicit
+    /// visibility modifier (see `constructorVisibilityDetail`). `VisibilityChecker`
+    /// uses this to fall back to the owner's own accessibility rule (e.g. file
+    /// scope for a top-level `private class`) instead of a class-hierarchy check,
+    /// without loosening genuinely explicit `private constructor` declarations.
+    public static let constructorVisibilityInherited = SymbolFlags(rawValue: 1 << 23)
 }
 
 public struct SemanticSymbol: Sendable {

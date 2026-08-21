@@ -1,0 +1,9 @@
+symbol fq=golden.sema.NumberChild kind=class vis=public flags=_
+file fstdlib_kotlin_Number_n_n package=golden.sema
+  decl golden.sema.NumberChild class NumberChild sym=golden.sema.NumberChild
+expr e@4:39 double(42.0) type=Double
+expr e@5:37 float(42.0) type=Float
+expr e@6:35 long(42) type=Long
+expr e@7:33 int(42) type=Int
+expr e@8:37 int(42) type=Short
+expr e@9:35 int(42) type=Byte
