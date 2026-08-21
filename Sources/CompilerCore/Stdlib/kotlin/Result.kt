@@ -25,6 +25,8 @@ private fun <T> resultIsSuccess(result: Result<T>): Boolean =
     __kkRuntimeResultIsSuccess(result)
 
 public class Result<T> private constructor() {
+    public companion object {}
+
     public val isSuccess: Boolean
         get() = __kkRuntimeResultIsSuccess(this)
 

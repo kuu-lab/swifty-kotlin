@@ -156,9 +156,16 @@ extension DataFlowSemaPhase {
         }
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
+        var importedSymbolByFQName: [String: SymbolID] = [:]
         for binding in importedBindings {
             if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
                 externalLinkNameToSymbol[linkName] = binding.symbol
+            }
+            let fQName = binding.record.fqName
+                .map { interner.resolve($0) }
+                .joined(separator: ".")
+            if !fQName.isEmpty {
+                importedSymbolByFQName[fQName] = binding.symbol
             }
         }
 
@@ -173,7 +180,8 @@ extension DataFlowSemaPhase {
                 pendingSupertypeEdges: &pendingSupertypeEdges,
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
-                externalLinkNameToSymbol: externalLinkNameToSymbol
+                externalLinkNameToSymbol: externalLinkNameToSymbol,
+                importedSymbolByFQName: importedSymbolByFQName
             )
         }
 
@@ -796,7 +804,8 @@ extension DataFlowSemaPhase {
         pendingSupertypeEdges: inout [(subtype: SymbolID, superFQName: [InternedString])],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
-        externalLinkNameToSymbol: [String: SymbolID]
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -816,7 +825,8 @@ extension DataFlowSemaPhase {
             importedInlineFunctions: &importedInlineFunctions,
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
-            externalLinkNameToSymbol: externalLinkNameToSymbol
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
         )
         applyImportedValueClassMetadata(
             binding,
@@ -890,7 +900,8 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
-        externalLinkNameToSymbol: [String: SymbolID] = [:]
+        externalLinkNameToSymbol: [String: SymbolID] = [:],
+        importedSymbolByFQName: [String: SymbolID] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -967,7 +978,8 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner,
                 importedInlineFunctions: &importedInlineFunctions,
-                externalLinkNameToSymbol: externalLinkNameToSymbol
+                externalLinkNameToSymbol: externalLinkNameToSymbol,
+                importedSymbolByFQName: importedSymbolByFQName
             )
             return
         }
@@ -1148,7 +1160,8 @@ extension DataFlowSemaPhase {
         diagnostics: DiagnosticEngine,
         interner: StringInterner,
         importedInlineFunctions: inout [SymbolID: KIRFunction],
-        externalLinkNameToSymbol: [String: SymbolID]
+        externalLinkNameToSymbol: [String: SymbolID],
+        importedSymbolByFQName: [String: SymbolID]
     ) {
         let record = binding.record
         guard record.isInline,
@@ -1196,7 +1209,8 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             diagnostics: diagnostics,
-            externalLinkNameToSymbol: externalLinkNameToSymbol
+            externalLinkNameToSymbol: externalLinkNameToSymbol,
+            importedSymbolByFQName: importedSymbolByFQName
         ) else {
             return
         }

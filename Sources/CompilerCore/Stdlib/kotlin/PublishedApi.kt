@@ -27,4 +27,4 @@ package kotlin
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
 @kotlin.annotation.MustBeDocumented
 @SinceKotlin("1.1")
-public annotation class PublishedApi
+public annotation class PublishedApi()
