@@ -13,43 +13,7 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        let kotlinUuidPkg = ensureUuidPackageHierarchy(
-            symbols: symbols,
-            interner: interner
-        )
-
-        let uuidSymbol = ensureClassSymbol(
-            named: "Uuid",
-            in: kotlinUuidPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        attachExperimentalUuidApiAnnotation(to: uuidSymbol, symbols: symbols)
-
         _ = registerJavaUuidType(symbols: symbols, types: types, interner: interner)
-    }
-
-    private func ensureUuidPackageHierarchy(
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) -> [InternedString] {
-        let kotlinName = interner.intern("kotlin")
-        let uuidName = interner.intern("uuid")
-        let kotlinFQ: [InternedString] = [kotlinName]
-        if symbols.lookup(fqName: kotlinFQ) == nil {
-            _ = symbols.define(
-                kind: .package, name: kotlinName, fqName: kotlinFQ,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-        }
-        let kotlinUuidFQ: [InternedString] = [kotlinName, uuidName]
-        if symbols.lookup(fqName: kotlinUuidFQ) == nil {
-            _ = symbols.define(
-                kind: .package, name: uuidName, fqName: kotlinUuidFQ,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-        }
-        return kotlinUuidFQ
     }
 
     private func registerJavaUuidType(
@@ -72,17 +36,5 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-    }
-
-    private func attachExperimentalUuidApiAnnotation(
-        to symbol: SymbolID,
-        symbols: SymbolTable
-    ) {
-        let record = MetadataAnnotationRecord(annotationFQName: "kotlin.uuid.ExperimentalUuidApi")
-        var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(record) {
-            annotations.append(record)
-            symbols.setAnnotations(annotations, for: symbol)
-        }
     }
 }
