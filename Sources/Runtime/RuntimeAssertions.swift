@@ -228,24 +228,6 @@ final class RuntimeExceptionBox: RuntimeThrowableBox {
     }
 }
 
-final class RuntimeRuntimeExceptionBox: RuntimeThrowableBox {
-    override var exceptionFQName: String {
-        "kotlin.RuntimeException"
-    }
-
-    override var exceptionHierarchyFQNames: [String] {
-        [
-            "kotlin.RuntimeException",
-            "kotlin.Exception",
-            "kotlin.Throwable",
-        ]
-    }
-
-    override var renderedMessage: String {
-        runtimeRenderedExceptionMessage("RuntimeException", message)
-    }
-}
-
 final class RuntimeKotlinNothingValueExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.KotlinNothingValueException"
@@ -539,16 +521,6 @@ func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
     return Int(bitPattern: ptr)
 }
 
-/// Allocates a `RuntimeException` with the given message.
-func runtimeAllocateRuntimeException(message: String?, cause: Int = 0) -> Int {
-    let throwable = RuntimeRuntimeExceptionBox(message: message, cause: cause)
-    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: ptr))
-    }
-    return Int(bitPattern: ptr)
-}
-
 /// Allocates a `KotlinNothingValueException` with the given message.
 func runtimeAllocateKotlinNothingValueException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeKotlinNothingValueExceptionBox(message: message, cause: cause)
@@ -659,6 +631,90 @@ private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> 
     return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? defaultMessage
 }
 
+private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
+    switch kotlinFQName {
+    case "kotlin.Exception":
+        return "java.lang.Exception"
+    case "kotlin.RuntimeException":
+        return "java.lang.RuntimeException"
+    case "kotlin.IllegalArgumentException":
+        return "java.lang.IllegalArgumentException"
+    case "kotlin.IllegalStateException":
+        return "java.lang.IllegalStateException"
+    case "kotlin.ArithmeticException":
+        return "java.lang.ArithmeticException"
+    case "kotlin.AssertionError":
+        return "java.lang.AssertionError"
+    case "kotlin.ClassCastException":
+        return "java.lang.ClassCastException"
+    case "kotlin.IndexOutOfBoundsException":
+        return "java.lang.IndexOutOfBoundsException"
+    case "kotlin.ArrayIndexOutOfBoundsException":
+        return "java.lang.ArrayIndexOutOfBoundsException"
+    case "kotlin.StringIndexOutOfBoundsException":
+        return "java.lang.StringIndexOutOfBoundsException"
+    case "kotlin.NegativeArraySizeException":
+        return "java.lang.NegativeArraySizeException"
+    case "kotlin.NullPointerException":
+        return "java.lang.NullPointerException"
+    case "kotlin.NumberFormatException":
+        return "java.lang.NumberFormatException"
+    case "kotlin.UnsupportedOperationException":
+        return "java.lang.UnsupportedOperationException"
+    case "kotlin.Error":
+        return "java.lang.Error"
+    case "kotlin.OutOfMemoryError":
+        return "java.lang.OutOfMemoryError"
+    case "kotlin.ConcurrentModificationException":
+        return "java.util.ConcurrentModificationException"
+    case "kotlin.NoSuchElementException":
+        return "java.util.NoSuchElementException"
+    case "kotlin.io.IOException":
+        return "java.io.IOException"
+    case "kotlin.Throwable":
+        return "java.lang.Throwable"
+    default:
+        // Preserve unknown or user-defined FQ names instead of guessing java.lang.
+        return kotlinFQName
+    }
+}
+
+private func runtimeCauseToString(from raw: Int) -> String? {
+    guard raw != 0,
+          raw != runtimeNullSentinelInt,
+          let ptr = UnsafeMutableRawPointer(bitPattern: raw)
+    else {
+        return nil
+    }
+
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        let exceptionFQName = runtimeJVMExceptionFQName(from: throwable.exceptionFQName)
+        guard let message = throwable.message else {
+            return exceptionFQName
+        }
+        return "\(exceptionFQName): \(message)"
+    }
+
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        let exceptionFQName = runtimeJVMExceptionFQName(
+            from: runtimeSourceThrowableQualifiedName(for: object.classID)
+        )
+        guard let message = object.throwableMessage else {
+            return exceptionFQName
+        }
+        return "\(exceptionFQName): \(message)"
+    }
+
+    return nil
+}
+
 private func runtimeAssertionErrorMessage(from raw: Int) -> String? {
     if raw == 0 || raw == runtimeNullSentinelInt {
         return nil
@@ -717,7 +773,7 @@ public func kk_concurrent_modification_exception_new_message_cause(_ messageRaw:
 @_cdecl("__kk_concurrent_modification_exception_new_cause")
 public func kk_concurrent_modification_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -752,8 +808,8 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // own external symbol (instead of sharing the type-erased `__kk_throwable_new`/
 // `__kk_throwable_new_with_cause`), so the allocated box carries the correct
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
-// exception types apart. See Stdlib/kotlin/Exceptions.kt for the source-backed
-// constructor declarations that reference these link names.
+// exception types apart. See the source-backed constructor declarations in
+// Stdlib/kotlin/Exceptions.kt and Stdlib/kotlin/IllegalStateException/Stdlib.kt.
 
 @_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {
@@ -775,9 +831,10 @@ public func kk_illegal_state_exception_new_message_cause(_ messageRaw: Int, _ ca
 
 @_cdecl("__kk_illegal_state_exception_new_cause")
 public func kk_illegal_state_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateIllegalStateException(
-        message: nil,
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    let cause = (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    return runtimeAllocateIllegalStateException(
+        message: runtimeCauseToString(from: cause),
+        cause: cause
     )
 }
 
@@ -802,7 +859,7 @@ public func kk_illegal_argument_exception_new_message_cause(_ messageRaw: Int, _
 @_cdecl("__kk_illegal_argument_exception_new_cause")
 public func kk_illegal_argument_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateIllegalArgumentException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -868,7 +925,7 @@ public func kk_uninitialized_property_access_exception_new_message_cause(_ messa
 @_cdecl("__kk_uninitialized_property_access_exception_new_cause")
 public func kk_uninitialized_property_access_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateUninitializedPropertyAccessException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -894,33 +951,7 @@ public func kk_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -
 @_cdecl("__kk_exception_new_cause")
 public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateException(
-        message: nil,
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("__kk_runtime_exception_new")
-public func kk_runtime_exception_new() -> Int {
-    runtimeAllocateRuntimeException(message: nil)
-}
-
-@_cdecl("__kk_runtime_exception_new_message")
-public func kk_runtime_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateRuntimeException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}
-
-@_cdecl("__kk_runtime_exception_new_message_cause")
-public func kk_runtime_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
-    runtimeAllocateRuntimeException(
-        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil),
-        cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
-    )
-}
-
-@_cdecl("__kk_runtime_exception_new_cause")
-public func kk_runtime_exception_new_cause(_ causeRaw: Int) -> Int {
-    runtimeAllocateRuntimeException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -946,7 +977,7 @@ public func kk_kotlin_nothing_value_exception_new_message_cause(_ messageRaw: In
 @_cdecl("__kk_kotlin_nothing_value_exception_new_cause")
 public func kk_kotlin_nothing_value_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateKotlinNothingValueException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -972,7 +1003,7 @@ public func kk_error_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> In
 @_cdecl("__kk_error_new_cause")
 public func kk_error_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateError(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -1023,7 +1054,7 @@ public func kk_unsupported_operation_exception_new_message_cause(_ messageRaw: I
 @_cdecl("__kk_unsupported_operation_exception_new_cause")
 public func kk_unsupported_operation_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateUnsupportedOperationException(
-        message: nil,
+        message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
     )
 }
@@ -1056,14 +1087,4 @@ public func kk_type_cast_exception_new() -> Int {
 @_cdecl("__kk_type_cast_exception_new_message")
 public func kk_type_cast_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateTypeCastException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
-}
-
-@_cdecl("__kk_null_pointer_exception_new")
-public func kk_null_pointer_exception_new() -> Int {
-    runtimeAllocateNullPointerException(message: nil)
-}
-
-@_cdecl("__kk_null_pointer_exception_new_message")
-public func kk_null_pointer_exception_new_message(_ messageRaw: Int) -> Int {
-    runtimeAllocateNullPointerException(message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil))
 }

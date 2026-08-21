@@ -70,9 +70,6 @@ enum GoldenHarnessSemaFormat {
     }
 
     static func renderSymbolFlags(_ flags: SymbolFlags) -> String {
-        if flags.isEmpty {
-            return "_"
-        }
         var names: [String] = []
         if flags.contains(.suspendFunction) { names.append("suspendFunction") }
         if flags.contains(.inlineFunction) { names.append("inlineFunction") }
@@ -94,7 +91,7 @@ enum GoldenHarnessSemaFormat {
         if flags.contains(.expectDeclaration) { names.append("expectDeclaration") }
         if flags.contains(.actualDeclaration) { names.append("actualDeclaration") }
         if flags.contains(.readOnlyProperty) { names.append("readOnlyProperty") }
-        return names.joined(separator: "|")
+        return names.isEmpty ? "_" : names.joined(separator: "|")
     }
 
     static func renderFQName(

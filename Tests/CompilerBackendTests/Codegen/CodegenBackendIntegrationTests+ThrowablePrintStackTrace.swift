@@ -57,8 +57,12 @@ struct CodegenBackendThrowablePrintStackTraceTests {
     @Test
     func testCodegenThrowablePrintStackTraceWritesToStandardError() throws {
         let source = """
+        class CustomRuntimeException : RuntimeException()
+
         fun main() {
             RuntimeException("stack message").printStackTrace()
+            IndexOutOfBoundsException("index message").printStackTrace()
+            CustomRuntimeException().printStackTrace()
         }
         """
 
@@ -75,7 +79,7 @@ struct CodegenBackendThrowablePrintStackTraceTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             let normalizedStderr = normalizeThrowableStderr(result.stderr)
             #expect(result.stdout == "")
-            #expect(normalizedStderr == "RuntimeException: stack message\n")
+            #expect(normalizedStderr == "RuntimeException: stack message\nIndexOutOfBoundsException: index message\nCustomRuntimeException\n")
         }
     }
 }
