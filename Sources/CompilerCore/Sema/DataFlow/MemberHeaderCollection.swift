@@ -723,7 +723,7 @@ extension DataFlowSemaPhase {
             let nestedHasPrimaryCtorSyntax = nestedClass.hasPrimaryConstructorSyntax
             let nestedHasSecondaryCtors = !nestedClass.secondaryConstructors.isEmpty
             if nestedHasPrimaryCtorSyntax || !nestedHasSecondaryCtors {
-                let nestedPrimaryCtorVisibility = primaryConstructorVisibility(
+                let nestedPrimaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: nestedClass,
                     classKind: nestedClassKind,
                     declarationVisibility: visibility(from: nestedClass.modifiers)
@@ -733,8 +733,8 @@ extension DataFlowSemaPhase {
                     name: nestedClass.name,
                     fqName: nestedCtorFQName,
                     declSite: nestedClass.range,
-                    visibility: nestedPrimaryCtorVisibility,
-                    flags: []
+                    visibility: nestedPrimaryCtorVisibilityDetail.visibility,
+                    flags: nestedPrimaryCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 nestedScope.insert(nestedPrimaryCtorSymbol)
                 symbols.setParentSymbol(nestedSymbol, for: nestedPrimaryCtorSymbol)
@@ -770,13 +770,19 @@ extension DataFlowSemaPhase {
                 }
             }
             for (ctorIndex, secondaryCtor) in nestedClass.secondaryConstructors.enumerated() {
+                let secCtorVisibilityDetail = constructorVisibilityDetail(
+                    explicitModifiers: secondaryCtor.modifiers,
+                    classKind: nestedClassKind,
+                    isSealedClass: nestedClass.modifiers.contains(.sealed),
+                    declarationVisibility: visibility(from: nestedClass.modifiers)
+                )
                 let secCtorSymbol = symbols.define(
                     kind: .constructor,
                     name: nestedClass.name,
                     fqName: nestedCtorFQName,
                     declSite: secondaryCtor.range,
-                    visibility: visibility(from: secondaryCtor.modifiers),
-                    flags: []
+                    visibility: secCtorVisibilityDetail.visibility,
+                    flags: secCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 nestedScope.insert(secCtorSymbol)
                 symbols.setParentSymbol(nestedSymbol, for: secCtorSymbol)

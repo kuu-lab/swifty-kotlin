@@ -638,6 +638,60 @@ final class CallLowerer {
         {
             return loweredNumericConversion
         }
+        return lowerResolvedCallBody(
+            exprID,
+            args: args,
+            loweredArgIDs: loweredArgIDs,
+            chosen: chosen,
+            callBinding: callBinding,
+            callableValueCallBinding: callableValueCallBinding,
+            loweredCallable: loweredCallable,
+            loweredCalleeExprID: loweredCalleeExprID,
+            sourceCalleeName: sourceCalleeName,
+            boundType: boundType,
+            knownNames: knownNames,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions
+        )
+    }
+
+    /// Emits the call/allocation instructions for an already-resolved call
+    /// target: the callee (function, constructor, or callable value) and its
+    /// arguments are already lowered by the time this runs. Shared by
+    /// `lowerCallExpr` (plain `.call` nodes, which supply
+    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding`
+    /// derived from lowering `calleeExpr`) and
+    /// `tryLowerFQNTopLevelResolvedCall` (namespace-qualified function/
+    /// constructor calls reached via `.memberCall`, e.g.
+    /// `kotlin.math.abs(x)` or `kotlin.text.StringBuilder()`, which have no
+    /// callee expression to lower at all — `chosen` and `callBinding` come
+    /// directly from Sema's FQN top-level resolution, so
+    /// `loweredCalleeExprID`/`loweredCallable`/`callableValueCallBinding` are
+    /// always nil there).
+    // swiftlint:disable:next cyclomatic_complexity
+    func lowerResolvedCallBody(
+        _ exprID: ExprID,
+        args: [CallArgument],
+        loweredArgIDs: [KIRExprID],
+        chosen: SymbolID?,
+        callBinding: CallBinding?,
+        callableValueCallBinding: CallableValueCallBinding?,
+        loweredCallable: KIRCallableValueInfo?,
+        loweredCalleeExprID: KIRExprID?,
+        sourceCalleeName: InternedString,
+        boundType: TypeID?,
+        knownNames: KnownCompilerNames,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
         let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
         let callNormalized: NormalizedCallResult = if callBinding != nil {
             driver.callSupportLowerer.normalizedCallArguments(
@@ -705,7 +759,7 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
-        if callableInvokeCallee != nil {
+        if callableInvokeCallee != nil, let loweredCalleeExprID {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
             if let callableValueCallBinding,
                case let .functionType(functionType) = sema.types.kind(
