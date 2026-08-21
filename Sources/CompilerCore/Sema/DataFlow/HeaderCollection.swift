@@ -1279,7 +1279,7 @@ extension DataFlowSemaPhase {
             [["kotlin", "collections", "AbstractCollection"]]
         case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
             [["kotlin", "collections", "AbstractMutableCollection"]]
-        case "__bundled_kotlin/Result.kt":
+        case "__bundled_kotlin/Result/Stdlib.kt":
             [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":
             [["kotlin", "text", "StringBuilder"]]
