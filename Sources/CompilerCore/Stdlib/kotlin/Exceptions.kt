@@ -56,20 +56,6 @@ public open class IllegalArgumentException : RuntimeException {
     public constructor(cause: Throwable?)
 }
 
-public open class IllegalStateException : RuntimeException {
-    @KsSymbolName("__kk_illegal_state_exception_new")
-    public constructor()
-
-    @KsSymbolName("__kk_illegal_state_exception_new_message")
-    public constructor(message: String?)
-
-    @KsSymbolName("__kk_illegal_state_exception_new_message_cause")
-    public constructor(message: String?, cause: Throwable?)
-
-    @KsSymbolName("__kk_illegal_state_exception_new_cause")
-    public constructor(cause: Throwable?)
-}
-
 public open class ConcurrentModificationException : RuntimeException {
     @KsSymbolName("__kk_concurrent_modification_exception_new")
     public constructor()

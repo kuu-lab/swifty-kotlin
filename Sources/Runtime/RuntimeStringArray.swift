@@ -35,37 +35,44 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
 /// RuntimeObjectBox stores only the stable nominal type ID. Keep the names of
 /// bundled throwable classes here because the hashed ID is intentionally not
 /// reversible; user-defined types are resolved through registered metadata.
+private let runtimeSourceThrowableNames = [
+    ("kotlin.Error", "Error"),
+    ("kotlin.Exception", "Exception"),
+    ("kotlin.RuntimeException", "RuntimeException"),
+    ("kotlin.IllegalArgumentException", "IllegalArgumentException"),
+    ("kotlin.IllegalStateException", "IllegalStateException"),
+    ("kotlin.ConcurrentModificationException", "ConcurrentModificationException"),
+    ("kotlin.UnsupportedOperationException", "UnsupportedOperationException"),
+    ("kotlin.NumberFormatException", "NumberFormatException"),
+    ("kotlin.NullPointerException", "NullPointerException"),
+    ("kotlin.ClassCastException", "ClassCastException"),
+    ("kotlin.TypeCastException", "TypeCastException"),
+    ("kotlin.AssertionError", "AssertionError"),
+    ("kotlin.NoSuchElementException", "NoSuchElementException"),
+    ("kotlin.ArithmeticException", "ArithmeticException"),
+    ("kotlin.NoWhenBranchMatchedException", "NoWhenBranchMatchedException"),
+    ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
+    ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
+    ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+    ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
+    ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
+    ("kotlin.NotImplementedError", "NotImplementedError"),
+    ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+    ("kotlin.io.FileSystemException", "FileSystemException"),
+    ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
+    ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
+    ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
+]
+
 private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
-    let names = [
-        ("kotlin.Error", "Error"),
-        ("kotlin.Exception", "Exception"),
-        ("kotlin.RuntimeException", "RuntimeException"),
-        ("kotlin.IllegalArgumentException", "IllegalArgumentException"),
-        ("kotlin.IllegalStateException", "IllegalStateException"),
-        ("kotlin.ConcurrentModificationException", "ConcurrentModificationException"),
-        ("kotlin.UnsupportedOperationException", "UnsupportedOperationException"),
-        ("kotlin.NumberFormatException", "NumberFormatException"),
-        ("kotlin.NullPointerException", "NullPointerException"),
-        ("kotlin.ClassCastException", "ClassCastException"),
-        ("kotlin.TypeCastException", "TypeCastException"),
-        ("kotlin.AssertionError", "AssertionError"),
-        ("kotlin.NoSuchElementException", "NoSuchElementException"),
-        ("kotlin.ArithmeticException", "ArithmeticException"),
-        ("kotlin.NoWhenBranchMatchedException", "NoWhenBranchMatchedException"),
-        ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
-        ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
-        ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
-        ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
-        ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
-        ("kotlin.NotImplementedError", "NotImplementedError"),
-        ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
-        ("kotlin.io.FileSystemException", "FileSystemException"),
-        ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
-        ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
-        ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
-    ]
-    return Dictionary(uniqueKeysWithValues: names.map { entry in
+    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
         (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
+    })
+}()
+
+private let runtimeSourceThrowableQualifiedNames: [Int64: String] = {
+    Dictionary(uniqueKeysWithValues: runtimeSourceThrowableNames.map { entry in
+        (runtimeStableNominalTypeID(fqName: entry.0), entry.0)
     })
 }()
 
@@ -79,6 +86,18 @@ private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
     return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
         ?? runtimeSourceThrowableSimpleNames[classID]
         ?? "Throwable"
+}
+
+func runtimeSourceThrowableQualifiedName(for classID: Int64) -> String {
+    // Nominal type tokens use the same payload as classID, with the nominal
+    // base and nullability bit encoded around it. KClass metadata therefore
+    // provides the source name for user-defined throwable classes as well.
+    let payloadMask: UInt64 = (1 << 55) - 1
+    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
+    let typeToken = Int(truncatingIfNeeded: tokenBits)
+    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.qualifiedName
+        ?? runtimeSourceThrowableQualifiedNames[classID]
+        ?? "kotlin.Throwable"
 }
 
 private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
