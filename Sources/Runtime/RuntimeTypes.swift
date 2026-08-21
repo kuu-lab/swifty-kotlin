@@ -126,7 +126,7 @@ class RuntimeThrowableBox {
     let message: String?
     var cause: Int
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
-    /// Stores raw Int pointers to other RuntimeThrowableBox instances.
+    /// Stores raw Int pointers to other runtime Throwable objects.
     var suppressed: [Int] = []
 
     var exceptionFQName: String {
@@ -242,11 +242,15 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?
+    var throwableCause: Int
+    var throwableSuppressed: [Int]
 
     init(length: Int, classID: Int64) {
         self.classID = classID
         self.backingSetBox = nil
         self.throwableMessage = nil
+        self.throwableCause = 0
+        self.throwableSuppressed = []
         super.init(length: length)
     }
 }

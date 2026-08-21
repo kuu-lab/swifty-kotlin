@@ -32,6 +32,63 @@ private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     return ""
 }
 
+/// RuntimeObjectBox stores only the stable nominal type ID. Keep the names of
+/// bundled throwable classes here because the hashed ID is intentionally not
+/// reversible; user-defined types are resolved through registered metadata.
+private let runtimeSourceThrowableSimpleNames: [Int64: String] = {
+    let names = [
+        ("kotlin.Error", "Error"),
+        ("kotlin.Exception", "Exception"),
+        ("kotlin.RuntimeException", "RuntimeException"),
+        ("kotlin.IllegalArgumentException", "IllegalArgumentException"),
+        ("kotlin.IllegalStateException", "IllegalStateException"),
+        ("kotlin.ConcurrentModificationException", "ConcurrentModificationException"),
+        ("kotlin.UnsupportedOperationException", "UnsupportedOperationException"),
+        ("kotlin.NumberFormatException", "NumberFormatException"),
+        ("kotlin.NullPointerException", "NullPointerException"),
+        ("kotlin.ClassCastException", "ClassCastException"),
+        ("kotlin.TypeCastException", "TypeCastException"),
+        ("kotlin.AssertionError", "AssertionError"),
+        ("kotlin.NoSuchElementException", "NoSuchElementException"),
+        ("kotlin.ArithmeticException", "ArithmeticException"),
+        ("kotlin.NoWhenBranchMatchedException", "NoWhenBranchMatchedException"),
+        ("kotlin.UninitializedPropertyAccessException", "UninitializedPropertyAccessException"),
+        ("kotlin.IndexOutOfBoundsException", "IndexOutOfBoundsException"),
+        ("kotlin.ArrayIndexOutOfBoundsException", "ArrayIndexOutOfBoundsException"),
+        ("kotlin.KotlinNothingValueException", "KotlinNothingValueException"),
+        ("kotlin.OutOfMemoryError", "OutOfMemoryError"),
+        ("kotlin.NotImplementedError", "NotImplementedError"),
+        ("kotlin.text.CharacterCodingException", "CharacterCodingException"),
+        ("kotlin.io.FileSystemException", "FileSystemException"),
+        ("kotlin.io.FileAlreadyExistsException", "FileAlreadyExistsException"),
+        ("kotlin.io.AccessDeniedException", "AccessDeniedException"),
+        ("kotlin.io.NoSuchFileException", "NoSuchFileException"),
+    ]
+    return Dictionary(uniqueKeysWithValues: names.map { entry in
+        (runtimeStableNominalTypeID(fqName: entry.0), entry.1)
+    })
+}()
+
+private func runtimeSourceThrowableSimpleName(for classID: Int64) -> String {
+    // Nominal type tokens use the same payload as classID, with the nominal
+    // base and nullability bit encoded around it. KClass metadata therefore
+    // provides the source name for user-defined throwable classes as well.
+    let payloadMask: UInt64 = (1 << 55) - 1
+    let tokenBits = (UInt64(bitPattern: classID) & payloadMask) << 9 | 6
+    let typeToken = Int(truncatingIfNeeded: tokenBits)
+    return runtimeKClassMetadataRegistry.lookup(typeToken: typeToken)?.simpleName
+        ?? runtimeSourceThrowableSimpleNames[classID]
+        ?? "Throwable"
+}
+
+private func runtimeSourceThrowableHeader(from object: RuntimeObjectBox) -> String {
+    let typeName = runtimeSourceThrowableSimpleName(for: object.classID)
+    guard let message = object.throwableMessage else {
+        return typeName
+    }
+    return "\(typeName): \(message)"
+}
+
 /// Raw stack-frame strings for a single throwable. The runtime only provides
 /// the class-specific header line here; Kotlin-side formatting walks cause and
 /// suppressed chains and adds prefixes (KSP-655).
@@ -44,6 +101,9 @@ private func runtimeThrowableRawStackFrameStrings(from throwableRaw: Int) -> [St
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return [throwable.renderedMessage]
+    }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return [runtimeSourceThrowableHeader(from: object)]
     }
     return []
 }
@@ -132,6 +192,9 @@ public func __kk_throwable_cause(_ throwableRaw: Int) -> Int {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return throwable.cause == 0 ? runtimeNullSentinelInt : throwable.cause
     }
+    if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        return object.throwableCause == 0 ? runtimeNullSentinelInt : object.throwableCause
+    }
     return runtimeNullSentinelInt
 }
 
@@ -167,13 +230,20 @@ public func __kk_printStderr(_ messageRaw: Int) -> Int {
 @_cdecl("__kk_throwable_setCause")
 public func __kk_throwable_setCause(_ throwableRaw: Int, _ causeRaw: Int) -> Int {
     guard throwableRaw != runtimeNullSentinelInt, throwableRaw != 0,
-          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
-          let throwable = tryCast(ptr, to: RuntimeThrowableBox.self)
+          let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw)
     else {
         return throwableRaw
     }
     let causeValue = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
-    throwable.cause = causeValue
+    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
+        throwable.cause = causeValue
+    } else if let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        object.throwableCause = causeValue
+        runtimeRegisterTypeEdge(
+            childTypeID: object.classID,
+            parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.Throwable")
+        )
+    }
     return throwableRaw
 }
 
@@ -199,33 +269,53 @@ public func __kk_throwable_setMessage(_ throwableRaw: Int, _ messageRaw: Int) ->
 /// Storage bridge for `Throwable.addSuppressed`: appends to the suppressed list.
 @_cdecl("__kk_throwable_appendSuppressed")
 public func __kk_throwable_appendSuppressed(_ throwableRaw: Int, _ suppressedRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
+    guard let suppressedPtr = UnsafeMutableRawPointer(bitPattern: suppressedRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: suppressedPtr))
+          }),
+          (tryCast(suppressedPtr, to: RuntimeThrowableBox.self) != nil
+              || tryCast(suppressedPtr, to: RuntimeObjectBox.self) != nil)
     else {
         return 0
     }
 
-    guard let suppressed = runtimeThrowableBox(from: suppressedRaw) else {
+    guard let throwablePtr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: throwablePtr))
+          })
+    else {
         return 0
     }
 
     // Match Kotlin/JVM's major behavior by rejecting self-suppression while
     // remaining ABI-compatible with this non-throwing runtime entrypoint.
-    guard throwable !== suppressed else { return 0 }
+    guard throwableRaw != suppressedRaw else { return 0 }
+    if let throwable = tryCast(throwablePtr, to: RuntimeThrowableBox.self) {
+        throwable.suppressed.append(suppressedRaw)
+    } else if let throwable = tryCast(throwablePtr, to: RuntimeObjectBox.self) {
+        throwable.throwableSuppressed.append(suppressedRaw)
+    } else {
+        return 0
+    }
 
-    throwable.suppressed.append(suppressedRaw)
     return 0
 }
 
 /// Storage bridge for `Throwable.getSuppressed`: the raw `Array<Throwable>`.
 @_cdecl("__kk_throwable_suppressedRaw")
 public func __kk_throwable_suppressedRaw(_ throwableRaw: Int) -> Int {
-    guard let throwable = runtimeThrowableBox(from: throwableRaw)
-    else {
+    let suppressed: [Int]
+    if let throwable = runtimeThrowableBox(from: throwableRaw) {
+        suppressed = throwable.suppressed
+    } else if let ptr = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+              let object = tryCast(ptr, to: RuntimeObjectBox.self) {
+        suppressed = object.throwableSuppressed
+    } else {
         return runtimeAllocateArrayBox(length: 0)
     }
 
-    let arrayBox = RuntimeArrayBox(length: throwable.suppressed.count)
-    for (i, elem) in throwable.suppressed.enumerated() {
+    let arrayBox = RuntimeArrayBox(length: suppressed.count)
+    for (i, elem) in suppressed.enumerated() {
         arrayBox.elements[i] = elem
     }
     let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(arrayBox).toOpaque())
