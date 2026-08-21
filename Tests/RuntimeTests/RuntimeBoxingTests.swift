@@ -54,6 +54,24 @@ struct RuntimeBoxingTests {
         #expect(kk_map_get(map, 0) == 123)
     }
 
+    // MARK: - kk_box_float / kk_unbox_float
+
+    @Test
+    func testBoxAndUnboxFloatRoundTrip() {
+        let bits = Int(Float(1.5).bitPattern)
+        let boxed = kk_box_float(bits)
+        #expect(kk_unbox_float(boxed) == bits)
+    }
+
+    @Test
+    func testBoxFloatDoesNotPassThroughAnUnrelatedPrimitiveBox() {
+        let unrelatedBox = kk_box_int(1)
+        let expectedBits = Int(Float(bitPattern: UInt32(truncatingIfNeeded: unrelatedBox)).bitPattern)
+        let boxedFloat = kk_box_float(unrelatedBox)
+
+        #expect(kk_unbox_float(boxedFloat) == expectedBits)
+    }
+
     // MARK: - kk_box_bool / kk_unbox_bool
 
     @Test
