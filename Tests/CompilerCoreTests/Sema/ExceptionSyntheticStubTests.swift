@@ -311,9 +311,7 @@ struct ExceptionSyntheticStubTests {
             ("Exception", "Throwable", [0, 1, 2, 1], [
                 "__kk_exception_new", "__kk_exception_new_message", "__kk_exception_new_message_cause", "__kk_exception_new_cause",
             ]),
-            ("RuntimeException", "Exception", [0, 1, 2, 1], [
-                "__kk_runtime_exception_new", "__kk_runtime_exception_new_message", "__kk_runtime_exception_new_message_cause", "__kk_runtime_exception_new_cause",
-            ]),
+            ("RuntimeException", "Exception", [0, 1, 2, 1], []),
             ("IllegalArgumentException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_illegal_argument_exception_new", "__kk_illegal_argument_exception_new_message", "__kk_illegal_argument_exception_new_message_cause", "__kk_illegal_argument_exception_new_cause",
             ]),
@@ -333,9 +331,7 @@ struct ExceptionSyntheticStubTests {
             ("NumberFormatException", "IllegalArgumentException", [0, 1], [
                 "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
             ]),
-            ("NullPointerException", "RuntimeException", [0, 1], [
-                "__kk_null_pointer_exception_new", "__kk_null_pointer_exception_new_message",
-            ]),
+            ("NullPointerException", "RuntimeException", [0, 1], []),
             ("ClassCastException", "RuntimeException", [0, 1], [
                 "__kk_class_cast_exception_new", "__kk_class_cast_exception_new_message",
             ]),

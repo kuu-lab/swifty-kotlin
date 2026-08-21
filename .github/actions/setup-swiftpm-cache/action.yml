@@ -1,10 +1,11 @@
 name: Setup SwiftPM build cache
 description: |
   Restore the SwiftPM .build directory and optionally save it after the job.
-  Trusted non-PR runs should set save=true so that default-branch caches
-  can be restored by pull requests. Caches are keyed by runner OS, Swift
-  toolchain version, Package.swift contents, ci.yml, build variant, and the
-  commit SHA; restore-keys fall back to the most recent matching prefix.
+  Trusted default-branch runs should set save=true so pull requests can reuse
+  their build products and compilation CAS. Cache compatibility is scoped to
+  the runner, Swift toolchain, build variant, and files that control SwiftPM
+  invocation. The commit SHA keeps saved caches immutable while restore keys
+  fall back to the newest compatible default-branch cache.
 
 inputs:
   swift-version:
@@ -15,7 +16,7 @@ inputs:
     required: false
     default: "false"
   build-variant:
-    description: Variant name (e.g. 'fast' or 'default') for compiler flag differences.
+    description: Stable name for compiler flags and build configuration.
     required: false
     default: default
 
@@ -34,18 +35,18 @@ runs:
       id: key
       shell: bash
       run: |
-        pkg_hash="${{ hashFiles('Package.swift') }}"
-        ci_hash="${{ hashFiles('.github/workflows/ci.yml') }}"
+        build_input_hash="${{ hashFiles('Package.swift', 'Package.resolved', 'Scripts/build_swift_tests.sh', 'Scripts/swift_test.sh', 'Scripts/lib/common.sh', '.github/actions/setup-swift/action.yml', '.github/actions/setup-swiftpm-cache/action.yml') }}"
         variant="${{ inputs.build-variant }}"
+        schema="v2"
 
-        primary="swiftpm-${{ runner.os }}-swift-${{ inputs.swift-version }}-${pkg_hash}-${ci_hash}-${variant}-${{ github.sha }}"
-        prefix="swiftpm-${{ runner.os }}-swift-${{ inputs.swift-version }}-${pkg_hash}-${ci_hash}-${variant}-"
+        primary="swiftpm-${schema}-${{ runner.os }}-${{ runner.arch }}-swift-${{ inputs.swift-version }}-${build_input_hash}-${variant}-${{ github.sha }}"
+        prefix="swiftpm-${schema}-${{ runner.os }}-${{ runner.arch }}-swift-${{ inputs.swift-version }}-${build_input_hash}-${variant}-"
 
         echo "primary=${primary}" >> "$GITHUB_OUTPUT"
         echo "prefix=${prefix}" >> "$GITHUB_OUTPUT"
 
     # actions/cache restores now and registers its save operation as a post-job
-    # step, after the caller has built the test products into .build.
+    # step, after the caller has populated .build.
     - name: Restore SwiftPM .build cache and schedule post-job save
       id: cache
       if: ${{ inputs.save == 'true' }}

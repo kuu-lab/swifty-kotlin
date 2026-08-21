@@ -430,6 +430,17 @@ extension CallLowerer {
             exprID, args: args, sema: sema, arena: arena, interner: interner,
             instructions: &instructions.instructions
         ) { return objProp }
+        if let fqnTopLevelResult = tryLowerFQNTopLevelResolvedCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) { return fqnTopLevelResult }
         return lowerMemberLikeCallExpr(
             exprID,
             receiverExpr: receiverExpr,
