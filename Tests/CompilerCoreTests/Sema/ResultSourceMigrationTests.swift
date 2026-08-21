@@ -208,15 +208,18 @@ struct ResultSourceMigrationTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
             // Re-inferred lambda bodies leave duplicate call exprs in the
             // arena, so group by source range and require one bound callee
-            // per written call site.
+            // per written call site. Bundled stdlib implementations are in
+            // the same AST, so restrict this inventory to the test source.
             var runCatchingCallSites: [SourceRange: [ExprID]] = [:]
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
                 guard let expr = ast.arena.expr(exprID),
                       case let .call(callee, _, _, range) = expr,
+                      range.start.file == sourceFileID,
                       let calleeExpr = ast.arena.expr(callee),
                       case let .nameRef(name, _) = calleeExpr,
                       ctx.interner.resolve(name) == "runCatching"

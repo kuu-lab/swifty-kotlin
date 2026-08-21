@@ -11,7 +11,8 @@ struct VisibilityAccessControlTests {
         kind: SymbolKind,
         name: String,
         visibility: Visibility,
-        file: FileID = FileID(rawValue: 0)
+        file: FileID = FileID(rawValue: 0),
+        flags: SymbolFlags = []
     ) -> SymbolID {
         let interned = interner.intern(name)
         return symbols.define(
@@ -20,7 +21,7 @@ struct VisibilityAccessControlTests {
             fqName: [interned],
             declSite: makeRange(file: file),
             visibility: visibility,
-            flags: []
+            flags: flags
         )
     }
 
@@ -259,6 +260,58 @@ struct VisibilityAccessControlTests {
             package sample12
             fun noop() {}
             """,
+            // testInheritedPrivateConstructorAccessibleFromCompanionObjectInitializer
+            // BUG-217 regression: a top-level `private class` with no explicit
+            // constructor visibility gets its implicit constructor's visibility
+            // inherited from the class. Constructing it from an unrelated
+            // companion object property initializer in the same file must not
+            // be rejected merely because the constructor is a class "member"
+            // with no direct class-hierarchy relationship to the companion.
+            """
+            package sample13
+
+                    package test
+                    class Holder private constructor(msb: Long) {
+                        companion object {
+                            private val state: HelperState = HelperState()
+                        }
+                    }
+                    private class HelperState {
+                        var x: Long = 0L
+                    }
+                    fun main(): Long = 0L
+
+            """,
+            // testInheritedPrivateConstructorAccessibleFromUnrelatedTopLevelFunction
+            // Same BUG-217 shape without a companion object: any unrelated
+            // top-level declaration in the same file must be able to construct
+            // a file-private top-level class through its implicit constructor.
+            """
+            package sample14
+
+                    package test
+                    private class Widget(val value: Int)
+                    fun makeWidget(): Int = Widget(1).value
+                    fun main(): Int = makeWidget()
+
+            """,
+            // testInheritedPrivateSecondaryConstructorAccessibleWithinSameFile
+            // Same inheritance rule applies to a class whose only constructor
+            // is a secondary constructor (no primary constructor syntax).
+            """
+            package sample15
+
+                    package test
+                    private class Gadget {
+                        val value: Int
+                        constructor(value: Int) {
+                            this.value = value
+                        }
+                    }
+                    fun makeGadget(): Int = Gadget(1).value
+                    fun main(): Int = makeGadget()
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -487,6 +540,42 @@ struct VisibilityAccessControlTests {
 
             }
 
+            // === testInheritedPrivateConstructorAccessibleFromCompanionObjectInitializer ===
+
+            do {
+
+                let sample13Path = paths[13]
+
+                let sample13Diagnostics = diagnosticsForPath(sample13Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample13Diagnostics)
+
+            }
+
+            // === testInheritedPrivateConstructorAccessibleFromUnrelatedTopLevelFunction ===
+
+            do {
+
+                let sample14Path = paths[14]
+
+                let sample14Diagnostics = diagnosticsForPath(sample14Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample14Diagnostics)
+
+            }
+
+            // === testInheritedPrivateSecondaryConstructorAccessibleWithinSameFile ===
+
+            do {
+
+                let sample15Path = paths[15]
+
+                let sample15Diagnostics = diagnosticsForPath(sample15Path, in: ctx)
+
+                assertNoDiagnostic("KSWIFTK-SEMA-0040", in: sample15Diagnostics)
+
+            }
+
             // === testVisibilityCheckerSharedEnclosingClassPrivateAccess ===
 
             do {
@@ -511,6 +600,66 @@ struct VisibilityAccessControlTests {
                 #expect(checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: nestedBSym))
                 // Access from unrelated class should be rejected
                 #expect(!checker.isAccessible(nestedAMember, fromFile: FileID(rawValue: 0), enclosingClass: unrelatedClassSym))
+
+            }
+
+            // === testVisibilityCheckerInheritedConstructorVisibilityFallsBackToOwnerFileScope ===
+            // BUG-217: an implicit constructor's `.private` visibility, when
+            // inherited from a top-level `private class` owner (no explicit
+            // modifier on the constructor itself), must be resolved against the
+            // owner's own accessibility (file scope here) rather than a
+            // class-hierarchy relationship the accessor will never have.
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(
+                    symbols, interner: interner, kind: .class, name: "InheritedOwner",
+                    visibility: .private, file: FileID(rawValue: 0)
+                )
+                let ctorSym = defineSymbol(
+                    symbols, interner: interner, kind: .constructor, name: "InheritedOwner",
+                    visibility: .private, flags: .constructorVisibilityInherited
+                )
+                symbols.setParentSymbol(classSym, for: ctorSym)
+                let ctor = try #require(symbols.symbol(ctorSym))
+
+                // Same file, unrelated top-level accessor (no enclosing class at all).
+                #expect(checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+                // Different file: must stay rejected.
+                #expect(!checker.isAccessible(ctor, fromFile: FileID(rawValue: 1), enclosingClass: nil))
+
+            }
+
+            // === testVisibilityCheckerExplicitPrivateConstructorNotWidenedByInheritedFallback ===
+            // Sanity guard: without the inherited flag (an explicitly-written
+            // `private constructor`), the fallback to the owner's file scope
+            // must NOT kick in, even when the owner's own declSite is in the
+            // same file as the accessor — otherwise the classic private-
+            // constructor factory-method pattern would leak file-wide.
+
+            do {
+
+                let (_, symbols, _, interner) = makeSemaModule()
+                let checker = VisibilityChecker(symbols: symbols)
+                let classSym = defineSymbol(
+                    symbols, interner: interner, kind: .class, name: "ExplicitOwner",
+                    visibility: .public, file: FileID(rawValue: 0)
+                )
+                let ctorSym = defineSymbol(
+                    symbols, interner: interner, kind: .constructor, name: "ExplicitOwner",
+                    visibility: .private, file: FileID(rawValue: 0)
+                )
+                symbols.setParentSymbol(classSym, for: ctorSym)
+                let ctor = try #require(symbols.symbol(ctorSym))
+
+                // Same file, unrelated top-level accessor: must stay rejected.
+                #expect(!checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: nil))
+                // Companion-object bridge access is unaffected by this change.
+                let companionSym = defineSymbol(symbols, interner: interner, kind: .object, name: "Companion", visibility: .public)
+                symbols.setCompanionObjectSymbol(companionSym, for: classSym)
+                #expect(checker.isAccessible(ctor, fromFile: FileID(rawValue: 0), enclosingClass: companionSym))
 
             }
 
