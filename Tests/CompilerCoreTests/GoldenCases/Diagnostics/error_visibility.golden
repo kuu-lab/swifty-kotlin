@@ -30,21 +30,8 @@
     {
       "file": "error_visibility.kt",
       "range": {
-        "start": { "line": 22, "character": 32 },
-        "end": { "line": 22, "character": 46 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0040",
-      "source": "kswiftk",
-      "message": "Cannot access 'InternalImpl': it is private.",
-      "codeActions": [{ "title": "Change visibility to 'internal'", "kind": "quickfix" }]
-    },
-    {
-      "file": "error_visibility.kt",
-      "range": {
-        "start": { "line": 31, "character": 10 },
-        "end": { "line": 31, "character": 25 }
+        "start": { "line": 33, "character": 10 },
+        "end": { "line": 33, "character": 25 }
       },
       "severity": 1,
       "severityLabel": "error",
