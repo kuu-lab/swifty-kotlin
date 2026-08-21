@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Dispatch
 import Foundation
 import Testing
 
@@ -204,6 +205,43 @@ struct CommandRunnerTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stderr.count == 131_072)
+    }
+
+    @Test
+    func testRunConcurrentCommandsCaptureDistinctStdout() throws {
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var successes = 0
+        var failures: [String] = []
+        let launchCount = 8
+        for index in 0..<launchCount {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                defer { group.leave() }
+                let token = "concurrent-\(index)"
+                do {
+                    let result = try CommandRunner.run(
+                        executable: "/bin/echo",
+                        arguments: [token]
+                    )
+                    lock.lock()
+                    if result.exitCode == 0 && result.stdout.contains(token) {
+                        successes += 1
+                    } else {
+                        failures.append("unexpected result for \(token): exit=\(result.exitCode) stdout=\(result.stdout)")
+                    }
+                    lock.unlock()
+                } catch {
+                    lock.lock()
+                    failures.append("\(token): \(error)")
+                    lock.unlock()
+                }
+            }
+        }
+        let finished = group.wait(timeout: .now() + 30) == .success
+        #expect(finished, "Concurrent CommandRunner.run timed out")
+        #expect(failures.isEmpty, "Concurrent Process launches failed: \(failures)")
+        #expect(successes == launchCount)
     }
 
     @Test
