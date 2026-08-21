@@ -11,6 +11,34 @@ import Testing
 @Suite(.serialized)
 struct DelegatePropertyKIRTests {
     @Test
+    func testLazyFactoryHandleMatchAllowsNonAdjacentCopy() {
+        let result = KIRExprID(rawValue: 1)
+        let delegateHandle = KIRExprID(rawValue: 2)
+        let instructions: [KIRInstruction] = [
+            .call(
+                symbol: nil,
+                callee: StringInterner().intern("kotlin.lazy"),
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .beginBlock,
+            .label(7),
+            .copy(from: result, to: delegateHandle),
+        ]
+
+        #expect(
+            ExprLowerer.lazyFactoryResultStoresIntoHandle(
+                result: result,
+                delegateHandle: delegateHandle,
+                callIndex: 0,
+                instructions: instructions
+            )
+        )
+    }
+
+    @Test
     func testLazyDelegateEmitsCreateAndGetValueInKIR() throws {
         let source = """
         val x by lazy { 42 }
@@ -52,6 +80,204 @@ struct DelegatePropertyKIRTests {
                     "kk_lazy_create should be non-throwing")
             #expect(throwFlags["kk_lazy_get_value"]?.allSatisfy { $0 == false } == true,
                     "kk_lazy_get_value should be non-throwing")
+        }
+    }
+
+    @Test
+    func testExplicitLazyThreadSafetyModesReachRuntimeCreate() throws {
+        let source = """
+        val top by lazy(LazyThreadSafetyMode.NONE) { 1 }
+        class Box {
+            val member by lazy(LazyThreadSafetyMode.PUBLICATION) { 2 }
+        }
+        fun main() {
+            val local by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let modeValues = module.arena.declarations.flatMap { declaration -> [Int64] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2,
+                          case let .intLiteral(value)? = module.arena.expr(arguments[1])
+                    else {
+                        return nil
+                    }
+                    return value
+                }
+            }
+
+            #expect(
+                modeValues.sorted() == [0, 1, 2],
+                "explicit lazy modes should reach kk_lazy_create, got \\(modeValues)"
+            )
+        }
+    }
+
+    @Test
+    func testImportedLazyThreadSafetyModeReachesRuntimeCreate() throws {
+        let source = """
+        import kotlin.LazyThreadSafetyMode.NONE
+        val importedNone by lazy(NONE) { 1 }
+        fun main() = println(importedNone)
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "imported lazy mode should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let modeValues = module.arena.declarations.flatMap { declaration -> [Int64] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2,
+                          case let .intLiteral(value)? = module.arena.expr(arguments[1])
+                    else {
+                        return nil
+                    }
+                    return value
+                }
+            }
+            #expect(modeValues.contains(0), "imported NONE should reach kk_lazy_create as mode 0, got: \(modeValues)")
+        }
+    }
+
+    @Test
+    func testDynamicLazyThreadSafetyModeFallsBackToDefaultRuntimeMode() throws {
+        let source = """
+        var selectedMode = LazyThreadSafetyMode.NONE
+        val top by lazy(selectedMode) { 1 }
+        class Box {
+            val member by lazy(selectedMode) { 2 }
+        }
+        fun main() {
+            val local by lazy(selectedMode) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "dynamic lazy mode should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let createCalls = module.arena.declarations.flatMap { declaration -> [[KIRExprID]] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _ ) = instruction,
+                          ctx.interner.resolve(callee) == "kk_lazy_create",
+                          arguments.count == 2
+                    else {
+                        return nil
+                    }
+                    return arguments
+                }
+            }
+            #expect(createCalls.count == 3, "expected three dynamic lazy creates, got: \(createCalls.count)")
+            let modeValues = createCalls.compactMap { arguments -> Int64? in
+                guard case let .intLiteral(value)? = module.arena.expr(arguments[1]) else {
+                    return nil
+                }
+                return value
+            }
+            #expect(
+                modeValues == Array(repeating: Int64(ctx.options.lazyThreadSafetyMode.rawValue), count: 3),
+                "dynamic modes must use the compiler default raw value, got: \(modeValues)"
+            )
+
+            let lazyImplConstructors = module.arena.declarations.flatMap { declaration -> [String] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
+                    let resolvedCallee = ctx.interner.resolve(callee)
+                    return resolvedCallee.contains("LazyImpl") ? resolvedCallee : nil
+                }
+            }
+            #expect(
+                lazyImplConstructors.isEmpty,
+                "dynamic local lazy lowering must replace the LazyImpl constructor, got: (lazyImplConstructors)"
+            )
+        }
+    }
+
+    @Test
+    func testLazyLockOverloadReachesLockAwareRuntimeCreate() throws {
+        let source = """
+        class Lock
+        val sharedLock = Lock()
+        val top by lazy(sharedLock) { 1 }
+        class Box {
+            val member by lazy(sharedLock) { 2 }
+        }
+        fun main() {
+            val local by lazy(sharedLock) { 3 }
+            println(top)
+            println(Box().member)
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "lazy lock overload should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+            let module = try #require(ctx.kir)
+            let lockCreateCalls = module.arena.declarations.flatMap { declaration -> [KIRInstruction] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.filter { instruction in
+                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+                    return ctx.interner.resolve(callee) == "kk_lazy_create_with_lock"
+                }
+            }
+            #expect(lockCreateCalls.count == 3, "expected lock-aware create for top, member, and local, got (lockCreateCalls.count)")
+            for instruction in lockCreateCalls {
+                guard case let .call(_, _, arguments, _, _, _, _, _) = instruction else { continue }
+                #expect(arguments.count == 3, "lock-aware lazy create should receive initializer, mode, and lock")
+            }
+        }
+    }
+
+    @Test
+    func testLocalLazyUnknownLockUsesLockAwareRuntimeCreate() throws {
+        let source = """
+        fun main() {
+            val local by lazy(unknownLock) { 3 }
+            println(local)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+            #expect(
+                callees.contains("kk_lazy_create_with_lock"),
+                "an unresolved local lazy lock must remain lock-aware, got: \(callees)"
+            )
         }
     }
 

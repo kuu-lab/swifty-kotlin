@@ -937,7 +937,7 @@ public func __kk_float_nextDown(_ value: Int) -> Int {
     kk_float_to_bits(kk_bits_to_float(value).nextDown)
 }
 
-// MARK: - STDLIB-NUM-130: Floating-point precision — toBits / fromBits
+// MARK: - STDLIB-NUM-130: Floating-point precision — toBits
 //
 // KSP-646: isNaN / isInfinite / isFinite are implemented in bundled Kotlin
 // (Stdlib/kotlin/util/Numbers.kt) on top of toRawBits(), so no runtime export
@@ -959,12 +959,11 @@ public func __kk_double_toRawBits(_ value: Int) -> Int {
     value  // bit pattern is already canonical in our ABI
 }
 
-/// Double.Companion.fromBits(bits: Long): Double
-/// The bits Int is already the IEEE 754 bit pattern used by the ABI,
-/// so reconstructing it is a no-op — just return the same Int.
+/// Double.Companion.fromBits(bits: Long): Double.
+/// Double bit patterns occupy the full runtime ABI word, so this is an identity.
 @_cdecl("__kk_double_fromBits")
 public func __kk_double_fromBits(_ bits: Int) -> Int {
-    bits  // already the correct ABI representation for Double
+    bits
 }
 
 /// Float.toBits(): Int — returns IEEE 754 bit representation as Int.
@@ -984,10 +983,12 @@ public func __kk_float_toRawBits(_ value: Int) -> Int {
     Int(Int32(truncatingIfNeeded: value))
 }
 
-/// Float.Companion.fromBits(bits: Int): Float
+/// Float.Companion.fromBits(bits: Int): Float.
+/// Kotlin exposes the 32-bit IEEE pattern as a sign-extended Int, while the
+/// runtime ABI carries Float payloads as a zero-extended word.
 @_cdecl("__kk_float_fromBits")
 public func __kk_float_fromBits(_ bits: Int) -> Int {
-    Int(UInt32(truncatingIfNeeded: bits))  // re-widen to the zero-extended ABI form
+    Int(UInt32(truncatingIfNeeded: bits))
 }
 
 // MARK: - STDLIB-514: truncate, IEEErem, nextTowards
