@@ -20,7 +20,7 @@
 //
 // Residual gaps deliberately absent from this case (still render the raw
 // handle after this fix; a separate, broader issue, not this bug -- see
-// BUG-217/BUG-218 in TODO.md):
+// BUG-219/BUG-220 in TODO.md):
 //   - a value statically typed `Any` (the class type is erased before the
 //     rewrite ever sees it)
 //   - an object singleton (this fix deliberately only handles `class`)

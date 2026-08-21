@@ -166,7 +166,7 @@ extension CallLowerer {
     /// declares (or has synthesized for it) a `toString`; a class that only
     /// inherits one from a base class, referenced at its own (sub)type
     /// rather than the declaring base type, still falls through to the
-    /// generic path (BUG-217).
+    /// generic path (BUG-219).
     func classToStringCallee(
         for type: TypeID,
         sema: SemaModule,
