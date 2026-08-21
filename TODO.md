@@ -777,16 +777,6 @@
 > 1タスク = 原則 1 PR。粒度は（package, receiver）単位または 30 件を超える場合は関数名 prefix ファミリー単位。完全な未実装リストは `docs/stdlib-gap-audit-2.3.10/gap_v2.tsv`（本倉庫へのコピー推奨）を参照。
 > 実装時には、既存の `__kk_*` / `kk_*` bridge・合成スタブ・`RuntimeABISpec` 登録があれば同 PR で削除または `__kk_` 降格し、`UPDATE_GOLDEN=1` で golden を更新、`bash Scripts/diff_kotlinc.sh` で kotlinc 2.3.10 との差分を確認すること。
 
-- [ ] KSP-735: kotlin.ExperimentalStdlibApi-family の未実装 stdlib API を実装する（1 件）
-  - 対象: `kotlin` / top-level / family `ExperimentalStdlibApi`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_ExperimentalStdlibApi.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_ExperimentalStdlibApi.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_ExperimentalStdlibApi.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.ExperimentalStdlibApi` — class kotlin.ExperimentalStdlibApi  -- `open annotation class kotlin/ExperimentalStdlibApi : kotlin/Annotation {`
-
 - [ ] KSP-761: kotlin.UByteArray-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `UByteArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UByteArray.kt`（該当ファイルが無ければ新規作成）
@@ -1017,7 +1007,7 @@
     - `kotlin.isAssertionArgumentEvaluationEnabled` — fun isAssertionArgumentEvaluationEnabled(): Boolean  -- `final fun kotlin/isAssertionArgumentEvaluationEnabled(): kotlin/Boolean`
     - `kotlin.isAssertionThrowingErrorEnabled` — fun isAssertionThrowingErrorEnabled(): Boolean  -- `final fun kotlin/isAssertionThrowingErrorEnabled(): kotlin/Boolean`
 
-- [ ] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-781: kotlin.lazy-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin` / top-level / family `lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/lazy.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
