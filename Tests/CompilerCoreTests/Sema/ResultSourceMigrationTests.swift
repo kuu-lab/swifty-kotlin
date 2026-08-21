@@ -31,8 +31,8 @@ struct ResultSourceMigrationTests {
                 else { return false }
                 return signature.parameterTypes == [sema.types.nullableAnyType]
             })
-            #expect(sema.symbols.symbol(resultConstructor)?.visibility == .public)
-            #expect(sema.symbols.externalLinkName(for: resultConstructor) == nil)
+            #expect(sema.symbols.symbol(resultConstructor)?.visibility == .internal)
+            #expect(sema.symbols.externalLinkName(for: resultConstructor) == "kk_runtime_result_success")
             #expect(sema.symbols.symbol(resultConstructor)?.declSite != nil)
 
             let runCatchingFQName = ["kotlin", "runCatching"].map(ctx.interner.intern)
