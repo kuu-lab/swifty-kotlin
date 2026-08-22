@@ -981,7 +981,10 @@ extension DataFlowSemaPhase {
             // through the kk_* ABI entry.
             if declaration.visibility != .private,
                let receiverType,
-               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                   for: receiverType,
+                   types: types
+               ),
                let semanticSymbol = symbols.symbol(symbol),
                let key = BundledDeclarationIndex.memberKey(
                    for: semanticSymbol,
@@ -991,7 +994,7 @@ extension DataFlowSemaPhase {
                    interner: interner
                ),
                !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
-                symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol)
+                symbols.setParentSymbol(receiverSymbol, for: symbol)
 
                 // KSP-443: Runtime-linked bundled extension functions are registered
                 // under their declaring package FQ, but synthetic-member-link tests
@@ -1001,13 +1004,13 @@ extension DataFlowSemaPhase {
                 // kotlin.sequences.Sequence.toHashSet resolve to kk_sequence_toHashSet.
                 if let externalLinkName = symbols.externalLinkName(for: symbol),
                    !externalLinkName.isEmpty,
-                   let ownerSymbol = symbols.symbol(receiverClassType.classSymbol),
+                   let ownerSymbol = symbols.symbol(receiverSymbol),
                    let signature = symbols.functionSignature(for: symbol) {
                     let memberFQName = ownerSymbol.fqName + [semanticSymbol.name]
                     let alreadyExists = symbols.lookupAll(fqName: memberFQName).contains { existingID in
                         guard existingID != symbol,
                               let existingSig = symbols.functionSignature(for: existingID),
-                              symbols.parentSymbol(for: existingID) == receiverClassType.classSymbol
+                              symbols.parentSymbol(for: existingID) == receiverSymbol
                         else {
                             return false
                         }
@@ -1024,7 +1027,7 @@ extension DataFlowSemaPhase {
                             visibility: semanticSymbol.visibility,
                             flags: aliasFlags
                         )
-                        symbols.setParentSymbol(receiverClassType.classSymbol, for: aliasSymbol)
+                        symbols.setParentSymbol(receiverSymbol, for: aliasSymbol)
                         symbols.setFunctionSignature(signature, for: aliasSymbol)
                         symbols.setExternalLinkName(externalLinkName, for: aliasSymbol)
                     }
@@ -1279,7 +1282,7 @@ extension DataFlowSemaPhase {
             [["kotlin", "collections", "AbstractCollection"]]
         case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
             [["kotlin", "collections", "AbstractMutableCollection"]]
-        case "__bundled_kotlin/Result.kt":
+        case "__bundled_kotlin/Result/Stdlib.kt":
             [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":
             [["kotlin", "text", "StringBuilder"]]
@@ -1299,6 +1302,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "text", "CharacterCodingException"]]
         case "__bundled_kotlin/RuntimeException/Stdlib.kt":
             [["kotlin", "RuntimeException"]]
+        case "__bundled_kotlin/NumberFormatException/Stdlib.kt":
+            [["kotlin", "NumberFormatException"]]
         case "__bundled_kotlin/IndexOutOfBoundsException/Stdlib.kt":
             [["kotlin", "IndexOutOfBoundsException"]]
         case "__bundled_kotlin/NullPointerException/Stdlib.kt":
@@ -1311,7 +1316,6 @@ extension DataFlowSemaPhase {
                 ["kotlin", "IllegalStateException"],
                 ["kotlin", "ConcurrentModificationException"],
                 ["kotlin", "UnsupportedOperationException"],
-                ["kotlin", "NumberFormatException"],
                 ["kotlin", "ClassCastException"],
                 ["kotlin", "AssertionError"],
                 ["kotlin", "NoSuchElementException"],

@@ -676,6 +676,46 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// STDLIB-ARTIFACT-022: direct construction must use RuntimeResultBox rather
+    /// than the ordinary Kotlin object allocation path.
+    @Test
+    func testResultConstructorUsesRuntimeSuccessFactory() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        @file:Suppress("INVISIBLE_MEMBER", "INVISIBLE_REFERENCE")
+
+        fun main() {
+            val result: Result<Int> = Result(7)
+            println(result.isSuccess)
+            println(result.getOrThrow())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "TestModule",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "true\n7\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-015: imported synthetic enum entries (e.g.
     /// `RegexOption`) must carry `.constValue` and an ordinal expression so
     /// the shared stdlib path emits `intLiteral` values instead of unresolved

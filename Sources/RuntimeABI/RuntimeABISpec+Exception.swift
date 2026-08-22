@@ -460,22 +460,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_number_format_exception_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_number_format_exception_new_message",
-            parameters: [
-                RuntimeABIParameter(name: "messageRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_uninitialized_property_access_exception_new",
             parameters: [],
             returnType: .intptr,

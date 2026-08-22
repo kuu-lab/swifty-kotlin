@@ -23,6 +23,49 @@ func defaultTargetTriple() -> TargetTriple {
     return TargetTriple.hostDefault()
 }
 
+/// Return the prepared stdlib artifact used by tests that inspect imported
+/// stdlib symbols rather than injected Kotlin source declarations.
+func testStdlibArtifactPath() throws -> String {
+    _ = defaultTargetTriple()
+    guard let path = CompilerOptions.defaultStdlibLibraryPath,
+          FileManager.default.fileExists(atPath: path)
+    else {
+        throw CompilerPipelineError.invalidInput(
+            "The shared stdlib artifact was not prepared for an artifact-backed test."
+        )
+    }
+    return path
+}
+
+func makeArtifactCompilationContext(
+    inputs: [String],
+    moduleName: String = "TestModule",
+    emit: EmitMode = .kirDump,
+    outputPath: String? = nil,
+    searchPaths: [String] = [],
+    irFlags: [String] = [],
+    frontendFlags: [String] = [],
+    includeStdlib: Bool = true,
+    interner: StringInterner? = nil,
+    diagnostics: DiagnosticEngine? = nil,
+    stdlibOnly: Bool = false
+) throws -> CompilationContext {
+    makeCompilationContext(
+        inputs: inputs,
+        moduleName: moduleName,
+        emit: emit,
+        outputPath: outputPath,
+        searchPaths: searchPaths,
+        irFlags: irFlags,
+        frontendFlags: frontendFlags,
+        includeStdlib: includeStdlib,
+        interner: interner,
+        diagnostics: diagnostics,
+        stdlibOnly: stdlibOnly,
+        stdlibLibraryPath: try testStdlibArtifactPath()
+    )
+}
+
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",

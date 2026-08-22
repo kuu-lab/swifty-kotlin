@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -109,13 +110,17 @@ struct CodegenBackendCollectionJoinToTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "CollectionJoinToKIR", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionJoinToKIR",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("joinTo"))
+            #expect(containsKotlinCallee("joinTo", in: callees))
             #expect(!callees.contains("kk_iterable_joinTo"))
             // KSP-621: the runtime bridge itself (and the CallLowerer fallback that
             // used to rescue unresolved calls onto it) has been removed.
