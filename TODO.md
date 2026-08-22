@@ -591,13 +591,14 @@
   - diff: `string_constructors.kt` 新規 + `string_*.kt` 既存
   - 前提: なし（KSP-406/407/408/409/410/411 完了後に実施）
 
-- [ ] KSP-712: Instant / Clock / ExperimentalTime を Kotlin 化し stub 群を削除する
+- [x] KSP-712: Instant / Clock / ExperimentalTime を Kotlin 化し stub 群を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticInstantStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticClockStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticExperimentalTimeStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt`, `Clock.kt`, `TimeSource.kt`, `TimeMark.kt`, `MeasureTime.kt`（既存 source 継続）
-  - 削除/降格 kk_*: `kk_instant_*`, `kk_clock_*`, `kk_time_source_*`, `kk_test_time_source_*`, `kk_experimental_time_*` 等 public ブリッジ（`RuntimeTime*.swift`。着手時 `rg -o '@_cdecl\("kk_(instant|clock|time_source|test_time_source|experimental_time)[a-zA-Z0-9_]*"\)' Sources/Runtime` 全層で再固定）
+  - 削除/降格 kk_*: source-backed public declarations are complete; only proven `(c)` runtime core and hidden source bridges remain (`kk_instant_*` handle/OS-clock operations, `kk_clock_now` interface fallback, and `kk_time_source_*` monotonic/asClock support). No `kk_test_time_source_*` or `kk_experimental_time_*` public stub family remains.
   - 手順: T
   - diff: `time_*.kt` 既存 + `Clock.System.now()`/`ExperimentalTime` ケース追加
   - 前提: KSP-649, KSP-650, KSP-683
+  - 完了根拠: Instant factories/properties/arithmetic/comparison, Clock.System and custom Clock itable dispatch, TimeSource/TimeMark/TestTimeSource, ExperimentalTime metadata, and measureTime are source-backed and covered by focused Sema/backend/runtime/diff regressions. The three files are reclassified as `(c)` residual compiler/runtime support; a thrown-channel ABI bug in source-backed interface virtual dispatch was fixed with `clock_custom.kt` regression coverage.
 
 - [ ] KSP-713: `TODO()` / system / `Any.javaClass` 等の `SyntheticTODOAndIOStubs` 残余を Kotlin 化し縮小/削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticTODOAndIOStubs.swift`（KSP-692 分割後の残余）

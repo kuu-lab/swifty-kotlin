@@ -1023,6 +1023,19 @@ extension CallLowerer {
         !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
     }
 
+    /// `Clock.now()` keeps a runtime bridge as its fallback for the
+    /// compiler-created `TimeSource.asClock()` wrapper, but it is also a
+    /// user-implementable interface member. Allow its bridge-backed
+    /// declaration to use the normal itable path so a source override is not
+    /// bypassed by a direct `kk_clock_now` call.
+    func isClockRuntimeVirtualBridge(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard sema.symbols.externalLinkName(for: callee) == "kk_clock_now",
+              let parentID = sema.symbols.parentSymbol(for: callee),
+              sema.symbols.symbol(parentID)?.kind == .interface
+        else { return false }
+        return true
+    }
+
     /// Determine if a callee method requires virtual dispatch.
     /// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
     /// or `nil` if the call should use direct (static) dispatch.

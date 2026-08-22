@@ -241,7 +241,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
-| `HeaderHelpers+SyntheticClockStubs.swift` | 451 | (b) | M8 time source migration. |
+| `HeaderHelpers+SyntheticClockStubs.swift` | 174 | (c) | KSP-712 reclassified: `Clock.now()` remains a hidden runtime dispatch bridge and `Clock.System` bootstrap anchor; public `Clock.System.now()` is bundled Kotlin source. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
 | `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
@@ -258,14 +258,14 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticExceptionStubs.swift` | 787 | (c) | Core exception shells required by diagnostics/lowering; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticExperimentalBitwiseStubs.swift` | 99 | (b) | Experimental bitwise stdlib helpers; source migration owner. |
 | `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` | 367 | (c) | Common opt-in markers stay; split JS/Wasm markers into (a) cleanup first. |
-| `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 828 | (b) | M8 experimental time source migration. |
+| `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 463 | (c) | KSP-712 reclassified: `ExperimentalTime` metadata plus TimeSource/TimeMark nominal anchors and fallback dispatch remain compiler/runtime surfaces; public operations are bundled Kotlin source. |
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
 | `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
 | `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | 520 | (a) | `java.nio.file` / files utility surface; target-out cleanup. |
 | `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
-| `HeaderHelpers+SyntheticInstantStubs.swift` | 441 | (b) | M8 time source migration. |
+| `HeaderHelpers+SyntheticInstantStubs.swift` | 272 | (c) | KSP-712 reclassified: Instant.Companion bootstrap and hidden source bridges remain; Instant public properties, arithmetic, comparison, and factories are bundled Kotlin source, while handle/OS-clock core remains runtime-owned. |
 | `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` に分離。 |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
@@ -334,6 +334,14 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticUnsignedRangeStubs.swift` | 561 | (b) | M6 unsigned range source migration. |
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
+
+KSP-712 time-surface audit confirms that these three files no longer own public
+stdlib logic: their remaining registrations are (c) nominal/bootstrap fallback
+or hidden runtime/interface-dispatch support. In particular, removing the
+`kk_instant_*`/`kk_clock_*`/`kk_time_source_*` names by string match would break
+Instant handle access, OS monotonic time, `TimeSource.asClock()` boxes, or
+user-implementable `Clock` itables. The public source-backed declarations and
+these retained bridges are covered by the KSP-712 focused regressions.
 
 Mixed files are assigned to the bucket that owns most of the file today. The
 notes column calls out sub-blocks that should be split before the final delete or
