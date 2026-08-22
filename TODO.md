@@ -2218,7 +2218,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Comparator.compare` — fun Comparator.compare(, ): Int  -- `abstract fun compare(#A, #A): kotlin/Int`
 
-- [ ] KSP-821: kotlin.ConcurrentModificationException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-821: kotlin.ConcurrentModificationException top-level の未実装 stdlib API を実装する（4 件。KSP-656 で実装済みだったため重複実装はせず、既存の source/bridge/回帰証跡を再確認）
   - 対象: `kotlin.ConcurrentModificationException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ConcurrentModificationException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2230,6 +2230,8 @@
     - `kotlin.ConcurrentModificationException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
     - `kotlin.ConcurrentModificationException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.ConcurrentModificationException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
+  - 完了根拠（PR #5790 / merge commit `a16552084688bf85d55e444744ec84af9d41d592`）：`Sources/CompilerCore/Stdlib/kotlin/Exceptions.kt` が `ConcurrentModificationException : RuntimeException` の4 constructor（`()`, `(String?)`, `(String?, Throwable?)`, `(Throwable?)`）を source-backed 宣言する。`RuntimeException → Exception → Throwable` の型階層も現行コードで確認済み。
+  - 既存回帰：`ExceptionSyntheticStubTests` が4 constructorの外部リンクと親型を、`RuntimeAssertionsTests` が typed box の message/cause と階層を、`ABIMismatchTests` が4 ABI signatureを、`Scripts/diff_cases/exception_hierarchy.kt` が最小の例外階層・message/cause挙動を検証する。`__kk_concurrent_modification_exception_new*` と `RuntimeABISpec+Exception.swift` は typed throwable storage/identity に必要な bridge として維持し、対象の synthetic stub 登録はない。
 
 - [ ] KSP-822: kotlin.ConsistentCopyVisibility top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ConsistentCopyVisibility` / top-level
