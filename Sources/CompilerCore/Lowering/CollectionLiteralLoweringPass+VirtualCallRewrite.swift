@@ -164,10 +164,36 @@ extension CollectionVirtualCallRewriteLoweringPass {
         fileExprIDs: inout Set<Int32>,
         pathExprIDs: inout Set<Int32>,
         indexingIterableExprIDs: inout Set<Int32>,
+        listIteratorExprIDs: inout Set<Int32>,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
+
+        // Handle runtime-backed collection iterators before the generic
+        // source-backed preservation rule. A source-backed Iterable shell can
+        // make the iterator member look like ordinary Kotlin source, while
+        // the concrete list value still requires the shared list iterator ABI.
+        if callee == lookup.iteratorName,
+           arguments.isEmpty,
+           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
+        {
+            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+                ? lookup.kkIndexingIterableIteratorName
+                : lookup.kkListIteratorName
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: iterCallee,
+                arguments: [receiver],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if iterCallee == lookup.kkListIteratorName, let result {
+                listIteratorExprIDs.insert(result.rawValue)
+            }
+            return true
+        }
 
         if shouldPreserveSourceBackedVirtualCall(
             symbol: symbol,
@@ -248,6 +274,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
+            if iterCallee == lookup.kkListIteratorName, let result {
+                listIteratorExprIDs.insert(result.rawValue)
+            }
             return true
         }
 

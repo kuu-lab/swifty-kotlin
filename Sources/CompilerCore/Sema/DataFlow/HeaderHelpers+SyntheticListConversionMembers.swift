@@ -1,5 +1,5 @@
 /// `List<E>.toList` / `toMutableList` / `toSet` / `toUIntArray` etc. conversion
-/// members extracted from `HeaderHelpers+SyntheticListStubs.swift`.
+/// members extracted from the KSP-697 list residual registry.
 extension DataFlowSemaPhase {
     func registerListConversionMembers(
         symbols: SymbolTable,
