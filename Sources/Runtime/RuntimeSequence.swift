@@ -1572,14 +1572,6 @@ public func __kk_empty_sequence() -> Int {
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_orEmpty")
-public func kk_sequence_orEmpty(_ seqRaw: Int) -> Int {
-    if seqRaw == runtimeNullSentinelInt || seqRaw == 0 {
-        return __kk_empty_sequence()
-    }
-    return seqRaw
-}
-
 // MARK: - Sequence.ifEmpty (STDLIB-277)
 
 @_cdecl("kk_sequence_ifEmpty")

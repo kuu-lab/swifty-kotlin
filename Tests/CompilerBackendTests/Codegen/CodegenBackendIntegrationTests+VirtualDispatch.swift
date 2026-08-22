@@ -199,5 +199,52 @@ struct CodegenBackendVirtualDispatchTests {
             expected: "A\nname\nA\nA\nname\nname\nage\n1\n1\n1\n2\nlabel\nL\nL\nM\nname\nA\nA\nname\nage\n2\n2\n2\n3\nlabel\nM\nM\nN\n"
         )
     }
+
+    // KSP-496 byproduct bug: a bare (receiver-less) top-level `val` whose
+    // initializer is a compile-time literal never gets a runtime store for
+    // its backing global (see lowerPropertyInitializer's `needsInit` check —
+    // ordinary reads are constant-folded and never touch the global at all).
+    // The synthetic KProperty0 accessor generated for `::topLevel` used to
+    // unconditionally `loadGlobal` that never-initialized slot, so `.name`
+    // read correctly but `.get()` returned the zero value instead of the
+    // literal. A top-level `var` (never constant-folded, per ConstantCollector
+    // excluding `isVar`) and a non-literal `val` initializer are included as
+    // contrast cases that must keep going through the real global.
+    @Test
+    func testBareTopLevelPropertyReferenceGetReturnsActualValue() throws {
+        let source = """
+        import kotlin.reflect.KMutableProperty0
+        import kotlin.reflect.KProperty0
+
+        val topLevelInt: Int = 7
+        val topLevelString: String = "hi"
+        var topLevelCounter: Int = 10
+        fun compute(): Int = 3 + 4
+        val topLevelComputed: Int = compute()
+
+        fun main() {
+            val intRef: KProperty0<Int> = ::topLevelInt
+            println(intRef.name)
+            println(intRef.get())
+
+            val stringRef: KProperty0<String> = ::topLevelString
+            println(stringRef.get())
+
+            val counterRef: KMutableProperty0<Int> = ::topLevelCounter
+            println(counterRef.get())
+            counterRef.set(42)
+            println(counterRef.get())
+            println(topLevelCounter)
+
+            val computedRef: KProperty0<Int> = ::topLevelComputed
+            println(computedRef.get())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "BareTopLevelPropertyReferenceRuntime",
+            expected: "topLevelInt\n7\nhi\n10\n42\n42\n7\n"
+        )
+    }
 }
 #endif

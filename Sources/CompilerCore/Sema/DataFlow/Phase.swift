@@ -91,11 +91,17 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
+        // Enum header synthesis runs during bundled header collection rather
+        // than synthetic stub registration, so expose the same bundled index
+        // while headers are collected for source-backed enum API skip guards.
+        let previousBundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx,
             predeclared: predeclaredTupleHeaders
         )
+        BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         types.functionInterfaceSymbol = symbols.lookupAll(
             fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
         ).first { symbols.symbol($0)?.kind == .interface }
