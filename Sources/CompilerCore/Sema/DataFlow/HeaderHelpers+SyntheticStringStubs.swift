@@ -9,7 +9,12 @@ extension DataFlowSemaPhase {
         let kotlinTextPkg = ensureKotlinTextPackage(symbols: symbols, interner: interner)
         let kotlinRootPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
         let stringType = types.stringType
-        let charSequenceSymbol = ensureInterfaceSymbol(
+        // String is a compiler/runtime nominal shell. The bundled source owns
+        // CharSequence whenever it is available; the fallback keeps bootstrap
+        // contexts that intentionally omit bundled stdlib headers functional.
+        let charSequenceSymbol = symbols.lookup(
+            fqName: kotlinRootPkg + [interner.intern("CharSequence")]
+        ) ?? ensureInterfaceSymbol(
             named: "CharSequence",
             in: kotlinRootPkg,
             symbols: symbols,
@@ -22,95 +27,12 @@ extension DataFlowSemaPhase {
         if let kotlinRootPkgSymbol = symbols.lookup(fqName: kotlinRootPkg) {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
-        let appendableSymbol = ensureInterfaceSymbol(
-            named: "Appendable",
-            in: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let appendableType = types.make(.classType(ClassType(
-            classSymbol: appendableSymbol, args: [], nullability: .nonNull
-        )))
-        if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-            symbols.setParentSymbol(kotlinTextPkgSymbol, for: appendableSymbol)
-        }
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let intType = types.intType
         let longType = types.make(.primitive(.long, .nonNull))
         let charType = types.make(.primitive(.char, .nonNull))
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
-        let nullableCharSequenceType = types.makeNullable(charSequenceType)
-
-        // --- STDLIB-TEXT-TYPE-001: kotlin.text.Appendable interface surface ---
-        // BUG-172: all three overloads need an externalLinkName. StringBuilder is
-        // the sole implementer and bypasses kk_object_new construction (see the
-        // BUG-044 note in RuntimeStringBuilder.swift), so it never registers itable
-        // entries — a call through the bare `Appendable` interface type for an
-        // overload with no externalLinkName falls through to itable dispatch and
-        // panics with "method not found in vtable/itable".
-        registerAppendableMemberFunction(
-            named: "append",
-            externalLinkName: "__kk_string_builder_append_char",
-            ownerSymbol: appendableSymbol,
-            ownerType: appendableType,
-            parameters: [("value", charType, false, false)],
-            returnType: appendableType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAppendableMemberFunction(
-            named: "append",
-            externalLinkName: "__kk_string_builder_append_obj",
-            ownerSymbol: appendableSymbol,
-            ownerType: appendableType,
-            parameters: [("value", nullableCharSequenceType, false, false)],
-            returnType: appendableType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerAppendableMemberFunction(
-            named: "append",
-            externalLinkName: "__kk_string_builder_append_range",
-            ownerSymbol: appendableSymbol,
-            ownerType: appendableType,
-            parameters: [
-                ("value", nullableCharSequenceType, false, false),
-                ("startIndex", intType, false, false),
-                ("endIndex", intType, false, false),
-            ],
-            returnType: appendableType,
-            symbols: symbols,
-            interner: interner,
-            canThrow: true
-        )
-
-        // --- STDLIB-TEXT-TYPE-003: kotlin.text.Typography object surface ---
-        let typographySymbol = ensureSyntheticObjectSymbol(
-            named: "Typography",
-            in: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let typographyType = types.make(.classType(ClassType(
-            classSymbol: typographySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(typographyType, for: typographySymbol)
-        if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-            symbols.setParentSymbol(kotlinTextPkgSymbol, for: typographySymbol)
-        }
-        for (name, scalar) in typographyCharConstants {
-            registerTypographyCharConstant(
-                ownerSymbol: typographySymbol,
-                name: name,
-                scalar: scalar,
-                charType: charType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
 
         // --- STDLIB-TEXT-TYPE-004: String.CASE_INSENSITIVE_ORDER comparator ---
         // BUG-154: In real Kotlin this is `String.Companion.CASE_INSENSITIVE_ORDER`
@@ -621,15 +543,7 @@ extension DataFlowSemaPhase {
         // KSP-401: lines/lineSequence are bundled Kotlin source.
 
         // --- STDLIB-145: String.toByteArray / encodeToByteArray ---
-
-        let charsetSymbol = ensureClassSymbol(
-            named: "Charset", in: kotlinTextPkg,
-            symbols: symbols, interner: interner
-        )
-        let charsetType = types.make(.classType(ClassType(
-            classSymbol: charsetSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(charsetType, for: charsetSymbol)
+        // These APIs are bundled Kotlin source in StringEncoding.kt.
 
         let javaMathPkg = ensurePackage(
             path: ["java", "math"],
@@ -651,19 +565,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bigDecimalType, for: bigDecimalSymbol)
 
-        // STDLIB-574: ByteArray / List<Int> internal representation
-        let listIntType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        let byteArrayType = makeNominalType(
-            symbols: symbols,
-            types: types,
-            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
-        )
-
         // STDLIB-STR-125
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let stringClassSymbol = ensureClassSymbol(
@@ -678,25 +579,9 @@ extension DataFlowSemaPhase {
         types.stringClassSymbol = stringClassSymbol
         symbols.setDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         types.setNominalDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
-        for bytesType in [listIntType, byteArrayType] {
-            registerStringConstructorFromBytes(
-                ownerSymbol: stringClassSymbol,
-                ownerType: stringType,
-                parameters: [("bytes", bytesType), ("charset", charsetType)],
-                externalLinkName: "__kk_bytearray_decodeToString_charset",
-                symbols: symbols,
-                interner: interner
-            )
-            // String(ByteArray) — default UTF-8 decoding
-            registerStringConstructorFromBytes(
-                ownerSymbol: stringClassSymbol,
-                ownerType: stringType,
-                parameters: [("bytes", bytesType)],
-                externalLinkName: "__kk_bytearray_decodeToString",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // String constructors are source-backed in StringConstructors.kt. The
+        // nominal shell and its CharSequence relationship remain here because
+        // String is represented specially by the compiler and runtime.
 
         // --- STDLIB-I18N-COMMON-001: companion (static) method, not an extension ---
         let stringCompanionFQName = ensureStringCompanionSymbol(

@@ -2,9 +2,8 @@
 import Foundation
 import Testing
 
-/// Verifies that the new String stdlib extension stubs added in the PR
-/// (STDLIB-006, STDLIB-009) are registered in the symbol table with the
-/// correct runtime external link names.
+/// Verifies that String text APIs are source-backed while their deliberately
+/// retained runtime bridges keep the expected external link names.
 @Suite
 struct StringSyntheticMemberLinkTests {
     /// Resolve the `kotlin.text.<member>` symbol and return its external link name.
@@ -963,6 +962,13 @@ struct StringSyntheticMemberLinkTests {
                     )
                     let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                     #expect(signature.receiverType == appendableType)
+                    let symbolInfo = try #require(sema.symbols.symbol(chosenCallee))
+                    #expect(symbolInfo.declSite != nil)
+                    #expect(!symbolInfo.flags.contains(.synthetic))
+                    #expect(
+                        sema.symbols.externalLinkName(for: chosenCallee) != nil,
+                        "Appendable.append must retain its private runtime dispatch bridge"
+                    )
                 }
 
             }
@@ -979,7 +985,10 @@ struct StringSyntheticMemberLinkTests {
 
                 let typographyFQName = ["kotlin", "text", "Typography"].map { interner.intern($0) }
                 let typographySymbol = try #require(sema.symbols.lookup(fqName: typographyFQName))
-                #expect(sema.symbols.symbol(typographySymbol)?.kind == .object)
+                let typographyInfo = try #require(sema.symbols.symbol(typographySymbol))
+                #expect(typographyInfo.kind == .object)
+                #expect(typographyInfo.declSite != nil)
+                #expect(!typographyInfo.flags.contains(.synthetic))
 
                 let expectedConstants: [String: UInt32] = [
                     "almostEqual": 0x2248,
@@ -1028,6 +1037,9 @@ struct StringSyntheticMemberLinkTests {
                 for (name, scalar) in expectedConstants {
                     let propertyFQName = typographyFQName + [interner.intern(name)]
                     let propertySymbol = try #require(sema.symbols.lookup(fqName: propertyFQName))
+                    let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+                    #expect(propertyInfo.declSite != nil)
+                    #expect(!propertyInfo.flags.contains(.synthetic))
                     #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.make(.primitive(.char, .nonNull)))
                     #expect(sema.symbols.symbol(propertySymbol)?.flags.contains(.constValue) ?? false)
                     guard case let .charLiteral(value) = sema.symbols.constValueExprKind(for: propertySymbol) else {
@@ -1037,6 +1049,34 @@ struct StringSyntheticMemberLinkTests {
                     #expect(value == scalar, "Unexpected Typography.\(name) scalar")
                 }
 
+            }
+
+            // === testStringByteConstructorsAreSourceBacked ===
+
+            do {
+                let constructorFQName = ["kotlin", "String"].map { interner.intern($0) }
+                let constructorFunctions = sema.symbols.lookupAll(fqName: constructorFQName).filter {
+                    sema.symbols.symbol($0)?.kind == .function
+                }
+                #expect(constructorFunctions.count == 4)
+                for constructor in constructorFunctions {
+                    let info = try #require(sema.symbols.symbol(constructor))
+                    #expect(info.declSite != nil)
+                    #expect(!info.flags.contains(.synthetic))
+                    #expect(
+                        sema.symbols.externalLinkName(for: constructor) != nil,
+                        "String byte constructors must route through private runtime decoding bridges"
+                    )
+                }
+                #expect(constructorFunctions.filter { sema.symbols.symbol($0)?.visibility == .public }.count == 2)
+                #expect(constructorFunctions.filter { sema.symbols.symbol($0)?.visibility == .internal }.count == 2)
+
+                let legacyConstructors = sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("String"),
+                    interner.intern("<init>"),
+                ]).filter { sema.symbols.symbol($0)?.kind == .constructor }
+                #expect(legacyConstructors.isEmpty)
             }
 
             // === testCaseInsensitiveOrderSurfaceResolves ===

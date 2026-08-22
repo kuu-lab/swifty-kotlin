@@ -102,14 +102,11 @@ public func __kk_string_builder_append_obj(_ sbRaw: Int, _ valueRaw: Int) -> Int
     runtimeStringBuilderAppend(sbRaw, value: runtimeElementToString(valueRaw))
 }
 
-// BUG-172: Appendable.append(Char) and Appendable.append(CharSequence?, Int, Int)
-// have no externalLinkName on their synthetic Appendable-interface stub (only the
-// CharSequence? overload does, via __kk_string_builder_append_obj above), so a call
-// through the bare `Appendable` interface type falls through to itable dispatch.
-// StringBuilder instances bypass kk_object_new construction (see BUG-044 note above)
-// and never register itable entries, so that dispatch always panics with "method not
-// found in vtable/itable". Give these two overloads their own direct native bridges,
-// mirroring the existing __kk_string_builder_append_obj wiring.
+// BUG-172: Appendable overloads use direct native bridges because StringBuilder
+// instances bypass kk_object_new construction (see BUG-044 note above) and do not
+// register itable entries. Source-backed Appendable declarations retain these
+// explicit links so calls through the bare interface type do not require a
+// StringBuilder itable entry.
 @_cdecl("__kk_string_builder_append_char")
 public func __kk_string_builder_append_char(_ sbRaw: Int, _ charRaw: Int) -> Int {
     runtimeStringBuilderAppend(sbRaw, value: runtimeCharacterFromRaw(charRaw))
