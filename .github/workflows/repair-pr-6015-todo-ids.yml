@@ -27,34 +27,39 @@ jobs:
           from pathlib import Path
 
           path = Path("TODO.md")
-          text = path.read_text(encoding="utf-8")
-          replacements = (
-              (
-                  "- [ ] BUG-219: Kotlin の modifier keyword を識別子として使用できる3つの経路を修正する。",
-                  "- [ ] BUG-221: Kotlin の modifier keyword を識別子として使用できる3つの経路を修正する。",
-              ),
-              (
-                  "- [ ] BUG-220: コンストラクタパラメータ名に修飾子キーワード（inner など）を使用できるようにし、再発防止テストを追加する。",
-                  "- [x] BUG-220: コンストラクタパラメータ名に修飾子キーワード（inner など）を使用できるようにし、再発防止テストを追加する。",
-              ),
-          )
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
 
+          old_219 = "- [ ] BUG-219: Kotlin の modifier keyword（"
+          new_221 = "- [ ] BUG-221: Kotlin の modifier keyword（"
+          old_220 = "- [ ] BUG-220: コンストラクタパラメータ名が文字どおり `inner`"
+          new_220 = "- [x] BUG-220: コンストラクタパラメータ名が文字どおり `inner`"
+
+          seen_219 = 0
+          seen_220 = 0
           changed = False
-          for old, new in replacements:
-              old_count = text.count(old)
-              new_count = text.count(new)
-              if old_count == 1 and new_count == 0:
-                  text = text.replace(old, new, 1)
+
+          for index, line in enumerate(lines):
+              if line.startswith(old_219):
+                  lines[index] = line.replace("- [ ] BUG-219:", "- [ ] BUG-221:", 1)
+                  seen_219 += 1
                   changed = True
-              elif old_count == 0 and new_count == 1:
-                  continue
-              else:
-                  raise SystemExit(
-                      f"Unexpected TODO state for {old!r}: old={old_count}, new={new_count}"
-                  )
+              elif line.startswith(new_221):
+                  seen_219 += 1
+
+              if line.startswith(old_220):
+                  lines[index] = line.replace("- [ ] BUG-220:", "- [x] BUG-220:", 1)
+                  seen_220 += 1
+                  changed = True
+              elif line.startswith(new_220):
+                  seen_220 += 1
+
+          if seen_219 != 1 or seen_220 != 1:
+              raise SystemExit(
+                  f"Unexpected TODO state: residual-keyword-task={seen_219}, fixed-inner-task={seen_220}"
+              )
 
           if changed:
-              path.write_text(text, encoding="utf-8")
+              path.write_text("".join(lines), encoding="utf-8")
           PY
 
       - name: Verify TODO IDs
