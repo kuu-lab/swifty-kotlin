@@ -2447,8 +2447,9 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalContextParameters.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-841: kotlin.ExperimentalMultiplatform top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-841: kotlin.ExperimentalMultiplatform top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalMultiplatform` / top-level
+  - 完了根拠: KSP-666 の bundled source 化と KSP-734 merged PR #5874（merge commit `8074ada1bc4a557627c7bcb8eea25fc95a84a019`）を現行 master で確認。`Sources/CompilerCore/Stdlib/kotlin/annotations/Multiplatform.kt` の source-backed annotation class が implicit no-arg constructor を含めて登録され、既存 `ExperimentalMarkerStubTests` / annotation semantic 回帰、専用 Sema Golden、専用 kotlinc diff が pass。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalMultiplatform/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ExperimentalMultiplatform_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
