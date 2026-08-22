@@ -69,7 +69,7 @@
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
 - [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
-- [ ] KSP-CAP-014: bundled source から `vararg val` プロパティと `KClass` 型参照を生成・検証できるようにする（`kotlin.Throws` の `vararg val exceptionClasses: KClass<out Throwable>` を source 化するための前提。現行は `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録で補完）
+- [x] KSP-CAP-014: bundled source から `vararg val` プロパティと `KClass` 型参照を生成・検証できるようにする（`kotlin.Throws` の `vararg val exceptionClasses: KClass<out Throwable>` を source 化するための前提。PR #5892 / merge commit `43a37804e` で解消済み。現行 `Sources/CompilerCore/Stdlib/kotlin/Throws.kt` は source-backed 宣言で、旧 synthetic Throws helper は未使用定義のみ。`testAnnotationSemanticVersionAndVisibilitySurfaceRegistrations` が non-synthetic・`Array<out KClass<out Throwable>>`・vararg constructor を検証済み）
 - [~] KSP-CAP-018: object 式によるクラス継承を通す（= BUG-215）。ブロック対象: KSP-491・KSP-681（`Delegates.observable`/`vetoable` が返す `object : ObservableProperty<T>(initialValue) { override fun ... }`）・KSP-441（object 式でパイプラインを表現する方針）
   - **注記**: 旧 KSP-CAP-016/017（同一症状、2026-08-06 記録）と旧 BUG-187/188 は、名前不明の TODO.md 編集（`f9dea8961c` 付近、DEBT-DIFF-005 統合コミット群）でブロッカー台帳から本文ごと消失し、`[x]` 化されないまま記録が失われていた。名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 症状の一部）は別途 `1128468186`（PR #5506, "Fix BUG-155: run superclass constructors and class-body initializers"）で修正済みと 2026-08-18 実機確認したため当該部分はクローズ、object 式経由の残り2症状のみ本項として採番し直す。
   - 症状は2系統（interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済み。本項目は**クラス**継承）:
