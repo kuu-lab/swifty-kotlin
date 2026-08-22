@@ -2314,7 +2314,7 @@
     - `kotlin.Deprecated.message` — val Deprecated.message: String  -- `final val message`
     - `kotlin.Deprecated.replaceWith` — val Deprecated.replaceWith: ReplaceWith  -- `final val replaceWith`
 
-- [ ] KSP-830: kotlin.DeprecatedSinceKotlin top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-830: kotlin.DeprecatedSinceKotlin top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.DeprecatedSinceKotlin` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeprecatedSinceKotlin/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2323,6 +2323,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.DeprecatedSinceKotlin.<init>` — constructor (String, String, String)  -- `constructor <init>(kotlin/String = ..., kotlin/String = ..., kotlin/String = ...)`
+  - 完了根拠（merged PR #5858、merge commit `66d0189b1b960abee809f304f50fc1b495ca2bc3`）: 現行 `Sources/CompilerCore/Stdlib/kotlin/DeprecatedSinceKotlin.kt` が3つの `String` 引数をdefault付きで持つsource-backed annotation constructorを宣言済み。既存 `AnnotationSemanticTests` の3引数・全default・source-backed surface検証、`stdlib_kotlin_n_DeprecatedSinceKotlin` Sema Golden、`stdlib_kotlin_n_DeprecatedSinceKotlin.kt` diff caseが確認済みで、対象固有のsynthetic/runtime/ABI/lowering残余はない（KSP-831の3 propertiesは別TODO）。
 
 - [ ] KSP-831: kotlin.DeprecatedSinceKotlin.DeprecatedSinceKotlin の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.DeprecatedSinceKotlin` / receiver `DeprecatedSinceKotlin`
