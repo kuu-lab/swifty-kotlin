@@ -402,7 +402,10 @@ enum ParserBoundaryPolicy {
         case .eof:
             return true
         case .symbol(.rBrace):
-            return true
+            // A closing brace is a synchronization point only inside a block.
+            // At file scope it is unexpected input that the top-level recovery
+            // node must consume and diagnose before parsing the next declaration.
+            return inBlock
         case let .keyword(kw) where synchronizationKeywords.contains(kw):
             return true
         default:

@@ -40,7 +40,8 @@ public final class Analyzer {
         )
         let result = driver.runFrontend(
             options: options,
-            inMemorySources: [path: Data(text.utf8)]
+            inMemorySources: [path: Data(text.utf8)],
+            continuationPolicy: .continueAfterParseError
         )
         let fileID = result.context.sourceManager.fileID(forPath: path)
         let analysis = Analysis(uri: uri, path: path, result: result, fileID: fileID)
