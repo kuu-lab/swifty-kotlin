@@ -207,24 +207,23 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     return nil
 }
 
-private let ksp409CharSequenceIteratorTypeID = runtimeStableNominalTypeID(
-    fqName: "kotlin.text.Ksp409CharSequenceIterator"
+private let charSequenceIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.text.CharSequenceCharIterator"
 )
 
 /// Source-backed `CharIterator` returns its concrete Char representation at
 /// the iterator ABI boundary. Preserve that type when a generic runtime bridge
 /// materializes the iterator as `RuntimeValue`.
 func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeValue {
-    let isCharSequenceIterator: Bool = if runtimeObjectTypeID(rawValue: iteratorRaw) == ksp409CharSequenceIteratorTypeID {
+    let isCharSequenceIterator: Bool = if runtimeObjectTypeID(rawValue: iteratorRaw) == charSequenceIteratorTypeID {
         true
     } else if let pointer = UnsafeMutableRawPointer(bitPattern: iteratorRaw),
               runtimeIsObjectPointer(pointer),
-              let iterator = tryCast(pointer, to: RuntimeObjectBox.self),
-              let source = iterator.values.first?.legacyRawValue
+              let iterator = tryCast(pointer, to: RuntimeObjectBox.self)
     {
-        // Library-produced object literals may use classID 0, but the
-        // KSP-409 iterator still captures its CharSequence as the first slot.
-        runtimeStringFromRaw(source) != nil
+        // Library-produced object literals may use a generated class ID, but
+        // Source-backed CharSequence iterators capture their CharSequence in an object field.
+        iterator.values.contains { runtimeStringFromRaw($0.legacyRawValue) != nil }
     } else {
         false
     }
