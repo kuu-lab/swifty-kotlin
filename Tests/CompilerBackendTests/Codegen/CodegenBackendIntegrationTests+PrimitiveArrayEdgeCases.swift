@@ -204,7 +204,7 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
                 [c, b, a]
                 [4, 3, 2, 1]
                 [30, 20, 10]
-                [0, 0, 1]
+                [false, false, true]
                 []
                 """
                 + "\n"
@@ -316,7 +316,7 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
                 [d, a]
                 [2, 3, 4]
                 [30, 10]
-                [1, 0]
+                [true, false]
                 """
                 + "\n"
         )
