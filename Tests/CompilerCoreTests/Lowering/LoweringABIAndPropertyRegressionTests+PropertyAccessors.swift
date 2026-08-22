@@ -929,9 +929,14 @@ extension LoweringABIAndPropertyRegressionTests {
 
                     // Verify that readComputed() was lowered so that the read of
                     // "computed" became a getter accessor call (not loadGlobal).
+                    // KSP-491 adds LazyImpl.computed to bundled source; qualify the
+                    // fixture's top-level symbol instead of selecting a same-named
+                    // private stdlib property.
                     let computedPropSym = try #require(
                         sema.symbols.allSymbols().first(where: {
-                            $0.kind == .property && $0.name == computedName
+                            $0.kind == .property
+                                && $0.name == computedName
+                                && $0.fqName == [interner.intern("test"), computedName]
                         }),
                         "computed property symbol not found"
                     )
