@@ -137,30 +137,6 @@ public extension RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_duration_to_java_duration",
-            parameters: [
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_unit_to_time_unit",
-            parameters: [
-                RuntimeABIParameter(name: "unitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_unit_to_duration_unit",
-            parameters: [
-                RuntimeABIParameter(name: "timeUnitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_timedvalue_new",
             parameters: [
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
