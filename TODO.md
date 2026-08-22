@@ -2375,7 +2375,7 @@
     - `kotlin.DoubleArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.DoubleArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Double>)`
 
-- [ ] KSP-835: kotlin.DslMarker top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-835: kotlin.DslMarker top-level の未実装 stdlib API を実装する（1 件）。完了確認（2026-08-23、merged PR #5851 / merge commit 7bc2a8c3da89a2af77694966107bb23b276aaf7f）：現行 `Sources/CompilerCore/Stdlib/kotlin/DslMarker.kt` の source-backed `public annotation class DslMarker`（括弧・secondary constructorなし）は `HeaderCollection.swift` の暗黙 primary constructor 登録により `kotlin.DslMarker.<init>()` を非syntheticで登録する。既存 `stdlib_kotlin_n_DslMarker` Golden/diff と `AnnotationSemanticTests` が現行 surface を検証し、KSP-731 で旧synthetic stub は削除済み。Runtime/ABI 固有変更なし。
   - 対象: `kotlin.DslMarker` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DslMarker/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
