@@ -468,6 +468,16 @@ struct SequenceSyntheticMemberLinkTests {
         val values = sequenceOf(5, 2, 3)
         return values.minByOrNull { value -> value % 3 }
         }
+
+        fun joinedValuesJoinToString(): String {
+        val values = sequenceOf(1, 2, 3)
+        return values.joinToString(",")
+        }
+
+        fun joinedValuesJoinTo(): StringBuilder {
+        val values = sequenceOf(1, 2, 3)
+        return values.joinTo(StringBuilder())
+        }
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
@@ -1092,6 +1102,32 @@ struct SequenceSyntheticMemberLinkTests {
         // testSequenceMaxByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
 
         // testSequenceMinByOrNullResolvesInCallExpressions -> no additional link assertion (source only)
+
+        do {
+            // testSequenceJoinToStringResolvesInCallExpressions -> Sequence.joinToString
+            // KSP-621: shares Iterables.kt's appendJoinToPlain/appendJoinToTransform
+            // via iterator(), so no bundled external link (source-backed).
+            let memberFQNameJoinToString = ["kotlin", "sequences", "Sequence", "joinToString"].map { ctx.interner.intern($0) }
+            let linksJoinToString = Set(
+                sema.symbols.lookupAll(fqName: memberFQNameJoinToString).compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            #expect(
+                linksJoinToString.isEmpty,
+                "Expected Sequence.joinToString to be backed by source, got \(linksJoinToString.sorted())"
+            )
+        }
+
+        do {
+            // testSequenceJoinToResolvesInCallExpressions -> Sequence.joinTo
+            let memberFQNameJoinTo = ["kotlin", "sequences", "Sequence", "joinTo"].map { ctx.interner.intern($0) }
+            let linksJoinTo = Set(
+                sema.symbols.lookupAll(fqName: memberFQNameJoinTo).compactMap { sema.symbols.externalLinkName(for: $0) }
+            )
+            #expect(
+                linksJoinTo.isEmpty,
+                "Expected Sequence.joinTo to be backed by source, got \(linksJoinTo.sorted())"
+            )
+        }
         }
     }
 

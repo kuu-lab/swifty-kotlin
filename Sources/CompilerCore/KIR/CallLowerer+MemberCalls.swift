@@ -4,27 +4,20 @@
 /// Specialized lowering families live in adjacent `CallLowerer+*MemberCall*.swift` files.
 extension CallLowerer {
     // KSP-496: simpleName/qualifiedName/isInstance/cast/safeCast/the boolean
-    // flags/visibility/annotations moved to ordinary Kotlin extension
-    // declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
+    // flags/visibility/annotations/members/constructors/primaryConstructor/
+    // memberProperties/declaredMemberProperties/functions/memberFunctions/
+    // declaredMemberFunctions/nestedClasses/supertypes moved to ordinary
+    // Kotlin extension declarations (Sources/CompilerCore/Stdlib/kotlin/reflect/).
     //
     // The remaining names stay here:
     // - findAnnotation/findAssociatedObject take a reified type argument,
     //   which this compiler only supports via a small special-cased
     //   allowlist (like typeOf<T>()).
-    // - members/constructors/primaryConstructor/properties/memberProperties/
-    //   declaredMemberProperties/functions/memberFunctions/
-    //   declaredMemberFunctions/nestedClasses/supertypes return a
-    //   KFunction/KCallable/KClass/KType-shaped collection or value backed by
-    //   a runtime handle. Reflection handles carry stable nominal IDs, and
-    //   KCallable.name dispatches across function, constructor, and property
-    //   boxes. The collection APIs remain compiler special cases because their
-    //   generic public signatures are not yet represented by bundled Kotlin.
+    // - properties is not a real kotlin-stdlib name (only the `member`/
+    //   `declaredMember`-prefixed variants exist upstream); diff cases rely
+    //   on freely shadowing it with a real user-declared extension.
     private static let kclassMembers: Set<String> = [
-        "findAnnotation", "findAssociatedObject",
-        "members", "constructors", "primaryConstructor",
-        "properties", "memberProperties", "declaredMemberProperties",
-        "functions", "memberFunctions", "declaredMemberFunctions",
-        "nestedClasses", "supertypes",
+        "findAnnotation", "findAssociatedObject", "properties",
     ]
 
     func lowerMemberCallExpr(
@@ -132,6 +125,23 @@ extension CallLowerer {
             instructions: &instructions.instructions
         ) {
             return primitiveCompareResult
+        }
+
+        // ── Number.toDouble/toFloat/toLong/toInt/toShort/toByte() on an erased
+        //    receiver → kk_number_to_primitive(receiver, slot, kind) (KSP-1540) ──
+        if let numberConversionResult = tryLowerNumberConversion(
+            exprID,
+            receiverExpr: receiverExpr,
+            calleeName: calleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) {
+            return numberConversionResult
         }
 
         let callee = interner.resolve(calleeName)
@@ -420,6 +430,17 @@ extension CallLowerer {
             exprID, args: args, sema: sema, arena: arena, interner: interner,
             instructions: &instructions.instructions
         ) { return objProp }
+        if let fqnTopLevelResult = tryLowerFQNTopLevelResolvedCall(
+            exprID,
+            calleeName: effectiveCalleeName,
+            args: args,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
+            instructions: &instructions.instructions
+        ) { return fqnTopLevelResult }
         return lowerMemberLikeCallExpr(
             exprID,
             receiverExpr: receiverExpr,

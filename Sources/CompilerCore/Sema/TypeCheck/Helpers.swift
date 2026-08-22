@@ -100,6 +100,52 @@ struct TypeCheckHelpers {
         }
     }
 
+    /// Returns true only for the plain `kotlin.collections.Iterable` interface.
+    ///
+    /// A range expression uses its element type as the intermediate Sema type,
+    /// so `LocalDeclTypeChecker` needs a narrow exemption for an explicitly
+    /// annotated `Iterable<T>`. Concrete collection types and other iterable
+    /// classes still require the normal subtype constraint.
+    func isPlainIterableType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        return symbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+    }
+
+    /// Returns the element argument from a plain `kotlin.collections.Iterable` type.
+    ///
+    /// This deliberately reads the resolved nominal argument instead of asking
+    /// `iterableElementType` to inspect the synthetic `iterator()` member. The
+    /// latter can expose the declaration's unsubstituted `E` type parameter for
+    /// the interface itself.
+    func plainIterableElementType(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard isPlainIterableType(type, sema: sema, interner: interner),
+              let (classType, _) = resolveClassTypeSymbol(type, sema: sema),
+              let elementArgument = classType.args.first
+        else {
+            return nil
+        }
+        switch elementArgument {
+        case let .invariant(element), let .out(element), let .in(element):
+            return element
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
     func isOpenEndRangeType(
         _ type: TypeID,
         sema: SemaModule,
@@ -603,6 +649,39 @@ struct TypeCheckHelpers {
                             return expanded
                         }
                         // Fall through to classType for error recovery
+                    }
+                    if let sym = sema.symbols.symbol(symbolID),
+                       symbolID == sema.types.kClassInterfaceSymbol
+                        || sym.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
+                    {
+                        // Preserve star and contravariant KClass projections in the
+                        // nominal representation. A covariant projection is
+                        // equivalent to the dedicated KClass<T> representation.
+                        if let firstArg = resolvedArgs.first {
+                            switch firstArg {
+                            case .star, .in:
+                                return sema.types.make(.classType(ClassType(
+                                    classSymbol: symbolID,
+                                    args: resolvedArgs,
+                                    nullability: nullability
+                                )))
+                            case .invariant, .out:
+                                break
+                            }
+                        }
+                        let argumentType: TypeID = if let firstArg = resolvedArgs.first {
+                            switch firstArg {
+                            case let .invariant(t):
+                                t
+                            case .star:
+                                sema.types.anyType
+                            case let .out(t), let .in(t):
+                                t
+                            }
+                        } else {
+                            sema.types.anyType
+                        }
+                        return sema.types.makeKClassType(argument: argumentType, nullability: nullability)
                     }
                     return sema.types.make(.classType(ClassType(
                         classSymbol: symbolID,

@@ -50,6 +50,7 @@ internal external fun __lazySyncUnlock(lock: Any): Unit
 internal class LazyImpl<T>(
     private val initializer: () -> T,
     private val mode: LazyThreadSafetyMode,
+    private val synchronizationLock: Any?,
     initialValue: Any?,
     initialComputed: Boolean
 ) : Lazy<T> {
@@ -63,30 +64,58 @@ internal class LazyImpl<T>(
     // ordinary member function body.
     @Suppress("UNCHECKED_CAST")
     private fun computeValue(): T {
-        if (!computed) {
-            if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
-                __lazySyncLock(this)
-                try {
-                    if (!computed) {
-                        cached = initializer()
-                        computed = true
-                    }
-                } finally {
-                    __lazySyncUnlock(this)
-                }
-            } else {
-                // NONE / PUBLICATION: no locking bridge (KSP-491 scope). Under
-                // genuine concurrent access this does not provide the safe-
-                // publication guarantee real Kotlin's PUBLICATION mode makes;
-                // it behaves like NONE. Single-threaded callers (this
-                // compiler's diff/golden coverage) observe identical results.
+        if (mode == LazyThreadSafetyMode.PUBLICATION) {
+            return computePublicationValue()
+        }
+        if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
+            // Keep every read under the same monitor as initialization. A
+            // double-checked fast path would require volatile storage for
+            // `cached` and `computed`, which is not available here.
+            val lock = synchronizationLock ?: this
+            __lazySyncLock(lock)
+            try {
                 if (!computed) {
                     cached = initializer()
                     computed = true
                 }
+                return cached as T
+            } finally {
+                __lazySyncUnlock(lock)
             }
         }
+        if (!computed) {
+            cached = initializer()
+            computed = true
+        }
         return cached as T
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun computePublicationValue(): T {
+        // PUBLICATION may run the initializer more than once, but only the
+        // first completed value is published. Synchronize the state checks
+        // and commit so a published value is never overwritten.
+        var published: Any? = null
+        var wasInitialized = false
+        synchronized(this) {
+            if (computed) {
+                published = cached
+                wasInitialized = true
+            }
+        }
+        if (wasInitialized) {
+            return published as T
+        }
+
+        val candidate = initializer()
+        synchronized(this) {
+            if (!computed) {
+                cached = candidate
+                computed = true
+            }
+            published = cached
+        }
+        return published as T
     }
 
     override val value: T get() = computeValue()
@@ -97,14 +126,17 @@ internal class LazyImpl<T>(
 }
 
 public fun <T> lazy(initializer: () -> T): Lazy<T> =
-    LazyImpl(initializer, LazyThreadSafetyMode.SYNCHRONIZED, null, false)
+    LazyImpl(initializer, LazyThreadSafetyMode.SYNCHRONIZED, null, null, false)
+
+public fun <T> lazy(lock: Any?, initializer: () -> T): Lazy<T> =
+    LazyImpl(initializer, LazyThreadSafetyMode.SYNCHRONIZED, lock, null, false)
 
 // `initializer` carries a default for the same reason `Delegates.observable`'s
 // `onChange` does (see Delegates.kt): `by lazy(mode) { ... }`'s trailing lambda
 // never reaches this call's argument list, so lowering supplies the real
 // initializer directly when constructing the delegate object.
 public fun <T> lazy(mode: LazyThreadSafetyMode, initializer: () -> T = { throw IllegalStateException() }): Lazy<T> =
-    LazyImpl(initializer, mode, null, false)
+    LazyImpl(initializer, mode, null, null, false)
 
 public fun <T> lazyOf(value: T): Lazy<T> =
-    LazyImpl<T>({ throw IllegalStateException("unreachable: lazyOf's value is pre-seeded") }, LazyThreadSafetyMode.NONE, value, true)
+    LazyImpl<T>({ throw IllegalStateException("unreachable: lazyOf's value is pre-seeded") }, LazyThreadSafetyMode.NONE, null, value, true)

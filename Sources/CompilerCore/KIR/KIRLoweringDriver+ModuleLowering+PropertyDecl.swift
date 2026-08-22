@@ -369,17 +369,30 @@ extension KIRLoweringDriver {
             delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: symbol,
             paramCount: 0, shared: shared, emit: &initInstructions
         )
+        let lockValue = LazyThreadSafetyModeLowering.lockExpression(
+            from: propertyDecl.delegateExpression,
+            ast: shared.ast,
+            sema: shared.sema,
+            interner: interner
+        ).map { lowerExpr($0, shared: shared, emit: &initInstructions) }
         let modeExpr = lowerLazyModeExpr(
             delegateExpression: propertyDecl.delegateExpression,
             shared: shared, compilationCtx: compilationCtx, emit: &initInstructions
         )
+        let lockArgument: KIRExprID
+        if let lockValue {
+            lockArgument = lockValue
+        } else {
+            lockArgument = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+            initInstructions.append(.constValue(result: lockArgument, value: .null))
+        }
         let initialValueExpr = arena.appendExpr(.unit, type: sema.types.anyType)
         initInstructions.append(.constValue(result: initialValueExpr, value: .null))
         let initialComputedExpr = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
         initInstructions.append(.constValue(result: initialComputedExpr, value: .boolLiteral(false)))
         guard let ctorSymbol = stdlibDelegateSymbol(
             fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
-            parameterCount: 4, sema: sema
+            parameterCount: 5, sema: sema
         ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
             preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
         }
@@ -390,7 +403,7 @@ extension KIRLoweringDriver {
         let createResult = arena.appendTemporary(type: delegateType)
         initInstructions.append(.call(
             symbol: ctorSymbol, callee: interner.intern("<init>"),
-            arguments: [allocatedObj, lambdaFnPtr, modeExpr, initialValueExpr, initialComputedExpr],
+            arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
             result: createResult, canThrow: false, thrownResult: nil
         ))
         initInstructions.append(.storeGlobal(value: createResult, symbol: delegateStorageSymbol))
@@ -412,7 +425,12 @@ extension KIRLoweringDriver {
         if let exprID = delegateExpression,
            let expr = ast.arena.expr(exprID),
            case let .call(_, _, args, _) = expr,
-           let modeArg = args.first
+           let modeArg = args.first(where: { argument in
+               guard let type = shared.sema.bindings.exprTypes[argument.expr] else { return false }
+               return LazyThreadSafetyModeLowering.isModeType(
+                   type, sema: shared.sema, interner: interner
+               )
+           })
         {
             return lowerExpr(modeArg.expr, shared: shared, emit: &instructions)
         }

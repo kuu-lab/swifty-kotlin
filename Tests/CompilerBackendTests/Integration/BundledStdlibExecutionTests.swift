@@ -13,7 +13,8 @@ struct BundledStdlibExecutionTests {
     }
 
     /// Compile `source` to an executable, run it, and assert stdout equals `expectedOutput`.
-    private func compileAndRunKotlin(
+    /// Not `private`: reused by other `BundledStdlibExecutionTests+*.swift` extension files.
+    func compileAndRunKotlin(
         _ source: String,
         expectedOutput: String,
         moduleName: String = "ExecTest"
@@ -216,6 +217,29 @@ struct BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: "42\n1\nhello\nboom\n"
+        )
+    }
+
+    // KSP-781 regression: PUBLICATION may evaluate an initializer more than
+    // once under contention, but every read must observe the first published
+    // value rather than a later initializer result.
+    @Test
+    func testLazyPublicationKeepsPublishedValue() throws {
+        try compileAndRunKotlin(
+            """
+            fun main() {
+                var count = 0
+                val value = lazy(LazyThreadSafetyMode.PUBLICATION) {
+                    count += 1
+                    count
+                }
+                println(value.isInitialized())
+                println(value.value)
+                println(value.value)
+                println(count)
+            }
+            """,
+            expectedOutput: "false\n1\n1\n1\n"
         )
     }
 

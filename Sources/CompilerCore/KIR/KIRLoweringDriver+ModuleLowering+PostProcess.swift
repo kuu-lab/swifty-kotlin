@@ -130,7 +130,12 @@ extension KIRLoweringDriver {
             {
                 if copyTargetExprs.contains(res) {
                     targets[res] = sym
-                    result.append(instruction)
+                    // This symbol reference is only the marker pairing the
+                    // assignment target with its following copy. The copy is
+                    // rewritten to the delegate setter below, so retaining
+                    // the marker would let PropertyLowering reinterpret it as
+                    // a getter read before the setter (notably breaking an
+                    // uninitialized `Delegates.notNull()` property).
                 } else {
                     result.append(
                         .call(

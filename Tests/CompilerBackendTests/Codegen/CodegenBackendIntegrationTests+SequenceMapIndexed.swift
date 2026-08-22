@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -92,13 +93,20 @@ struct CodegenBackendSequenceMapIndexedTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceMapIndexedKIR", emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "SequenceMapIndexedKIR",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("mapIndexed"), "Sequence.mapIndexed is source-backed (KSP-441); expected 'mapIndexed' callee, got: \(callees)")
+            // The artifact may inline this Kotlin source implementation, so a
+            // direct mapIndexed callee is not stable in consumer KIR.  The
+            // imported sequence factory and retired-bridge absence are stable.
+            #expect(containsKotlinCallee("sequenceOf", in: callees))
             #expect(!callees.contains("kk_sequence_mapIndexed"), "Sequence.mapIndexed should no longer route through the retired native bridge, got: \(callees)")
         }
     }

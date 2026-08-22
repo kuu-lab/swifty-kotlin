@@ -58,7 +58,7 @@ extension DataFlowSemaPhase {
     }
 
     // Used only by residual platform/coroutine exception stubs. KSP-656's
-    // common exception constructors are declared directly in Exceptions.kt.
+    // common exception constructors are declared directly in bundled Kotlin source.
     func registerSyntheticPlatformExceptionConstructors(
         ownerSymbol: SymbolID,
         ownerType: TypeID,

@@ -311,18 +311,14 @@ struct ExceptionSyntheticStubTests {
             ("Exception", "Throwable", [0, 1, 2, 1], [
                 "__kk_exception_new", "__kk_exception_new_message", "__kk_exception_new_message_cause", "__kk_exception_new_cause",
             ]),
-            ("RuntimeException", "Exception", [0, 1, 2, 1], [
-                "__kk_runtime_exception_new", "__kk_runtime_exception_new_message", "__kk_runtime_exception_new_message_cause", "__kk_runtime_exception_new_cause",
-            ]),
+            ("RuntimeException", "Exception", [0, 1, 2, 1], []),
             ("IllegalArgumentException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_illegal_argument_exception_new", "__kk_illegal_argument_exception_new_message", "__kk_illegal_argument_exception_new_message_cause", "__kk_illegal_argument_exception_new_cause",
             ]),
             ("IllegalStateException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_illegal_state_exception_new", "__kk_illegal_state_exception_new_message", "__kk_illegal_state_exception_new_message_cause", "__kk_illegal_state_exception_new_cause",
             ]),
-            ("IndexOutOfBoundsException", "RuntimeException", [0, 1], [
-                "__kk_index_out_of_bounds_exception_new", "__kk_index_out_of_bounds_exception_new_message",
-            ]),
+            ("IndexOutOfBoundsException", "RuntimeException", [0, 1], []),
             ("ArrayIndexOutOfBoundsException", "IndexOutOfBoundsException", [0, 1], [
                 "__kk_array_index_out_of_bounds_exception_new", "__kk_array_index_out_of_bounds_exception_new_message",
             ]),
@@ -332,12 +328,8 @@ struct ExceptionSyntheticStubTests {
             ("UnsupportedOperationException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_unsupported_operation_exception_new", "__kk_unsupported_operation_exception_new_message", "__kk_unsupported_operation_exception_new_message_cause", "__kk_unsupported_operation_exception_new_cause",
             ]),
-            ("NumberFormatException", "IllegalArgumentException", [0, 1], [
-                "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
-            ]),
-            ("NullPointerException", "RuntimeException", [0, 1], [
-                "__kk_null_pointer_exception_new", "__kk_null_pointer_exception_new_message",
-            ]),
+            ("NumberFormatException", "IllegalArgumentException", [0, 1], []),
+            ("NullPointerException", "RuntimeException", [0, 1], []),
             ("ClassCastException", "RuntimeException", [0, 1], [
                 "__kk_class_cast_exception_new", "__kk_class_cast_exception_new_message",
             ]),
@@ -373,7 +365,7 @@ struct ExceptionSyntheticStubTests {
             let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
                 sema.symbols.symbol($0)?.kind == .constructor
             }
-            #expect(constructors.count == entry.links.count)
+            #expect(constructors.count == entry.arities.count)
             let arities = constructors.compactMap { sema.symbols.functionSignature(for: $0)?.parameterTypes.count }.sorted()
             #expect(arities == entry.arities.sorted())
             let links = constructors.compactMap { sema.symbols.externalLinkName(for: $0) }

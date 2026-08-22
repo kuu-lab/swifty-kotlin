@@ -165,6 +165,84 @@ extension LambdaLowerer {
         return classType.classSymbol
     }
 
+    /// True when `symbol` is an ordinary `class` declaration — i.e.
+    /// something whose instances a plain `this` receiver capture is known to
+    /// work correctly for. Used to distinguish a bare `::member` reference
+    /// to an instance member of the enclosing class (needs an
+    /// implicit-receiver capture) from one to a genuine top-level
+    /// declaration (`parentSymbol` is nil, so no capture applies).
+    ///
+    /// Deliberately narrower than "has instances a `this` could refer to"
+    /// (which would also include `.interface`/`.object`/`.enumClass`):
+    ///
+    /// - `.object` (a genuine singleton owner — companion object or plain
+    ///   `object`) is excluded *by design*, not merely restricted pending a
+    ///   fix: Kotlin guarantees exactly one instance for these, so
+    ///   `ensurePropertyReferenceAccessor` (see
+    ///   LambdaLowerer+PropertyReferenceLowering.swift) reads/writes a
+    ///   single module-level global slot instead of a per-instance field —
+    ///   there is no receiver for a capture to usefully carry. See
+    ///   `lowerCallableRefExpr`'s `isSingletonOwnedPropertyRef` check, which
+    ///   handles this case (for both bare and explicit-receiver forms)
+    ///   ahead of this function.
+    /// - `.enumClass` is excluded too, but for the opposite reason: unlike
+    ///   `.object`, an enum class has multiple instances (one per entry), so
+    ///   a property declared directly in its own body is a genuine
+    ///   per-instance field, not shared global storage — confirmed by
+    ///   testing that treating it like `.object` (no capture, global-slot
+    ///   accessor) silently reads back `0` for every entry instead of each
+    ///   entry's own value. Whether making it capture-eligible *would* work
+    ///   correctly (the way `.class` does) was not verified this round —
+    ///   left excluded/untouched rather than risked. A property declared
+    ///   inside one specific *entry's own body* (`A { val x = 5 }`) might be
+    ///   a distinct, safely includable case — its owner could plausibly be
+    ///   that entry's own synthesized subclass rather than `.enumClass`
+    ///   itself — but this could not be verified either: referencing an
+    ///   entry with a body at all (`EnumClass.ENTRY`) hits a separate,
+    ///   pre-existing, unrelated bug (see docs/diff-skip-inventory.md's
+    ///   `enum_edge_cases.kt` entry).
+    /// - `.interface` is excluded because interface-owned properties have no
+    ///   storage of their own (always dispatched through whichever class
+    ///   implements them) — this capture path doesn't handle that case yet.
+    func isCaptureEligibleInstanceContainerSymbol(_ symbol: SymbolID, sema: SemaModule) -> Bool {
+        sema.symbols.symbol(symbol)?.kind == .class
+    }
+
+    /// True when `implicitReceiver`'s KIR-level type is `ownerSymbol` itself
+    /// or a subtype of it — i.e. it's actually safe to treat as the `this`
+    /// for a member of `ownerSymbol`.
+    ///
+    /// `driver.ctx.activeImplicitReceiverExprID()` reflects whichever
+    /// receiver-introducing scope is innermost at the current lowering
+    /// point (KIRLoweringContext keeps only one "current" receiver, not a
+    /// stack), which is *not* always the property's own enclosing instance
+    /// — e.g. inside `with(sb) { ::v }`, it's `sb` while `v` belongs to the
+    /// outer class. Capturing a mismatched receiver would make the
+    /// generated accessor read/write the wrong object's fields.
+    func implicitReceiverMatchesOwner(
+        _ implicitReceiver: KIRExprID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena
+    ) -> Bool {
+        guard let receiverType = arena.exprType(implicitReceiver) else {
+            return false
+        }
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard let receiverSymbol = nominalSymbol(for: nonNullReceiverType, types: sema.types) else {
+            return false
+        }
+        if receiverSymbol == ownerSymbol {
+            return true
+        }
+        let ownerType = sema.types.make(.classType(ClassType(
+            classSymbol: ownerSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        return sema.types.isSubtype(nonNullReceiverType, ownerType)
+    }
+
     func computeCaptureSymbolsForLambda(
         lambdaExprID: ExprID,
         lambdaParamCount: Int,
@@ -329,6 +407,17 @@ extension LambdaLowerer {
             return check(condition) || check(body)
         case let .doWhileExpr(body, condition, _, _):
             return check(body) || check(condition)
+        case let .objectLiteral(_, declID, _):
+            // KSP-CAP-018: `superTypeConstructorArgs` (`object : Base(this.x) { ... }`)
+            // is lowered wherever the object literal itself sits, so an implicit
+            // receiver member access there must still be seen here.
+            guard let declID,
+                  let decl = ast.arena.decl(declID),
+                  case let .objectDecl(objectDecl) = decl
+            else {
+                return false
+            }
+            return objectDecl.superTypeConstructorArgs.contains { check($0.expr) }
         default:
             return false
         }

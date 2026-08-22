@@ -54,6 +54,10 @@ final class KIRLoweringContext {
 
     // MARK: - Module-Level State (accumulated across entire pass)
 
+    /// Compiler-selected mode used when a local `by lazy` declaration is
+    /// lowered to the runtime-backed delegate representation.
+    var lazyThreadSafetyMode: LazyDelegateThreadSafetyMode = .synchronized
+
     private var functionDefaultArgumentsBySymbol: [SymbolID: [ExprID?]] = [:]
     var pendingGeneratedCallableDeclIDs: [KIRDeclID] = []
     var callableValueInfoByExprID: [KIRExprID: KIRCallableValueInfo] = [:]

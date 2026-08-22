@@ -76,7 +76,19 @@ final class TypeCheckSemaPhase: CompilerPhase {
             interner: ctx.interner
         )
 
-        driver.typeCheckModule(fileScopes: fileScopes, files: ast.files)
+        // Expression type inference recurses with large per-frame contexts
+        // (`TypeInferenceContext` is threaded by value through every call).
+        // Swift Testing executes tests as tasks on the Swift Concurrency
+        // cooperative pool, whose threads have 512 KiB stacks, so type-checking
+        // even moderately nested call/lambda chains there can overflow and
+        // crash with SIGBUS (signal 10). Run it on a big-stack thread so
+        // recursion headroom is independent of the calling thread, matching
+        // `BuildKIRPhase`'s handling of the same class of issue in lowering.
+        let work = TypeCheckWork(driver: driver, fileScopes: fileScopes, files: ast.files)
+        try LargeStackExecutor.run {
+            work.run()
+        }
+
         for declID in lazyBoundDecls where activeDeclIDs.contains(declID) && sema.bindings.declSymbols[declID] == nil {
             let declRange: SourceRange? = if let decl = ast.arena.decl(declID) {
                 switch decl {
@@ -139,5 +151,25 @@ final class TypeCheckSemaPhase: CompilerPhase {
         {
             collectObjectLiteralDeclTree(childDeclID, ast: ast, into: &declsToSkip)
         }
+    }
+}
+
+/// Holds the non-`Sendable` type-checking inputs and exposes a `@Sendable`
+/// callable surface so the large-stack thread can run `typeCheckModule`
+/// without capturing non-`Sendable` values through `withoutActuallyEscaping`
+/// closures.
+private final class TypeCheckWork: @unchecked Sendable {
+    let driver: TypeCheckDriver
+    let fileScopes: [Int32: FileScope]
+    let files: [ASTFile]
+
+    init(driver: TypeCheckDriver, fileScopes: [Int32: FileScope], files: [ASTFile]) {
+        self.driver = driver
+        self.fileScopes = fileScopes
+        self.files = files
+    }
+
+    func run() {
+        driver.typeCheckModule(fileScopes: fileScopes, files: files)
     }
 }

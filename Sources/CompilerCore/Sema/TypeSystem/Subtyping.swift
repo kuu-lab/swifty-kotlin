@@ -304,10 +304,10 @@ extension TypeSystem {
             return isSubtype(leftFunction.returnType, rightFunction.returnType)
 
         case let (.functionType(leftFunction), .classType(rightClass)):
-            // STDLIB-REFLECT-063: A function type (e.g. (String) -> String) is a subtype of
-            // KFunction<R> so that `val f: KFunction<String> = ::greet` compiles.
-            guard let kFuncSym = kFunctionInterfaceSymbol,
-                  rightClass.classSymbol == kFuncSym
+            // Function types are subtypes of the common `kotlin.Function<R>`
+            // interface as well as `kotlin.reflect.KFunction<R>`.
+            guard rightClass.classSymbol == functionInterfaceSymbol
+                || rightClass.classSymbol == kFunctionInterfaceSymbol
             else {
                 return false
             }
@@ -417,6 +417,26 @@ extension TypeSystem {
                 if case .star = $0 { return true }
                 return false
             }
+
+        case let (.classType(leftClass), .kClassType(rightKClass)):
+            guard let kClassSymbol = kClassInterfaceSymbol,
+                  nullabilitySubtype(leftClass.nullability, rightKClass.nullability)
+            else {
+                return false
+            }
+            if leftClass.classSymbol == kClassSymbol {
+                if leftClass.args.isEmpty { return isSubtype(anyType, rightKClass.argument) }
+                guard leftClass.args.count == 1 else { return false }
+                switch leftClass.args[0] {
+                case .star:
+                    return isSubtype(anyType, rightKClass.argument)
+                case let .out(type), let .invariant(type):
+                    return isSubtype(type, rightKClass.argument)
+                case let .in(type):
+                    return isSubtype(type, rightKClass.argument)
+                }
+            }
+            return false
 
         default:
             return false

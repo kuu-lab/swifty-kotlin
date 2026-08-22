@@ -371,7 +371,7 @@ struct LocalDelegatePropertyKIRTests {
             #expect(virtualCallees.contains("getValue"), "read must query the delegate, got: \(virtualCallees)")
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
             #expect(
-                !callees.contains("observable") && !callees.contains("kk_observable_create"),
+                callees.contains("observable") && !callees.contains("kk_observable_create"),
                 "the Delegates.observable factory call must resolve to the real bundled implementation, got: \(callees)"
             )
         }

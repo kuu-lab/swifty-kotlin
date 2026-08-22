@@ -1199,6 +1199,40 @@ final class LambdaLowerer {
     ) -> KIRExprID {
         let boundType = sema.bindings.exprTypes[exprID]
         let isUnbound = sema.bindings.isUnboundCallableRef(exprID)
+        let targetSymbol = resolveCallableRefTargetSymbol(
+            exprID: exprID,
+            receiverExpr: receiverExpr,
+            memberName: memberName,
+            sema: sema
+        )
+        // KSP-505: a property ref whose owner is a genuine singleton
+        // (`.object` — companion object or plain `object`) never captures a
+        // receiver, in *either* bare or explicit-receiver form. Kotlin
+        // guarantees exactly one instance for these, so
+        // ensurePropertyReferenceAccessor (in
+        // LambdaLowerer+PropertyReferenceLowering.swift) reads/writes a
+        // single module-level global slot rather than a per-instance field —
+        // there is nothing for a captured receiver to do. Capturing one
+        // anyway (e.g. the explicit-receiver branch below unconditionally
+        // did before this fix) mismatches that accessor's now-receiver-less
+        // signature and previously crashed: for singletons that implement no
+        // interface and declare no virtual dispatch, no real heap instance
+        // is ever allocated, so the "receiver" being captured was frequently
+        // a null placeholder in the first place.
+        //
+        // Deliberately excludes `.enumClass`: unlike `.object`, an enum
+        // class has multiple instances (one per entry), so a property
+        // declared directly in its own body is a genuine per-instance field,
+        // not shared global storage — confirmed by testing (see the matching
+        // note in ExprTypeChecker+NameLambdaAndCallableRefInference.swift).
+        let isSingletonOwnedPropertyRef: Bool = {
+            guard sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                  let targetSymbol,
+                  let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
+                  let parentKind = sema.symbols.symbol(parentSymbol)?.kind
+            else { return false }
+            return parentKind == .object
+        }()
         var captureArguments: [KIRExprID] = []
         if let receiverExpr {
             let loweredReceiver = driver.lowerExpr(
@@ -1212,17 +1246,46 @@ final class LambdaLowerer {
             )
             // For unbound type references (Type::member), the receiver is
             // not captured — it becomes a parameter of the function type.
-            if !isUnbound {
+            if !isUnbound, !isSingletonOwnedPropertyRef {
                 captureArguments.append(loweredReceiver)
             }
+        } else if !isUnbound,
+                  !isSingletonOwnedPropertyRef,
+                  sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+                  let targetSymbol,
+                  let parentSymbol = sema.symbols.parentSymbol(for: targetSymbol),
+                  isCaptureEligibleInstanceContainerSymbol(parentSymbol, sema: sema),
+                  let implicitReceiver = driver.ctx.activeImplicitReceiverExprID(),
+                  implicitReceiverMatchesOwner(
+                      implicitReceiver,
+                      ownerSymbol: parentSymbol,
+                      sema: sema,
+                      arena: arena
+                  )
+        {
+            // KSP-496: a bare `::member` reference to a member property of the
+            // enclosing class is implicitly bound to `this` in Kotlin (the
+            // same shape as an explicit `this::member`), so it needs the same
+            // receiver capture — otherwise the generated wrapper's accessor
+            // has no instance to read/write, and calling `.get()`/`.set()`
+            // on it crashes (KSWIFTK-RUNTIME-0001 out-of-bounds read).
+            //
+            // Restricted to `.class` (see
+            // isCaptureEligibleInstanceContainerSymbol; singleton owners are
+            // excluded above, not here) and guarded by
+            // implicitReceiverMatchesOwner: the implicit receiver at this
+            // lowering point is a single "current" value (KIRLoweringContext
+            // has no receiver stack), so it can be a *different*
+            // receiver-scope's instance — e.g. `with(sb) { ::v }` inside a
+            // member function sees `sb` (StringBuilder), not `this` (the
+            // property's real owner), while it's active. When this guard
+            // doesn't hold, no capture is added and the reference falls
+            // through to the same (pre-existing, argument-count-mismatch)
+            // crash bare `::member` already had for a receiver it can't
+            // safely resolve — not memory corruption from reading a
+            // wrong-typed object's fields.
+            captureArguments.append(implicitReceiver)
         }
-
-        let targetSymbol = resolveCallableRefTargetSymbol(
-            exprID: exprID,
-            receiverExpr: receiverExpr,
-            memberName: memberName,
-            sema: sema
-        )
 
         // BUG-162: KProperty0/1 references need a real object implementing the
         // bundled KProperty and Function interfaces. A raw property symbol is

@@ -614,17 +614,30 @@ extension KIRLoweringDriver {
                 delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
+            let lockValue = LazyThreadSafetyModeLowering.lockExpression(
+                from: propertyDecl.delegateExpression,
+                ast: shared.ast,
+                sema: shared.sema,
+                interner: interner
+            ).map { lowerExpr($0, shared: shared, emit: &body) }
             let modeExpr = lowerLazyModeExpr(
                 delegateExpression: propertyDecl.delegateExpression,
                 shared: shared, compilationCtx: compilationCtx, emit: &body
             )
+            let lockArgument: KIRExprID
+            if let lockValue {
+                lockArgument = lockValue
+            } else {
+                lockArgument = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+                body.append(.constValue(result: lockArgument, value: .null))
+            }
             let initialValueExpr = arena.appendExpr(.unit, type: sema.types.anyType)
             body.append(.constValue(result: initialValueExpr, value: .null))
             let initialComputedExpr = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
             body.append(.constValue(result: initialComputedExpr, value: .boolLiteral(false)))
             guard let ctorSymbol = stdlibDelegateSymbol(
                 fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
-                parameterCount: 4, sema: sema
+                parameterCount: 5, sema: sema
             ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
                 preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
             }
@@ -635,7 +648,7 @@ extension KIRLoweringDriver {
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
                 symbol: ctorSymbol, callee: interner.intern("<init>"),
-                arguments: [allocatedObj, lambdaFnPtr, modeExpr, initialValueExpr, initialComputedExpr],
+                arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .observable, .vetoable:

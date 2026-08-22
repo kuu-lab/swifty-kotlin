@@ -253,13 +253,14 @@ public func kk_unbox_ulong(_ obj: Int) -> Int {
 @_cdecl("kk_box_float")
 public func kk_box_float(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
-    // If the value is already a registered runtime object, pass it through
-    // without double-boxing so source-level println() preserves the value.
+    // Preserve an already boxed Float, but do not treat an unrelated runtime
+    // object handle as a boxed Float. Primitive Float values use raw IEEE-754
+    // bits, so pass-through must be type-specific at this boundary.
     if let objPointer = UnsafeMutableRawPointer(bitPattern: value) {
         let isObjectPointer = runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: objPointer))
         }
-        if isObjectPointer {
+        if isObjectPointer, tryCast(objPointer, to: RuntimeFloatBox.self) != nil {
             return value
         }
     }
