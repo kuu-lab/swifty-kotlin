@@ -2001,7 +2001,7 @@ extension CallTypeChecker {
         interner: StringInterner
     ) -> Bool {
         switch interner.resolve(calleeName) {
-        case "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
+        case "compareAndExchange", "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
              "fetchAndUpdateAt", "updateAt", "updateAndFetchAt", "compareAndSet":
             return true
         default:

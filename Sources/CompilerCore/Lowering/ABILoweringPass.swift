@@ -299,7 +299,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // ABI-001: For synthetic setter accessor calls whose callee is still
                 // "set", derive the actual runtime store function name from the getter
                 // link registered on the original property symbol (e.g.
-                // kk_atomic_bool_load → kk_atomic_bool_store).
+                // __kk_atomic_bool_load → __kk_atomic_bool_store).
                 let rewrittenCallee: InternedString? = {
                     guard isSyntheticAccessor,
                           let s = callSymbol,

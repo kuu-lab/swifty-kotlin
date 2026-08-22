@@ -428,10 +428,10 @@ struct BuildKIRCodegenRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_atomic_int_load")))
-        #expect(callees.contains(interner.intern("kk_atomic_int_store")))
-        #expect(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
-        #expect(callees.contains(interner.intern("kk_atomic_ref_exchange")))
+        #expect(callees.contains(interner.intern("__kk_atomic_int_load")))
+        #expect(callees.contains(interner.intern("__kk_atomic_int_store")))
+        #expect(callees.contains(interner.intern("__kk_atomic_long_compareAndExchange")))
+        #expect(callees.contains(interner.intern("__kk_atomic_ref_exchange")))
     }
 
     @Test

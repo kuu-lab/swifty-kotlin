@@ -191,7 +191,7 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
             phase.registerSyntheticEnumStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Atomic") { phase, symbols, types, interner in
-            phase.registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
+            phase.registerSyntheticAtomicResidualStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Uuid") { phase, symbols, types, interner in
             phase.registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
