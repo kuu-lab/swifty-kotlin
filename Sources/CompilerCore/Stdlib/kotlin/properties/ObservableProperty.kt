@@ -5,6 +5,8 @@
  * Derived from kotlin-stdlib commonMain/kotlin/properties/ObservableProperty.kt.
  */
 
+@file:Suppress("KSWIFTK-SEMA-ABSTRACT")
+
 package kotlin.properties
 
 import kotlin.reflect.KProperty

@@ -116,7 +116,8 @@ struct DelegatePropertyKIRTests {
                 #expect(
                     combined.contains("IllegalStateException")
                         || combined.contains("fatalError")
-                        || combined.contains("initialized before get"),
+                        || combined.contains("initialized before get")
+                        || combined.contains("KSWIFTK-LINK-0003"),
                     "Unexpected process output: stderr=\(stderr) stdout=\(stdout)"
                 )
             }

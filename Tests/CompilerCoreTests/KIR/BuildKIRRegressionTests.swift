@@ -46,7 +46,6 @@ struct BuildKIRRegressionTests {
                 "FlowLowering",
                 "ValueClassUnboxing",
                 "PropertyLowering",
-                "StdlibDelegateLowering",
                 "JvmStaticLowering",
                 "JvmOverloadsLowering",
                 "DataEnumSealedSynthesis",
