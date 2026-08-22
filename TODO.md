@@ -1721,7 +1721,7 @@
     - `kotlin.doubleToUInt` — fun doubleToUInt(Double): UInt  -- `final fun kotlin/doubleToUInt(kotlin/Double): kotlin/UInt`
     - `kotlin.doubleToULong` — fun doubleToULong(Double): ULong  -- `final fun kotlin/doubleToULong(kotlin/Double): kotlin/ULong`
 
-- [ ] KSP-776: kotlin.enum-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-776: kotlin.enum-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `enum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/enum.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1731,6 +1731,7 @@
   - 未実装シンボル一覧:
     - `kotlin.enumValueOf` — fun enumValueOf(String): #A  -- `final inline fun <#A: reified kotlin/Enum<#A>> kotlin/enumValueOf(kotlin/String): #A`
     - `kotlin.enumValues` — fun enumValues(): Array  -- `final inline fun <#A: reified kotlin/Enum<#A>> kotlin/enumValues(): kotlin/Array<#A>`
+  - 完了根拠: PR #5934（`Expose enumValues and enumValueOf through bundled Kotlin sources`）が merge commit `2f50d92e5030a8b8afad06b057b25f0778c1adf2` でmasterへマージ済み。現行masterのsource-backed宣言、Sema配線、共有enum lowering/ABI、Golden/diffを確認し、対象Golden・diff・Runtime ABIリンク・TODO IDがpass。PR #5934のCompilerCore/Smoke、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc diff、Devin ReviewもSUCCESS。
 
 - [x] KSP-777: kotlin.float-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin` / top-level / family `float`
