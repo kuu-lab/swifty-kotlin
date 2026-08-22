@@ -2302,7 +2302,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Deprecated.<init>` — constructor (String, ReplaceWith, DeprecationLevel)  -- `constructor <init>(kotlin/String, kotlin/ReplaceWith = ..., kotlin/DeprecationLevel = ...)`
 
-- [ ] KSP-829: kotlin.Deprecated.Deprecated の未実装 stdlib API を実装する（3 件）
+- [x] KSP-829: kotlin.Deprecated.Deprecated の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.Deprecated` / receiver `Deprecated`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Deprecated/Deprecated.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2313,6 +2313,7 @@
     - `kotlin.Deprecated.level` — val Deprecated.level: DeprecationLevel  -- `final val level`
     - `kotlin.Deprecated.message` — val Deprecated.message: String  -- `final val message`
     - `kotlin.Deprecated.replaceWith` — val Deprecated.replaceWith: ReplaceWith  -- `final val replaceWith`
+  - 完了根拠（PR #5869、merge commit `a3e5f94e0c363890ed190ef08880c039a99193e6`）: 現行 `Sources/CompilerCore/Stdlib/kotlin/Deprecated.kt` が `message` / `replaceWith` / `level` を source-backed 宣言し、旧 Deprecated / ReplaceWith の synthetic 登録と対象固有の Runtime/ABI surface は残っていない。既存 `AnnotationSemanticTests`、Sema Golden `stdlib_kotlin_n_Deprecated`、diff case `stdlib_kotlin_n_Deprecated.kt` が default/named 引数、level、replaceWith、診断利用を検証している。
 
 - [ ] KSP-830: kotlin.DeprecatedSinceKotlin top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.DeprecatedSinceKotlin` / top-level
