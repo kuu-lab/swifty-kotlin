@@ -872,65 +872,70 @@
   - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
   - 前提: KSP-1529
 
-- [ ] KSP-1531: プリミティブ数値変換 `toInt()`/`toLong()`/`toUInt()` 等の (b)/(c) 分類を確定する（コード変更なしの分類タスク）
+- [x] KSP-1531: プリミティブ数値変換 `toInt()`/`toLong()`/`toUInt()` 等の (b)/(c) 分類を確定する（コード変更なしの分類タスク）
+  - 完了記録（2026-08-23）: 現行 master で、公開 numeric-member bridge は 70 シンボル（通常の `@_cdecl` 68件 + member bit bridge 2件）に固定した。`HeaderHelpers+SyntheticCoercionStubs.swift` は 39登録・33ユニーク外部名（公開対象32件 + identity専用 `kk_int_to_int`）で、Runtime/RuntimeABI の対象70件は一致する。分類は (c) 52件（固定幅 sign/zero extension・truncation・representation-preserving integer conversion・通常の int↔Float/Double conversion、`C-WIDTH`/`C-FP`）/(b) 18件（Char code-unit、Float/Double の NaN/∞飽和・丸め、明示的 IEEE payload/bit bridge、`B-CHAR`/`B-FP-SAT`/`B-FP-ABI`）とした。`docs/stdlib-pipeline.md` §9 の KSP-1531 表に全シンボル、受け手型、根拠、後続 owner を記録した。
+  - 対象監査: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`、`Sources/Runtime/RuntimeNumericCoercion.swift`/`RuntimeNumericCompat.swift`、`Sources/RuntimeABI/RuntimeABISpec+NumericConversion.swift`/`RuntimeABISpec+BridgeCoverage.swift`/`RuntimeABISpec+ABIParity.swift`、`CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift`、`CallLowerer.swift`/`CallLowerer+LegacyMemberLikeCalls.swift`/`CallLowerer+SafeMemberCalls.swift`、`KIRModels.swift`、`CoercionRuntimeTests.swift`/`RuntimeMathEdgeCaseTests.swift` を突合した。Lowering は explicit 68件 + `Float`/`Double` の `toChar` 通常 member-call 経路2件で、KIR に typed numeric-cast instruction はまだないため、(c) は将来の compiler intrinsic owner を示す。
+  - スコープ補正: Float/Double の `toUInt()`/`toULong()` は `Stdlib/kotlin/float.kt`/`double.kt` で既に source-backed（現行 `kk_*` なし）。`ULong.toUInt()`/`toLong()` は representation-preserving copy（現行 `kk_ulong_to_uint`/`kk_ulong_to_long` なし）。Byte/Short receiver-only bridge 6件、`kk_float_to_bits`/`kk_double_to_bits`、operator-only `kk_int_to_float_bits`、KSP-1540 の erased Number route は対象外。
+  - 判定基準: KIR で単一の sign/zero extension・truncation・int representation conversion にできるものは (c) compiler intrinsic owner、boxing/IEEE payload、NaN/Infinity saturation・rounding、Char code-unit conversion は (b) stdlib semantics owner とした。単に runtime 関数が短いことは根拠にしていない。
+  - 検証: 分類 marker の70件集合、Runtime `@_cdecl` + member bit bridge、RuntimeABI union、Lowering 68件 + 通常 call fallback、Synthetic 39登録/33ユニークの関係を小スクリプトと `rg` で検証。TODO ID重複、`Scripts/check_todo_ids.sh`、`git diff --check`、docs表集合チェックを実行した。コード変更なしのため build/full test/Golden/diff/ABI実行は未実施。
   - 対象: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残存変換登録と、対応する `kk_(int|long|float|double|char|uint|ulong|ubyte|ushort)_to_*`（実測 60件超。`rg -o '@_cdecl\("kk_[a-z]+_to_[a-z_]+"\)' Sources/Runtime | sort -u` で列挙）
-  - 判定基準: KIR で 1 命令の数値変換に lowering されるものは (c) compiler intrinsic として残置、boxing/丸め/文字コード変換など stdlib 意味論を持つものは (b) 移行対象
-  - 完了条件: `docs/stdlib-pipeline.md` §9 分類表に受け手型ごとの (b)/(c) 判定と根拠を追記し、(b) 判定分が KSP-1532〜1539 のスコープと一致することを確認（不一致なら該当タスクの範囲を修正）。実装変更なし
+  - 判定基準: 固定幅 sign/zero extension・truncation・representation-preserving integer conversion は (c) compiler intrinsic owner、boxing/IEEE payload、NaN/Infinity saturation・rounding、Char code-unit conversion は (b) stdlib semantics owner。単に runtime 関数が短いことは根拠にしない。
+  - 完了条件: `docs/stdlib-pipeline.md` §9 の KSP-1531 表に全70シンボルの受け手型別 (b)/(c) 判定と根拠を記録し、(b) 判定分が KSP-1532〜1539 のスコープと一致するよう各項目を同期した。実装変更なし
   - 手順: 分類のみ（U → TODO/docs 更新）
   - 前提: KSP-637, KSP-638
 
 - [ ] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UInt 受け手分）
+  - 対象: KSP-1531 で (b) と判定した UInt 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
-  - 削除/降格 kk_*: `kk_uint_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_ulong`, `_to_ushort`（10件）
+  - 削除/降格 kk_*: `kk_uint_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
   - diff: `unsigned_conversions*.kt` 既存 + `UInt.MAX_VALUE.toInt()`（ラップ）と `toDouble()` の丸めケース
   - 前提: KSP-1531
 
 - [ ] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（ULong 受け手分）
+  - 対象: KSP-1531 で (b) と判定した ULong 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ulong_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_short`, `_to_ubyte`, `_to_ushort`（+ `kk_ulong_to_uint` があれば含む）
+  - 削除/降格 kk_*: `kk_ulong_to_char`（`kk_ulong_to_uint`/`kk_ulong_to_long` は現行シンボルなし、representation-preserving copy。 (c) の7件は compiler intrinsic owner として残す）
   - 手順: T
   - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1534: `UByte` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UByte 受け手分）
+  - 対象: KSP-1531 で (b) と判定した UByte 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ubyte_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_uint`, `_to_ulong`, `_to_ushort`（10件）
+  - 削除/降格 kk_*: `kk_ubyte_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
   - diff: `unsigned_conversions*.kt` + `UByte(200).toByte()` 符号反転ケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1535: `UShort` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（UShort 受け手分）
+  - 対象: KSP-1531 で (b) と判定した UShort 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ushort_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`（10件）
+  - 削除/降格 kk_*: `kk_ushort_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
   - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1536: `Int` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Int 受け手分）
+  - 対象: KSP-1531 で (b) と判定した Int 受け手2件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
-  - 削除/降格 kk_*: `kk_int_to_byte`, `_to_char`, `_to_float`, `_to_int`, `_to_long`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`, `_to_ushort`, `kk_int_to_double_bits`（bit 変換は `__kk_` 降格）
+  - 削除/降格 kk_*: `kk_int_to_char`, `kk_int_to_double_bits`（`kk_int_to_double_bits` は IEEE payload bridge として (b)。 (c) の8件と synthetic-only identity `kk_int_to_int` は compiler intrinsic/identity owner として残す）
   - 手順: T
   - diff: `numeric_conversions*.kt` 既存 + `(-1).toUInt()`、`Int.MIN_VALUE.toShort()` ケース
   - 前提: KSP-1531
 
 - [ ] KSP-1537: `Long` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Long 受け手分）
+  - 対象: KSP-1531 で (b) と判定した Long 受け手1件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
-  - 削除/降格 kk_*: `kk_long_to_byte`, `_to_char`, `_to_double`, `_to_float`, `_to_int`, `_to_short`, `_to_ubyte`, `_to_uint`, `_to_ulong`, `_to_ushort`
+  - 削除/降格 kk_*: `kk_long_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
   - diff: `numeric_conversions*.kt` + `Long.MAX_VALUE.toDouble()` 精度、`toInt()` 切り詰めケース
   - 前提: KSP-1531, KSP-1536
 
 - [ ] KSP-1538: `Float` / `Double` の数値変換メンバを Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Float/Double 受け手分）
+  - 対象: KSP-1531 で (b) と判定した Float/Double 受け手7件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
-  - 削除/降格 kk_*: `kk_float_to_char`, `_to_int`, `_to_long`, `_to_uint`, `_to_ulong`, `kk_float_to_double_bits`, `kk_double_to_char`, `_to_float`, `_to_int`, `_to_long`, `_to_uint`, `_to_ulong`（NaN/無限の丸め規則は Kotlin 実装で明示、bit 変換は `__kk_` 降格）
+  - 削除/降格 kk_*: `kk_float_to_char`, `kk_float_to_int`, `kk_float_to_long`, `kk_float_to_double_bits`, `kk_double_to_char`, `kk_double_to_int`, `kk_double_to_long`（NaN/∞の飽和・丸めとIEEE payload bridgeを含む (b)。`kk_double_to_float` は通常の compiler FP conversion。`toUInt()`/`toULong()` は既に float.kt/double.kt source-backed で、現行 `kk_*` 対象外）
   - 手順: T
   - diff: `numeric_conversions*.kt` + `Double.NaN.toInt()`、`Double.POSITIVE_INFINITY.toLong()`、`(-0.5).toInt()` の kotlinc 一致ケース
   - 前提: KSP-1531, KSP-1536
@@ -938,7 +943,7 @@
 - [ ] KSP-1539: `Char` の数値変換メンバを Kotlin 化し `HeaderHelpers+SyntheticCoercionStubs.swift` の変換残余を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Char 受け手分 + KSP-1532〜1538 完了後の残余。coercion 本体は `RangeCoercion.kt` で source 化済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（`Char.code` 経路と整合）
-  - 削除/降格 kk_*: `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong`（`kk_math_pow` が同ファイルに残る場合は KSP-637 と重複しないよう確認）
+  - 削除/降格 kk_*: `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong`（Char code-unit semantics の (b)。`toByte()`/`toShort()` は `kk_char_to_int` へ寄せる synthetic alias で、別の現行 Runtime symbol ではない。`kk_math_pow` が同ファイルに残る場合は KSP-637 と重複しないよう確認）
   - 手順: T
   - diff: `char_conversions*.kt` 既存 + サロゲート範囲の `Char.code` ケース
   - 前提: KSP-637, KSP-1531, KSP-1536, KSP-1537, KSP-1538
