@@ -1960,7 +1960,7 @@
   - 未実装シンボル一覧:
     - `kotlin.compareTo` — fun Comparable.compareTo(): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin/Comparable<#A>).kotlin/compareTo(#A): kotlin/Int`
 
-- [ ] KSP-798: kotlin.DeepRecursiveFunction の未実装 stdlib API を実装する（1 件）
+- [x] KSP-798: kotlin.DeepRecursiveFunction の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `DeepRecursiveFunction`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeepRecursive.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1969,6 +1969,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.invoke` — fun DeepRecursiveFunction.invoke(): #B  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin/DeepRecursiveFunction<#A, #B>).kotlin/invoke(#A): #B`
+  - 完了根拠: PR #5508（merge commit `ed679246227092b0e82ba186b835d983b73fbbcc`、全CI成功）で source-backed 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/DeepRecursive.kt` の `DeepRecursiveFunction.invoke` は `public external operator fun invoke(value: T): R` として `__kk_deep_recursive_function_invoke` を参照し、`DeepRecursiveSourceMigrationTests` / `DeepRecursiveFunctionTests` / `KotlinCompilationDeepRecursiveTests` / backend実行回帰および `Scripts/diff_cases/deep_recursive_function.kt` がこの経路を固定している。
 
 - [ ] KSP-799: kotlin.KMutableProperty0 の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `KMutableProperty0`
