@@ -163,6 +163,34 @@ struct EnumAPISurfaceInventoryTests {
         #expect(sema.types.isNominalSubtypeSymbol(enumEntriesSymbol, of: listSymbol))
     }
 
+    // KSP-883: A class-name receiver may recover only bundled enum extensions
+    // such as RequiresOptIn.Level.entries/valueOf/values. User-defined instance
+    // extensions must still require an enum instance as their receiver.
+    @Test func testClassNameDoesNotResolveArbitraryEnumInstanceExtensions() throws {
+        let ctx = makeContextFromSource("""
+        enum class Direction { NORTH, SOUTH }
+
+        fun Direction.customFunction(): String = "function"
+        val Direction.customProperty: String
+            get() = "property"
+
+        fun probe(): String {
+            return Direction.customFunction() + Direction.customProperty
+        }
+        """)
+        try? runSema(ctx)
+
+        let messages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(
+            messages.contains { $0.contains("customFunction") },
+            "Expected class-name instance function call to be rejected, got: \(messages)"
+        )
+        #expect(
+            messages.contains { $0.contains("customProperty") },
+            "Expected class-name instance property access to be rejected, got: \(messages)"
+        )
+    }
+
     // BUG: Nested enum classes (declared inside another class/interface/object,
     // e.g. `class Outer { enum class Color { RED, GREEN } }`) never got ANY of
     // the Enum stdlib surface synthesized at all. MemberHeaderCollection's
