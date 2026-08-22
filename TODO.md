@@ -663,12 +663,8 @@
   - diff: `mutable_list_sort*.kt` 既存 + `shuffle(Random(7))` 決定性ケース、`sortBy`/`sortByDescending` 単独ケース
   - 前提: KSP-426, KSP-685, KSP-705, KSP-1503
 
-- [ ] KSP-1505: `List<E>` の `max`/`min`/`maxOrNull`/`minOrNull`/`maxBy(OrNull)`/`minBy(OrNull)` を Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`registerSimpleMember` / `registerComparableMember` / `registerByOrNull` 経路）
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListExtremaHOF.kt` 追記
-  - 削除/降格 kk_*: `kk_list_max`, `kk_list_min`, `kk_list_maxOrNull`, `kk_list_minOrNull`, `kk_list_maxBy`, `kk_list_minBy`, `kk_list_maxByOrNull`, `kk_list_minByOrNull`（`RuntimeCollectionHOFMaxMin.swift`）。比較コアは `__kk_comparable_compareTo` を使用
-  - 手順: T
-  - diff: `list_max_min*.kt` 既存 + `maxBy`/`minByOrNull` 空リストケース
+- [x] KSP-1505: `List<E>` の `max`/`min`/`maxOrNull`/`minOrNull`/`maxBy(OrNull)`/`minBy(OrNull)` を Kotlin 化する
+  - 完了根拠: merged PR #5061（commit `b4a1a52a6`）/ #5769（commit `7a8e6aa12`）で `ListExtremaHOF.kt` が source-backed 化され、現行 master の8 APIは bundled source の `declSite` を持ち、旧 `kk_list_*` external linkを選択しない。production Runtimeの旧8 `@_cdecl` exportとsource-backed呼び出し経路の残留はゼロ（RuntimeABIのspec-only互換項目、CompilerCoreのfallback table、`Tests/RuntimeTests/RuntimeCollectionHOF426Shims.swift` はtest/移行互換用の意図的残存）。現行 master で `ListAggregateHOFSourceMigrationTests` 4/4、List link focused test 1/1、対象backend回帰7/7、`list_sort_max_min.kt`/`list_maxby_minby.kt`/`list_sumof_maxby_minby.kt` diff 3/3、Runtime export/ABI parity 3/3を実行してpass。full Golden/full diff/full Swift suiteはTODO同期のみのため再実行していない。
   - 前提: KSP-426, KSP-461
 
 - [ ] KSP-1506: `List<E>` の `maxOf`/`minOf`/`maxOfOrNull`/`minOfOrNull`/`maxOfWith(OrNull)`/`minOfWith(OrNull)` を Kotlin 化する
