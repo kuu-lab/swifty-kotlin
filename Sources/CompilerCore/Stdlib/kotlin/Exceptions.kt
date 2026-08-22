@@ -84,14 +84,6 @@ public open class UnsupportedOperationException : RuntimeException {
     public constructor(cause: Throwable?)
 }
 
-public open class NumberFormatException : IllegalArgumentException {
-    @KsSymbolName("__kk_number_format_exception_new")
-    public constructor()
-
-    @KsSymbolName("__kk_number_format_exception_new_message")
-    public constructor(message: String?)
-}
-
 public open class ClassCastException : RuntimeException {
     @KsSymbolName("__kk_class_cast_exception_new")
     public constructor()

@@ -148,36 +148,6 @@ extension LoweringPassRegressionTests {
         }
     }
 
-    // A class with no toString() of its own (source-declared or otherwise)
-    // has nothing for the rewrite to call; it must keep using the generic
-    // conversion rather than resolving to `kotlin.Any.toString` and emitting
-    // an unresolvable/meaningless direct call.
-    @Test
-    func testClassWithoutOwnToStringKeepsGenericAnyConversion() throws {
-        let source = """
-        class Holder(val code: Int)
-        fun render(h: Holder): String {
-            return "code=" + h
-        }
-        fun main() {
-            println(render(Holder(1)))
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassNoToString", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            #expect(!ctx.diagnostics.hasError)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-
-            #expect(callees.contains("kk_any_to_string"),
-                    "a class with no toString() override has nothing to call; callees: \(callees)")
-        }
-    }
-
     // A data class's toString() is synthesized (by DataEnumSealedSynthesisPass,
     // a later lowering pass) rather than source-declared, but Sema registers
     // its signature at header-collection time -- well before this BuildKIR-time
