@@ -12,6 +12,7 @@ struct ArrayLookupNames {
     let byteArrayOfName: InternedString
     let ubyteArrayOfName: InternedString
     let uintArrayOfName: InternedString
+    let ulongArrayOfName: InternedString
     let doubleArrayOfName: InternedString
     let floatArrayOfName: InternedString
     let booleanArrayOfName: InternedString
@@ -49,6 +50,7 @@ struct ArrayLookupNames {
         byteArrayOfName = interner.intern("byteArrayOf")
         ubyteArrayOfName = interner.intern("ubyteArrayOf")
         uintArrayOfName = interner.intern("uintArrayOf")
+        ulongArrayOfName = interner.intern("ulongArrayOf")
         doubleArrayOfName = interner.intern("doubleArrayOf")
         floatArrayOfName = interner.intern("floatArrayOf")
         booleanArrayOfName = interner.intern("booleanArrayOf")
@@ -73,6 +75,6 @@ struct ArrayLookupNames {
         copyOfName = interner.intern("copyOf")
         copyOfRangeName = interner.intern("copyOfRange")
         fillName = interner.intern("fill")
-        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, ubyteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
+        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, ubyteArrayOfName, uintArrayOfName, ulongArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
     }
 }
