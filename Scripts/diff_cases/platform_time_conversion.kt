@@ -1,11 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-007): fixing the Instant nanosecondsOfSecond/minus(Instant) naming
-// (DEBT-DIFF-005) let the JVM reference side compile cleanly, which unmasked two unrelated,
-// pre-existing kswiftc-only gaps this case also hits: (1) Instant.fromEpochMilliseconds(1_234)
-// does not widen an Int literal to the expected Long parameter ("No viable overload found for
-// call"), and (2) `import java.time.Duration as JavaDuration` / `import java.time.Instant as
-// JavaInstant` type aliases for Java interop types do not resolve ("Unresolved type"). Both are
-// candidate-side Sema gaps unrelated to Instant naming; previously a `nanoOfSecond` compile
-// failure on the reference side masked them by making both sides fail for different reasons.
+// SKIP-DIFF (DEBT-DIFF-007): CLEANUP-STUB-126 removes the JVM-only
+// java.time / java.util.concurrent.TimeUnit synthetic surface from kswiftc.
+// kotlinc can compile this JVM interop probe, but it remains intentionally
+// excluded from candidate/reference diff as a target-out case.
 import java.time.Duration as JavaDuration
 import java.time.Instant as JavaInstant
 import java.util.concurrent.TimeUnit

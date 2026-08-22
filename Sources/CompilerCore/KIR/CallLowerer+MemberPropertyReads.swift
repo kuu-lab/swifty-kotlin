@@ -197,7 +197,7 @@ extension CallLowerer {
         // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
         // Restricting this guard to nominal instance types keeps the read and
         // write sides symmetric instead of relying on call-order to keep a
-        // dead `.object` field-offset arm harmless.
+        // dead field-offset arm harmless.
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),

@@ -384,28 +384,23 @@ struct CodegenBackendStableDurationEdgeCasesTests {
     }
 
     @Test
-    func testDurationBUG195NumericConversionTimeUnitAndComponents() throws {
+    func testDurationBUG195NumericConversionAndComponents() throws {
         let source = """
-        import java.util.concurrent.TimeUnit
         import kotlin.time.DurationUnit
         import kotlin.time.toDuration
-        import kotlin.time.toDurationUnit
-        import kotlin.time.toTimeUnit
 
         fun main() {
             println(2.toDuration(DurationUnit.SECONDS).inWholeSeconds)
             println(1500L.toDuration(DurationUnit.MILLISECONDS).inWholeMilliseconds)
             println(1.5.toDuration(DurationUnit.MINUTES).inWholeSeconds)
-            println(DurationUnit.SECONDS.toTimeUnit() == TimeUnit.SECONDS)
-            println(TimeUnit.MINUTES.toDurationUnit() == DurationUnit.MINUTES)
             println(2.toDuration(DurationUnit.SECONDS).toComponents { seconds, nanos -> "$seconds/$nanos" })
         }
         """
 
         try assertKotlinOutput(
             source,
-            moduleName: "DurationBUG195NumericConversionTimeUnitAndComponents",
-            expected: "2\n1500\n90\ntrue\ntrue\n2/0\n"
+            moduleName: "DurationBUG195NumericConversionAndComponents",
+            expected: "2\n1500\n90\n2/0\n"
         )
     }
 
@@ -697,33 +692,5 @@ struct CodegenBackendStableDurationEdgeCasesTests {
         try assertKotlinOutput(source, moduleName: "DurationStableBoundaryPredicates", expected: "true\nfalse\ntrue\nfalse\n")
     }
 
-    @Test
-    func testDurationUnitToTimeUnitConversion() throws {
-        let source = """
-        import java.util.concurrent.TimeUnit
-        import kotlin.time.DurationUnit
-        import kotlin.time.toTimeUnit
-
-        fun label(unit: DurationUnit): String = when (unit.toTimeUnit()) {
-            TimeUnit.NANOSECONDS -> "ns"
-            TimeUnit.MICROSECONDS -> "us"
-            TimeUnit.MILLISECONDS -> "ms"
-            TimeUnit.SECONDS -> "s"
-            TimeUnit.MINUTES -> "min"
-            TimeUnit.HOURS -> "h"
-            TimeUnit.DAYS -> "d"
-        }
-
-        fun main() {
-            println(label(DurationUnit.NANOSECONDS))
-            println(label(DurationUnit.SECONDS))
-            println(label(DurationUnit.DAYS))
-            println(DurationUnit.MINUTES.toTimeUnit() == TimeUnit.MINUTES)
-            println(DurationUnit.HOURS.toTimeUnit() == TimeUnit.SECONDS)
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "DurationUnitToTimeUnit", expected: "ns\ns\nd\ntrue\nfalse\n")
-    }
 }
 #endif
