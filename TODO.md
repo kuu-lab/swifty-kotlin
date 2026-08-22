@@ -2336,7 +2336,7 @@
     - `kotlin.DeprecatedSinceKotlin.hiddenSince` — val DeprecatedSinceKotlin.hiddenSince: String  -- `final val hiddenSince`
     - `kotlin.DeprecatedSinceKotlin.warningSince` — val DeprecatedSinceKotlin.warningSince: String  -- `final val warningSince`
 
-- [ ] KSP-832: kotlin.DeprecationLevel.DeprecationLevel の未実装 stdlib API を実装する（3 件）
+- [x] KSP-832: kotlin.DeprecationLevel.DeprecationLevel の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.DeprecationLevel` / receiver `DeprecationLevel`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeprecationLevel/DeprecationLevel.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2347,6 +2347,7 @@
     - `kotlin.DeprecationLevel.entries` — val DeprecationLevel.entries: EnumEntries  -- `final val entries`
     - `kotlin.DeprecationLevel.valueOf` — fun DeprecationLevel.valueOf(String): DeprecationLevel  -- `final fun valueOf(kotlin/String): kotlin/DeprecationLevel`
     - `kotlin.DeprecationLevel.values` — fun DeprecationLevel.values(): Array  -- `final fun values(): kotlin/Array<kotlin/DeprecationLevel>`
+  - 完了根拠: merged PR #5867（merge commit `4b2a3692d149c13c42a0d0237b5ad16ed342abb3`、CI/Devin Review 成功）で `DeprecationLevel.kt` が source-backed enum として導入され、旧専用 synthetic 登録が削除済み。現行の共通 enum synthesis と `EnumAPISurfaceInventoryTests`、`stdlib_kotlin_n_DeprecationLevel` の Sema Golden/diff、および focused API diff が entries/valueOf/values の登録・実行を確認する。
 
 - [ ] KSP-833: kotlin.Double.Companion.Companion の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Double.Companion` / receiver `Companion`
