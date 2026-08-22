@@ -371,11 +371,43 @@ extension CallLowerer {
                 instructions.append(.binary(op: kirOp, lhs: currentValue, rhs: valueID, result: result))
                 return result
             }
+            // Kotlin's `String += Any?` calls toString() on a non-String operand
+            // (Kotlin's String.plus(other: Any?)); a non-String currentValue/valueID
+            // must be converted the same way `+`/string-template concatenation does
+            // (CallLowerer.emitAnyToStringWithNullGuard) before reaching
+            // kk_string_concat_flat, which assumes both arguments are already
+            // flat String aggregates -- feeding it a raw boxed value (e.g. a class
+            // instance, or an unboxed Int/Boolean) reads it as one, silently
+            // dropping/mis-rendering the value or crashing.
+            let effectiveCurrent: KIRExprID = if propType == stringType || propType == nullableStringType {
+                currentValue
+            } else {
+                emitAnyToStringWithNullGuard(
+                    valueID: currentValue,
+                    valueType: propType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
+            let effectiveValue: KIRExprID = if valueType == stringType || valueType == nullableStringType {
+                valueID
+            } else {
+                emitAnyToStringWithNullGuard(
+                    valueID: valueID,
+                    valueType: valueType ?? sema.types.anyType,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
             let result = arena.appendTemporary(type: stringType)
             instructions.append(.call(
                 symbol: nil,
                 callee: interner.intern("kk_string_concat_flat"),
-                arguments: [currentValue, valueID],
+                arguments: [effectiveCurrent, effectiveValue],
                 result: result,
                 canThrow: false,
                 thrownResult: nil
