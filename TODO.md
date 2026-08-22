@@ -1857,7 +1857,7 @@
 - [x] KSP-788: kotlin.take-family の未実装 stdlib API を実装する（KSP-601 と重複のため別実装不要。`takeIf` / `takeUnless` は KSP-601 / PR #5698（merge commit `7b3e7cc47`）で `Sources/CompilerCore/Stdlib/kotlin/Standard.kt` に実装済み）
   - 完了確認: 既存の `Tests/CompilerCoreTests/GoldenCases/Sema/take_if_take_unless.kt` / `.golden`、`Scripts/diff_cases/take_if_take_unless.kt` / `takeif_takeunless*.kt` を根拠とする。対象 `kk_*` / `__kk_*` Runtime、synthetic stub、RuntimeABI、CallTypeChecker/CallLowerer name-string 特例の残留はない。
 
-- [ ] KSP-789: kotlin.ubyte-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-789: kotlin.ubyte-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ubyte`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ubyte.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1866,6 +1866,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ubyteArrayOf` — fun ubyteArrayOf(Array): UByteArray  -- `final inline fun kotlin/ubyteArrayOf(kotlin/UByteArray...): kotlin/UByteArray`
+  - 完了根拠: PR #5949（merge commit `0ef11b717ad7d8db4d29628e29b69ab40b5b995b`）で実装済み。現行 `Sources/CompilerCore/Stdlib/kotlin/ubyte.kt` と Golden/diff 回帰があり、CompilerCore/Smoke 3 shard、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc diff 2 shard、Devin Review が成功。
 
 - [ ] KSP-790: kotlin.uint-family の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin` / top-level / family `uint`
