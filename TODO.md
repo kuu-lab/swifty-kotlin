@@ -2107,13 +2107,14 @@
     - `kotlin.BooleanArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.BooleanArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Boolean>)`
 
-- [ ] KSP-812: kotlin.BuilderInference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-812: kotlin.BuilderInference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.BuilderInference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/BuilderInference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_BuilderInference_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_BuilderInference_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_BuilderInference_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-23、PR #5850、merge commit `0ec251b7a72b8580dd9a118400624b2e2e221460`）：現行 `Sources/CompilerCore/Stdlib/kotlin/BuilderInference.kt` の source-backed `annotation class BuilderInference` が対象 API を提供し、旧 `HeaderHelpers+SyntheticKotlinAnnotationStubs.swift` 登録、Runtime/RuntimeABI、対象 constructor/bridge の compiler special case は残っていない（`CompilerKnownNames` の known name は annotation/type-inference 用に残存）。bundled source の annotation class に対する暗黙の no-arg constructor `<init>()` は現行 `HeaderCollection` 経路で登録される。既存 `AnnotationSemanticTests`（登録・non-synthetic・target・BINARY retention）、`stdlib_kotlin_n_BuilderInference` Golden、`Scripts/diff_cases/stdlib_kotlin_n_BuilderInference.kt` の引数なし `@BuilderInference` 使用が回帰根拠。検証: focused Sema 15 tests pass、対象 diff 1/1 pass、`check_todo_ids.sh` pass、`validate_runtime_abi_links.sh` 4 tests pass、`git diff --check` pass。
   - 未実装シンボル一覧:
     - `kotlin.BuilderInference.<init>` — constructor ()  -- `constructor <init>()`
 
