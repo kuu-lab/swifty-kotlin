@@ -1006,22 +1006,6 @@ extension CallLowerer {
                     return result
                 }
             }
-            // STDLIB-532/534, STDLIB-SEQ-011: orEmpty() on nullable receivers
-            if sema.bindings.callBindings[exprID] == nil, calleeStr == "orEmpty" {
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_orEmpty"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
         }
         // String stdlib: 0-arg methods (STDLIB-006)
         if args.isEmpty {

@@ -151,14 +151,6 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_instant_to_java_instant",
-            parameters: [
-                RuntimeABIParameter(name: "instantRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "System"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_dynamic_iterator",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

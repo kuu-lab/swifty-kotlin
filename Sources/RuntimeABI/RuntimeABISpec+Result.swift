@@ -1,6 +1,15 @@
 public extension RuntimeABISpec {
     static let resultFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "kk_runtime_result_success",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Result",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_runtime_result_is_success",
             parameters: [
                 RuntimeABIParameter(name: "resultRaw", type: .intptr),

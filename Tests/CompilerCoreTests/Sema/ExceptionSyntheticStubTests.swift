@@ -328,9 +328,7 @@ struct ExceptionSyntheticStubTests {
             ("UnsupportedOperationException", "RuntimeException", [0, 1, 2, 1], [
                 "__kk_unsupported_operation_exception_new", "__kk_unsupported_operation_exception_new_message", "__kk_unsupported_operation_exception_new_message_cause", "__kk_unsupported_operation_exception_new_cause",
             ]),
-            ("NumberFormatException", "IllegalArgumentException", [0, 1], [
-                "__kk_number_format_exception_new", "__kk_number_format_exception_new_message",
-            ]),
+            ("NumberFormatException", "IllegalArgumentException", [0, 1], []),
             ("NullPointerException", "RuntimeException", [0, 1], []),
             ("ClassCastException", "RuntimeException", [0, 1], [
                 "__kk_class_cast_exception_new", "__kk_class_cast_exception_new_message",

@@ -849,15 +849,22 @@ import Testing
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlattenRuntime", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "ListFlattenRuntime",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            // flatten is now a bundled Kotlin source function (ListHOF.kt);
-            // it may appear as a direct "flatten" call or be inlined.
-            #expect(callees.contains("kk_list_flatten") || callees.contains("flatten"), "Expected flatten callee (runtime helper or bundled source), got: \(callees.sorted())")
+            // The imported artifact retains the declaration as a mangled
+            // Kotlin callee in the consumer KIR.
+            #expect(
+                containsKotlinCallee("flatten", in: callees),
+                "Expected the imported flatten artifact symbol, got: \(callees.sorted())"
+            )
         }
     }
 
@@ -911,7 +918,7 @@ import Testing
     }
 
     @Test
-    func testCodegenListFlatMapIndexedUsesRuntimeHelper() throws {
+    func testCodegenListFlatMapIndexedUsesArtifactSemantics() throws {
         let source = """
         fun main() {
             val list = listOf(3, 1, 2)
@@ -920,14 +927,26 @@ import Testing
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlatMapIndexedRuntime", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "ListFlatMapIndexedRuntime",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("flatMapIndexed"), "Expected source flatMapIndexed in callees, got: \(callees.sorted())")
             #expect(!(callees.contains("kk_list_flatMapIndexed")), "Old runtime entry kk_list_flatMapIndexed should not appear, got: \(callees.sorted())")
+
+            // The artifact may inline flatMapIndexed, so prove the imported
+            // implementation through its observable result instead of a
+            // path-only or unstable direct-callee assertion.
+            try assertKotlinOutput(
+                source,
+                moduleName: "ListFlatMapIndexedArtifactRuntime",
+                expected: "[0, 30, 1, 10, 2, 20]\n"
+            )
         }
     }
 

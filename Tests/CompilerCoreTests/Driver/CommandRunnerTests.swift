@@ -4,6 +4,34 @@ import Dispatch
 import Foundation
 import Testing
 
+private final class CommandRunnerConcurrentResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var successes = 0
+    private var failures: [String] = []
+
+    func record(_ result: CommandResult, token: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if result.exitCode == 0 && result.stdout.contains(token) {
+            successes += 1
+        } else {
+            failures.append("unexpected result for \(token): exit=\(result.exitCode) stdout=\(result.stdout)")
+        }
+    }
+
+    func recordFailure(_ message: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        failures.append(message)
+    }
+
+    func snapshot() -> (successes: Int, failures: [String]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (successes, failures)
+    }
+}
+
 @Suite
 struct CommandRunnerTests {
     // MARK: - resolveExecutable
@@ -210,9 +238,7 @@ struct CommandRunnerTests {
     @Test
     func testRunConcurrentCommandsCaptureDistinctStdout() throws {
         let group = DispatchGroup()
-        let lock = NSLock()
-        var successes = 0
-        var failures: [String] = []
+        let results = CommandRunnerConcurrentResults()
         let launchCount = 8
         for index in 0..<launchCount {
             group.enter()
@@ -224,24 +250,17 @@ struct CommandRunnerTests {
                         executable: "/bin/echo",
                         arguments: [token]
                     )
-                    lock.lock()
-                    if result.exitCode == 0 && result.stdout.contains(token) {
-                        successes += 1
-                    } else {
-                        failures.append("unexpected result for \(token): exit=\(result.exitCode) stdout=\(result.stdout)")
-                    }
-                    lock.unlock()
+                    results.record(result, token: token)
                 } catch {
-                    lock.lock()
-                    failures.append("\(token): \(error)")
-                    lock.unlock()
+                    results.recordFailure("\(token): \(error)")
                 }
             }
         }
         let finished = group.wait(timeout: .now() + 30) == .success
+        let snapshot = results.snapshot()
         #expect(finished, "Concurrent CommandRunner.run timed out")
-        #expect(failures.isEmpty, "Concurrent Process launches failed: \(failures)")
-        #expect(successes == launchCount)
+        #expect(snapshot.failures.isEmpty, "Concurrent Process launches failed: \(snapshot.failures)")
+        #expect(snapshot.successes == launchCount)
     }
 
     @Test

@@ -827,7 +827,19 @@ final class CallLowerer {
                 )
                 let childExpr = arena.appendExpr(.intLiteral(childTypeID), type: intType)
                 instructions.append(.constValue(result: childExpr, value: .intLiteral(childTypeID)))
-                for superSymbol in sema.symbols.directSupertypes(for: ownerNominalSymbol) {
+                // Register the complete nominal supertype closure. Runtime-backed
+                // built-ins may not execute their own object allocation path, so
+                // direct edges alone do not make source-backed subclasses
+                // assignable to intermediate ancestors.
+                var pendingSupertypes = sema.symbols.directSupertypes(for: ownerNominalSymbol)
+                var registeredSupertypes: Set<SymbolID> = []
+                while let superSymbol = pendingSupertypes.first {
+                    pendingSupertypes.removeFirst()
+                    guard registeredSupertypes.insert(superSymbol).inserted else {
+                        continue
+                    }
+                    pendingSupertypes.append(contentsOf: sema.symbols.directSupertypes(for: superSymbol))
+
                     let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                         symbol: superSymbol,
                         sema: sema,

@@ -496,15 +496,6 @@ public extension RuntimeABISpec {
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_orEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("onEach", arity: 1, fallback: "kk_sequence_onEach"),
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),

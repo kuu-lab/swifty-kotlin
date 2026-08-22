@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -94,15 +95,19 @@ struct CodegenBackendSequenceLastTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceLastKIR", emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "SequenceLastKIR",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                !callees.contains("kk_sequence_last"),
-                "Expected Sequence.last to be backed by source, got callees: \(callees.sorted())"
+                containsKotlinCallee("last", in: callees) && !callees.contains("kk_sequence_last"),
+                "Expected Sequence.last to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }
     }
