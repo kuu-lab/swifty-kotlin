@@ -1,0 +1,119 @@
+name: One-shot repair PR 6015 against latest master
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.number == 6015 && github.head_ref == 'claude/keen-hermann-8a3817'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/keen-hermann-8a3817
+          fetch-depth: 0
+
+      - name: Merge latest master and resolve TODO ID collision
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git merge --no-edit origin/master
+
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import re
+
+          path = Path("TODO.md")
+          lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+          task_pattern = re.compile(r"^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-([0-9]+)):")
+
+          residual_indexes = [
+              index
+              for index, line in enumerate(lines)
+              if line.startswith("- [ ] BUG-")
+              and "Kotlin の modifier keyword（" in line
+          ]
+          if len(residual_indexes) != 1:
+              raise SystemExit(
+                  f"Expected exactly one residual modifier-keyword task, found {len(residual_indexes)}"
+              )
+
+          fixed_indexes = [
+              index
+              for index, line in enumerate(lines)
+              if line.startswith(("- [ ] BUG-220:", "- [x] BUG-220:"))
+              and "コンストラクタパラメータ名が文字どおり `inner`" in line
+          ]
+          if len(fixed_indexes) != 1:
+              raise SystemExit(
+                  f"Expected exactly one BUG-220 inner-parameter task, found {len(fixed_indexes)}"
+              )
+
+          fixed_index = fixed_indexes[0]
+          if lines[fixed_index].startswith("- [ ] BUG-220:"):
+              lines[fixed_index] = lines[fixed_index].replace(
+                  "- [ ] BUG-220:", "- [x] BUG-220:", 1
+              )
+
+          matches = [
+              match
+              for line in lines
+              if (match := task_pattern.match(line)) is not None
+          ]
+          counts = Counter(match.group(1) for match in matches)
+
+          residual_index = residual_indexes[0]
+          residual_match = task_pattern.match(lines[residual_index])
+          if residual_match is None:
+              raise SystemExit("Residual task does not have a valid TODO task ID")
+
+          current_id = residual_match.group(1)
+          if counts[current_id] > 1:
+              bug_numbers = [
+                  int(match.group(2))
+                  for match in matches
+                  if match.group(1).startswith("BUG-")
+              ]
+              next_id = f"BUG-{max(bug_numbers) + 1}"
+              lines[residual_index] = lines[residual_index].replace(
+                  current_id, next_id, 1
+              )
+              print(f"Renumbered {current_id} to {next_id}")
+          else:
+              print(f"Residual task ID {current_id} is already unique")
+
+          path.write_text("".join(lines), encoding="utf-8")
+
+          final_ids = []
+          for line in path.read_text(encoding="utf-8").splitlines():
+              match = task_pattern.match(line)
+              if match:
+                  final_ids.append(match.group(1))
+          duplicates = sorted(
+              task_id
+              for task_id, count in Counter(final_ids).items()
+              if count > 1
+          )
+          if duplicates:
+              raise SystemExit("Duplicate TODO task IDs: " + ", ".join(duplicates))
+          print("No duplicate TODO task IDs found in TODO.md.")
+          PY
+
+          if ! git diff --quiet -- TODO.md; then
+            git add TODO.md
+            git commit -m "fix(todo): resolve task ID collision with latest master"
+          fi
+
+          git push origin HEAD:refs/heads/claude/keen-hermann-8a3817
