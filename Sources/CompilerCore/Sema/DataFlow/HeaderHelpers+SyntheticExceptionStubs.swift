@@ -13,45 +13,9 @@ extension DataFlowSemaPhase {
         // Stdlib/kotlin/text/CharacterCodingException.kt.
         let nullableStringType = types.makeNullable(types.stringType)
 
-        // ArrayIndexOutOfBoundsException and NegativeArraySizeException are
-        // JVM/platform-specific residuals, not Kotlin common hierarchy targets.
-        let indexOutOfBoundsSymbol = ensureClassSymbol(
-            named: "IndexOutOfBoundsException",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let arrayIndexSymbol = ensureClassSymbol(
-            named: "ArrayIndexOutOfBoundsException",
-            in: kotlinPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        symbols.setDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexSymbol)
-        types.setNominalDirectSupertypes([indexOutOfBoundsSymbol], for: arrayIndexSymbol)
-        let arrayIndexType = types.make(.classType(ClassType(
-            classSymbol: arrayIndexSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(arrayIndexType, for: arrayIndexSymbol)
-        symbols.insertFlags(.openType, for: arrayIndexSymbol)
-        registerSyntheticPlatformExceptionConstructor(
-            ownerSymbol: arrayIndexSymbol,
-            ownerType: arrayIndexType,
-            parameters: [],
-            externalLinkName: "kk_array_index_out_of_bounds_exception_new",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticPlatformExceptionConstructor(
-            ownerSymbol: arrayIndexSymbol,
-            ownerType: arrayIndexType,
-            parameters: [("message", nullableStringType)],
-            externalLinkName: "kk_array_index_out_of_bounds_exception_new_message",
-            symbols: symbols,
-            interner: interner
-        )
+        // NegativeArraySizeException is a JVM/platform-specific residual;
+        // ArrayIndexOutOfBoundsException is now source-backed by
+        // Stdlib/kotlin/ArrayIndexOutOfBoundsException.kt.
 
         let runtimeExceptionSymbol = ensureClassSymbol(
             named: "RuntimeException",
@@ -94,7 +58,7 @@ extension DataFlowSemaPhase {
     }
 
     // Used only by residual platform/coroutine exception stubs. KSP-656's
-    // common exception constructors are declared directly in Exceptions.kt.
+    // common exception constructors are declared directly in bundled Kotlin source.
     func registerSyntheticPlatformExceptionConstructors(
         ownerSymbol: SymbolID,
         ownerType: TypeID,

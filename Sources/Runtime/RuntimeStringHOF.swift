@@ -1,5 +1,4 @@
-// String higher-order functions (iterator, chunked, windowed, zip,
-// commonPrefix/Suffix, and advanced HOFs).
+// String higher-order functions and commonPrefix/Suffix helpers.
 // Split out from `RuntimeStringStdlib.swift`.
 // KSP-410: filter/filterNot/map/mapIndexed/mapNotNull/any/all/none/count/
 // find/findLast/firstNotNullOf/firstNotNullOfOrNull/onEach/onEachIndexed/
@@ -48,29 +47,6 @@ private func runtimeStringHOFStringValue(_ value: String) -> RuntimeValue {
         byteCount: byteCount,
         hash: hash
     )
-}
-
-// MARK: - STDLIB-189: String iterator
-
-@_cdecl("kk_string_iterator")
-public func kk_string_iterator(_ strRaw: Int) -> Int {
-    let charRaws = runtimeStringUTF16CodeUnits(strRaw).map { Int($0) }
-    return registerRuntimeObject(RuntimeStringIteratorBox(charRaws: charRaws))
-}
-
-@_cdecl("kk_string_iterator_hasNext")
-public func kk_string_iterator_hasNext(_ iterRaw: Int) -> Int {
-    guard let iter = runtimeStringIteratorBox(from: iterRaw) else { return 0 }
-    return iter.index < iter.charRaws.count ? 1 : 0
-}
-
-@_cdecl("kk_string_iterator_next")
-public func kk_string_iterator_next(_ iterRaw: Int) -> Int {
-    guard let iter = runtimeStringIteratorBox(from: iterRaw) else { return 0 }
-    guard iter.index < iter.charRaws.count else { return 0 }
-    let value = iter.charRaws[iter.index]
-    iter.index += 1
-    return value
 }
 
 // MARK: - STDLIB-192: equals(other)
@@ -126,6 +102,22 @@ public func kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
 @_cdecl("__kk_string_splitToSequence")
 public func __kk_string_splitToSequence(_ strRaw: Int, _ delimRaw: Int) -> Int {
     kk_string_splitToSequence(strRaw, delimRaw)
+}
+
+// Retained as a private compatibility bridge for older bundled stdlib
+// artifacts. Current List/Array join APIs are source-backed and do not use it.
+@_cdecl("__kk_string_joinToString")
+public func __kk_string_joinToString(
+    _ listRaw: Int,
+    _ separatorRaw: Int,
+    _ prefixRaw: Int,
+    _ postfixRaw: Int
+) -> Int {
+    let separator = extractString(from: UnsafeMutableRawPointer(bitPattern: separatorRaw)) ?? ", "
+    let prefix = extractString(from: UnsafeMutableRawPointer(bitPattern: prefixRaw)) ?? ""
+    let postfix = extractString(from: UnsafeMutableRawPointer(bitPattern: postfixRaw)) ?? ""
+    let elements = runtimeListBox(from: listRaw)?.values.map(runtimeElementToString) ?? []
+    return runtimeMakeStringRaw(prefix + elements.joined(separator: separator) + postfix)
 }
 
 @_cdecl("kk_string_splitToSequence_flat")

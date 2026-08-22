@@ -100,6 +100,52 @@ struct TypeCheckHelpers {
         }
     }
 
+    /// Returns true only for the plain `kotlin.collections.Iterable` interface.
+    ///
+    /// A range expression uses its element type as the intermediate Sema type,
+    /// so `LocalDeclTypeChecker` needs a narrow exemption for an explicitly
+    /// annotated `Iterable<T>`. Concrete collection types and other iterable
+    /// classes still require the normal subtype constraint.
+    func isPlainIterableType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        return symbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+    }
+
+    /// Returns the element argument from a plain `kotlin.collections.Iterable` type.
+    ///
+    /// This deliberately reads the resolved nominal argument instead of asking
+    /// `iterableElementType` to inspect the synthetic `iterator()` member. The
+    /// latter can expose the declaration's unsubstituted `E` type parameter for
+    /// the interface itself.
+    func plainIterableElementType(
+        for type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard isPlainIterableType(type, sema: sema, interner: interner),
+              let (classType, _) = resolveClassTypeSymbol(type, sema: sema),
+              let elementArgument = classType.args.first
+        else {
+            return nil
+        }
+        switch elementArgument {
+        case let .invariant(element), let .out(element), let .in(element):
+            return element
+        case .star:
+            return sema.types.anyType
+        }
+    }
+
     func isOpenEndRangeType(
         _ type: TypeID,
         sema: SemaModule,
@@ -127,10 +173,8 @@ struct TypeCheckHelpers {
         sema: SemaModule,
         interner: StringInterner
     ) -> TypeID? {
-        // STDLIB-189: String is iterable over its Char elements. The runtime iterator
-        // dispatch is rewritten to kk_string_iterator_* by CollectionLiteralLoweringPass
-        // regardless of this static type, but the loop variable still needs the correct
-        // static Char type for member resolution and explicit typing to work.
+        // String is iterable over its Char elements; the loop variable still needs
+        // the correct static Char type for member resolution and explicit typing.
         if sema.types.makeNonNullable(iterableType) == sema.types.stringType {
             return sema.types.charType
         }

@@ -343,21 +343,28 @@ extension BuildASTPhase {
         includingTrailingLambdaTokens: Bool = false
     ) -> [Token] {
         var tokens: [Token] = []
+        var inlineAccessorScanEnd = 0
+        var enteredNestedBlock = false
         for child in arena.children(of: nodeID) {
             switch child {
             case let .token(tokenID):
                 if let token = resolveToken(tokenID, in: arena) {
                     // Stop before inline `get(`/`set(` accessor keywords so that
                     // type and initializer parsing don't consume accessor tokens.
-                    switch token.kind {
-                    case .softKeyword(.get), .softKeyword(.set):
-                        if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
-                            return Array(tokens.prefix(idx))
+                    if !enteredNestedBlock {
+                        switch token.kind {
+                        case .softKeyword(.get), .softKeyword(.set):
+                            if let idx = inlineAccessorStartIndex(in: tokens + [token]) {
+                                return Array(tokens.prefix(idx))
+                            }
+                        default:
+                            break
                         }
-                    default:
-                        break
                     }
                     tokens.append(token)
+                    if !enteredNestedBlock {
+                        inlineAccessorScanEnd = tokens.count
+                    }
                 }
             case let .node(childID):
                 let childKind = arena.node(childID).kind
@@ -365,6 +372,10 @@ extension BuildASTPhase {
                     return tokens
                 }
                 if childKind == .block {
+                    // Do not scan tokens from a trailing lambda for inline
+                    // accessors: a call such as `map.get(key)` uses the same
+                    // soft keyword spelling as a property `get()` accessor.
+                    enteredNestedBlock = true
                     // Genuine get()/set() and explicit-backing-field bodies are
                     // always wrapped as `.propertyAccessor` (see
                     // parsePropertyAccessor/parseExplicitBackingField), handled
@@ -374,16 +385,14 @@ extension BuildASTPhase {
                     // `= Comparator<Int> { a, b -> a - b }`).
                     //
                     // Only recurse for `declarationPropertyInitializer`, which
-                    // opts in via `includingTrailingLambdaTokens`. Delegate
-                    // expressions (`by lazy { ... }`, `by Delegates.observable(x) { ... }`)
-                    // deliberately keep the old truncating behavior here:
-                    // `declarationDelegateExpression` re-parses these same
-                    // tokens expecting the trailing lambda excluded (it's
-                    // captured separately as `PropertyDecl.delegateBody`), and
-                    // the synthetic `observable`/`vetoable` signatures only
-                    // accept the initial-value argument -- folding the lambda
-                    // back in as a second call argument would make that
-                    // resolution fail.
+                    // opts in via `includingTrailingLambdaTokens`, and for the
+                    // source-backed `lazy` delegate factory. The latter has a
+                    // required initializer parameter in its real Kotlin
+                    // signature, so `declarationDelegateExpression` opts in
+                    // after identifying the factory. The synthetic
+                    // `observable`/`vetoable` paths keep their callbacks in
+                    // `PropertyDecl.delegateBody` because their compatibility
+                    // signatures resolve only the initial-value argument.
                     guard includingTrailingLambdaTokens else {
                         return tokens
                     }
@@ -392,8 +401,11 @@ extension BuildASTPhase {
                 }
             }
         }
-        // Final check: scan collected tokens for inline accessor start.
-        if let idx = inlineAccessorStartIndex(in: tokens) {
+        // Final check: scan only the direct-token prefix for inline accessor
+        // start.  Recursed trailing-lambda tokens may contain calls to `get` or
+        // `set`, which are not property accessors.
+        let inlineAccessorTokens = Array(tokens.prefix(inlineAccessorScanEnd))
+        if let idx = inlineAccessorStartIndex(in: inlineAccessorTokens) {
             return Array(tokens.prefix(idx))
         }
         return tokens
@@ -430,9 +442,7 @@ extension BuildASTPhase {
     }
 
     func functionKeywordIndex(in tokens: [Token]) -> Int? {
-        tokens.firstIndex(where: { token in
-            token.kind == .keyword(.fun)
-        })
+        firstTopLevelKeywordIndex(in: tokens, matching: [.fun])
     }
 
     /// Returns the opening parenthesis index of the function parameter list.

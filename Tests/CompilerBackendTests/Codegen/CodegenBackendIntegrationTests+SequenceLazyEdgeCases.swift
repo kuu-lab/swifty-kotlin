@@ -92,6 +92,73 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         )
     }
 
+    // KSP-631: Iterator.asSequence preserves the original iterator, defers
+    // traversal, and enforces one-shot consumption.
+    @Test
+    func testIteratorAsSequencePreservesLazyOneShotSemantics() throws {
+        let source = """
+        class CountingIterator(private val values: List<Int>) : Iterator<Int> {
+            private var index = 0
+            var nextCalls = 0
+
+            override fun hasNext(): Boolean = index < values.size
+
+            override fun next(): Int {
+                if (!hasNext()) throw NoSuchElementException()
+                nextCalls++
+                val result = values[index]
+                index++
+                return result
+            }
+        }
+
+        fun main() {
+            val identityIterator = listOf(7).iterator()
+            val identitySequence = identityIterator.asSequence()
+            println(identitySequence.iterator() === identityIterator)
+            println(identityIterator.next())
+
+            val probe = CountingIterator(listOf(1, 2, 3))
+            val lazySequence = probe.asSequence()
+            println(probe.nextCalls)
+            println(lazySequence.take(2).toList())
+            println(probe.nextCalls)
+
+            val oneShot = listOf(4, 5).iterator().asSequence()
+            println(oneShot.toList())
+            try {
+                oneShot.toList()
+                println("missing one-shot failure")
+            } catch (e: IllegalStateException) {
+                println("one-shot")
+            }
+
+            println(emptyList<Int>().iterator().asSequence().toList())
+
+        val partial = CountingIterator(listOf(10, 20, 30))
+            println(partial.next())
+            println(partial.asSequence().toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IteratorAsSequenceSemantics",
+            expected: """
+            true
+            7
+            0
+            [1, 2]
+            2
+            [4, 5]
+            one-shot
+            []
+            10
+            [20, 30]
+            """ + "\n"
+        )
+    }
+
     @Test
     func testSequenceFilterTakeEvaluatesOnlyNeededElements() throws {
         let source = """
@@ -144,6 +211,31 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
         """
 
         try assertKotlinOutput(source, moduleName: "GenerateSequenceNullTermination", expected: "[1, 2, 3, 4]\n")
+    }
+
+    @Test
+    func testSourceBackedSequenceFactoriesResolveSeedFunctionOverload() throws {
+        let source = """
+        fun main() {
+            val repeated = generateSequence({
+                10
+            }) { if (it > 1) it / 2 else null }
+            println(repeated.toList())
+
+            val nullSeed: Int? = null
+            println(generateSequence(nullSeed) { it + 1 }.toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SourceBackedSequenceFactories",
+            expected:
+                """
+                [10, 5, 2, 1]
+                []
+                """ + "\n"
+        )
     }
 
     // KSP-500: generateSequence's seed and every element produced by nextFunction
@@ -691,6 +783,28 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
     }
 
     @Test
+    func testSequenceConversionsRemainTraversableAfterSorting() throws {
+        let source = """
+        fun main() {
+            val sequence = sequenceOf(3, 1, 2)
+            println(sequence.asSequence().toList())
+            println(sequence.asIterable().toList())
+            println(sequence.sortedDescending().asSequence().toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceConversionsAfterSorting",
+            expected: """
+            [3, 1, 2]
+            [3, 1, 2]
+            [3, 2, 1]
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testSequenceIdentityConversionsPreserveLazyIteratorSemantics() throws {
         let source = """
         fun main() {
@@ -730,8 +844,6 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 """ + "\n"
         )
     }
-
-    @Test
     func testConstrainOnceThrowsOnSecondIteration() throws {
         let source = """
         fun main() {

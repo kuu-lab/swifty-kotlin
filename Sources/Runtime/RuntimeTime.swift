@@ -2,27 +2,6 @@ import Dispatch
 import Foundation
 
 // MARK: - kotlin.time experimental time runtime (STDLIB-TIME-180)
-// MARK: - Platform time conversion runtime (STDLIB-TIME-181)
-
-final class RuntimeJavaInstantBox {
-    let epochSeconds: Int64
-    let nanoOfSecond: Int32
-
-    init(epochSeconds: Int64, nanoOfSecond: Int32) {
-        self.epochSeconds = epochSeconds
-        self.nanoOfSecond = nanoOfSecond
-    }
-}
-
-final class RuntimeJavaDurationBox {
-    let seconds: Int64
-    let nanoAdjustment: Int32
-
-    init(seconds: Int64, nanoAdjustment: Int32) {
-        self.seconds = seconds
-        self.nanoAdjustment = nanoAdjustment
-    }
-}
 
 final class RuntimeJSDateBox {
     let epochMilliseconds: Double
@@ -40,10 +19,6 @@ final class RuntimeTimeMarkBox {
     }
 }
 
-final class RuntimeTestTimeSourceBox {
-    var nanoseconds: Int64 = 0
-}
-
 private func runtimeKotlinInstantBox(from raw: Int) -> RuntimeInstantBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
     return tryCast(ptr, to: RuntimeInstantBox.self)
@@ -59,10 +34,6 @@ private func runtimeTimeMarkBox(from raw: Int) -> RuntimeTimeMarkBox? {
     return tryCast(ptr, to: RuntimeTimeMarkBox.self)
 }
 
-private func runtimeTestTimeSourceBox(from raw: Int) -> RuntimeTestTimeSourceBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeTestTimeSourceBox.self)
-}
 
 private func runtimeEpochMilliseconds(
     epochSeconds: Int64,
@@ -86,21 +57,6 @@ private func runtimeInstantFromEpochMilliseconds(_ epochMilliseconds: Double) ->
     return RuntimeInstantBox(epochSeconds: clampedSeconds, nanoOfSecond: nanos)
 }
 
-private func runtimeJavaDurationComponents(from nanoseconds: Int64) -> (seconds: Int64, nanoAdjustment: Int32) {
-    // Use floor division so that nanoAdjustment is always in [0, 999_999_999].
-    // For positive values, truncation == floor; for negative values we adjust.
-    let seconds: Int64
-    if nanoseconds >= 0 {
-        seconds = nanoseconds / 1_000_000_000
-    } else {
-        // Guard against Int64.min overflow before subtracting 999_999_999.
-        let (adjusted, overflow) = nanoseconds.subtractingReportingOverflow(999_999_999)
-        seconds = overflow ? Int64.min / 1_000_000_000 : adjusted / 1_000_000_000
-    }
-    let nanoAdjustment = Int32(nanoseconds - seconds * 1_000_000_000)
-    return (seconds, nanoAdjustment)
-}
-
 private func runtimeSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
     let (result, overflow) = lhs.addingReportingOverflow(rhs)
     if overflow {
@@ -112,67 +68,6 @@ private func runtimeSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
 private func runtimeMonotonicNowNanoseconds() -> Int64 {
     let now = DispatchTime.now().uptimeNanoseconds
     return now <= UInt64(Int64.max) ? Int64(now) : Int64.max
-}
-
-@_cdecl("kk_instant_to_java_instant")
-public func kk_instant_to_java_instant(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_java_instant received invalid Instant handle")
-    }
-    return registerRuntimeObject(
-        RuntimeJavaInstantBox(epochSeconds: instant.epochSeconds, nanoOfSecond: instant.nanoOfSecond)
-    )
-}
-
-@_cdecl("kk_duration_to_java_duration")
-public func kk_duration_to_java_duration(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_to_java_duration received invalid Duration handle")
-    }
-    let components = runtimeJavaDurationComponents(from: nanoseconds)
-    return registerRuntimeObject(
-        RuntimeJavaDurationBox(seconds: components.seconds, nanoAdjustment: components.nanoAdjustment)
-    )
-}
-
-/// Maps a java.util.concurrent.TimeUnit ordinal to the matching kotlin.time.DurationUnit ordinal.
-///
-/// Kotlin/JVM: timeUnit.toDurationUnit()
-///
-/// Both enums share identical entry ordering
-/// (0=NANOSECONDS, 1=MICROSECONDS, 2=MILLISECONDS, 3=SECONDS, 4=MINUTES, 5=HOURS, 6=DAYS),
-/// so the conversion is a 1:1 ordinal mapping. The explicit switch mirrors Kotlin's
-/// exhaustive `when` and traps any out-of-range ordinal (compiler/runtime enum mismatch).
-@_cdecl("kk_time_unit_to_duration_unit")
-public func kk_time_unit_to_duration_unit(_ timeUnitOrdinal: Int) -> Int {
-    switch timeUnitOrdinal {
-    case 0: return 0 // NANOSECONDS
-    case 1: return 1 // MICROSECONDS
-    case 2: return 2 // MILLISECONDS
-    case 3: return 3 // SECONDS
-    case 4: return 4 // MINUTES
-    case 5: return 5 // HOURS
-    case 6: return 6 // DAYS
-    default:
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_unit_to_duration_unit received unknown TimeUnit ordinal \(timeUnitOrdinal)")
-    }
-}
-
-// MARK: - DurationUnit <-> TimeUnit conversion (STDLIB-TIME-FN-012)
-
-/// Bridges `kotlin.time.DurationUnit.toTimeUnit()` to
-/// `java.util.concurrent.TimeUnit`. Both enums share identical entry order
-/// (NANOSECONDS=0, MICROSECONDS=1, MILLISECONDS=2, SECONDS=3, MINUTES=4,
-/// HOURS=5, DAYS=6), so the conversion is an ordinal identity. The incoming
-/// `unitOrdinal` is a DurationUnit ordinal lowered to a raw machine word; the
-/// returned value is the matching TimeUnit ordinal.
-@_cdecl("kk_duration_unit_to_time_unit")
-public func kk_duration_unit_to_time_unit(_ unitOrdinal: Int) -> Int {
-    guard (0...6).contains(unitOrdinal) else {
-        assertionFailure("KSwiftK: unknown DurationUnit ordinal \(unitOrdinal) – compiler/runtime enum mismatch?")
-        return unitOrdinal
-    }
-    return unitOrdinal
 }
 
 @_cdecl("kk_time_source_mark_now")
@@ -219,6 +114,72 @@ public func __kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int
 // (which touches RuntimeTimeMarkBox internals and the monotonic clock) stays native.
 
 private let valueTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.TimeSource.Monotonic.ValueTimeMark")
+private let abstractLongTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.AbstractLongTimeMark")
+private let abstractDoubleTimeMarkRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.time.AbstractDoubleTimeMark")
+
+private func runtimeTimeSourceUnitScale(_ ordinal: Int) -> Int64 {
+    switch ordinal {
+    case 0: return 1
+    case 1: return 1_000
+    case 2: return 1_000_000
+    case 3: return 1_000_000_000
+    case 4: return 60_000_000_000
+    case 5: return 3_600_000_000_000
+    case 6: return 86_400_000_000_000
+    default: return 1
+    }
+}
+
+private func runtimeTimeSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
+    let (result, overflow) = lhs.addingReportingOverflow(rhs)
+    if overflow {
+        return lhs >= 0 ? Int64.max : Int64.min
+    }
+    return result
+}
+
+private func runtimeTimeSaturatingMultiply(_ lhs: Int64, _ rhs: Int64) -> Int64 {
+    let (result, overflow) = lhs.multipliedReportingOverflow(by: rhs)
+    if overflow {
+        return (lhs < 0) == (rhs < 0) ? Int64.max : Int64.min
+    }
+    return result
+}
+
+private func runtimeAbstractLongTimeMarkReadingNanos(_ markRaw: Int) -> Int? {
+    guard let mark = runtimeArrayBox(from: markRaw), mark.count >= 5,
+          let source = runtimeArrayBox(from: mark[3]) else {
+        return nil
+    }
+    let unit = kk_unbox_int(source[2])
+    let scale = runtimeTimeSourceUnitScale(unit)
+    let startedAt = Int64(mark[2])
+    let offset = Int64(kk_duration_inWholeNanoseconds(mark[4]))
+    return Int(runtimeTimeSaturatingAdd(runtimeTimeSaturatingMultiply(startedAt, scale), offset))
+}
+
+private func runtimeAbstractDoubleTimeMarkReadingNanos(_ markRaw: Int) -> Int? {
+    guard let mark = runtimeArrayBox(from: markRaw), mark.count >= 5,
+          let source = runtimeArrayBox(from: mark[3]) else {
+        return nil
+    }
+    let unit = kk_unbox_int(source[2])
+    let scale = Double(runtimeTimeSourceUnitScale(unit))
+    let value = Double(bitPattern: UInt64(bitPattern: Int64(mark[2])))
+    let scaled = value * scale
+    let startedAtNanos: Int64
+    if value.isNaN {
+        startedAtNanos = 0
+    } else if !scaled.isFinite || scaled >= Double(Int64.max) {
+        startedAtNanos = scaled.sign == .minus ? Int64.min : Int64.max
+    } else if scaled <= Double(Int64.min) {
+        startedAtNanos = Int64.min
+    } else {
+        startedAtNanos = Int64(scaled.rounded())
+    }
+    let offset = Int64(kk_duration_inWholeNanoseconds(mark[4]))
+    return Int(runtimeTimeSaturatingAdd(startedAtNanos, offset))
+}
 
 @_cdecl("__kk_time_mark_reading_nanos")
 public func __kk_time_mark_reading_nanos(_ markRaw: Int) -> Int {
@@ -235,6 +196,14 @@ public func __kk_time_mark_reading_nanos(_ markRaw: Int) -> Int {
     if box.count == 3,
        runtimeObjectTypeID(rawValue: markRaw) == valueTimeMarkRuntimeTypeID {
         return box[2]
+    }
+    if runtimeObjectTypeID(rawValue: markRaw) == abstractLongTimeMarkRuntimeTypeID,
+       let reading = runtimeAbstractLongTimeMarkReadingNanos(markRaw) {
+        return reading
+    }
+    if runtimeObjectTypeID(rawValue: markRaw) == abstractDoubleTimeMarkRuntimeTypeID,
+       let reading = runtimeAbstractDoubleTimeMarkReadingNanos(markRaw) {
+        return reading
     }
     // Fallback for one-field value-class boxes stored at the last slot.
     return box[box.count - 1]
@@ -257,39 +226,6 @@ public func __kk_comparable_time_mark_from_reading_nanos(_ readingNanos: Int) ->
     __kk_time_mark_from_reading_nanos(readingNanos)
 }
 
-// MARK: - TestTimeSource runtime (STDLIB-TIME-TYPE-009)
-
-@_cdecl("kk_test_time_source_new")
-public func kk_test_time_source_new() -> Int {
-    return registerRuntimeObject(RuntimeTestTimeSourceBox())
-}
-
-@_cdecl("kk_test_time_source_plus_assign")
-public func kk_test_time_source_plus_assign(_ sourceRaw: Int, _ durationRaw: Int) -> Int {
-    guard let source = runtimeTestTimeSourceBox(from: sourceRaw),
-          let durationNanoseconds = runtimeDurationNanosecondsValue(from: durationRaw)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_plus_assign received invalid handle")
-    }
-    source.nanoseconds = runtimeSaturatingAdd(source.nanoseconds, durationNanoseconds)
-    return 0
-}
-
-@_cdecl("kk_test_time_source_mark_now")
-public func kk_test_time_source_mark_now(_ sourceRaw: Int) -> Int {
-    guard let source = runtimeTestTimeSourceBox(from: sourceRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_mark_now received invalid TestTimeSource handle")
-    }
-    return registerRuntimeObject(RuntimeTimeMarkBox(uptimeNanoseconds: source.nanoseconds))
-}
-
-@_cdecl("kk_test_time_source_read")
-public func kk_test_time_source_read(_ sourceRaw: Int) -> Int {
-    guard let source = runtimeTestTimeSourceBox(from: sourceRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_test_time_source_read received invalid TestTimeSource handle")
-    }
-    return Int(source.nanoseconds)
-}
 
 // MARK: - Native: Foundation Date bridge (STDLIB-TIME-181)
 

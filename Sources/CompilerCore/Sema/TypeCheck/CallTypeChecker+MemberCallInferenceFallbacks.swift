@@ -449,43 +449,7 @@ extension CallTypeChecker {
             return directElementType
         }
         switch receiverExpr {
-        case let .call(calleeExpr, _, args, _):
-            guard let callee = ctx.ast.arena.expr(calleeExpr),
-                  case let .nameRef(name, _) = callee
-            else {
-                return directElementType
-            }
-            let sequenceOfName = interner.intern("sequenceOf")
-            if name == sequenceOfName {
-                let elementTypes = args.map { argument in
-                    driver.inferExpr(argument.expr, ctx: ctx, locals: &locals, expectedType: nil)
-                }
-                guard !elementTypes.isEmpty else {
-                    return sema.types.anyType
-                }
-                let hasNullableElement = elementTypes.contains { inferredType in
-                    inferredType == sema.types.nullableNothingType
-                        || sema.types.makeNonNullable(inferredType) != inferredType
-                }
-                let concreteTypes = elementTypes.compactMap { inferredType -> TypeID? in
-                    if inferredType == sema.types.nullableNothingType {
-                        return nil
-                    }
-                    return sema.types.makeNonNullable(inferredType)
-                }
-                let baseType = concreteTypes.isEmpty ? sema.types.anyType : sema.types.lub(concreteTypes)
-                return hasNullableElement ? sema.types.makeNullable(baseType) : baseType
-            }
-            let generateSequenceName = interner.intern("generateSequence")
-            if name == generateSequenceName, let firstArg = args.first {
-                let firstArgType = driver.inferExpr(firstArg.expr, ctx: ctx, locals: &locals, expectedType: nil)
-                if case let .functionType(functionType) = sema.types.kind(of: sema.types.makeNonNullable(firstArgType)),
-                   functionType.params.isEmpty
-                {
-                    return sema.types.makeNonNullable(functionType.returnType)
-                }
-                return firstArgType
-            }
+        case .call:
             return directElementType
         default:
             return directElementType
@@ -514,26 +478,6 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion static functions (STDLIB-NUM-130)
-
-    /// Returns the public signature and runtime link for primitive companion
-    /// functions whose owner type has no source-level Companion object.
-    func numericCompanionFunction(
-        typeName: String,
-        memberName: String,
-        sema: SemaModule
-    ) -> (returnType: TypeID, parameterType: TypeID, externalLinkName: String)? {
-        let types = sema.types
-        switch (typeName, memberName) {
-        case ("Double", "fromBits"):
-            return (types.doubleType, types.longType, "__kk_double_fromBits")
-        case ("Float", "fromBits"):
-            return (types.floatType, types.intType, "__kk_float_fromBits")
-        default:
-            return nil
-        }
-    }
-
     // MARK: - Numeric companion constants (STDLIB-153)
 
     func numericCompanionConstant(
@@ -543,16 +487,6 @@ extension CallTypeChecker {
     ) -> (TypeID, KIRExprKind)? {
         let types = sema.types
         switch (typeName, memberName) {
-        // Int (32-bit in Kotlin)
-        case ("Int", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int32.max)))
-        case ("Int", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int32.min)))
-        case ("Int", "SIZE_BITS"): return (types.intType, .intLiteral(32))
-        case ("Int", "SIZE_BYTES"): return (types.intType, .intLiteral(4))
-        // Long (64-bit)
-        case ("Long", "MAX_VALUE"): return (types.longType, .longLiteral(Int64.max))
-        case ("Long", "MIN_VALUE"): return (types.longType, .longLiteral(Int64.min))
-        case ("Long", "SIZE_BITS"): return (types.intType, .intLiteral(64))
-        case ("Long", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
         // Short
         case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
         case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))
@@ -595,11 +529,11 @@ extension CallTypeChecker {
         }
     }
 
-    /// Returns true if `receiverType` conforms to Closeable,
-    /// so that `.use {}` is only treated as a scope function on Closeable receivers.
-    /// Note: AutoCloseable is registered as a typealias to Closeable (see
-    /// HeaderHelpers+SyntheticCloseableStubs.swift), so checking Closeable alone
-    /// covers both Closeable and AutoCloseable receivers.
+    /// Returns true if `receiverType` conforms to AutoCloseable,
+    /// so that `.use {}` is only treated as a scope function on closeable receivers.
+    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see
+    /// HeaderHelpers+SyntheticCloseableStubs.swift and Stdlib/kotlin/AutoCloseable.kt),
+    /// so checking AutoCloseable covers both Closeable and AutoCloseable receivers.
     ///
     /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
     /// OutputStream) that implement Closeable through the nominal supertype chain registered
@@ -607,38 +541,42 @@ extension CallTypeChecker {
     /// has a `close()` member function registered with no parameters — this ensures that
     /// `file.bufferedReader().use { }` and similar patterns resolve correctly.
     func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
-        guard let closeableType = sema.types.closeableTypeID else {
+        guard let autoCloseableType = sema.types.closeableTypeID else {
             return false
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        if sema.types.isSubtype(nonNullReceiver, closeableType) {
+        if sema.types.isSubtype(nonNullReceiver, autoCloseableType) {
             return true
         }
         // STDLIB-030-BUG-01: When the receiver is a type parameter (e.g. `T` in
         // `fun <T : AutoCloseable> useIt(t: T)`), the general isSubtype now traverses
         // upper bounds (see Subtyping.swift). As an explicit fallback, also check directly:
-        // if any registered upper bound of T is a subtype of Closeable, accept it.
+        // if any registered upper bound of T is a subtype of AutoCloseable, accept it.
         if case let .typeParam(typeParam) = sema.types.kind(of: nonNullReceiver) {
             let upperBounds = sema.symbols.typeParameterUpperBounds(for: typeParam.symbol)
             for bound in upperBounds {
                 let nonNullBound = sema.types.makeNonNullable(bound)
-                if sema.types.isSubtype(nonNullBound, closeableType) {
+                if sema.types.isSubtype(nonNullBound, autoCloseableType) {
                     return true
                 }
             }
         }
-        // Fallback: check if the class explicitly declares Closeable or AutoCloseable
+        // Fallback: check if the class explicitly declares AutoCloseable or Closeable
         // in its registered supertype list.  This handles synthetic IO types
         // (BufferedReader, BufferedWriter, InputStream, OutputStream) whose supertypes
         // are registered via registerSyntheticFileIOStubs / setDirectSupertypes, without
-        // accidentally treating every class that happens to define close() as Closeable.
-        guard let closeableSymbol = sema.types.closeableInterfaceSymbol,
+        // accidentally treating every class that happens to define close() as closeable.
+        let closeableSymbols: [SymbolID] = [
+            sema.types.closeableInterfaceSymbol,
+            sema.types.ioCloseableInterfaceSymbol
+        ].compactMap { $0 }
+        guard !closeableSymbols.isEmpty,
               case let .classType(classType) = sema.types.kind(of: nonNullReceiver)
         else {
             return false
         }
         let directSupertypes = sema.symbols.directSupertypes(for: classType.classSymbol)
-        return directSupertypes.contains(closeableSymbol)
+        return closeableSymbols.contains(where: { directSupertypes.contains($0) })
     }
 
     /// Extracts the native struct type T from a `CValue<T>` receiver.

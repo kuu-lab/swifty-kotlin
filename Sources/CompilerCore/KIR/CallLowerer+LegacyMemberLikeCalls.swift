@@ -486,75 +486,8 @@ extension CallLowerer {
             return result
         }
 
-        // Int bit extraction functions (STDLIB-BIT-007).
-        // NOTE: This lowering logic is intentionally duplicated in
-        // CallLowerer+SafeMemberCalls.swift for the safe-call (?.) path.
-        // If you change the callee-name -> runtime-name mapping here, update
-        // the other file as well. Consider extracting a shared helper if the
-        // number of bit-operation intrinsics grows further.
-        if args.isEmpty {
-            let calleeStr = interner.resolve(calleeName)
-            if calleeStr == "highestOneBit" || calleeStr == "lowestOneBit" || calleeStr == "takeHighestOneBit" || calleeStr == "takeLowestOneBit" {
-                let intType = sema.types.intType
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if nonNullReceiverType == intType {
-                    let runtimeName: String
-                    switch calleeStr {
-                    case "highestOneBit": runtimeName = "kk_int_highestOneBit"
-                    case "lowestOneBit": runtimeName = "kk_int_lowestOneBit"
-                    case "takeHighestOneBit": runtimeName = "kk_int_takeHighestOneBit"
-                    case "takeLowestOneBit": runtimeName = "kk_int_takeLowestOneBit"
-                    default: fatalError("unreachable: calleeStr already guarded to bit operation functions")
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
         // KSP-642: Int/Long rotateLeft / rotateRight are lowered as ordinary calls to
         // the bundled Kotlin declarations in `Stdlib/kotlin/Numbers.kt`.
-
-        // Long bit manipulation functions (STDLIB-BIT-007)
-        let longType = sema.types.longType
-        let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-
-        if nonNullReceiverType == longType {
-            let calleeStr = interner.resolve(calleeName)
-
-            // Zero-argument functions
-            if args.isEmpty {
-                let runtimeName: String?
-                switch calleeStr {
-                case "highestOneBit": runtimeName = "kk_long_highestOneBit"
-                case "lowestOneBit": runtimeName = "kk_long_lowestOneBit"
-                case "takeHighestOneBit": runtimeName = "kk_long_takeHighestOneBit"
-                case "takeLowestOneBit": runtimeName = "kk_long_takeLowestOneBit"
-                default: runtimeName = nil
-                }
-
-                if let name = runtimeName {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(name),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
 
         // Boolean.not() → kk_op_not (STDLIB-308)
         if calleeName == interner.intern("not"),
@@ -974,20 +907,9 @@ extension CallLowerer {
                 ))
                 return result
             }
-            if let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-               case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
-               classType.classSymbol == charSequenceSymbol
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_char_sequence_length"),
-                    arguments: [loweredReceiverID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
+            // KSP-724: `CharSequence.length` is resolved through the bundled
+            // `kotlin.CharSequence` interface property, so the `kk_char_sequence_length`
+            // name-string fallback is no longer needed here.
         }
 
         // Char.code → identity (Char is stored as its Int code point) (STDLIB-305)
@@ -1129,72 +1051,6 @@ extension CallLowerer {
                     ))
                     return result
                 }
-                if calleeStr == "toList" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toList_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toMutableList" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toMutableList"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toSortedSet" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toSortedSet_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toCollection" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toCollection_flat"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asIterable" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asIterable_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "toCharArray" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_toCharArray_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
                 if calleeStr == "toRegex" {
                     instructions.append(.call(
                         symbol: nil,
@@ -1259,39 +1115,6 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asSequence" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asSequence_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "asIterable" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_asIterable_flat"),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if calleeStr == "withIndex" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_string_withIndex_flat"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1376,197 +1199,6 @@ extension CallLowerer {
                         result: result,
                         canThrow: stringHOFCanThrow,
                         thrownResult: stringHOFThrownResult
-                    ))
-                    return result
-                }
-            }
-        }
-
-        // String stdlib: 2-arg overloads (STDLIB-009, STDLIB-549)
-        // KNOWN LIMITATION: The dispatch below matches purely on function name + receiver
-        // type (String). User-defined extension functions with the same name (e.g.
-        // `fun String.windowed(...)`) will be incorrectly intercepted. A future fix
-        // should check the resolved symbol's origin (synthetic vs user-defined) before
-        // rewriting to the runtime call.
-        if args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            let calleeStr = interner.resolve(calleeName)
-            let isCharSequenceReceiver: Bool = {
-                guard let charSequenceSymbol = sema.types.charSequenceInterfaceSymbol,
-                      case let .classType(classType) = sema.types.kind(of: nonNullReceiverType)
-                else {
-                    return false
-                }
-                return classType.classSymbol == charSequenceSymbol
-            }()
-        }
-
-        // Sequence joinTo (STDLIB-SEQ-FN-052): buffer plus separator/prefix/postfix defaults.
-        // Also reached by Set receivers whose joinTo call never resolves to a real
-        // candidate; those must dispatch to the iterable-generic bridge rather than
-        // kk_sequence_joinTo (which expects a lazily-stepped Sequence handle).
-        if (1 ... 4).contains(args.count),
-           !isSourceBackedIterableCollectionCall,
-           interner.resolve(calleeName) == "joinTo"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-                || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                let stringType = sema.types.stringType
-                let paramNames = ["buffer", "separator", "prefix", "postfix"]
-                let defaults = [nil, ", ", "", ""]
-                var resolved: [KIRExprID?] = [nil, nil, nil, nil]
-                for (argIdx, arg) in args.enumerated() {
-                    if let label = arg.label,
-                       let paramIdx = paramNames.firstIndex(of: interner.resolve(label))
-                    {
-                        resolved[paramIdx] = loweredArgIDs[argIdx]
-                    } else if let slot = resolved.firstIndex(where: { $0 == nil }), slot <= argIdx {
-                        resolved[slot] = loweredArgIDs[argIdx]
-                    } else {
-                        resolved[argIdx] = loweredArgIDs[argIdx]
-                    }
-                }
-                if let destinationArg = resolved[0] {
-                    var joinArgs: [KIRExprID] = [destinationArg]
-                    for paramIndex in 1 ..< 4 {
-                        if let existing = resolved[paramIndex] {
-                            joinArgs.append(existing)
-                        } else if let defaultValue = defaults[paramIndex] {
-                            let interned = interner.intern(defaultValue)
-                            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-                            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
-                            joinArgs.append(exprID)
-                        }
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("__kk_iterable_joinTo"),
-                        arguments: [loweredReceiverID] + joinArgs,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-        }
-
-        // Sequence joinToString (STDLIB-275): 0-3 args, non-HOF, non-throwing;
-        // 1-4 args when the trailing argument is a transform lambda
-        // (KSP-joinToString-transform). This path is also reached by Array (and other
-        // non-concrete-collection) receivers whose `joinToString` call never resolves to
-        // a real symbol — see the `isCollectionExpr` disjunct below — so fixing it here
-        // fixes the transform-dropping bug for those receivers too, not just Sequence.
-        if args.count <= 4,
-           !isSourceBackedIterableCollectionCall,
-           interner.resolve(calleeName) == "joinToString"
-        {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            // Bare Iterable/Collection/Set interface receivers always qualify for this
-            // joinToString fallback: isConcreteCollectionLikeType (despite its name) also
-            // matches those bare interface symbols, so the isCollectionExpr && !concrete
-            // disjunct alone would exclude them and leave `_joinToString` unresolved.
-            // Set-like receivers (including concrete HashSet/etc.) are admitted here too
-            // when Sema left the callee unbound, but must use the iterable runtime —
-            // kk_sequence_* expects a Sequence handle and fails on set handles.
-            let isBareIterableCollectionOrSetInterfaceType = isIterableOrCollectionInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-                || isBareSetInterfaceType(nonNullReceiverType, sema: sema, interner: interner)
-            let isSetReceiver = isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            if isBareIterableCollectionOrSetInterfaceType
-                || isSetReceiver
-                || sema.bindings.isCollectionExpr(receiverExpr) && !isConcreteCollectionLikeType(nonNullReceiverType, sema: sema, interner: interner)
-            {
-                let lastArgIsLambda: Bool = if let lastArgExpr = args.last?.expr,
-                                                let lastArgNode = ast.arena.expr(lastArgExpr) {
-                    lastArgNode.isLambdaOrCallableRef
-                } else {
-                    false
-                }
-                let stringType = sema.types.stringType
-                let paramNames = ["separator", "prefix", "postfix"]
-                let defaults = [", ", "", ""]
-                if lastArgIsLambda {
-                    // Build a 3-element array mapping each leading parameter to its lowered
-                    // arg or a default; the trailing lambda is handled separately below.
-                    var resolved: [KIRExprID?] = [nil, nil, nil]
-                    for (argIdx, arg) in args.enumerated() where argIdx < args.count - 1 {
-                        if let label = arg.label,
-                           let paramIdx = paramNames.firstIndex(of: interner.resolve(label))
-                        {
-                            resolved[paramIdx] = loweredArgIDs[argIdx]
-                        } else if let slot = resolved.firstIndex(where: { $0 == nil }) {
-                            resolved[slot] = loweredArgIDs[argIdx]
-                        }
-                    }
-                    var joinArgs: [KIRExprID] = []
-                    for paramIndex in 0 ..< 3 {
-                        if let existing = resolved[paramIndex] {
-                            joinArgs.append(existing)
-                        } else {
-                            let interned = interner.intern(defaults[paramIndex])
-                            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-                            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
-                            joinArgs.append(exprID)
-                        }
-                    }
-                    let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                        loweredArgIDs[args.count - 1],
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        instructions: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("__kk_iterable_joinToString_transform"),
-                        arguments: [loweredReceiverID] + joinArgs + [fnPtrExpr, envPtrExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if args.count <= 3 {
-                    // Build a 3-element array mapping each parameter to its lowered arg or a default
-                    var resolved: [KIRExprID?] = [nil, nil, nil]
-                    for (argIdx, arg) in args.enumerated() {
-                        if let label = arg.label,
-                           let paramIdx = paramNames.firstIndex(of: interner.resolve(label))
-                        {
-                            resolved[paramIdx] = loweredArgIDs[argIdx]
-                        } else {
-                            // Positional argument: fill first unresolved slot
-                            if let slot = resolved.firstIndex(where: { $0 == nil }), slot <= argIdx {
-                                resolved[slot] = loweredArgIDs[argIdx]
-                            } else {
-                                resolved[argIdx] = loweredArgIDs[argIdx]
-                            }
-                        }
-                    }
-                    var joinArgs: [KIRExprID] = []
-                    for paramIndex in 0 ..< 3 {
-                        if let existing = resolved[paramIndex] {
-                            joinArgs.append(existing)
-                        } else {
-                            let interned = interner.intern(defaults[paramIndex])
-                            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-                            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
-                            joinArgs.append(exprID)
-                        }
-                    }
-                    let joinToStringCallee = interner.intern("__kk_iterable_joinToString")
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: joinToStringCallee,
-                        arguments: [loweredReceiverID] + joinArgs,
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
                     ))
                     return result
                 }
@@ -2279,28 +1911,6 @@ extension CallLowerer {
                     isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
-                default:
-                    nil
-                }
-                if let runtimeCallee {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern(runtimeCallee),
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-            // String Iterable<Char> — route toList/iterator to specialised runtime (STDLIB-317)
-            if isStringIterableType(nonNullReceiverType, sema: sema, interner: interner) {
-                let runtimeCallee: String? = switch interner.resolve(calleeName) {
-                case "toList":
-                    "kk_string_iterable_toList"
-                case "iterator":
-                    "kk_string_iterable_iterator"
                 default:
                     nil
                 }

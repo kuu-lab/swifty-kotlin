@@ -137,30 +137,6 @@ public extension RuntimeABISpec {
             section: "Duration"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_duration_to_java_duration",
-            parameters: [
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_duration_unit_to_time_unit",
-            parameters: [
-                RuntimeABIParameter(name: "unitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_time_unit_to_duration_unit",
-            parameters: [
-                RuntimeABIParameter(name: "timeUnitOrdinal", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_timedvalue_new",
             parameters: [
                 RuntimeABIParameter(name: "valueRaw", type: .intptr),
@@ -263,42 +239,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "sourceRaw", type: .intptr),
                 RuntimeABIParameter(name: "originRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        // STDLIB-TIME-TYPE-009: TestTimeSource
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_new",
-            parameters: [],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false,
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_plus_assign",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-                RuntimeABIParameter(name: "durationRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_mark_now",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Duration",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_test_time_source_read",
-            parameters: [
-                RuntimeABIParameter(name: "sourceRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Duration",

@@ -65,6 +65,7 @@ private func runtimeIteratorMethodCall(
 private func runtimeTraverseSourceSequenceObject(
     _ rawValue: Int,
     outThrown: UnsafeMutablePointer<Int>?,
+    iterator: ((Int) -> Void)? = nil,
     yield: (Int) -> Bool
 ) -> Bool {
     let iteratorFnPtr = kk_itable_lookup_dynamic(rawValue, Int(runtimeSequenceInterfaceTypeID), 0)
@@ -77,6 +78,7 @@ private func runtimeTraverseSourceSequenceObject(
     )
     var thrown: Int = 0
     let iterRaw = iteratorFn(rawValue, &thrown)
+    iterator?(iterRaw)
     if thrown != 0 {
         if let outThrown {
             outThrown.pointee = thrown
@@ -163,10 +165,16 @@ func runtimeSequenceSourceValues(from rawValue: Int) -> [RuntimeValue]? {
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: nil, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: nil,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
         return nil
@@ -230,10 +238,16 @@ private func runtimeSequenceSourceValuesOrThrow(
     }
     if runtimeObjectBox(from: rawValue) != nil {
         var values: [RuntimeValue] = []
-        if runtimeTraverseSourceSequenceObject(rawValue, outThrown: outThrown, yield: { elem in
-            values.append(RuntimeValue(raw: elem))
-            return true
-        }) {
+        var iteratorRaw = 0
+        if runtimeTraverseSourceSequenceObject(
+            rawValue,
+            outThrown: outThrown,
+            iterator: { iteratorRaw = $0 },
+            yield: { elem in
+                values.append(runtimeSourceIteratorValue(elem, iteratorRaw: iteratorRaw))
+                return true
+            }
+        ) {
             return values
         }
     }
@@ -1552,8 +1566,8 @@ public func kk_sequence_from_list(_ listRaw: Int) -> Int {
 
 // MARK: - emptySequence (STDLIB-277)
 
-@_cdecl("kk_empty_sequence")
-public func kk_empty_sequence() -> Int {
+@_cdecl("__kk_empty_sequence")
+public func __kk_empty_sequence() -> Int {
     let seq = RuntimeSequenceBox(steps: [.source(elements: [])])
     return registerRuntimeObject(seq)
 }
@@ -1561,7 +1575,7 @@ public func kk_empty_sequence() -> Int {
 @_cdecl("kk_sequence_orEmpty")
 public func kk_sequence_orEmpty(_ seqRaw: Int) -> Int {
     if seqRaw == runtimeNullSentinelInt || seqRaw == 0 {
-        return kk_empty_sequence()
+        return __kk_empty_sequence()
     }
     return seqRaw
 }
@@ -1589,12 +1603,19 @@ public func kk_sequence_ifEmpty(
     return seqRaw
 }
 
-@_cdecl("kk_sequence_of")
-public func kk_sequence_of(_ arrayRaw: Int) -> Int {
-    guard let arr = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_sequence_of expected RuntimeArrayBox")
+@_cdecl("__kk_sequence_of")
+public func __kk_sequence_of(_ arrayRaw: Int) -> Int {
+    let elements: [Int]
+    if let arr = runtimeArrayBox(from: arrayRaw) {
+        elements = Array(arr.elements)
+    } else if let list = runtimeListBox(from: arrayRaw) {
+        // Source-backed vararg functions are normalized to a list at their
+        // public call boundary; accept that representation while preserving
+        // the packed-array ABI used by direct bridge calls.
+        elements = Array(list.elements)
+    } else {
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_sequence_of expected RuntimeArrayBox or RuntimeListBox")
     }
-    let elements = Array(arr.elements)
     let seq = RuntimeSequenceBox(steps: [.source(elements: elements)])
     return registerRuntimeObject(seq)
 }
@@ -1609,16 +1630,16 @@ public func kk_sequence_of_single(_ element: Int) -> Int {
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_generate")
-public func kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate")
+public func __kk_sequence_generate(_ seed: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.generator(seed: seed, fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
 
 /// STDLIB-SEQ-002: 1-arg form `generateSequence(nextFunction: () -> T?)`.
 /// Calls `nextFunction` (no-arg closure) repeatedly; stops when null is returned.
-@_cdecl("kk_sequence_generate_noarg")
-public func kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
+@_cdecl("__kk_sequence_generate_noarg")
+public func __kk_sequence_generate_noarg(_ fnPtr: Int, _ closureRaw: Int) -> Int {
     let seq = RuntimeSequenceBox(steps: [.nullableGenerator(fnPtr: fnPtr, closureRaw: closureRaw)])
     return registerRuntimeObject(seq)
 }
@@ -2641,6 +2662,7 @@ public func kk_sequence_findLast(
     }
     return hasMatch ? found : runtimeNullSentinelInt
 }
+
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

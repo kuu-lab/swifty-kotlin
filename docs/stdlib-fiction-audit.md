@@ -171,3 +171,57 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 
 この値は CLEANUP-STUB-102 以降の master 上の削減を含むため、前回記録の 5099 との差分を URI 単独の削減量としては扱わない。
 今回の対象では `java.net.URI` の synthetic shell、公開 URI exports、Path/URL の URI 変換を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-14 CLEANUP-STUB-109（`kotlin.io.FileWalkDirection` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更前後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 変更前 | `.synthetic` フラグ付き残留サーフェス | 3105 | `kotlin=2607`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+| 2026-08-14 CLEANUP-STUB-109 | `.synthetic` フラグ付き残留サーフェス | 3102 | `kotlin=2604`, `java=304`, `kotlinx=193`, `CancellationException=1` |
+
+`kotlin.io.FileWalkDirection` の enum と `TOP_DOWN`/`BOTTOM_UP` の synthetic symbol 3件を削除した。File IO/FileTreeWalk の別 surface は対象外として保持した。
+
+## 2026-08-14 CLEANUP-STUB-124（`java.net.URL` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-14 CLEANUP-STUB-124 | `.synthetic` フラグ付き残留サーフェス | 3397 | `kotlin=2566`, `java=271`, `kotlinx=187`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+この値は CLEANUP-STUB-123 後の master 上の削減を含むため、前回記録との差分を URL 単独の削減量としては扱わない。
+今回の対象では `java.net.URL` の synthetic shell、公開 URL exports、URL runtime/ABI exports を除去し、HTTP request builder 内部の URI handoff は保持した。
+
+## 2026-08-19 CLEANUP-STUB-127/128（Kotlin/JS `JsAny` / `JsNumber` synthetic surface 削除）
+
+実行コマンド:
+
+```bash
+DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+```
+
+標準の Swift Testing dump が成功し、`makeCompilationContext` / `runSema` pipeline の実測値を取得した。
+
+変更後の実測値:
+
+| 時点 | 追跡対象 | 合計 | root 内訳 |
+|---|---|---:|---|
+| 2026-08-19 CLEANUP-STUB-127/128 | `.synthetic` フラグ付き残留サーフェス | 2898 | `kotlin=2063`, `java=266`, `kotlinx=191`, `CancellationException=1`（その他の内部生成 root を含む） |
+
+参考値として、同じ実行時の `SymbolTable.allSymbols()` 総数は **14500**。
+`kotlin.js.JsAny` / `JsNumber` の synthetic Sema 登録、stale RuntimeABI spec、ABI parity の spec-only allowlist を除去した。
+実 Runtime export は存在しないため Runtime 本体は変更していない。`Tests` / `Scripts/diff_cases` に `JsAny` の参照はなく、別問題の `js_annotations.kt` は保持している。

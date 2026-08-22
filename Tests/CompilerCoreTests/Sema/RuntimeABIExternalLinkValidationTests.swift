@@ -351,10 +351,26 @@ struct RuntimeABIExternalLinkValidationTests {
 
     private func functionHeader(startingAt index: Int, in lines: [String]) -> String? {
         var header = ""
+        var parameterParenDepth = 0
+        var sawParameterParen = false
         for line in lines[index...] {
             header += " " + line.trimmingCharacters(in: .whitespacesAndNewlines)
-            if header.contains(")") {
-                break
+            for character in line {
+                if character == "(" {
+                    parameterParenDepth += 1
+                    sawParameterParen = true
+                } else if character == ")", sawParameterParen {
+                    parameterParenDepth -= 1
+                    if parameterParenDepth == 0 {
+                        let trimmed = header.trimmingCharacters(in: .whitespaces)
+                        if trimmed.contains(" fun ") || trimmed.hasPrefix("fun ") {
+                            return header
+                        }
+                        if headerIsConstructor(header) {
+                            return header
+                        }
+                    }
+                }
             }
         }
         let trimmed = header.trimmingCharacters(in: .whitespaces)

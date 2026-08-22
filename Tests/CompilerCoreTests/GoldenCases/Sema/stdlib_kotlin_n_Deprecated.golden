@@ -1,0 +1,22 @@
+symbol fq=golden.sema.caller kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.newApi kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldDefaultWarning kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldWarning kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+symbol fq=golden.sema.oldWithReplace kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file fstdlib_kotlin_n_Deprecated package=golden.sema
+  decl golden.sema.oldWarning fun oldWarning sym=golden.sema.oldWarning
+  decl golden.sema.oldDefaultWarning fun oldDefaultWarning sym=golden.sema.oldDefaultWarning
+  decl golden.sema.oldWithReplace fun oldWithReplace sym=golden.sema.oldWithReplace
+  decl golden.sema.newApi fun newApi sym=golden.sema.newApi
+  decl golden.sema.caller fun caller sym=golden.sema.caller
+expr e@4:25 int(1) type=Int
+expr e@7:32 int(2) type=Int
+expr e@10:29 int(3) type=Int
+expr e@12:21 int(4) type=Int
+expr e@14:21 call callee=e@14:21#1 args=[] type=Int call=golden.sema.oldWarning
+expr e@14:36 call callee=e@14:36#1 args=[] type=Int call=golden.sema.oldDefaultWarning
+expr e@14:21#2 binary(add) lhs=e@14:21 rhs=e@14:36 type=Int
+expr e@14:58 call callee=e@14:58#1 args=[] type=Int call=golden.sema.oldWithReplace
+expr e@14:21#3 binary(add) lhs=e@14:21#2 rhs=e@14:58 type=Int
+expr e@14:77 call callee=e@14:77#1 args=[] type=Int call=golden.sema.newApi
+expr e@14:21#4 binary(add) lhs=e@14:21#3 rhs=e@14:77 type=Int

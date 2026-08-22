@@ -31,7 +31,50 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes([comparableSymbol], for: primitiveSymbol)
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
             types.setNominalSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
+
+            // KSP-853: Int is a compiler primitive, so retain only the
+            // synthetic Companion anchor needed by source-backed extensions.
+            if typeName == "Int" {
+                ensureSyntheticPrimitiveCompanionSymbol(
+                    ownerSymbol: primitiveSymbol,
+                    symbols: symbols,
+                    interner: interner
+                )
+            }
         }
+    }
+
+    private func ensureSyntheticPrimitiveCompanionSymbol(
+        ownerSymbol: SymbolID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        if symbols.companionObjectSymbol(for: ownerSymbol) != nil {
+            return
+        }
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let companionName = interner.intern("Companion")
+        let companionFQName = ownerInfo.fqName + [companionName]
+        if let existing = symbols.lookupAll(fqName: companionFQName).first(where: { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == .object || symbol.kind == .class || symbol.kind == .interface
+        }) {
+            symbols.setParentSymbol(ownerSymbol, for: existing)
+            symbols.setCompanionObjectSymbol(existing, for: ownerSymbol)
+            return
+        }
+        let companionSymbol = symbols.define(
+            kind: .object,
+            name: companionName,
+            fqName: companionFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
+        symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
     }
 
     /// Register `operator fun compareTo(other: T): Int` on the Comparable interface.

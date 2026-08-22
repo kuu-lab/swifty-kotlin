@@ -198,12 +198,10 @@ extension CallLowerer {
         if normalized.defaultMask != 0,
            let chosenCallee,
            let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
-           externalLinkName == "__kk_iterable_joinTo"
-            || externalLinkName.hasSuffix("_joinToString")
+           externalLinkName.hasSuffix("_joinToString")
         {
             materializeJoinToStringDefaultArguments(
                 normalized.defaultMask,
-                firstDefaultParameterIndex: externalLinkName == "__kk_iterable_joinTo" ? 1 : 0,
                 sema: sema,
                 arena: arena,
                 interner: interner,
@@ -279,7 +277,56 @@ extension CallLowerer {
         {
             finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        let callSymbol = chosenCallee
+        var callSymbol = chosenCallee
+        // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
+        // so lower the concrete Double/Float overload directly to the range ABI.
+        // The source-backed generic declaration remains available for overload
+        // resolution, while this path preserves the stdlib's empty-range and NaN
+        // behavior without dispatching synthetic range accessors through an
+        // unpopulated itable.
+        if interner.resolve(calleeName) == "coerceIn",
+           sourceArgExprs.count == 1,
+           sema.bindings.isFloatingPointRangeExpr(sourceArgExprs[0])
+        {
+            let receiverType = sema.types.makeNonNullable(
+                sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
+            )
+            let floatingRangeCallee: InternedString? = if receiverType == sema.types.floatType {
+                interner.intern("__kk_float_coerceIn_range")
+            } else if receiverType == sema.types.doubleType {
+                interner.intern("__kk_double_coerceIn_range")
+            } else {
+                nil
+            }
+            if let floatingRangeCallee {
+                var rangeArguments = finalArguments
+                if rangeArguments.count == 1 {
+                    rangeArguments.insert(receiver.loweredID, at: 0)
+                }
+                guard rangeArguments.count == 2 else {
+                    preconditionFailure("KSP-641 range coerceIn must lower to receiver and range arguments")
+                }
+                let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: floatingRangeCallee,
+                    arguments: rangeArguments,
+                    result: result,
+                    canThrow: true,
+                    thrownResult: thrownResult,
+                    isSuperCall: isSuperCall,
+                    qualifiedSuperType: qualifiedSuperType
+                ))
+                let continueLabel = driver.ctx.makeLoopLabel()
+                let rethrowLabel = driver.ctx.makeLoopLabel()
+                instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowLabel))
+                instructions.append(.jump(continueLabel))
+                instructions.append(.label(rethrowLabel))
+                instructions.append(.rethrow(value: thrownResult))
+                instructions.append(.label(continueLabel))
+                return
+            }
+        }
         if loweredCallee == interner.intern("kk_worker_execute"),
            finalArguments.count == 4,
            sourceArgExprs.count == 3
@@ -362,32 +409,6 @@ extension CallLowerer {
                 instructions: &instructions,
                 arguments: &finalArguments
             )
-        }
-        if loweredCallee == interner.intern("__kk_iterable_joinToString_transform")
-        {
-            let originalArgumentCount = finalArguments.count
-            let lambdaArgIndex = originalArgumentCount - 1
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[lambdaArgIndex],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments[lambdaArgIndex] = fnPtrExpr
-            finalArguments.append(envPtrExpr)
-            // `joinToString(transform)` / `joinToString(separator, transform)` / ... each
-            // expand to the full `(separator, prefix, postfix, transform)` shape the
-            // runtime ABI expects, materializing whichever trailing string defaults
-            // (from the end of the real parameter list) the call site omitted.
-            let stringDefaults = [", ", "", ""]
-            let missingCount = Swift.max(0, 5 - originalArgumentCount)
-            for (offset, defaultValue) in stringDefaults.suffix(missingCount).enumerated() {
-                let interned = interner.intern(defaultValue)
-                let exprID = arena.appendExpr(.stringLiteral(interned), type: sema.types.stringType)
-                instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
-                finalArguments.insert(exprID, at: lambdaArgIndex + offset)
-            }
         }
         if loweredCallee == interner.intern("kk_list_zip_transform"),
            finalArguments.count == 3

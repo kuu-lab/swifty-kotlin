@@ -48,6 +48,40 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+// KSP-701: generic Iterable HOFs formerly registered by the compiler-side
+// synthetic member registry now use bundled Kotlin source bodies.
+public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (predicate(element)) result.add(element)
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
+    val elements = this.toMutableList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
+public fun <T> Iterable<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
+    val elements = this.toMutableList()
+    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = elements[0]
+    var i = 1
+    while (i < elements.size) {
+        accumulator = operation(i, accumulator, elements[i])
+        i += 1
+    }
+    return accumulator
+}
+
 public fun <T> Iterable<T>.any(): Boolean {
     for (element in this) return true
     return false
@@ -93,28 +127,109 @@ public fun <T : Any> Iterable<T?>.requireNoNulls(): Iterable<T> {
     return this as Iterable<T>
 }
 
-public fun <T> Iterable<T>.joinTo(
+// Shared by Iterable.joinTo/joinToString (below) and Sequence.joinTo/joinToString
+// (SequenceAggregateHOF.kt, kotlin.sequences) — both only need iterator(), so a
+// single implementation keyed on Iterator<T> covers both receiver types (KSP-621).
+internal fun <T> appendJoinToPlain(
+    iterator: Iterator<T>,
     buffer: StringBuilder,
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
 ): StringBuilder {
     buffer.append(prefix)
-    var first = true
-    for (element in this) {
-        if (!first) buffer.append(separator)
+    var count = 0
+    var hasMore = false
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
         buffer.append(element.toString())
-        first = false
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
     }
     buffer.append(postfix)
     return buffer
 }
 
+internal fun <T> appendJoinToTransform(
+    iterator: Iterator<T>,
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): StringBuilder {
+    buffer.append(prefix)
+    var count = 0
+    var hasMore = false
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator)
+        buffer.append(transform(element).toString())
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator)
+        buffer.append(truncated)
+    }
+    buffer.append(postfix)
+    return buffer
+}
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String = ", ",
+    prefix: String = "",
+    postfix: String = ""
+): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, -1, "...")
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
+
+public fun <T> Iterable<T>.joinTo(
+    buffer: StringBuilder,
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): StringBuilder = appendJoinToTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
+
 public fun <T> Iterable<T>.joinToString(
     separator: String = ", ",
     prefix: String = "",
     postfix: String = ""
-): String = joinTo(StringBuilder(), separator, prefix, postfix).toString()
+): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...").toString()
+
+public fun <T> Iterable<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String
+): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
 
 // The `transform` overloads are spelled per arity because a trailing lambda
 // cannot be bound to the defaulted `String` parameters above.
@@ -124,16 +239,7 @@ public fun <T> Iterable<T>.joinToString(
     postfix: String,
     transform: (T) -> Any
 ): String {
-    val buffer = StringBuilder()
-    buffer.append(prefix)
-    var first = true
-    for (element in this) {
-        if (!first) buffer.append(separator)
-        buffer.append(transform(element).toString())
-        first = false
-    }
-    buffer.append(postfix)
-    return buffer.toString()
+    return appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...", transform).toString()
 }
 
 public fun <T> Iterable<T>.joinToString(
@@ -146,6 +252,15 @@ public fun <T> Iterable<T>.joinToString(
     separator: String,
     transform: (T) -> Any
 ): String = joinToString(separator, "", "", transform)
+
+public fun <T> Iterable<T>.joinToString(
+    separator: String,
+    prefix: String,
+    postfix: String,
+    limit: Int,
+    truncated: String,
+    transform: (T) -> Any
+): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
 // KSP-632: remaining Iterable HOFs migrated from the Swift runtime `kk_list_*`
 // bridges. These implementations rely only on `iterator()` / `toMutableList()`,
@@ -201,7 +316,7 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
 
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
-): String = joinToString(", ", "", "", transform)
+): String = appendJoinToTransform(this.iterator(), StringBuilder(), ", ", "", "", -1, "...", transform).toString()
 
 // Char.toString() is represented by its numeric code in the generic path;
 // keep the List<Char> overload aligned with Kotlin's character rendering.

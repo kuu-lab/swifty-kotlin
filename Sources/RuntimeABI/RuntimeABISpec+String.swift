@@ -1512,83 +1512,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toList",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-TEXT-FN-104: CharSequence.toMutableList() — MutableList<Char>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toMutableList",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toList_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toCharArray_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-TEXT-FN-109: String.toTypedArray() — Array<Char>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toTypedArray_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-TEXT-FN-094: CharSequence.toCollection(destination)
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toCollection_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "destRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        // STDLIB-TEXT-FN-108: CharSequence.toSortedSet()
-        RuntimeABIFunctionSpec(
-            name: "kk_string_toSortedSet_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
         // STDLIB-640: CharArray.concatToString()
         RuntimeABIFunctionSpec(
             name: "kk_chararray_concatToString",
@@ -1598,77 +1521,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String",
             isThrowing: false
-        ),
-        // STDLIB-317: String.asIterable() — lazy Iterable<Char>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_asIterable_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        // STDLIB-TEXT-FN-115: CharSequence.withIndex() — Iterable<IndexedValue<Char>>
-        RuntimeABIFunctionSpec(
-            name: "kk_string_withIndex_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_iterable_toList",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_iterable_iterator",
-            parameters: [
-                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_iterator_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_iterator_hasNext",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_iterator_next",
-            parameters: [
-                RuntimeABIParameter(name: "iterRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "String"
         ),
         // KSP-404: removePrefix/removeSuffix/removeSurrounding flat bridges removed;
         // implemented in bundled Kotlin source (StringPrefixSuffix.kt).
@@ -1710,6 +1562,18 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "strRaw", type: .intptr),
                 RuntimeABIParameter(name: "delimRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "String",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_string_joinToString",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "separatorRaw", type: .intptr),
+                RuntimeABIParameter(name: "prefixRaw", type: .intptr),
+                RuntimeABIParameter(name: "postfixRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "String",

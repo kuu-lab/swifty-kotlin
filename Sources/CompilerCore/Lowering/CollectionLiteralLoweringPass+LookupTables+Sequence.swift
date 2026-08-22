@@ -16,10 +16,7 @@ struct SequenceLookupNames {
     let kkIteratorBuilderBuildName: InternedString
     let kkIteratorBuilderHasNextName: InternedString
     let kkIteratorBuilderNextName: InternedString
-    // Sequence ABI names (STDLIB-095/096/097)
-    let kkSequenceOfName: InternedString
-    let kkSequenceGenerateName: InternedString
-    let kkSequenceGenerateNoArgName: InternedString
+    // Sequence ABI names (STDLIB-095/096)
     let kkSequenceForEachName: InternedString
     let kkSequenceFlatMapName: InternedString
     let kkSequenceFlatMapIndexedName: InternedString
@@ -81,9 +78,6 @@ struct SequenceLookupNames {
     let iteratorBuilderName: InternedString
     let yieldName: InternedString
     let yieldAllName: InternedString
-    // Sequence factory names (STDLIB-097)
-    let sequenceOfName: InternedString
-    let generateSequenceName: InternedString
 
     init(interner: StringInterner) {
         kkSequenceMapName = interner.intern("kk_sequence_map")
@@ -97,9 +91,6 @@ struct SequenceLookupNames {
         kkIteratorBuilderBuildName = interner.intern("__kk_iterator_builder_build")
         kkIteratorBuilderHasNextName = interner.intern("__kk_iterator_builder_hasNext")
         kkIteratorBuilderNextName = interner.intern("__kk_iterator_builder_next")
-        kkSequenceOfName = interner.intern("kk_sequence_of")
-        kkSequenceGenerateName = interner.intern("kk_sequence_generate")
-        kkSequenceGenerateNoArgName = interner.intern("kk_sequence_generate_noarg")
         kkSequenceForEachName = interner.intern("kk_sequence_forEach")
         kkSequenceFlatMapName = interner.intern("kk_sequence_flatMap")
         kkSequenceFlatMapIndexedName = interner.intern("kk_sequence_flatMapIndexed")
@@ -155,7 +146,5 @@ struct SequenceLookupNames {
         iteratorBuilderName = interner.intern("iterator")
         yieldName = interner.intern("yield")
         yieldAllName = interner.intern("yieldAll")
-        sequenceOfName = interner.intern("sequenceOf")
-        generateSequenceName = interner.intern("generateSequence")
     }
 }

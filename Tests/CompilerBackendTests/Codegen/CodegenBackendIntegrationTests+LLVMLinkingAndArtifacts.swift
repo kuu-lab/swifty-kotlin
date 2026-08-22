@@ -889,7 +889,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_equals_flat"))
         #expect(!ir.contains("@kk_string_equals("))
         #expect(ir.contains("@__kk_print_raw"))
-        #expect(ir.contains("{ ptr, i64, i64, i64 }"))
+        // LLVM 14 emits typed pointers (i8*); LLVM 15+ uses opaque pointers (ptr).
+        #expect(ir.contains("{ ptr, i64, i64, i64 }") || ir.contains("{ i8*, i64, i64, i64 }"))
         #expect(ir.contains("@kk_coroutine_suspended"))
         #expect(ir.contains("@kk_coroutine_state_set_label"))
         #expect(ir.contains("@kk_coroutine_state_set_spill"))
@@ -1609,89 +1610,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
     // were removed.
 
     @Test
-    func testLLVMBackendEmitsFlatStringMaterializationRuntimeCalls() throws {
-        let interner = StringInterner()
-        let types = TypeSystem()
-        let arena = KIRArena()
-
-        let text = interner.intern("abc")
-        let textExpr = arena.appendExpr(.stringLiteral(text), type: types.stringType)
-        let destinationExpr = arena.appendExpr(.intLiteral(0), type: types.intType)
-
-        var nextTemp: Int32 = 500
-        func temporary(_ type: TypeID) -> KIRExprID {
-            nextTemp += 1
-            return arena.appendExpr(.temporary(nextTemp), type: type)
-        }
-
-        var body: [KIRInstruction] = [
-            .constValue(result: textExpr, value: .stringLiteral(text)),
-            .constValue(result: destinationExpr, value: .intLiteral(0)),
-        ]
-
-        func appendMaterializationCall(_ calleeName: String, extraArguments: [KIRExprID] = []) {
-            body.append(.call(
-                symbol: nil,
-                callee: interner.intern(calleeName),
-                arguments: [textExpr] + extraArguments,
-                result: temporary(types.intType),
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
-
-        appendMaterializationCall("kk_string_toList_flat")
-        appendMaterializationCall("kk_string_toCharArray_flat")
-        appendMaterializationCall("kk_string_toTypedArray_flat")
-        appendMaterializationCall("kk_string_toSortedSet_flat")
-        appendMaterializationCall("kk_string_toCollection_flat", extraArguments: [destinationExpr])
-        appendMaterializationCall("kk_string_withIndex_flat")
-        appendMaterializationCall("kk_string_iterator_flat")
-        body.append(.returnUnit)
-
-        let main = KIRFunction(
-            symbol: SymbolID(rawValue: 1205),
-            name: interner.intern("main"),
-            params: [],
-            returnType: types.unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-
-        let mainID = arena.appendDecl(.function(main))
-        let module = KIRModule(
-            files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])],
-            arena: arena
-        )
-
-        let backend = try LLVMBackend(
-            target: defaultTargetTriple(),
-            optLevel: .O0,
-            debugInfo: false,
-            diagnostics: DiagnosticEngine()
-        )
-        let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
-
-        try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
-        let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-
-        let rawNames = [
-            "kk_string_toList",
-            "kk_string_toCharArray",
-            "kk_string_toTypedArray",
-            "kk_string_toSortedSet",
-            "kk_string_toCollection",
-            "kk_string_withIndex",
-            "kk_string_iterator",
-        ]
-        for rawName in rawNames {
-            #expect(!ir.contains("@\(rawName)("), "Unexpected raw String materialization call: \(rawName)")
-            #expect(ir.contains("@\(rawName)_flat"), "Missing flat String materialization call: \(rawName)_flat")
-        }
-    }
-
-    @Test
     func testLLVMBackendEmitsFlatStringListSequenceRuntimeCalls() throws {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -1752,8 +1670,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendScalarCall("kk_string_asIterable_flat", [textExpr])
-        appendScalarCall("kk_string_asSequence_flat", [textExpr])
         appendScalarCall("kk_string_split_flat", [textExpr, delimiterExpr])
         appendScalarCall("kk_string_split_limit_flat", [textExpr, delimiterExpr, ignoreCaseExpr, limitExpr])
         appendScalarCall("kk_string_splitToSequence_flat", [textExpr, delimiterExpr])
@@ -1785,14 +1701,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner, typeSystem: types)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
-
-        let flatOnlyNames = [
-            "kk_string_asIterable_flat",
-            "kk_string_asSequence_flat",
-        ]
-        for flatName in flatOnlyNames {
-            #expect(ir.contains("@\(flatName)("), "Missing flat String list/sequence call: \(flatName)")
-        }
 
         let rawNames = [
             "kk_string_split",

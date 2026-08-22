@@ -13,6 +13,31 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout [KIRInstruction]
     ) -> Bool {
+        // A source-backed primitive array factory with a normalized spread
+        // argument already has the complete array value. Preserve that value
+        // directly instead of treating it as one nested element or passing it
+        // through the source body's List-shaped vararg representation.
+        if arguments.count == 1,
+           isSourceBackedPrimitiveArrayFactory(symbol, sema: ctx.sema, interner: ctx.interner),
+           let sema = ctx.sema,
+           let argumentType = module.arena.exprType(arguments[0]),
+           isPrimitiveArrayType(argumentType, sema: sema, interner: ctx.interner)
+        {
+            let copiedArray = module.arena.appendTemporary(type: argumentType)
+            loweredBody.append(.call(
+                symbol: nil,
+                callee: lookup.kkArrayCopyOfName,
+                arguments: [arguments[0]],
+                result: copiedArray,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            if let result {
+                loweredBody.append(.copy(from: copiedArray, to: result))
+            }
+            return true
+        }
+
         // --- Rewrite arrayOf → kk_array_of ---
         if isStdlibArrayFactoryCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let count = arguments.count
@@ -103,19 +128,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // STDLIB-189: Rewrite kk_range_iterator on String -> kk_string_iterator_flat
-            if state.stringExprIDs.contains(argID.rawValue) {
-                if let result { state.stringIteratorExprIDs.insert(result.rawValue) }
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
             // STDLIB-331/564: iterator {} result is already an iterator; pass through
             if state.iteratorBuilderExprIDs.contains(argID.rawValue) {
                 if let result {
@@ -173,18 +185,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapIteratorHasNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            // STDLIB-189: Rewrite kk_range_hasNext on string iterator → kk_string_iterator_hasNext
-            if state.stringIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorHasNextName,
                     arguments: arguments,
                     result: result,
                     canThrow: false,
@@ -252,18 +252,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkMapIteratorNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            // STDLIB-189: Rewrite kk_range_next on string iterator → kk_string_iterator_next
-            if state.stringIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkStringIteratorNextName,
                     arguments: arguments,
                     result: result,
                     canThrow: false,

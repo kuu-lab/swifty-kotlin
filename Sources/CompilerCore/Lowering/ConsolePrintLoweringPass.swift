@@ -475,7 +475,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         if classSymbol.kind == .enumClass,
            let helperSymbol = enumNameHelperSymbol(for: classSymbol, sema: sema, interner: interner)
         {
-            let helperName = interner.intern("$enumOrdinalToName$\(helperSymbol.rawValue)")
+            let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSymbol, interner: interner)
             let result = arena.appendTemporary(type: stringType)
             instructions.append(.call(
                 symbol: helperSymbol,
@@ -540,7 +540,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         sema: SemaModule,
         interner: StringInterner
     ) -> SymbolID? {
-        let helperName = interner.intern("$enumOrdinalToName$\(classSymbol.id.rawValue)")
+        let helperName = NameMangler.enumOrdinalToNameHelperName(for: classSymbol, interner: interner)
         let fqName = classSymbol.fqName + [helperName]
         return sema.symbols.lookupAll(fqName: fqName).first { id in
             sema.symbols.symbol(id).map { $0.kind == .function } ?? false

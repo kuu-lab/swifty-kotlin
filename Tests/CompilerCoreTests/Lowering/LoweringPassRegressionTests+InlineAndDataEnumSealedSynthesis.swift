@@ -286,27 +286,29 @@ extension LoweringPassRegressionTests {
             interner.resolve(function.name)
         }
 
+        let colorSuffix = NameMangler.enumClassNameSuffix(for: [packageName, colorName], interner: interner)
+
         // Verify count helper still exists
         #expect(functionNames.contains("Color$enumValuesCount"), "Missing Color$enumValuesCount, got: \(functionNames)")
 
         // Verify per-entry ordinal helpers
-        #expect(functionNames.contains("RED$enumOrdinal"), "Missing RED$enumOrdinal, got: \(functionNames)")
-        #expect(functionNames.contains("GREEN$enumOrdinal"), "Missing GREEN$enumOrdinal, got: \(functionNames)")
-        #expect(functionNames.contains("BLUE$enumOrdinal"), "Missing BLUE$enumOrdinal, got: \(functionNames)")
+        #expect(functionNames.contains("RED$enumOrdinal$\(colorSuffix)"), "Missing RED$enumOrdinal$\(colorSuffix), got: \(functionNames)")
+        #expect(functionNames.contains("GREEN$enumOrdinal$\(colorSuffix)"), "Missing GREEN$enumOrdinal$\(colorSuffix), got: \(functionNames)")
+        #expect(functionNames.contains("BLUE$enumOrdinal$\(colorSuffix)"), "Missing BLUE$enumOrdinal$\(colorSuffix), got: \(functionNames)")
 
         // Verify per-entry name helpers
-        #expect(functionNames.contains("RED$enumName"), "Missing RED$enumName, got: \(functionNames)")
-        #expect(functionNames.contains("GREEN$enumName"), "Missing GREEN$enumName, got: \(functionNames)")
-        #expect(functionNames.contains("BLUE$enumName"), "Missing BLUE$enumName, got: \(functionNames)")
+        #expect(functionNames.contains("RED$enumName$\(colorSuffix)"), "Missing RED$enumName$\(colorSuffix), got: \(functionNames)")
+        #expect(functionNames.contains("GREEN$enumName$\(colorSuffix)"), "Missing GREEN$enumName$\(colorSuffix), got: \(functionNames)")
+        #expect(functionNames.contains("BLUE$enumName$\(colorSuffix)"), "Missing BLUE$enumName$\(colorSuffix), got: \(functionNames)")
 
         // Verify values() and valueOf() companion functions
         #expect(functionNames.contains("values"), "Missing values, got: \(functionNames)")
         #expect(functionNames.contains("valueOf"), "Missing valueOf, got: \(functionNames)")
 
         // Verify ordinal values are correct (0-based)
-        let redOrdinal = try findKIRFunction(named: "RED$enumOrdinal", in: module, interner: interner)
-        let greenOrdinal = try findKIRFunction(named: "GREEN$enumOrdinal", in: module, interner: interner)
-        let blueOrdinal = try findKIRFunction(named: "BLUE$enumOrdinal", in: module, interner: interner)
+        let redOrdinal = try findKIRFunction(named: "RED$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
+        let greenOrdinal = try findKIRFunction(named: "GREEN$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
+        let blueOrdinal = try findKIRFunction(named: "BLUE$enumOrdinal$\(colorSuffix)", in: module, interner: interner)
 
         // Each ordinal function should have a constValue instruction with the correct ordinal
         let redConst = redOrdinal.body.compactMap { inst -> Int64? in
@@ -328,7 +330,7 @@ extension LoweringPassRegressionTests {
         #expect(blueConst.contains(2), "BLUE ordinal should be 2, got consts: \(blueConst)")
 
         // Verify name functions return correct string literals
-        let redName = try findKIRFunction(named: "RED$enumName", in: module, interner: interner)
+        let redName = try findKIRFunction(named: "RED$enumName$\(colorSuffix)", in: module, interner: interner)
         let redNameConsts = redName.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s

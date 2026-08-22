@@ -8,12 +8,12 @@ struct RuntimeABISyntheticStubTests {
     @Test
     func testSequenceOfUsesPackedArrayABI() throws {
         let extern = try #require(
-            RuntimeABIExterns.externDecl(named: "kk_sequence_of")
+            RuntimeABIExterns.externDecl(named: "__kk_sequence_of")
         )
 
         #expect(
             extern.parameterTypes == [RuntimeABICType.intptr.rawValue],
-            "kk_sequence_of must accept one packed array handle"
+            "__kk_sequence_of must accept one packed array handle"
         )
     }
 }

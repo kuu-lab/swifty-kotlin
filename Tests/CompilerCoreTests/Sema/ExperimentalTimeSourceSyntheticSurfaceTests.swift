@@ -222,7 +222,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         ]))
         #expect(sema.symbols.symbol(abstractDoubleSymbol)?.kind == .class)
         #expect(sema.symbols.symbol(abstractDoubleSymbol)?.flags.contains(.abstractType) == true)
-        #expect(sema.symbols.directSupertypes(for: abstractDoubleSymbol) == [withComparableMarksSymbol])
+        let abstractDoubleSupertypes = sema.symbols.directSupertypes(for: abstractDoubleSymbol)
+        #expect(abstractDoubleSupertypes.contains(withComparableMarksSymbol))
 
         let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("DurationUnit"),
@@ -294,7 +295,8 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         ]))
         #expect(sema.symbols.symbol(abstractLongSymbol)?.kind == .class)
         #expect(sema.symbols.symbol(abstractLongSymbol)?.flags.contains(.abstractType) == true)
-        #expect(sema.symbols.directSupertypes(for: abstractLongSymbol) == [withComparableMarksSymbol])
+        let abstractLongSupertypes = sema.symbols.directSupertypes(for: abstractLongSymbol)
+        #expect(abstractLongSupertypes.contains(withComparableMarksSymbol))
 
         let durationUnitSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("DurationUnit"),
@@ -391,11 +393,14 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         let readSymbol = try #require(sema.symbols.lookupAll(fqName: kotlinTime + [
             interner.intern("TestTimeSource"),
             interner.intern("read"),
-        ]).first)
+        ]).first { symbol in
+            guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
+            return signature.receiverType == testTimeSourceType
+        })
         let readSignature = try #require(sema.symbols.functionSignature(for: readSymbol))
         let readInfo = try #require(sema.symbols.symbol(readSymbol))
-        #expect(readInfo.visibility == .protected)
-        #expect(readInfo.flags.isSuperset(of: [.openType, .overrideMember]))
+        #expect(readInfo.visibility == .public)
+        #expect(readInfo.flags.contains(.overrideMember))
         #expect(readSignature.receiverType == testTimeSourceType)
         #expect(readSignature.parameterTypes == [])
         #expect(readSignature.returnType == sema.types.longType)

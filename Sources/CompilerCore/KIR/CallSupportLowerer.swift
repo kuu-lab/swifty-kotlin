@@ -258,8 +258,13 @@ final class CallSupportLowerer {
         let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee)
         let isVararg = normalizeBoolFlags(signature.valueParameterIsVararg, count: parameterCount)
         let hasDefaultValues = normalizeBoolFlags(signature.valueParameterHasDefaultValues, count: parameterCount)
+        let isSourceBackedPrimitiveArrayFactory = isSourceBackedPrimitiveArrayFactory(
+            chosenCallee,
+            sema: sema,
+            interner: interner
+        )
         let preserveArrayVarargs = externalLinkName == "kk_array_of"
-            || externalLinkName == "kk_sequence_of"
+            || externalLinkName == "__kk_sequence_of"
             || externalLinkName == "kk_atomic_ref_array_of"
         if isStdlibCollectionFactory(chosenCallee, sema: sema, interner: interner) {
             return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
@@ -275,6 +280,33 @@ final class CallSupportLowerer {
         }
         for key in Array(argIndicesByParameter.keys) {
             argIndicesByParameter[key]?.sort()
+        }
+        if isSourceBackedPrimitiveArrayFactory {
+            let argIndices = argIndicesByParameter[0] ?? []
+            let hasAnySpread = argIndices.contains { idx in
+                idx < spreadFlags.count && spreadFlags[idx]
+            }
+            guard hasAnySpread else {
+                return NormalizedCallResult(arguments: providedArguments, defaultMask: 0)
+            }
+
+            let intType = sema.types.make(.primitive(.int, .nonNull))
+            let packed = packVarargArguments(
+                argIndices: argIndices,
+                providedArguments: providedArguments,
+                spreadFlags: spreadFlags,
+                listifyResult: false,
+                boxPrimitiveElements: false,
+                resultType: signature.returnType,
+                arena: arena,
+                interner: interner,
+                intType: intType,
+                anyType: sema.types.anyType,
+                types: sema.types,
+                symbols: sema.symbols,
+                instructions: &instructions
+            )
+            return NormalizedCallResult(arguments: [packed], defaultMask: 0)
         }
 
         let hasOutOfRangeMapping = argIndicesByParameter.keys.contains(where: { $0 < 0 || $0 >= parameterCount })
@@ -480,8 +512,10 @@ final class CallSupportLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> Bool {
-        guard let symbol = sema.symbols.symbol(symbolID),
-              symbol.fqName.count == 3,
+        guard let symbol = sema.symbols.symbol(symbolID) else {
+            return false
+        }
+        guard symbol.fqName.count == 3,
               interner.resolve(symbol.fqName[0]) == "kotlin",
               interner.resolve(symbol.fqName[1]) == "collections"
         else {
@@ -503,6 +537,7 @@ final class CallSupportLowerer {
         spreadFlags: [Bool],
         listifyResult: Bool = true,
         boxPrimitiveElements: Bool = true,
+        resultType: TypeID? = nil,
         arena: KIRArena,
         interner: StringInterner,
         intType: TypeID,
@@ -517,6 +552,14 @@ final class CallSupportLowerer {
         let allSpread = !argIndices.isEmpty && argIndices.allSatisfy { idx in
             idx < spreadFlags.count && spreadFlags[idx]
         }
+        func typedResult(_ expression: KIRExprID) -> KIRExprID {
+            guard !listifyResult, let resultType else {
+                return expression
+            }
+            let typed = arena.appendTemporary(type: resultType)
+            instructions.append(.copy(from: expression, to: typed))
+            return typed
+        }
 
         if argIndices.count == 1, allSpread {
             let spreadValue = providedArguments[argIndices[0]]
@@ -529,7 +572,7 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             }
-            return spreadValue
+            return typedResult(spreadValue)
         }
 
         if hasAnySpread {
@@ -602,7 +645,7 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             }
-            return concatResult
+            return typedResult(concatResult)
         }
 
         let count = argIndices.count
@@ -612,6 +655,7 @@ final class CallSupportLowerer {
             interner: interner,
             intType: intType,
             anyType: anyType,
+            resultType: resultType,
             instructions: &instructions
         )
         for (slotIndex, argIndex) in argIndices.enumerated() {
@@ -704,11 +748,12 @@ final class CallSupportLowerer {
         interner: StringInterner,
         intType: TypeID,
         anyType: TypeID,
+        resultType: TypeID? = nil,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID {
         let countExpr = arena.appendExpr(.intLiteral(Int64(count)), type: intType)
         instructions.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
-        let arrayID = arena.appendTemporary(type: anyType)
+        let arrayID = arena.appendTemporary(type: resultType ?? anyType)
         emitNonThrowingCall(
             callee: interner.intern("kk_array_new"),
             arg: countExpr,

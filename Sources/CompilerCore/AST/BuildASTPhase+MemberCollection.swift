@@ -206,12 +206,27 @@ extension BuildASTPhase {
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lessThan), close: .symbol(.greaterThan))
         index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         // Primary constructors may use the explicit `constructor` keyword with an
-        // optional visibility modifier; skip it (and its parameter list) before
+        // optional visibility modifier and/or annotations; skip them before
         // looking for the supertype colon.
-        while index < tokens.count, isConstructorVisibilityModifier(tokens[index].kind) {
-            index += 1
+        while index < tokens.count {
+            let token = tokens[index]
+            if token.kind == .symbol(.at) {
+                if let parsed = AnnotationParsingSupport.parseAnnotation(
+                    from: tokens, start: index, interner: interner, allowUseSiteTarget: false
+                ) {
+                    index = parsed.nextIndex
+                    continue
+                }
+                break
+            }
+            if isConstructorVisibilityModifier(token.kind) {
+                index += 1
+                continue
+            }
+            break
         }
-        if index < tokens.count, tokens[index].kind == .keyword(.constructor) {
+        if index < tokens.count,
+           tokens[index].kind == .keyword(.constructor) || tokens[index].kind == .softKeyword(.constructor) {
             index += 1
             index = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
         }
@@ -555,13 +570,52 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let tokens = propertyHeadTokens(from: nodeID, in: arena)
+        let headTokens = propertyHeadTokens(from: nodeID, in: arena)
+        guard !headTokens.isEmpty else {
+            return nil
+        }
+
+        var initialByIndex: Int?
+        var depth = BracketDepth()
+        for (index, token) in headTokens.enumerated() {
+            if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
+                initialByIndex = index
+                break
+            }
+            depth.track(token.kind)
+        }
+
+        guard let initialByIndex else {
+            return nil
+        }
+
+        // A lazy factory's trailing lambda is part of its source-level call
+        // signature. Keep it in the delegate expression so overload
+        // resolution sees the required initializer parameter. The other
+        // stdlib delegate factories intentionally keep their callbacks in
+        // PropertyDecl.delegateBody because their lowering path consumes the
+        // initial value and callback separately.
+        let lazyName = interner.intern("lazy")
+        let isLazyFactory = headTokens.dropFirst(initialByIndex + 1).first.map { token in
+            if case let .identifier(name) = token.kind {
+                return name == lazyName
+            }
+            if case let .backtickedIdentifier(name) = token.kind {
+                return name == lazyName
+            }
+            return false
+        } ?? false
+        let tokens = propertyHeadTokens(
+            from: nodeID,
+            in: arena,
+            includingTrailingLambdaTokens: isLazyFactory
+        )
         guard !tokens.isEmpty else {
             return nil
         }
 
         var byIndex: Int?
-        var depth = BracketDepth()
+        depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
@@ -569,7 +623,6 @@ extension BuildASTPhase {
             }
             depth.track(token.kind)
         }
-
         guard let byIndex else {
             return nil
         }
@@ -577,7 +630,11 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        let exprTokens = tokens[start...].filter { $0.kind != .symbol(.semicolon) }
+        // The trailing lambda of a source-backed `lazy` factory is included in
+        // these tokens so that its initializer participates in overload
+        // resolution. Remove only declaration-level semicolons; semicolons in
+        // the lambda body must remain available to the block parser.
+        let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {
             return nil
         }

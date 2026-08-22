@@ -35,6 +35,95 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
     }
 }
 
+/// The `$enumOrdinalToName$<encodedFqName>(ordinal): String` helper for `type`,
+/// when `type` is a non-null enum class that has one.
+///
+/// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
+/// header-only symbols with no source declSite, so
+/// DataEnumSealedSynthesisPass never synthesizes their helper — see
+/// `emitBoxCallWithValueClassTag`, which skips them for the same reason.
+/// A nullable enum is excluded too: its null sentinel would be fed to the
+/// helper as an ordinal.
+///
+/// A free function (not a `CallLowerer` method) so `DataEnumSealedSynthesisPass`
+/// can share it too: its data-class `toString()` synthesis stringifies each
+/// property with this same enum/class resolution, but it runs as a standalone
+/// KIR rewrite with no `KIRLoweringDriver` to construct a `CallLowerer`.
+func resolveEnumOrdinalToNameCallee(
+    for type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (callee: InternedString, symbol: SymbolID?)? {
+    guard case let .classType(classType) = sema.types.kind(of: type),
+          classType.nullability == .nonNull,
+          let symbol = sema.symbols.symbol(classType.classSymbol),
+          symbol.kind == .enumClass,
+          !symbol.flags.contains(.synthetic)
+    else {
+        return nil
+    }
+    let helperName = NameMangler.enumOrdinalToNameHelperName(for: symbol, interner: interner)
+    let helperSymbol = sema.symbols.lookupAll(fqName: symbol.fqName + [helperName]).first { id in
+        sema.symbols.symbol(id).map { $0.kind == .function } ?? false
+    }
+    return (helperName, helperSymbol)
+}
+
+/// Resolves `type`'s own `toString()` symbol — user-defined, or synthesized by
+/// `DataEnumSealedSynthesisPass` for a data class — when one exists and is not
+/// the `kotlin.Any.toString()` placeholder every class inherits by default.
+/// `type` may be nullable: the class symbol is resolved from its non-null
+/// form, but callers passing a nullable `type` are responsible for
+/// null-guarding the receiver before invoking the returned callee (calling a
+/// member function on a null receiver crashes) — see the null-guard scaffold
+/// in `CallLowerer.emitAnyToStringWithNullGuard` for the pattern.
+///
+/// Shared by every pass that must call a class-typed value's own toString()
+/// directly instead of falling back to the generic `kk_any_to_string`
+/// Any-fallback tag path, which cannot distinguish a class's own fields from
+/// an ordinary heap pointer, or — for a value class — from its raw unboxed
+/// primitive representation: `CallLowerer.emitAnyToStringWithNullGuard`
+/// (string template interpolation, `+`/`+=` string concatenation) and
+/// `DataEnumSealedSynthesisPass`'s per-property data class `toString()`
+/// synthesis. Mirrors (but does not replace) the equivalent resolution in
+/// `ConsolePrintLoweringPass.classToStringExpression`, which additionally
+/// special-cases object/enum receivers for `println`/`print`.
+func resolveClassOwnToStringCallee(
+    for type: TypeID,
+    sema: SemaModule,
+    interner: StringInterner
+) -> (callee: InternedString, symbol: SymbolID)? {
+    guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
+        return nil
+    }
+    let toStringName = interner.intern("toString")
+    let toStringFQName = classSymbol.fqName + [toStringName]
+    let toStringSymbolID: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
+        guard let sym = sema.symbols.symbol(id), sym.kind == .function else { return false }
+        let sig = sema.symbols.functionSignature(for: id)
+        return sig?.parameterTypes.isEmpty ?? true
+    }
+    guard let toStringSymbolID,
+          let toStringSymbol = sema.symbols.symbol(toStringSymbolID),
+          !isSyntheticAnyToStringSymbol(toStringSymbol, interner: interner)
+    else {
+        return nil
+    }
+    let externalLinkName = sema.symbols.externalLinkName(for: toStringSymbolID)
+    let callee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+        interner.intern(externalLinkName)
+    } else {
+        toStringName
+    }
+    return (callee, toStringSymbolID)
+}
+
+private func isSyntheticAnyToStringSymbol(_ sym: SemanticSymbol, interner: StringInterner) -> Bool {
+    guard sym.flags.contains(.synthetic) else { return false }
+    let anyToStringFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Any"), interner.intern("toString")]
+    return sym.fqName == anyToStringFQName
+}
+
 extension CallLowerer {
     static let unresolvedCoroutineHandleMemberNames: Set<String> = [
         "await", "join", "awaitCompletion",
@@ -92,29 +181,37 @@ extension CallLowerer {
         computeAnyFallbackTag(for: type, sema: sema)
     }
 
-    /// The `$enumOrdinalToName$<id>(ordinal): String` helper for `type`, when
-    /// `type` is a non-null enum class that has one.
-    ///
-    /// `.synthetic` enum classes (Platform.OsFamily, RegexOption, …) are
-    /// header-only symbols with no source declSite, so
-    /// DataEnumSealedSynthesisPass never synthesizes their helper — see
-    /// `emitBoxCallWithValueClassTag`, which skips them for the same reason.
-    /// A nullable enum is excluded too: its null sentinel would be fed to the
-    /// helper as an ordinal.
+    /// Target kind for `kk_number_to_primitive` (KSP-1540). Mirrors the
+    /// Runtime-side `RuntimeNumberConversionTargetKind` by raw value — the two
+    /// enums live in separate modules linked only through the C ABI, so they
+    /// must be kept in sync manually.
+    enum NumberConversionTargetKind: Int32 {
+        case double = 0
+        case float = 1
+        case long = 2
+        case int = 3
+        case short = 4
+        case byte = 5
+    }
+
+    func numberConversionTargetKind(for calleeName: InternedString, interner: StringInterner) -> NumberConversionTargetKind? {
+        switch interner.resolve(calleeName) {
+        case "toDouble": return .double
+        case "toFloat": return .float
+        case "toLong": return .long
+        case "toInt": return .int
+        case "toShort": return .short
+        case "toByte": return .byte
+        default: return nil
+        }
+    }
+
     func enumOrdinalToNameCallee(
         for type: TypeID,
         sema: SemaModule,
         interner: StringInterner
-    ) -> InternedString? {
-        guard case let .classType(classType) = sema.types.kind(of: type),
-              classType.nullability == .nonNull,
-              let symbol = sema.symbols.symbol(classType.classSymbol),
-              symbol.kind == .enumClass,
-              !symbol.flags.contains(.synthetic)
-        else {
-            return nil
-        }
-        return interner.intern("$enumOrdinalToName$\(classType.classSymbol.rawValue)")
+    ) -> (callee: InternedString, symbol: SymbolID?)? {
+        resolveEnumOrdinalToNameCallee(for: type, sema: sema, interner: interner)
     }
 
     /// Converts `valueID` (of static type `valueType`) to a `String` via
@@ -142,20 +239,65 @@ extension CallLowerer {
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
         // A statically enum-typed value is represented as its bare ordinal, so
         // `kk_any_to_string` would render the number. The enum class's
-        // `$enumOrdinalToName$<id>` helper maps it back to the entry name — the
-        // same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
+        // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
+        // the same helper `emitBoxCallWithValueClassTag` uses when an enum crosses
         // an Any-erased boundary.
         if let nameHelper = enumOrdinalToNameCallee(for: valueType, sema: sema, interner: interner) {
             let name = arena.appendTemporary(type: stringType)
             instructions.append(.call(
-                symbol: nil,
-                callee: nameHelper,
+                symbol: nameHelper.symbol,
+                callee: nameHelper.callee,
                 arguments: [valueID],
                 result: name,
                 canThrow: false,
                 thrownResult: nil
             ))
             return name
+        }
+        // A statically class-typed value (data class, ordinary class, or value
+        // class) is represented at runtime as a heap pointer or — for a
+        // non-nullable value class — its raw unboxed underlying primitive.
+        // Neither representation carries enough information for the generic
+        // kk_any_to_string tag path below to recover the class's own
+        // toString(): a heap pointer this renderer doesn't recognize prints as
+        // "<object 0x...>", and a value class's raw primitive prints as if it
+        // were an ordinary Int/Long. Call the class's own (user-defined or
+        // synthesized) toString() directly instead, same as
+        // ConsolePrintLoweringPass already does for println/print.
+        if let classToString = resolveClassOwnToStringCallee(for: valueType, sema: sema, interner: interner) {
+            let converted = arena.appendTemporary(type: stringType)
+            guard isNullable else {
+                instructions.append(.call(
+                    symbol: classToString.symbol,
+                    callee: classToString.callee,
+                    arguments: [valueID],
+                    result: converted,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return converted
+            }
+            let nonNullLabel = driver.ctx.makeLoopLabel()
+            let endLabel = driver.ctx.makeLoopLabel()
+            let nullStr = interner.intern("null")
+            let nullStrID = arena.appendExpr(.stringLiteral(nullStr), type: stringType)
+            instructions.append(.constValue(result: nullStrID, value: .stringLiteral(nullStr)))
+            instructions.append(.jumpIfNotNull(value: valueID, target: nonNullLabel))
+            instructions.append(.copy(from: nullStrID, to: converted))
+            instructions.append(.jump(endLabel))
+            instructions.append(.label(nonNullLabel))
+            let innerConverted = arena.appendTemporary(type: stringType)
+            instructions.append(.call(
+                symbol: classToString.symbol,
+                callee: classToString.callee,
+                arguments: [valueID],
+                result: innerConverted,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            instructions.append(.copy(from: innerConverted, to: converted))
+            instructions.append(.label(endLabel))
+            return converted
         }
         let tag = anyFallbackTag(for: valueType, sema: sema)
         let tagID = arena.appendExpr(.intLiteral(tag), type: intType)

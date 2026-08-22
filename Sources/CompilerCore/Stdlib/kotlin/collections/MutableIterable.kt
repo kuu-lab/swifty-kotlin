@@ -9,9 +9,9 @@
 package kotlin.collections
 
 // KSP-633: the nominal `MutableIterable<out T>` declaration is source-backed
-// here; on bundle load it reuses the synthetic shell registered by
-// `HeaderHelpers+SyntheticIterableRegistry.swift`, which remains as the
-// fallback for contexts without the bundled stdlib.
+// here; the compiler-side shell in
+// `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
+// for contexts without the bundled stdlib.
 // `iterator()` is intentionally omitted (as with `Comparable.compareTo` in
 // KSP-669) and stays a compiler residual: the covariant override of the
 // read-only `Iterable.iterator()` has to be re-typed against the reused shell's

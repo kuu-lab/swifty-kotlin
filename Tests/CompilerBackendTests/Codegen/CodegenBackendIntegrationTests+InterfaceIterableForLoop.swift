@@ -276,7 +276,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
-    func testIntRangeForLoopUsesBundledIteratorOperator() throws {
+    func testIntRangeForLoopUsesFastPath() throws {
         let source = """
         fun main() {
             for (i in 0..2) {
@@ -290,8 +290,8 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
         #expect(
-            callees.contains("kk_iterator_hasNext") && callees.contains("kk_iterator_next"),
-            "range for-in is routed through the bundled iterator() operator (KSP-452, ce502b0e9); expected kk_iterator_hasNext/kk_iterator_next, got: \(callees)"
+            callees.contains("kk_range_for_in_hasNext") && callees.contains("kk_range_for_in_next"),
+            "built-in range for-in should use the BUG-198 fast path, got: \(callees)"
         )
     }
 }

@@ -8,14 +8,14 @@
 /// | Annotation                | Package              | Severity |
 /// |---------------------------|----------------------|----------|
 /// | ExperimentalVersionOverloading | kotlin          | ERROR    |
-/// | ExperimentalContextParameters | kotlin           | ERROR    |
 /// | ExpectRefinement          | kotlin.experimental  | @ExperimentalMultiplatform |
 ///
 /// The common root opt-in markers (`ExperimentalUnsignedTypes`,
 /// `ExperimentalMultiplatform`, `ExperimentalSubclassOptIn`) and the
-/// `uuid`/`io.encoding`/`reflect` experimental markers (`ExperimentalUuidApi`,
+/// `context parameters`/`uuid`/`io.encoding`/`reflect` experimental markers
+/// (`ExperimentalContextParameters`, `ExperimentalUuidApi`,
 /// `ExperimentalEncodingApi`, `ExperimentalAssociatedObjects`) are now declared
-/// as bundled Kotlin source under `Sources/CompilerCore/Stdlib/kotlin/` (KSP-666).
+/// as bundled Kotlin source under `Sources/CompilerCore/Stdlib/kotlin/` (KSP-666, KSP-733).
 ///
 /// See: https://kotlinlang.org/api/latest/jvm/stdlib/
 extension DataFlowSemaPhase {
@@ -36,18 +36,6 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinPkg,
             packageSymbol: kotlinPkgSymbol,
             severity: "ERROR",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // --- kotlin.ExperimentalContextParameters (ERROR) ---
-        registerSyntheticExperimentalMarker(
-            named: "ExperimentalContextParameters",
-            packageFQName: kotlinPkg,
-            packageSymbol: kotlinPkgSymbol,
-            severity: "ERROR",
-            message: "The API is related to the experimental feature \"context parameters\" (see KEEP-367) and may be changed or removed in any future release.",
-            targetArguments: nil,
             symbols: symbols,
             interner: interner
         )

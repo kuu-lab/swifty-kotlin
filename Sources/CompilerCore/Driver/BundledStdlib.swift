@@ -8,16 +8,6 @@ import Foundation
 /// computes a stable manifest hash used by incremental builds and stdlib
 /// artifact validation.
 package enum BundledStdlib {
-    /// Bundled `.kt` files under `Stdlib/` that are discovered by
-    /// `LoadSourcesPhase` but should not be injected into the compilation.
-    ///
-    /// KSP-301: ghost entries (ResultExtensions, AdvancedLogger,
-    /// KClassAnnotationRegistration, StringBasics, StringEncoding) were already
-    /// removed from this list. KSP-312 wired RangeIterators and KSP-305 wires
-    /// CollectionFactories, so no bundled stdlib files are currently excluded.
-    static let excludedBundledStdlibFiles: Set<String> = [
-    ]
-
     // Legacy empty inline source markers. The actual implementations have been
     // migrated to bundled `.kt` files under `Sources/CompilerCore/Stdlib/`.
     // count / any / all / none / contains / containsAll / lastIndexOf have been
@@ -92,7 +82,6 @@ package enum BundledStdlib {
 
         var bundledSources: [(path: String, contents: Data)] = []
         for relativePath in relativePaths {
-            guard !Self.excludedBundledStdlibFiles.contains(relativePath) else { continue }
             let bundledPath = "__bundled_\(relativePath).kt"
             let fullPath = (stdlibDir as NSString).appendingPathComponent(relativePath + ".kt")
             guard let data = fm.contents(atPath: fullPath) else {

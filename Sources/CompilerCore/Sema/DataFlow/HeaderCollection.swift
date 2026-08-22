@@ -226,6 +226,10 @@ extension DataFlowSemaPhase {
     /// resolved, so declarations can reference types declared further down in the
     /// same file. Returns the pre-registered symbols keyed by declaration so that
     /// `collectHeader` reuses them instead of defining a second symbol.
+    ///
+    /// Idempotent per `declID`: a declaration already present in `predeclared`
+    /// (e.g. from `predeclareBundledTupleHeaders`'s earlier, narrower pass) is
+    /// left untouched rather than defined a second time.
     func predeclareNominalTypeHeaders(
         file: ASTFile,
         ast: ASTModule,
@@ -237,6 +241,7 @@ extension DataFlowSemaPhase {
         into predeclared: inout [DeclID: SymbolID]
     ) {
         for declID in file.topLevelDecls {
+            guard predeclared[declID] == nil else { continue }
             guard let decl = ast.arena.decl(declID) else { continue }
             switch decl {
             case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
@@ -257,6 +262,67 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 interner: interner
             )
+        }
+    }
+
+    /// KSP-706: forward-declares `kotlin.Pair`/`kotlin.Triple` from their bundled
+    /// `Tuples.kt` source before early synthetic stub registration runs. Several
+    /// stub registrations (list/map/sequence `zip`/`partition`/`unzip`, ...)
+    /// build `Pair<...>` return types and look the class up by name well before
+    /// `collectAllHeaders` visits `Tuples.kt` in the normal pass. Running this
+    /// narrow slice of `predeclareNominalTypeHeaders` first gives them the real
+    /// class symbol directly, instead of routing through a throwaway synthetic
+    /// placeholder that `collectHeader` swaps out later.
+    ///
+    /// Configurations with neither bundled stdlib source nor a merged library
+    /// import (e.g. `--no-stdlib`) never get a real declaration for `Pair`/
+    /// `Triple` at all, so a bare synthetic shell is defined as a fallback for
+    /// whichever of the two names is still unresolved afterward -- matching
+    /// what the deleted `HeaderHelpers+SyntheticPairTripleAnchors.swift` did
+    /// unconditionally, but only as a last resort now.
+    func predeclareBundledTupleHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let pairName = interner.intern("Pair")
+        let tripleName = interner.intern("Triple")
+        let kotlinPkg = [interner.intern("kotlin")]
+        for file in ast.sortedFiles where file.packageFQName == kotlinPkg {
+            let declaresTupleClass = file.topLevelDecls.contains { declID in
+                guard case let .classDecl(classDecl)? = ast.arena.decl(declID) else { return false }
+                return classDecl.name == pairName || classDecl.name == tripleName
+            }
+            guard declaresTupleClass, let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+        for name in [pairName, tripleName] {
+            let fqName = kotlinPkg + [name]
+            if let existing = symbols.lookup(fqName: fqName) {
+                // Compatibility shells intentionally keep a nil declSite so bundled
+                // source declarations do not displace them in golden semantic dumps
+                // (`GoldenHarnessDump.isExcludedBundledSymbol` filters bundled-file
+                // declSites out; the pre-KSP-706 anchor never restored declSite for
+                // Pair/Triple either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`).
+                symbols.setDeclSite(nil, for: existing)
+            } else {
+                _ = symbols.define(
+                    kind: .class,
+                    name: name,
+                    fqName: fqName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+            }
         }
     }
 
@@ -364,6 +430,31 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
 
+            // Nested class/object headers must be collected before the primary
+            // constructor parameter types are resolved, because those parameter
+            // types (or their default values) may reference a nested type
+            // (e.g. `annotation class RequiresOptIn(val level: Level = Level.ERROR)`).
+            collectMemberHeaders(
+                members: MemberDeclarations(
+                    functions: [],
+                    properties: [],
+                    nestedClasses: classDecl.nestedClasses,
+                    nestedObjects: classDecl.nestedObjects
+                ),
+                owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
+                sourceFileID: file.fileID,
+                ctx: ctx,
+                ast: ast,
+                symbols: symbols,
+                types: types,
+                bindings: bindings,
+                scope: classScope,
+                diagnostics: diagnostics,
+                interner: interner,
+                classTypeParameterSymbols: classTypeParamSymbols,
+                classLocalTypeParameters: classLocalTypeParameters
+            )
+
             let ctorName = interner.intern("<init>")
             let primaryCtorFQName = fqName + [ctorName]
 
@@ -376,7 +467,7 @@ extension DataFlowSemaPhase {
             let hasPrimaryCtorSyntax = classDecl.hasPrimaryConstructorSyntax
             let hasSecondaryCtors = !classDecl.secondaryConstructors.isEmpty
             if hasPrimaryCtorSyntax || !hasSecondaryCtors {
-                let primaryCtorVisibility = primaryConstructorVisibility(
+                let primaryCtorVisibilityDetail = primaryConstructorVisibilityDetail(
                     for: classDecl,
                     classKind: declaration.kind,
                     declarationVisibility: declaration.visibility
@@ -386,8 +477,8 @@ extension DataFlowSemaPhase {
                     name: declaration.name,
                     fqName: primaryCtorFQName,
                     declSite: classDecl.range,
-                    visibility: primaryCtorVisibility,
-                    flags: []
+                    visibility: primaryCtorVisibilityDetail.visibility,
+                    flags: primaryCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 scope.insert(primaryCtorSymbol)
                 symbols.setParentSymbol(symbol, for: primaryCtorSymbol)
@@ -400,6 +491,7 @@ extension DataFlowSemaPhase {
                         ast: ast, symbols: symbols, types: types,
                         interner: interner,
                         localTypeParameters: classLocalTypeParameters,
+                        relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
                         imports: file.imports,
                         diagnostics: diagnostics,
@@ -432,13 +524,19 @@ extension DataFlowSemaPhase {
             }
 
             for (ctorIndex, secondaryCtor) in classDecl.secondaryConstructors.enumerated() {
+                let secCtorVisibilityDetail = constructorVisibilityDetail(
+                    explicitModifiers: secondaryCtor.modifiers,
+                    classKind: declaration.kind,
+                    isSealedClass: classDecl.modifiers.contains(.sealed),
+                    declarationVisibility: declaration.visibility
+                )
                 let secCtorSymbol = symbols.define(
                     kind: .constructor,
                     name: declaration.name,
                     fqName: primaryCtorFQName,
                     declSite: secondaryCtor.range,
-                    visibility: visibility(from: secondaryCtor.modifiers),
-                    flags: []
+                    visibility: secCtorVisibilityDetail.visibility,
+                    flags: secCtorVisibilityDetail.isInheritedFromOwner ? [.constructorVisibilityInherited] : []
                 )
                 scope.insert(secCtorSymbol)
                 symbols.setParentSymbol(symbol, for: secCtorSymbol)
@@ -450,6 +548,7 @@ extension DataFlowSemaPhase {
                     ast: ast, symbols: symbols, types: types,
                     interner: interner,
                     localTypeParameters: classLocalTypeParameters,
+                    relativeOwnerFQName: fqName,
                     currentPackageFQName: package,
                     imports: file.imports,
                     diagnostics: diagnostics,
@@ -499,6 +598,7 @@ extension DataFlowSemaPhase {
                         types: types,
                         interner: interner,
                         localTypeParameters: classLocalTypeParameters,
+                        relativeOwnerFQName: fqName,
                         currentPackageFQName: package,
                         imports: file.imports,
                         diagnostics: diagnostics,
@@ -575,8 +675,8 @@ extension DataFlowSemaPhase {
                 members: MemberDeclarations(
                     functions: classDecl.memberFunctions,
                     properties: classDecl.memberProperties,
-                    nestedClasses: classDecl.nestedClasses,
-                    nestedObjects: classDecl.nestedObjects
+                    nestedClasses: [],
+                    nestedObjects: []
                 ),
                 owner: OwnerContext(fqName: fqName, symbol: symbol, type: classType),
                 sourceFileID: file.fileID,
@@ -1148,15 +1248,27 @@ extension DataFlowSemaPhase {
 
     /// The fully-qualified names a bundled source file is allowed to claim from
     /// an earlier synthetic registration. A file may declare more than one such
-    /// nominal (`Tuples.kt` declares both `Pair` and `Triple`).
+    /// nominal (`Exceptions.kt` declares the whole common exception hierarchy).
     private func reusableSyntheticSourceDeclarationKeys(
         for file: ASTFile,
         sourceManager: SourceManager,
         interner: StringInterner
     ) -> [[InternedString]] {
         let names: [[String]] = switch sourceManager.path(of: file.fileID) {
+        case "__bundled_kotlin/Lazy.kt":
+            [["kotlin", "Lazy"]]
+        case "__bundled_kotlin/Annotation.kt":
+            [["kotlin", "Annotation"]]
         case "__bundled_kotlin/Comparable.kt":
             [["kotlin", "Comparable"]]
+        case "__bundled_kotlin/CharSequence.kt":
+            [["kotlin", "CharSequence"]]
+        case "__bundled_kotlin/AutoCloseable.kt":
+            [["kotlin", "AutoCloseable"]]
+        case "__bundled_kotlin/Comparator.kt":
+            [["kotlin", "Comparator"]]
+        case "__bundled_kotlin/Enum.kt":
+            [["kotlin", "Enum"]]
         case "__bundled_kotlin/io/Closeable.kt":
             [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
@@ -1177,7 +1289,7 @@ extension DataFlowSemaPhase {
             [["kotlin", "collections", "AbstractMutableCollection"]]
         case "__bundled_kotlin/collections/AbstractList.kt":
             [["kotlin", "collections", "AbstractList"]]
-        case "__bundled_kotlin/Result.kt":
+        case "__bundled_kotlin/Result/Stdlib.kt":
             [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":
             [["kotlin", "text", "StringBuilder"]]
@@ -1195,18 +1307,22 @@ extension DataFlowSemaPhase {
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/text/CharacterCodingException.kt":
             [["kotlin", "text", "CharacterCodingException"]]
+        case "__bundled_kotlin/RuntimeException/Stdlib.kt":
+            [["kotlin", "RuntimeException"]]
+        case "__bundled_kotlin/NumberFormatException/Stdlib.kt":
+            [["kotlin", "NumberFormatException"]]
+        case "__bundled_kotlin/IndexOutOfBoundsException/Stdlib.kt":
+            [["kotlin", "IndexOutOfBoundsException"]]
+        case "__bundled_kotlin/NullPointerException/Stdlib.kt":
+            [["kotlin", "NullPointerException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
                 ["kotlin", "Exception"],
-                ["kotlin", "RuntimeException"],
                 ["kotlin", "IllegalArgumentException"],
                 ["kotlin", "IllegalStateException"],
-                ["kotlin", "IndexOutOfBoundsException"],
                 ["kotlin", "ConcurrentModificationException"],
                 ["kotlin", "UnsupportedOperationException"],
-                ["kotlin", "NumberFormatException"],
-                ["kotlin", "NullPointerException"],
                 ["kotlin", "ClassCastException"],
                 ["kotlin", "AssertionError"],
                 ["kotlin", "NoSuchElementException"],
@@ -1222,17 +1338,18 @@ extension DataFlowSemaPhase {
                 ["kotlin", "time", "TimeSource", "WithComparableMarks"],
                 ["kotlin", "time", "TimeSource", "Monotonic"],
             ]
+        case "__bundled_kotlin/time/TimeSources.kt":
+            [
+                ["kotlin", "time", "AbstractLongTimeSource"],
+                ["kotlin", "time", "AbstractDoubleTimeSource"],
+                ["kotlin", "time", "TestTimeSource"],
+            ]
         case "__bundled_kotlin/time/Duration.kt":
             [["kotlin", "time", "Duration"]]
         case "__bundled_kotlin/time/DurationUnit.kt":
             [["kotlin", "time", "DurationUnit"]]
         case "__bundled_kotlin/sequences/Sequence.kt":
             [["kotlin", "sequences", "Sequence"]]
-        case "__bundled_kotlin/Tuples.kt":
-            [
-                ["kotlin", "Pair"],
-                ["kotlin", "Triple"],
-            ]
         case "__bundled_kotlin/ranges/Ranges.kt":
             [
                 ["kotlin", "ranges", "ClosedRange"],

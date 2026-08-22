@@ -81,6 +81,9 @@ public fun Throwable.printStackTrace() {
 @KsSymbolName("__kk_throwable_message")
 internal external fun __kkThrowableMessage(throwable: Throwable): String?
 
+@KsSymbolName("__kk_throwable_setMessage")
+internal external fun __kkThrowableSetMessage(throwable: Throwable, message: String?)
+
 @KsSymbolName("__kk_throwable_cause")
 internal external fun __kkThrowableCause(throwable: Throwable): Throwable?
 

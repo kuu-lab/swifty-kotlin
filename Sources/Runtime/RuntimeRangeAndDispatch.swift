@@ -23,6 +23,30 @@ final class RuntimeRangeIteratorBox {
     }
 }
 
+/// BUG-198: Iterator state for compiler-lowered signed range `for-in` loops.
+/// This intentionally has no Iterator itable: the lowering calls the three
+/// dedicated entry points directly, while explicit `range.iterator()` keeps the
+/// KSP-452 source-backed iterator implementation.
+final class RuntimeSignedRangeForInIteratorBox {
+    var current: Int
+    let last: Int
+    let step: Int
+    var hasNextValue: Bool
+
+    init(current: Int, last: Int, step: Int) {
+        self.current = current
+        self.last = last
+        self.step = step
+        if step > 0 {
+            self.hasNextValue = current <= last
+        } else if step < 0 {
+            self.hasNextValue = current >= last
+        } else {
+            self.hasNextValue = false
+        }
+    }
+}
+
 func runtimeUnsignedRangeIsEmpty(_ range: RuntimeRangeBox) -> Bool {
     let first = UInt(bitPattern: range.first)
     let last = UInt(bitPattern: range.last)
@@ -637,6 +661,10 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
+    if runtimeSequenceBox(from: rangeRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
     if runtimeListBox(from: rangeRaw) != nil {
         return kk_list_iterator(rangeRaw)
     }
@@ -706,6 +734,51 @@ public func kk_range_next(_ iterRaw: Int) -> Int {
     return current
 }
 
+/// BUG-198: Fast path used only after lowering proves a signed built-in range.
+@_cdecl("kk_range_for_in_iterator")
+public func kk_range_for_in_iterator(_ rangeRaw: Int) -> Int {
+    guard let range = runtimeRangeBox(from: rangeRaw) else {
+        return 0
+    }
+    return registerRuntimeObject(
+        RuntimeSignedRangeForInIteratorBox(current: range.first, last: range.last, step: range.step)
+    )
+}
+
+@_cdecl("kk_range_for_in_hasNext")
+public func kk_range_for_in_hasNext(_ iterRaw: Int) -> Int {
+    guard let iterator = runtimeSignedRangeForInIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iterator.hasNextValue ? 1 : 0
+}
+
+@_cdecl("kk_range_for_in_next")
+public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
+    guard let iterator = runtimeSignedRangeForInIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    let current = iterator.current
+    guard iterator.hasNextValue else {
+        return current
+    }
+
+    let (candidate, overflow) = current.addingReportingOverflow(iterator.step)
+    if overflow {
+        iterator.hasNextValue = false
+        return current
+    }
+    if iterator.step > 0 {
+        iterator.hasNextValue = candidate > current && candidate <= iterator.last
+    } else if iterator.step < 0 {
+        iterator.hasNextValue = candidate < current && candidate >= iterator.last
+    } else {
+        iterator.hasNextValue = false
+    }
+    iterator.current = candidate
+    return current
+}
+
 @_cdecl("kk_iterator_hasNext")
 public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
@@ -720,8 +793,8 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_hasNext(iterRaw)
     }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_hasNext(iterRaw)
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_hasNext(iterRaw)
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0) {
         return objectResult
@@ -743,8 +816,8 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeMapIteratorBox(from: iterRaw) != nil {
         return kk_map_iterator_next(iterRaw)
     }
-    if runtimeStringIteratorBox(from: iterRaw) != nil {
-        return kk_string_iterator_next(iterRaw)
+    if runtimeIndexingIteratorBox(from: iterRaw) != nil {
+        return kk_indexing_iterable_next(iterRaw)
     }
     if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1) {
         return objectResult
@@ -1435,6 +1508,10 @@ public func kk_ulong_range_toULongArray(_ rangeRaw: Int) -> Int {
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
+}
+
+private func runtimeSignedRangeForInIteratorBox(from rawValue: Int) -> RuntimeSignedRangeForInIteratorBox? {
+    resolveRuntimeHandle(rawValue, as: RuntimeSignedRangeForInIteratorBox.self)
 }
 
 private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBuilderBox? {

@@ -200,7 +200,7 @@ public extension RuntimeABISpec {
         ),
         // Factory functions (STDLIB-097)
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_of",
+            name: "__kk_sequence_of",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -218,7 +218,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_generate",
+            name: "__kk_sequence_generate",
             parameters: [
                 RuntimeABIParameter(name: "seed", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
@@ -230,7 +230,7 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-SEQ-002: 1-arg form generateSequence(nextFunction: () -> T?)
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_generate_noarg",
+            name: "__kk_sequence_generate_noarg",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
                 RuntimeABIParameter(name: "closureRaw", type: .intptr),
@@ -489,7 +489,7 @@ public extension RuntimeABISpec {
         // STDLIB-276: windowed, onEach
         // STDLIB-277: emptySequence / ifEmpty
         RuntimeABIFunctionSpec(
-            name: "kk_empty_sequence",
+            name: "__kk_empty_sequence",
             parameters: [],
             returnType: .intptr,
             section: "Sequence",

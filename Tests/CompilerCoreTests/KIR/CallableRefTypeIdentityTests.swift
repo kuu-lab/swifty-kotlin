@@ -95,6 +95,57 @@ struct CallableRefTypeIdentityTests {
         #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
     }
 
+    // MARK: - Generic call-site type inference tests
+
+    /// KSP-496 (found as a side-effect while validating a property callable-ref
+    /// Sema fix): a property callable reference passed directly into a generic
+    /// call (e.g. `listOf<T>(vararg elements: T)`) used to be type-checked
+    /// against the *unsubstituted* type parameter `T` rather than its own
+    /// natural `KProperty1<Owner, Value>` type, because `inferCallableRefExpr`
+    /// adopted `expectedType` verbatim even when it still mentioned a type
+    /// parameter. Binding the reference's static type to a bare type variable
+    /// made `lowerPropertyReferenceWrapperValue` (which requires a resolved
+    /// `KProperty*` classType) bail out and fall back to a legacy bare-symbol
+    /// callable path that crashes at runtime (calls the raw property accessor
+    /// with no receiver — see `Scripts/diff_cases/kproperty_generic_vararg_inference.kt`
+    /// for the end-to-end runtime regression).
+    @Test func testUnboundPropertyRefInGenericVarargCallGetsConcreteKProperty1Type() throws {
+        let source = """
+        class Counter(val v: Int)
+        fun main() {
+            val list = listOf(Counter::v)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+
+        let kProperty1Symbol = try #require(
+            sema.symbols.lookup(fqName: ["kotlin", "reflect", "KProperty1"].map { interner.intern($0) })
+        )
+
+        let boundType = try #require(sema.bindings.exprType(for: callableRefExprID))
+        guard case let .classType(classType) = sema.types.kind(of: boundType) else {
+            Issue.record(
+                "Counter::v inside listOf(...) should bind to a KProperty1 classType, got \(sema.types.renderType(boundType))"
+            )
+            return
+        }
+        #expect(
+            classType.classSymbol == kProperty1Symbol,
+            "Counter::v inside listOf(...) should bind to kotlin.reflect.KProperty1, not an unsubstituted type parameter."
+        )
+        #expect(classType.args.count == 2, "KProperty1<Counter, Int> should carry both type arguments.")
+    }
+
     // MARK: - KIR lowering tests
 
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
@@ -117,6 +168,39 @@ struct CallableRefTypeIdentityTests {
             #expect(
                 callees.contains("kk_callable_ref_tag_kfunction"),
                 "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
+            )
+        }
+    }
+
+    /// KSP-496 follow-up: a bare `::member` reference to a member property
+    /// of the enclosing class must capture the implicit `this` receiver into
+    /// the generated KProperty wrapper object, the same way an explicit
+    /// `this::member` reference does — otherwise `.get()`/`.set()` on the
+    /// wrapper has no instance to read/write and crashes at runtime. This
+    /// checks the KIR-level signal for that capture: a `kk_array_set` store
+    /// into the wrapper's capture slot, which only exists when there's a
+    /// non-empty capture argument list.
+    @Test func testKIRCapturesImplicitReceiverForBareMemberPropertyRef() throws {
+        let source = """
+        class C(val v: Int) {
+            fun r(): Int {
+                val ref = ::v
+                return ref.get()
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let rBody = try findKIRFunctionBody(named: "r", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: rBody, interner: ctx.interner)
+
+            #expect(
+                callees.contains("kk_array_set"),
+                "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
             )
         }
     }

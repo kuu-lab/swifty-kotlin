@@ -72,7 +72,7 @@ extension ABILoweringPass {
     /// runtime bridge whose raw parameter convention must be left alone.
     func isKotlinSourceCallee(_ callSymbol: SymbolID?, symbols: SymbolTable?) -> Bool {
         guard let callSymbol, let symbols, let symbol = symbols.symbol(callSymbol),
-              symbol.kind == .function,
+              (symbol.kind == .function || symbol.kind == .constructor),
               symbols.isSourceBackedSymbol(callSymbol)
         else {
             return false

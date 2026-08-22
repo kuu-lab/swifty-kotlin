@@ -114,7 +114,7 @@ extension CallLowerer {
         ))
 
         switch sema.types.kind(of: functionType.returnType) {
-        case .unit, .nothing(.nonNull), .nothing(.nullable):
+        case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(callResult))
