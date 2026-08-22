@@ -1646,15 +1646,16 @@
   - 未実装シンボル一覧:
     - `kotlin.byteArrayOf` — fun byteArrayOf(Array): ByteArray  -- `final inline fun kotlin/byteArrayOf(kotlin/ByteArray...): kotlin/ByteArray`
 
-- [ ] KSP-771: kotlin.char-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-771: kotlin.char-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `char`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/char.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Char.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_char.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_char.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_char.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.charArrayOf` — fun charArrayOf(Array): CharArray  -- `final inline fun kotlin/charArrayOf(kotlin/CharArray...): kotlin/CharArray`
+  - 完了（2026-08-20）: PR #5928（merge commit `bb2e75766019b8c23dc96648f127d239b81bd9e4`）で source-backed `charArrayOf` を `Char.kt` に実装し、Char の synthetic factory 登録を削除。既存の Golden/diff/KIR/Backend 回帰と CI（全 shard、Repository Checks、Devin Review）が green で、現行 master で source 解決・KIR lowering・実行を確認済み。
 
 - [ ] KSP-772: kotlin.check-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `check`
