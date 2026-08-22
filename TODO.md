@@ -2324,7 +2324,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DeprecatedSinceKotlin.<init>` — constructor (String, String, String)  -- `constructor <init>(kotlin/String = ..., kotlin/String = ..., kotlin/String = ...)`
 
-- [ ] KSP-831: kotlin.DeprecatedSinceKotlin.DeprecatedSinceKotlin の未実装 stdlib API を実装する（3 件）
+- [x] KSP-831: kotlin.DeprecatedSinceKotlin.DeprecatedSinceKotlin の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.DeprecatedSinceKotlin` / receiver `DeprecatedSinceKotlin`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeprecatedSinceKotlin/DeprecatedSinceKotlin.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2335,6 +2335,7 @@
     - `kotlin.DeprecatedSinceKotlin.errorSince` — val DeprecatedSinceKotlin.errorSince: String  -- `final val errorSince`
     - `kotlin.DeprecatedSinceKotlin.hiddenSince` — val DeprecatedSinceKotlin.hiddenSince: String  -- `final val hiddenSince`
     - `kotlin.DeprecatedSinceKotlin.warningSince` — val DeprecatedSinceKotlin.warningSince: String  -- `final val warningSince`
+  - 完了根拠: merged PR #5858（merge commit `66d0189b1b960abee809f304f50fc1b495ca2bc3`）の現行 `Sources/CompilerCore/Stdlib/kotlin/DeprecatedSinceKotlin.kt` が3 propertyをString・空文字defaultのsource-backed宣言として提供し、既存Golden/diffと `AnnotationSemanticTests` が3 property、defaults、named引数、targetを検証済み。
 
 - [ ] KSP-832: kotlin.DeprecationLevel.DeprecationLevel の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.DeprecationLevel` / receiver `DeprecationLevel`
