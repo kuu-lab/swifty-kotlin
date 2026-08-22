@@ -1,8 +1,8 @@
 // swiftlint:disable file_length
 
-/// Synthetic `kotlin.sequences.Sequence` registration helpers:
-/// stub registration, extension-function helpers, builder/iterator
-/// builder, factory and generic-sequence helpers.
+/// `kotlin.sequences.Sequence` compatibility helpers:
+/// source-aware fallback registration, builder/iterator builder, factory,
+/// and generic-sequence helpers.
 ///
 /// Split out from `HeaderHelpers+SyntheticTODOAndIOStubs.swift`.
 extension DataFlowSemaPhase {
@@ -109,86 +109,23 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) -> SymbolID {
-        let sequenceName = interner.intern("Sequence")
-        let sequenceFQName = packageFQName + [sequenceName]
-        let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .interface,
-                name: sequenceName,
-                fqName: sequenceFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
+        // KSP-701: only the source-less fallback may synthesize Sequence.
+        // Bundled source declarations, including Sequence.iterator, remain authoritative.
+        let sequenceFQName = packageFQName + [interner.intern("Sequence")]
+        if let existing = symbols.lookup(fqName: sequenceFQName),
+           symbols.isSourceBackedSymbol(existing) {
+            return existing
         }
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = sequenceFQName + [typeParamName]
-        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: typeParamName,
-                fqName: typeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: sequenceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
-
-        let sequenceElementType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-
-        // KSP-441〜447: source Sequence インターフェースがあれば iterator() は source 側で定義する。
-        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
-        let iteratorName = interner.intern("iterator")
-        let hasSourceIterator = bundledIndex.contains(
-            owner: sequenceFQName,
-            name: iteratorName,
-            arity: 0
-        )
-        if !hasSourceIterator {
-            registerSyntheticSequenceIteratorMember(
-                sequenceSymbol: sequenceSymbol,
-                sequenceFQName: sequenceFQName,
-                elementType: sequenceElementType,
-                typeParameterSymbol: typeParamSymbol,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-
-        let nullableReceiverType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(sequenceElementType)],
-            nullability: .nullable
-        )))
-        let nonNullReceiverType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(sequenceElementType)],
-            nullability: .nonNull
-        )))
-        registerSyntheticSequenceExtensionFunction(
-            named: "orEmpty",
-            externalLinkName: "kk_sequence_orEmpty",
-            receiverType: nullableReceiverType,
-            parameters: [],
-            returnType: nonNullReceiverType,
-            typeParameterSymbols: [typeParamSymbol],
-            packageFQName: packageFQName,
+        let kotlinCollectionsPkg: [InternedString] = [
+            interner.intern("kotlin"), interner.intern("collections")
+        ]
+        return ensureSyntheticSequenceStub(
             symbols: symbols,
-            interner: interner
+            types: types,
+            interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            bundledIndex: BundledSyntheticStubRegistration.bundledIndex
         )
-
-        return sequenceSymbol
     }
 
     /// Idempotent fallback for contexts without the bundled Sequence declaration.
@@ -294,88 +231,6 @@ extension DataFlowSemaPhase {
         }
 
         return sequenceSymbol
-    }
-
-    private func registerSyntheticSequenceIteratorMember(
-        sequenceSymbol: SymbolID,
-        sequenceFQName: [InternedString],
-        elementType: TypeID,
-        typeParameterSymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let iteratorSymbol = symbols.lookup(fqName: [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("Iterator"),
-        ])
-        guard let iteratorSymbol else { return }
-
-        let iteratorReturnType = types.make(.classType(ClassType(
-            classSymbol: iteratorSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-        let memberName = interner.intern("iterator")
-        let memberFQName = sequenceFQName + [memberName]
-        let memberSymbol: SymbolID
-        if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .function
-        }) {
-            memberSymbol = existing
-        } else {
-            memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .operatorFunction]
-            )
-            symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: iteratorReturnType,
-                typeParameterSymbols: [typeParameterSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    func registerSyntheticSequenceExtensionFunction(
-        named name: String,
-        externalLinkName: String,
-        receiverType: TypeID,
-        parameters: [(name: String, type: TypeID, hasDefault: Bool, isVararg: Bool)],
-        returnType: TypeID,
-        typeParameterSymbols: [SymbolID] = [],
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        registerSyntheticFunctionStub(
-            named: name,
-            ownerFQName: packageFQName,
-            parentSymbol: symbols.lookup(fqName: packageFQName),
-            receiverType: receiverType,
-            parameters: parameters,
-            returnType: returnType,
-            externalLinkName: externalLinkName,
-            typeParameterSymbols: typeParameterSymbols,
-            symbols: symbols,
-            interner: interner
-        )
     }
 
     func registerSyntheticSequenceBuilderStub(

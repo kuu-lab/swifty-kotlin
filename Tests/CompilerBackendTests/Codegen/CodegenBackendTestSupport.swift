@@ -16,7 +16,8 @@ final class CodegenBackendTestSupport {
             outputPath: outputPath,
             emit: emit,
             target: defaultTargetTriple(),
-            irFlags: irFlags
+            irFlags: irFlags,
+            stdlibLibraryPath: try testStdlibArtifactPath()
         )
         let ctx = CompilationContext(
             options: options,

@@ -259,22 +259,35 @@ extension CallLowerer {
         // non-nullable value class — its raw unboxed underlying primitive.
         // Neither representation carries enough information for the generic
         // kk_any_to_string tag path below to recover the class's own
-        // toString(): a heap pointer this renderer doesn't recognize prints as
-        // "<object 0x...>", and a value class's raw primitive prints as if it
-        // were an ordinary Int/Long. Call the class's own (user-defined or
-        // synthesized) toString() directly instead, same as
-        // ConsolePrintLoweringPass already does for println/print.
+        // toString(). Use the shared resolver so data-class synthesis and this
+        // string-conversion funnel agree on the selected symbol. When the
+        // receiver is open/interface-typed, preserve virtual dispatch so a
+        // derived override is selected at runtime.
         if let classToString = resolveClassOwnToStringCallee(for: valueType, sema: sema, interner: interner) {
             let converted = arena.appendTemporary(type: stringType)
-            guard isNullable else {
-                instructions.append(.call(
+            func emitToStringCall(into result: KIRExprID) -> KIRInstruction {
+                tryEmitVirtualDispatch(
+                    chosenCallee: classToString.symbol,
+                    calleeName: classToString.callee,
+                    receiverExpr: nil,
+                    loweredReceiverID: valueID,
+                    isSuperCall: false,
+                    finalArguments: [],
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) ?? .call(
                     symbol: classToString.symbol,
                     callee: classToString.callee,
                     arguments: [valueID],
-                    result: converted,
+                    result: result,
                     canThrow: false,
                     thrownResult: nil
-                ))
+                )
+            }
+            guard isNullable else {
+                instructions.append(emitToStringCall(into: converted))
                 return converted
             }
             let nonNullLabel = driver.ctx.makeLoopLabel()
@@ -287,14 +300,7 @@ extension CallLowerer {
             instructions.append(.jump(endLabel))
             instructions.append(.label(nonNullLabel))
             let innerConverted = arena.appendTemporary(type: stringType)
-            instructions.append(.call(
-                symbol: classToString.symbol,
-                callee: classToString.callee,
-                arguments: [valueID],
-                result: innerConverted,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            instructions.append(emitToStringCall(into: innerConverted))
             instructions.append(.copy(from: innerConverted, to: converted))
             instructions.append(.label(endLabel))
             return converted

@@ -1,3 +1,4 @@
+@testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
 import Testing
@@ -11,15 +12,16 @@ import Testing
 @Suite(.serialized)
 struct CodegenRuntimeObjectDiscoveryTests {
     private func withScratchLayout(
+        configuration: RuntimeBuildConfiguration = .debug,
         _ body: (_ buildDirectory: URL, _ scratchRoot: URL) throws -> Void
     ) throws {
         let fileManager = FileManager.default
         let scratchRoot = fileManager.temporaryDirectory
             .appendingPathComponent("bug051-\(UUID().uuidString)", isDirectory: true)
-        // Mirror the real scratch layout: <root>/<triple>/debug/Runtime.build
+        // Mirror the real scratch layout: <root>/<triple>/<configuration>/Runtime.build
         let buildDirectory = scratchRoot
             .appendingPathComponent("x86_64-unknown-linux-gnu", isDirectory: true)
-            .appendingPathComponent("debug", isDirectory: true)
+            .appendingPathComponent(configuration.rawValue, isDirectory: true)
             .appendingPathComponent("Runtime.build", isDirectory: true)
         try fileManager.createDirectory(at: buildDirectory, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: scratchRoot) }
@@ -35,6 +37,67 @@ struct CodegenRuntimeObjectDiscoveryTests {
             .resolvingSymlinksInPath()
             .standardizedFileURL
             .path
+    }
+
+    @Test
+    func testRuntimeBuildConfigurationIsIncludedInArgumentsPathsAndCacheKeys() {
+        let target = TargetTriple(
+            arch: "arm64",
+            vendor: "apple",
+            os: "macosx",
+            osVersion: nil
+        )
+        let debugDirectory = CodegenRuntimeSupport.runtimeBuildDirectory(
+            target: target,
+            configuration: .debug
+        )
+        let releaseDirectory = CodegenRuntimeSupport.runtimeBuildDirectory(
+            target: target,
+            configuration: .release
+        )
+        #expect(debugDirectory != releaseDirectory)
+        #expect(debugDirectory.path.contains("/debug/"))
+        #expect(releaseDirectory.path.contains("/release/"))
+
+        let debugArguments = CodegenRuntimeSupport.swiftBuildArguments(
+            target: target,
+            configuration: .debug
+        )
+        let releaseArguments = CodegenRuntimeSupport.swiftBuildArguments(
+            target: target,
+            configuration: .release
+        )
+        #expect(debugArguments.contains { $0 == "debug" })
+        #expect(releaseArguments.contains { $0 == "release" })
+        #expect(debugArguments != releaseArguments)
+
+        let debugCacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+            target: target,
+            configuration: .debug
+        )
+        let releaseCacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+            target: target,
+            configuration: .release
+        )
+        #expect(debugCacheKey != releaseCacheKey)
+    }
+
+    @Test
+    func testRuntimeObjectPathsBuildBothConfigurations() throws {
+        let target = TargetTriple.hostDefault()
+        for configuration in [RuntimeBuildConfiguration.debug, .release] {
+            let paths = try CodegenRuntimeSupport.runtimeObjectPaths(
+                target: target,
+                configuration: configuration
+            )
+            #expect(!paths.isEmpty)
+            #expect(paths.allSatisfy { FileManager.default.fileExists(atPath: $0) })
+            let cacheKey = CodegenRuntimeSupport.runtimeBuildCacheKey(
+                target: target,
+                configuration: configuration
+            )
+            #expect(paths.allSatisfy { $0.contains("/\(cacheKey)/") })
+        }
     }
 
     @Test

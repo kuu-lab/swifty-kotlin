@@ -34,15 +34,19 @@ struct CodegenBackendSequenceLastIndexOfTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceLastIndexOfKIR", emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "SequenceLastIndexOfKIR",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                !callees.contains("kk_sequence_lastIndexOf"),
-                "Expected Sequence.lastIndexOf to be backed by source, got callees: \(callees.sorted())"
+                containsKotlinCallee("lastIndexOf", in: callees) && !callees.contains("kk_sequence_lastIndexOf"),
+                "Expected Sequence.lastIndexOf to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }
     }

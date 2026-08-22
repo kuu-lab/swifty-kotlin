@@ -457,7 +457,11 @@ struct CodegenBackendCollectionMutationAndAdvancedTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListAggregateRuntime", emit: .llvmIR)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "ListAggregateRuntime",
+                emit: .llvmIR
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -1002,7 +1006,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,

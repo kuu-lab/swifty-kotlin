@@ -7,6 +7,8 @@
 
 package kotlin
 
+import kotlin.reflect.KClass
+
 /**
  * Marks the annotated declaration as throwing the specified checked exceptions.
  */
@@ -17,4 +19,4 @@ package kotlin
     AnnotationTarget.CONSTRUCTOR,
 )
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
-public annotation class Throws
+public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)
