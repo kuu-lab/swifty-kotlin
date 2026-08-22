@@ -1790,7 +1790,7 @@
     - `kotlin.lazy` — fun lazy(LazyThreadSafetyMode, Function0): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazy(kotlin/LazyThreadSafetyMode, kotlin/Function0<#A>): kotlin/Lazy<#A>`
     - `kotlin.lazyOf` — fun lazyOf(): Lazy  -- `final fun <#A: kotlin/Any?> kotlin/lazyOf(#A): kotlin/Lazy<#A>`
 
-- [ ] KSP-782: kotlin.let-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-782: kotlin.let-family の未実装 stdlib API を実装する（1 件。KSP-601で実装済み、#5940で専用Golden/diff証跡を追加）
   - 対象: `kotlin` / top-level / family `let`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1799,6 +1799,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.let` — fun let(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/let(kotlin/Function1<#A, #B>): #B`
+  - 完了確認（2026-08-23）: 現行masterの`Standard.kt:37`にsource-backed実装を確認。#5940（merge commit `362cd0c7ee2c84bf288a67b84b83bf6cb2761536`）の専用Golden/diffとTODO ID、CompilerCore、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc diff、Devin Reviewは全成功。focused Goldenは既存goldenと完全一致、diffは`total=1 failed=0 passed=1`。
 
 - [x] KSP-783: kotlin.long-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `long`
