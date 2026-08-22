@@ -44,11 +44,19 @@ final class DataFlowSemaPhase: CompilerPhase {
         // stub registrations that reference `Pair<...>` in their signatures. When
         // a prebuilt library is used instead, `loadImports` above already defined
         // the real symbols, so this pass simply finds nothing to do.
-        var predeclaredTupleHeaders: [DeclID: SymbolID] = [:]
+        var predeclaredBundledHeaders: [DeclID: SymbolID] = [:]
         predeclareBundledTupleHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredTupleHeaders
+            interner: ctx.interner, into: &predeclaredBundledHeaders
+        )
+        // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
+        // extension bridges need the source symbol before synthetic
+        // registration constructs their signatures.
+        predeclareBundledStringEncodingHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredBundledHeaders
         )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
@@ -99,7 +107,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx,
-            predeclared: predeclaredTupleHeaders
+            predeclared: predeclaredBundledHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         types.functionInterfaceSymbol = symbols.lookupAll(

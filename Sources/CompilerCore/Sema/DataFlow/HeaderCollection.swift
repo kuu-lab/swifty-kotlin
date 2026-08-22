@@ -326,6 +326,45 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-711: forward-declares `Charset` and `Charsets` from
+    /// `StringEncoding.kt` before synthetic FileIO bridges are registered.
+    /// Their source symbols must be available while bridge signatures are
+    /// constructed; `collectAllHeaders` later fills in the complete headers.
+    func predeclareBundledStringEncodingHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let charsetFQName = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("Charset"),
+        ]
+        guard symbols.lookup(fqName: charsetFQName) == nil else { return }
+
+        for file in ast.sortedFiles
+            where sourceManager.path(of: file.fileID) == "__bundled_kotlin/text/StringEncoding.kt"
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
+            // Keep the source file association for metadata and declaration
+            // binding, while retaining the historical compatibility-shell
+            // visibility used by semantic inventory goldens. The normal header
+            // pass still fills the source-backed declaration details.
+            symbols.setDeclSite(nil, for: charsetSymbol)
+        }
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func collectHeader(
         declID: DeclID,
