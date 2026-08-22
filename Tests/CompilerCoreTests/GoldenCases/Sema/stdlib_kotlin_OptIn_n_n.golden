@@ -5,4 +5,4 @@ file fstdlib_kotlin_OptIn_n_n package=golden.sema
   decl golden.sema.FirstMarker class FirstMarker sym=golden.sema.FirstMarker
   decl golden.sema.SecondMarker class SecondMarker sym=golden.sema.SecondMarker
   decl golden.sema.useOptIn fun useOptIn sym=golden.sema.useOptIn
-expr e@10:23#3 int(1) type=Int
+expr e@10:23 int(1) type=Int

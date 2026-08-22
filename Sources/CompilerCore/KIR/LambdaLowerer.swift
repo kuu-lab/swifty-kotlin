@@ -990,7 +990,7 @@ final class LambdaLowerer {
             canThrow: false,
             thrownResult: nil
         ))
-        // BUG-219: `wrapperSymbol` is a KIR-synthetic identity with no Sema
+        // BUG-221: `wrapperSymbol` is a KIR-synthetic identity with no Sema
         // supertype entry of its own, so the edge above must stay explicit —
         // but `interfaceSymbol` (the SAM/fun interface being implemented) is
         // a real declared nominal, and if it itself extends another

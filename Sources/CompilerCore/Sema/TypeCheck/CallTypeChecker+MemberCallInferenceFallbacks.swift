@@ -487,11 +487,6 @@ extension CallTypeChecker {
     ) -> (TypeID, KIRExprKind)? {
         let types = sema.types
         switch (typeName, memberName) {
-        // Int (32-bit in Kotlin)
-        case ("Int", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int32.max)))
-        case ("Int", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int32.min)))
-        case ("Int", "SIZE_BITS"): return (types.intType, .intLiteral(32))
-        case ("Int", "SIZE_BYTES"): return (types.intType, .intLiteral(4))
         // Short
         case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
         case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))
