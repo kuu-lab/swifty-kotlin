@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -237,8 +238,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@__kk_print_raw"),
-                "Virtual dispatch String result should be passed to the raw print runtime bridge"
+                ir.contains("@__kk_print_raw") || ir.contains("@kk_fn_println_"),
+                "Virtual dispatch String result should reach the print implementation through the stdlib artifact"
             )
         }
     }
