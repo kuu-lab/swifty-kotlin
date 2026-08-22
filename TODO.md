@@ -2557,18 +2557,19 @@
     - `kotlin.IllegalArgumentException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.IllegalArgumentException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-851: kotlin.IllegalStateException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-851: kotlin.IllegalStateException top-level の未実装 stdlib API を実装する（4 件。PR #5958 / merge commit 1222dce9378288ec0b42c15edc349a5a8c677854 で source-backed 化済みのため重複実装はせず、既存の専用証跡を確認）
   - 対象: `kotlin.IllegalStateException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IllegalStateException/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_IllegalStateException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_IllegalStateException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_IllegalStateException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - bridge/stub 整理: `HeaderHelpers+SyntheticExceptionStubs.swift` に対象の synthetic 登録はなく、`__kk_illegal_state_exception_new*` の4本と `RuntimeABISpec` エントリは source-backed constructor の typed runtime storage/type identity に必要な bridge として維持。`CallTypeChecker+*` / `CallLowerer+*` の対象 name-string 特例はない。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_IllegalStateException_n_n.kt` / `.golden` は PR #5958 で追加済み。対象を含む Sema Golden shard の現行比較も pass。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_IllegalStateException_n_n.kt` は PR #5958 で追加済み。現行 JDK 26 の専用比較（`DIFF_REQUIRE_JDK21=0`, 1 worker）も pass。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.IllegalStateException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.IllegalStateException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
     - `kotlin.IllegalStateException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.IllegalStateException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
+  - 完了根拠 (2026-08-23): `Sources/CompilerCore/Stdlib/kotlin/IllegalStateException/Stdlib.kt` に4 constructor と対応する `@KsSymbolName` が現存。`ExceptionSyntheticStubTests` の source-backed hierarchy、`RuntimeAssertionsTests` の typed box/cause message、`RuntimeExceptionTypeDiscriminationTests` の full ancestor/sibling catch、専用 Golden/diff、Runtime ABI link 4 tests、TODO ID check が pass。PR #5958 の merged CI（CompilerCore/Backend/Runtime/Diff/Repository Checks）も全 pass。
 
 - [x] KSP-852: kotlin.IndexOutOfBoundsException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.IndexOutOfBoundsException` / top-level
