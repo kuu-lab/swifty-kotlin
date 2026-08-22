@@ -44,11 +44,16 @@ final class DataFlowSemaPhase: CompilerPhase {
         // stub registrations that reference `Pair<...>` in their signatures. When
         // a prebuilt library is used instead, `loadImports` above already defined
         // the real symbols, so this pass simply finds nothing to do.
-        var predeclaredTupleHeaders: [DeclID: SymbolID] = [:]
+        var predeclaredHeaders: [DeclID: SymbolID] = [:]
         predeclareBundledTupleHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredTupleHeaders
+            interner: ctx.interner, into: &predeclaredHeaders
+        )
+        predeclareBundledComparatorHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredHeaders
         )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
@@ -72,9 +77,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             bundledIndex: bundledIndex
         )
 
-        // Synthetic nominal anchors (e.g. kotlin.Comparator) register methods after
-        // library import. Apply imported class/interface layouts only after those
-        // synthetic methods exist, so vtable/itable slots can resolve.
+        // Apply imported class/interface layouts after synthetic bootstrap
+        // registration and before bundled source headers are collected, so
+        // imported vtable/itable slots can resolve against final symbols.
         applyImportedLibraryDeferredWork(
             importDeferredWork,
             symbols: symbols,
@@ -99,7 +104,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx,
-            predeclared: predeclaredTupleHeaders
+            predeclared: predeclaredHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         types.functionInterfaceSymbol = symbols.lookupAll(
