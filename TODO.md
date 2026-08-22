@@ -2231,7 +2231,7 @@
     - `kotlin.ConcurrentModificationException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.ConcurrentModificationException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-822: kotlin.ConsistentCopyVisibility top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-822: kotlin.ConsistentCopyVisibility top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ConsistentCopyVisibility` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ConsistentCopyVisibility/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2240,6 +2240,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ConsistentCopyVisibility.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5873（commit `f4aadf94c9484dfc962879d702abb3edfa0ff1b4`）で `Sources/CompilerCore/Stdlib/kotlin/ConsistentCopyVisibility.kt` の source-backed annotation 宣言へ移行し、旧 synthetic stub/Target 登録を削除。現行 top-level header collection は、明示的 constructor と secondary constructor のない annotation class から暗黙の無引数 `<init>` を登録する。
+  - 既存回帰: `AnnotationSemanticTests` の登録・Target・copy visibility、Sema Golden `stdlib_kotlin_n_ConsistentCopyVisibility`、diff ケース `Scripts/diff_cases/stdlib_kotlin_n_ConsistentCopyVisibility.kt` で解決と挙動を確認済み。Runtime/RuntimeABI の対象エントリは不要。
 
 - [ ] KSP-823: kotlin.ContextFunctionTypeParams top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ContextFunctionTypeParams` / top-level
