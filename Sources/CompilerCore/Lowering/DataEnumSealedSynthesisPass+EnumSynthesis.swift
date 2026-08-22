@@ -582,7 +582,7 @@ extension DataEnumSealedSynthesisPass {
         )
         let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
         body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-        // BUG-221: walk the full transitive closure of declared supertypes
+        // BUG-223: walk the full transitive closure of declared supertypes
         // (e.g. `enum class E : Ranked` where `Ranked : Comparable<Ranked>`),
         // not just the direct ones.
         appendTypeAncestryRegistrations(

@@ -1,4 +1,4 @@
-// BUG-221: comparison operators on an erased `T : Comparable<T>` receiver
+// BUG-223: comparison operators on an erased `T : Comparable<T>` receiver
 // must dispatch to `compareTo` even when the only path to it is an
 // interface's own default implementation (`Ranked` here), never overridden
 // by the constructed classes (`Bronze`/`Gold`) and never itself

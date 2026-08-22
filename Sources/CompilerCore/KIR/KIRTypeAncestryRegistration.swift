@@ -2,7 +2,7 @@
 /// full transitive closure of `rootSymbol`'s supertypes, not just its direct
 /// ones.
 ///
-/// BUG-221: a supertype reachable only through another, never-instantiated
+/// BUG-223: a supertype reachable only through another, never-instantiated
 /// nominal (typically an interface, e.g. `Ranked` between `Bronze` and
 /// `Comparable` in `interface Ranked : Comparable<Ranked>`) never gets its
 /// own edge to ITS supertypes registered anywhere, because interfaces (and
