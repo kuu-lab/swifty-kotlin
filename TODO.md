@@ -2074,13 +2074,14 @@
     - `kotlin.ArrayIndexOutOfBoundsException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.ArrayIndexOutOfBoundsException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
 
-- [ ] KSP-809: kotlin.AssertionError top-level の未実装 stdlib API を実装する（3 件）
+- [x] KSP-809: kotlin.AssertionError top-level の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.AssertionError` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/AssertionError/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_AssertionError_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_AssertionError_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_AssertionError_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: PR #5790（merge commit `a16552084688bf85d55e444744ec84af9d41d592`、全 CI 成功）で `Exceptions.kt` に source-backed `AssertionError : Error` と対象 3 constructor（`()`, `(Any?)`, `(String?, Throwable?)`）を実装済み。現行 `ExceptionSyntheticStubTests/testCommonExceptionHierarchyIsSourceBacked`、`RuntimeAssertionsTests`、`exception_hierarchy.kt` の focused diff、関連 Sema Golden、Runtime ABI 検証が pass している。
   - 未実装シンボル一覧:
     - `kotlin.AssertionError.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.AssertionError.<init>` — constructor (Any)  -- `constructor <init>(kotlin/Any?)`
