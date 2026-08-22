@@ -73,30 +73,13 @@ extension KIRLoweringDriver {
             body.append(.storeGlobal(value: allocatedObj, symbol: objectSymbol))
 
             // Register supertype relationships (interfaces).
-            let childTypeExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
-            body.append(.constValue(result: childTypeExpr, value: .intLiteral(classIDValue)))
-            for superSymbol in sema.symbols.directSupertypes(for: objectSymbol) {
-                let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: superSymbol, sema: sema, interner: interner
-                )
-                let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-                body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                let registerResult = arena.appendTemporary(type: intType)
-                let superKind = sema.symbols.symbol(superSymbol)?.kind
-                let registerCallee: InternedString = if superKind == .interface {
-                    interner.intern("kk_type_register_iface")
-                } else {
-                    interner.intern("kk_type_register_super")
-                }
-                body.append(.call(
-                    symbol: nil,
-                    callee: registerCallee,
-                    arguments: [childTypeExpr, parentExpr],
-                    result: registerResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
+            appendTypeAncestryRegistrations(
+                rootSymbol: objectSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body
+            )
 
             // Register itable methods for each interface.
             if let objectLayout = sema.symbols.nominalLayout(for: objectSymbol) {
