@@ -64,7 +64,24 @@ jobs:
 
       - name: Verify TODO IDs
         shell: bash
-        run: ./Scripts/check_todo_ids.sh
+        run: |
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          import re
+
+          pattern = re.compile(r"^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-[0-9]+):")
+          ids = []
+          for line in Path("TODO.md").read_text(encoding="utf-8").splitlines():
+              match = pattern.match(line)
+              if match:
+                  ids.append(match.group(1))
+
+          duplicates = sorted(task_id for task_id, count in Counter(ids).items() if count > 1)
+          if duplicates:
+              raise SystemExit("Duplicate TODO task IDs: " + ", ".join(duplicates))
+          print("No duplicate TODO task IDs found in TODO.md.")
+          PY
 
       - name: Commit repair
         shell: bash
