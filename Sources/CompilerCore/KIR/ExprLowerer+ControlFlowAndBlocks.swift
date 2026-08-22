@@ -763,6 +763,7 @@ extension ExprLowerer {
                 var captureSymbols = referencedSymbols.filter { sym in
                     if localFunParamSymbols.contains(sym) { return false }
                     if sym == symbol { return false }
+                    if driver.ctx.localDelegateStorage(for: sym) != nil { return true }
                     if driver.ctx.localValue(for: sym) != nil { return true }
                     if sym == driver.ctx.activeImplicitReceiverSymbol(),
                        driver.ctx.activeImplicitReceiverExprID() != nil { return true }
@@ -885,7 +886,9 @@ extension ExprLowerer {
                 for capture in captureBindings {
                     let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
                     localFunBodyInstructions.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-                    if boxedCaptureSymbols.contains(capture.capturedSymbol) {
+                    if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
+                        driver.ctx.setLocalDelegateStorage(captureExpr, for: capture.capturedSymbol)
+                    } else if boxedCaptureSymbols.contains(capture.capturedSymbol) {
                         driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
                     } else {
                         driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
@@ -951,7 +954,9 @@ extension ExprLowerer {
                 localFunBodyInstructions.append(.constValue(result: bodyFunRef, value: .symbolRef(symbol)))
                 driver.ctx.setLocalValue(bodyFunRef, for: symbol)
                 let recursiveCaptureArguments: [KIRExprID] = captureBindings.map { binding in
-                    guard let value = driver.ctx.localValue(for: binding.capturedSymbol) else {
+                    guard let value = driver.ctx.localValue(for: binding.capturedSymbol)
+                        ?? driver.ctx.localDelegateStorage(for: binding.capturedSymbol)
+                    else {
                         preconditionFailure("BuildKIRPhase: missing capture binding for recursive local function '\(symbol)'")
                     }
                     return value

@@ -556,13 +556,13 @@ final class LambdaLowerer {
         capture: (capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID),
         sema: SemaModule
     ) {
-        if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
-           semanticSymbol.kind == .local,
-           semanticSymbol.flags.contains(.mutable)
+        if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
+            driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
+        } else if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                  semanticSymbol.kind == .local,
+                  semanticSymbol.flags.contains(.mutable)
         {
             driver.ctx.setMutableCaptureCell(capturedValue, for: capture.capturedSymbol)
-        } else if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
-            driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
         } else {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
