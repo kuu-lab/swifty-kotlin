@@ -1546,7 +1546,7 @@
   - 未実装シンボル一覧:
     - `kotlin.TypeCastException` — class kotlin.TypeCastException  -- `open class kotlin/TypeCastException : kotlin/ClassCastException {`
 
-- [ ] KSP-761: kotlin.UByteArray-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-761: kotlin.UByteArray-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `UByteArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UByteArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1555,6 +1555,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.UByteArray` — fun UByteArray(Int, Function1): UByteArray  -- `final inline fun kotlin/UByteArray(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/UByte>): kotlin/UByteArray`
+  - 根拠: PR #5918（merge commit `eabdda1156256f3331f117ac9bceb43de0e41267`）で実装済み。現行 master の Kotlin source、Sema Golden、diff case、および同 PR の CI / Devin Review 成功を確認済み。
 
 - [ ] KSP-762: kotlin.UIntArray-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `UIntArray`
