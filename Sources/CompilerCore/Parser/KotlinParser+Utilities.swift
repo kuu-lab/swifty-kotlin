@@ -300,6 +300,18 @@ extension KotlinParser {
         range: inout RangeAccumulator
     ) {
         let skippedStart = stream.peek().range
+        if !inBlock, case .symbol(.rBrace) = stream.peek().kind {
+            // Consume an unmatched file-scope brace without skipping the valid
+            // top-level declarations or statements that follow it.
+            _ = consumeToken(into: &children, range: &range)
+            diagnostics.error(
+                "KSWIFTK-PARSE-0006",
+                "Skipped 1 unexpected token(s).",
+                range: skippedStart
+            )
+            return
+        }
+
         var skippedCount = 0
         while !stream.atEOF() {
             let token = stream.peek()
