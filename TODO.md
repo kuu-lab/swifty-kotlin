@@ -1616,7 +1616,7 @@
   - 未実装シンボル一覧:
     - `kotlin.also` — fun also(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (#A).kotlin/also(kotlin/Function1<#A, kotlin/Unit>): #A`
 
-- [ ] KSP-768: kotlin.apply-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-768: kotlin.apply-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `apply`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1625,6 +1625,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.apply` — fun apply(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (#A).kotlin/apply(kotlin/Function1<#A, kotlin/Unit>): #A`
+  - 完了確認（2026-08-23）: KSP-602 / PR #5794（merge commit `e61cff64521cd8d5a1ca5bea74ca9031d9b8f6c5`）で実装と bridge/stub 整理、source-backed Sema/Backend 回帰が完了済み。現行 `Standard.kt`、`scope_functions.golden` の `call=kotlin.apply`、Backend 実行回帰、既存 `scope_functions.kt` / `scope_functions_edge_cases.kt` diff 回帰、および PR #5794 の関連 CI green を確認したため、本 PR は TODO 同期のみとする。
 
 - [ ] KSP-769: kotlin.boolean-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `boolean`
