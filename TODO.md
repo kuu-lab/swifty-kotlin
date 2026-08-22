@@ -2411,8 +2411,9 @@
     - `kotlin.Enum.ordinal` — val Enum.ordinal: Int  -- `final val ordinal`
     - `kotlin.Enum.toString` — fun Enum.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-838: kotlin.Error top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-838: kotlin.Error top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Error` / top-level
+  - 完了根拠: merged PR #5790（merge commit `a16552084688bf85d55e444744ec84af9d41d592`）で `Exceptions.kt` に4 constructorと `@KsSymbolName` bridgeが導入済み。現行 `Error` はsource-backed非syntheticで、`ExceptionSyntheticStubTests.testCommonExceptionHierarchyIsSourceBacked` が4 constructorのarity/linkを、`RuntimeAssertionsTests.testSourceBackedExceptionCauseOnlyConstructors` と既存 `exception_hierarchy.kt` diff回帰が挙動を固定している。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Error/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Error_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
