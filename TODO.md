@@ -583,13 +583,15 @@
   - diff: `string_builder_*.kt` 既存 + `Appendable`/`CharSequence` supertype ケース
   - 前提: KSP-711, KSP-717
 
-- [ ] KSP-711: StringRegistrationHelpers (`String` constructors / Appendable / CharSequence / typography constants) を Kotlin 化し `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` を削除する
+- [x] KSP-711: StringRegistrationHelpers (`String` constructors / Appendable / CharSequence / typography constants) を Kotlin 化し `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringRegistrationHelpers.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/` 新設 `Appendable.kt`/`CharSequence.kt`/`StringConstructors.kt`/`Typography.kt`（`StringBuilder.kt`/`String*.kt` 既存と統合）
-  - 削除/降格 kk_*: `kk_string_from_*`, `kk_char_*_typography` 等 public ブリッジ（`RuntimeString*.swift`。着手時 `rg 'kk_string_from_|kk_char.*typography|kk_string_constructor' Sources/Runtime`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/` の `Appendable.kt`/既存 `CharSequence.kt`/新設 `StringConstructors.kt`/`Typography.kt`（`StringBuilder.kt`/`String*.kt` 既存と接続）
+  - 完了（2026-08-23）: Appendable、String の ByteArray/Charset constructor、Typography の全定数を source-backed 化。CharSequence は既存 source を利用し、String の compiler/runtime nominal shell と共有 `kk_string_from_utf8`/`kk_string_from_flat` allocation 経路は保持。対象 helper を削除し、残存する専用 runtime bridges は `__kk_*` の source external link として保持。StringBuilder への Appendable 接続のみを追加し、KSP-710 の公開 supertypes 移行は未実施。
+  - 削除/降格 kk_*: KSP-711 所有の synthetic constructor/Typography/Appendable 登録を削除。共有 `kk_string_from_*` と `__kk_string_builder_append_*` は実利用のため保持
   - 手順: T
-  - diff: `string_constructors.kt` 新規 + `string_*.kt` 既存
+  - diff: `string_constructors.kt`/`appendable_append_overloads.kt` 新規 + `string_*.kt` 既存
   - 前提: なし（KSP-406/407/408/409/410/411 完了後に実施）
+  - 検証: Sema source/link inventory、String constructor/Appendable/Typography 回帰、StringBuilder edge 13件、encoding edge 3件、関連 Golden 8件、`diff_kotlinc` 4件、Runtime ABI 4件、`check_todo_ids.sh`、`git diff --check` が pass
 
 - [ ] KSP-712: Instant / Clock / ExperimentalTime を Kotlin 化し stub 群を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticInstantStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticClockStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticExperimentalTimeStubs.swift`
