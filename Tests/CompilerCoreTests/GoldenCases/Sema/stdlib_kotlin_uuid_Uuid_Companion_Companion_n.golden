@@ -32,7 +32,6 @@ symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.Byt
 symbol fq=kotlin.Comparator kind=interface vis=public flags=funInterface
 symbol fq=kotlin.UByteArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.time.Instant kind=class vis=public flags=synthetic
-symbol fq=kotlin.uuid.Uuid kind=class vis=public flags=_
 file fstdlib_kotlin_uuid_Uuid_Companion_Companion_n package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class,kotlin.time.ExperimentalTime::class)]
   decl golden.sema.useSizeConstants fun useSizeConstants sym=golden.sema.useSizeConstants
   decl golden.sema.useNil fun useNil sym=golden.sema.useNil
