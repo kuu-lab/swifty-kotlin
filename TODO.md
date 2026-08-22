@@ -238,11 +238,12 @@
 
 #### kotlin.time [M8 実行体]
 
-- [ ] KSP-683: Duration/DurationUnit 本体を Kotlin 化する（2026-08-12 ギャップ再調査で追補: §9 分類表は `HeaderHelpers+SyntheticDurationStubs.swift` を「(b) M8 duration source migration」と分類しているのに、M8 実行体には Instant/Clock/measureTime（KSP-472）と TimeMark/TimeSource 系（KSP-648〜650）しか無く、**M8 中核の Duration 本体タスクが欠落していた**）
+- [x] KSP-683: Duration/DurationUnit 本体を Kotlin 化する（2026-08-12 ギャップ再調査で追補: §9 分類表は `HeaderHelpers+SyntheticDurationStubs.swift` を「(b) M8 duration source migration」と分類しているのに、M8 実行体には Instant/Clock/measureTime（KSP-472）と TimeMark/TimeSource 系（KSP-648〜650）しか無く、**M8 中核の Duration 本体タスクが欠落していた**）
   - 対象: 同スタブの Duration メンバ・factory 拡張（`Int/Long/Double.toDuration`, `Int.days/hours/minutes/seconds` 等）・DurationUnit 変換の登録と、`RuntimeDuration.swift` の `kk_duration*` 24 関数（2026-08-12 実測。着手時 `rg -o '@_cdecl\("kk_duration[a-zA-Z0-9_]*"\)' Sources/Runtime` で再固定）
   - 方針: 演算・単位変換・`toComponents`/`toIsoString`/`toString` の純ロジックを Kotlin 化し、内部表現（packed Long）に触れる最小コアのみ `__kk_` 降格
   - **BUG-195（`toDuration`/`Duration.toComponents` の誤動作群）の修正を本タスクへ吸収する**（移行と同時に kotlinc へ挙動固定。JVM `toTimeUnit`/`toDurationUnit` interop は CLEANUP-STUB-126 で target-out 化）
   - 前提: KSP-648（完了済み）/ 手順: T / diff: `duration_*.kt` 既存 + BUG-195 再現の新規
+  - 完了根拠（2026-08-23）: PR #5789（merge commit `5f73f5e727ca2df79aa949029be45390c6985df2`、実装head `260579c096b4ebe4d9497e271e108f02e45d7ee3`）で `Duration.kt`/`DurationUnit.kt` を source-backed value class/enum 化し、純演算・単位変換・`toComponents`/ISO/string・BUG-195 を実装済み。`HeaderHelpers+SyntheticDurationStubs.swift` と `RuntimeDuration.swift` の現行 `kk_duration_*` cdecl 22 件は parse・packed Long・TimeSources 等の hidden `__kk_*` bridge/互換面に限定して利用され、public Duration surface の synthetic 重複登録はアクティブ経路にない。Sema 8、Codegen 27、Runtime 89（直列）、ABI 4、`duration_bug195.kt` diff 1 が pass し、PR #5789 の全 CI 8 checks も pass 済み。
 
 #### kotlin.uuid [M12 実行体]
 
