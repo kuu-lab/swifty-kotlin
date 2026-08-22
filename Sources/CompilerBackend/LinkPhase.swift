@@ -78,7 +78,10 @@ final class LinkPhase: CompilerPhase {
     private func performLink(objectPath: String, entrySymbol: String, ctx: CompilationContext) throws {
         let autoLinkedObjects = discoverLibraryObjects(searchPaths: ctx.options.effectiveLibrarySearchPaths)
         do {
-            let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(target: ctx.options.target)
+            let runtimeObjects = try CodegenRuntimeSupport.runtimeObjectPaths(
+                target: ctx.options.target,
+                configuration: .release
+            )
             let entryWrapperObjectPath = try LLVMEntryPointObjectEmitter(target: ctx.options.target)
                 .emit(entrySymbol: entrySymbol, outputPath: ctx.options.outputPath)
             let entryWrapperDirectoryPath = URL(fileURLWithPath: entryWrapperObjectPath)
