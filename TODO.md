@@ -187,8 +187,8 @@
   - 削除 kk_*: `rg -o '@_cdecl\("kk_list_(associate|group|withIndex|onEach|partition|unzip)[a-zA-Z]*"\)' Sources/Runtime` で列挙（約 19 関数）
 - [ ] KSP-426: List sort/max/min を Kotlin 化（`sorted(By/With/Descending)` + `_primitive` 変種, mutable `sort*`, `max/min(By/Of/With)(OrNull)`）
   - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
-- [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
-  - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
+- [x] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
+  - 完了: PR #5770（GitHub merge commit `11ae15c531d7096483b6929b1566005b145e83f7`、merged head `607b6095e8a10b8d8fed1712eb5590f22ee05123`）で実装済み。現行 source は `ListCollectionOps.kt` / `ListAggregateHOF.kt`、回帰は `ListSyntheticMemberLinkTests` と `Scripts/diff_cases/list_collection_ops.kt`。`kk_list_shuffled(_random)` は KSP-466 完了後に Kotlin 化
 - [x] KSP-429: List 変換・joinToString を Kotlin 化（`toMap`, `toSet`, `toHashSet`, `toMutableList/Set`, `joinTo(String)`, `orEmpty`, `component1-5`, `indices`, `lastIndex`, `isEmpty/isNotEmpty`）
   - 完了: `Iterables.kt` / `ListConversions.kt` に汎用変換・join・nullable・destructuring・index 実装を移し、List 固有の synthetic 登録・call lowering・公開ランタイム ABI を削除。`isEmpty` は抽象 Collection の型タグ dispatch コアとして保持し、`isNotEmpty` は Kotlin source から `isEmpty` を利用する。
   - 回帰: `Scripts/diff_cases/list_ksp429_surface.kt` と `CodegenBackendIntegrationTests` の実 kotlinc 比較・実行ケースで固定。
