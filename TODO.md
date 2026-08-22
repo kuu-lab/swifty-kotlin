@@ -1939,9 +1939,9 @@
   - 未実装シンボル一覧:
     - `kotlin.closeFinally` — fun AutoCloseable.closeFinally(Throwable): Unit  -- `final fun (kotlin/AutoCloseable?).kotlin/closeFinally(kotlin/Throwable?)`
 
-- [ ] KSP-796: kotlin.Companion の未実装 stdlib API を実装する（2 件）
+- [x] KSP-796: kotlin.Companion の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / receiver `Companion`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KotlinVersion.kt`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/from.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -1949,6 +1949,9 @@
   - 未実装シンボル一覧:
     - `kotlin.fromBits` — fun Companion.fromBits(Long): Double  -- `final inline fun (kotlin/Double.Companion).kotlin/fromBits(kotlin/Long): kotlin/Double`
     - `kotlin.fromBits` — fun Companion.fromBits(Int): Float  -- `final inline fun (kotlin/Float.Companion).kotlin/fromBits(kotlin/Int): kotlin/Float`
+  - 実装済み証跡: PR #5936 `Implement source-backed kotlin.fromBits overloads`（merge commit `fafe6fffe26d735a43fdbc5ce3072607e6b4d316`）で、`from.kt` のsource-backed宣言、Companion receiverのSema解決、`__kk_double_fromBits` / `__kk_float_fromBits` Runtime bridge、Runtime ABI登録、`Math.kt` の `withSign` 経路を実装済み。
+  - 回帰証跡: `stdlib_kotlin_n_from.kt/.golden`、`Scripts/diff_cases/stdlib_kotlin_n_from.kt`、`FloatBitsSourceTests`、`RuntimeFloatBitsTests`、`BundledStdlibExecutionTests` を含む。#5936のTODO ID、CompilerCore/Smoke全shard、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc Diff両shard、Devin ReviewはSUCCESS。
+  - 現行master再監査（2026-08-23）: `FloatBitsSourceTests` 3件、`RuntimeFloatBitsTests` 8件、Backend実行1件、focused kotlinc diff 1件（`DIFF_WORKERS=1`）、Runtime ABI link 4件がすべてpass。Long/Intの符号bit、負零、NaN payloadのround-tripを確認済み。
 
 - [ ] KSP-797: kotlin.Comparable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `Comparable`
