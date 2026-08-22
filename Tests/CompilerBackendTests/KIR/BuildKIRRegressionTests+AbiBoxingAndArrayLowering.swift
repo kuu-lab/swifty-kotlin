@@ -16,16 +16,16 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("first"))
-            #expect(callNames.contains("firstOrNull"))
-            #expect(callNames.contains("lastOrNull"))
+            #expect(containsKotlinCallee("first", in: callNames))
+            #expect(containsKotlinCallee("firstOrNull", in: callNames))
+            #expect(containsKotlinCallee("lastOrNull", in: callNames))
             #expect(!(callNames.contains("kk_list_first")))
             #expect(!(callNames.contains("kk_list_firstOrNull")))
             #expect(!(callNames.contains("kk_list_lastOrNull")))
@@ -53,16 +53,16 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("intersect"))
-            #expect(callNames.contains("union"))
-            #expect(callNames.contains("subtract"))
+            #expect(containsKotlinCallee("intersect", in: callNames))
+            #expect(containsKotlinCallee("union", in: callNames))
+            #expect(containsKotlinCallee("subtract", in: callNames))
             #expect(!(callNames.contains("kk_set_intersect")))
             #expect(!(callNames.contains("kk_set_union")))
             #expect(!(callNames.contains("kk_set_subtract")))
@@ -78,14 +78,14 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("unzip"))
+            #expect(containsKotlinCallee("unzip", in: callNames))
             #expect(!(callNames.contains("kk_list_unzip")))
         }
     }
@@ -101,14 +101,14 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("associateTo"))
+            #expect(containsKotlinCallee("associateTo", in: callNames))
             #expect(!(callNames.contains("kk_list_associateTo")))
         }
     }
@@ -123,7 +123,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -149,15 +149,15 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("withIndex"))
-            #expect(callNames.contains("forEachIndexed"))
+            #expect(containsKotlinCallee("withIndex", in: callNames))
+            #expect(containsKotlinCallee("forEachIndexed", in: callNames))
             #expect(!(callNames.contains("kk_list_withIndex")))
             #expect(!(callNames.contains("kk_list_forEachIndexed")))
         }
@@ -172,7 +172,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -195,7 +195,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -232,7 +232,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -277,7 +277,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -309,7 +309,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -353,7 +353,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -384,14 +384,14 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("withDefault"))
+            #expect(containsKotlinCallee("withDefault", in: callNames))
             #expect(!(callNames.contains("kk_map_withDefault")))
         }
     }
@@ -407,7 +407,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
@@ -567,7 +567,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -577,9 +577,12 @@ struct BuildKIRCodegenRegressionTests {
             func flags(_ primary: String, _ aliases: String...) -> [Bool]? {
                 ([primary] + aliases).compactMap { throwFlags[$0] }.first
             }
+            func importedFlags(_ name: String) -> [Bool]? {
+                throwFlags.first { isKotlinCallee($0.key, named: name) }?.value
+            }
             #expect(throwFlags["kk_string_split_flat"] == nil)
             #expect(throwFlags["kk_string_split"] == nil)
-            #expect(throwFlags["split"] != nil)
+            #expect(importedFlags("split") != nil)
             // KSP-406: subSequence is bundled Kotlin source (delegates to substring),
             // so it no longer lowers to a String-specific runtime helper.
             #expect(throwFlags["kk_string_subSequence_flat"] == nil)
@@ -590,9 +593,9 @@ struct BuildKIRCodegenRegressionTests {
             #expect(flags("kk_string_isNullOrBlank", "kk_string_isNullOrBlank_flat", "__string_isNullOrBlank_flat") == nil)
             #expect(throwFlags["kk_string_repeat_flat"] == nil)
             #expect(throwFlags["kk_string_repeat"] == nil)
-            // KSP-414: toInt is source-backed and lowers through the source
-            // function `toInt` rather than a public kk_string_toInt_flat helper.
-            #expect(throwFlags["toInt"]?.allSatisfy { $0 == true } == true)
+            // KSP-414: toInt is imported from the artifact rather than routed
+            // through a public kk_string_toInt_flat helper.
+            #expect(importedFlags("toInt")?.allSatisfy { $0 == true } == true)
             #expect(throwFlags["__kk_string_toDouble_flat"]?.allSatisfy { $0 == true } == true)
         }
     }
@@ -642,19 +645,22 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("map"))
-            #expect(callNames.contains("mapNotNull"))
-            #expect(callNames.contains("fold"))
+            #expect(containsKotlinCallee("map", in: callNames))
+            #expect(containsKotlinCallee("mapNotNull", in: callNames))
+            #expect(containsKotlinCallee("fold", in: callNames))
             // Source-backed default lowering may retain the default suffix or
             // emit the resolved source function name directly.
-            #expect(callNames.contains("joinToString") || callNames.contains("joinToString$default"))
+            #expect(
+                containsKotlinCallee("joinToString", in: callNames) ||
+                    containsKotlinCallee("joinToString$default", in: callNames)
+            )
             #expect(!callNames.contains("kk_array_map"))
             #expect(!callNames.contains("kk_array_fold"))
             #expect(!callNames.contains("kk_array_joinToString_transform"))
@@ -741,7 +747,7 @@ struct BuildKIRCodegenRegressionTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 

@@ -13,7 +13,8 @@ struct BundledStdlibExecutionTests {
     }
 
     /// Compile `source` to an executable, run it, and assert stdout equals `expectedOutput`.
-    private func compileAndRunKotlin(
+    /// Not `private`: reused by other `BundledStdlibExecutionTests+*.swift` extension files.
+    func compileAndRunKotlin(
         _ source: String,
         expectedOutput: String,
         moduleName: String = "ExecTest"

@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -114,7 +115,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathExtensionProperties", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "MathExtensionProperties",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -126,16 +131,16 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 return (ctx.interner.resolve(callee), arguments.count)
             }
 
-            for expected in [
-                "absoluteValue",
-                "sign",
-                "ulp",
-            ] {
-                #expect(
-                    calls.contains(where: { $0 == expected && $1 == 1 }),
-                    "Expected \(expected) to lower with one receiver argument, got \(calls)"
-                )
+            // Property accessors in the artifact use the mangled JVM-style
+            // `get` entry name rather than the Kotlin property name.  The
+            // source has ten math property reads, each with one receiver.
+            let artifactAccessors = calls.filter {
+                $0.0.hasPrefix("kk_fn_get_") && $0.1 == 1
             }
+            #expect(
+                artifactAccessors.count == 10,
+                "Expected ten imported math property accessors, got \(calls)"
+            )
 
             for extensionHelper in [
                 "absoluteValue",
@@ -195,7 +200,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathMinMaxOverloads", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "MathMinMaxOverloads",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -209,7 +218,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             for expected in ["max", "min"] {
                 #expect(
-                    calls.filter { $0 == expected && $1 == 2 }.count == 6,
+                    calls.filter { isKotlinCallee($0, named: expected) && $1 == 2 }.count == 6,
                     "Expected six source-backed \(expected) overload calls, got \(calls)"
                 )
             }
@@ -245,7 +254,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathSignedZeroSymmetry", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "MathSignedZeroSymmetry",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -259,7 +272,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
                 "atan2", "cbrt", "sinh", "cosh", "tanh", "atanh",
             ] {
                 #expect(
-                    calls.contains(sourceFunction),
+                    calls.contains(where: { isKotlinCallee($0, named: sourceFunction) }),
                     "Expected the consumer call to remain source-backed as \(sourceFunction), got \(calls)"
                 )
             }
@@ -288,7 +301,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "MathRemainingFloatingOverloads", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "MathRemainingFloatingOverloads",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -302,7 +319,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             for sourceFunction in ["IEEErem", "nextTowards", "pow"] {
                 #expect(
-                    calls.contains(where: { $0 == (sourceFunction, 2) }),
+                    calls.contains(where: { isKotlinCallee($0.0, named: sourceFunction) && $0.1 == 2 }),
                     "Expected the consumer call to remain source-backed as \(sourceFunction), got \(calls)"
                 )
             }
@@ -326,7 +343,11 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FQNMathCalls", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "FQNMathCalls",
+                emit: .kirDump
+            )
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -337,10 +358,10 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
             }
 
             #expect(
-                callees.filter { $0 == "abs" }.count == 2,
+                callees.filter { isKotlinCallee($0, named: "abs") }.count == 2,
                 "FQN abs(Int)/abs(Double) must lower to the Kotlin-source abs, got \(callees)"
             )
-            #expect(callees.contains("sqrt"), "FQN sqrt(Double) must lower to source-backed sqrt, got \(callees)")
+            #expect(containsKotlinCallee("sqrt", in: callees), "FQN sqrt(Double) must lower to the stdlib artifact, got \(callees)")
             #expect(
                 !callees.contains(where: { $0.hasPrefix("__kk_math_") }),
                 "FQN consumer calls must not bypass source-backed math declarations, got \(callees)"

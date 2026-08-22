@@ -89,7 +89,7 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
         )
     }
 
-    // BUG-170 / BUG-221: through an erased `T : Comparable<T>` bound the
+    // BUG-170 / BUG-223: through an erased `T : Comparable<T>` bound the
     // operands can have different runtime types (subclass vs base, or two
     // classes sharing a Comparable interface). Dispatch must still reach the
     // user `compareTo` instead of comparing heap addresses — including when

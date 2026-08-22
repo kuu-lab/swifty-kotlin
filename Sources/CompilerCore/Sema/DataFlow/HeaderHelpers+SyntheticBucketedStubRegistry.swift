@@ -119,9 +119,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalTime") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "PlatformTimeConversion") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "StringBuilder") { phase, symbols, types, interner, context in
             let owner = [interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder")]
             if context.bundledIndex.contains(ownerFQName: owner, name: interner.intern("append"), arity: 1) {

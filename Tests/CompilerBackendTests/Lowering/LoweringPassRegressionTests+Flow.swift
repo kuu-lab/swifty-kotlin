@@ -30,7 +30,11 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowBundledPriority", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = try makeArtifactCompilationContext(
+                inputs: [path],
+                moduleName: "FlowBundledPriority",
+                emit: .kirDump
+            )
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -41,14 +45,14 @@ struct LoweringFlowCodegenTests {
                 extractCallees(from: function.body, interner: ctx.interner)
             }
 
-            // KSP-CAP-010: the real bundled declarations remain ordinary calls;
-            // only the retained cold-flow core is lowered to the public bridges.
-            #expect(allCallees.contains("map"))
-            #expect(allCallees.contains("filter"))
-            #expect(allCallees.contains("toList"))
-            #expect(allCallees.contains("first"))
-            #expect(allCallees.contains("fold"))
-            #expect(allCallees.contains("reduce"))
+            // KSP-CAP-010: artifact imports inline the map/filter transforms,
+            // while the non-inline terminal declarations retain concrete
+            // mangled artifact callees.  The executable check below fixes the
+            // observable semantics of the inlined transforms.
+            #expect(containsKotlinCallee("toList", in: allCallees))
+            #expect(containsKotlinCallee("first", in: allCallees))
+            #expect(containsKotlinCallee("fold", in: allCallees))
+            #expect(containsKotlinCallee("reduce", in: allCallees))
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
             #expect(!allCallees.contains("__kk_flow_to_list"))
@@ -56,6 +60,12 @@ struct LoweringFlowCodegenTests {
             #expect(!allCallees.contains("__kk_flow_single"))
             #expect(!allCallees.contains("__kk_flow_fold"))
             #expect(!allCallees.contains("__kk_flow_reduce"))
+
+            try assertFlowExecutableOutput(
+                source: source,
+                moduleName: "FlowBundledPriorityExecutable",
+                expectedStdout: "[2, 4]\n2\n3\n3\n"
+            )
         }
     }
 
@@ -116,7 +126,7 @@ struct LoweringFlowCodegenTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump, allowDefaultStdlibLibrary: false)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump)
             try runToKIR(ctx)
             try LoweringPhase().run(ctx)
 
@@ -454,7 +464,7 @@ struct LoweringFlowCodegenTests {
             defer { try? fileManager.removeItem(at: workDir) }
             let outputPath = workDir.appendingPathComponent("flow-executable").path
 
-            let ctx = makeCompilationContext(
+            let ctx = try makeArtifactCompilationContext(
                 inputs: [path],
                 moduleName: moduleName,
                 emit: .executable,

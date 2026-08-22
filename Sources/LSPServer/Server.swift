@@ -9,18 +9,43 @@ import Foundation
 /// `textDocument/did{Open,Change,Save,Close}` synchronization family.
 /// Diagnostics are pushed via `textDocument/publishDiagnostics` whenever a
 /// document is opened or changed.
-public final class Server {
+public final class Server: @unchecked Sendable {
+    private static let defaultDebounceInterval: DispatchTimeInterval = .milliseconds(150)
+
     private let connection: JSONRPCConnection
     private let store = DocumentStore()
     private let analyzer: Analyzer
+    private let scheduler: any LSPDebounceScheduler
+    private let debounceInterval: DispatchTimeInterval
+    private let stateLock = NSLock()
+    private let publishLock = NSLock()
+    private var generations: [String: UInt64] = [:]
+    private var pendingChanges: [String: any LSPScheduledTask] = [:]
+    private var closedURIs: Set<String> = []
     private var shuttingDown = false
 
-    public init(
+    public convenience init(
         connection: JSONRPCConnection,
         analyzer: Analyzer = Analyzer()
     ) {
+        self.init(
+            connection: connection,
+            analyzer: analyzer,
+            scheduler: DispatchLSPDebounceScheduler(),
+            debounceInterval: Self.defaultDebounceInterval
+        )
+    }
+
+    init(
+        connection: JSONRPCConnection,
+        analyzer: Analyzer = Analyzer(),
+        scheduler: any LSPDebounceScheduler,
+        debounceInterval: DispatchTimeInterval = Server.defaultDebounceInterval
+    ) {
         self.connection = connection
         self.analyzer = analyzer
+        self.scheduler = scheduler
+        self.debounceInterval = debounceInterval
     }
 
     /// Creates a server bound to the process's standard input/output streams.
@@ -108,7 +133,13 @@ public final class Server {
         }
         let doc = parsed.textDocument
         store.open(uri: doc.uri, languageId: doc.languageId, version: doc.version, text: doc.text)
-        analyzeAndPublish(uri: doc.uri, text: doc.text, version: doc.version)
+        let generation = beginGeneration(for: doc.uri)
+        analyzeAndPublish(
+            uri: doc.uri,
+            text: doc.text,
+            version: doc.version,
+            generation: generation
+        )
     }
 
     private func handleDidChange(_ params: Any?) {
@@ -117,8 +148,25 @@ public final class Server {
         }
         guard let text = parsed.contentChanges.last?.text else { return }
         let uri = parsed.textDocument.uri
+        let version = parsed.textDocument.version
         store.update(uri: uri, version: parsed.textDocument.version, text: text)
-        analyzeAndPublish(uri: uri, text: text, version: parsed.textDocument.version)
+        let generation = beginGeneration(for: uri)
+        let task = scheduler.schedule(after: debounceInterval) { [weak self] in
+            self?.runDebouncedChange(
+                uri: uri,
+                text: text,
+                version: version,
+                generation: generation
+            )
+        }
+
+        stateLock.lock()
+        if isCurrentLocked(uri: uri, generation: generation) {
+            pendingChanges[uri] = task
+        } else {
+            task.cancel()
+        }
+        stateLock.unlock()
     }
 
     private func handleDidSave(_ params: Any?) {
@@ -130,7 +178,13 @@ public final class Server {
         if parsed.text != nil {
             store.update(uri: uri, version: store.version(for: uri), text: text)
         }
-        analyzeAndPublish(uri: uri, text: text, version: store.version(for: uri))
+        let generation = beginGeneration(for: uri)
+        analyzeAndPublish(
+            uri: uri,
+            text: text,
+            version: store.version(for: uri),
+            generation: generation
+        )
     }
 
     private func handleDidClose(_ params: Any?) {
@@ -138,9 +192,12 @@ public final class Server {
             return
         }
         let uri = parsed.textDocument.uri
+        _ = beginGeneration(for: uri, closed: true)
         store.close(uri: uri)
-        analyzer.remove(uri: uri)
+
+        publishLock.lock()
         sendPublishDiagnostics(uri: uri, version: nil, diagnostics: [])
+        publishLock.unlock()
     }
 
     // MARK: - Language features
@@ -195,19 +252,137 @@ public final class Server {
     // MARK: - Analysis helpers
 
     private func ensureAnalysis(uri: String) -> Analyzer.Analysis? {
+        stateLock.lock()
+        let generation = generations[uri, default: 0]
+        stateLock.unlock()
+
+        publishLock.lock()
+        stateLock.lock()
+        guard isCurrentLocked(uri: uri, generation: generation) else {
+            stateLock.unlock()
+            publishLock.unlock()
+            return nil
+        }
         if let cached = analyzer.analysis(for: uri) {
+            stateLock.unlock()
+            publishLock.unlock()
             return cached
         }
-        if let text = store.text(for: uri) {
-            return analyzer.analyze(uri: uri, text: text)
-        }
-        return nil
+        stateLock.unlock()
+        publishLock.unlock()
+
+        guard let text = store.text(for: uri) else { return nil }
+
+        let analysis = analyzer.analyzeWithoutCaching(uri: uri, text: text)
+        guard cacheIfCurrent(analysis, uri: uri, generation: generation) else { return nil }
+        return analysis
     }
 
-    private func analyzeAndPublish(uri: String, text: String, version: Int?) {
-        let analysis = analyzer.analyze(uri: uri, text: text)
+    private func beginGeneration(for uri: String, closed: Bool = false) -> UInt64 {
+        publishLock.lock()
+
+        stateLock.lock()
+        pendingChanges.removeValue(forKey: uri)?.cancel()
+        let generation = generations[uri, default: 0] &+ 1
+        generations[uri] = generation
+        if closed {
+            closedURIs.insert(uri)
+        } else {
+            closedURIs.remove(uri)
+        }
+        stateLock.unlock()
+
+        // Cache invalidation is serialized with generation commits, but does
+        // not hold stateLock or wait for the frontend analysis lock.
+        analyzer.remove(uri: uri)
+        publishLock.unlock()
+        return generation
+    }
+
+    private func runDebouncedChange(
+        uri: String,
+        text: String,
+        version: Int?,
+        generation: UInt64
+    ) {
+        stateLock.lock()
+        guard isCurrentLocked(uri: uri, generation: generation) else {
+            stateLock.unlock()
+            return
+        }
+        pendingChanges.removeValue(forKey: uri)
+        stateLock.unlock()
+
+        let analysis = analyzer.analyzeWithoutCaching(uri: uri, text: text)
+        publishIfCurrent(
+            analysis,
+            uri: uri,
+            version: version,
+            generation: generation
+        )
+    }
+
+    private func analyzeAndPublish(
+        uri: String,
+        text: String,
+        version: Int?,
+        generation: UInt64
+    ) {
+        let analysis = analyzer.analyzeWithoutCaching(uri: uri, text: text)
+        publishIfCurrent(
+            analysis,
+            uri: uri,
+            version: version,
+            generation: generation
+        )
+    }
+
+    private func publishIfCurrent(
+        _ analysis: Analyzer.Analysis,
+        uri: String,
+        version: Int?,
+        generation: UInt64
+    ) {
         let diagnostics = DiagnosticsFeature.lspDiagnostics(for: analysis)
+
+        publishLock.lock()
+        defer { publishLock.unlock() }
+
+        stateLock.lock()
+        guard isCurrentLocked(uri: uri, generation: generation) else {
+            stateLock.unlock()
+            return
+        }
+        stateLock.unlock()
+
+        // Generation validation, cache commit, and publication are ordered
+        // against beginGeneration without keeping stateLock across either
+        // the cache operation or the transport write.
+        analyzer.cache(analysis)
         sendPublishDiagnostics(uri: uri, version: version, diagnostics: diagnostics)
+    }
+
+    private func cacheIfCurrent(
+        _ analysis: Analyzer.Analysis,
+        uri: String,
+        generation: UInt64
+    ) -> Bool {
+        publishLock.lock()
+        defer { publishLock.unlock() }
+
+        stateLock.lock()
+        guard isCurrentLocked(uri: uri, generation: generation) else {
+            stateLock.unlock()
+            return false
+        }
+        stateLock.unlock()
+
+        analyzer.cache(analysis)
+        return true
+    }
+
+    private func isCurrentLocked(uri: String, generation: UInt64) -> Bool {
+        generations[uri] == generation && !closedURIs.contains(uri)
     }
 
     private func sendPublishDiagnostics(uri: String, version: Int?, diagnostics: [LSPDiagnostic]) {

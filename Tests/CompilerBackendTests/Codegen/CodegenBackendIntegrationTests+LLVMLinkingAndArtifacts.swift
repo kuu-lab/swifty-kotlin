@@ -9,8 +9,7 @@ private func runCodegenPipeline(
     moduleName: String,
     emit: EmitMode,
     outputPath: String,
-    irFlags: [String] = [],
-    allowDefaultStdlibLibrary: Bool = true
+    irFlags: [String] = []
 ) throws -> CompilationContext {
     let options = CompilerOptions(
         moduleName: moduleName,
@@ -19,7 +18,7 @@ private func runCodegenPipeline(
         emit: emit,
         target: defaultTargetTriple(),
         irFlags: irFlags,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -222,8 +221,7 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 inputPath: path,
                 moduleName: "StringVirtualDispatchIR",
                 emit: .llvmIR,
-                outputPath: llvmBase,
-                allowDefaultStdlibLibrary: false
+                outputPath: llvmBase
             )
             let llvmPath = try #require(llvmCtx.generatedLLVMIRPath)
             let ir = try String(contentsOfFile: llvmPath, encoding: .utf8)
@@ -240,8 +238,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 "Flat String virtual dispatch must not need a raw-to-flat bridge"
             )
             #expect(
-                ir.contains("@__kk_print_raw"),
-                "Virtual dispatch String result should be passed to the raw print runtime bridge"
+                ir.contains("@__kk_print_raw") || ir.contains("@kk_fn_println_"),
+                "Virtual dispatch String result should reach the print implementation through the stdlib artifact"
             )
         }
     }
