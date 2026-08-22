@@ -623,13 +623,14 @@
   - diff: `uuid_basic.kt` 等既存 + `java.util.UUID` 生成・変換ケース
   - 前提: KSP-507, KSP-508
 
-- [ ] KSP-716: `kotlin.contracts` を source migration し `HeaderHelpers.swift` の `registerSyntheticContractStubs` を削除する
+- [x] KSP-716: `kotlin.contracts` を source migration し `HeaderHelpers.swift` の `registerSyntheticContractStubs` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers.swift` 内 `registerSyntheticContractStubs`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/contracts/` 新設 `ContractBuilder.kt`/`Effect.kt`/`Contracts.kt`（`ContractBuilder`, `ContractEffect`, `Effect`, `CallsInPlace`, `SimpleEffect`, `Returns`, `ReturnsNotNull`, `ConditionalEffect`, `HoldsIn`, `ExperimentalContracts`）
   - 削除/降格 kk_*: 対象 `kk_*` なし
   - 手順: T
   - diff: `contracts_*.kt` 新規
   - 前提: なし（compiler intrinsic 対応が必要なら KSP-CAP 追加を報告）
+  - 完了根拠: PR #5917（merge commit `37480d2835fb73c60b9732b4d9f8b046d84b095a`、merged head `4e6824c1204282ac850bfb53f907328024a89959`）で実装済み。現行 master (`93855997b51f4d098fbaf9008b4687be2832eb56`) に bundled Kotlin source-backed declarations と focused `KotlinContractsEffectModelTests`/contract goldens/diff cases が存在し、`registerSyntheticContractStubs`/`SyntheticContract`/`register...Contract` の Sema/DataFlow 残余は 0。
 
 - [ ] KSP-717: `String` synthetic stub 残余（CharSequence / Appendable / String basics / Locale / normalize / number-to-string）を Kotlin 化し `HeaderHelpers+SyntheticStringStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift`
