@@ -36,6 +36,8 @@ func makeCompilationContext(
     diagnostics: DiagnosticEngine? = nil,
     stdlibOnly: Bool = false,
     stdlibLibraryPath: String? = nil,
+    // Tests that inspect KIR callee source names (`"map"` vs `"kk_fn_map_123"`)
+    // must pass `false` so bundled stdlib is compiled from source.
     allowDefaultStdlibLibrary: Bool = true
 ) -> CompilationContext {
     let destination = outputPath ?? FileManager.default.temporaryDirectory

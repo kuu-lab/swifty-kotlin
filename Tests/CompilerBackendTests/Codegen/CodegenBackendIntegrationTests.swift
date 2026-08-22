@@ -849,7 +849,7 @@ import Testing
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlattenRuntime", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlattenRuntime", emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
@@ -920,7 +920,7 @@ import Testing
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlatMapIndexedRuntime", emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "ListFlatMapIndexedRuntime", emit: .kirDump, allowDefaultStdlibLibrary: false)
             try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
