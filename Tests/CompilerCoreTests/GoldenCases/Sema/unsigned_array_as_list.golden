@@ -15,7 +15,7 @@ symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.ULongArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.ULongArray params=[] ret=kotlin.collections.List<ULong>
 symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UShortArray.asList kind=function vis=public flags=synthetic sig=recv=kotlin.UShortArray params=[] ret=kotlin.collections.List<UShort>
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.List kind=interface vis=public flags=_
 symbol fq=kotlin.uintArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UInt] ret=kotlin.UIntArray vararg=[1]
 symbol fq=kotlin.ushortArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UShort] ret=kotlin.UShortArray vararg=[1]
 file funsigned_array_as_list package=golden.sema
