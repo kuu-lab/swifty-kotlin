@@ -767,13 +767,14 @@
   - diff: `array_factory*.kt` 既存 + 各 `*ArrayOf()` 空/複数要素ケース、`ubyteArrayOf` ケース
   - 前提: KSP-657, KSP-1514, KSP-1515, KSP-1516
 
-- [ ] KSP-1518: Sequence の class shell / `iterator` / `orEmpty` 登録残余を Kotlin 化する
+- [x] KSP-1518: Sequence の class shell / `iterator` / `orEmpty` 登録残余を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（711行のうち `registerSyntheticSequenceStub` / `registerSyntheticSequenceIteratorMember` / `orEmpty`。`joinTo`/`joinToString` 登録は KSP-621 で対応済み — 呼び出し元ゼロだった `registerSyntheticSequenceJoinToMember`/`registerSyntheticSequenceJoinToStringMember` を削除し、Sequence 版は Iterable 版と共有ヘルパー（Iterables.kt の `appendJoinToPlain`/`appendJoinToTransform`）で統一実装済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/sequences/Sequence.kt` / `Sequences.kt` 追記
   - 削除/降格 kk_*: `kk_sequence_orEmpty` + 着手時 `rg -o '@_cdecl\("kk_sequence_iterator[a-zA-Z0-9_]*"\)' Sources/Runtime`
   - 手順: T
   - diff: `orEmpty()` ケース
   - 前提: KSP-701
+  - 完了 (2026-08-22): 既存の `Sequence.kt` / `SequenceConversionsAndSetOps.kt` の source-backed 宣言を正規経路として保持し、synthetic class shell / `iterator` / `orEmpty` 登録、compiler の `kk_sequence_orEmpty` 特例、専用 Runtime/ABI export を削除。runtime-backed Sequence の interface dispatch に必要な共有 `kk_sequence_box_iterator` / `kk_sequence_iterator_*` bridge は残置。Sema/backend/KIR、Sema Golden、kotlinc diff を検証済み。
 
 - [ ] KSP-1519: `sequence {}` / `SequenceScope` / `yield` / `yieldAll` / `iterator {}` builder を Kotlin 化し `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift`（`registerSyntheticSequenceBuilderStub` / `registerSyntheticIteratorBuilderStub` / `registerSyntheticGenerateSequence*` / `registerSyntheticSystemMember` / `registerSyntheticIOTopLevelProperty` の残余）
