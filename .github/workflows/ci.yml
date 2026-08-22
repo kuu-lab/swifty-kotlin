@@ -97,7 +97,7 @@ jobs:
             ${{ runner.temp }}/swift-debug-tests.tar.zst.part-*
             ${{ runner.temp }}/swift-debug-tests.tar.zst.sha256
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
           compression-level: 0
 
   verify-core:
@@ -474,7 +474,7 @@ jobs:
             ${{ runner.temp }}/kswiftc-release.tar.zst
             ${{ runner.temp }}/kswiftc-release.tar.zst.sha256
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
           compression-level: 0
 
   verify-diff:
