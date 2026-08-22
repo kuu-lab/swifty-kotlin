@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -108,8 +109,8 @@ struct CodegenBackendSequenceLastOrNullTests {
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
             #expect(
-                !callees.contains("kk_sequence_lastOrNull"),
-                "Expected Sequence.lastOrNull to be backed by source, got callees: \(callees.sorted())"
+                containsKotlinCallee("lastOrNull", in: callees) && !callees.contains("kk_sequence_lastOrNull"),
+                "Expected Sequence.lastOrNull to resolve through the stdlib artifact, got callees: \(callees.sorted())"
             )
         }
     }

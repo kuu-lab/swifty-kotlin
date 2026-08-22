@@ -11,23 +11,23 @@ file fstdlib_kotlin_KotlinVersion_n_n package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@3:48 int(2) type=Int
 expr e@3:51 int(1) type=Int
-expr e@3:34#1 call callee=e@3:34#0 args=[_:e@3:48,_:e@3:51] type=kotlin.KotlinVersion call=kotlin.KotlinVersion.<init>#0
+expr e@3:34 call callee=e@3:34#1 args=[_:e@3:48,_:e@3:51] type=kotlin.KotlinVersion call=kotlin.KotlinVersion.<init>#0
 expr e@5:47 int(2) type=Int
 expr e@5:50 int(1) type=Int
 expr e@5:53 int(20) type=Int
-expr e@5:33#1 call callee=e@5:33#0 args=[_:e@5:47,_:e@5:50,_:e@5:53] type=kotlin.KotlinVersion call=kotlin.KotlinVersion.<init>#1
-expr e@7:32#0 name(KotlinVersion) type=kotlin.KotlinVersion.Companion ref=kotlin.KotlinVersion
-expr e@7:32#1 memberCall recv=e@7:32#0 callee=CURRENT args=[] type=kotlin.KotlinVersion ref=kotlin.KotlinVersion.Companion.CURRENT
-expr e@9:27#0 name(KotlinVersion) type=kotlin.KotlinVersion.Companion ref=kotlin.KotlinVersion
-expr e@9:27#1 memberCall recv=e@9:27#0 callee=MAX_COMPONENT_VALUE args=[] type=Int ref=kotlin.KotlinVersion.Companion.MAX_COMPONENT_VALUE
-expr e@12:13#9 call callee=e@12:13#8 args=[] type=kotlin.KotlinVersion call=golden.sema.makeShort
-expr e@12:13#10 memberCall recv=e@12:13#9 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
-expr e@12:5#20 call callee=e@12:5#19 args=[_:e@12:13#10] type=Unit call=kotlin.io.println#1
-expr e@13:13#7 call callee=e@13:13#6 args=[] type=kotlin.KotlinVersion call=golden.sema.makeFull
-expr e@13:13#8 memberCall recv=e@13:13#7 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
-expr e@13:5#22 call callee=e@13:5#21 args=[_:e@13:13#8] type=Unit call=kotlin.io.println#1
-expr e@14:13#12 call callee=e@14:13#11 args=[] type=kotlin.KotlinVersion call=golden.sema.current
-expr e@14:13#13 memberCall recv=e@14:13#12 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
-expr e@14:5#23 call callee=e@14:5#22 args=[_:e@14:13#13] type=Unit call=kotlin.io.println#1
-expr e@15:13#7 call callee=e@15:13#6 args=[] type=Int call=golden.sema.maxComponent
-expr e@15:5#21 call callee=e@15:5#20 args=[_:e@15:13#7] type=Unit call=kotlin.io.println#1
+expr e@5:33 call callee=e@5:33#1 args=[_:e@5:47,_:e@5:50,_:e@5:53] type=kotlin.KotlinVersion call=kotlin.KotlinVersion.<init>#1
+expr e@7:32 name(KotlinVersion) type=kotlin.KotlinVersion.Companion ref=kotlin.KotlinVersion
+expr e@7:32#1 memberCall recv=e@7:32 callee=CURRENT args=[] type=kotlin.KotlinVersion ref=kotlin.KotlinVersion.Companion.CURRENT
+expr e@9:27 name(KotlinVersion) type=kotlin.KotlinVersion.Companion ref=kotlin.KotlinVersion
+expr e@9:27#1 memberCall recv=e@9:27 callee=MAX_COMPONENT_VALUE args=[] type=Int ref=kotlin.KotlinVersion.Companion.MAX_COMPONENT_VALUE
+expr e@12:13 call callee=e@12:13#1 args=[] type=kotlin.KotlinVersion call=golden.sema.makeShort
+expr e@12:13#2 memberCall recv=e@12:13 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#2] type=Unit call=kotlin.io.println#1
+expr e@13:13 call callee=e@13:13#1 args=[] type=kotlin.KotlinVersion call=golden.sema.makeFull
+expr e@13:13#2 memberCall recv=e@13:13 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#2] type=Unit call=kotlin.io.println#1
+expr e@14:13 call callee=e@14:13#1 args=[] type=kotlin.KotlinVersion call=golden.sema.current
+expr e@14:13#2 memberCall recv=e@14:13 callee=toString args=[] type=String call=kotlin.KotlinVersion.toString
+expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#2] type=Unit call=kotlin.io.println#1
+expr e@15:13 call callee=e@15:13#1 args=[] type=Int call=golden.sema.maxComponent
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println#1

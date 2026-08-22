@@ -84,4 +84,69 @@ struct SequenceInterfaceSyntheticTests {
 
         _ = try makeSema(source: source)
     }
+
+    @Test func testSequenceOrEmptyAndIteratorResolveToBundledSources() throws {
+        let source = """
+        fun normalize(input: Sequence<Int>?): Sequence<Int> = input.orEmpty()
+        fun first(input: Sequence<Int>): Int = input.iterator().next()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(
+                !ctx.diagnostics.hasError,
+                Comment(rawValue: "Expected source-backed Sequence calls to resolve cleanly, got: \(diagnostics)")
+            )
+
+            let sema = try #require(ctx.sema)
+            let sequencePackage = ["kotlin", "sequences"].map(ctx.interner.intern)
+            let iteratorFQName = sequencePackage + [
+                ctx.interner.intern("Sequence"), ctx.interner.intern("iterator")
+            ]
+            let iteratorSources = sema.symbols.lookupAll(fqName: iteratorFQName).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return !symbol.flags.contains(.synthetic) && symbol.declSite != nil
+            }
+            #expect(iteratorSources.count == 1, "Expected one bundled Sequence.iterator declaration")
+            let iteratorSymbol = try #require(iteratorSources.first)
+            #expect(sema.symbols.externalLinkName(for: iteratorSymbol) == nil)
+
+            let orEmptyFQName = sequencePackage + [ctx.interner.intern("orEmpty")]
+            let orEmptySources = sema.symbols.lookupAll(fqName: orEmptyFQName).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .function
+                    && !symbol.flags.contains(.synthetic)
+                    && symbol.declSite != nil
+            }
+            #expect(orEmptySources.count == 1, "Expected one bundled Sequence.orEmpty declaration")
+            let orEmptySymbol = try #require(orEmptySources.first)
+            #expect(sema.symbols.externalLinkName(for: orEmptySymbol) == nil)
+
+            let ast = try #require(ctx.ast)
+            func memberCallIDs(named name: String) -> [ExprID] {
+                ast.arena.exprs.indices.compactMap { index -> ExprID? in
+                    let exprID = ExprID(rawValue: Int32(index))
+                    guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID) else {
+                        return nil
+                    }
+                    return ctx.interner.resolve(callee) == name ? exprID : nil
+                }
+            }
+
+            let orEmptyCall = try #require(memberCallIDs(named: "orEmpty").last)
+            let orEmptyBinding = try #require(sema.bindings.callBinding(for: orEmptyCall))
+            #expect(orEmptyBinding.chosenCallee == orEmptySymbol)
+            #expect(sema.symbols.isSourceBackedSymbol(orEmptyBinding.chosenCallee))
+
+            let iteratorCall = try #require(memberCallIDs(named: "iterator").last)
+            let iteratorBinding = try #require(sema.bindings.callBinding(for: iteratorCall))
+            #expect(iteratorBinding.chosenCallee == iteratorSymbol)
+            #expect(sema.symbols.isSourceBackedSymbol(iteratorBinding.chosenCallee))
+        }
+    }
 }
