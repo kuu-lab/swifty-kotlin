@@ -1656,7 +1656,7 @@
   - 未実装シンボル一覧:
     - `kotlin.charArrayOf` — fun charArrayOf(Array): CharArray  -- `final inline fun kotlin/charArrayOf(kotlin/CharArray...): kotlin/CharArray`
 
-- [ ] KSP-772: kotlin.check-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-772: kotlin.check-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `check`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1666,6 +1666,7 @@
   - 未実装シンボル一覧:
     - `kotlin.checkNotNull` — fun checkNotNull(): #A  -- `final inline fun <#A: kotlin/Any> kotlin/checkNotNull(#A?): #A`
     - `kotlin.checkNotNull` — fun checkNotNull(, Function0): #A  -- `final inline fun <#A: kotlin/Any> kotlin/checkNotNull(#A?, kotlin/Function0<kotlin/Any>): #A`
+  - 完了根拠: PR #5927（merged、merge commit `6b96a07553c237a3701c93a9b08e17d2cfd435c7`）で現行 `Preconditions.kt` と既存 golden/diff 回帰を反映し、source-backed 解決と lazy message の失敗時評価を確認。PR の CompilerCore/Smoke、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc diff、Devin Review は全て green。
 
 - [ ] KSP-773: kotlin.context-family の未実装 stdlib API を実装する（23 件）
   - 対象: `kotlin` / top-level / family `context`
