@@ -978,7 +978,7 @@ extension CallLowerer {
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             if !isSuperCall,
                let chosen,
-               !hasExternalLink,
+               (!hasExternalLink || isClockRuntimeVirtualBridge(chosen, sema: sema)),
                let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             {
                 var vcArguments = finalArguments
