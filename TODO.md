@@ -2467,15 +2467,14 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalStdlibApi.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-843: kotlin.ExperimentalSubclassOptIn top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-843: kotlin.ExperimentalSubclassOptIn top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalSubclassOptIn` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalSubclassOptIn/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ExperimentalSubclassOptIn_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ExperimentalSubclassOptIn_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ExperimentalSubclassOptIn_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.ExperimentalSubclassOptIn.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5853 / merge commit `94580887e149e965f4f64989b82f1e78260a44d4` で KSP-736 の source-backed migration と専用 Golden/diff を完了済み。現行 `Sources/CompilerCore/Stdlib/kotlin/annotations/OptIn.kt` の `public annotation class ExperimentalSubclassOptIn` は primary/secondary constructor を宣言しないため、`Sources/CompilerCore/Sema/DataFlow/HeaderCollection.swift` の暗黙 primary `<init>` 定義経路（primary constructor 構文なし・secondary constructor なし）で空 constructor が登録される。対象固有の synthetic stub、Runtime/RuntimeABI、CallTypeChecker/CallLowerer name-string 特例は現行参照集合にない。専用 Golden/diff と `Tests/CompilerCoreTests/Sema/ExperimentalMarkerStubTests.swift` の登録・annotation class・`@RequiresOptIn(WARNING)`・opt-in semantic 回帰で確認済み。
 
 - [ ] KSP-844: kotlin.ExperimentalUnsignedTypes top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalUnsignedTypes` / top-level
