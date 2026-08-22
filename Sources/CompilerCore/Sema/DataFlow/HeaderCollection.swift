@@ -1290,10 +1290,6 @@ extension DataFlowSemaPhase {
             [["kotlin", "uuid", "Uuid"]]
         case "__bundled_java/math/BigDecimal.kt":
             [["java", "math", "BigDecimal"]]
-        case "__bundled_kotlin/random/Random.kt":
-            [["kotlin", "random", "Random"]]
-        case "__bundled_kotlin/random/JavaUtilRandom.kt":
-            [["java", "util", "Random"]]
         case "__bundled_kotlin/text/StringEncoding.kt":
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":

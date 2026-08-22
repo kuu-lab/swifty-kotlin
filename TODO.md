@@ -800,7 +800,7 @@
   - diff: `regex_*.kt` 既存 + `destructured` 分解宣言ケース
   - 前提: KSP-486, KSP-487。header 収集順で anchor が必須と判明した場合は (c) 残置理由を記録して完了とする
 
-- [ ] KSP-1522: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する
+- [x] KSP-1522: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する（完了 2026-08-23: 専用 stub/登録と reusable allowlist を削除し、bundled source-backed nominal の通常 header collection、`List.shuffled(Random)` の source-backed 解決、`JavaRandomInterop` の alias receiver 解決を維持。Sema/Backend/KIR、関連 Golden、integer-only diff、直接 `kswiftc`、TODO ID、Runtime ABI link 検証済み）
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift`（63行。bundled source 収集前パスで型解決させるための bare placeholder）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/random/Random.kt` / `util/JavaRandom.kt`（宣言は既に Kotlin 側にあるため、必要なのは header 収集順の依存解消）
   - 削除/降格 kk_*: 対象 `kk_*` なし
