@@ -479,13 +479,11 @@
   - diff: `build_list.kt` 等既存 + capacity 引数ケース追加
   - 前提: なし
 
-- [ ] KSP-698: Closeable / AutoCloseable / `use` を Kotlin 化し `HeaderHelpers+SyntheticCloseableStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCloseableStubs.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/io/Closeable.kt`（既存 source へ追加/修正）
-  - 削除/降格 kk_*: `__kk_auto_closeable_create` は残留可。`kk_closeable_*` public があれば削除（着手時 `rg 'kk_closeable|kk_use' Sources/Runtime Sources/CompilerCore`）
-  - 手順: T
-  - diff: `file_use_edge_cases.kt` 等既存 + `use` 単独ケース
-  - 前提: なし
+- [x] KSP-698: Closeable / AutoCloseable / `use` を Kotlin source-backed 化し、専用 synthetic surface と登録を削除する
+  - 対象: common surface は `Sources/CompilerCore/Stdlib/kotlin/AutoCloseable.kt` / `kotlin/io/Closeable.kt` を正規宣言として使用。JVM `java.io.Closeable` anchor は FileIO compatibility helper に責務分離
+  - 削除/降格 kk_*: 専用 Closeable synthetic helper、registry entry、post-bundled registration call を削除。`__kk_auto_closeable_create` と共有 close dispatch/runtime ABI は source factory の bridge として保持
+  - 完了（2026-08-23）: `TypeSystem.closeableInterfaceSymbol` / `closeableTypeID` / `ioCloseableInterfaceSymbol` を bundled source または precompiled artifact の symbol から初期化。factory、root/io 両 `use` overload、nullable receiver、normal/throwing block、close/finally、`java.io.Closeable` receiver を source-backed 経路で確認
+  - 検証: Sema 36件、Backend factory/FileUse、stdlib artifact 回帰、KIR 直接出力、Golden Closeable shard 5/49・generic shard 12/49・stdlib shard 34/49、diff 3件、runtime ABI links、TODO ID、git diff --check が pass。`--no-stdlib` 単独は common surface 不在の想定どおり unresolved、artifact 経路は compile/run pass
 
 - [ ] KSP-699: CollectionFactory bootstrap stub を削除し factory 関数を完全に Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionFactoryStubs.swift`

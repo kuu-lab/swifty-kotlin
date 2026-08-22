@@ -164,9 +164,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
             ) else { return }
             phase.patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Closeable") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         },
