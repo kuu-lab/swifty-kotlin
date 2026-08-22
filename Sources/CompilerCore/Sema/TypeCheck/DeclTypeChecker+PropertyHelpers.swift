@@ -257,18 +257,13 @@ extension DeclTypeChecker {
             )
         }
 
-        // A stdlib delegate factory's trailing lambda is usually parsed into
-        // `delegateBody` separately from `delegateExpr` -- see
-        // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
-        // repackage it into a standalone synthetic function
-        // (`lowerDelegateLambdaBody`). Because it's not part of `delegateExpr`,
-        // the ordinary call-argument inference above would otherwise skip its
-        // identifiers (BUG-170). `lazy` is the exception: its required
-        // initializer lambda is included in `delegateExpr` so overload
-        // resolution sees the real call signature, and inference above already
-        // type-checks its body. Checking `delegateBody` again would duplicate
-        // every diagnostic from that initializer.
-        if isKnownStdlibDelegate, stdlibDelegateKind != .lazy, let delegateBody {
+        // Delegate trailing lambdas are now ordinary call arguments and have
+        // already been type-checked by `inferExpr`. Keep the fallback body
+        // check only for legacy ASTs whose body is not present in the call;
+        // checking an included lambda again would duplicate diagnostics.
+        let delegateBodyIsCallArgument = delegateBody != nil
+            && delegateExpressionContainsLambdaArgument(delegateExpr, ast: ctx.ast)
+        if isKnownStdlibDelegate, !delegateBodyIsCallArgument, let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
                 let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
@@ -312,6 +307,29 @@ extension DeclTypeChecker {
         }
 
         return result
+    }
+
+    private func delegateExpressionContainsLambdaArgument(
+        _ delegateExpr: ExprID,
+        ast: ASTModule
+    ) -> Bool {
+        let args: [CallArgument]
+        switch ast.arena.expr(delegateExpr) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
+            return false
+        }
+        guard let lastArgument = args.last else { return false }
+        guard let expression = ast.arena.expr(lastArgument.expr) else {
+            return false
+        }
+        if case .lambdaLiteral = expression {
+            return true
+        }
+        return false
     }
 
     /// The interface a stdlib delegate factory's result conforms to for a given

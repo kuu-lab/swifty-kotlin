@@ -380,6 +380,47 @@ struct DelegatePropertyKIRTests {
     }
 
     @Test
+    func testTrailingLambdaDelegatesUseRegularCallArguments() throws {
+        let source = """
+        class MyLazy<T>(private val initializer: () -> T) {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): T = initializer()
+        }
+        fun <T> myLazy(initializer: () -> T): MyLazy<T> = MyLazy(initializer)
+        val fromConstructor: String by MyLazy { "constructor" }
+        val fromFactory: String by myLazy { "factory" }
+        fun main() {
+            println(fromConstructor)
+            println(fromFactory)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "trailing-lambda delegates should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let module = try #require(ctx.kir)
+            let constructorCalls = module.arena.declarations.flatMap { declaration -> [[KIRExprID]] in
+                guard case let .function(function) = declaration else { return [] }
+                return function.body.compactMap { instruction in
+                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                          ctx.interner.resolve(callee) == "MyLazy"
+                    else {
+                        return nil
+                    }
+                    return arguments
+                }
+            }
+
+            #expect(constructorCalls.count >= 2)
+            #expect(constructorCalls.allSatisfy { $0.count == 2 })
+        }
+    }
+
+    @Test
     func testStdlibDelegateLoweringRewritesLazyAccessToGetValue() throws {
         let source = """
         val x by lazy { 42 }
