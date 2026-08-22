@@ -111,11 +111,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
-        registerSyntheticThrowsAnnotationMembersIfNeeded(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         assignCompilationModuleFQNames(
             symbols: symbols,
             moduleName: ctx.options.moduleName,
@@ -207,9 +202,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                   !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
                   let signature = symbols.functionSignature(for: symbol.id),
                   let receiverType = signature.receiverType,
-                  case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType))
+                  let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                      for: receiverType,
+                      types: types
+                  )
             else { continue }
-            symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol.id)
+            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)

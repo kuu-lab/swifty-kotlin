@@ -264,6 +264,10 @@ final class StableRenderContext {
             for p in ft.params { collectTypeSymbols(p, into: &queue) }
             collectTypeSymbols(ft.returnType, into: &queue)
         case let .kClassType(kc):
+            if let kClassSymbol = sema.types.kClassInterfaceSymbol,
+               requiredSymbols.insert(kClassSymbol.rawValue).inserted {
+                queue.append(kClassSymbol.rawValue)
+            }
             collectTypeSymbols(kc.argument, into: &queue)
         case let .intersection(parts):
             for part in parts { collectTypeSymbols(part, into: &queue) }

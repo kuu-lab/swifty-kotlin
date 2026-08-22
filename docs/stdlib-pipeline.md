@@ -628,4 +628,4 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 | ファイル | 逸脱内容 | 本家形 | 解消条件 |
 |---|---|---|---|
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
-| `kotlin/Throws.kt` | `exceptionClasses` プロパティと vararg コンストラクタを `HeaderHelpers+SyntheticMetaprogAnnotationHelpers.swift` で合成登録（`vararg val exceptionClasses: KClass<out Throwable>` を bundled source から宣言するための `vararg val` プロパティおよび `KClass` 型参照の本格対応が未整備） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証）|
+| `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
