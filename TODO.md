@@ -2437,8 +2437,9 @@
     - `kotlin.Exception.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.Exception.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-840: kotlin.ExperimentalContextParameters top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-840: kotlin.ExperimentalContextParameters top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalContextParameters` / top-level
+  - 完了根拠: KSP-733 の merged PR #5852（merge commit `d2b4776c7f7fb5e306ce521bf5f2cbeed642adb2`）で `Sources/CompilerCore/Stdlib/kotlin/ContextParameters.kt` に `public annotation class ExperimentalContextParameters` が bundled source として追加済み。明示 constructor/secondary constructor を持たない annotation class の暗黙 `<init>()` は `HeaderCollection.swift` の source-backed 共通登録規則で生成され、対象の synthetic marker 登録・Runtime/ABI 特例は残っていない。既存 `stdlib_kotlin_n_ExperimentalContextParameters` Golden/diff と `ExperimentalMarkerStubTests` の annotation semantic 回帰を確認済み。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalContextParameters/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ExperimentalContextParameters_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
