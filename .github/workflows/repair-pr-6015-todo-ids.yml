@@ -1,0 +1,72 @@
+name: One-shot repair PR 6015 TODO IDs
+
+on:
+  push:
+    branches:
+      - "claude/keen-hermann-8a3817"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: "claude/keen-hermann-8a3817"
+          fetch-depth: 0
+
+      - name: Repair TODO IDs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("TODO.md")
+          text = path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "- [ ] BUG-219: Kotlin の modifier keyword を識別子として使用できる3つの経路を修正する。",
+                  "- [ ] BUG-221: Kotlin の modifier keyword を識別子として使用できる3つの経路を修正する。",
+              ),
+              (
+                  "- [ ] BUG-220: コンストラクタパラメータ名に修飾子キーワード（inner など）を使用できるようにし、再発防止テストを追加する。",
+                  "- [x] BUG-220: コンストラクタパラメータ名に修飾子キーワード（inner など）を使用できるようにし、再発防止テストを追加する。",
+              ),
+          )
+
+          changed = False
+          for old, new in replacements:
+              old_count = text.count(old)
+              new_count = text.count(new)
+              if old_count == 1 and new_count == 0:
+                  text = text.replace(old, new, 1)
+                  changed = True
+              elif old_count == 0 and new_count == 1:
+                  continue
+              else:
+                  raise SystemExit(
+                      f"Unexpected TODO state for {old!r}: old={old_count}, new={new_count}"
+                  )
+
+          if changed:
+              path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Verify TODO IDs
+        shell: bash
+        run: ./Scripts/check_todo_ids.sh
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          if git diff --quiet -- TODO.md; then
+            echo "TODO.md is already repaired"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TODO.md
+          git commit -m "fix(todo): resolve task ID collision after master merge"
+          git push origin HEAD:refs/heads/claude/keen-hermann-8a3817
