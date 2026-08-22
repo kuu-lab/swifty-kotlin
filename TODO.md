@@ -1899,13 +1899,15 @@
     - `kotlin.ulongToDouble` — fun ulongToDouble(Long): Double  -- `final fun kotlin/ulongToDouble(kotlin/Long): kotlin/Double`
     - `kotlin.ulongToFloat` — fun ulongToFloat(Long): Float  -- `final inline fun kotlin/ulongToFloat(kotlin/Long): kotlin/Float`
 
-- [ ] KSP-792: kotlin.use-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-792: kotlin.use-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `use`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/use.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_use.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_use.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_use.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: merged PR #5871 (KSP-721)、merge commit `badfe551e976206abe94a9bc003441483f2e67d7` で `Sources/CompilerCore/Stdlib/kotlin/AutoCloseable.kt` の source-backed `T.use` を導入。現行の bundled source 検出により `kotlin.use` は synthetic fallback に登録されず、CallTypeChecker/CallLowerer の inline try/finally 経路で解決・実行される。
+  - 回帰証拠: `stdlib_kotlin_n_AutoCloseable` の Golden/diff と `closeable_use_basic.kt` が現行 master で green、`KotlinIOCommonEdgeCaseTests` は 35 tests passed。
   - 未実装シンボル一覧:
     - `kotlin.use` — fun use(Function1): #B  -- `final inline fun <#A: kotlin/AutoCloseable?, #B: kotlin/Any?> (#A).kotlin/use(kotlin/Function1<#A, #B>): #B`
 
