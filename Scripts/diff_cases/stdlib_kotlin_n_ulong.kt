@@ -20,6 +20,8 @@ fun main() {
     println(0uL.compareTo(0uL))
     println(0uL.compareTo(9223372036854775808uL))
     println(9223372036854775808uL.compareTo(0uL))
+    println(9223372036854775808uL.compareTo(ULong.MAX_VALUE))
+    println(ULong.MAX_VALUE.compareTo(9223372036854775808uL))
     println(ULong.MAX_VALUE.compareTo(ULong.MAX_VALUE))
     println(ULong.MAX_VALUE.compareTo(0uL))
 

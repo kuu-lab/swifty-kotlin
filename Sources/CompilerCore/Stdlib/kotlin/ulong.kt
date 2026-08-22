@@ -15,8 +15,7 @@ public inline fun ulongArrayOf(vararg elements: ULong): ULongArray {
 @PublishedApi
 internal fun ulongCompare(v1: Long, v2: Long): Int {
     if (v1 == v2) return 0
-    if (v1 < 0L) return 1
-    if (v2 < 0L) return -1
+    if ((v1 < 0L) != (v2 < 0L)) return if (v1 < 0L) 1 else -1
     return if (v1 < v2) -1 else 1
 }
 
