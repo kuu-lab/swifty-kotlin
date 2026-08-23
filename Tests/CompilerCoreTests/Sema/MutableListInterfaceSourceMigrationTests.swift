@@ -11,6 +11,7 @@ struct MutableListInterfaceSourceMigrationTests {
             """
             abstract class CustomMutableList : MutableList<String>
             fun widen(values: MutableList<Int>): List<Number> = values
+            fun asMutableIterable(values: MutableList<Int>): MutableIterable<Int> = values
             fun factoryProbe(): MutableList<Int> = MutableList(3) { it }
             fun typeProbe(value: Any): Boolean = value is MutableList<*>
             """
