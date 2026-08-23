@@ -4458,13 +4458,14 @@
     - `kotlin.collections.getValue` — fun Map.getValue(): #B  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<#A, #B>).kotlin.collections/getValue(#A): #B`
     - `kotlin.collections.getValue` — fun Map.getValue(Any, KProperty): #B  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Map<in kotlin/String, #A>).kotlin.collections/getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): #B`
 
-- [ ] KSP-1010: kotlin.collections.Map.is-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1010: kotlin.collections.Map.is-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `is`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Map_is.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Map_is.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Map_is.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 根拠: `MapHOF.kt` に exact Map receiver の source-backed 宣言と Kotlin 2.3.10 準拠の variance / inline / nullable contract を追加し、既存 `kk_map_is_empty` bridge を維持。Golden / diff は nullable short-circuit、empty/non-empty、nullable key/value、projection、generic overload、Collection receiver 共存、評価一回を検証。
   - 未実装シンボル一覧:
     - `kotlin.collections.isNotEmpty` — fun Map.isNotEmpty(): Boolean  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/isNotEmpty(): kotlin/Boolean`
     - `kotlin.collections.isNullOrEmpty` — fun Map.isNullOrEmpty(): Boolean  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>?).kotlin.collections/isNullOrEmpty(): kotlin/Boolean`

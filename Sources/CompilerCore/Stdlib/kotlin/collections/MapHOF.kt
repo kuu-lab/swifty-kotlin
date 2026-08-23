@@ -1,11 +1,34 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
+
+@KsSymbolName("kk_map_is_empty")
+private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
+
+/**
+ * Returns `true` if this map is not empty.
+ */
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !__kkMapIsEmpty(this)
+
+/**
+ * Returns `true` if this nullable map is either null or empty.
+ */
+@SinceKotlin("1.3")
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this != null)
+    }
+    return this == null || __kkMapIsEmpty(this)
+}
 
 /**
  * Performs the given [action] on each entry.
@@ -107,6 +130,7 @@ public inline fun <K, V> Map<K, V>.filter(predicate: (Map.Entry<K, V>) -> Boolea
     }
     return result as Map<K, V>
 }
+
 
 /**
  * Returns a map containing all entries not matching the given [predicate].
@@ -295,4 +319,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-
