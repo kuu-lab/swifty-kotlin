@@ -1774,6 +1774,7 @@ extension CallTypeChecker {
                            !isSequenceReceiver,
                            !isArrayReceiver,
                            !isMapReceiver,
+                           !(calleeStr == "map" && isSetReceiver),
                            !(calleeStr == "mapNotNull" && isSetReceiver)
                         {
                             didBindIterableSource = bindBundledIterableSourceFunction(
