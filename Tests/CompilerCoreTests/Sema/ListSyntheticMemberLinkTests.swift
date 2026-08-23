@@ -2061,24 +2061,25 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
             let mutableSetSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableSet")]))
             let abstractMutableSetFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableSet")]
             let abstractMutableSetSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName))
             let abstractMutableSetInfo = try #require(sema.symbols.symbol(abstractMutableSetSymbol))
             #expect(abstractMutableSetInfo.kind == .class)
-            #expect(abstractMutableSetInfo.flags.contains(.synthetic))
+            #expect(!abstractMutableSetInfo.flags.contains(.synthetic))
             #expect(abstractMutableSetInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableSetSymbol) == [.invariant])
+            #expect(sema.symbols.lookupAll(fqName: abstractMutableSetFQName).count == 1)
+            let sourceFileID = try #require(sema.symbols.sourceFileID(for: abstractMutableSetSymbol))
+            #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/AbstractMutableSet.kt")
 
-            let abstractSetSymbol = sema.symbols.lookup(
-                fqName: collectionsPkg + [ctx.interner.intern("AbstractSet")]
+            let abstractMutableCollectionSymbol = try #require(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")])
             )
-            let readonlySupertype = abstractSetSymbol ?? setSymbol
             let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableSetSymbol)
-            #expect(directSupertypes.contains(readonlySupertype))
+            #expect(directSupertypes.contains(abstractMutableCollectionSymbol))
             #expect(directSupertypes.contains(mutableSetSymbol))
-            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: readonlySupertype).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: abstractMutableCollectionSymbol).count == 1)
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: mutableSetSymbol).count == 1)
 
             let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName + [ctx.interner.intern("<init>")]))
@@ -2131,9 +2132,8 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Set
         import kotlin.collections.MutableSet
 
-        // KSP-633: `AbstractCollection` / `AbstractMutableCollection` are source-backed and
-        // declare `size` / `iterator` / `add` as abstract members, so (like kotlinc) a
-        // concrete subclass has to implement them — the probe stays abstract.
+        // KSP-931: `AbstractMutableSet` is source-backed and exposes the
+        // `size` / `iterator` / `add` contract for concrete subclasses.
         abstract class ProbeMutableSet : AbstractMutableSet<Int>()
 
         fun acceptReadonly(values: Set<Int>) {}
