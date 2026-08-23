@@ -3303,7 +3303,7 @@
     - `kotlin.UnsupportedOperationException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.UnsupportedOperationException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-918: kotlin.annotation top-level の未実装 stdlib API を実装する（6 件）
+- [x] KSP-918: kotlin.annotation top-level の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.annotation` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3317,6 +3317,7 @@
     - `kotlin.annotation.Repeatable` — class kotlin.annotation.Repeatable  -- `open annotation class kotlin.annotation/Repeatable : kotlin/Annotation {`
     - `kotlin.annotation.Retention` — class kotlin.annotation.Retention  -- `open annotation class kotlin.annotation/Retention : kotlin/Annotation {`
     - `kotlin.annotation.Target` — class kotlin.annotation.Target  -- `open annotation class kotlin.annotation/Target : kotlin/Annotation {`
+  - 完了根拠（2026-08-23）: `Stdlib.kt` に6型をsource-backed実装し、annotation bootstrap前方宣言で相互参照を解決。inventory 31 tests、annotation Sema/diagnostics 15 tests、対象Golden shard 8 cases、annotation backend 1 test、diff_kotlinc 1 case、TODO ID、Runtime ABI、`git diff --check` が pass。6型のsynthetic fallbackは bundled source 構成で未使用であること、enum entry order、meta-annotation、constructor vararg/default、target validation を回帰固定。
 
 - [ ] KSP-919: kotlin.annotation.AnnotationRetention.AnnotationRetention の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.annotation.AnnotationRetention` / receiver `AnnotationRetention`

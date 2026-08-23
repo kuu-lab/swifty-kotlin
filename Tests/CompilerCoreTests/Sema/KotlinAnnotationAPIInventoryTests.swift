@@ -5,9 +5,9 @@ import Testing
 
 // MARK: - STDLIB-ANNO-001: kotlin.annotation API Surface Inventory
 //
-// This file fixes the canonical set of symbols that the sema layer must register
-// for the `kotlin.annotation` package and verifies that every symbol is present in
-// the symbol table after a minimal sema run. It covers:
+// This file fixes the canonical set of source-backed symbols that the sema layer
+// must register for the `kotlin.annotation` package and verifies that every
+// symbol is present in the symbol table after a minimal sema run. It covers:
 //
 //   Annotation classes:
 //     • @Target              (kotlin.annotation.Target)
@@ -65,7 +65,8 @@ struct KotlinAnnotationAPIInventoryTests {
     ) -> Set<String> {
         let fqName = fqPath.map { interner.intern($0) }
         return Set(sema.symbols.children(ofFQName: fqName).compactMap { child in
-            sema.symbols.symbol(child).map { interner.resolve($0.name) }
+            guard let info = sema.symbols.symbol(child), info.kind == .field else { return nil }
+            return interner.resolve(info.name)
         })
     }
 
@@ -92,8 +93,8 @@ struct KotlinAnnotationAPIInventoryTests {
                 "kotlin.annotation.Target must have kind .annotationClass"
             )
             #expect(
-                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
-                "kotlin.annotation.Target must be marked synthetic"
+                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == false,
+                "kotlin.annotation.Target must be owned by bundled source"
             )
             #expect(
                 sema.symbols.symbol(sym)?.visibility == .public,
@@ -112,8 +113,8 @@ struct KotlinAnnotationAPIInventoryTests {
                 "kotlin.annotation.Retention must have kind .annotationClass"
             )
             #expect(
-                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
-                "kotlin.annotation.Retention must be marked synthetic"
+                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == false,
+                "kotlin.annotation.Retention must be owned by bundled source"
             )
         }
     }
@@ -128,8 +129,8 @@ struct KotlinAnnotationAPIInventoryTests {
                 "kotlin.annotation.Repeatable must have kind .annotationClass"
             )
             #expect(
-                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
-                "kotlin.annotation.Repeatable must be marked synthetic"
+                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == false,
+                "kotlin.annotation.Repeatable must be owned by bundled source"
             )
         }
     }
@@ -144,8 +145,33 @@ struct KotlinAnnotationAPIInventoryTests {
                 "kotlin.annotation.MustBeDocumented must have kind .annotationClass"
             )
             #expect(
-                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == true,
-                "kotlin.annotation.MustBeDocumented must be marked synthetic"
+                sema.symbols.symbol(sym)?.flags.contains(.synthetic) == false,
+                "kotlin.annotation.MustBeDocumented must be owned by bundled source"
+            )
+        }
+    }
+
+    @Test func testKSP918CoreDeclarationsAreSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let coreNames = [
+            "AnnotationRetention",
+            "AnnotationTarget",
+            "MustBeDocumented",
+            "Repeatable",
+            "Retention",
+            "Target",
+        ]
+        for name in coreNames {
+            let symbol = try #require(
+                symbol(fqPath: ["kotlin", "annotation", name], sema: sema, interner: interner),
+                "kotlin.annotation.\(name) must be source-backed"
+            )
+            let info = try #require(sema.symbols.symbol(symbol))
+            #expect(!info.flags.contains(.synthetic), "kotlin.annotation.\(name) must not use synthetic fallback")
+            #expect(info.declSite != nil, "kotlin.annotation.\(name) must have a bundled source declaration")
+            #expect(
+                sema.symbols.sourceFileID(for: symbol) != nil,
+                "kotlin.annotation.\(name) must retain its bundled source file identity"
             )
         }
     }
@@ -160,7 +186,7 @@ struct KotlinAnnotationAPIInventoryTests {
         )
         let annotations = sema.symbols.annotations(for: sym)
         let hasTarget = annotations.contains(where: {
-            $0.annotationFQName == "kotlin.annotation.Target"
+            ($0.annotationFQName == "kotlin.annotation.Target" || $0.annotationFQName == "Target")
                 && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
         })
         #expect(
@@ -177,7 +203,7 @@ struct KotlinAnnotationAPIInventoryTests {
         )
         let annotations = sema.symbols.annotations(for: sym)
         let hasTarget = annotations.contains(where: {
-            $0.annotationFQName == "kotlin.annotation.Target"
+            ($0.annotationFQName == "kotlin.annotation.Target" || $0.annotationFQName == "Target")
                 && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
         })
         #expect(
@@ -194,7 +220,7 @@ struct KotlinAnnotationAPIInventoryTests {
         )
         let annotations = sema.symbols.annotations(for: sym)
         let hasTarget = annotations.contains(where: {
-            $0.annotationFQName == "kotlin.annotation.Target"
+            ($0.annotationFQName == "kotlin.annotation.Target" || $0.annotationFQName == "Target")
                 && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
         })
         #expect(
@@ -211,7 +237,7 @@ struct KotlinAnnotationAPIInventoryTests {
         )
         let annotations = sema.symbols.annotations(for: sym)
         let hasTarget = annotations.contains(where: {
-            $0.annotationFQName == "kotlin.annotation.Target"
+            ($0.annotationFQName == "kotlin.annotation.Target" || $0.annotationFQName == "Target")
                 && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
         })
         #expect(
@@ -285,6 +311,23 @@ struct KotlinAnnotationAPIInventoryTests {
         #expect(
             actualEntries == expectedEntries,
             "AnnotationTarget entries must match the Kotlin stdlib target list exactly"
+        )
+    }
+
+    @Test func testAnnotationTargetEntryOrderMatchesKotlinStdlib() throws {
+        let (sema, interner) = try sharedSema()
+        let enumFQName = ["kotlin", "annotation", "AnnotationTarget"].map(interner.intern)
+        let orderedEntries: [String] = sema.symbols.children(ofFQName: enumFQName).compactMap { child in
+            guard let info = sema.symbols.symbol(child), info.kind == .field else { return nil }
+            return interner.resolve(info.name)
+        }
+        #expect(
+            orderedEntries == [
+                "CLASS", "ANNOTATION_CLASS", "TYPE_PARAMETER", "PROPERTY", "FIELD",
+                "LOCAL_VARIABLE", "VALUE_PARAMETER", "CONSTRUCTOR", "FUNCTION",
+                "PROPERTY_GETTER", "PROPERTY_SETTER", "TYPE", "EXPRESSION", "FILE", "TYPEALIAS",
+            ],
+            "AnnotationTarget enum entries must preserve Kotlin stdlib declaration order"
         )
     }
 
@@ -370,6 +413,19 @@ struct KotlinAnnotationAPIInventoryTests {
         )
     }
 
+    @Test func testAnnotationRetentionEntryOrderMatchesKotlinStdlib() throws {
+        let (sema, interner) = try sharedSema()
+        let enumFQName = ["kotlin", "annotation", "AnnotationRetention"].map(interner.intern)
+        let orderedEntries: [String] = sema.symbols.children(ofFQName: enumFQName).compactMap { child in
+            guard let info = sema.symbols.symbol(child), info.kind == .field else { return nil }
+            return interner.resolve(info.name)
+        }
+        #expect(
+            orderedEntries == ["SOURCE", "BINARY", "RUNTIME"],
+            "AnnotationRetention enum entries must preserve Kotlin stdlib declaration order"
+        )
+    }
+
     @Test func testAnnotationRetentionEntriesHaveEnumType() throws {
         let (sema, interner) = try sharedSema()
         let enumSym = try #require(
@@ -431,6 +487,35 @@ struct KotlinAnnotationAPIInventoryTests {
             )
             #expect(runtimeSym != nil, "AnnotationRetention.RUNTIME must be registered to check default")
         }
+    }
+
+    @Test func testKSP918AnnotationConstructorSignaturesMatchStdlib() throws {
+        let (sema, interner) = try sharedSema()
+        let annotationPackage = ["kotlin", "annotation"].map(interner.intern)
+        let targetFQName = annotationPackage + [interner.intern("Target")]
+        let retentionFQName = annotationPackage + [interner.intern("Retention")]
+        let targetConstructor = try #require(
+            sema.symbols.lookupAll(fqName: targetFQName + [interner.intern("<init>")])
+                .compactMap { sema.symbols.functionSignature(for: $0) }
+                .first,
+            "Target constructor must be source-backed"
+        )
+        #expect(targetConstructor.valueParameterSymbols.count == 1)
+        #expect(targetConstructor.valueParameterIsVararg == [true])
+        let targetParameter = try #require(sema.symbols.symbol(targetConstructor.valueParameterSymbols[0]))
+        #expect(interner.resolve(targetParameter.name) == "allowedTargets")
+
+        let retentionConstructor = try #require(
+            sema.symbols.lookupAll(fqName: retentionFQName + [interner.intern("<init>")])
+                .compactMap { sema.symbols.functionSignature(for: $0) }
+                .first,
+            "Retention constructor must be source-backed"
+        )
+        #expect(retentionConstructor.valueParameterSymbols.count == 1)
+        #expect(retentionConstructor.valueParameterHasDefaultValues == [true])
+        #expect(retentionConstructor.valueParameterIsVararg == [false])
+        let retentionParameter = try #require(sema.symbols.symbol(retentionConstructor.valueParameterSymbols[0]))
+        #expect(interner.resolve(retentionParameter.name) == "value")
     }
 
     // MARK: - 7. Complete mandatory inventory assertion

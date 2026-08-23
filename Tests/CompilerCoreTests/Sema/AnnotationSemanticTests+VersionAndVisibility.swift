@@ -961,7 +961,7 @@ extension AnnotationSemanticTests {
             package sample4
             class Host
             """,
-            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
+            // testMustBeDocumentedAnnotationIsSourceBackedAndTargetedToAnnotationClasses
             """
             package sample5
             annotation class ExperimentalApi
@@ -1240,7 +1240,7 @@ extension AnnotationSemanticTests {
             #expect(ctx.interner.resolve(parameter.name) == "exceptionClasses")
 
             }
-            // testMustBeDocumentedAnnotationIsSyntheticAndTargetedToAnnotationClasses
+            // testMustBeDocumentedAnnotationIsSourceBackedAndTargetedToAnnotationClasses
             do {
             let mustBeDocumentedFQName = [
                 ctx.interner.intern("kotlin"),
@@ -1251,13 +1251,14 @@ extension AnnotationSemanticTests {
             let symbol = try #require(sema.symbols.symbol(symbolID))
 
             #expect(symbol.visibility == .public)
-            #expect(symbol.flags.contains(.synthetic))
+            #expect(!symbol.flags.contains(.synthetic))
+            #expect(symbol.declSite != nil)
             #expect(symbol.kind == .annotationClass)
 
             let annotations = sema.symbols.annotations(for: symbol.id)
             let v18 = annotations.contains(
                 where: {
-                    $0.annotationFQName == "kotlin.annotation.Target"
+                    ($0.annotationFQName == "kotlin.annotation.Target" || $0.annotationFQName == "Target")
                         && $0.arguments == ["AnnotationTarget.ANNOTATION_CLASS"]
                 }
             )
