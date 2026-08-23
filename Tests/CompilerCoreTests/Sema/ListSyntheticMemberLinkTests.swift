@@ -2193,8 +2193,10 @@ struct ListSyntheticMemberLinkTests {
             let mutableListIteratorSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName))
             let mutableListIteratorInfo = try #require(sema.symbols.symbol(mutableListIteratorSymbol))
             #expect(mutableListIteratorInfo.kind == .interface)
-            #expect(mutableListIteratorInfo.flags.contains(.synthetic))
-            #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.invariant])
+            // KSP-945: the nominal interface is source-backed; mutation members
+            // remain compiler residuals until their separate migration lands.
+            #expect(!mutableListIteratorInfo.flags.contains(.synthetic))
+            #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.out])
 
             let directSupertypes = sema.symbols.directSupertypes(for: mutableListIteratorSymbol)
             #expect(directSupertypes.contains(listIteratorSymbol))
@@ -2294,6 +2296,38 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected MutableListIterator surface to resolve from MutableList: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
+    func testCustomMutableListIteratorImplementationResolves() throws {
+        let source = """
+        class ProbeMutableListIterator : MutableListIterator<Int> {
+            override fun hasNext(): Boolean = false
+            override fun next(): Int = 0
+            override fun hasPrevious(): Boolean = false
+            override fun previous(): Int = 0
+            override fun add(element: Int) {}
+            override fun set(element: Int) {}
+            override fun remove() {}
+        }
+
+        fun probe(iterator: MutableListIterator<Int>) {
+            iterator.add(1)
+            iterator.set(2)
+            iterator.remove()
+            iterator.hasNext()
+            iterator.next()
+            iterator.hasPrevious()
+            iterator.previous()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected custom MutableListIterator implementation to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
