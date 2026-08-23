@@ -3422,7 +3422,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMap` — class kotlin.collections.AbstractMap  -- `abstract class <#A: kotlin/Any?, #B: out kotlin/Any?> kotlin.collections/AbstractMap : kotlin.collections/Map<#A, #B> {`
 
-- [ ] KSP-929: kotlin.collections.AbstractMutableList-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-929: kotlin.collections.AbstractMutableList-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractMutableList`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableList.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3431,6 +3431,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMutableList` — class kotlin.collections.AbstractMutableList  -- `abstract class <#A: kotlin/Any?> kotlin.collections/AbstractMutableList : kotlin.collections/AbstractMutableCollection<#A>, kotlin.collections/MutableList<#A> {`
+
+  - 完了根拠: Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableList.kt を追加し、HeaderCollection.swift で source-backed ownership を登録。protected no-arg constructor、AbstractMutableCollection/MutableList の direct supertypes、set/removeAt/add(index, element) の abstract primitive members を focused Sema と KIR で固定した。専用 Golden/diff は List/MutableList 型経由の listIterator/subList、primitive mutation、組み込み MutableList の add/set/remove/clear/bounds と iterator default behavior を回帰する。共有 collection runtime/ABI と synthetic fallback は利用実態のため保持した。
 
 - [ ] KSP-930: kotlin.collections.AbstractMutableMap-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractMutableMap`
