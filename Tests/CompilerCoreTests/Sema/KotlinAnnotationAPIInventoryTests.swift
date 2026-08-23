@@ -162,15 +162,15 @@ struct KotlinAnnotationAPIInventoryTests {
             "Target",
         ]
         for name in coreNames {
-            let symbol = try #require(
+            let coreSymbol = try #require(
                 symbol(fqPath: ["kotlin", "annotation", name], sema: sema, interner: interner),
                 "kotlin.annotation.\(name) must be source-backed"
             )
-            let info = try #require(sema.symbols.symbol(symbol))
+            let info = try #require(sema.symbols.symbol(coreSymbol))
             #expect(!info.flags.contains(.synthetic), "kotlin.annotation.\(name) must not use synthetic fallback")
             #expect(info.declSite != nil, "kotlin.annotation.\(name) must have a bundled source declaration")
             #expect(
-                sema.symbols.sourceFileID(for: symbol) != nil,
+                sema.symbols.sourceFileID(for: coreSymbol) != nil,
                 "kotlin.annotation.\(name) must retain its bundled source file identity"
             )
         }
