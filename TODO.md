@@ -8589,15 +8589,14 @@
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`
 
-- [ ] KSP-1325: kotlin.reflect.AssociatedObjectKey top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1325: kotlin.reflect.AssociatedObjectKey top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.reflect.AssociatedObjectKey` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/AssociatedObjectKey/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_AssociatedObjectKey_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_AssociatedObjectKey_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_AssociatedObjectKey_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.reflect.AssociatedObjectKey.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: synthetic `kotlin.reflect.AssociatedObjectKey` に public synthetic implicit constructor `<init>()` と annotation-class return type を登録し、`Tests/CompilerCoreTests/Sema/ReflectAssociatedObjectKeySyntheticTests.swift` で constructor/signature と exact metadata (`ExperimentalAssociatedObjects`, `Retention(BINARY)`, `Target(ANNOTATION_CLASS)`) を検証する。KClass/findAssociatedObject の lookup/lowering/runtime は別責務のため変更していない。
 
 - [ ] KSP-1326: kotlin.reflect.ExperimentalAssociatedObjects top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.reflect.ExperimentalAssociatedObjects` / top-level
