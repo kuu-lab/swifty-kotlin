@@ -32,9 +32,9 @@ extension DataFlowSemaPhase {
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
             types.setNominalSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
 
-            // KSP-853: Int is a compiler primitive, so retain only the
-            // synthetic Companion anchor needed by source-backed extensions.
-            if typeName == "Int" {
+            // KSP-853/KSP-907: Int and UInt are compiler primitives, so retain
+            // only the synthetic Companion anchor needed by source-backed extensions.
+            if typeName == "Int" || typeName == "UInt" {
                 ensureSyntheticPrimitiveCompanionSymbol(
                     ownerSymbol: primitiveSymbol,
                     symbols: symbols,
