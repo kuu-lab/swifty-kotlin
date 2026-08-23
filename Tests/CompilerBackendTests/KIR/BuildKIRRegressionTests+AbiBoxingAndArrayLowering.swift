@@ -831,6 +831,30 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testCollectionMutationCallsUseThrowingABI() throws {
+        let source = """
+        fun main(list: MutableList<Int>, set: MutableSet<Int>, map: MutableMap<String, Int>) {
+            list.add(1)
+            set.add(1)
+            map.put("a", 1)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            #expect(throwFlags["__kk_mutable_list_add"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_set_add"]?.allSatisfy { $0 == true } == true)
+            #expect(throwFlags["__kk_mutable_map_put"]?.allSatisfy { $0 == true } == true)
+        }
+    }
+
+    @Test
     func testFrontendAndSemaResolveTypedDeclarationsAndEmitExpectedDiagnostics() throws {
         let source = """
         package typed.demo

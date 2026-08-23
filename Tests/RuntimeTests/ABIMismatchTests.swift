@@ -47,6 +47,30 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func collectionMutationSignaturesIncludeThrowingChannel() throws {
+        let expected: [(name: String, parameters: [String])] = [
+            ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_map_put", ["mapRaw", "key", "value", "outThrown"]),
+        ]
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            #expect(spec.parameters.map(\.name) == item.parameters)
+            #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
+            #expect(spec.parameters.last?.type == .nullableIntptrPointer)
+            #expect(spec.isThrowing)
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+
+            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            #expect(extern.parameterTypes == spec.parameterTypeStrings)
+            #expect(
+                RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
+                "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
+            )
+        }
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)

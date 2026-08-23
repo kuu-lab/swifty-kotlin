@@ -1381,6 +1381,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "elem", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Collection"
@@ -1638,6 +1639,7 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "setRaw", type: .intptr),
                 RuntimeABIParameter(name: "elem", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Collection"
@@ -1715,10 +1717,10 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
                 RuntimeABIParameter(name: "key", type: .intptr),
                 RuntimeABIParameter(name: "value", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_mutable_map_remove",
