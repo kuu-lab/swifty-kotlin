@@ -16,6 +16,7 @@ fun exercise(
     val minOfOrNullComparable: Int? = ints.minOfOrNull { it }
     val minOfOrNullDouble: Double? = ints.minOfOrNull { it.toDouble() }
     val minOfOrNullFloat: Float? = ints.minOfOrNull { it.toFloat() }
+    val maxOfOrNullComparable = ints.maxOfOrNull { it }
     val minOfWith: Double = ints.minOfWith(comparator) { it.toDouble() }
     val minOfWithOrNull: Double? = ints.minOfWithOrNull(comparator) { it.toDouble() }
     val minOrNullDouble: Double? = doubles.minOrNull()
@@ -34,6 +35,7 @@ fun exercise(
     println(minOfOrNullComparable)
     println(minOfOrNullDouble)
     println(minOfOrNullFloat)
+    println(maxOfOrNullComparable)
     println(minOfWith)
     println(minOfWithOrNull)
     println(minOrNullDouble)
@@ -45,6 +47,8 @@ fun exercise(
 
 fun listOwner(values: List<Int>) {
     println(values.min())
+    val maxOfOrNullComparable: Int? = values.maxOfOrNull { it }
+    println(maxOfOrNullComparable)
 }
 
 fun setOwner(values: Set<Int>) {

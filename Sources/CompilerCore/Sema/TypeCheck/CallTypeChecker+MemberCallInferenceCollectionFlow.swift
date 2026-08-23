@@ -3662,14 +3662,16 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 }
-                let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
-                    ? [collectionElementType]
-                    : [collectionElementType, selectorType]
-                sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
-                sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
-                    params: [collectionElementType],
-                    returnType: selectorType
-                )))]
+                if calleeStr == "minOfOrNull" {
+                    let sourceTypeArguments = selectorType == sema.types.doubleType || selectorType == sema.types.floatType
+                        ? [collectionElementType]
+                        : [collectionElementType, selectorType]
+                    sourceBackedIterableAggregateTypeArguments = sourceTypeArguments
+                    sourceBackedIterableAggregateMatchingParameterTypes = [sema.types.make(.functionType(FunctionType(
+                        params: [collectionElementType],
+                        returnType: selectorType
+                    )))]
+                }
 
             case "binarySearch":
                 // STDLIB-547: binarySearch(comparison: (T) -> Int) overload.
