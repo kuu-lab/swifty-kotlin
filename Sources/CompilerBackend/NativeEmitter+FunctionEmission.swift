@@ -2653,24 +2653,54 @@ extension NativeEmitter {
                 }
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
-                let shouldAppendThrownChannel = usesThrownChannel || isInternalCall
+                let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+                let virtualSourceExternalCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
+                    guard !isInternalCall,
+                          let signature = sourceExternalSignature(
+                              for: effectiveSymbol,
+                              argumentCount: argumentValues.count
+                          ),
+                          isStringAggregateType(signature.returnType)
+                    else {
+                        return nil
+                    }
+                    return signature
+                }()
+                let shouldAppendThrownChannel = usesThrownChannel
+                    || isInternalCall
+                    || virtualSourceExternalCallSignature != nil
 
-                let calleeFunction: LLVMFunction? = if let effectiveSymbol,
-                                                       let internalFunction = internalFunctions[effectiveSymbol]
+                var calleeFunction: LLVMFunction?
+                if let effectiveSymbol,
+                   let internalFunction = internalFunctions[effectiveSymbol]
                 {
-                    internalFunction
+                    calleeFunction = internalFunction
                 } else if let fallbackInternal {
-                    fallbackInternal.function
+                    calleeFunction = fallbackInternal.function
                 } else if calleeName.isEmpty {
-                    nil
+                    calleeFunction = nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
-                    declareExternalFunction(
+                    calleeFunction = declareExternalFunction(
                         named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
+                } else if let virtualSourceExternalCallSignature {
+                    var parameterTypes = loweredLLVMTypes(for: virtualSourceExternalCallSignature.parameters)
+                    if shouldAppendThrownChannel {
+                        parameterTypes.append(outThrownPointerType)
+                    }
+                    calleeFunction = declareExternalFunction(
+                        named: effectiveExternalName,
+                        parameterTypes: parameterTypes,
+                        returnType: loweredLLVMType(
+                            for: virtualSourceExternalCallSignature.returnType,
+                            lowering: typeLowering,
+                            defaultType: int64Type
+                        )
+                    )
                 } else {
-                    declareExternalFunction(
+                    calleeFunction = declareExternalFunction(
                         named: externalCalleeName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
@@ -2685,7 +2715,9 @@ extension NativeEmitter {
                 let calleeKIRFunction = effectiveSymbol.flatMap { module.arena.function(for: $0) }
                 let isRuntimeCallbackRawABIVirtualCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
-                let shouldBridgeVirtualExternalStringABI = !isInternalCall && typeLowering != nil
+                let shouldBridgeVirtualExternalStringABI = !isInternalCall
+                    && virtualSourceExternalCallSignature == nil
+                    && typeLowering != nil
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in

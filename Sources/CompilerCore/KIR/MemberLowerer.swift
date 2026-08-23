@@ -58,6 +58,7 @@ final class MemberLowerer {
             // Skip storage emission here so a plain interface property (with no
             // accessor body) doesn't leak a bogus module-level global.
             let hasExplicitBackingField = propertyDecl.explicitBackingField != nil
+            let isAbstractProperty = sema.symbols.symbol(symbol)?.flags.contains(.abstractType) == true
             let isGetterOnlyComputed = propertyDecl.getter != nil
                 && propertyDecl.setter == nil
                 && propertyDecl.initializer == nil
@@ -65,7 +66,7 @@ final class MemberLowerer {
                 && !hasExplicitBackingField
             let isDelegateProperty = propertyDecl.delegateExpression != nil
 
-            if !isInterfaceContext, !isGetterOnlyComputed, !isDelegateProperty {
+            if !isInterfaceContext, !isAbstractProperty, !isGetterOnlyComputed, !isDelegateProperty {
                 let kirID = arena.appendDecl(.global(KIRGlobal(symbol: symbol, type: propType)))
                 directMembers.append(kirID)
                 allDecls.append(kirID)
@@ -114,21 +115,19 @@ final class MemberLowerer {
                 )
             }
 
-            // BUG-141: give properties that participate in interface itable
-            // dispatch a getter accessor function. A plain interface property
-            // (no custom getter, no delegate) gets a stub whose signature the
-            // dispatch site targets; a concrete `override` stored property gets
-            // a field-reading getter that is registered into the itable so an
-            // interface-typed receiver can dispatch to it. Custom-getter and
-            // delegated properties already emit their own accessor above.
+            // BUG-141/KSP-928: give abstract/interface properties and concrete
+            // overrides getter accessors for itable/vtable dispatch. A plain
+            // interface or abstract class property gets a stub whose signature
+            // the dispatch site targets; a concrete override gets a getter that
+            // is registered into the corresponding runtime dispatch table.
             let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
             let hasDelegate = propertyDecl.delegateExpression != nil
             if !hasCustomGetterBody, !hasDelegate,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
                 let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
-                if isInterfaceContext, !isExternalLinked {
-                    synthesizeInterfacePropertyGetterStub(
+                if (isInterfaceContext || isAbstractProperty), !isExternalLinked {
+                    synthesizeAbstractPropertyGetterStub(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
                         sema: sema,

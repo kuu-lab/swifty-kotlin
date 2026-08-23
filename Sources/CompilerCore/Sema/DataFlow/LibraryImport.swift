@@ -543,6 +543,7 @@ extension DataFlowSemaPhase {
         let isSuspend: Bool
         let slot: Int
         let typeSignature: String?
+        let isProperty: Bool
     }
 
     struct ImportedITableSlotEntry {

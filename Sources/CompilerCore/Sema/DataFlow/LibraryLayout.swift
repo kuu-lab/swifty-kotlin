@@ -68,7 +68,9 @@ extension DataFlowSemaPhase {
                 )
                 return nil
             }
-            let fqName = components[0].split(separator: ".").map { interner.intern(String($0)) }
+            let isProperty = components[0].hasPrefix("property:")
+            let rawFQName = isProperty ? String(components[0].dropFirst("property:".count)) : components[0]
+            let fqName = rawFQName.split(separator: ".").map { interner.intern(String($0)) }
             guard !fqName.isEmpty else {
                 diagnostics.warning(
                     "KSWIFTK-LIB-0003",
@@ -89,7 +91,8 @@ extension DataFlowSemaPhase {
                 arity: max(0, arity),
                 isSuspend: isSuspend,
                 slot: slot,
-                typeSignature: typeSignature
+                typeSignature: typeSignature,
+                isProperty: isProperty
             )
         }
     }
@@ -190,15 +193,26 @@ extension DataFlowSemaPhase {
 
         var resolvedVTableSlots: [SymbolID: Int] = [:]
         for entry in record.vtableSlots {
-            guard let methodSymbol = resolveImportedMethodSymbol(
-                fqName: entry.fqName,
-                arity: entry.arity,
-                isSuspend: entry.isSuspend,
-                typeSignature: entry.typeSignature,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            ) else {
+            let resolvedSymbol: SymbolID? = if entry.isProperty {
+                resolveImportedPropertySymbol(
+                    fqName: entry.fqName,
+                    typeSignature: entry.typeSignature,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
+            } else {
+                resolveImportedMethodSymbol(
+                    fqName: entry.fqName,
+                    arity: entry.arity,
+                    isSuspend: entry.isSuspend,
+                    typeSignature: entry.typeSignature,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner
+                )
+            }
+            guard let resolvedSymbol else {
                 let fq = entry.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 diagnostics.warning(
                     "KSWIFTK-LIB-0004",
@@ -207,7 +221,7 @@ extension DataFlowSemaPhase {
                 )
                 continue
             }
-            resolvedVTableSlots[methodSymbol] = entry.slot
+            resolvedVTableSlots[resolvedSymbol] = entry.slot
         }
 
         var resolvedITableSlots: [SymbolID: Int] = [:]
@@ -323,6 +337,36 @@ extension DataFlowSemaPhase {
             // Fall back to legacy arity-only resolution for metadata that lacks a signature.
         }
 
+        return candidates.first?.id
+    }
+
+    private func resolveImportedPropertySymbol(
+        fqName: [InternedString],
+        typeSignature: String?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let candidates = symbols.lookupAll(fqName: fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .property }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+        if let typeSignature, !typeSignature.isEmpty {
+            let mangler = NameMangler()
+            let nameResolver: (InternedString) -> String = { interner.resolve($0) }
+            if let exact = candidates.first(where: { candidate in
+                guard let propertyType = symbols.propertyType(for: candidate.id) else { return false }
+                let candidateSig = mangler.encodeType(
+                    propertyType,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: nameResolver
+                )
+                return candidateSig == typeSignature
+            }) {
+                return exact.id
+            }
+        }
         return candidates.first?.id
     }
 

@@ -2021,6 +2021,75 @@ struct ListSyntheticMemberLinkTests {
         }
     }
 
+    @Test
+    func testAbstractMapSurfaceIsSourceBacked() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
+            let sema = try #require(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let mapSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Map")]))
+            let abstractMapFQName = collectionsPkg + [ctx.interner.intern("AbstractMap")]
+            let abstractMapSymbol = try #require(sema.symbols.lookup(fqName: abstractMapFQName))
+            let abstractMapInfo = try #require(sema.symbols.symbol(abstractMapSymbol))
+
+            #expect(abstractMapInfo.kind == .class)
+            #expect(!abstractMapInfo.flags.contains(.synthetic))
+            #expect(abstractMapInfo.flags.contains(.abstractType))
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractMapSymbol) == [.invariant, .out])
+            #expect(sema.symbols.directSupertypes(for: abstractMapSymbol).contains(mapSymbol))
+            #expect(sema.types.directNominalSupertypes(for: abstractMapSymbol).contains(mapSymbol))
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMapSymbol, supertype: mapSymbol).count == 2)
+            #expect(sema.types.nominalSupertypeTypeArgs(for: abstractMapSymbol, supertype: mapSymbol).count == 2)
+
+            let constructorSymbol = try #require(
+                sema.symbols.lookup(fqName: abstractMapFQName + [ctx.interner.intern("<init>")])
+            )
+            let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
+            #expect(constructorInfo.kind == .constructor)
+            #expect(constructorInfo.visibility == .protected)
+            #expect(try #require(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
+        }
+    }
+
+    @Test
+    func testAbstractMapConcreteSubclassCanBeUsedAsMap() throws {
+        let source = """
+        import kotlin.collections.AbstractMap
+        import kotlin.collections.Map
+        import kotlin.collections.Set
+
+        class ProbeMap : AbstractMap<String, Int>() {
+            override val entries: Set<Map.Entry<String, Int>>
+                get() = emptyMap<String, Int>().entries
+        }
+
+        fun accept(values: Map<String, Int>) {}
+
+        fun probe(values: ProbeMap) {
+            accept(values)
+            values["missing"]
+            values.containsKey("missing")
+            values.containsValue(1)
+            values.entries
+            values.keys
+            values.values
+            values.isEmpty()
+            values.hashCode()
+            values.toString()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                !(ctx.diagnostics.hasError),
+                "Expected source-backed AbstractMap subclass surface to resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+        }
+    }
+
     /// `MutableSet<E> : Set<E>, MutableCollection<E>`; without the
     /// MutableCollection supertype a `MutableSet` argument was rejected for a
     /// `MutableCollection` parameter (KSWIFTK-SEMA-0002).

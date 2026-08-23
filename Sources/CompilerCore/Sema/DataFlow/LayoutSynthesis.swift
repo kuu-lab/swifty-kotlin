@@ -107,6 +107,39 @@ extension DataFlowSemaPhase {
             vtableSlots[method.id] = nextVtableSlot
             nextVtableSlot += 1
         }
+
+        // Abstract/open class properties need a getter slot just like member
+        // functions. Without one, a base-class method reads the base property
+        // storage directly and bypasses a concrete subclass getter.
+        let inheritedPropertySlots: [InternedString: Int] = inheritedVtable.reduce(into: [:]) { result, entry in
+            let (symbolID, slot) = entry
+            guard symbols.symbol(symbolID)?.kind == .property else { return }
+            result[symbols.symbol(symbolID)!.name] = slot
+        }
+        let ownVirtualProperties = symbols.children(ofFQName: nominalSymbol.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { property in
+                guard property.kind == .property else { return false }
+                return property.flags.contains(.abstractType)
+                    || property.flags.contains(.openType)
+                    || property.flags.contains(.overrideMember)
+            }
+            .sorted { lhs, rhs in
+                if lhs.name != rhs.name {
+                    return interner.resolve(lhs.name) < interner.resolve(rhs.name)
+                }
+                return lhs.id.rawValue < rhs.id.rawValue
+            }
+        for property in ownVirtualProperties {
+            if property.flags.contains(.overrideMember),
+               let inheritedSlot = inheritedPropertySlots[property.name]
+            {
+                vtableSlots[property.id] = inheritedSlot
+            } else if vtableSlots[property.id] == nil {
+                vtableSlots[property.id] = nextVtableSlot
+                nextVtableSlot += 1
+            }
+        }
         let vtableSize = max(nextVtableSlot, layoutHint?.declaredVtableSize ?? 0)
 
         let inheritedItable = superClass.flatMap { symbols.nominalLayout(for: $0)?.itableSlots } ?? [:]
@@ -138,6 +171,18 @@ extension DataFlowSemaPhase {
                         // match the `backingFieldSymbol(for:) ?? propertySymbol`
                         // lookup convention used throughout KIR lowering (reads,
                         // writes, lateinit checks, synthesized toString/equals).
+                        guard !symbols.symbol(id)!.flags.contains(.abstractType) else {
+                            return nil
+                        }
+                        // Getter-only computed properties have no instance
+                        // storage. Their accessor is the complete
+                        // implementation, so do not allocate a field that
+                        // would be read as an uninitialized default value.
+                        guard !symbols.propertyHasCustomGetter(for: id)
+                            || symbols.backingFieldSymbol(for: id) != nil
+                        else {
+                            return nil
+                        }
                         return symbols.backingFieldSymbol(for: id) ?? id
                     default:
                         return nil

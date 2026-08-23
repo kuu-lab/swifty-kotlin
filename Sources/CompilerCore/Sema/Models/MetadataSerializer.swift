@@ -1349,9 +1349,12 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
-            guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
+            guard let symbol = symbols.symbol(symbolID),
+                  symbol.kind == .function || symbol.kind == .property
+            else {
                 return nil
             }
+            let isProperty = symbol.kind == .property
             // Vtable layout must survive the round-trip even for methods that are
             // private or synthetic (e.g. Any.toString/hashCode/equals, internal
             // helpers like Random.stepXorWow).  The consumer resolves each entry
@@ -1360,7 +1363,12 @@ package final class MetadataEncoder {
             if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
+            // Property getter slots may be owned by protected abstract
+            // declarations (for example AbstractMap.entries). The bundled
+            // source declaration recreates that property in the consumer, so
+            // retain its layout entry even when the property record itself is
+            // not part of the public metadata export.
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID), !isProperty {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
@@ -1371,20 +1379,29 @@ package final class MetadataEncoder {
             let arity = signature?.parameterTypes.count ?? 0
             let isSuspend = signature?.isSuspend ?? false
             let typeSignature: String? = if let mangler, let types {
-                mangler.mangledSignature(
-                    for: symbol,
-                    symbols: symbols,
-                    types: types,
-                    nameResolver: { interner.resolve($0) }
-                )
+                if isProperty, let propertyType = symbols.propertyType(for: symbolID) {
+                    mangler.encodeType(
+                        propertyType,
+                        symbols: symbols,
+                        types: types,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                } else {
+                    mangler.mangledSignature(
+                        for: symbol,
+                        symbols: symbols,
+                        types: types,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                }
             } else {
                 nil
             }
             let key: String
             if let typeSignature, !typeSignature.isEmpty {
-                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
+                key = "\(isProperty ? "property:" : "")\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
             } else {
-                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+                key = "\(isProperty ? "property:" : "")\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
             }
             return (key, slot)
         }

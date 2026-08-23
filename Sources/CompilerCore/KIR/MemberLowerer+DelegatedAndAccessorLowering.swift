@@ -515,7 +515,7 @@ extension MemberLowerer {
         driver.ctx.clearImplicitReceiver()
     }
 
-    // MARK: - BUG-141: interface property getter dispatch
+    // MARK: - BUG-141/KSP-928: interface and abstract class property dispatch
 
     /// Emits a getter accessor function (`(receiver) -> PropertyType`) that
     /// reads a stored property from its instance field. Concrete classes and
@@ -543,6 +543,7 @@ extension MemberLowerer {
         let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
         let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
         let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
@@ -560,7 +561,6 @@ extension MemberLowerer {
         body.append(.returnValue(result))
         body.append(.endBlock)
 
-        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -584,7 +584,7 @@ extension MemberLowerer {
     /// site a concrete internal function whose signature matches the registered
     /// implementing getters, exactly as abstract interface methods emit a
     /// unit-returning stub.
-    func synthesizeInterfacePropertyGetterStub(
+    func synthesizeAbstractPropertyGetterStub(
         propertySymbol: SymbolID,
         ownerSymbol: SymbolID,
         sema: SemaModule,
@@ -600,14 +600,37 @@ extension MemberLowerer {
         )
         let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
         let params = [KIRParameter(symbol: receiverSymbol, type: ownerType)]
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
-        let defaultExpr = arena.appendExpr(.null, type: propType)
-        body.append(.constValue(result: defaultExpr, value: .null))
-        body.append(.returnValue(defaultExpr))
+        // Abstract class getter stubs can still be reached by a base-class
+        // method compiled as a direct accessor call. Re-dispatch through the
+        // class vtable so a concrete subclass implementation supplies the
+        // value (AbstractMap.entries is the motivating case). Interface
+        // properties continue to use the itable path at their call sites.
+        if ownerSym.kind == .class,
+           let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[propertySymbol]
+        {
+            let result = arena.appendTemporary(type: propType)
+            body.append(.virtualCall(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                receiver: receiverExpr,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .vtable(slot: getterSlot)
+            ))
+            body.append(.returnValue(result))
+        } else {
+            let defaultExpr = arena.appendExpr(.null, type: propType)
+            body.append(.constValue(result: defaultExpr, value: .null))
+            body.append(.returnValue(defaultExpr))
+        }
         body.append(.endBlock)
 
-        let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(
