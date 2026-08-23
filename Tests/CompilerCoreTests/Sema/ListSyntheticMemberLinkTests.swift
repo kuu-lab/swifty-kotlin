@@ -1151,6 +1151,67 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testIterableIndexFamilyResolvesToSourceBackedWithoutHijackingList() throws {
+        let source = """
+        class OneShot<T> : Iterable<T> {
+            override fun iterator(): Iterator<T> = emptyList<T>().iterator()
+        }
+
+        fun probe(
+            values: Iterable<Int>,
+            nullable: Iterable<String?>,
+            custom: OneShot<Int>,
+            list: List<Int>
+        ) {
+            values.indexOf(1)
+            nullable.indexOf(null)
+            custom.indexOfFirst { it > 0 }
+            values.indexOfFirst { it > 0 }
+            values.indexOfLast { it > 0 }
+            list.indexOf(1)
+            list.indexOfFirst { it > 0 }
+            list.indexOfLast { it > 0 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected Iterable.index-family to type-check cleanly, got: \(diagnosticSummary)")
+
+            let sema = try #require(ctx.sema)
+            for memberName in ["indexOf", "indexOfFirst", "indexOfLast"] {
+                let iterableSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                    named: memberName,
+                    sema: sema,
+                    interner: ctx.interner
+                ))
+                #expect(sema.symbols.externalLinkName(for: iterableSymbol) == nil)
+                #expect(sema.symbols.isSourceBackedSymbol(iterableSymbol))
+                let iterableCallCount = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == iterableSymbol }
+                    .count
+                #expect(iterableCallCount > 0, "Expected Iterable.\(memberName) to bind to its source declaration")
+
+                let listSymbol = try #require(listBackedFunctionSymbol(
+                    memberName: memberName,
+                    sema: sema,
+                    interner: ctx.interner,
+                    sourceManager: ctx.sourceManager
+                ))
+                let listCallCount = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == listSymbol }
+                    .count
+                #expect(listCallCount > 0, "Expected List.\(memberName) to retain its existing source declaration")
+            }
+        }
+    }
+
+    @Test
     func testRangeInitializerOnlyWidensToPlainIterableAnnotation() throws {
         let validSource = """
         fun valid() {

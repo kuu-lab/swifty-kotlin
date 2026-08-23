@@ -119,6 +119,12 @@ extension CallTypeChecker {
         let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
         let isSetReceiver = receiverClassification.isSetReceiver
+        // KSP-979: only the plain Iterable surface and nominal user-defined
+        // Iterable subtypes use the new source-backed index family. Concrete
+        // collection receivers retain their existing owner-specific paths.
+        let isIterableIndexReceiver = !isSequenceReceiver
+            && !receiverClassifier.isCollectionLikeType(receiverType)
+            && receiverClassifier.isNominalIterableType(receiverType)
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
@@ -136,8 +142,12 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+        let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
         let isCollectionHOF = activeCollectionHOFNames.contains(calleeStr)
-            && (isCollectionReceiver || isSequenceReceiver || (calleeStr == "asSequence" && isIterableReceiver))
+            && (isCollectionReceiver
+                || isSequenceReceiver
+                || (isIterableIndexFamilyHOF && isIterableIndexReceiver)
+                || (calleeStr == "asSequence" && isIterableReceiver))
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)
 
@@ -340,7 +350,7 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
-            guard !isSequenceReceiver, isCollectionReceiver else {
+            guard !isSequenceReceiver, isCollectionReceiver || isIterableReceiver || isIterableIndexReceiver else {
                 return false
             }
             let sourceFQName = [
@@ -1477,7 +1487,25 @@ extension CallTypeChecker {
                 return finalType
             }
             switch calleeStr {
-            case "indexOf", "lastIndexOf":
+            case "indexOf":
+                if !isIterableIndexReceiver {
+                    guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                        return nil
+                    }
+                }
+                guard args.count == 1 else {
+                    sema.bindings.bindExprType(id, type: sema.types.intType)
+                    return sema.types.intType
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                resultType = sema.types.intType
+                if isIterableIndexReceiver {
+                    _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                } else {
+                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                }
+
+            case "lastIndexOf":
                 guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
                     return nil
                 }
@@ -3139,7 +3167,12 @@ extension CallTypeChecker {
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
                 resultType = sema.types.intType
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let didBindSource = if isIterableIndexReceiver {
+                    bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }

@@ -2276,6 +2276,45 @@ final class CallTypeChecker {
             sema.bindings.bindExprType(id, type: returnType)
             return returnType
         }
+        // KSP-979: an implicit receiver call must keep the most-specific
+        // source-backed owner for the Iterable index family. Existing bundled
+        // List bodies use an unqualified indexOf call in contains(); once the
+        // generic Iterable overload is added, resolve this owner before the
+        // ordinary top-level overload resolver reports an ambiguity.
+        if let calleeName,
+           let implicitReceiverType = ctx.implicitReceiverType,
+           ["indexOf", "indexOfFirst", "indexOfLast"].contains(interner.resolve(calleeName))
+        {
+            let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+            let nonNullReceiver = sema.types.makeNonNullable(implicitReceiverType)
+            let preferListReceiver: Bool? = if receiverClassifier.isConcreteListLikeType(nonNullReceiver) {
+                true
+            } else if !receiverClassifier.isCollectionLikeType(nonNullReceiver),
+                      receiverClassifier.isNominalIterableType(nonNullReceiver)
+            {
+                false
+            } else {
+                nil
+            }
+            if let preferListReceiver {
+                let preferredCandidates = candidates.filter { candidate in
+                    guard sema.symbols.isSourceBackedSymbol(candidate),
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let declaredReceiver = signature.receiverType
+                    else {
+                        return false
+                    }
+                    if preferListReceiver {
+                        return receiverClassifier.isConcreteListLikeType(declaredReceiver)
+                    }
+                    return !receiverClassifier.isCollectionLikeType(declaredReceiver)
+                        && receiverClassifier.isNominalIterableType(declaredReceiver)
+                }
+                if !preferredCandidates.isEmpty {
+                    candidates = preferredCandidates
+                }
+            }
+        }
         if !candidates.isEmpty {
             // STDLIB-CORO-BUG-02: withContext is registered with a hardcoded
             // Any return type (see HeaderHelpers+SyntheticCoroutineRegistry.swift)
