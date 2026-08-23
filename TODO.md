@@ -2935,7 +2935,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Result.<init>` — constructor (Any)  -- `constructor <init>(kotlin/Any?)`
 
-- [ ] KSP-885: kotlin.Result.Companion.Companion の未実装 stdlib API を実装する（2 件）
+- [x] KSP-885: kotlin.Result.Companion.Companion の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.Result.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Result/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2945,6 +2945,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Result.Companion.failure` — fun Companion.failure(Throwable): Result  -- `final inline fun <#A2: kotlin/Any?> failure(kotlin/Throwable): kotlin/Result<#A2>`
     - `kotlin.Result.Companion.success` — fun Companion.success(): Result  -- `final inline fun <#A2: kotlin/Any?> success(#A2): kotlin/Result<#A2>`
+  - 完了根拠: #5976（merge commit `d827915bf026296553fd898af5d4969b0b99eba8`）で実装済み。現行 `Sources/CompilerCore/Stdlib/kotlin/Result/Stdlib.kt` に `Result.Companion.success` / `failure` が存在し、専用Golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Result_Companion_Companion_n.kt` とdiff `Scripts/diff_cases/stdlib_kotlin_Result_Companion_Companion_n.kt` も現行masterに存在することを確認した。
 
 - [ ] KSP-886: kotlin.RuntimeException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.RuntimeException` / top-level
