@@ -7,6 +7,21 @@
 
 package kotlin.collections
 
+// KSP-934: the nominal `Collection<out E>` declaration is source-backed here;
+// the compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
+// remains the fallback for contexts without the bundled stdlib.
+public interface Collection<out E> : Iterable<E> {
+    public val size: Int
+
+    public fun isEmpty(): Boolean
+
+    public operator fun contains(element: @UnsafeVariance E): Boolean
+
+    override fun iterator(): Iterator<E>
+
+    public fun containsAll(elements: Collection<@UnsafeVariance E>): Boolean
+}
+
 // KSP-633: the nominal `AbstractCollection<out E>` declaration is source-backed
 // here; the compiler-side shell in `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`
 // remains the fallback for contexts without the bundled stdlib.

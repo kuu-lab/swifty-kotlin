@@ -278,6 +278,16 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_collection_containsAll",
+            parameters: [
+                RuntimeABIParameter(name: "collRaw", type: .intptr),
+                RuntimeABIParameter(name: "elementsRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
     ] + Self.collectionHOFFunctions + [
         // Map
         RuntimeABIFunctionSpec(

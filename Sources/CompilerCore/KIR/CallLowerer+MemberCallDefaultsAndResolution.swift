@@ -216,19 +216,6 @@ extension CallLowerer {
         arguments[2] = sizeExpr
     }
 
-    /// KSP-611: a member of an interface imported from a compiled library carries the
-    /// link name of the body emitted for it in that library. For an abstract member that
-    /// body is an empty stub, so honouring the link name would silently call nothing;
-    /// interface members must dispatch through the receiver's itable instead.
-    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
-        guard let calleeSymbol = sema.symbols.symbol(callee),
-              calleeSymbol.flags.contains(.importedLibrary),
-              let parentID = sema.symbols.parentSymbol(for: callee),
-              let parentSymbol = sema.symbols.symbol(parentID)
-        else { return false }
-        return parentSymbol.kind == .interface
-    }
-
     /// Callees bridged to a C runtime function (such as kk_array_get) are
     /// never dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
@@ -244,8 +231,12 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
-            || isImportedInterfaceMember(chosenCallee, sema: sema) else { return nil }
+        // Runtime ABI bridges are receiver-type-agnostic entry points even
+        // when their declarations are imported interface members. Dispatching
+        // those symbols through an itable is invalid for the built-in runtime
+        // collection boxes; only source-backed/internal links may use virtual
+        // dispatch here.
+        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema) else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]

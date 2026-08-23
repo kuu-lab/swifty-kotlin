@@ -216,6 +216,17 @@ extension CallLowerer {
             return nil
         }
 
+        // Runtime-backed interface properties (for example Collection.size)
+        // may now carry a bundled source declaration while retaining their
+        // external ABI link. Keep those reads on the direct bridge path below;
+        // registering them as source property getters would require runtime
+        // boxes to provide an itable getter they do not own.
+        if let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
+           !externalLinkName.isEmpty
+        {
+            return nil
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
