@@ -155,7 +155,14 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
     } else {
         []
     }
-    return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    registerIteratorItable(
+        raw: raw,
+        hasNext: runtimeListIteratorHasNextThunk,
+        next: runtimeListIteratorNextThunk
+    )
+    registerListIteratorItable(raw: raw)
+    return raw
 }
 
 @_cdecl("kk_list_iterator_hasNext")
@@ -184,7 +191,7 @@ public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
 /// `index` is always in `0...elements.count`, but we defensively
 /// also check the upper bound so that a corrupted/invalid index
 /// cannot lead to an out-of-bounds access in `previous()`.
-private func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
+func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
     iter.index > 0 && iter.index <= iter.elements.count
 }
 
@@ -208,6 +215,22 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     // This matches the standard ListIterator behavior
     iter.index -= 1
     return iter.elements[iter.index]
+}
+
+@_cdecl("kk_list_iterator_nextIndex")
+public func kk_list_iterator_nextIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.index
+}
+
+@_cdecl("kk_list_iterator_previousIndex")
+public func kk_list_iterator_previousIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return -1
+    }
+    return iter.index - 1
 }
 
 @_cdecl("kk_list_to_string")

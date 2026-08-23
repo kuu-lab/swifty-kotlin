@@ -322,11 +322,12 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeListIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.ListIterator")
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 
 /// Register the `kotlin.collections.Iterator` itable on a raw object handle.
-private func registerIteratorItable(
+func registerIteratorItable(
     raw: Int,
     hasNext: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
     next: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int
@@ -336,6 +337,45 @@ private func registerIteratorItable(
     _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
     let nextPtr = unsafeBitCast(next, to: Int.self)
     _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+}
+
+/// Register the four `ListIterator` methods on a runtime-backed list iterator.
+/// The inherited `Iterator` methods occupy slots 0 and 1, so the source-backed
+/// `ListIterator` members begin at slots 2 through 5.
+func registerListIteratorItable(raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeListIteratorInterfaceTypeID), 1)
+    let hasPreviousPtr = unsafeBitCast(runtimeListIteratorHasPreviousThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 2, hasPreviousPtr)
+    let previousPtr = unsafeBitCast(runtimeListIteratorPreviousThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 3, previousPtr)
+    let nextIndexPtr = unsafeBitCast(runtimeListIteratorNextIndexThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 4, nextIndexPtr)
+    let previousIndexPtr = unsafeBitCast(runtimeListIteratorPreviousIndexThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 5, previousIndexPtr)
+}
+
+private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_hasPrevious(raw)
+}
+
+private let runtimeListIteratorPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    guard let iter = runtimeListIteratorBox(from: raw), listIteratorCanGoBack(iter) else {
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no previous element."))
+        return 0
+    }
+    return kk_list_iterator_previous(raw)
+}
+
+private let runtimeListIteratorNextIndexThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_nextIndex(raw)
+}
+
+private let runtimeListIteratorPreviousIndexThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
+    outThrown?.pointee = 0
+    return kk_list_iterator_previousIndex(raw)
 }
 
 /// Register the `kotlin.collections.Iterable` itable on a raw object handle.
@@ -392,13 +432,17 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
 // an `Iterator<T>` interface value, subsequent `hasNext()`/`next()` calls use
 // itable dispatch and need the box to advertise those methods.
 
-private let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+let runtimeListIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
     return kk_list_iterator_hasNext(iterRaw)
 }
 
-private let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
+    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.index < iter.elements.count else {
+        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "List iterator has no next element."))
+        return 0
+    }
     return kk_list_iterator_next(iterRaw)
 }
 

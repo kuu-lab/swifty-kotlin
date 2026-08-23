@@ -69,6 +69,8 @@ struct CollectionLiteralLookupTables {
     var kkListIteratorNextName: InternedString { listLookup.kkListIteratorNextName }
     var kkListIteratorHasPreviousName: InternedString { listLookup.kkListIteratorHasPreviousName }
     var kkListIteratorPreviousName: InternedString { listLookup.kkListIteratorPreviousName }
+    var kkListIteratorNextIndexName: InternedString { listLookup.kkListIteratorNextIndexName }
+    var kkListIteratorPreviousIndexName: InternedString { listLookup.kkListIteratorPreviousIndexName }
     var kkListToStringName: InternedString { listLookup.kkListToStringName }
     var kkCollectionToMutableListName: InternedString { listLookup.kkCollectionToMutableListName }
     var kkListAssociateToName: InternedString { listLookup.kkListAssociateToName }
@@ -127,6 +129,8 @@ struct CollectionLiteralLookupTables {
     var listIteratorMemberName: InternedString { listLookup.listIteratorMemberName }
     var hasPreviousName: InternedString { listLookup.hasPreviousName }
     var previousName: InternedString { listLookup.previousName }
+    var nextIndexName: InternedString { listLookup.nextIndexName }
+    var previousIndexName: InternedString { listLookup.previousIndexName }
     var listFactoryNames: Set<InternedString> { listLookup.listFactoryNames }
     var mutableListConstructorNames: Set<InternedString> { listLookup.mutableListConstructorNames }
 
