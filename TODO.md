@@ -2594,7 +2594,7 @@
     - `kotlin.Int.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.Int.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-854: kotlin.IntArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-854: kotlin.IntArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.IntArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IntArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2604,6 +2604,8 @@
   - 未実装シンボル一覧:
     - `kotlin.IntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.IntArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Int>)`
+  - 完了確認（2026-08-23）: merged PR #5964 / merge commit `26002e9fed4baeac7dcf6e376bee243ae234563c`（実装修正 commit `bf6966305`）で完了済み。現行実装は `Sources/CompilerCore/Stdlib/kotlin/IntArray.kt` の `IntArray(size, init)` source-backed overload。`IntArray(size)` は共有 primitive-array constructor lowering、initializer は同じ `kk_array_new_checked` allocation と `kk_array_set` fill loop で解決され、IntArray専用のconstructor bridge/stub/RuntimeABI/name-string特例は存在しない。
+  - 回帰証跡: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_IntArray_n_n.kt` / `.golden`（size-only、initializer、empty）と `Scripts/diff_cases/stdlib_kotlin_IntArray_n_n.kt`、`BuildKIRRegressionTests.testIntArrayLambdaConstructorLowersToArrayNewAndArraySet` が現行masterで確認済み。
 
 - [x] KSP-855: kotlin.KotlinNothingValueException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.KotlinNothingValueException` / top-level
