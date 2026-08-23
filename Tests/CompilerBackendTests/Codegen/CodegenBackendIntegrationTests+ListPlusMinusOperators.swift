@@ -44,5 +44,25 @@ struct CodegenBackendListPlusMinusOperatorsTests {
 
         try assertKotlinOutput(source, moduleName: "ListMinusRuntime", expected: "[1, 2, 3]\n[1, 3]\n[1, 2, 2, 3]\n")
     }
+
+    @Test
+    func testCodegenIterableMinusSequenceAndArrayValues() throws {
+        let source = """
+        fun main() {
+            val values: Iterable<Int> = listOf(1, 2, 2, 3, 4)
+            println(values - sequenceOf(2, 4))
+            println(values - arrayOf(2, 4))
+            println(values - 2)
+            println(values - listOf(2, 4))
+            println(values)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableMinusSequenceAndArrayRuntime",
+            expected: "[1, 3]\n[1, 3]\n[1, 2, 3, 4]\n[1, 3]\n[1, 2, 2, 3, 4]\n"
+        )
+    }
 }
 #endif

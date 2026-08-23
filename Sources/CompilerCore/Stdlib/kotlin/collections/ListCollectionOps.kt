@@ -49,6 +49,28 @@ public operator fun <T> Iterable<T>.minus(elements: Iterable<T>): List<T> {
     return result
 }
 
+public operator fun <T> Iterable<T>.minus(elements: Array<out T>): List<T> {
+    // Keep the empty-array fast path on the concrete size property; the generic
+    // Array<out T>.isEmpty() call currently takes the wrong lowered path.
+    if (elements.size == 0) return this.toList()
+    val other = elements.toList()
+    val result = mutableListOf<T>()
+    for (item in this) {
+        if (!listIterableContains(other, item)) result.add(item)
+    }
+    return result
+}
+
+public operator fun <T> Iterable<T>.minus(elements: Sequence<T>): List<T> {
+    val other = elements.toList()
+    if (other.isEmpty()) return this.toList()
+    val result = mutableListOf<T>()
+    for (item in this) {
+        if (!listIterableContains(other, item)) result.add(item)
+    }
+    return result
+}
+
 public infix fun <T> Iterable<T>.intersect(other: Iterable<T>): Set<T> {
     val result = mutableSetOf<T>()
     for (element in this) {
