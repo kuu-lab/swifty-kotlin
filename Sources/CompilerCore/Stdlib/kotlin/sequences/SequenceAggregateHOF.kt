@@ -17,7 +17,8 @@ import kotlin.internal.__valuesEqual
 // Migrated: fold, foldIndexed, reduce, reduceOrNull, reduceIndexed, reduceIndexedOrNull,
 //           reduceRight, reduceRightOrNull, reduceRightIndexed, reduceRightIndexedOrNull,
 //           scan, scanIndexed, runningFold, runningFoldIndexed, runningReduce,
-//           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy, groupBy
+//           runningReduceIndexed, sumOf, maxByOrNull, minByOrNull, associate, associateBy,
+//           groupBy, Sequence.toMap
 //
 // Sorting variants are in SequenceSortingHOF.kt (package kotlin.sequences) to avoid
 // FQ-name collisions with List sorting extensions.
@@ -205,6 +206,21 @@ public fun <T> Sequence<T>.runningReduceIndexed(operation: (Int, T, T) -> T): Se
         i += 1
     }
     return result.asSequence()
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Sequence<Pair<K, V>>.toMap(): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (pair in this) result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+public fun <K, V, M : MutableMap<in K, in V>> Sequence<Pair<K, V>>.toMap(destination: M): M {
+    @Suppress("UNCHECKED_CAST")
+    val mutableDestination = destination as MutableMap<K, V>
+    for (pair in this) mutableDestination[pair.first] = pair.second
+    return destination
 }
 
 // Sema exposes the public call result as Map<K, V>; the source body returns the

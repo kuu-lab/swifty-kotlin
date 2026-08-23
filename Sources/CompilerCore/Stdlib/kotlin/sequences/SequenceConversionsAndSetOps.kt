@@ -47,12 +47,6 @@ public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> {
     return result
 }
 
-public fun <K, V> Sequence<Pair<K, V>>.toMap(): MutableMap<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (pair in this) result[pair.first] = pair.second
-    return result
-}
-
 public fun <T, R> Sequence<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
     val list1 = mutableListOf<T>()
     val list2 = mutableListOf<R>()
