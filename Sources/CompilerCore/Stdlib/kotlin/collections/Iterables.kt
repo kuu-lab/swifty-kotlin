@@ -58,6 +58,30 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+// KSP-995: source-backed generic Iterable take family.
+public fun <T> Iterable<T>.take(n: Int): List<T> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    if (n == 0) return emptyList()
+
+    val result = mutableListOf<T>()
+    var count = 0
+    for (element in this) {
+        result.add(element)
+        count += 1
+        if (count == n) break
+    }
+    return result
+}
+
+public inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) break
+        result.add(element)
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
     val elements = this.toMutableList()
     if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
