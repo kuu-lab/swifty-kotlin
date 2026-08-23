@@ -74,11 +74,28 @@ public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
 
 public fun <T> setOf(): Set<T> = emptySet()
 
+public fun <T> setOf(element: T): Set<T> {
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    result.add(element)
+    return result
+}
+
 public fun <T> setOf(vararg elements: T): Set<T> {
     if (elements.size == 0) return emptySet<T>()
     val result: MutableSet<T> = __kk_set_of(null, 0)
     for (element in elements) {
         result.add(element)
+    }
+    return result
+}
+
+public fun <T : Any> setOfNotNull(element: T?): Set<T> =
+    if (element != null) setOf(element) else emptySet()
+
+public fun <T : Any> setOfNotNull(vararg elements: T?): Set<T> {
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    for (element in elements) {
+        if (element != null) result.add(element)
     }
     return result
 }

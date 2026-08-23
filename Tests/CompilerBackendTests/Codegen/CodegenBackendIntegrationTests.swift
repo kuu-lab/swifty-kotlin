@@ -621,6 +621,35 @@ import Testing
     }
 
     @Test
+    func testCodegenSetFactorySingletonOverloadsPreserveReadOnlySetSemantics() throws {
+        let source = """
+        var evaluations = 0
+
+        fun nextValue(): String {
+            evaluations += 1
+            return "a"
+        }
+
+        fun main() {
+            val singleton = setOf(nextValue())
+            val nullable: Set<String?> = setOf(null)
+            val nonNull = setOfNotNull(nextValue())
+            val empty = setOfNotNull<String>(null)
+
+            println(singleton)
+            println(singleton.contains("a"))
+            println(singleton.size)
+            println(nullable.contains(null))
+            println(nonNull)
+            println(empty.isEmpty())
+            println(evaluations)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SetFactorySingletonRuntime", expected: "[a]\ntrue\n1\ntrue\n[a]\ntrue\n2\n")
+    }
+
+    @Test
     func testCodegenLinkedSetOfFactoryUsesMutableRuntimeSet() throws {
         let source = """
         fun main() {
