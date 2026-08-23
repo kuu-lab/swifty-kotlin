@@ -741,6 +741,16 @@ public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeSetBox(elements: []))
 }
 
+/// HashSet copy-constructor storage with an independent backing box.
+@_cdecl("__kk_iterable_toHashSet")
+public func kk_iterable_toHashSet(_ iterableRaw: Int) -> Int {
+    let values = runtimeIterableValues(from: iterableRaw) ?? []
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+        typeID: hashSetRuntimeTypeID
+    )
+}
+
 /// Generic `Iterable<T>.last()` that accepts any collection handle (List, Set, etc.).
 @_cdecl("__kk_iterable_last")
 public func kk_iterable_last(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

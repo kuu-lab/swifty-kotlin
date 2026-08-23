@@ -309,6 +309,93 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testHashSetConcreteClassAndConstructorSurfaceIsRegistered() throws {
+        let source = """
+        fun probe() {
+            val constructed: HashSet<Int> = HashSet<Int>()
+            val sized: HashSet<Int> = HashSet<Int>(8)
+            val asMutable: MutableSet<Int> = constructed
+            val copied = HashSet(constructed)
+            val copiedFromCollection: HashSet<Int> = HashSet<Int>(listOf(4))
+            val copiedAsMutable: MutableSet<Int> = copied
+            val fromExpectedMutable: MutableSet<Int> = HashSet()
+            constructed.add(1)
+            asMutable.add(2)
+            sized.add(8)
+            copiedFromCollection.add(5)
+            fromExpectedMutable.add(3)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected HashSet concrete class calls to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
+            let hashSetFQ = kotlinCollections + [interner.intern("HashSet")]
+            let abstractMutableSetFQ = kotlinCollections + [interner.intern("AbstractMutableSet")]
+            let mutableSetFQ = kotlinCollections + [interner.intern("MutableSet")]
+            let hashSetSymbol = try #require(sema.symbols.lookup(fqName: hashSetFQ))
+            let abstractMutableSetSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQ))
+            let mutableSetSymbol = try #require(sema.symbols.lookup(fqName: mutableSetFQ))
+
+            let hashSetInfo = try #require(sema.symbols.symbol(hashSetSymbol))
+            #expect(hashSetInfo.kind == .class)
+            #expect(!hashSetInfo.flags.contains(.synthetic))
+            #expect(!hashSetInfo.flags.contains(.openType))
+            #expect(hashSetInfo.declSite != nil)
+            #expect(sema.symbols.directSupertypes(for: hashSetSymbol).contains(abstractMutableSetSymbol))
+            #expect(sema.symbols.directSupertypes(for: hashSetSymbol).contains(mutableSetSymbol))
+            #expect(sema.types.nominalTypeParameterVariances(for: hashSetSymbol) == [.invariant])
+
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: kotlinCollections + [interner.intern("Collection")]))
+            let constructorSymbols = sema.symbols.lookupAll(fqName: hashSetFQ + [interner.intern("<init>")])
+            let constructorSignatures: [[TypeID]] = constructorSymbols.compactMap { constructorSymbol in
+                guard let constructorInfo = sema.symbols.symbol(constructorSymbol),
+                      constructorInfo.kind == .constructor,
+                      constructorInfo.visibility == .public,
+                      sema.symbols.externalLinkName(for: constructorSymbol) == nil,
+                      let signature = sema.symbols.functionSignature(for: constructorSymbol)
+                else {
+                    return nil
+                }
+                #expect(signature.typeParameterSymbols.count == 1)
+                #expect(signature.classTypeParameterCount == 1)
+                return signature.parameterTypes
+            }
+            #expect(constructorSignatures.contains([]))
+            #expect(constructorSignatures.contains([sema.types.intType]))
+            #expect(constructorSignatures.contains { parameterTypes in
+                guard let parameterType = parameterTypes.first,
+                      case let .classType(collectionType) = sema.types.kind(of: parameterType)
+                else {
+                    return false
+                }
+                return collectionType.classSymbol == collectionSymbol
+            })
+
+            let constructorCall = try #require(firstExprID(in: ast) { _, expr in
+                guard case let .call(callee, _, _, _) = expr,
+                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                else { return false }
+                return interner.resolve(name) == "HashSet"
+            })
+            let callType = try #require(sema.bindings.exprTypes[constructorCall])
+            guard case let .classType(classType) = sema.types.kind(of: callType) else {
+                Issue.record("Expected HashSet constructor to produce a class type"); return
+            }
+            #expect(interner.resolve(try #require(sema.symbols.symbol(classType.classSymbol)?.name)) == "HashSet")
+            #expect(classType.args == [.invariant(sema.types.intType)])
+            #expect(sema.bindings.isCollectionExpr(constructorCall), "Expected HashSet constructor to be tracked as a collection expression")
+        }
+    }
+
+    @Test
     func testCollectionTypeAliasesAreSourceBacked() throws {
         let source = """
         fun probe() {
@@ -338,7 +425,6 @@ struct ListSyntheticMemberLinkTests {
             // not by synthetic self-registration.
             for (aliasName, targetName) in [
                 ("ArrayList", "MutableList"),
-                ("HashSet", "MutableSet"),
                 ("HashMap", "MutableMap"),
                 ("LinkedHashMap", "MutableMap"),
             ] {

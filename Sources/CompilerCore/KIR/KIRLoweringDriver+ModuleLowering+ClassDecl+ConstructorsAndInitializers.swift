@@ -143,6 +143,20 @@ extension KIRLoweringDriver {
             return
         }
 
+        // HashSet is source-backed while AbstractMutableSet remains a synthetic
+        // surface. Its synthetic protected constructor has no emitted body, so
+        // a generated parent call would leave an unresolved `<init>` symbol.
+        let hashSetFQName = [
+            compilationCtx.interner.intern("kotlin"),
+            compilationCtx.interner.intern("collections"),
+            compilationCtx.interner.intern("HashSet"),
+        ]
+        if sema.symbols.symbol(ownerSymbol)?.fqName == hashSetFQName,
+           sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true
+        {
+            return
+        }
+
         var argIDs: [KIRExprID] = [receiverID]
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
         for arg in superArgs {

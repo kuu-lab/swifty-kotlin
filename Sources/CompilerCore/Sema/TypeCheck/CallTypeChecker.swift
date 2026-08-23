@@ -2004,7 +2004,14 @@ final class CallTypeChecker {
                         interner: interner,
                         elementType: elementType
                     )
-                } else if name == "mutableSetOf" || name == "hashSetOf" {
+                } else if name == "hashSetOf" {
+                    resultType = makeSyntheticHashSetType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        elementType: elementType
+                    )
+                } else if name == "mutableSetOf" {
                     resultType = makeSyntheticMutableSetType(
                         symbols: sema.symbols,
                         types: sema.types,
@@ -2136,6 +2143,19 @@ final class CallTypeChecker {
             }
             let constructorElementType = explicitTypeArgs.first
                 ?? expectedCollectionArgs.first
+                ?? (resolvedName == "HashSet" ? argTypes.first.flatMap { argumentType in
+                    guard case let .classType(argumentClassType) = sema.types.kind(
+                        of: sema.types.makeNonNullable(argumentType)
+                    ),
+                    let firstArgument = argumentClassType.args.first
+                    else {
+                        return nil
+                    }
+                    return switch firstArgument {
+                    case let .invariant(type), let .in(type), let .out(type): type
+                    case .star: sema.types.anyType
+                    }
+                } : nil)
                 ?? sema.types.anyType
             switch resolvedName {
             case "ArrayList":
@@ -2150,7 +2170,7 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             case "HashSet":
-                let resultType = makeSyntheticMutableSetType(
+                let resultType = makeSyntheticHashSetType(
                     symbols: sema.symbols,
                     types: sema.types,
                     interner: interner,

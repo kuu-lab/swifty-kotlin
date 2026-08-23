@@ -204,6 +204,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    // Kotlin Set.hashCode() is the order-independent sum of element hashes.
+    // RuntimeSetBox is shared by Set, MutableSet, LinkedHashSet, and HashSet,
+    // so keep equal set instances consistent across all of those surfaces.
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        return setBox.elements.reduce(0) { partial, element in
+            partial &+ kk_any_hashCode(element, 0)
+        }
+    }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
     // RuntimePairBox is internal runtime state and keeps the pointer hash.

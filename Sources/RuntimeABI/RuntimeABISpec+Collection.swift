@@ -159,6 +159,16 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_hash_set_of",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         // STDLIB-410: emptySet
         RuntimeABIFunctionSpec(
             name: "__kk_emptySet",
@@ -243,6 +253,15 @@ public extension RuntimeABISpec {
         // STDLIB-021: Iterable<T>.toMutableSet()
         RuntimeABIFunctionSpec(
             name: "__kk_iterable_toMutableSet",
+            parameters: [
+                RuntimeABIParameter(name: "iterableRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_iterable_toHashSet",
             parameters: [
                 RuntimeABIParameter(name: "iterableRaw", type: .intptr),
             ],
