@@ -58,6 +58,19 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
+    val first = ArrayList<T>()
+    val second = ArrayList<T>()
+    for (element in this) {
+        if (predicate(element)) {
+            first.add(element)
+        } else {
+            second.add(element)
+        }
+    }
+    return Pair(first, second)
+}
+
 public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
     val elements = this.toMutableList()
     if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")

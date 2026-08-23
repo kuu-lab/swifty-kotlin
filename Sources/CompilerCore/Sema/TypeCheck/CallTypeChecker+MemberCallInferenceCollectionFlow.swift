@@ -3899,6 +3899,7 @@ extension CallTypeChecker {
             // declaration or a removed synthetic runtime bridge.
             let iterableSourceHOFNames: Set = [
                 "filter",
+                "partition",
                 "reduce",
                 "reduceIndexed",
                 "reduceRight",
