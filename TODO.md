@@ -6606,7 +6606,7 @@
   - 未実装シンボル一覧:
     - `kotlin.io.encoding.ExperimentalEncodingApi.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1170: kotlin.math.E-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1170: kotlin.math.E-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.math` / top-level / family `E`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6615,6 +6615,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.math.E` — val E  -- `final const val kotlin.math/E`
+  - 完了根拠（2026-08-24）: Kotlin 2.3.10 公式 `MathH.kt` と JVM metadata/classfile に合わせ、`Math.kt` の E を `@SinceKotlin("1.2") public const val E: Double = 2.718281828459045` として source-backed 化。公式と同じ raw bits `0x4005bf0a8b145769` を確認し、Sema 回帰で public/Double/`constValue`/bit pattern、Golden で import/reference/copy、公式 Kotlin 2.3.10 diff case で実行結果を検証。E の synthetic/runtime/ABI bridge は存在せず、PI（KSP-1171）は変更していない。
 
 - [ ] KSP-1171: kotlin.math.PI-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.math` / top-level / family `PI`
