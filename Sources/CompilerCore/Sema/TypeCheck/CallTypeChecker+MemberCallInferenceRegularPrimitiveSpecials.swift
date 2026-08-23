@@ -70,9 +70,17 @@ extension CallTypeChecker {
             }
             // Use non-nullable RHS for arithmetic promotion checks
             let rhsType = sema.types.makeNonNullable(rawRhsType)
+            let isNumericReceiver = isPrimitiveReceiver
+                || receiverForCheck == floatType
+                || receiverForCheck == doubleType
+                || receiverForCheck == charType
             switch interner.resolve(calleeName) {
             case "plus":
-                let resultType: TypeID? = if receiverForCheck == charType && rawRhsType == intType {
+                // Collection plus(element) must reach overload resolution instead of
+                // being mistaken for primitive arithmetic based only on the RHS type.
+                let resultType: TypeID? = if !isNumericReceiver {
+                    nil
+                } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
