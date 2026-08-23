@@ -4067,7 +4067,7 @@
     - `kotlin.collections.lastOrNull` — fun Iterable.lastOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/lastOrNull(): #A?`
     - `kotlin.collections.lastOrNull` — fun Iterable.lastOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/lastOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-982: kotlin.collections.Iterable.map-family の未実装 stdlib API を実装する（8 件）
+- [x] KSP-982: kotlin.collections.Iterable.map-family の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `map`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4083,6 +4083,8 @@
     - `kotlin.collections.mapNotNull` — fun Iterable.mapNotNull(Function1): List  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any> (kotlin.collections/Iterable<#A>).kotlin.collections/mapNotNull(kotlin/Function1<#A, #B?>): kotlin.collections/List<#B>`
     - `kotlin.collections.mapNotNullTo` — fun Iterable.mapNotNullTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/mapNotNullTo(#C, kotlin/Function1<#A, #B?>): #C`
     - `kotlin.collections.mapTo` — fun Iterable.mapTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/mapTo(#C, kotlin/Function1<#A, #B>): #C`
+  - 完了: `Iterables.kt` に8件を source-backed `inline` API として追加し、NotNull の `R : Any`、destination の `MutableCollection<in R> -> C`、indexed overflow guard を保持。collection-flow binding は Iterable receiver のみを補完し、List/Array/Map/Set/Sequence の既存経路と runtime/ABI bridge は変更しない。
+  - 回帰: 専用 Sema Golden と `stdlib_kotlin_collections_Iterable_map.kt` の Kotlin 2.3.10 diff で、custom one-shot/empty/nullable/indexed/null exclusion/destination identity/exception short-circuit を固定。
 
 - [ ] KSP-983: kotlin.collections.Iterable.max-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `max`

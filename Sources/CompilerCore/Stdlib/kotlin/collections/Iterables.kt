@@ -58,6 +58,89 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+// KSP-982: source-backed Iterable map-family implementations. Keep these
+// overloads independent from concrete List/Array/Set/Sequence receivers so
+// virtual iterator dispatch also covers custom and one-shot Iterables.
+public inline fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) result.add(transform(element))
+    return result
+}
+
+public inline fun <T, R> Iterable<T>.mapIndexed(transform: (Int, T) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        result.add(transform(index, element))
+        index += 1
+    }
+    return result
+}
+
+public inline fun <T, R : Any> Iterable<T>.mapIndexedNotNull(transform: (Int, T) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        transform(index, element)?.let { result.add(it) }
+        index += 1
+    }
+    return result
+}
+
+@IgnorableReturnValue
+public inline fun <T, R : Any, C : MutableCollection<in R>> Iterable<T>.mapIndexedNotNullTo(
+    destination: C,
+    transform: (Int, T) -> R?
+): C {
+    var index = 0
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        transform(index, element)?.let { destination.add(it) }
+        index += 1
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.mapIndexedTo(
+    destination: C,
+    transform: (Int, T) -> R
+): C {
+    var index = 0
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        destination.add(transform(index, element))
+        index += 1
+    }
+    return destination
+}
+
+public inline fun <T, R : Any> Iterable<T>.mapNotNull(transform: (T) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) transform(element)?.let { result.add(it) }
+    return result
+}
+
+@IgnorableReturnValue
+public inline fun <T, R : Any, C : MutableCollection<in R>> Iterable<T>.mapNotNullTo(
+    destination: C,
+    transform: (T) -> R?
+): C {
+    for (element in this) transform(element)?.let { destination.add(it) }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.mapTo(
+    destination: C,
+    transform: (T) -> R
+): C {
+    for (element in this) destination.add(transform(element))
+    return destination
+}
+
 public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
     val elements = this.toMutableList()
     if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
