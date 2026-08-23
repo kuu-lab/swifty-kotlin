@@ -5507,7 +5507,7 @@
     - `kotlin.comparisons.minOf` — fun minOf(Short, Short, Short): Short  -- `final inline fun kotlin.comparisons/minOf(kotlin/Short, kotlin/Short, kotlin/Short): kotlin/Short`
     - `kotlin.comparisons.minOf` — fun minOf(, , , Comparator): #A  -- `final fun <#A: kotlin/Any?> kotlin.comparisons/minOf(#A, #A, #A, kotlin/Comparator<in #A>): #A`
 
-- [ ] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.comparisons` / receiver `Comparator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparators.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
