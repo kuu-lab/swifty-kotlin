@@ -83,4 +83,7 @@ fun main() {
     } catch (error: IllegalStateException) {
         println(error.message)
     }
+    // Keep non-Iterable filter receivers on their own source-backed owners.
+    println(arrayOf(1, 2, 3).filter { it > 1 })
+    println("abc".filter { it != 'b' })
 }
