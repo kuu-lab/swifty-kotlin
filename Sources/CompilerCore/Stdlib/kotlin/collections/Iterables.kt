@@ -48,6 +48,84 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+// KSP-965: numeric Iterable averages are source-backed and preserve iterator order.
+private fun checkAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+@kotlin.jvm.JvmName("averageOfByte")
+public fun Iterable<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfShort")
+public fun Iterable<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfInt")
+public fun Iterable<Int>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfLong")
+public fun Iterable<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfFloat")
+public fun Iterable<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfDouble")
+public fun Iterable<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
 // synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {

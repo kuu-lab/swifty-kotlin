@@ -127,6 +127,28 @@ extension CallTypeChecker {
         let isMutableSetReceiver = receiverClassification.isMutableSetReceiver
         let isMutableMapReceiver = receiverClassification.isMutableMapReceiver
         let isListReceiver = receiverClassification.isListReceiver
+        if memberName == "average", isIterableReceiver, !isSequenceReceiver, !isArrayReceiver {
+            let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+            let receiverElementType = getCollectionElementType(
+                receiverType,
+                sema: sema,
+                interner: interner
+            )
+            let numericAverageElementTypes: Set<TypeID> = [
+                sema.types.byteType,
+                sema.types.shortType,
+                sema.types.intType,
+                sema.types.longType,
+                sema.types.floatType,
+                sema.types.doubleType,
+            ]
+            // Kotlin only defines Iterable.average() for non-null numeric
+            // element types. Keep the legacy fallback from accepting a
+            // source-incompatible receiver when no source candidate matched.
+            guard numericAverageElementTypes.contains(receiverElementType) else {
+                return nil
+            }
+        }
         let addAllFirstArgumentExpr: ExprID? = if memberName == "addAll",
                                                   args.count == 1,
                                                   let firstArg = args.first {
