@@ -136,6 +136,25 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+
+        // KSP-983: a nominal Iterable receiver must use the exact bundled
+        // Iterable max-family declarations. Let regular overload resolution
+        // select the Comparable/Float/Double and lambda-return overloads;
+        // concrete List/Set/Map/Sequence paths remain under their own owners.
+        let iterableMaxFamilyNames: Set = [
+            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        ]
+        if iterableMaxFamilyNames.contains(calleeStr),
+           (isCollectionReceiver || isIterableReceiver),
+           !isSequenceReceiver,
+           !isSetReceiver,
+           !isMapReceiver,
+           !isArrayReceiver,
+           !receiverClassifier.isConcreteListLikeType(receiverType)
+        {
+            return nil
+        }
         let isCollectionHOF = activeCollectionHOFNames.contains(calleeStr)
             && (isCollectionReceiver || isSequenceReceiver || (calleeStr == "asSequence" && isIterableReceiver))
             && !(calleeStr == "binarySearch"

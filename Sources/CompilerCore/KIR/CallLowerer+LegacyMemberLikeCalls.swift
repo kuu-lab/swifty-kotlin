@@ -28,7 +28,7 @@ extension CallLowerer {
     }
 
     /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435 and KSP-632. A call bound to one of those
+    /// bundled Kotlin source in KSP-435, KSP-632, and KSP-983. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
@@ -37,6 +37,8 @@ extension CallLowerer {
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
         "distinct", "distinctBy",
+        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
+        "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length

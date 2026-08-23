@@ -1,5 +1,12 @@
 package kotlin.collections
 
+// Float/Double maxOf uses these existing shared numeric helpers so NaN and
+// signed-zero behavior stays identical to kotlin.comparisons.maxOf.
+private external fun kk_max_float(a: Float, b: Float): Float
+private external fun kk_max_double(a: Double, b: Double): Double
+private external fun kk_unbox_float(value: Float): Float
+private external fun kk_unbox_double(value: Double): Double
+
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
@@ -335,4 +342,268 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-983: Iterable max-family APIs migrated from the Kotlin 2.3.10 stdlib.
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Double>.max(): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_double(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Float>.max(): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_float(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T : Comparable<T>> Iterable<T>.max(): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxBy(selector: (T) -> R): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxElem = iterator.next()
+    if (!iterator.hasNext()) return maxElem
+    var maxValue = selector(maxElem)
+    do {
+        val e = iterator.next()
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    } while (iterator.hasNext())
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxByOrNull(selector: (T) -> R): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxElem = iterator.next()
+    if (!iterator.hasNext()) return maxElem
+    var maxValue = selector(maxElem)
+    do {
+        val e = iterator.next()
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    } while (iterator.hasNext())
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOf(selector: (T) -> Double): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = kk_unbox_double(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_double(selector(iterator.next()))
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOf(selector: (T) -> Float): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = kk_unbox_float(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_float(selector(iterator.next()))
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxOf(selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (maxValue < v) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOfOrNull(selector: (T) -> Double): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = kk_unbox_double(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_double(selector(iterator.next()))
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOfOrNull(selector: (T) -> Float): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = kk_unbox_float(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_float(selector(iterator.next()))
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxOfOrNull(selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (maxValue < v) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.maxOfWith(comparator: Comparator<in R>, selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (comparator.compare(maxValue, v) < 0) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.maxOfWithOrNull(comparator: Comparator<in R>, selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (comparator.compare(maxValue, v) < 0) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Double>.maxOrNull(): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_double(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Float>.maxOrNull(): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_float(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun <T : Comparable<T>> Iterable<T>.maxOrNull(): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T> Iterable<T>.maxWith(comparator: Comparator<in T>): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun <T> Iterable<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
 }
