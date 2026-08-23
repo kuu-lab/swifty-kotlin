@@ -3013,7 +3013,7 @@
   - 未実装シンボル一覧:
     - `kotlin.String.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-892: kotlin.SubclassOptInRequired top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-892: kotlin.SubclassOptInRequired top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.SubclassOptInRequired` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/SubclassOptInRequired/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3022,6 +3022,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.SubclassOptInRequired.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin.reflect/KClass<out kotlin/Annotation>>...)`
+  - 完了根拠: PR #5879（merge commit `584cfa22916f3bf5d307d901ab0ebb943ba33bd1`）で `Sources/CompilerCore/Stdlib/kotlin/SubclassOptInRequired.kt` を source-backed 化済み。現行 source の `vararg val markerClass: KClass<out Annotation>` が対象 constructor を提供し、既存の `stdlib_kotlin_n_SubclassOptInRequired` Golden/diff の `@SubclassOptInRequired(Marker::class)` と `AnnotationSemanticTests` / `AnnotationSemanticTests+VersionAndVisibility.swift` が解決と回帰を固定する。対象専用 synthetic stub、Runtime ABI、name-string 特例は残存しない。KSP-893（`markerClass` property）は別 TODO として未変更。
 
 - [ ] KSP-893: kotlin.SubclassOptInRequired.SubclassOptInRequired の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.SubclassOptInRequired` / receiver `SubclassOptInRequired`
