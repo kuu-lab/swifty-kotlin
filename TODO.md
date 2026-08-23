@@ -3259,7 +3259,7 @@
     - `kotlin.UShort.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.UShort.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-914: kotlin.UShortArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-914: kotlin.UShortArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.UShortArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UShortArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3269,6 +3269,7 @@
   - 未実装シンボル一覧:
     - `kotlin.UShortArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.UShortArray.<init>` — constructor (ShortArray)  -- `constructor <init>(kotlin/ShortArray)`
+  - 完了根拠 (2026-08-23): constructor(Int) は既存のprimitive-array intrinsic（0初期値・負サイズ例外）を重複実装せず、既存のsize+init source-backed実装（#5924, merge `09e81da6e`）と併せて確認。constructor(ShortArray) はKotlin本家v2.3.10の`@PublishedApi internal` storage constructorに合わせ、`UShortArray.kt`のsource-backed internal external overloadから既存の`__kk_shortArray_asUShortArray` shared-view ABIへ接続した。focused Golden/KIR/Backend回帰、対象diff_kotlinc、Runtime ABI link、TODO ID、`git diff --check`を通過。
 
 - [ ] KSP-915: kotlin.Unit.Unit の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Unit` / receiver `Unit`

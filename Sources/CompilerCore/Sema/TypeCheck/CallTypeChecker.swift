@@ -644,7 +644,25 @@ final class CallTypeChecker {
                 else {
                     return false
                 }
-                return !signature.valueParameterIsVararg.contains(true)
+                guard !signature.valueParameterIsVararg.contains(true) else {
+                    return false
+                }
+                if args.count == 2 {
+                    return true
+                }
+                guard args.count == 1,
+                      let parameterType = signature.parameterTypes.first,
+                      calleeName == knownNames.ushortArray
+                else {
+                    return false
+                }
+                let argumentType = driver.inferExpr(
+                    args[0].expr,
+                    ctx: ctx,
+                    locals: &locals
+                )
+                return argumentType == parameterType
+                    || sema.types.isSubtype(argumentType, parameterType)
             }
         } else {
             false
