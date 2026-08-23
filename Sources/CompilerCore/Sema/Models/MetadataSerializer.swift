@@ -321,6 +321,16 @@ package final class MetadataEncoder {
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
+                // KSP-911: ULongArray(LongArray) is an internal storage
+                // constructor. Keep it in the stdlib object for source-backed
+                // implementation calls, but do not export it to consumers.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
                 // STDLIB-SHARED-016: Compiler-generated enum static helpers
                 // (values/valueOf/entries) for non-public enum classes are not part
                 // of the stdlib surface and cannot be resolved on the consumer side.
