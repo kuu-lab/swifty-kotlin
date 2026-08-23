@@ -1,5 +1,8 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
+import kotlin.comparisons.reverseOrder
+
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
@@ -312,6 +315,60 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
         i -= 1
     }
     return accumulator
+}
+
+// KSP-993: Iterable sorting remains source-backed and materializes exactly
+// once before applying stable in-place sorting to the mutable result.
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val result = toMutableList()
+    result.sort()
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
+    return sortedWith(reverseOrder())
+}
+
+public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = toMutableList()
+    result.sortWith(comparator)
+    return result
 }
 
 public fun <T> Iterable<T>.joinToString(
