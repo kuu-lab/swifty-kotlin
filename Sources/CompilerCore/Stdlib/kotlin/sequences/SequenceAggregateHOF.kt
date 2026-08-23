@@ -211,7 +211,8 @@ public fun <T> Sequence<T>.runningReduceIndexed(operation: (Int, T, T) -> T): Se
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> Sequence<Pair<K, V>>.toMap(): Map<K, V> {
     val result = mutableMapOf<K, V>()
-    for (pair in this) result[pair.first] = pair.second
+    val pairs = this.toList()
+    for (pair in pairs) result[pair.first] = pair.second
     return result as Map<K, V>
 }
 

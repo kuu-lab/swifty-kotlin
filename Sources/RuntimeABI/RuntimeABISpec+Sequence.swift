@@ -833,10 +833,10 @@ public extension RuntimeABISpec {
             name: "kk_sequence_toMap",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
+            section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("groupBy", arity: 1, fallback: "kk_sequence_groupBy"),

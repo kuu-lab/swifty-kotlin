@@ -86,5 +86,44 @@ struct CodegenBackendSequenceToMapTests {
             expected: "3\n{1=1, 2=2, 3=3}\n{1=one, 2=two}\none-shot\n"
         )
     }
+
+    @Test
+    func testSequenceToMapPropagatesPairSourceExceptionImmediately() throws {
+        let source = """
+        fun main() {
+            var sourcePairEvaluations = 0
+            try {
+                sequenceOf(1, 2, 3).map {
+                    sourcePairEvaluations += 1
+                    if (it == 2) throw IllegalStateException("boom")
+                    it to it
+                }.toMap()
+                println("unexpected")
+            } catch (error: IllegalStateException) {
+                println("caught")
+            }
+            println(sourcePairEvaluations)
+
+            var runtimePairEvaluations = 0
+            try {
+                listOf(1, 2, 3).asSequence().map {
+                    runtimePairEvaluations += 1
+                    if (it == 2) throw IllegalStateException("boom")
+                    it to it
+                }.toMap()
+                println("unexpected")
+            } catch (error: IllegalStateException) {
+                println("caught-runtime")
+            }
+            println(runtimePairEvaluations)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceToMapExceptionRuntime",
+            expected: "caught\n2\ncaught-runtime\n2\n"
+        )
+    }
 }
 #endif
