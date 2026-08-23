@@ -141,7 +141,7 @@ extension CallTypeChecker {
             "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         ].contains(calleeStr)
         let isCollectionHOF = (activeCollectionHOFNames.contains(calleeStr) || isIterableFilterFamilyHOF)
-            && (isCollectionReceiver || isSequenceReceiver || isIterableFilterFamilyHOF || (calleeStr == "asSequence" && isIterableReceiver))
+            && (isCollectionReceiver || isSequenceReceiver || (isIterableFilterFamilyHOF && isIterableReceiver) || (calleeStr == "asSequence" && isIterableReceiver))
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)
 
