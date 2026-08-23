@@ -1456,13 +1456,47 @@ struct ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let nullableIntType = sema.types.makeNullable(sema.types.intType)
 
             for memberName in ["firstOrNull", "lastOrNull", "getOrElse"] {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
-                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                if memberName == "firstOrNull" {
+                    // KSP-973: Collection inherits Iterable, so firstOrNull now resolves to bundled source.
+                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                    let chosenSymbol = try #require(sema.symbols.symbol(chosenCallee))
+                    #expect(
+                        chosenSymbol.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "firstOrNull"],
+                        "Expected Collection.firstOrNull to resolve to kotlin.collections.firstOrNull"
+                    )
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+
+                    let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                    #expect(signature.parameterTypes.isEmpty, "Expected Iterable.firstOrNull() to have no value parameters")
+                    let receiverType = try #require(signature.receiverType)
+                    guard case let .classType(receiver) = sema.types.kind(of: receiverType),
+                          let receiverSymbol = sema.symbols.symbol(receiver.classSymbol)
+                    else {
+                        Issue.record("Expected Collection.firstOrNull to have a class receiver")
+                        continue
+                    }
+                    #expect(
+                        receiverSymbol.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "Iterable"],
+                        "Expected Collection.firstOrNull receiver to be kotlin.collections.Iterable"
+                    )
+                    #expect(
+                        sema.bindings.exprTypes[callExpr] == nullableIntType,
+                        "Expected Collection.firstOrNull to return Int?"
+                    )
+                } else {
+                    #expect(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil,
+                        "Expected Collection.\(memberName) to remain unresolved"
+                    )
+                }
             }
 
             #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for Collection indexed lookup fallbacks")
