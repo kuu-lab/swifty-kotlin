@@ -522,7 +522,8 @@ extension CallTypeChecker {
         @discardableResult
         func bindBundledCollectionOwnerSourceFunction(
             receiverTypeArgumentCount: Int,
-            isOwnerSymbol: (SemanticSymbol) -> Bool
+            isOwnerSymbol: (SemanticSymbol) -> Bool,
+            matchingFunctionReturnType: TypeID? = nil
         ) -> Bool {
             let sourceFQName = [
                 interner.intern("kotlin"),
@@ -551,7 +552,25 @@ extension CallTypeChecker {
                 else {
                     return false
                 }
-                return sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol)
+                guard sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol) else {
+                    return false
+                }
+                if let matchingFunctionReturnType {
+                    guard let firstParameter = signature.parameterTypes.first,
+                          case let .functionType(functionType) = sema.types.kind(of: firstParameter)
+                    else {
+                        return false
+                    }
+                    // Fixed Double/Float overloads must win for those lambda return types;
+                    // the remaining overload is the generic Comparable form.
+                    if functionType.returnType != matchingFunctionReturnType,
+                       case .typeParam = sema.types.kind(of: functionType.returnType)
+                    {
+                        return true
+                    }
+                    return functionType.returnType == matchingFunctionReturnType
+                }
+                return true
             }),
                   let signature = sema.symbols.functionSignature(for: chosenCallee)
             else {
@@ -619,13 +638,17 @@ extension CallTypeChecker {
         }
 
         @discardableResult
-        func bindBundledMapSourceFunction() -> Bool {
+        func bindBundledMapSourceFunction(
+            matchingFunctionReturnType: TypeID? = nil
+        ) -> Bool {
             guard isMapReceiver, !isSequenceReceiver else {
                 return false
             }
-            return bindBundledCollectionOwnerSourceFunction(receiverTypeArgumentCount: 2) {
-                knownNames.isMapLikeSymbol($0)
-            }
+            return bindBundledCollectionOwnerSourceFunction(
+                receiverTypeArgumentCount: 2,
+                isOwnerSymbol: { knownNames.isMapLikeSymbol($0) },
+                matchingFunctionReturnType: matchingFunctionReturnType
+            )
         }
 
         // KSP-432: Set members are source-backed in Stdlib/kotlin/collections/SetHOF.kt.
@@ -2897,7 +2920,16 @@ extension CallTypeChecker {
                     nil
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                if !isSequenceReceiver, bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let didBindSource: Bool = if !isSequenceReceiver {
+                    if isMapReceiver, calleeStr == "maxWith" || calleeStr == "maxWithOrNull" {
+                        bindBundledMapSourceFunction()
+                    } else {
+                        bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    }
+                } else {
+                    false
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -2942,7 +2974,14 @@ extension CallTypeChecker {
                     nil
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorResultType]) {
+                let didBindSource: Bool = if isMapReceiver,
+                                             calleeStr == "maxOfWith" || calleeStr == "maxOfWithOrNull"
+                {
+                    bindBundledMapSourceFunction()
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorResultType])
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
@@ -3408,7 +3447,12 @@ extension CallTypeChecker {
                 if (calleeStr == "maxByOrNull" || calleeStr == "minByOrNull"), isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType, selectorType]
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
+                let didBindSource: Bool = if isMapReceiver, calleeStr == "maxBy" {
+                    bindBundledMapSourceFunction()
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -3439,7 +3483,14 @@ extension CallTypeChecker {
                 } else {
                     sema.types.anyType
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
+                let didBindSource: Bool = if isMapReceiver, calleeStr == "maxOf" {
+                    bindBundledMapSourceFunction(
+                        matchingFunctionReturnType: selectorType
+                    )
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -3512,7 +3563,14 @@ extension CallTypeChecker {
                     }
                 }
                 resultType = sema.types.makeNullable(selectorType)
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType]) {
+                let didBindSource: Bool = if isMapReceiver, calleeStr == "maxOfOrNull" {
+                    bindBundledMapSourceFunction(
+                        matchingFunctionReturnType: selectorType
+                    )
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [collectionElementType, selectorType])
+                }
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
