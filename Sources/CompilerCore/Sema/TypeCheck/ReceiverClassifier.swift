@@ -49,7 +49,7 @@ struct ReceiverClassifier {
             && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
-            isIterableReceiver: isIterableLikeType(receiverType),
+            // Keep concrete Kotlin collections on their collection-owned paths.\n            // Only exact Iterable and user-defined nominal Iterable implementations\n            // should activate the generic Iterable source extensions.\n            isIterableReceiver: isIterableLikeType(receiverType) && !isCollectionType,
             isCollectionReceiver: isCollectionExpr || isCollectionType,
             isSequenceReceiver: isSequenceLikeType(receiverType) || isSyntheticSequenceReceiver,
             isMapReceiver: isMapReceiver,
