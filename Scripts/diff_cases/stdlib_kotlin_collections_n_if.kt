@@ -5,9 +5,21 @@ class CustomCollection : AbstractCollection<String?>() {
     override fun iterator(): Iterator<String?> = emptyList<String?>().iterator()
 }
 
+class EmptyCustomCollection : AbstractCollection<String?>() {
+    override val size: Int get() = 0
+    override fun iterator(): Iterator<String?> = emptyList<String?>().iterator()
+}
+
 class CustomMap : Map<String?, Int?> by mapOf<String?, Int?>("key" to 1) {
     override val size: Int get() = 1
 }
+
+class EmptyCustomMap : Map<String?, Int?> by emptyMap<String?, Int?>() {
+    override val size: Int get() = 0
+}
+
+fun collectionIsEmpty(value: Collection<String?>): Boolean = value.isEmpty()
+fun mapIsEmpty(value: Map<String?, Int?>): Boolean = value.isEmpty()
 
 fun main() {
     var fallbackCalls = 0
@@ -70,6 +82,11 @@ fun main() {
         "unexpected-custom-map-fallback"
     }
     println(customMapIdentity === customMap)
+
+    println(collectionIsEmpty(customCollection))
+    println(collectionIsEmpty(EmptyCustomCollection()))
+    println(mapIsEmpty(customMap))
+    println(mapIsEmpty(EmptyCustomMap()))
 
     println(fallbackCalls)
 }
