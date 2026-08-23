@@ -4229,13 +4229,14 @@
     - `kotlin.collections.singleOrNull` — fun Iterable.singleOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/singleOrNull(): #A?`
     - `kotlin.collections.singleOrNull` — fun Iterable.singleOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/singleOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-993: kotlin.collections.Iterable.sorted-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-993: kotlin.collections.Iterable.sorted-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `sorted`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_sorted.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterable_sorted.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterable_sorted.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了証跡: PR #6196。Kotlin 2.3.10 focused diff 3件、対象Golden shard、Iterable専用CompilerBackend回帰、Runtime ABI 4テスト、TODO ID検査がPASS。List/Set/Sequence/Rangeと共有sorting fallbackは変更なし。
   - 未実装シンボル一覧:
     - `kotlin.collections.sorted` — fun Iterable.sorted(): List  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.collections/Iterable<#A>).kotlin.collections/sorted(): kotlin.collections/List<#A>`
     - `kotlin.collections.sortedBy` — fun Iterable.sortedBy(Function1): List  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.collections/Iterable<#A>).kotlin.collections/sortedBy(crossinline kotlin/Function1<#A, #B?>): kotlin.collections/List<#A>`
