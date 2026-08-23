@@ -7974,7 +7974,8 @@
   - 未実装シンボル一覧:
     - `kotlin.properties.ReadWriteProperty.getValue` — fun ReadWriteProperty.getValue(, KProperty): #B  -- `abstract fun getValue(#A, kotlin.reflect/KProperty<*>): #B`
 
-- [ ] KSP-1280: kotlin.random.Random top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1280: kotlin.random.Random top-level の未実装 stdlib API を実装する（2 件）
+  - 完了確認（2026-08-24）: merged PR #4630（`90955991243674b819ba7d0b0cfc290276218bc7`）で `Random`/`Default` を Kotlin source-backed 化し、PR #5778（`b1cefc32a3d82d3f925286e5d9c3a9d20ac337ab`）で upstream 構造を復元済み。現行 `Sources/CompilerCore/Stdlib/kotlin/random/Random.kt:48` の `public abstract class Random` が public `<init>()` を持ち、同 `:226` の `public companion object Default : Random()` が対象の ownership/type/identity を満たす。`RandomSyntheticLinkTests` の abstract/subclass・Default singleton・seed factory、`random_basic`/`random_default` Golden、Default codegen、Kotlin 2.3.10 metadata/kotlinc 最小 probe（`Random.Default === Random`、private subclass、`Random()` の abstract compile error）、`random_xorwow_parity`、Runtime ABI 4件を確認済み。
   - 対象: `kotlin.random.Random` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/random/Random/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
