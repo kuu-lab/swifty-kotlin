@@ -199,6 +199,11 @@ public inline fun <K, V, R> Map<K, V>.mapValuesTo(
 }
 
 /**
+ * Returns an iterator over the entries in this map.
+ */
+public inline operator fun <K, V> Map<out K, V>.iterator(): Iterator<Map.Entry<K, V>> = this.entries.iterator()
+
+/**
  * Returns the first entry yielding the largest value of the given [selector] or `null`
  * if there are no entries.
  */
@@ -295,4 +300,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-
