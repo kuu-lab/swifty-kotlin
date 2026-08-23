@@ -796,7 +796,11 @@ extension LoweringABIAndPropertyRegressionTests {
                                    "Var property with backing field should have a KIRGlobal")
                     let computedPropertySymbol = try #require(
                         sema.symbols.allSymbols().first(where: { symbol in
-                            symbol.kind == .property && symbol.name == computedName
+                            symbol.kind == .property
+                                && symbol.name == computedName
+                                && symbol.fqName == [
+                                    interner.intern("test"), interner.intern("Widget"), computedName
+                                ]
                         }),
                         "computed property symbol not found in sema"
                     )
