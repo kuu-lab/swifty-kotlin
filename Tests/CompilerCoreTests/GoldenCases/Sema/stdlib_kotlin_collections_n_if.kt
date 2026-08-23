@@ -12,6 +12,9 @@ class CustomMap : Map<String?, Int?> by mapOf<String?, Int?>("key" to 1) {
 fun main() {
     var fallbackCalls = 0
 
+    val listIsEmpty = listOf(1).isEmpty()
+    println(listIsEmpty)
+
     val nonEmptyCollection: Collection<String?> = listOf(null)
     val collectionIdentity: Any? = nonEmptyCollection.ifEmpty {
         fallbackCalls += 1

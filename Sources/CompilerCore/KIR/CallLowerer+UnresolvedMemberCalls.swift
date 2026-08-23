@@ -593,7 +593,7 @@ extension CallLowerer {
             case ("isEmpty", .array?):
                 return interner.intern("kk_array_is_empty")
             case ("isEmpty", .list?):
-                return interner.intern("__kk_list_is_empty")
+                return interner.intern("kk_list_is_empty")
             case ("isEmpty", .collection?):
                 return interner.intern("__kk_collection_isEmpty")
             default:

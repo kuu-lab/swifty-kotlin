@@ -1191,6 +1191,15 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
+        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        #expect(
+            callees.contains("kk_list_is_empty"),
+            "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
+        )
+    }
+
+    @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
         #expect(
