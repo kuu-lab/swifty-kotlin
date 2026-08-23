@@ -15,4 +15,4 @@ package kotlin.collections
  * An iterator over a mutable list that supports element insertion, replacement,
  * and removal while iterating.
  */
-public interface MutableListIterator<out T> : ListIterator<T>, MutableIterator<T>
+public interface MutableListIterator<T> : ListIterator<T>, MutableIterator<T>

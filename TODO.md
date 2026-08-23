@@ -3594,7 +3594,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableListIterator` — interface kotlin.collections.MutableListIterator  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableListIterator : kotlin.collections/ListIterator<#A>, kotlin.collections/MutableIterator<#A> {`
-  - 完了根拠: `MutableListIterator.kt` を source-backed 化し、ListIterator/MutableIterator 継承、out variance、custom implementation の Sema/Golden 回帰を追加。MutableList.listIterator() と共有 iterator runtime は維持し、add/set/remove residual は KSP-1073 の対象として残した。
+  - 完了根拠: `MutableListIterator.kt` を source-backed 化し、ListIterator/MutableIterator 継承、invariant type parameter、custom implementation と mutation variance の Sema/Golden 回帰を追加。MutableList.listIterator() と共有 iterator runtime は維持し、add/set/remove residual は KSP-1073 の対象として残した。
 
 - [ ] KSP-946: kotlin.collections.MutableMap-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `MutableMap`

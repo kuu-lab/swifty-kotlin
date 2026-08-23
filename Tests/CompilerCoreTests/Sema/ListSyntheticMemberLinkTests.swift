@@ -2196,7 +2196,7 @@ struct ListSyntheticMemberLinkTests {
             // KSP-945: the nominal interface is source-backed; mutation members
             // remain compiler residuals until their separate migration lands.
             #expect(!mutableListIteratorInfo.flags.contains(.synthetic))
-            #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.out])
+            #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.invariant])
 
             let directSupertypes = sema.symbols.directSupertypes(for: mutableListIteratorSymbol)
             #expect(directSupertypes.contains(listIteratorSymbol))
@@ -2296,6 +2296,27 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected MutableListIterator surface to resolve from MutableList: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
+    func testMutableListIteratorTypeParameterIsInvariantForMutation() throws {
+        let source = """
+        fun acceptAny(iterator: MutableListIterator<Any>) {
+            iterator.add(1)
+            iterator.set(2)
+        }
+
+        fun probe(iterator: MutableListIterator<String>) {
+            acceptAny(iterator)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError, "Expected MutableListIterator<String> to remain invariant when mutation consumes T")
         }
     }
 
