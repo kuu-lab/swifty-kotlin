@@ -508,11 +508,6 @@ extension CallTypeChecker {
         case ("UByte", "MIN_VALUE"): return (types.ubyteType, .uintLiteral(0))
         case ("UByte", "SIZE_BITS"): return (types.intType, .intLiteral(8))
         case ("UByte", "SIZE_BYTES"): return (types.intType, .intLiteral(1))
-        // UShort (16-bit unsigned)
-        case ("UShort", "MAX_VALUE"): return (types.ushortType, .uintLiteral(UInt64(UInt16.max)))
-        case ("UShort", "MIN_VALUE"): return (types.ushortType, .uintLiteral(0))
-        case ("UShort", "SIZE_BITS"): return (types.intType, .intLiteral(16))
-        case ("UShort", "SIZE_BYTES"): return (types.intType, .intLiteral(2))
         // Float
         case ("Float", "MAX_VALUE"): return (types.floatType, .floatLiteral(Double(Float.greatestFiniteMagnitude)))
         case ("Float", "MIN_VALUE"): return (types.floatType, .floatLiteral(Double(Float.leastNonzeroMagnitude)))

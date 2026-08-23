@@ -3246,18 +3246,15 @@
   - 未実装シンボル一覧:
     - `kotlin.UShort.<init>` — constructor (Short)  -- `constructor <init>(kotlin/Short)`
 
-- [ ] KSP-913: kotlin.UShort.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-913: kotlin.UShort.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.UShort.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UShort/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_UShort_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_UShort_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_UShort_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.UShort.Companion.MAX_VALUE` — val Companion.MAX_VALUE: UShort  -- `final const val MAX_VALUE`
-    - `kotlin.UShort.Companion.MIN_VALUE` — val Companion.MIN_VALUE: UShort  -- `final const val MIN_VALUE`
-    - `kotlin.UShort.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
-    - `kotlin.UShort.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了確認（2026-08-23）: `Sources/CompilerCore/Stdlib/kotlin/UShort/Companion/Companion.kt` に4 APIをsource-backed `public val` として実装。現行言語制約によりextension `const val`ではなく、既存numeric companionと同じpublic getter形式を採用した。Sema Goldenで直接参照・明示Companion receiver・型・定数式・0/65535境界・boxing/`is UShort` を固定し、UShort専用のnumeric companion fallbackだけを削除した。共有のunsigned boxing/runtime/ABIは保持。
+  - 検証: focused Golden、`stdlib_kotlin_UShort_Companion_Companion_n.kt` の`diff_kotlinc`、既存UShort numeric companion Backend回帰、KIR dump、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` がpass。
 
 - [ ] KSP-914: kotlin.UShortArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.UShortArray` / top-level
