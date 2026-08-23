@@ -948,7 +948,10 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `kotlin.collections.AbstractMutableMap<K, V>` surface (STDLIB-COL-ABSTRACT-007).
+    /// Register the fallback `kotlin.collections.AbstractMutableMap<K, V>` surface
+    /// (STDLIB-COL-ABSTRACT-007). The bundled declaration in
+    /// `Stdlib/kotlin/collections/AbstractMutableMap.kt` owns the normal source-backed
+    /// path; this shell remains available for non-bundled metadata contexts.
     func registerSyntheticAbstractMutableMapStub(
         symbols: SymbolTable,
         types: TypeSystem,

@@ -2102,7 +2102,7 @@ struct ListSyntheticMemberLinkTests {
             let abstractMutableMapSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName))
             let abstractMutableMapInfo = try #require(sema.symbols.symbol(abstractMutableMapSymbol))
             #expect(abstractMutableMapInfo.kind == .class)
-            #expect(abstractMutableMapInfo.flags.contains(.synthetic))
+            #expect(!abstractMutableMapInfo.flags.contains(.synthetic))
             #expect(abstractMutableMapInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableMapSymbol) == [.invariant, .invariant])
 
@@ -2160,7 +2160,7 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Map
         import kotlin.collections.MutableMap
 
-        class ProbeMutableMap : AbstractMutableMap<String, Int>()
+        abstract class ProbeMutableMap : AbstractMutableMap<String, Int>()
 
         fun acceptReadonly(values: Map<String, Int>) {}
         fun acceptMutable(values: MutableMap<String, Int>) {}
@@ -2168,6 +2168,24 @@ struct ListSyntheticMemberLinkTests {
         fun probe(values: ProbeMutableMap) {
             acceptReadonly(values)
             acceptMutable(values)
+        }
+
+        fun inheritedMapSurface(values: ProbeMutableMap, missing: String): Int? {
+            val readonly: Map<String, Int> = values
+            val mutable: MutableMap<String, Int> = values
+            val missingValue = readonly[missing]
+            mutable.putAll(emptyMap<String, Int>())
+            mutable.remove(missing)
+            val keyView = mutable.keys
+            val valueView = mutable.values
+            val entryView = readonly.entries
+            values.equals(readonly)
+            values.hashCode()
+            values.toString()
+            keyView.size
+            valueView.size
+            entryView.size
+            return missingValue
         }
         """
 
