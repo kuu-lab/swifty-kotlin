@@ -64,5 +64,32 @@ struct CodegenBackendListPlusMinusOperatorsTests {
             expected: "[1, 3]\n[1, 3]\n[1, 2, 3, 4]\n[1, 3]\n[1, 2, 2, 3, 4]\n"
         )
     }
+
+    @Test
+    func testCodegenArrayAndCollectionIsEmptyConditions() throws {
+        let source = """
+        fun arrayBranch(values: Array<out Int>): Int = if (values.isEmpty()) 1 else 2
+        fun intArrayBranch(values: IntArray): Int = if (values.isEmpty()) 1 else 2
+        fun listBranch(values: List<Int>): Int = if (values.isEmpty()) 1 else 2
+        fun collectionBranch(values: Collection<Int>): Int = if (values.isEmpty()) 1 else 2
+
+        fun main() {
+            println(arrayBranch(arrayOf(1)))
+            println(arrayBranch(emptyArray<Int>()))
+            println(intArrayBranch(intArrayOf(1)))
+            println(intArrayBranch(intArrayOf()))
+            println(listBranch(listOf(1)))
+            println(listBranch(listOf()))
+            println(collectionBranch(listOf(1)))
+            println(collectionBranch(listOf()))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayAndCollectionIsEmptyConditions",
+            expected: "2\n1\n2\n1\n2\n1\n2\n1\n"
+        )
+    }
 }
 #endif

@@ -16,4 +16,10 @@ fun main() {
     println(emptyArray<Int>().let { values.minus(it) })
     println(values.minus(emptySequence<Int>()))
     println(values.minus(emptyArrayOf))
+
+    fun arrayIsEmptyBranch(elements: Array<out Int>): Int {
+        return if (elements.isEmpty()) 1 else 2
+    }
+    println(arrayIsEmptyBranch(arrayOf(1)))
+    println(arrayIsEmptyBranch(emptyArray<Int>()))
 }
