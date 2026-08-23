@@ -3658,7 +3658,7 @@
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Int, Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Int, kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
 
-- [ ] KSP-951: kotlin.collections.check-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-951: kotlin.collections.check-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `check`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/check.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3668,6 +3668,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.checkCountOverflow` — fun checkCountOverflow(Int): Int  -- `final inline fun kotlin.collections/checkCountOverflow(kotlin/Int): kotlin/Int`
     - `kotlin.collections.checkIndexOverflow` — fun checkIndexOverflow(Int): Int  -- `final inline fun kotlin.collections/checkIndexOverflow(kotlin/Int): kotlin/Int`
+  - 完了根拠 (2026-08-23): `check.kt` に `@PublishedApi internal inline` の純Kotlin実装を追加し、負値は本家同等の `ArithmeticException`（`Count/Index overflow has happened.`）、非負値は同値を返すことを `kswiftc` 直接実行と kotlinc friend-path 実行で `Int.MIN_VALUE/-1/0/1/Int.MAX_VALUE` について確認。Sema Golden 400件、対象候補実行、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` が pass。通常consumerからinternal APIを呼べないため対象diffは `SKIP-DIFF`（failed=0）とし、KSP-959所有の `throw*Overflow` helperおよびcompiler/runtime/ABI bridgeは追加・変更していない。
 
 - [ ] KSP-952: kotlin.collections.hash-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / top-level / family `hash`
