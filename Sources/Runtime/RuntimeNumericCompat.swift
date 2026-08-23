@@ -144,6 +144,15 @@ private func runtimeStringHashCode(_ value: String) -> Int {
     }
 }
 
+// Kotlin Set.hashCode() is the order-independent sum of its element hashes.
+// Keep this aligned with RuntimeSetBox equality so sets that contain the same
+// elements in different insertion orders have identical hashes.
+private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
+    set.elements.reduce(0) { partial, element in
+        partial &+ kk_any_hashCode(element, 0)
+    }
+}
+
 private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if value == runtimeNullSentinelInt {
         return 0
@@ -203,6 +212,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+    }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        return runtimeSetHashCode(setBox)
     }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
