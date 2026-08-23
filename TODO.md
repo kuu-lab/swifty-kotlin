@@ -5076,7 +5076,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.DoubleIterator.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1052: kotlin.collections.FloatIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1052: kotlin.collections.FloatIterator top-level の未実装 stdlib API を実装する（1 件）。完了: KSP-664 / PR #5044（merge commit `0cb86890054c2b175cded80d1064a0e31647102b`）で `PrimitiveIterators.kt` に `public abstract class FloatIterator : Iterator<Float>`、`final next(): Float`、`abstract nextFloat(): Float` をsource-backed宣言済み。現行Semaは明示primary constructor構文もsecondary constructorもないpublic classへpublic引数なしの暗黙 `<init>` を生成するため、対象constructorは実装済み。既存 `ListSyntheticMemberLinkTests.testPrimitiveIteratorSurfacesAreRegistered` / `testPrimitiveIteratorSubclassResolvesAsIterator` がFloatIteratorの非synthetic・abstract・`Iterator<Float>`・next/nextFloat surfaceと継承解決を固定し、最小再現の `FloatIterator()` 継承もkswiftcのLLVM IR生成およびkotlinc参照コンパイルで確認済み。FloatIterator/PrimitiveIteratorのsynthetic stub、`kk_*`/`__kk_*` bridge、RuntimeABI、CallTypeChecker/CallLowerer name-string特例は現行treeに残存なし。このTODOは2.3.10 gap audit由来のstale項目。
   - 対象: `kotlin.collections.FloatIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/FloatIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
