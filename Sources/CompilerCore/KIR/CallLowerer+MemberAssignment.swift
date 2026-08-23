@@ -61,6 +61,33 @@ extension CallLowerer {
            || ownerInfo.kind == .object,
            memberPropertyUsesSetterAccessor(propertySymbol, ast: ast, sema: sema)
         {
+            // BUG-223: an open/abstract/override property with a custom
+            // setter whose owner has known subtypes must dispatch through the
+            // setter's vtable slot, exactly like the getter side — a direct
+            // call always runs *this* declaration's own setter body,
+            // regardless of the receiver's actual runtime type.
+            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .setter,
+                ast: ast,
+                sema: sema
+            ) {
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.virtualCall(
+                    symbol: accessorSymbol,
+                    callee: interner.intern("set"),
+                    receiver: receiverID,
+                    arguments: [valueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: dispatch
+                ))
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
             let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: sema.types.unitType)
@@ -99,24 +126,52 @@ extension CallLowerer {
         if let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
            let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
            let ownerInfo = sema.symbols.symbol(ownerSymbol),
-           ownerInfo.kind == .class || ownerInfo.kind == .interface,
-           let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
-               sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
-           ]
+           ownerInfo.kind == .class || ownerInfo.kind == .interface
         {
-            let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
-            instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_array_set"),
-                arguments: [receiverID, offsetExpr, valueID],
-                result: nil,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            let unit = arena.appendExpr(.unit, type: sema.types.unitType)
-            instructions.append(.constValue(result: unit, value: .unit))
-            return unit
+            // BUG-223: a stored open/abstract/override property whose owner
+            // has known subtypes must dispatch through its setter's vtable
+            // slot — the field offset below is only this declaration's own
+            // storage, which is correct only when no runtime-type override
+            // can be in play.
+            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .setter,
+                ast: ast,
+                sema: sema
+            ) {
+                let result = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.virtualCall(
+                    symbol: accessorSymbol,
+                    callee: interner.intern("set"),
+                    receiver: receiverID,
+                    arguments: [valueID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: dispatch
+                ))
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
+            if let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[
+                sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            ] {
+                let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+                instructions.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_array_set"),
+                    arguments: [receiverID, offsetExpr, valueID],
+                    result: nil,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                let unit = arena.appendExpr(.unit, type: sema.types.unitType)
+                instructions.append(.constValue(result: unit, value: .unit))
+                return unit
+            }
         }
         // Use the call binding from sema if available (property setter).
         let callBinding = sema.bindings.callBindings[exprID]
@@ -240,6 +295,31 @@ extension CallLowerer {
             ]
         }()
 
+        // BUG-223: an open/abstract/override property whose owner has known
+        // subtypes must dispatch both the read and the write half of this
+        // compound assignment through the getter/setter's vtable slot —
+        // mirroring `lowerMemberAssignExpr`'s identical treatment of a plain
+        // (`=`) assignment. Resolved once up front since both the load and
+        // store sections below need it.
+        let virtualGetterDispatch = propertySymbol.flatMap { propertySymbol in
+            tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .getter,
+                ast: ast,
+                sema: sema
+            )
+        }
+        let virtualSetterDispatch = propertySymbol.flatMap { propertySymbol in
+            tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .setter,
+                ast: ast,
+                sema: sema
+            )
+        }
+
         // ── Load ─────────────────────────────────────────────────────────
         let currentValue: KIRExprID
         if let syntheticLinks {
@@ -258,6 +338,19 @@ extension CallLowerer {
                 result, symbol: propertySymbol, sema: sema, arena: arena, interner: interner,
                 instructions: &instructions
             )
+        } else if let virtualGetterDispatch {
+            let result = arena.appendTemporary(type: propType)
+            instructions.append(.virtualCall(
+                symbol: virtualGetterDispatch.accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: receiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: virtualGetterDispatch.dispatch
+            ))
+            currentValue = result
         } else if usesAccessors, let propertySymbol {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
@@ -430,6 +523,18 @@ extension CallLowerer {
                 let globalRef = arena.appendExpr(.symbolRef(propertySymbol), type: propType)
                 instructions.append(.constValue(result: globalRef, value: .symbolRef(propertySymbol)))
                 instructions.append(.copy(from: newValue, to: globalRef))
+            } else if let virtualSetterDispatch {
+                let setterResult = arena.appendTemporary(type: sema.types.unitType)
+                instructions.append(.virtualCall(
+                    symbol: virtualSetterDispatch.accessorSymbol,
+                    callee: interner.intern("set"),
+                    receiver: receiverID,
+                    arguments: [newValue],
+                    result: setterResult,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: virtualSetterDispatch.dispatch
+                ))
             } else if usesAccessors, let propertySymbol {
                 let setterSymbol = sema.symbols.extensionPropertySetterAccessor(for: propertySymbol)
                     ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
