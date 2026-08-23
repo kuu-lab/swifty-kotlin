@@ -2878,7 +2878,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ReplaceWith.<init>` — constructor (String, Array)  -- `constructor <init>(kotlin/String, kotlin/Array<out kotlin/String>...)`
 
-- [ ] KSP-880: kotlin.ReplaceWith.ReplaceWith の未実装 stdlib API を実装する（2 件）
+- [x] KSP-880: kotlin.ReplaceWith.ReplaceWith の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ReplaceWith` / receiver `ReplaceWith`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ReplaceWith/ReplaceWith.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2888,7 +2888,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ReplaceWith.expression` — val ReplaceWith.expression: String  -- `final val expression`
     - `kotlin.ReplaceWith.imports` — val ReplaceWith.imports: Array  -- `final val imports`
-  - 備考: 既存の `ReplaceWith.kt` の primary-constructor properties を重複実装せず、vararg property の `Array<out String>` 型保持と annotation class member-property lowering を修正し、専用 Golden/diff 証跡を追加。
+  - 備考: #5881 (`9f1dfb4e`) で `ReplaceWith` を bundled source 化し、#5982 (`4b0c45b1`) で `expression`/`imports` の property lowering と専用 Golden/diff を実装済み。現行 `ReplaceWith.kt` と専用 fixture を確認済み。
 
 - [x] KSP-881: kotlin.RequiresOptIn top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.RequiresOptIn` / top-level
