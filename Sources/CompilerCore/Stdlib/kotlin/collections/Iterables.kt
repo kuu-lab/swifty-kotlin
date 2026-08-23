@@ -58,6 +58,21 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+public inline fun <T> Iterable<T>.find(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+public inline fun <T> Iterable<T>.findLast(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
     val elements = this.toMutableList()
     if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
