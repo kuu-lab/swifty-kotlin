@@ -1675,6 +1675,11 @@ extension CallTypeChecker {
                     if ["any", "none", "first", "last", "single"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
+                    if isMapReceiver, calleeStr == "none" {
+                        // KSP-1016: bind the zero-argument Map overload to its
+                        // bundled source symbol instead of the name-only fallback.
+                        _ = bindBundledMapSourceFunction()
+                    }
                     if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
                         _ = bindBundledListSourceFunction(
                             typeArguments: [],

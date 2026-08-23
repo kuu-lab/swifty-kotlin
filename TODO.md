@@ -4543,7 +4543,7 @@
     - `kotlin.collections.minus` — fun Map.minus(Sequence): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minus(kotlin.sequences/Sequence<#A>): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.minus` — fun Map.minus(Array): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minus(kotlin/Array<out #A>): kotlin.collections/Map<#A, #B>`
 
-- [ ] KSP-1016: kotlin.collections.Map.none-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1016: kotlin.collections.Map.none-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `none`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4552,6 +4552,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.none` — fun Map.none(): Boolean  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/none(): kotlin/Boolean`
+  - 完了根拠: Kotlin 2.3.10 の正確な公開 surface（非 inline、`Map<out K, V>` receiver、`isEmpty()` 委譲）を source-backed に追加し、既存の predicate overload（arity 1）と `kk_map_none` bridge は保持した。対象の zero-argument Map call は Sema で `kotlin.collections.none#29` に、predicate call は `#28` に分離され、Map member `isEmpty` の共有経路も変更していない。Kotlin 2.3.10 kotlinc との empty/non-empty、nullable/projected Map、custom Map の `isEmpty` 観測（1 回）、`entries` 非観測、receiver 1 回評価、例外伝播を確認した。対象 Sema Golden shard、diff、TODO ID、Runtime ABI link validation、Swift build が pass。
 
 - [ ] KSP-1017: kotlin.collections.Map.plus-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `plus`

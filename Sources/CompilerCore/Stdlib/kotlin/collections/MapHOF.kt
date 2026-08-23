@@ -1,6 +1,10 @@
 package kotlin.collections
 
 import kotlin.internal.__valuesEqual
+import kotlin.internal.KsSymbolName
+
+@KsSymbolName("kk_map_is_empty")
+private external fun <K, V> __kk_map_is_empty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
@@ -15,6 +19,8 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
         action(entry)
     }
 }
+
+
 
 /**
  * Returns `true` if at least one entry matches the given [predicate].
@@ -34,6 +40,13 @@ public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean):
         if (!predicate(entry)) return false
     }
     return true
+}
+
+/**
+ * Returns `true` if the map has no entries.
+ */
+public fun <K, V> Map<out K, V>.none(): Boolean {
+    return __kk_map_is_empty(this)
 }
 
 /**
@@ -295,4 +308,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-
