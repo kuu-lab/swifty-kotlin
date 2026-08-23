@@ -250,6 +250,7 @@ extension ExprLowerer {
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),
                    ownerInfo.kind == .class,
+                   !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
                    let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[symbol]
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
@@ -337,6 +338,7 @@ extension ExprLowerer {
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerInfo = sema.symbols.symbol(ownerSymbol),
                    ownerInfo.kind == .class,
+                   !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
                    let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[symbol]
                 {
                     let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: symbol)
@@ -564,7 +566,8 @@ extension ExprLowerer {
                    let receiverExprID = driver.ctx.activeImplicitReceiverExprID(),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),
                    let ownerKind = sema.symbols.symbol(ownerSymbol)?.kind,
-                   ownerKind == .class || ownerKind == .interface
+                   ownerKind == .class,
+                   !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty
                 {
                     let resultType = boundType
                         ?? sema.symbols.propertyType(for: symbol)

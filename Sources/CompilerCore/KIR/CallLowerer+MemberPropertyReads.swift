@@ -226,7 +226,9 @@ extension CallLowerer {
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
         // subclass's `entries` override.
-        if let propertyInfo = sema.symbols.symbol(propertySymbol),
+        if ownerInfo.kind == .class,
+           !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
+           let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[propertySymbol],
            propertyInfo.flags.contains(.abstractType)
                || propertyInfo.flags.contains(.openType)

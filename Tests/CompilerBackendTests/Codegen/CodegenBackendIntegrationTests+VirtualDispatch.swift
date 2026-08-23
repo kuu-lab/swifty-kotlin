@@ -87,6 +87,31 @@ struct CodegenBackendVirtualDispatchTests {
         try assertKotlinOutput(source, moduleName: "OpenClassVirtualDispatchRuntime", expected: "dog\ncat\nbase\n")
     }
 
+    @Test
+    func testOpenPropertyReadUsesDirectAccessWithoutSubtypeAndVirtualOverrideWithSubtype() throws {
+        let source = """
+        open class DirectRead {
+            open val p: Int = 5
+        }
+        open class Parent {
+            open val p: Int = 6
+        }
+        class Child : Parent() {
+            override val p: Int = 7
+        }
+        fun main() {
+            println(DirectRead().p)
+            val parent: Parent = Child()
+            println(parent.p)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "OpenPropertyDispatchRuntime",
+            expected: "5\n7\n"
+        )
+    }
+
     // BUG-156: the interface method implemented by the abstract base must be
     // reachable through the concrete subclass' itable, and the base's
     // unqualified `compute()` must reach the subclass override.
