@@ -86,4 +86,9 @@ fun main() {
     // Keep non-Iterable filter receivers on their own source-backed owners.
     println(arrayOf(1, 2, 3).filter { it > 1 })
     println("abc".filter { it != 'b' })
+
+    // Keep concrete collection consumers on their own overloads.
+    val addAllDestination = mutableListOf<Int>()
+    println(addAllDestination.addAll(sequenceOf(4, 5).asIterable()))
+    println(addAllDestination)
 }
