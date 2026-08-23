@@ -3754,16 +3754,17 @@
     - `kotlin.collections.setOfNotNull` — fun setOfNotNull(): Set  -- `final fun <#A: kotlin/Any> kotlin.collections/setOfNotNull(#A?): kotlin.collections/Set<#A>`
     - `kotlin.collections.setOfNotNull` — fun setOfNotNull(Array): Set  -- `final fun <#A: kotlin/Any> kotlin.collections/setOfNotNull(kotlin/Array<out #A?>...): kotlin.collections/Set<#A>`
 
-- [ ] KSP-959: kotlin.collections.throw-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-959: kotlin.collections.throw-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `throw`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/throw.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_throw.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_throw.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_throw.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 対象シンボル一覧:
     - `kotlin.collections.throwCountOverflow` — fun throwCountOverflow(): Unit  -- `final fun kotlin.collections/throwCountOverflow()`
     - `kotlin.collections.throwIndexOverflow` — fun throwIndexOverflow(): Unit  -- `final fun kotlin.collections/throwIndexOverflow()`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/throw.kt` に本家同等の `@PublishedApi` / `@SinceKotlin("1.3")` / `internal` source-backed 実装を追加し、両関数が常に `ArithmeticException` と本家同一メッセージを投げることを固定。ブロック本体で明示戻り値なしの本家契約は `Unit`（`Nothing` ではない）。focused Sema 回帰で非synthetic・非RuntimeABI・bundled source path・visibility・`Unit` を確認し、Sema Golden と direct kswiftc/kotlinc parity を通過。internal API のため通常 consumer diff は不可視であり、diff case は `SKIP-DIFF` として同一 package の direct 実行を別途確認。
 
 - [ ] KSP-960: kotlin.collections.Collection の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.collections` / receiver `Collection`
