@@ -3191,13 +3191,14 @@
     - `kotlin.UInt.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.UInt.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-908: kotlin.UIntArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-908: kotlin.UIntArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.UIntArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UIntArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_UIntArray_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_UIntArray_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_UIntArray_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `UIntArray(Int)` は既存のprimitive-array special callと`kk_array_new_checked`で実装済みだったため重複実装せず、専用Sema/KIR/diffで0長・0初期値・負サイズ例外を固定した。#5920（commit `19408145b`）は`UIntArray(Int, (Int) -> UInt)`のsize+initのみであり、今回の所有範囲外。`UIntArray(IntArray)`はKotlin本家でinternal storage constructorのため、`UIntArray.kt`に共有backing storage view (`IntArray.asUIntArray()`)へ委譲する`@PublishedApi internal`実装を追加し、stdlib consumer metadataからは除外した。共有runtime/ABI/view bridgeは利用中のため保持した。
   - 未実装シンボル一覧:
     - `kotlin.UIntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.UIntArray.<init>` — constructor (IntArray)  -- `constructor <init>(kotlin/IntArray)`

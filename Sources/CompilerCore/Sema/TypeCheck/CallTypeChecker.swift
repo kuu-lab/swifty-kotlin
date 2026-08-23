@@ -637,6 +637,13 @@ final class CallTypeChecker {
             ctx.cachedScopeLookup(calleeName).contains { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
+                      // Internal storage constructors are implementation
+                      // details and must not shadow the public primitive
+                      // array size constructor.
+                      symbol.visibility == .public,
+                      !sema.symbols.annotations(for: candidate).contains(
+                          where: { $0.annotationFQName == "kotlin.PublishedApi" }
+                      ),
                       sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
