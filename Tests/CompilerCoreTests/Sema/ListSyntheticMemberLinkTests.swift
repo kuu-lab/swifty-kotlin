@@ -333,13 +333,12 @@ struct ListSyntheticMemberLinkTests {
             let interner = ctx.interner
             let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
 
-            // KSP-627: the aliases are declared by
+            // KSP-627: the remaining aliases are declared by
             // `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt`,
             // not by synthetic self-registration.
             for (aliasName, targetName) in [
                 ("ArrayList", "MutableList"),
                 ("HashSet", "MutableSet"),
-                ("HashMap", "MutableMap"),
                 ("LinkedHashMap", "MutableMap"),
             ] {
                 let aliasSymbol = try #require(
@@ -357,6 +356,19 @@ struct ListSyntheticMemberLinkTests {
                 }
                 #expect(try interner.resolve(#require(sema.symbols.symbol(underlyingClass.classSymbol)?.name)) == targetName)
             }
+
+            let hashMapSymbol = try #require(
+                sema.symbols.lookupAll(fqName: kotlinCollections + [interner.intern("HashMap")])
+                    .first { sema.symbols.symbol($0)?.kind == .class },
+                "Expected HashMap to be registered as a class"
+            )
+            let hashMapInfo = try #require(sema.symbols.symbol(hashMapSymbol))
+            #expect(!hashMapInfo.flags.contains(.synthetic), "Expected HashMap to be source-backed")
+            #expect(hashMapInfo.declSite != nil, "Expected HashMap to carry a declaration site")
+            let mutableMapSymbol = try #require(
+                sema.symbols.lookup(fqName: kotlinCollections + [interner.intern("MutableMap")])
+            )
+            #expect(sema.symbols.directSupertypes(for: hashMapSymbol).contains(mutableMapSymbol))
         }
     }
 

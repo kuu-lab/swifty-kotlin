@@ -291,6 +291,17 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_hash_map_of",
+            parameters: [
+                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         // STDLIB-410: emptyMap
         RuntimeABIFunctionSpec(
             name: "__kk_emptyMap",

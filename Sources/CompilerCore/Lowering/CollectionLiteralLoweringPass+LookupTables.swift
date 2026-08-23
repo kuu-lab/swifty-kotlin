@@ -162,6 +162,7 @@ struct CollectionLiteralLookupTables {
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
+    var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
