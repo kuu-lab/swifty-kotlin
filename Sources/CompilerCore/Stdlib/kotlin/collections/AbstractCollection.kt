@@ -33,4 +33,22 @@ public abstract class AbstractCollection<out E> protected constructor() : Collec
     abstract override val size: Int
 
     abstract override fun iterator(): Iterator<E>
+
+    override fun contains(element: @UnsafeVariance E): Boolean {
+        val iterator = iterator()
+        while (iterator.hasNext()) {
+            if (iterator.next() == element) return true
+        }
+        return false
+    }
+
+    override fun containsAll(elements: Collection<@UnsafeVariance E>): Boolean {
+        val iterator = elements.iterator()
+        while (iterator.hasNext()) {
+            if (!contains(iterator.next())) return false
+        }
+        return true
+    }
+
+    override fun isEmpty(): Boolean = size == 0
 }

@@ -1843,6 +1843,34 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testAbstractCollectionProvidesConcreteCollectionDefaults() throws {
+        let source = """
+        import kotlin.collections.AbstractCollection
+        import kotlin.collections.Collection
+        import kotlin.collections.Iterator
+
+        class IntBag : AbstractCollection<Int>() {
+            override val size: Int
+                get() = 0
+
+            override fun iterator(): Iterator<Int> = ArrayList<Int>().iterator()
+        }
+
+        fun probe(values: IntBag): Boolean {
+            val collection: Collection<Int> = values
+            return collection.isEmpty() || collection.contains(1) || collection.containsAll(collection)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractCollection defaults to satisfy Collection members: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
     func testAbstractListSurfaceIsRegistered() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
