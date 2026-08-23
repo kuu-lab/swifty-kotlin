@@ -398,15 +398,17 @@ extension CallLowerer {
     }
 
     /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
-    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
-    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
+    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
+    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.int, .nonNull),
+        case .primitive(.byte, .nonNull),
+             .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),
              .primitive(.double, .nonNull),
