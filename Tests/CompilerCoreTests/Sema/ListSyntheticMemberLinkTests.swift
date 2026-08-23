@@ -1839,6 +1839,53 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testSourceBackedAbstractSetUsesInheritedAbstractContract() throws {
+        let source = """
+        import kotlin.collections.AbstractSet
+
+        abstract class ProbeSet : AbstractSet<Int>()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let abstractSetName = ctx.interner.intern("AbstractSet")
+            let abstractSetFQName = collectionsPkg + [abstractSetName]
+            let abstractSetSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName))
+            let abstractSetInfo = try #require(sema.symbols.symbol(abstractSetSymbol))
+            let abstractCollectionName = ctx.interner.intern("AbstractCollection")
+            let abstractCollectionFQName = collectionsPkg + [abstractCollectionName]
+            let abstractCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractCollectionFQName))
+
+            // The bundled AbstractSet source has no direct abstract member;
+            // its abstract size/iterator contract is inherited from
+            // AbstractCollection, matching Kotlin's stdlib hierarchy.
+            #expect(!abstractSetInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.directSupertypes(for: abstractSetSymbol).contains(abstractCollectionSymbol))
+            let inheritedAbstractNames = sema.symbols.children(ofFQName: abstractCollectionFQName)
+                .compactMap { sema.symbols.symbol($0) }
+                .filter { symbol in
+                    (symbol.kind == .function || symbol.kind == .property) && symbol.flags.contains(.abstractType)
+                }
+                .map { ctx.interner.resolve($0.name) }
+            #expect(inheritedAbstractNames.contains("size"))
+            #expect(inheritedAbstractNames.contains("iterator"))
+
+            let falsePositiveWarnings = ctx.diagnostics.diagnostics.filter { diagnostic in
+                diagnostic.code == "KSWIFTK-SEMA-ABSTRACT" &&
+                    (diagnostic.message.contains("kotlin.collections.AbstractSet") ||
+                        diagnostic.message.contains("ProbeSet"))
+            }
+            #expect(
+                falsePositiveWarnings.isEmpty,
+                "AbstractSet's inherited abstract contract must not produce an empty-abstract-class warning for AbstractSet or its minimal subclass: \(falsePositiveWarnings)"
+            )
+        }
+    }
+
+    @Test
     func testAbstractListCanBeUsedAsListSupertype() throws {
         let source = """
         import kotlin.collections.AbstractList
