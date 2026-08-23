@@ -3969,9 +3969,11 @@
     - `kotlin.collections.firstOrNull` — fun Iterable.firstOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/firstOrNull(): #A?`
     - `kotlin.collections.firstOrNull` — fun Iterable.firstOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/firstOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-974: kotlin.collections.Iterable.flat-family の未実装 stdlib API を実装する（8 件）
+- [x] KSP-974: kotlin.collections.Iterable.flat-family の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `flat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
+  - 実装根拠: Iterable/Sequence の `flatMap`・`flatMapIndexed`・`flatMapTo`・`flatMapIndexedTo` 各 overload を Kotlin 2.3.10 原典どおり source-backed 化。`@JvmName`、lambda-return overload annotation、`C : MutableCollection<in R>`、fresh List・順序・indexed・destination identity を保持し、Iterable receiver の compiler inference/callee selection も固定。
+  - 回帰: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_flat.kt` / `.golden`、`Scripts/diff_cases/stdlib_kotlin_collections_Iterable_flat.kt`。既存 List Golden の2行は同名 overload 追加による機械的 callee 番号同期。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_flat.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterable_flat.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterable_flat.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
