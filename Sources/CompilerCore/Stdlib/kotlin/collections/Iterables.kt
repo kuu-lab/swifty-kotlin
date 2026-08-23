@@ -36,6 +36,30 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
 
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
+public fun <T> Iterable<T>.first(): T {
+    for (element in this) return element
+    throw NoSuchElementException("Collection is empty.")
+}
+
+public inline fun <T> Iterable<T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    throw NoSuchElementException("Collection contains no element matching the predicate.")
+}
+
+public fun <T> Iterable<T>.firstOrNull(): T? {
+    for (element in this) return element
+    return null
+}
+
+public inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> Iterable<T>.last(): T {
     var found = false
@@ -101,7 +125,8 @@ public fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
-public fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+@SinceKotlin("1.5")
+public inline fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
     for (element in this) {
         val result = transform(element)
         if (result != null) return result
@@ -109,7 +134,8 @@ public fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): 
     return null
 }
 
-public fun <T, R : Any> Iterable<T>.firstNotNullOf(transform: (T) -> R?): R {
+@SinceKotlin("1.5")
+public inline fun <T, R : Any> Iterable<T>.firstNotNullOf(transform: (T) -> R?): R {
     for (element in this) {
         val result = transform(element)
         if (result != null) return result

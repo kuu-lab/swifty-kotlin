@@ -3954,13 +3954,14 @@
     - `kotlin.collections.find` — fun Iterable.find(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/find(kotlin/Function1<#A, kotlin/Boolean>): #A?`
     - `kotlin.collections.findLast` — fun Iterable.findLast(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/findLast(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-973: kotlin.collections.Iterable.first-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-973: kotlin.collections.Iterable.first-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `first`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_first.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterable_first.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterable_first.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠 (2026-08-23): `Iterables.kt` に6宣言をsource-backed化し、既存の`firstNotNullOf`/`firstNotNullOfOrNull`（KSP-435、`cff5f992e` / PR #5525由来）は重複追加せず、`inline`/`@SinceKotlin("1.5")`と意味論を整合。Semaで6件のcalleeが`kotlin.collections.Iterable`かつexternal linkなし、Golden/diff/backend回帰で型・実行結果・short-circuit・例外・nullable値を固定。`__kk_iterable_firstNotNullOf*`はList/Array/Sequence等と共有されるlegacy/ABI経路のため削除していない。
   - 未実装シンボル一覧:
     - `kotlin.collections.first` — fun Iterable.first(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/first(): #A`
     - `kotlin.collections.first` — fun Iterable.first(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/first(kotlin/Function1<#A, kotlin/Boolean>): #A`
