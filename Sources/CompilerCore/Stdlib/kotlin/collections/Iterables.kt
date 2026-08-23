@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.random.Random
+
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
