@@ -631,7 +631,7 @@ private func runtimeExceptionMessage(from raw: Int, defaultMessage: String?) -> 
     return extractString(from: UnsafeMutableRawPointer(bitPattern: raw)) ?? defaultMessage
 }
 
-private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
+func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
     switch kotlinFQName {
     case "kotlin.Exception":
         return "java.lang.Exception"

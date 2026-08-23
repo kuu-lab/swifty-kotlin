@@ -334,7 +334,12 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
 /// tag=1 (object pointer, non-primitive).
 @_cdecl("kk_any_member_to_string")
 public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
-    kk_any_to_string(raw, 1)
+    if runtimeIsThrowableRaw(raw),
+       let rendered = UnsafeMutableRawPointer(bitPattern: __kk_throwable_toString(raw))
+    {
+        return rendered
+    }
+    return kk_any_to_string(raw, 1)
 }
 
 @_cdecl("kk_any_member_hashCode")

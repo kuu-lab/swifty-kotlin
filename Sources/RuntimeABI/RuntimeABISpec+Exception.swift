@@ -609,8 +609,15 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
             returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
+            section: "Exception"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_throwable_toString",
+            parameters: [
+                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_printStderr",

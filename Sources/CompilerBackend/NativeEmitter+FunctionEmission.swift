@@ -2631,6 +2631,21 @@ extension NativeEmitter {
                 let calleeName = interner.resolve(callee)
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
+                let isThrowableToStringVirtualCall: Bool = {
+                    guard calleeName == "toString",
+                          case .vtable(0) = dispatch,
+                          let typeSystem,
+                          let symbols,
+                          let receiverType = module.arena.exprType(receiver),
+                          let throwableSymbol = symbols.lookup(fqName: [
+                              interner.intern("kotlin"), interner.intern("Throwable"),
+                          ])
+                    else {
+                        return false
+                    }
+                    let throwableType = typeSystem.make(.classType(ClassType(classSymbol: throwableSymbol)))
+                    return typeSystem.isSubtype(typeSystem.makeNonNullable(receiverType), throwableType)
+                }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
                     argumentCount: argumentValues.count
@@ -2701,6 +2716,12 @@ extension NativeEmitter {
                         named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
+                    )
+                } else if isThrowableToStringVirtualCall {
+                    declareExternalFunction(
+                        named: "__kk_throwable_toString",
+                        argumentCount: argumentValues.count,
+                        appendThrownChannel: true
                     )
                 } else if sourceExternalFunction != nil {
                     sourceExternalFunction
