@@ -24,6 +24,16 @@ private fun throwableToString(message: String): String {
 
 private fun overridingToString(): String = OverridingThrowable().toString()
 
+private fun overridingAsThrowableToString(): String {
+    val value: Throwable = OverridingThrowable()
+    return value.toString()
+}
+
+private fun overridingAsAnyToString(): String {
+    val value: Any = OverridingThrowable()
+    return value.toString()
+}
+
 private fun caughtToString(message: String): String =
     try {
         throw Throwable(message)
@@ -43,6 +53,8 @@ fun main() {
     val message = directToString("message")
     val withCause = Throwable("outer", Throwable("inner")).toString()
     val overridden = overridingToString()
+    val overriddenAsThrowable = overridingAsThrowableToString()
+    val overriddenAsAny = overridingAsAnyToString()
     val noArg = NoArgThrowable()
     val noArgAny: Any = noArg
     val cause = Throwable("cause")
@@ -58,6 +70,8 @@ fun main() {
     println(caughtToString("caught"))
     println(withCause)
     println(overridden)
+    println(overriddenAsThrowable)
+    println(overriddenAsAny)
     println(noArg.toString())
     println(noArg.message ?: "null")
     println(noArg.cause?.toString() ?: "null")
@@ -77,6 +91,8 @@ fun main() {
     println(hasSuffix(caughtToString("caught"), "Throwable: caught"))
     println(hasSuffix(withCause, "Throwable: outer"))
     println(hasSuffix(overridden, "override"))
+    println(hasSuffix(overriddenAsThrowable, "override"))
+    println(hasSuffix(overriddenAsAny, "override"))
     println(hasSuffix(noArg.toString(), "NoArgThrowable"))
     println(noArg.message == null)
     println(noArg.cause == null)

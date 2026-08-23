@@ -24,6 +24,16 @@ fun throwableAsThrowableToString(message: String): String {
 
 fun throwableOverrideToString(): String = OverridingThrowable().toString()
 
+fun throwableOverrideAsThrowableToString(): String {
+    val value: Throwable = OverridingThrowable()
+    return value.toString()
+}
+
+fun throwableOverrideAsAnyToString(): String {
+    val value: Any = OverridingThrowable()
+    return value.toString()
+}
+
 fun throwableSubclassToString(message: String): String = NamedThrowable(message).toString()
 
 fun throwableCaughtToString(message: String): String =
