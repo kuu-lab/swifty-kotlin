@@ -1,5 +1,9 @@
 private class NamedThrowable(message: String?) : Throwable(message)
 
+private class NoArgThrowable : Throwable()
+
+private class MessageCauseThrowable(message: String?, cause: Throwable?) : Throwable(message, cause)
+
 private class OverridingThrowable : Throwable("base") {
     override fun toString(): String = "override"
 }
@@ -39,6 +43,11 @@ fun main() {
     val message = directToString("message")
     val withCause = Throwable("outer", Throwable("inner")).toString()
     val overridden = overridingToString()
+    val noArg = NoArgThrowable()
+    val noArgAny: Any = noArg
+    val cause = Throwable("cause")
+    val messageCause = MessageCauseThrowable("message", cause)
+    val messageCauseAny: Any = messageCause
 
     println(nullMessage)
     println(emptyMessage)
@@ -49,6 +58,16 @@ fun main() {
     println(caughtToString("caught"))
     println(withCause)
     println(overridden)
+    println(noArg.toString())
+    println(noArg.message ?: "null")
+    println(noArg.cause?.toString() ?: "null")
+    println(noArgAny.toString())
+    println(noArgAny is Throwable)
+    println(messageCause.toString())
+    println(messageCause.message ?: "null")
+    println(messageCause.cause?.toString() ?: "null")
+    println(messageCauseAny.toString())
+    println(messageCauseAny is Throwable)
     println(hasSuffix(nullMessage, "Throwable"))
     println(hasSuffix(emptyMessage, "Throwable: "))
     println(hasSuffix(message, "Throwable: message"))
@@ -58,5 +77,12 @@ fun main() {
     println(hasSuffix(caughtToString("caught"), "Throwable: caught"))
     println(hasSuffix(withCause, "Throwable: outer"))
     println(hasSuffix(overridden, "override"))
+    println(hasSuffix(noArg.toString(), "NoArgThrowable"))
+    println(noArg.message == null)
+    println(noArg.cause == null)
+    println(hasSuffix(messageCause.toString(), "MessageCauseThrowable: message"))
+    println(messageCause.message == "message")
+    println(messageCause.cause === cause)
+    println(messageCauseAny is Throwable)
     println(stackTraceSummary())
 }

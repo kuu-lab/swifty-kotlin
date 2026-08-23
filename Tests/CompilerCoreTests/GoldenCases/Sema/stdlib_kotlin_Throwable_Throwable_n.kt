@@ -2,6 +2,10 @@ package golden.sema
 
 private class NamedThrowable(message: String?) : Throwable(message)
 
+private class NoArgThrowable : Throwable()
+
+private class MessageCauseThrowable(message: String?, cause: Throwable?) : Throwable(message, cause)
+
 private class OverridingThrowable : Throwable("base") {
     override fun toString(): String = "override"
 }
@@ -31,5 +35,21 @@ fun throwableCaughtToString(message: String): String =
 
 fun throwableWithCauseToString(): String =
     Throwable("outer", Throwable("inner")).toString()
+
+fun throwableNoArgToString(): String = NoArgThrowable().toString()
+
+fun throwableNoArgIsThrowable(): Boolean {
+    val value: Any = NoArgThrowable()
+    return value is Throwable
+}
+
+fun throwableMessageCauseToString(): String =
+    MessageCauseThrowable("message", Throwable("cause")).toString()
+
+fun throwableMessageCauseMessage(): String =
+    MessageCauseThrowable("message", Throwable("cause")).message ?: "null"
+
+fun throwableMessageCauseCause(): String =
+    MessageCauseThrowable("message", Throwable("cause")).cause?.toString() ?: "null"
 
 fun throwableStackTraceSize(): Int = Throwable("trace").getStackTrace().size

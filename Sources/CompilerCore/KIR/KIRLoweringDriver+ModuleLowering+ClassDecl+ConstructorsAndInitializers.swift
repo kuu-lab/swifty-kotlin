@@ -151,30 +151,75 @@ extension KIRLoweringDriver {
             // Initialize that object through the message accessor instead of
             // discarding it in favor of the factory result.
             let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            let nullableThrowableType = sema.types.make(.classType(ClassType(
+                classSymbol: superclassSymbol,
+                args: [],
+                nullability: .nullable
+            )))
             guard superclassInfo.fqName.map({ compilationCtx.interner.resolve($0) }) == ["kotlin", "Throwable"],
-                  superArgs.count == 1,
-                  sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes == [nullableStringType],
-                  let setterSymbol = sema.symbols.lookupAll(
-                      fqName: superclassInfo.fqName.dropLast() + [compilationCtx.interner.intern("__kkThrowableSetMessage")]
-                  ).first(where: { candidate in
-                      sema.symbols.symbol(candidate)?.kind == .function
-                  })
+                  let signature = sema.symbols.functionSignature(for: superCtorSymbol)
             else {
                 return
             }
-            let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
-            let resultID = arena.appendTemporary(type: sema.types.unitType)
-            body.append(.call(
-                symbol: setterSymbol,
-                callee: compilationCtx.interner.intern(
-                    sema.symbols.externalLinkName(for: setterSymbol) ?? "__kkThrowableSetMessage"
-                ),
-                arguments: [receiverID, messageID],
-                result: resultID,
-                canThrow: false,
-                thrownResult: nil,
-                isSuperCall: false
-            ))
+
+            func setterSymbol(named name: String) -> SymbolID? {
+                sema.symbols.lookupAll(
+                    fqName: superclassInfo.fqName.dropLast() + [compilationCtx.interner.intern(name)]
+                ).first(where: { candidate in
+                    sema.symbols.symbol(candidate)?.kind == .function
+                })
+            }
+
+            func emitSetter(_ symbol: SymbolID, argument: KIRExprID, fallbackName: String) {
+                let resultID = arena.appendTemporary(type: sema.types.unitType)
+                body.append(.call(
+                    symbol: symbol,
+                    callee: compilationCtx.interner.intern(
+                        sema.symbols.externalLinkName(for: symbol) ?? fallbackName
+                    ),
+                    arguments: [receiverID, argument],
+                    result: resultID,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
+                ))
+            }
+
+            switch signature.parameterTypes.count {
+            case 0:
+                guard superArgs.isEmpty,
+                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
+                else {
+                    return
+                }
+                let messageID = arena.appendExpr(.null, type: nullableStringType)
+                body.append(.constValue(result: messageID, value: .null))
+                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
+            case 1:
+                guard signature.parameterTypes[0] == nullableStringType,
+                      superArgs.count == 1,
+                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage")
+                else {
+                    return
+                }
+                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
+                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
+            case 2:
+                guard signature.parameterTypes[0] == nullableStringType,
+                      signature.parameterTypes[1] == nullableThrowableType,
+                      superArgs.count == 2,
+                      let messageSetter = setterSymbol(named: "__kkThrowableSetMessage"),
+                      let causeSetter = setterSymbol(named: "__kkThrowableSetCause")
+                else {
+                    return
+                }
+                let messageID = lowerExpr(superArgs[0].expr, shared: shared, emit: &body)
+                let causeID = lowerExpr(superArgs[1].expr, shared: shared, emit: &body)
+                emitSetter(messageSetter, argument: messageID, fallbackName: "__kkThrowableSetMessage")
+                emitSetter(causeSetter, argument: causeID, fallbackName: "__kkThrowableSetCause")
+            default:
+                return
+            }
             return
         }
         // Synthetic nominal shells may expose a constructor for Sema
