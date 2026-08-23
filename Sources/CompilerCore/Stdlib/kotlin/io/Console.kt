@@ -10,12 +10,23 @@ import kotlin.internal.KsSymbolName
 @KsSymbolName("__kk_print_raw")
 internal external fun __printRaw(message: Any?)
 
+// KSP-1163: Kotlin/Native keeps String-specialized console bridges in the
+// kotlin.io metadata. The bundled compiler exposes the same exact overloads;
+// the call-site lowering may still use the shared raw bridge for user calls.
+@PublishedApi
+@KsSymbolName("__kk_print_raw")
+internal external fun print(message: String)
+
+@PublishedApi
+@KsSymbolName("__kk_println_raw")
+internal external fun println(message: String)
+
 public fun print() {
     __printRaw("")
 }
 
 public fun print(message: Any?) {
-    __printRaw(message.toString())
+    print(message.toString())
 }
 
 public fun println() {
@@ -23,8 +34,7 @@ public fun println() {
 }
 
 public fun println(message: Any?) {
-    __printRaw(message.toString())
-    __printRaw("\n")
+    println(message.toString())
 }
 
 // KSP-615: kotlin.io.readLine / readln / readlnOrNull.
