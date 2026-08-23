@@ -27,6 +27,23 @@ class FailingIterable : Iterable<Int> {
     override fun iterator(): Iterator<Int> = FailingIterator()
 }
 
+class FailingPairIterator : Iterator<Pair<Int, Int>> {
+    private var index = 0
+
+    override fun hasNext(): Boolean = index < 2
+
+    override fun next(): Pair<Int, Int> {
+        if (index == 1) throw IllegalStateException("pair-boom")
+        val result = index to (index + 10)
+        index += 1
+        return result
+    }
+}
+
+class FailingPairIterable : Iterable<Pair<Int, Int>> {
+    override fun iterator(): Iterator<Pair<Int, Int>> = FailingPairIterator()
+}
+
 fun main() {
     val collectionDestination = mutableListOf<Int>(9)
     val collectionResult = OneShotIterable(listOf(1, 2, 2)).toCollection(collectionDestination)
@@ -68,6 +85,34 @@ fun main() {
         println(e.message)
     }
     println(failingDestination)
+
+    val ordinaryLoopValues = mutableListOf<Int>()
+    try {
+        for (value in FailingIterable()) ordinaryLoopValues.add(value)
+    } catch (e: IllegalStateException) {
+        println("ordinary:${e.message}:$ordinaryLoopValues")
+    }
+
+    val destructuredLoopValues = mutableListOf<Int>()
+    try {
+        for ((left, right) in FailingPairIterable()) {
+            destructuredLoopValues.add(left + right)
+        }
+    } catch (e: IllegalStateException) {
+        println("destructuring:${e.message}:$destructuredLoopValues")
+    }
+
+    val explicitIteratorValues = mutableListOf<Int>()
+    val explicitIterator = FailingIterable().iterator()
+    try {
+        while (explicitIterator.hasNext()) explicitIteratorValues.add(explicitIterator.next())
+    } catch (e: IllegalStateException) {
+        println("explicit:${e.message}:$explicitIteratorValues")
+    }
+
+    val nonThrowingLoopValues = mutableListOf<Int>()
+    for (value in OneShotIterable(listOf(4, 5))) nonThrowingLoopValues.add(value)
+    println("non-throwing:$nonThrowingLoopValues")
 
     println(listOf(1, 2, 1).toSet())
     println(sequenceOf(1, 2, 1).toSet())

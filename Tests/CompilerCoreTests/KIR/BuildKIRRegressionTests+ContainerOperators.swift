@@ -282,5 +282,48 @@ extension BuildKIRRegressionTests {
             }
         }
     }
+
+    // KSP-996 review regression: generic iterator bridges have a trailing
+    // outThrown ABI channel, so their KIR calls must be marked throwing.
+    @Test
+    func testBuildKIRMarksDynamicIterableBridgeCallsAsThrowing() throws {
+        let source = """
+        fun sumAll(xs: Iterable<Int>): Int {
+            try {
+                var sum = 0
+                for (x in xs) { sum += x }
+                return sum
+            } catch (e: IllegalStateException) {
+                return -1
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let expectedNames: Set<String> = [
+                "kk_range_iterator",
+                "kk_iterator_hasNext",
+                "kk_iterator_next",
+            ]
+            let bridgeCalls: [(name: String, canThrow: Bool, hasThrownResult: Bool)] = body.compactMap { instruction in
+                guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction else {
+                    return nil
+                }
+                let name = ctx.interner.resolve(callee)
+                guard expectedNames.contains(name) else {
+                    return nil
+                }
+                return (name, canThrow, thrownResult != nil)
+            }
+
+            #expect(Set(bridgeCalls.map { $0.name }) == expectedNames, "Unexpected iterator bridge calls: \(bridgeCalls)")
+            #expect(bridgeCalls.allSatisfy { $0.canThrow && $0.hasThrownResult }, "Iterator bridge calls must carry the throwing channel: \(bridgeCalls)")
+        }
+    }
 }
 #endif
