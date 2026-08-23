@@ -146,16 +146,32 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
 
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
-    let elements: [Int] = if let list = runtimeListBox(from: listRaw) {
-        list.elements
-    } else if let set = runtimeSetBox(from: listRaw) {
-        set.elements
-    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        array.elements
-    } else {
-        []
+    if let list = runtimeListBox(from: listRaw) {
+        return registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: list.elements,
+                removeAction: { index in
+                    guard list.elements.indices.contains(index) else { return }
+                    list.elements.remove(at: index)
+                }
+            )
+        )
     }
-    return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    if let set = runtimeSetBox(from: listRaw) {
+        return registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: set.elements,
+                removeAction: { index in
+                    guard set.elements.indices.contains(index) else { return }
+                    set.elements.remove(at: index)
+                }
+            )
+        )
+    }
+    if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+    }
+    return registerRuntimeObject(RuntimeListIteratorBox(elements: []))
 }
 
 @_cdecl("kk_list_iterator_hasNext")
@@ -177,6 +193,14 @@ public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
     let value = iter.elements[iter.index]
     iter.index += 1
     return value
+}
+
+func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    _ = iter.removeLastReturned()
+    return 0
 }
 
 /// Whether the iterator has a valid previous element.

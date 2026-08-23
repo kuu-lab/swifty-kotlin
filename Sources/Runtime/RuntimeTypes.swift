@@ -650,12 +650,25 @@ final class RuntimeIndexingIteratorBox {
 
 /// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
-    let elements: [Int]
+    var elements: [Int]
     var index: Int
+    let removeAction: ((Int) -> Void)?
 
-    init(elements: [Int]) {
+    init(elements: [Int], removeAction: ((Int) -> Void)? = nil) {
         self.elements = elements
         index = 0
+        self.removeAction = removeAction
+    }
+
+    func removeLastReturned() -> Bool {
+        guard index > 0, index <= elements.count else {
+            return false
+        }
+        let removedIndex = index - 1
+        elements.remove(at: removedIndex)
+        index = removedIndex
+        removeAction?(removedIndex)
+        return true
     }
 }
 
