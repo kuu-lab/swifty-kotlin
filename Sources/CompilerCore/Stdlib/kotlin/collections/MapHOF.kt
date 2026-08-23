@@ -2,6 +2,11 @@ package kotlin.collections
 
 import kotlin.internal.__valuesEqual
 
+// KSP-941: the read-only Map nominal declaration is source-backed here. Its
+// query members and nested Entry surface remain compiler/runtime residuals
+// until their dedicated migration tasks land.
+public interface Map<K, out V>
+
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
@@ -295,4 +300,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-

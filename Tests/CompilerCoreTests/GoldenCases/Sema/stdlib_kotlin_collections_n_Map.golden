@@ -1,0 +1,13 @@
+symbol fq=CustomMap kind=class vis=public flags=abstractType|openType
+symbol fq=kotlin.collections.Map kind=interface vis=public flags=_
+symbol fq=mapProbe kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=kotlin.collections.Map<String, kotlin.Number>
+symbol fq=mapProbe.$0.values kind=valueParameter vis=private flags=_
+symbol fq=mapTypeProbe kind=function vis=public flags=_ sig=recv=_ params=[Any] ret=Boolean
+symbol fq=mapTypeProbe.$1.value kind=valueParameter vis=private flags=_
+file fstdlib_kotlin_collections_n_Map package=_
+  decl CustomMap class CustomMap sym=CustomMap
+  decl mapProbe fun mapProbe sym=mapProbe
+  decl mapTypeProbe fun mapTypeProbe sym=mapTypeProbe
+expr e@4:63 name(values) type=kotlin.collections.Map<String, Int> ref=mapProbe.$0.values
+expr e@6:41 name(value) type=Any ref=mapTypeProbe.$1.value
+expr e@6:41#1 isCheck expr=e@6:41 type=kotlin.collections.Map<*, *> type=Boolean
