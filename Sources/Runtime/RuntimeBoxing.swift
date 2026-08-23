@@ -1,15 +1,20 @@
 
 @_cdecl("kk_box_unit")
 public func kk_box_unit(_ value: Int) -> Int {
-    if runtimeIsUnitBox(value) {
-        return value
+    _ = value
+    return runtimeStorage.withGCLock { state in
+        if let pointer = state.unitBoxPointer {
+            return Int(bitPattern: pointer)
+        }
+
+        // Boxed Unit is a singleton at every Any/reference boundary.
+        let box = RuntimeUnitBox()
+        let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+        let pointer = UInt(bitPattern: opaque)
+        state.objectPointers.insert(pointer)
+        state.unitBoxPointer = pointer
+        return Int(bitPattern: pointer)
     }
-    let box = RuntimeUnitBox()
-    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
-    runtimeStorage.withGCLock { state in
-        state.objectPointers.insert(UInt(bitPattern: opaque))
-    }
-    return Int(bitPattern: opaque)
 }
 
 @_cdecl("kk_box_int")

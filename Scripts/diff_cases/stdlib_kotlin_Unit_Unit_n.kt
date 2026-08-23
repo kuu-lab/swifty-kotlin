@@ -11,4 +11,10 @@ fun main() {
     println(Unit === Unit)
     println(returnUnit() === Unit)
     println(returnUnit() is Unit)
+
+    val first: Any = Unit
+    val second: Any = Unit
+    println(first === second)
+    println(first == second)
+    println(first.toString())
 }
