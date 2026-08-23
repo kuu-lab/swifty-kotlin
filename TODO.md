@@ -2683,11 +2683,12 @@
     - `kotlin.LongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.LongArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Long>)`
 
-- [ ] KSP-862: kotlin.MustUseReturnValues top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-862: kotlin.MustUseReturnValues top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.MustUseReturnValues` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/MustUseReturnValues.kt`（KSP-745 の既存 source-backed 宣言に no-arg constructor を明示）
   - bridge/stub 整理: 対象の `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例は残留なし。
   - 回帰証跡: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_MustUseReturnValues_n_n.kt` / `.golden`、`Scripts/diff_cases/stdlib_kotlin_MustUseReturnValues_n_n.kt`。
+  - 完了根拠: KSP-745 の実装を含む PR #5864（merge `5f311b67d773c83500190ffce8e6c851b2a96051`）と現行 source の `MustUseReturnValues()`、既存 Golden/diff および `AnnotationSemanticTests` で constructor・型解決・FILE/CLASS target を確認済み。
 
 - [x] KSP-863: kotlin.NoSuchElementException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.NoSuchElementException` / top-level
