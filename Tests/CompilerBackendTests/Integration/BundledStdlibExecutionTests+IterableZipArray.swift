@@ -1,10 +1,10 @@
 import Testing
 
 extension BundledStdlibExecutionTests {
-    /// KSP-999: Array overloads must stop before consuming an extra element from
-    /// an arbitrary Iterable, while preserving pair order and transform timing.
+    /// KSP-999: Array overloads must match Kotlin's iterator pull order while
+    /// preserving pair order and transform timing.
     @Test
-    func testIterableZipArrayDoesNotPrefetchTail() throws {
+    func testIterableZipArrayMatchesStdlibPullOrder() throws {
         try compileAndRunKotlin(
             """
             private class OneShotIterator(
@@ -34,6 +34,28 @@ extension BundledStdlibExecutionTests {
             }
 
             fun main() {
+                val emptyPairCursor = arrayOf(0)
+                val emptyPairIteratorCalls = arrayOf(0)
+                val emptyPairSource = OneShotIterable(arrayOf(10, 11), emptyPairCursor, emptyPairIteratorCalls)
+                println(emptyPairSource.zip(emptyArray<String>()))
+                println("empty-pair:${emptyPairCursor[0]}:${emptyPairIteratorCalls[0]}")
+
+                val emptyTransformCursor = arrayOf(0)
+                val emptyTransformIteratorCalls = arrayOf(0)
+                var emptyTransformCalls = 0
+                val emptyTransformSource = OneShotIterable(arrayOf(12, 13), emptyTransformCursor, emptyTransformIteratorCalls)
+                println(emptyTransformSource.zip(emptyArray<String>()) { left, right ->
+                    emptyTransformCalls = emptyTransformCalls + 1
+                    "$left$right"
+                })
+                println("empty-transform:${emptyTransformCursor[0]}:${emptyTransformIteratorCalls[0]}:$emptyTransformCalls")
+
+                val shortCursor = arrayOf(0)
+                val shortIteratorCalls = arrayOf(0)
+                val shortSource = OneShotIterable(arrayOf(14), shortCursor, shortIteratorCalls)
+                println(shortSource.zip(arrayOf("s", "t")))
+                println("short:${shortCursor[0]}:${shortIteratorCalls[0]}")
+
                 val pairCursor = arrayOf(0)
                 val pairIteratorCalls = arrayOf(0)
                 val pairSource = OneShotIterable(arrayOf(1, 2, 3), pairCursor, pairIteratorCalls)
@@ -66,10 +88,16 @@ extension BundledStdlibExecutionTests {
             }
             """,
             expectedOutput: """
+            []
+            empty-pair:1:1
+            []
+            empty-transform:1:1:0
+            [(14, s)]
+            short:1:1
             [(1, a), (2, null)]
-            pair:2:1
+            pair:3:1
             [4x, 5y]
-            transform:2:1:2
+            transform:3:1:2
             exception:2:1:2
 
             """

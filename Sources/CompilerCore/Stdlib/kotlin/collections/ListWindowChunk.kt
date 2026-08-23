@@ -107,15 +107,14 @@ public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V)
 // Kotlin stdlib: fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>>
 //
 // Keep the array overload on the source path. The shared iterable bridge
-// materializes both inputs before pairing, which would consume an arbitrary
-// Iterable past the array's length.
+// materializes both inputs instead of preserving the stdlib iterator order.
 public infix fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>> {
     val arraySize = other.size
     val result = mutableListOf<Pair<T, R>>()
     var index = 0
-    val iterator = iterator()
-    while (index < arraySize && iterator.hasNext()) {
-        result.add(Pair(iterator.next(), other[index]))
+    for (element in this) {
+        if (index >= arraySize) break
+        result.add(Pair(element, other[index]))
         index++
     }
     return result
@@ -128,9 +127,9 @@ public inline fun <T, R, V> Iterable<T>.zip(
     val arraySize = other.size
     val result = mutableListOf<V>()
     var index = 0
-    val iterator = iterator()
-    while (index < arraySize && iterator.hasNext()) {
-        result.add(transform(iterator.next(), other[index]))
+    for (element in this) {
+        if (index >= arraySize) break
+        result.add(transform(element, other[index]))
         index++
     }
     return result

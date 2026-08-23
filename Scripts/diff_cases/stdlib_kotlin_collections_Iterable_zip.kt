@@ -25,14 +25,33 @@ private class OneShotIterable(
 }
 
 fun main() {
+    val emptyPairCursor = arrayOf(0)
+    val emptyPairIteratorCalls = arrayOf(0)
+    val emptyPairSource = OneShotIterable(arrayOf(10, 11), emptyPairCursor, emptyPairIteratorCalls)
+    println(emptyPairSource.zip(emptyArray<String>()))
+    println("empty-pair:${emptyPairCursor[0]}:${emptyPairIteratorCalls[0]}")
+
+    val emptyTransformCursor = arrayOf(0)
+    val emptyTransformIteratorCalls = arrayOf(0)
+    var emptyTransformCalls = 0
+    val emptyTransformSource = OneShotIterable(arrayOf(12, 13), emptyTransformCursor, emptyTransformIteratorCalls)
+    println(emptyTransformSource.zip(emptyArray<String>()) { left, right ->
+        emptyTransformCalls = emptyTransformCalls + 1
+        "$left$right"
+    })
+    println("empty-transform:${emptyTransformCursor[0]}:${emptyTransformIteratorCalls[0]}:$emptyTransformCalls")
+
+    val shortCursor = arrayOf(0)
+    val shortIteratorCalls = arrayOf(0)
+    val shortSource = OneShotIterable(arrayOf(14), shortCursor, shortIteratorCalls)
+    println(shortSource.zip(arrayOf("s", "t")))
+    println("short:${shortCursor[0]}:${shortIteratorCalls[0]}")
+
     val pairCursor = arrayOf(0)
     val pairIteratorCalls = arrayOf(0)
     val pairSource = OneShotIterable(arrayOf(1, 2, 3, 99), pairCursor, pairIteratorCalls)
     println(pairSource.zip(arrayOf<String?>("a", null)))
-    // The candidate additionally guarantees that the third element is not
-    // prefetched when the array ends; the reference implementation's public
-    // output is otherwise identical.
-    println("pair:${pairIteratorCalls[0]}")
+    println("pair:${pairCursor[0]}:${pairIteratorCalls[0]}")
 
     val transformCursor = arrayOf(0)
     val transformIteratorCalls = arrayOf(0)
@@ -43,7 +62,7 @@ fun main() {
         "$left$right"
     }
     println(transformed)
-    println("transform:${transformIteratorCalls[0]}:$transformCalls")
+    println("transform:${transformCursor[0]}:${transformIteratorCalls[0]}:$transformCalls")
 
     val exceptionCursor = arrayOf(0)
     val exceptionIteratorCalls = arrayOf(0)
@@ -56,6 +75,6 @@ fun main() {
                 "$left$right"
             }
     } catch (e: IllegalStateException) {
-        println("exception:${exceptionIteratorCalls[0]}:$exceptionCalls")
+        println("exception:${exceptionCursor[0]}:${exceptionIteratorCalls[0]}:$exceptionCalls")
     }
 }
