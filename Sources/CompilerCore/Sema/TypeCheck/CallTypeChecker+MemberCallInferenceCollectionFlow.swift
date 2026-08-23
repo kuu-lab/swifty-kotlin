@@ -119,6 +119,14 @@ extension CallTypeChecker {
         let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
         let isSetReceiver = receiverClassification.isSetReceiver
+        // Range/Progression aggregates have an independent runtime dispatch
+        // family. Keep that ownership out of the Iterable source migration.
+        let isRangeReceiver = MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: receiverID,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
         var activeCollectionHOFNames = collectionHOFNames
         if !isMutableListReceiver {
             activeCollectionHOFNames.subtract(mutableListOnlyCollectionHOFNames)
@@ -389,6 +397,130 @@ extension CallTypeChecker {
             ))
             sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             return true
+        }
+
+        /// Bind the source-backed `Iterable<T>.sum()` overload without allowing a
+        /// concrete List overload to win. The regular collection fast path only
+        /// knows the historical Int result, while the Iterable family has ten
+        /// receiver-element/return-type pairs.
+        func bindBundledIterableSumSource() -> TypeID? {
+            guard !isSequenceReceiver,
+                  !isRangeReceiver,
+                  isCollectionReceiver,
+                  args.isEmpty,
+                  !receiverClassifier.isConcreteListLikeType(receiverType)
+            else {
+                return nil
+            }
+            let collectionElementType = getCollectionElementType(
+                receiverType,
+                sema: sema,
+                interner: interner
+            )
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      let signatureReceiver = signature.receiverType,
+                      receiverClassifier.isIterableLikeType(signatureReceiver)
+                else {
+                    return false
+                }
+                return extractIterableOrSequenceElementType(
+                    signatureReceiver,
+                    sema: sema,
+                    interner: interner
+                ) == collectionElementType
+            }
+            guard let chosen,
+                  let signature = sema.symbols.functionSignature(for: chosen)
+            else {
+                return nil
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: [],
+                parameterMapping: [:]
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            return signature.returnType
+        }
+
+        /// Bind one of the five source-backed `Iterable<T>.sumOf` overloads by
+        /// the selector body's actual return type. This is the target-specific
+        /// counterpart of the general collection HOF path; List and Sequence
+        /// overload resolution remains on their existing paths.
+        func bindBundledIterableSumOfSource() -> TypeID? {
+            guard !isSequenceReceiver,
+                  !isRangeReceiver,
+                  isCollectionReceiver,
+                  args.count == 1,
+                  !receiverClassifier.isConcreteListLikeType(receiverType)
+            else {
+                return nil
+            }
+            let collectionElementType = getCollectionElementType(
+                receiverType,
+                sema: sema,
+                interner: interner
+            )
+            let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                params: [collectionElementType],
+                returnType: sema.types.anyType
+            )))
+            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+            }
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+            let selectorReturnType = inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let signatureReceiver = signature.receiverType,
+                      receiverClassifier.isIterableLikeType(signatureReceiver),
+                      extractIterableOrSequenceElementType(
+                          signatureReceiver,
+                          sema: sema,
+                          interner: interner
+                      ) == collectionElementType,
+                      case let .functionType(selectorType) = sema.types.kind(of: signature.parameterTypes[0]),
+                      selectorType.params.count == 1,
+                      selectorType.params[0] == collectionElementType
+                else {
+                    return false
+                }
+                return selectorType.returnType == selectorReturnType
+            }
+            guard let chosen,
+                  let signature = sema.symbols.functionSignature(for: chosen)
+            else {
+                return nil
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: [collectionElementType],
+                parameterMapping: [0: 0]
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+            }
+            return signature.returnType
         }
 
         @discardableResult
@@ -1634,7 +1766,7 @@ extension CallTypeChecker {
                             resultType = sema.types.anyType
                         }
                     case "sum":
-                        resultType = sema.types.intType
+                        resultType = bindBundledIterableSumSource() ?? sema.types.intType
                     case "average":
                         resultType = sema.types.doubleType
                     case "reversed", "asReversed":
@@ -1675,10 +1807,15 @@ extension CallTypeChecker {
                     if ["any", "none", "first", "last", "single"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
-                    if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
+                    if calleeStr == "sum", !isSequenceReceiver, !isRangeReceiver,
+                       !receiverClassifier.isConcreteListLikeType(receiverType)
+                    {
+                        _ = bindBundledIterableSumSource()
+                    }
+                    if calleeStr == "average", !isSequenceReceiver {
                         _ = bindBundledListSourceFunction(
                             typeArguments: [],
-                            receiverElementType: calleeStr == "average" ? collectionElementType : nil
+                            receiverElementType: collectionElementType
                         )
                     }
                     if calleeStr == "reversed", !isSequenceReceiver {
@@ -3248,6 +3385,12 @@ extension CallTypeChecker {
                 guard args.count == 1 else {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
+                }
+                if calleeStr == "sumOf",
+                   let iterableSumOfType = bindBundledIterableSumOfSource()
+                {
+                    resultType = iterableSumOfType
+                    break
                 }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
