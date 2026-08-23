@@ -2807,7 +2807,7 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: failedType)
                     return failedType
                 }
-                let usesRuntimeFunctionPointerComparator = calleeStr == "sortedArrayWith" || isSequenceReceiver
+                let usesRuntimeFunctionPointerComparator = calleeStr == "sortedArrayWith"
                 let functionExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType, collectionElementType],
                     returnType: sema.types.intType
@@ -2816,7 +2816,7 @@ extension CallTypeChecker {
                 let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
                     sema.types.make(.classType(ClassType(
                         classSymbol: comparatorSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [isSequenceReceiver ? .in(collectionElementType) : .invariant(collectionElementType)],
                         nullability: .nonNull
                     )))
                 } else {
@@ -2826,6 +2826,13 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: functionExpectedType)
+                    } else {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
+                    }
+                } else if isSequenceReceiver {
+                    let argExpr = ast.arena.expr(args[0].expr)
+                    if argExpr?.isLambdaOrCallableRef == true {
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
                     } else {
                         _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: nil)
                     }

@@ -294,7 +294,6 @@ extension CallLowerer {
             let takeLastWhileName = interner.intern("takeLastWhile")
             let sortedName = interner.intern("sorted")
             let sortedByName = interner.intern("sortedBy")
-            let sortedWithName = interner.intern("sortedWith")
             let sortedByDescendingName = interner.intern("sortedByDescending")
             let sortedDescendingName = interner.intern("sortedDescending")
             let firstNotNullOfName = interner.intern("firstNotNullOf")
@@ -326,8 +325,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_sorted")
             case sortedByName:
                 return interner.intern("kk_sequence_sortedBy")
-            case sortedWithName:
-                return interner.intern("kk_sequence_sortedWith")
             case sortedByDescendingName:
                 return interner.intern("kk_sequence_sortedByDescending")
             case sortedDescendingName:

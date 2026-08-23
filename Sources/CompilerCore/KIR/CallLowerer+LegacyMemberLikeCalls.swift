@@ -1263,7 +1263,6 @@ extension CallLowerer {
                 let flatMapIndexedName = interner.intern("flatMapIndexed")
                 let takeLastWhileName = interner.intern("takeLastWhile")
                 let sortedByName = interner.intern("sortedBy")
-                let sortedWithName = interner.intern("sortedWith")
                 let sortedByDescendingName = interner.intern("sortedByDescending")
                 let firstNotNullOfName = interner.intern("firstNotNullOf")
                 let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
@@ -1295,8 +1294,6 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_takeLastWhile"
                 } else if calleeName == sortedByName {
                     runtimeCallee = "kk_sequence_sortedBy"
-                } else if calleeName == sortedWithName {
-                    runtimeCallee = "kk_sequence_sortedWith"
                 } else if calleeName == sortedByDescendingName {
                     runtimeCallee = "kk_sequence_sortedByDescending"
                 } else if calleeName == firstNotNullOfName {
@@ -1418,7 +1415,6 @@ extension CallLowerer {
                 }
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_sequence_sortedBy"
-                        || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_sortedByDescending"
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
