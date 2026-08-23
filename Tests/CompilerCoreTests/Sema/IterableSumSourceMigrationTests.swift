@@ -174,6 +174,51 @@ struct IterableSumSourceMigrationTests {
         }
         #expect(calls.count == expectedReturns.count, "Expected 15 bound calls, got \(calls.count)")
     }
+
+    @Test
+    func concreteListSumKeepsListSourceBinding() throws {
+        let source = """
+        fun main() {
+            println(listOf(1, 2, 3, 4).sum())
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let sumCallID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
+                  ctx.interner.resolve(callee) == "sum",
+                  let range = ast.arena.exprRange(id),
+                  range.start.file == userFileID
+            else {
+                return nil
+            }
+            return id
+        }.first)
+        let binding = try #require(sema.bindings.callBinding(for: sumCallID))
+        let chosen = try #require(sema.symbols.symbol(binding.chosenCallee))
+        let fileID = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))
+        #expect(ctx.sourceManager.path(of: fileID) == sourcePath)
+        #expect(ctx.interner.resolve(chosen.name) == "sum")
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.returnType == sema.types.intType)
+        #expect(signature.parameterTypes.isEmpty)
+        let receiver = try #require(signature.receiverType)
+        let listFQName = ["kotlin", "collections", "List"].map(ctx.interner.intern)
+        let listSymbol = try #require(sema.symbols.lookup(fqName: listFQName))
+        guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+            Issue.record("Expected List receiver type for concrete List.sum binding.")
+            return
+        }
+        #expect(receiverClass.classSymbol == listSymbol)
+    }
 }
 
 private func sourceFunctionName(at line: Int, source: String) -> String? {

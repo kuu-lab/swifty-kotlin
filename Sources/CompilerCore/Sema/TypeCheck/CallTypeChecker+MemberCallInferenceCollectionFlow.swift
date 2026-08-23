@@ -1807,10 +1807,15 @@ extension CallTypeChecker {
                     if ["any", "none", "first", "last", "single"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
-                    if calleeStr == "sum", !isSequenceReceiver, !isRangeReceiver,
-                       !receiverClassifier.isConcreteListLikeType(receiverType)
-                    {
-                        _ = bindBundledIterableSumSource()
+                    if calleeStr == "sum", !isSequenceReceiver, !isRangeReceiver {
+                        if receiverClassifier.isConcreteListLikeType(receiverType) {
+                            _ = bindBundledListSourceFunction(
+                                typeArguments: [],
+                                receiverElementType: collectionElementType
+                            )
+                        } else {
+                            _ = bindBundledIterableSumSource()
+                        }
                     }
                     if calleeStr == "average", !isSequenceReceiver {
                         _ = bindBundledListSourceFunction(
