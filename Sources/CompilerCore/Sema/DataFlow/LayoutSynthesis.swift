@@ -119,7 +119,7 @@ extension DataFlowSemaPhase {
         let ownVirtualProperties = symbols.children(ofFQName: nominalSymbol.fqName)
             .compactMap { symbols.symbol($0) }
             .filter { property in
-                guard property.kind == .property else { return false }
+                guard nominalSymbol.kind == .class, property.kind == .property else { return false }
                 return property.flags.contains(.abstractType)
                     || property.flags.contains(.openType)
                     || property.flags.contains(.overrideMember)

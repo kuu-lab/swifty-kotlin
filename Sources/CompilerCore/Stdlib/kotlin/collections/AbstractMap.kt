@@ -7,6 +7,8 @@
 
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
 // KSP-928: the nominal AbstractMap declaration and its skeletal read-only
 // operations are source-backed. Map allocation, entry materialization, and
 // shared collection runtime bridges remain compiler/runtime-owned.
@@ -26,6 +28,9 @@ private fun <K, V> abstractMapValues(entries: Set<Map.Entry<K, V>>): Collection<
     }
     return result
 }
+
+@KsSymbolName("__kk_map_entries")
+private external fun abstractMapEntries(map: Any?): Set<Map.Entry<Any?, Any?>>
 
 /**
  * Provides a skeletal implementation of the read-only [Map] interface.
@@ -57,7 +62,7 @@ public abstract class AbstractMap<K, out V> protected constructor() : Map<K, V> 
     override val size: Int
         get() = entries.size
 
-    override fun isEmpty(): Boolean = size == 0
+    override fun isEmpty(): Boolean = entries.size == 0
 
     override val keys: Set<K>
         get() = abstractMapKeys(entries)
@@ -68,15 +73,12 @@ public abstract class AbstractMap<K, out V> protected constructor() : Map<K, V> 
     override fun equals(other: Any?): Boolean {
         if (other === this) return true
         if (other is AbstractMap<*, *>) {
-            @Suppress("UNCHECKED_CAST")
-            val otherEntries = other.entries as Set<Map.Entry<Any?, Any?>>
-            @Suppress("UNCHECKED_CAST")
-            val leftEntries = entries as Set<Map.Entry<Any?, Any?>>
-            if (leftEntries.size != otherEntries.size) return false
-            for (entry in leftEntries) {
+            if (entries.size != other.entries.size) return false
+            for (entry in entries) {
                 var found = false
-                for (otherEntry in otherEntries) {
-                    if (otherEntry.key == entry.key && otherEntry.value == entry.value) {
+                for (otherEntry in other.entries) {
+                    if ((entry.key as Any?) == (otherEntry.key as Any?)
+                        && (entry.value as Any?) == (otherEntry.value as Any?)) {
                         found = true
                         break
                     }
@@ -86,14 +88,18 @@ public abstract class AbstractMap<K, out V> protected constructor() : Map<K, V> 
             return true
         }
         if (other !is Map<*, *>) return false
-        @Suppress("UNCHECKED_CAST")
-        val leftEntries = entries as Set<Map.Entry<Any?, Any?>>
-        @Suppress("UNCHECKED_CAST")
-        val typedOther = other as Map<Any?, Any?>
-        if (leftEntries.size != typedOther.count) return false
-        for (entry in leftEntries) {
-            if (!typedOther.containsKey(entry.key)) return false
-            if (typedOther[entry.key] != entry.value) return false
+        val otherEntries = abstractMapEntries(other)
+        if (entries.size != otherEntries.size) return false
+        for (entry in entries) {
+            var found = false
+            for (otherEntry in otherEntries) {
+                if ((entry.key as Any?) == otherEntry.key
+                    && (entry.value as Any?) == otherEntry.value) {
+                    found = true
+                    break
+                }
+            }
+            if (!found) return false
         }
         return true
     }
@@ -107,17 +113,14 @@ public abstract class AbstractMap<K, out V> protected constructor() : Map<K, V> 
     }
 
     override fun toString(): String {
-        @Suppress("UNCHECKED_CAST")
-        val typedEntries = entries as Set<Map.Entry<Any?, Any?>>
-        return mapEntriesToString(typedEntries.toList(), 0)
-    }
-
-    private fun mapEntriesToString(entries: List<Map.Entry<Any?, Any?>>, index: Int): String {
-        if (index >= entries.size) return "}"
-        val entry = entries[index]
-        val separator = if (index == 0) "{" else ", "
-        return separator + mapValueToString(entry.key) + "=" + mapValueToString(entry.value) +
-            mapEntriesToString(entries, index + 1)
+        var result = "{"
+        var first = true
+        for (entry in entries) {
+            if (!first) result += ", "
+            result += mapValueToString(entry.key) + "=" + mapValueToString(entry.value)
+            first = false
+        }
+        return result + "}"
     }
 
     private fun mapValueToString(value: Any?): String =

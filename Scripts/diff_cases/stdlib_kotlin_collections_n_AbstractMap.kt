@@ -26,6 +26,7 @@ fun main() {
     println(map.keys)
     println(map.values)
     println(map == ProbeMap())
+    println(map == mapOf<String, Int?>("one" to 1, "missing" to null))
     println(map.hashCode() == ProbeMap().hashCode())
     println(map.toString())
 }
