@@ -2732,7 +2732,7 @@
     - `kotlin.Number.<init>` — constructor ()  -- `constructor <init>()`
   - 実装 (2026-08-20): 既存の `Number` source-backed 宣言を `kotlin/Number/Stdlib.kt` に整理し、`Number()` 継承の Golden/diff 回帰ケースを追加。対象の Runtime/ABI bridge は存在しない。
 
-- [ ] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
+- [x] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Number` / receiver `Number`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Number/Number.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2747,6 +2747,7 @@
     - `kotlin.Number.toInt` — fun Number.toInt(): Int  -- `abstract fun toInt(): kotlin/Int`
     - `kotlin.Number.toLong` — fun Number.toLong(): Long  -- `abstract fun toLong(): kotlin/Long`
     - `kotlin.Number.toShort` — fun Number.toShort(): Short  -- `abstract fun toShort(): kotlin/Short`
+  - 完了根拠 (2026-08-23): #5872 で Number を source-backed 化し、#5969 で `Sources/CompilerCore/Stdlib/kotlin/Number/Stdlib.kt` と専用 Golden/diff を統合、#5992 で erased primitive receiver の `Number.to*` dispatch を修正済み。現行 master に7 APIと `stdlib_kotlin_Number_Number_n` の Golden/diff があり、focused 検証も確認できたため、KSP-867のTODOのみ同期する。
 
 - [ ] KSP-868: kotlin.NumberFormatException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.NumberFormatException` / top-level
