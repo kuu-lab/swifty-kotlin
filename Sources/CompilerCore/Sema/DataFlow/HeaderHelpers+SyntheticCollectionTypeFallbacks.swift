@@ -10,7 +10,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> SymbolID {
         let collectionName = interner.intern("Collection")
         let collectionFQName = kotlinCollectionsPkg + [collectionName]
@@ -62,6 +64,19 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = collectionFQName + [memberName]
+            if bundledIndex.contains(
+                ownerFQName: collectionFQName,
+                name: memberName,
+                arity: parameterTypes.count
+            ) {
+                skipStats?.recordSkip(
+                    ownerFQName: collectionFQName,
+                    name: memberName,
+                    arity: parameterTypes.count,
+                    interner: interner
+                )
+                return
+            }
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
             let memberSymbol = symbols.define(
                 kind: .function,

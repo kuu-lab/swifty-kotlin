@@ -1037,7 +1037,12 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
-        var candidates = visible
+        var candidates = preferMostSpecificMemberReceiverCandidates(
+            visible,
+            receiverType: lookupReceiverType,
+            sema: sema,
+            interner: interner
+        )
         if interner.resolve(calleeName) == "coerceIn",
            !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {

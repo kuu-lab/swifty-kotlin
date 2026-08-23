@@ -64,6 +64,75 @@ extension CallTypeChecker {
         }
     }
 
+    /// Kotlin prefers the extension whose receiver is the most specific type
+    /// when several bundled source extensions have the same name and arity.
+    /// This matters for the Collection/Iterable pairs that coexist in the
+    /// upstream common stdlib (for example `toMutableList` and `plus`).
+    func preferMostSpecificMemberReceiverCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard candidates.count > 1 else { return candidates }
+        let actualReceiver = sema.types.makeNonNullable(receiverType)
+        let receiverTypes: [(SymbolID, TypeID)] = candidates.compactMap { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                return nil
+            }
+            return (candidate, sema.types.makeNonNullable(receiver))
+        }
+        guard receiverTypes.count == candidates.count else { return candidates }
+
+        let collectionFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]
+        let iterableFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        let hasCollectionReceiver = receiverTypes.contains { _, receiver in
+            driver.helpers.nominalSymbol(of: receiver, types: sema.types)
+                .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
+        }
+        if hasCollectionReceiver,
+           let actualNominal = driver.helpers.nominalSymbol(of: actualReceiver, types: sema.types),
+           sema.types.isNominalSubtypeSymbol(
+               actualNominal,
+               of: sema.symbols.lookup(fqName: collectionFQName) ?? actualNominal
+           )
+        {
+            let filtered = candidates.filter { candidate in
+                guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      let nominal = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(nominal)
+                else {
+                    return true
+                }
+                return symbol.fqName != iterableFQName
+            }
+            if !filtered.isEmpty { return filtered }
+        }
+
+        let lessSpecific = Set(receiverTypes.compactMap { candidate, candidateReceiver -> SymbolID? in
+            let hasMoreSpecific = receiverTypes.contains { other, otherReceiver in
+                guard candidate != other,
+                      sema.types.isSubtype(actualReceiver, otherReceiver),
+                      sema.types.isSubtype(otherReceiver, candidateReceiver)
+                else {
+                    return false
+                }
+                return !sema.types.isSubtype(candidateReceiver, otherReceiver)
+            }
+            return hasMoreSpecific ? candidate : nil
+        })
+        let filtered = candidates.filter { !lessSpecific.contains($0) }
+        return filtered.isEmpty ? candidates : filtered
+    }
+
     /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`

@@ -32,10 +32,13 @@ extension CallLowerer {
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "isNotEmpty", "intersect", "last", "minus", "minusElement", "plusElement",
+        "containsAll", "count", "isNotEmpty", "intersect", "last", "minus", "minusElement",
+        "plus", "plusElement", "random", "randomOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
-        "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
+        "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
+        "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
+        "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
         "distinct", "distinctBy",
     ]
 
