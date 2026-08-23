@@ -3821,6 +3821,13 @@ extension CallTypeChecker {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
+                } else if isSetReceiver, bindBundledSetSourceFunction() {
+                    // Set has a more specific source-backed overload than
+                    // Iterable; keep that receiver path ahead of the generic
+                    // Iterable declaration.
+                    if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                    }
                 } else if !isSequenceReceiver, isCollectionReceiver,
                           bindBundledIterableSourceFunction(typeArguments: [collectionElementType, initialType]) {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
@@ -3832,7 +3839,8 @@ extension CallTypeChecker {
                               overrideTypeArguments: [collectionElementType, initialType],
                               allowIterableReceiver: true
                           ) {
-                    // No dedicated Iterable synthetic stub exists for this
+                    // No dedicated Iterable source declaration or synthetic
+                    // stub was found for this
                     // aggregate HOF (unlike reduce); fall back to the bundled
                     // Sequence<T> source body, which is plain iteration and
                     // therefore valid for any Iterable receiver.

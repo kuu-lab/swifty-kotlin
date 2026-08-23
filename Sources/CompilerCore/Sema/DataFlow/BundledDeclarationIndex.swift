@@ -546,9 +546,9 @@ struct BundledDeclarationIndex: Sendable {
         // source implementation instead of the generic Iterable declaration.
         // Iterable reduce/reduceIndexed/reduceRight* declarations are now
         // source-backed in Iterables.kt; no synthetic member is needed for the
-        // plain Iterable receiver. The remaining names here (fold and friends,
-        // scan/runningFold/...) use the bundled Sequence source body when the
-        // collection-flow fallback explicitly permits an Iterable receiver.
+        // plain Iterable receiver. The remaining names here (foldRight and
+        // friends, scan/runningFold/...) use the bundled Sequence source body
+        // when the collection-flow fallback explicitly permits an Iterable receiver.
         let nonAliasedIndexedAccessNames = Set([
             interner.intern("fold"),
             interner.intern("foldIndexed"),

@@ -336,3 +336,22 @@ public fun List<Char>.joinToString(
     buffer.append(postfix)
     return buffer.toString()
 }
+
+// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
+// type while traversing every receiver through its iterator exactly once.
+public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: Int, acc: R, T) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
+}
