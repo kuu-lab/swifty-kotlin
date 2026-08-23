@@ -148,8 +148,10 @@ private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_iterator", section: "Range", params: ["rangeRaw"],
-            isThrowing: false),
+    bridgeSpec("kk_range_iterator", section: "Range", typedParams: [
+        ("rangeRaw", .intptr),
+        ("outThrown", .nullableIntptrPointer),
+    ]),
     bridgeSpec("kk_range_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
     bridgeSpec("kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],

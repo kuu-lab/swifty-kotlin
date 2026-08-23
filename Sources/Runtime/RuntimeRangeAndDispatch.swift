@@ -639,7 +639,10 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
 /// the value does not implement `Iterable` in source, so callers can fall back
 /// to the runtime box representations.
-func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+func runtimeSourceIterableIterator(
+    _ iterableRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
     guard fnPtr != 0 else {
         return nil
@@ -651,13 +654,20 @@ func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        guard let outThrown else {
+            runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        }
+        runtimeSetThrown(outThrown, thrown)
+        return 0
     }
     return iterRaw
 }
 
 @_cdecl("kk_range_iterator")
-public func kk_range_iterator(_ rangeRaw: Int) -> Int {
+public func kk_range_iterator(
+    _ rangeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -687,7 +697,7 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
     // — the same shape `runtimeTraverseSourceSequenceObject` uses for
     // `Sequence` — instead of treating the object as an invalid range.
-    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw) {
+    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
         return sourceIterator
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
@@ -780,7 +790,10 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_iterator_hasNext")
-public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
+public func kk_iterator_hasNext(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
@@ -796,14 +809,21 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0) {
+    if let objectResult = runtimeObjectIteratorMethodCall(
+        iterRaw,
+        methodSlot: 0,
+        outThrown: outThrown
+    ) {
         return objectResult
     }
     return 0
 }
 
 @_cdecl("kk_iterator_next")
-public func kk_iterator_next(_ iterRaw: Int) -> Int {
+public func kk_iterator_next(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }
@@ -819,13 +839,21 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1) {
+    if let objectResult = runtimeObjectIteratorMethodCall(
+        iterRaw,
+        methodSlot: 1,
+        outThrown: outThrown
+    ) {
         return objectResult
     }
     return 0
 }
 
-private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) -> Int? {
+private func runtimeObjectIteratorMethodCall(
+    _ iterRaw: Int,
+    methodSlot: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
     let iteratorInterfaceSlot = 0
     let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
     guard functionRaw != 0 else {
@@ -839,7 +867,11 @@ private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) ->
     var thrown = 0
     let result = method(iterRaw, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
+        guard let outThrown else {
+            runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
+        }
+        runtimeSetThrown(outThrown, thrown)
+        return 0
     }
     return result
 }
