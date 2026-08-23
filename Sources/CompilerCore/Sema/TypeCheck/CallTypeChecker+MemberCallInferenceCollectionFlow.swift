@@ -571,7 +571,23 @@ extension CallTypeChecker {
             }
             let extraParamSymbols = Array(signature.typeParameterSymbols.dropFirst(typeArguments.count))
             if !extraParamSymbols.isEmpty {
-                var inferredExtras: [TypeID] = []
+                var inferredExtras: [TypeID?] = Array(repeating: nil, count: extraParamSymbols.count)
+                // Destination-type parameters such as `C`/`M` appear directly in
+                // the first value parameter, so infer them from the actual
+                // destination before inferring transform-result parameters.
+                if isMapReceiver {
+                    for (argIndex, parameterType) in signature.parameterTypes.enumerated() {
+                        guard argIndex < args.count,
+                              case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                              let extraIndex = extraParamSymbols.firstIndex(of: parameterTypeParam.symbol)
+                        else {
+                            continue
+                        }
+                        let actualArgumentType = sema.bindings.exprTypes[args[argIndex].expr] ?? sema.types.anyType
+                        inferredExtras[extraIndex] = sema.types.makeNonNullable(actualArgumentType)
+                    }
+                }
+                var inferredLambdaArgExpr: ExprID?
                 for (argIndex, paramType) in signature.parameterTypes.enumerated() {
                     guard case let .functionType(fn) = sema.types.kind(of: paramType) else {
                         continue
@@ -583,7 +599,11 @@ extension CallTypeChecker {
                     let actualArgExpr = args[argIndex].expr
                     let actualLambdaReturnType = inferredLambdaReturnType(argExpr: actualArgExpr, ast: ast, sema: sema)
                     var extrasForParam: [TypeID] = []
-                    for extraSymbol in extraParamSymbols {
+                    for (extraIndex, extraSymbol) in extraParamSymbols.enumerated() {
+                        if let inferred = inferredExtras[extraIndex] {
+                            extrasForParam.append(inferred)
+                            continue
+                        }
                         if let inferred = mapExtraTypeArgument(
                             signatureReturnType: paramReturnType,
                             actualLambdaReturnType: actualLambdaReturnType,
@@ -597,14 +617,15 @@ extension CallTypeChecker {
                         }
                     }
                     if extrasForParam.count == extraParamSymbols.count {
-                        inferredExtras = extrasForParam
-                        if let lambdaExpr = ast.arena.expr(actualArgExpr), lambdaExpr.isLambdaOrCallableRef {
-                            sema.bindings.unmarkCollectionHOFLambdaExpr(actualArgExpr)
-                        }
+                        inferredExtras = extrasForParam.map(Optional.some)
+                        inferredLambdaArgExpr = actualArgExpr
                         break
                     }
                 }
-                typeArguments.append(contentsOf: inferredExtras)
+                if let inferredLambdaArgExpr {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(inferredLambdaArgExpr)
+                }
+                typeArguments.append(contentsOf: inferredExtras.map { $0 ?? sema.types.anyType })
                 if typeArguments.count < signature.typeParameterSymbols.count {
                     typeArguments.append(contentsOf: Array(repeating: sema.types.anyType, count: signature.typeParameterSymbols.count - typeArguments.count))
                 }
@@ -1373,7 +1394,8 @@ extension CallTypeChecker {
                     )
                 }
                 if ["mapTo", "mapNotNullTo", "flatMapTo", "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo"].contains(calleeStr),
-                   !isSequenceReceiver
+                   !isSequenceReceiver,
+                   !isMapReceiver
                 {
                     let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
                     let resultElementType: TypeID
@@ -1408,7 +1430,9 @@ extension CallTypeChecker {
                     }
                     _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
                 }
-                if calleeStr == "mapKeysTo" || calleeStr == "mapValuesTo" {
+                if isMapReceiver,
+                   ["mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)
+                {
                     _ = bindBundledMapSourceFunction()
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
