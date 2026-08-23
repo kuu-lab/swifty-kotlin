@@ -3986,7 +3986,7 @@
     - `kotlin.collections.flatMapTo` — fun Iterable.flatMapTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/flatMapTo(#C, kotlin/Function1<#A, kotlin.collections/Iterable<#B>>): #C`
     - `kotlin.collections.flatMapTo` — fun Iterable.flatMapTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/flatMapTo(#C, kotlin/Function1<#A, kotlin.sequences/Sequence<#B>>): #C`
 
-- [ ] KSP-975: kotlin.collections.Iterable.flatten-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-975: kotlin.collections.Iterable.flatten-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `flatten`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3995,6 +3995,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.flatten` — fun Iterable.flatten(): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<kotlin.collections/Iterable<#A>>).kotlin.collections/flatten(): kotlin.collections/List<#A>`
+  - 完了: `Iterables.kt` に source-backed 実装を追加し、Iterable/List overload 解決、dynamic iterator の例外伝播、Golden、focused diff、Sema/RuntimeABI 回帰を確認。
 
 - [ ] KSP-976: kotlin.collections.Iterable.fold-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `fold`

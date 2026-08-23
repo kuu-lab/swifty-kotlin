@@ -34,6 +34,14 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        for (nestedElement in element) result.add(nestedElement)
+    }
+    return result
+}
+
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
 @Suppress("UNCHECKED_CAST")

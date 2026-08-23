@@ -3049,7 +3049,13 @@ extension CallTypeChecker {
                 } else {
                     resultType = sema.types.anyType
                 }
-                _ = bindBundledListSourceFunction(typeArguments: [flattenedElementType])
+                if !isSequenceReceiver {
+                    // List.flatten and Iterable.flatten share the public name,
+                    // but the statically Iterable path must not fall through
+                    // without a source-backed callee binding.
+                    _ = bindBundledListSourceFunction(typeArguments: [flattenedElementType])
+                        || bindBundledIterableSourceFunction(typeArguments: [flattenedElementType])
+                }
 
             case "zipWithNext":
                 if args.isEmpty {
