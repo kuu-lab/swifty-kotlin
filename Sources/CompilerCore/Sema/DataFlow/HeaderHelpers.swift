@@ -1480,6 +1480,24 @@ extension DataFlowSemaPhase {
         types.numberClassSymbol = numberSymbol
     }
 
+    /// Resolve the source-backed or imported kotlin.Unit object while
+    /// preserving the compiler's builtin Unit value representation.
+    func resolveUnitClassSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let unitName = BuiltinTypeNames(interner: interner).unit
+        let unitFQName = kotlinPkg + [unitName]
+        if let unitSymbol = symbols.lookupAll(fqName: unitFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .object
+        }) {
+            types.unitClassSymbol = unitSymbol
+        }
+    }
+
     /// Look up or define a synthetic interface symbol in the given package.
     func ensureInterfaceSymbol(
         named name: String,

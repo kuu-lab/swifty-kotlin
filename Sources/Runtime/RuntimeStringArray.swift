@@ -770,8 +770,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return 0
 
     case RuntimeTypeTokenEncoding.unitBase:
-        // The Unit singleton is represented as the integer 0 at runtime.
-        return value == 0 ? 1 : 0
+        // Direct Unit values remain integer 0; Any-erased Unit values use the
+        // runtime box so they remain distinguishable from other raw values.
+        return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
@@ -1822,6 +1823,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     guard isObjectPointer else {
         return String(value)
+    }
+    if runtimeIsUnitBox(value) {
+        return "kotlin.Unit"
     }
     if let boolBox = tryCast(raw, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"

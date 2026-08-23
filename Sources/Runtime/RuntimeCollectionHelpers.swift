@@ -548,6 +548,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
+        return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
+    }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
         return lhs == rhs
     }
@@ -787,6 +790,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     guard isObjectPointer else {
         return "\(elem)"
+    }
+    if runtimeIsUnitBox(elem) {
+        return "kotlin.Unit"
     }
     if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
         return stringBox.value

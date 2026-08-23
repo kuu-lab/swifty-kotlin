@@ -1,4 +1,17 @@
 
+@_cdecl("kk_box_unit")
+public func kk_box_unit(_ value: Int) -> Int {
+    if runtimeIsUnitBox(value) {
+        return value
+    }
+    let box = RuntimeUnitBox()
+    let opaque = UnsafeMutableRawPointer(Unmanaged.passRetained(box).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: opaque))
+    }
+    return Int(bitPattern: opaque)
+}
+
 @_cdecl("kk_box_int")
 public func kk_box_int(_ value: Int) -> Int {
     if value == runtimeNullSentinelInt { return value }
