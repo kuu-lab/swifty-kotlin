@@ -47,6 +47,14 @@ public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean)
 }
 
 /**
+ * Returns the number of entries in this map.
+ */
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.count(): Int {
+    return size
+}
+
+/**
  * Returns the number of entries matching the given [predicate].
  */
 public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean): Int {
@@ -295,4 +303,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-

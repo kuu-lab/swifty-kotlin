@@ -1713,6 +1713,61 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testMapCountOverloadsAreBundledSourceBacked() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let packageFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func bundledMapCountSymbols(arity: Int) -> [SymbolID] {
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("count")]).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == arity,
+                          let receiverType = signature.receiverType,
+                          case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                          sema.symbols.symbol(receiverClassType.classSymbol)?.fqName == mapFQName
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                }
+            }
+
+            let noArg = bundledMapCountSymbols(arity: 0)
+            #expect(!noArg.isEmpty, "Expected bundled Kotlin source for Map.count()")
+            #expect(noArg.allSatisfy { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.flags.contains(.inlineFunction)
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            })
+
+            let predicate = bundledMapCountSymbols(arity: 1)
+            #expect(!predicate.isEmpty, "Expected bundled Kotlin source for Map.count(predicate)")
+            #expect(predicate.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+
+            let syntheticNoArg = sema.symbols.lookupAll(fqName: mapFQName + [interner.intern("count")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.parameterTypes.isEmpty
+            }
+            #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic kk_map_size overload")
+        }
+    }
+
+    @Test
     func testMapWithDefaultSurfaceResolvesDefaultLambda() throws {
         let source = """
         fun probe(values: Map<Int, Int>): Int {
