@@ -3212,18 +3212,15 @@
   - 未実装シンボル一覧:
     - `kotlin.ULong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
 
-- [ ] KSP-910: kotlin.ULong.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-910: kotlin.ULong.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ULong.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULong/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ULong_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ULong_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ULong_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.ULong.Companion.MAX_VALUE` — val Companion.MAX_VALUE: ULong  -- `final const val MAX_VALUE`
-    - `kotlin.ULong.Companion.MIN_VALUE` — val Companion.MIN_VALUE: ULong  -- `final const val MIN_VALUE`
-    - `kotlin.ULong.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
-    - `kotlin.ULong.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了確認（2026-08-23）: `Sources/CompilerCore/Stdlib/kotlin/ULong/Companion/Companion.kt` に4 APIをsource-backed `public val` として実装。現行言語制約によりextension `const val` ではなく既存numeric companionと同じpublic getter形式を採用し、Sema Goldenで直接参照・明示Companion receiver・型・2^63境界・算術式・`Any` boxing/`is ULong` を固定。ULong専用のnumeric companion fallbackのみ削除し、共有ULong boxing/runtime/ABIは保持。
+  - 検証: focused Golden shard（更新あり/なし）、`stdlib_kotlin_ULong_Companion_Companion_n.kt` の`diff_kotlinc`、`UnsignedPrimitiveMemberCallTests`、`IntegerNarrowingPassTests`、Bundled stdlib ULong Backend回帰、`RuntimeUnsignedComparisonAndToStringTests`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` がpass。
 
 - [ ] KSP-911: kotlin.ULongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ULongArray` / top-level
