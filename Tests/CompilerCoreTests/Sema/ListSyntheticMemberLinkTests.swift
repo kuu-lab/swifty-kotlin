@@ -301,9 +301,11 @@ struct ListSyntheticMemberLinkTests {
 
             let constructorCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
-                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                      case let .nameRef(name, _) = ast.arena.expr(callee),
+                      let range = ast.arena.exprRange(callee)
                 else { return false }
                 return interner.resolve(name) == "LinkedHashSet"
+                    && ctx.sourceManager.path(of: range.start.file) == path
             })
             let callType = try #require(sema.bindings.exprTypes[constructorCall])
             guard case let .classType(classType) = sema.types.kind(of: callType) else {
