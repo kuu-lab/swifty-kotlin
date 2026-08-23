@@ -3107,7 +3107,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Triple.<init>` — constructor (, , )  -- `constructor <init>(#A, #B, #C)`
 
-- [ ] KSP-901: kotlin.Triple.Triple の未実装 stdlib API を実装する（7 件）
+- [x] KSP-901: kotlin.Triple.Triple の未実装 stdlib API を実装する（7 件） **完了（2026-08-23）**: #5471/#5899で既存6件（constructor/properties/components）がsource-backed済みであることを再確認し、本PRで`Tuples.kt`に`Triple.copy`を追加。指定Golden/diffでdefault/named/partial/all override、generic/nullable値、properties/componentsを固定し、共有Triple bridge/runtime/ABIは維持。
   - 対象: `kotlin.Triple` / receiver `Triple`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Triple/Triple.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

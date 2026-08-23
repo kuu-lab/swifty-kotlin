@@ -1880,9 +1880,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(raw, to: RuntimeTripleBox.self) {
-        let first = runtimeRenderAnyForPrint(tripleBox.first)
-        let second = runtimeRenderAnyForPrint(tripleBox.second)
-        let third = runtimeRenderAnyForPrint(tripleBox.third)
+        let first = runtimeRenderAnyForPrint(tripleBox.firstValue)
+        let second = runtimeRenderAnyForPrint(tripleBox.secondValue)
+        let third = runtimeRenderAnyForPrint(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if tryCast(raw, to: RuntimeIndexingIterableBox.self) != nil {

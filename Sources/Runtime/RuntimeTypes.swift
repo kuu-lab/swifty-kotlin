@@ -274,14 +274,18 @@ final class RuntimePairBox {
 }
 
 final class RuntimeTripleBox {
-    let first: Int
-    let second: Int
-    let third: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+    let thirdValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
+    var third: Int { thirdValue.legacyRawValue }
 
     init(first: Int, second: Int, third: Int) {
-        self.first = first
-        self.second = second
-        self.third = third
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+        self.thirdValue = RuntimeValue(raw: third)
     }
 }
 
@@ -2495,7 +2499,9 @@ extension RuntimePairBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second, third] }
+    var childRefs: [Int] {
+        [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {

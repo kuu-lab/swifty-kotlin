@@ -666,9 +666,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let lhsTriple = tryCast(lhsPtr, to: RuntimeTripleBox.self),
        let rhsTriple = tryCast(rhsPtr, to: RuntimeTripleBox.self)
     {
-        return runtimeValuesEqual(lhsTriple.first, rhsTriple.first)
-            && runtimeValuesEqual(lhsTriple.second, rhsTriple.second)
-            && runtimeValuesEqual(lhsTriple.third, rhsTriple.third)
+        return runtimeValuesEqual(lhsTriple.firstValue, rhsTriple.firstValue)
+            && runtimeValuesEqual(lhsTriple.secondValue, rhsTriple.secondValue)
+            && runtimeValuesEqual(lhsTriple.thirdValue, rhsTriple.thirdValue)
     }
     if let lhsLocale = tryCast(lhsPtr, to: RuntimeLocaleBox.self),
        let rhsLocale = tryCast(rhsPtr, to: RuntimeLocaleBox.self)
@@ -841,9 +841,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(ptr, to: RuntimeTripleBox.self) {
-        let first = runtimeElementToString(tripleBox.first)
-        let second = runtimeElementToString(tripleBox.second)
-        let third = runtimeElementToString(tripleBox.third)
+        let first = runtimeElementToString(tripleBox.firstValue)
+        let second = runtimeElementToString(tripleBox.secondValue)
+        let third = runtimeElementToString(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {
