@@ -81,15 +81,23 @@ struct ReceiverClassifier {
     }
 
     func isIterableLikeType(_ type: TypeID) -> Bool {
-        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return symbol.name == interner.intern("Iterable")
-            || symbol.fqName == [
+        let iterableFQName = [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("Iterable"),
             ]
+        if symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName {
+            return true
+        }
+        // User-defined classes implementing Iterable must use the generic
+        // Iterable source extensions rather than unresolved member fallbacks.
+        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+            return false
+        }
+        return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
     }
 
     /// BUG-167: True for the `kotlin.collections` iterable *interfaces*, whose
