@@ -639,7 +639,11 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
 /// the value does not implement `Iterable` in source, so callers can fall back
 /// to the runtime box representations.
-func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+func runtimeSourceIterableIterator(
+    _ iterableRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
+    outThrown?.pointee = 0
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
     guard fnPtr != 0 else {
         return nil
@@ -651,9 +655,51 @@ func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        runtimeSetThrown(outThrown, thrown)
+        return nil
     }
     return iterRaw
+}
+
+/// Preserve the legacy non-throwing range bridge behavior for for-in loops.
+func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+    var thrown = 0
+    let result = runtimeSourceIterableIterator(iterableRaw, outThrown: &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+/// KSP-998: Explicit `Iterable.iterator()` calls use a throwing bridge so a
+/// source iterator is acquired lazily and its exception reaches Kotlin catch.
+@_cdecl("kk_iterable_iterator")
+public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
+        return iterableRaw
+    }
+    if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+        return kk_list_iterator(iterableRaw)
+    }
+    // Preserve the legacy compiler bridge for the old runtime-backed
+    // IndexingIterable representation while source-backed withIndex() uses the
+    // Kotlin IndexingIterable class above.
+    if runtimeIndexingIterableBox(from: iterableRaw) != nil {
+        return kk_indexing_iterable_iterator(iterableRaw)
+    }
+    if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
+        return sourceIterator
+    }
+    guard let range = runtimeRangeBox(from: iterableRaw) else {
+        return 0
+    }
+    return registerRuntimeObject(
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+    )
 }
 
 @_cdecl("kk_range_iterator")

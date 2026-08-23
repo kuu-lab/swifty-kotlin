@@ -1415,7 +1415,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testWithIndexUsesListOfIndexedValueSignature() throws {
+    func testWithIndexUsesIterableOfIndexedValueSignature() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
 
@@ -1435,21 +1435,21 @@ extension ListSyntheticMemberLinkTests {
             #expect(indexedValueRecord.flags.contains(.dataType))
 
             let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
-            guard case let .classType(listType) = sema.types.kind(of: signature.returnType),
-                  let firstArg = listType.args.first
+            guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType),
+                  let firstArg = iterableType.args.first
             else {
-                Issue.record("Expected withIndex() to return List<IndexedValue<T>>"); return
+                Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
             }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
             let elementType: TypeID
             switch firstArg {
             case .invariant(let t), .out(let t), .in(let t):
                 elementType = t
             case .star:
-                Issue.record("Expected List element type, got star projection"); return
+                Issue.record("Expected Iterable element type, got star projection"); return
             }
             guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
-                Issue.record("Expected List element type to be IndexedValue"); return
+                Issue.record("Expected Iterable element type to be IndexedValue"); return
             }
             #expect(indexedValueType.classSymbol == indexedValueSymbol)
         }
