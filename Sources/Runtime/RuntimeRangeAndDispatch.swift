@@ -639,7 +639,10 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
 /// the `kotlin.collections.Iterable` itable (method slot 0). Returns nil when
 /// the value does not implement `Iterable` in source, so callers can fall back
 /// to the runtime box representations.
-func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
+func runtimeSourceIterableIterator(
+    _ iterableRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>? = nil
+) -> Int? {
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
     guard fnPtr != 0 else {
         return nil
@@ -651,7 +654,12 @@ func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        if let outThrown {
+            runtimeSetThrown(outThrown, thrown)
+        } else {
+            runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        }
+        return nil
     }
     return iterRaw
 }
@@ -696,6 +704,38 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     return registerRuntimeObject(
         RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
     )
+}
+
+/// Throwing counterpart used by direct `Iterable.iterator()` calls. Generic
+/// for-loop lowering retains `kk_range_iterator`, whose legacy ABI is
+/// non-throwing; source-backed collection operations need the original
+/// exception handle to remain catchable instead of becoming a runtime panic.
+@_cdecl("kk_iterable_iterator")
+public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
+        return iterableRaw
+    }
+    if runtimeSequenceBox(from: iterableRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
+    if runtimeListBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if runtimeSetBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
+        return sourceIterator
+    }
+    if outThrown?.pointee != 0 {
+        return 0
+    }
+    return kk_range_iterator(iterableRaw)
 }
 
 @_cdecl("kk_range_hasNext")

@@ -31,6 +31,7 @@ func bridgeSpec(
 }
 
 private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
+    bridgeSpec("kk_iterable_iterator", section: "Collection", params: ["iterableRaw"]),
 ]
 
 private let listClosureBridgeNames = [

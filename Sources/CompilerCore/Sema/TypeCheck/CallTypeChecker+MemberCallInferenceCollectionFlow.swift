@@ -391,6 +391,56 @@ extension CallTypeChecker {
             return true
         }
 
+        // KSP-970: bind the generic Iterable element family explicitly so a
+        // plain Iterable receiver cannot fall through to the legacy runtime
+        // fallback. List source overloads remain preferred for concrete Lists.
+        if !isSequenceReceiver,
+           (calleeStr == "elementAt" || calleeStr == "elementAtOrElse" || calleeStr == "elementAtOrNull"),
+           (isCollectionReceiver || isIterableReceiver)
+        {
+            let collectionElementType = resolvedCollectionElementType(
+                receiverID: receiverID,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner,
+                ctx: ctx,
+                locals: &locals
+            )
+            let expectedArgumentCount = calleeStr == "elementAtOrElse" ? 2 : 1
+            guard args.count == expectedArgumentCount else {
+                return nil
+            }
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+            if calleeStr == "elementAtOrElse" {
+                let defaultValueType = sema.types.make(.functionType(FunctionType(
+                    params: [sema.types.intType],
+                    returnType: collectionElementType
+                )))
+                _ = driver.inferExpr(
+                    args[1].expr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: defaultValueType
+                )
+            }
+            let didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+            guard didBindSource else {
+                return nil
+            }
+            for argument in args
+            where ast.arena.expr(argument.expr)?.isLambdaOrCallableRef == true {
+                sema.bindings.unmarkCollectionHOFLambdaExpr(argument.expr)
+            }
+            sema.bindings.markCollectionExpr(id)
+            let resultType = calleeStr == "elementAtOrNull"
+                ? sema.types.makeNullable(collectionElementType)
+                : collectionElementType
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+
         @discardableResult
         func bindBundledAsSequenceSourceIfAvailable(typeArguments: [TypeID]) -> Bool {
             // Sequence.asSequence() is an identity conversion. The bundled
