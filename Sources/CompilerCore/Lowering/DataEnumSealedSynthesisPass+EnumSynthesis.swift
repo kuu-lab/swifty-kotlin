@@ -93,7 +93,8 @@ extension DataEnumSealedSynthesisPass {
 
     /// Synthesizes the `entries` getter on the companion object.
     /// `Color.entries` returns an EnumEntries (List) containing all enum entry singletons.
-    /// The body is: kk_array_new(count) → kk_array_set for each entry → kk_enum_make_entries_list.
+    /// The body is: kk_array_new(count) → kk_array_set for each entry → cached
+    /// `kk_enum_make_entries_list_cached`.
     func appendSyntheticEnumEntriesGetterIfNeeded(
         owner: SemanticSymbol,
         enumSymbol: SemanticSymbol,
@@ -121,14 +122,22 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             interner: interner
         )
+        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: enumSymbol.id,
+            symbols: sema.symbols,
+            interner: interner
+        )
+        let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
+        body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
 
-        // kk_enum_make_entries_list(array, count) -- returns List for EnumEntries
+        // Cache the per-enum list so `Color.entries` and `enumEntries<Color>()`
+        // have the same stable identity, matching Kotlin's EnumEntries contract.
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_enum_make_entries_list"),
-            arguments: [arrayExpr, countExpr],
+            callee: interner.intern("kk_enum_make_entries_list_cached"),
+            arguments: [arrayExpr, countExpr, classIDExpr],
             result: listExpr,
             canThrow: false,
             thrownResult: nil

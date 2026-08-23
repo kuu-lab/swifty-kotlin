@@ -57,6 +57,17 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_entries_get",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: true
+        ),
     ]
     + [
         RuntimeABIFunctionSpec(

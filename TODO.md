@@ -6446,14 +6446,15 @@
     - `kotlin.coroutines.intrinsics.CoroutineSingletons.valueOf` — fun CoroutineSingletons.valueOf(String): CoroutineSingletons  -- `final fun valueOf(kotlin/String): kotlin.coroutines.intrinsics/CoroutineSingletons`
     - `kotlin.coroutines.intrinsics.CoroutineSingletons.values` — fun CoroutineSingletons.values(): Array  -- `final fun values(): kotlin/Array<kotlin.coroutines.intrinsics/CoroutineSingletons>`
 
-- [ ] KSP-1156: kotlin.enums top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1156: kotlin.enums top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.enums` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/enums/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_enums_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_enums_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_enums_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: Kotlin 2.3.10 公式 source/Native intrinsic の exact overload・visibility・reified/Enum bound を反映し、4件すべてを source-backed surface と enum-specific lowering/runtime bridge で実装。Array/provider は provider の一回評価と配列 backing view、reified/intrinsic と `Enum.entries` は cached identity、順序・index exception を固定。`EnumEntriesFunctionSurfaceTests` 3件、既存 enum lowering/API 28件、対象 Golden shard、Kotlin 2.3.10 diff、Runtime ABI 4件、TODO ID 重複検査が pass（Golden 全体・aggregate は未実行）。
+  - 実装対象シンボル一覧（完了時の契約）:
     - `kotlin.enums.enumEntries` — fun enumEntries(): EnumEntries  -- `final inline fun <#A: reified kotlin/Enum<#A>> kotlin.enums/enumEntries(): kotlin.enums/EnumEntries<#A>`
     - `kotlin.enums.enumEntries` — fun enumEntries(Array): EnumEntries  -- `final fun <#A: kotlin/Enum<#A>> kotlin.enums/enumEntries(kotlin/Array<#A>): kotlin.enums/EnumEntries<#A>`
     - `kotlin.enums.enumEntries` — fun enumEntries(Function0): EnumEntries  -- `final fun <#A: kotlin/Enum<#A>> kotlin.enums/enumEntries(kotlin/Function0<kotlin/Array<#A>>): kotlin.enums/EnumEntries<#A>`
