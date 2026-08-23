@@ -2635,10 +2635,10 @@
     - `kotlin.KotlinVersion.minor` — val KotlinVersion.minor: Int  -- `final val minor`
     - `kotlin.KotlinVersion.patch` — val KotlinVersion.patch: Int  -- `final val patch`
 
-- [ ] KSP-858: kotlin.Lazy.Lazy の未実装 stdlib API を実装する（2 件）
+- [x] KSP-858: kotlin.Lazy.Lazy の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.Lazy` / receiver `Lazy`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Lazy/Lazy.kt`（該当ファイルが無ければ新規作成）
-  - 実装状況: `value` / `isInitialized` は KSP-743 で `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt` に source-backed な抽象メンバーとして実装済み。重複宣言は追加せず、receiver 呼び出しの回帰 fixture を追加した。
+  - 完了根拠: `value` / `isInitialized` は KSP-743 PR #5883（merge `4216525b2`）で `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt` に source-backed な抽象メンバーとして実装済み。現行 `LazyImpl` は両メンバーを実装し、KSP-858 receiver 回帰は PR #5963（merge `ea9363e0d`）の `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Lazy_Lazy_n.kt` / `.golden` と `Scripts/diff_cases/stdlib_kotlin_Lazy_Lazy_n.kt` で固定済み。重複宣言は追加しない。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Lazy_Lazy_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Lazy_Lazy_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Lazy_Lazy_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
