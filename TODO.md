@@ -9960,7 +9960,7 @@
     - `kotlin.text.HexFormat.NumberHexFormat.Builder.removeLeadingZeros` — val Builder.removeLeadingZeros: Boolean  -- `final var removeLeadingZeros`
     - `kotlin.text.HexFormat.NumberHexFormat.Builder.suffix` — val Builder.suffix: String  -- `final var suffix`
 
-- [ ] KSP-1430: kotlin.text.MatchGroup top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1430: kotlin.text.MatchGroup top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.MatchGroup` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchGroup/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9969,6 +9969,12 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.MatchGroup.<init>` — constructor (String, IntRange)  -- `constructor <init>(kotlin/String, kotlin.ranges/IntRange)`
+  - 完了根拠（2026-08-24）:
+    - merged commit `d4c3f0831f5efe07bfb548ef163ea9e081ab415b`（KSP-486）で MatchResult/MatchGroup 層を bundled Kotlin source へ移行済み。
+    - 現行 `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt` の `public data class MatchGroup(public val value: String, public val range: IntRange)` が Kotlin 2.3.10 Native の `(String, IntRange)` public primary constructor を提供し、synthetic/RuntimeABI bridge は不要。
+    - `MatchGroupTypeTests.testMatchGroupConstructorHasNativeSignature` が source-backed、public、非 synthetic、external link なし、receiver/parameter/return type、default/vararg なしを確認。
+    - `CodegenBackendIntegrationTests+MatchGroupCollection.swift` の最小再現 `MatchGroup("capture", 2..5)` が value/range を保持して `capture`, `2`, `5` を出力。
+    - 生成 stdlib metadata が `kotlin.text.MatchGroup.<init>` の arity 2、`value,range`、`dataClass=1` を確認。
 
 - [ ] KSP-1431: kotlin.text.MatchGroup.MatchGroup の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.text.MatchGroup` / receiver `MatchGroup`

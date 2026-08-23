@@ -178,5 +178,29 @@ struct CodegenBackendMatchGroupCollectionTests {
                 """ + "\n"
         )
     }
+
+    // KSP-1430: direct construction must preserve both primary-constructor
+    // properties without involving a Regex runtime bridge.
+    @Test func testMatchGroupConstructorStoresValueAndRange() throws {
+        let source = """
+        fun main() {
+            val group = MatchGroup("capture", 2..5)
+            println(group.value)
+            println(group.range.first)
+            println(group.range.last)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MatchGroupConstructor",
+            expected:
+                """
+                capture
+                2
+                5
+                """ + "\n"
+        )
+    }
 }
 #endif
