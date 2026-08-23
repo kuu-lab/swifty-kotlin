@@ -104,4 +104,36 @@ public fun <T, R> Iterable<T>.zip(other: Iterable<R>): List<Pair<T, R>> =
 public fun <T, R, V> Iterable<T>.zip(other: Iterable<R>, transform: (T, R) -> V): List<V> =
     __kk_list_zip_transform(this, other, transform)
 
+// Kotlin stdlib: fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>>
+//
+// Keep the array overload on the source path. The shared iterable bridge
+// materializes both inputs before pairing, which would consume an arbitrary
+// Iterable past the array's length.
+public infix fun <T, R> Iterable<T>.zip(other: Array<out R>): List<Pair<T, R>> {
+    val arraySize = other.size
+    val result = mutableListOf<Pair<T, R>>()
+    var index = 0
+    val iterator = iterator()
+    while (index < arraySize && iterator.hasNext()) {
+        result.add(Pair(iterator.next(), other[index]))
+        index++
+    }
+    return result
+}
+
+public inline fun <T, R, V> Iterable<T>.zip(
+    other: Array<out R>,
+    transform: (a: T, b: R) -> V
+): List<V> {
+    val arraySize = other.size
+    val result = mutableListOf<V>()
+    var index = 0
+    val iterator = iterator()
+    while (index < arraySize && iterator.hasNext()) {
+        result.add(transform(iterator.next(), other[index]))
+        index++
+    }
+    return result
+}
+
 // withIndex lives in Iterators.kt (KSP-626).

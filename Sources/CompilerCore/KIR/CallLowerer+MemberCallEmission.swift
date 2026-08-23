@@ -601,6 +601,7 @@ extension CallLowerer {
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
+            sourceArgExprs: sourceArgExprs,
             sema: sema,
             interner: interner
         ) {
@@ -735,6 +736,7 @@ extension CallLowerer {
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
+        sourceArgExprs: [ExprID],
         sema: SemaModule,
         interner: StringInterner
     ) -> (callee: InternedString, canThrow: Bool)? {
@@ -744,6 +746,20 @@ extension CallLowerer {
             || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if interner.resolve(calleeName) == "zip",
+           let firstArgument = sourceArgExprs.first,
+           let firstArgumentType = sema.bindings.exprTypes[firstArgument],
+           isGenericKotlinArrayType(
+               sema.types.makeNonNullable(firstArgumentType),
+               sema: sema,
+               interner: interner
+           )
+        {
+            // KSP-999: Array overloads execute the bundled Kotlin source body;
+            // the materializing Iterable bridge is retained for Iterable inputs.
             return nil
         }
 
