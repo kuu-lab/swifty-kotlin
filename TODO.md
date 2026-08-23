@@ -5066,7 +5066,7 @@
     - `kotlin.collections.Collection.iterator` — fun Collection.iterator(): Iterator  -- `abstract fun iterator(): kotlin.collections/Iterator<#A>`
     - `kotlin.collections.Collection.size` — val Collection.size: Int  -- `abstract val size`
 
-- [ ] KSP-1051: kotlin.collections.DoubleIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1051: kotlin.collections.DoubleIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.DoubleIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/DoubleIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5075,6 +5075,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.DoubleIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: `PrimitiveIterators.kt` は KSP-664（commit `0cb868900` / PR #5044）で source-backed に移行済みで、public abstract `DoubleIterator : Iterator<Double>`、final `next()` bridge、abstract `nextDouble()` を宣言している。明示constructorを省略したKotlin classのpublic no-arg constructorはKotlin 2.3.10 metadata/classfileにも生成され、PR #1816でも同surfaceのstale TODOが完了済み。現行の `ListSyntheticMemberLinkTests` はDoubleIteratorの登録・supertype・member signatureを検証する。
 
 - [ ] KSP-1052: kotlin.collections.FloatIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.FloatIterator` / top-level
