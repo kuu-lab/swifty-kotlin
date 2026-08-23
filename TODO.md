@@ -4205,7 +4205,7 @@
     - `kotlin.collections.runningReduce` — fun Iterable.runningReduce(Function2): List  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/runningReduce(kotlin/Function2<#A, #B, #A>): kotlin.collections/List<#A>`
     - `kotlin.collections.runningReduceIndexed` — fun Iterable.runningReduceIndexed(Function3): List  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/runningReduceIndexed(kotlin/Function3<kotlin/Int, #A, #B, #A>): kotlin.collections/List<#A>`
 
-- [ ] KSP-991: kotlin.collections.Iterable.shuffled-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-991: kotlin.collections.Iterable.shuffled-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `shuffled`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4215,6 +4215,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.shuffled` — fun Iterable.shuffled(): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/shuffled(): kotlin.collections/List<#A>`
     - `kotlin.collections.shuffled` — fun Iterable.shuffled(Random): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/shuffled(kotlin.random/Random): kotlin.collections/List<#A>`
+  - 完了根拠: `Iterables.kt` を source-backed 化し、`Iterable` receiver を明示した Sema Golden、KIR、focused Backend、専用 `diff_kotlinc` で2 overloadを検証。empty/singleton、duplicate/null、one-shot Iterableの1回eager消費、fresh List、元receiver非変更、seeded再現性・multisetを固定し、List/Sequenceのsynthetic/runtime/RuntimeABI経路は変更していない。
 
 - [ ] KSP-992: kotlin.collections.Iterable.single-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `single`

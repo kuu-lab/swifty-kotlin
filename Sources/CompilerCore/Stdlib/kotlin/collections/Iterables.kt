@@ -17,6 +17,32 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     return result
 }
 
+public fun <T> Iterable<T>.shuffled(): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = Random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.shuffled(random: Random): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
