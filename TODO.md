@@ -3033,7 +3033,7 @@
   - 未実装シンボル一覧:
     - `kotlin.SubclassOptInRequired.markerClass` — val SubclassOptInRequired.markerClass: Array  -- `final val markerClass`
 
-- [ ] KSP-894: kotlin.Suppress top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-894: kotlin.Suppress top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Suppress` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Suppress/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3042,6 +3042,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Suppress.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin/String>...)`
+  - 完了根拠: PR #5888（merge commit `44abba9f7fa0785da0d17b1a9cf1fd0fcbd9958f`）で bundled source 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/Suppress.kt` の `public annotation class Suppress(vararg val names: String)` と、既存の `stdlib_kotlin_n_Suppress` Golden/diff の `@file:Suppress("UNUSED")` が vararg `String` constructor の型と解決を固定しており、対象の synthetic 登録・Runtime ABI・name-string 特例は残っていない。
 
 - [ ] KSP-895: kotlin.Suppress.Suppress の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Suppress` / receiver `Suppress`
