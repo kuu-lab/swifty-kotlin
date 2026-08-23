@@ -1811,7 +1811,10 @@ struct ListSyntheticMemberLinkTests {
             let abstractSetSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName))
             let abstractSetInfo = try #require(sema.symbols.symbol(abstractSetSymbol))
             #expect(abstractSetInfo.kind == .class)
-            #expect(abstractSetInfo.flags.contains(.synthetic))
+            // KSP-932: the nominal declaration now comes from the bundled
+            // `Stdlib/kotlin/collections/AbstractSet.kt` source. The
+            // compiler-side shell remains only as the no-stdlib fallback.
+            #expect(!abstractSetInfo.flags.contains(.synthetic))
             #expect(abstractSetInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractSetSymbol) == [.out])
 
