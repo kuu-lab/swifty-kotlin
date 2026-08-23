@@ -26,9 +26,6 @@ symbol fq=kotlin.collections.MutableSet.remove kind=function vis=public flags=sy
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Set.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Set.contains kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Set<out kotlin.collections.Set.E> params=[kotlin.collections.Set.E] ret=Boolean
-symbol fq=kotlin.collections.linkedSetOf kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.linkedSetOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.linkedSetOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=linkedExtension kind=function vis=public flags=_ sig=recv=kotlin.collections.LinkedHashSet<String> params=[] ret=String
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=nestedLinkedSets kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -96,7 +93,7 @@ expr e@43:5 call callee=e@43:5#1 args=[_:e@43:13#1] type=Unit call=kotlin.io.pri
 expr e@45:31 int(1) type=Int
 expr e@45:34 int(2) type=Int
 expr e@45:37 int(3) type=Int
-expr e@45:19 call callee=e@45:19#1 args=[_:e@45:31,_:e@45:34,_:e@45:37] type=kotlin.collections.LinkedHashSet<Int> call=kotlin.collections.linkedSetOf targs=[Int]
+expr e@45:19 call callee=e@45:19#1 args=[_:e@45:31,_:e@45:34,_:e@45:37] type=kotlin.collections.LinkedHashSet<Int> call=kotlin.collections.linkedSetOf#1 targs=[Int]
 expr e@45:5 localDecl ordered mutable=0 type=_ init=e@45:19 type=Unit ref=__local_4.ordered
 expr e@46:5 name(ordered) type=kotlin.collections.LinkedHashSet<Int> ref=__local_4.ordered
 expr e@46:20 int(2) type=Int

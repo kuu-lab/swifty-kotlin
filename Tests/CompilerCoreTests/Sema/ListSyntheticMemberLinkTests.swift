@@ -239,6 +239,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "LinkedHashSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(linkedSetCall), "Expected linkedSetOf to be tracked as a collection expression")
+
+            let linkedSetCallee = try #require(sema.bindings.callBinding(for: linkedSetCall)?.chosenCallee)
+            let linkedSetSymbol = try #require(sema.symbols.symbol(linkedSetCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(linkedSetCallee), "linkedSetOf must resolve to bundled Kotlin source")
+            #expect(!linkedSetSymbol.flags.contains(.synthetic), "linkedSetOf must not use the synthetic bootstrap stub")
+            #expect(linkedSetSymbol.declSite != nil, "linkedSetOf source declaration should carry a declaration site")
+            #expect(sema.symbols.externalLinkName(for: linkedSetCallee) == nil)
         }
     }
 
@@ -392,6 +399,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableMap")
             #expect(classType.args == [.invariant(sema.types.stringType), .invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(linkedMapCall), "Expected linkedMapOf to be tracked as a collection expression")
+
+            let linkedMapCallee = try #require(sema.bindings.callBinding(for: linkedMapCall)?.chosenCallee)
+            let linkedMapSymbol = try #require(sema.symbols.symbol(linkedMapCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(linkedMapCallee), "linkedMapOf must resolve to bundled Kotlin source")
+            #expect(!linkedMapSymbol.flags.contains(.synthetic), "linkedMapOf must not use the synthetic bootstrap stub")
+            #expect(linkedMapSymbol.declSite != nil, "linkedMapOf source declaration should carry a declaration site")
+            #expect(sema.symbols.externalLinkName(for: linkedMapCallee) == nil)
         }
     }
 

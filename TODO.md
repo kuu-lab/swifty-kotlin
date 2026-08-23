@@ -2601,18 +2601,21 @@
     - `kotlin.collections.ifEmpty` — fun ifEmpty(Function0): #B  -- `final inline fun <#A: #B & kotlin.collections/Map<*, *>, #B: kotlin/Any?> (#A).kotlin.collections/ifEmpty(kotlin/Function0<#B>): #B`
     - `kotlin.collections.ifEmpty` — fun ifEmpty(Function0): #B  -- `final inline fun <#A: #B & kotlin/Array<*>, #B: kotlin/Any?> (#A).kotlin.collections/ifEmpty(kotlin/Function0<#B>): #B`
 
-- [ ] KSP-954: kotlin.collections.linked-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-954: kotlin.collections.linked-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / top-level / family `linked`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/linked.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_linked.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_linked.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_linked.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.linkedMapOf` — fun linkedMapOf(): HashMap  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/linkedMapOf(): kotlin.collections/HashMap<#A, #B>`
-    - `kotlin.collections.linkedMapOf` — fun linkedMapOf(Array): HashMap  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/linkedMapOf(kotlin/Array<out kotlin/Pair<#A, #B>>...): kotlin.collections/HashMap<#A, #B>`
-    - `kotlin.collections.linkedSetOf` — fun linkedSetOf(): HashSet  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(): kotlin.collections/HashSet<#A>`
-    - `kotlin.collections.linkedSetOf` — fun linkedSetOf(Array): HashSet  -- `final fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(kotlin/Array<out #A>...): kotlin.collections/HashSet<#A>`
+  - 実装根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/linked.kt` に4 overloadをsource-backed宣言として追加し、linked factoryのsynthetic登録だけを削除。shared lowering/runtime/ABI bridgeは保持。
+  - 検証根拠: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_linked.kt` と `.golden`、`Scripts/diff_cases/stdlib_kotlin_collections_n_linked.kt`、linkedSetOfのSema source-ownership回帰、linkedMapOf spreadのruntime回帰。
+  - 原典型: `kotlinc`/stdlib bytecodeでlinkedMapOfは `LinkedHashMap<K, V>`、linkedSetOfは `LinkedHashSet<T>` を返すことを確認。
+  - 実装済みシンボル一覧:
+    - `kotlin.collections.linkedMapOf` — fun linkedMapOf(): LinkedHashMap  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/linkedMapOf(): kotlin.collections/LinkedHashMap<#A, #B>`
+    - `kotlin.collections.linkedMapOf` — fun linkedMapOf(Array): LinkedHashMap  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/linkedMapOf(kotlin/Array<out kotlin/Pair<#A, #B>>...): kotlin.collections/LinkedHashMap<#A, #B>`
+    - `kotlin.collections.linkedSetOf` — fun linkedSetOf(): LinkedHashSet  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(): kotlin.collections/LinkedHashSet<#A>`
+    - `kotlin.collections.linkedSetOf` — fun linkedSetOf(Array): LinkedHashSet  -- `final fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(kotlin/Array<out #A>...): kotlin.collections/LinkedHashSet<#A>`
 
 - [x] KSP-955: kotlin.collections.list-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `list`
