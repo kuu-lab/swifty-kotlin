@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.internal.__valuesEqual
+
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
@@ -46,6 +48,44 @@ public fun <T> Iterable<T>.last(): T {
     }
     if (!found) throw NoSuchElementException("Collection is empty.")
     return last as T
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
+    var last: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            last = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    return last as T
+}
+
+public fun <T> Iterable<T>.lastIndexOf(element: T): Int {
+    var lastIndex = -1
+    var index = 0
+    for (item in this) {
+        if (__valuesEqual(element, item)) lastIndex = index
+        index++
+    }
+    return lastIndex
+}
+
+public fun <T> Iterable<T>.lastOrNull(): T? {
+    var last: T? = null
+    for (element in this) last = element
+    return last
+}
+
+public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
 }
 
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
