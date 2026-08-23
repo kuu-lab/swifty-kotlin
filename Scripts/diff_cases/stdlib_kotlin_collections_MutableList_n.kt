@@ -58,4 +58,7 @@ fun main() {
     val counted = mutableListOf(1, 2, 3, 4)
     counted.shuffle(countingRandom)
     println("shuffleCounting=${counted}|calls=${countingRandom.calls}")
+
+    val nullableMutable: MutableList<Int>? = null
+    println("safe=${nullableMutable?.removeFirst()}|${nullableMutable?.removeAll { it > 0 }}|${nullableMutable?.reverse()}")
 }

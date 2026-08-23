@@ -13,6 +13,10 @@ symbol fq=__local_11.retainPredicate kind=local vis=private flags=_ type=Boolean
 symbol fq=__local_12.reversed kind=local vis=private flags=_ type=Unit
 symbol fq=__local_13.shuffled kind=local vis=private flags=_ type=Unit
 symbol fq=__local_14.shuffledSeeded kind=local vis=private flags=_ type=Unit
+symbol fq=__local_15.nullableMutable kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>?
+symbol fq=__local_16.safeFirst kind=local vis=private flags=_ type=Int?
+symbol fq=__local_17.safeRemoveAll kind=local vis=private flags=_ type=Boolean?
+symbol fq=__local_18.safeReverse kind=local vis=private flags=_ type=Unit
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableCollection kind=interface vis=public flags=synthetic
@@ -81,29 +85,50 @@ expr e@19:69 int(1) type=Int
 expr e@19:48 memberCall recv=e@19:48#1 callee=Random args=[_:e@19:69] type=kotlin.random.Random call=kotlin.random.Random#1
 expr e@19:32#1 memberCall recv=e@19:32 callee=shuffle args=[_:e@19:48] type=Unit call=kotlin.collections.shuffle#1 targs=[Int]
 expr e@19:5 localDecl shuffledSeeded mutable=0 type=Unit init=e@19:32#1 type=Unit ref=__local_14.shuffledSeeded
-expr e@20:13 name(mutableReversed) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableReversed
-expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println#1
-expr e@21:13 name(readOnlyReversed) type=kotlin.collections.List<Int> ref=__local_3.readOnlyReversed
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13] type=Unit call=kotlin.io.println#1
-expr e@22:13 name(indexed) type=Int ref=__local_4.indexed
-expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println#1
-expr e@23:13 name(element) type=Boolean ref=__local_5.element
-expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13] type=Unit call=kotlin.io.println#1
-expr e@24:13 name(first) type=Int ref=__local_6.first
+expr e@20:46 name(null) type=Nothing?
+expr e@20:5 localDecl nullableMutable mutable=0 type=MutableList<Int>? init=e@20:46 type=Unit ref=__local_15.nullableMutable
+expr e@21:21 name(nullableMutable) type=kotlin.collections.MutableList<Int>? ref=__local_15.nullableMutable
+expr e@21:21#1 safeMemberCall recv=e@21:21 callee=removeFirst args=[] type=Int? call=kotlin.collections.removeFirst targs=[Int]
+expr e@21:5 localDecl safeFirst mutable=0 type=_ init=e@21:21#1 type=Unit ref=__local_16.safeFirst
+expr e@22:25 name(nullableMutable) type=kotlin.collections.MutableList<Int>? ref=__local_15.nullableMutable
+expr e@22:54 name(it) type=Int ref=s-2
+expr e@22:59 int(0) type=Int
+expr e@22:54#1 binary(greaterThan) lhs=e@22:54 rhs=e@22:59 type=Boolean
+expr e@22:52 lambda params=[] body=e@22:54#1 label=removeAll type=(Int) -> Boolean
+expr e@22:25#1 safeMemberCall recv=e@22:25 callee=removeAll args=[_:e@22:52] type=Boolean? call=kotlin.collections.removeAll targs=[Int]
+expr e@22:5 localDecl safeRemoveAll mutable=0 type=_ init=e@22:25#1 type=Unit ref=__local_17.safeRemoveAll
+expr e@23:23 name(nullableMutable) type=kotlin.collections.MutableList<Int>? ref=__local_15.nullableMutable
+expr e@23:23#1 safeMemberCall recv=e@23:23 callee=reverse args=[] type=Unit call=kotlin.collections.reverse targs=[Int]
+expr e@23:5 localDecl safeReverse mutable=0 type=_ init=e@23:23#1 type=Unit ref=__local_18.safeReverse
+expr e@24:13 name(mutableReversed) type=kotlin.collections.MutableList<Int> ref=__local_1.mutableReversed
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13] type=Unit call=kotlin.io.println#1
-expr e@25:13 name(firstOrNull) type=Int? ref=__local_7.firstOrNull
+expr e@25:13 name(readOnlyReversed) type=kotlin.collections.List<Int> ref=__local_3.readOnlyReversed
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13] type=Unit call=kotlin.io.println#1
-expr e@26:13 name(last) type=Int ref=__local_8.last
+expr e@26:13 name(indexed) type=Int ref=__local_4.indexed
 expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Unit call=kotlin.io.println#1
-expr e@27:13 name(lastOrNull) type=Int? ref=__local_9.lastOrNull
+expr e@27:13 name(element) type=Boolean ref=__local_5.element
 expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println#1
-expr e@28:13 name(removePredicate) type=Boolean ref=__local_10.removePredicate
+expr e@28:13 name(first) type=Int ref=__local_6.first
 expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println#1
-expr e@29:13 name(retainPredicate) type=Boolean ref=__local_11.retainPredicate
+expr e@29:13 name(firstOrNull) type=Int? ref=__local_7.firstOrNull
 expr e@29:5 call callee=e@29:5#1 args=[_:e@29:13] type=Unit call=kotlin.io.println#1
-expr e@30:13 name(reversed) type=Unit ref=__local_12.reversed
+expr e@30:13 name(last) type=Int ref=__local_8.last
 expr e@30:5 call callee=e@30:5#1 args=[_:e@30:13] type=Unit call=kotlin.io.println#1
-expr e@31:13 name(shuffled) type=Unit ref=__local_13.shuffled
+expr e@31:13 name(lastOrNull) type=Int? ref=__local_9.lastOrNull
 expr e@31:5 call callee=e@31:5#1 args=[_:e@31:13] type=Unit call=kotlin.io.println#1
-expr e@32:13 name(shuffledSeeded) type=Unit ref=__local_14.shuffledSeeded
+expr e@32:13 name(removePredicate) type=Boolean ref=__local_10.removePredicate
 expr e@32:5 call callee=e@32:5#1 args=[_:e@32:13] type=Unit call=kotlin.io.println#1
+expr e@33:13 name(retainPredicate) type=Boolean ref=__local_11.retainPredicate
+expr e@33:5 call callee=e@33:5#1 args=[_:e@33:13] type=Unit call=kotlin.io.println#1
+expr e@34:13 name(reversed) type=Unit ref=__local_12.reversed
+expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13] type=Unit call=kotlin.io.println#1
+expr e@35:13 name(shuffled) type=Unit ref=__local_13.shuffled
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13] type=Unit call=kotlin.io.println#1
+expr e@36:13 name(shuffledSeeded) type=Unit ref=__local_14.shuffledSeeded
+expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13] type=Unit call=kotlin.io.println#1
+expr e@37:13 name(safeFirst) type=Int? ref=__local_16.safeFirst
+expr e@37:5 call callee=e@37:5#1 args=[_:e@37:13] type=Unit call=kotlin.io.println#1
+expr e@38:13 name(safeRemoveAll) type=Boolean? ref=__local_17.safeRemoveAll
+expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13] type=Unit call=kotlin.io.println#1
+expr e@39:13 name(safeReverse) type=Unit ref=__local_18.safeReverse
+expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13] type=Unit call=kotlin.io.println#1

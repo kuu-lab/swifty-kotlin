@@ -784,8 +784,9 @@ extension CallTypeChecker {
             }
 
             guard bound else { return nil }
-            sema.bindings.bindExprType(id, type: resultType)
-            return resultType
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
         }
 
         if interner.resolve(calleeName) == "asFlow",

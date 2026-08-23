@@ -4624,7 +4624,7 @@
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableList_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableList_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 完了根拠: Kotlin 2.3.10 の common source・metadata・kotlinc 挙動を照合し、MutableList の11件を `ListSortingHOF.kt` に source-backed 実装。MutableList/List の `asReversed` overload、`MutableList<Int>.remove(Int)` の element/index 選択、predicate、endpoint、reverse、shuffle を固定。
-  - 検証根拠: KSP-1021 Golden Sema 対象 shard PASS、exact diff PASS、focused Sema/KIR/runtime-link 回帰 PASS、Runtime ABI 4件 PASS、TODO-ID 重複チェック PASS。
+  - 検証根拠: KSP-1021 Golden Sema 対象 shard PASS、exact diff PASS、focused Sema/KIR/runtime-link 回帰 PASS、Runtime ABI 4件 PASS、TODO-ID 重複チェック PASS。safe-call fast path の結果型を nullable 化し、nullable MutableList の要素・Boolean・Unit 戻りをGolden/diff回帰で固定。
   - 例外メモ: JDK21 上の JVM kotlinc 2.3.10 は `java.util.List.removeFirst/removeLast` member を優先し empty message が `null` になるため、common source の `NoSuchElementException("List is empty.")` と区別して検証。
   - 未実装シンボル一覧:
     - `kotlin.collections.asReversed` — fun MutableList.asReversed(): MutableList  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableList<#A>).kotlin.collections/asReversed(): kotlin.collections/MutableList<#A>`

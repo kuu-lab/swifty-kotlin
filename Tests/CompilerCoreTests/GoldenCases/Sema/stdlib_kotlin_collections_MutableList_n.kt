@@ -17,6 +17,10 @@ fun main() {
     val reversed: Unit = mutable.reverse()
     val shuffled: Unit = mutable.shuffle()
     val shuffledSeeded: Unit = mutable.shuffle(kotlin.random.Random(1))
+    val nullableMutable: MutableList<Int>? = null
+    val safeFirst = nullableMutable?.removeFirst()
+    val safeRemoveAll = nullableMutable?.removeAll { it > 0 }
+    val safeReverse = nullableMutable?.reverse()
     println(mutableReversed)
     println(readOnlyReversed)
     println(indexed)
@@ -30,4 +34,7 @@ fun main() {
     println(reversed)
     println(shuffled)
     println(shuffledSeeded)
+    println(safeFirst)
+    println(safeRemoveAll)
+    println(safeReverse)
 }
