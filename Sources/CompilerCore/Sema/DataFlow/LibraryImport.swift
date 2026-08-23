@@ -566,6 +566,7 @@ extension DataFlowSemaPhase {
         let valueParameterNames: [String]
         let reifiedTypeParameterIndices: Set<Int>
         let typeSignature: String?
+        let typeParameterUpperBoundsSignatures: [[String]]
         let defaultStubExternalLinkName: String?
         let externalLinkName: String?
         let declaredFieldCount: Int?
@@ -624,6 +625,7 @@ extension DataFlowSemaPhase {
             valueParameterNames: [String] = [],
             reifiedTypeParameterIndices: Set<Int> = [],
             typeSignature: String? = nil,
+            typeParameterUpperBoundsSignatures: [[String]] = [],
             defaultStubExternalLinkName: String? = nil,
             externalLinkName: String? = nil,
             declaredFieldCount: Int? = nil,
@@ -676,6 +678,7 @@ extension DataFlowSemaPhase {
             self.valueParameterNames = valueParameterNames
             self.reifiedTypeParameterIndices = reifiedTypeParameterIndices
             self.typeSignature = typeSignature
+            self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
             self.defaultStubExternalLinkName = defaultStubExternalLinkName
             self.externalLinkName = externalLinkName
             self.declaredFieldCount = declaredFieldCount

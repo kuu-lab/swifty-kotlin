@@ -237,6 +237,34 @@ extension OverloadResolver {
             }
         }
 
+        // Upper bounds can relate two function type parameters (for example
+        // `where C : Collection<*>, C : R`). Add those relationships to the
+        // inference graph before solving so a receiver lower bound can widen
+        // the result type as required by Kotlin's self-type extensions.
+        for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            guard index < signature.typeParameterUpperBoundsList.count else {
+                continue
+            }
+            let typeParamType = ctx.types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
+            let signatureBounds = signature.typeParameterUpperBoundsList[index]
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+            let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+            for upperBound in upperBounds {
+                guard case let .typeParam(boundTypeParam) = ctx.types.kind(of: upperBound),
+                      typeVarBySymbol[boundTypeParam.symbol] != nil
+                else {
+                    continue
+                }
+                constraints.append(contentsOf: decomposeSubtypeConstraint(
+                    subtype: typeParamType,
+                    supertype: upperBound,
+                    typeVarBySymbol: typeVarBySymbol,
+                    typeSystem: ctx.types,
+                    blameRange: call.range
+                ))
+            }
+        }
+
         // Kotlin's Unit-coercion rule: a call whose result is used where Unit is
         // expected (e.g. the trailing expression of a `(T) -> Unit` lambda body,
         // such as `also { it.append(x) }`) does not need its return type to be

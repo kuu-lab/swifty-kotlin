@@ -109,6 +109,7 @@ extension DataFlowSemaPhase {
                 valueParameterNames: metadataRecord.valueParameterNames,
                 reifiedTypeParameterIndices: metadataRecord.reifiedTypeParameterIndices,
                 typeSignature: metadataRecord.typeSignature,
+                typeParameterUpperBoundsSignatures: metadataRecord.typeParameterUpperBoundsSignatures,
                 defaultStubExternalLinkName: metadataRecord.defaultStubExternalLinkName,
                 externalLinkName: metadataRecord.externalLinkName,
                 declaredFieldCount: metadataRecord.declaredFieldCount,
@@ -229,6 +230,41 @@ extension DataFlowSemaPhase {
             from: functionType,
             types: types
         )
+        var typeParameterUpperBoundsList = Array(
+            repeating: [TypeID](),
+            count: typeParameterSymbols.count
+        )
+        for index in typeParameterUpperBoundsList.indices {
+            guard index < record.typeParameterUpperBoundsSignatures.count else {
+                continue
+            }
+            typeParameterUpperBoundsList[index] = record.typeParameterUpperBoundsSignatures[index].compactMap { encodedBound in
+                guard let decodedBound = decodeImportedTypeSignature(
+                    token: encodedBound,
+                    symbols: symbols,
+                    types: types,
+                    interner: interner,
+                    diagnostics: diagnostics,
+                    metadataPath: metadataPath,
+                    ownerFQName: record.fqName,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                ) else {
+                    return nil
+                }
+                return normalizeImportedOwnerTypeParameters(
+                    decodedBound,
+                    record: record,
+                    symbols: symbols,
+                    types: types,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    metadataPath: metadataPath,
+                    cache: cache,
+                    allowPlaceholders: allowPlaceholders
+                )
+            }
+        }
         var valueParameterSymbols: [SymbolID] = []
         for (index, _) in functionType.params.enumerated() {
             let name: String
@@ -262,6 +298,7 @@ extension DataFlowSemaPhase {
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
+            typeParameterUpperBoundsList: typeParameterUpperBoundsList,
             classTypeParameterCount: ownerNominalTypeParameterCount(
                 of: functionType,
                 record: record,

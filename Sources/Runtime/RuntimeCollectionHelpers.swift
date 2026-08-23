@@ -52,6 +52,61 @@ private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 
+private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Collection"
+)
+private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Map"
+)
+// These slots are the generated interface property getter slots in the current
+// bundled layout: Collection.size follows four inherited vtable entries, while
+// Map.size is the first property after two vtable entries.
+private let runtimeCollectionSizeGetterSlot = 4
+private let runtimeMapSizeGetterSlot = 2
+
+/// Source-defined Collection/Map implementations expose `size` through the
+/// same dynamic interface-property getter table used by ordinary Kotlin code.
+/// Built-in list/set/map boxes continue to use their direct fast paths.
+@inline(__always)
+func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeCollectionSizeInterfaceTypeID),
+        runtimeCollectionSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapSizeInterfaceTypeID),
+        runtimeMapSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
     let raw = kk_pair_new(key, value)

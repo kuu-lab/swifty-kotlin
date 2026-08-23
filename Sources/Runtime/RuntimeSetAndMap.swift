@@ -115,6 +115,9 @@ public func kk_collection_size(_ collRaw: Int) -> Int {
     if let set = runtimeSetBox(from: collRaw) {
         return set.elements.count
     }
+    if let sourceSize = runtimeSourceCollectionSize(collRaw) {
+        return sourceSize
+    }
     return 0
 }
 
@@ -322,7 +325,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
 @_cdecl("kk_map_size")
 public func kk_map_size(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMapSize(mapRaw) ?? 0
     }
     return map.keys.count
 }
