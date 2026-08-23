@@ -758,10 +758,14 @@ import Testing
             val empty = hashMapOf<String, Int>()
             empty["z"] = 9
             println(empty)
+
+            val pairs = arrayOf("c" to 4, "d" to 5)
+            val spread = hashMapOf<String, Int>(*pairs)
+            println(spread)
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
+        try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n{c=4, d=5}\n")
     }
 
     @Test
