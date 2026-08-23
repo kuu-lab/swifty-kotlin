@@ -490,8 +490,10 @@ extension CollectionLiteralConstructionLoweringPass {
             let kkCallee: InternedString = switch callee {
             case lookup.buildListName:
                 arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
-            case lookup.buildSetName: lookup.kkBuildSetName
-            case lookup.buildMapName: lookup.kkBuildMapName
+            case lookup.buildSetName:
+                arguments.count == 2 ? lookup.kkBuildSetWithCapacityName : lookup.kkBuildSetName
+            case lookup.buildMapName:
+                arguments.count == 2 ? lookup.kkBuildMapWithCapacityName : lookup.kkBuildMapName
             default: callee
             }
             let builderResult = module.arena.appendTemporary(type: nil

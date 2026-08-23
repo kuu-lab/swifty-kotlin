@@ -897,8 +897,8 @@ extension DataFlowSemaPhase {
         }
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
-            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction]),
-            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic]),
+            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction, .throwingFunction]),
+            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic, .throwingFunction]),
             ("remove", [keyType], types.makeNullable(valueType), "__kk_mutable_map_remove", [.synthetic]),
             ("clear", [], types.unitType, "__kk_mutable_map_clear", [.synthetic]),
             ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic]),

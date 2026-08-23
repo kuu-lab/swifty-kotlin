@@ -132,8 +132,17 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
-public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_set_add(
+    _ setRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !set.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
@@ -243,8 +252,18 @@ public func kk_emptyMap() -> Int {
 }
 
 @_cdecl("__kk_mutable_map_put")
-public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
+public func kk_mutable_map_put(
+    _ mapRaw: Int,
+    _ key: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeNullSentinelInt
+    }
+    guard !map.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return runtimeNullSentinelInt
     }
     if let index = map.keys.firstIndex(where: { runtimeValuesEqual($0, key) }) {
@@ -315,7 +334,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second)
+    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
     return 0
 }
 

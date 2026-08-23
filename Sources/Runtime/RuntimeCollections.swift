@@ -390,8 +390,17 @@ private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], 
 }
 
 @_cdecl("__kk_mutable_list_add")
-public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_list_add(
+    _ listRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !list.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     var values = list.values

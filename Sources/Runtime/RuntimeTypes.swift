@@ -390,12 +390,19 @@ final class RuntimeListBox {
     }
 
     private var storage: Storage
+    private(set) var isReadOnly = false
 
     init(elements: [Int]) {
         storage = .direct(elements.map { RuntimeValue(raw: $0) })
     }
 
     init(values: [RuntimeValue]) {
+        storage = .direct(values)
+    }
+
+    init(capacity: Int) {
+        var values: [RuntimeValue] = []
+        values.reserveCapacity(max(0, capacity))
         storage = .direct(values)
     }
 
@@ -419,6 +426,7 @@ final class RuntimeListBox {
             }
         }
         set {
+            guard !isReadOnly else { return }
             switch storage {
             case .direct:
                 storage = .direct(newValue)
@@ -428,6 +436,10 @@ final class RuntimeListBox {
                 base.values = newValue
             }
         }
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 
     var elements: [Int] {
@@ -444,12 +456,14 @@ final class RuntimeListBox {
 /// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
     private var storage: [RuntimeValue]
+    private(set) var isReadOnly = false
 
     var values: [RuntimeValue] {
         get {
             storage
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue
         }
     }
@@ -459,6 +473,7 @@ final class RuntimeSetBox {
             storage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue.map { RuntimeValue(raw: $0) }
         }
     }
@@ -470,6 +485,15 @@ final class RuntimeSetBox {
     init(values: [RuntimeValue]) {
         self.storage = values
     }
+
+    init(capacity: Int) {
+        self.storage = []
+        self.storage.reserveCapacity(max(0, capacity))
+    }
+
+    func freeze() {
+        isReadOnly = true
+    }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
@@ -479,12 +503,14 @@ final class RuntimeMapBox {
     private var valueStorage: [RuntimeValue]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
+    private(set) var isReadOnly = false
 
     var keyValues: [RuntimeValue] {
         get {
             keyStorage
         }
         set {
+            guard !isReadOnly else { return }
             keyStorage = newValue
         }
     }
@@ -494,6 +520,7 @@ final class RuntimeMapBox {
             valueStorage
         }
         set {
+            guard !isReadOnly else { return }
             valueStorage = newValue
         }
     }
@@ -503,6 +530,7 @@ final class RuntimeMapBox {
             keyStorage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             keyStorage = newValue.map { RuntimeValue(raw: $0) }
         }
     }
@@ -512,6 +540,7 @@ final class RuntimeMapBox {
             valueStorage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             valueStorage = newValue.map { RuntimeValue(raw: $0) }
         }
     }
@@ -521,6 +550,19 @@ final class RuntimeMapBox {
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+    }
+
+    init(capacity: Int, defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.keyStorage.reserveCapacity(max(0, capacity))
+        self.valueStorage.reserveCapacity(max(0, capacity))
+        self.defaultValueFnPtr = defaultValueFnPtr
+        self.defaultValueClosureRaw = defaultValueClosureRaw
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
