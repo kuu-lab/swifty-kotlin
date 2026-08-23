@@ -116,10 +116,11 @@ final class MemberLowerer {
             }
 
             // BUG-141/KSP-928: give abstract/interface properties and concrete
-            // overrides getter accessors for itable/vtable dispatch. A plain
-            // interface or abstract class property gets a stub whose signature
-            // the dispatch site targets; a concrete override gets a getter that
-            // is registered into the corresponding runtime dispatch table.
+            // virtual properties getter accessors for itable/vtable dispatch. A
+            // plain interface or abstract class property gets a stub whose
+            // signature the dispatch site targets; a stored open base property
+            // or concrete override gets a field-reading getter that is
+            // registered into the corresponding runtime dispatch table.
             let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
             let hasDelegate = propertyDecl.delegateExpression != nil
             if !hasCustomGetterBody, !hasDelegate,
@@ -136,7 +137,9 @@ final class MemberLowerer {
                         allDecls: &allDecls
                     )
                 } else if !isInterfaceContext,
-                          sema.symbols.symbol(symbol)?.flags.contains(.overrideMember) == true
+                          let propertyInfo = sema.symbols.symbol(symbol),
+                          propertyInfo.flags.contains(.overrideMember)
+                              || propertyInfo.flags.contains(.openType)
                 {
                     synthesizeStoredPropertyGetterAccessor(
                         propertySymbol: symbol,
