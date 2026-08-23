@@ -2040,7 +2040,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 実装シンボル:
     - `kotlin.Any.<init>` — constructor ()  -- `constructor <init>()`
-  - 実装根拠: synthetic `kotlin.Any` に public constructor symbol と two-word nominal layout を登録し、既存の `kk_object_new` allocation path で constructor call を完了する。最小回帰は `stdlib_kotlin_Any_n_n.kt` の distinct allocation/identity checks。
+  - 実装根拠: synthetic `kotlin.Any` に public constructor symbol と two-word nominal layout を登録し、既存の `kk_object_new` allocation path で constructor call を完了する。実装コミットは `49dd15dea`。最小回帰は `stdlib_kotlin_Any_n_n.kt` の distinct allocation/identity checks。
+  - 検証根拠: Sema Golden shard 30/31、個別 diff、Runtime ABI外部リンク4件、`check_todo_ids.sh` が pass。
 
 - [ ] KSP-806: kotlin.ArithmeticException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ArithmeticException` / top-level
