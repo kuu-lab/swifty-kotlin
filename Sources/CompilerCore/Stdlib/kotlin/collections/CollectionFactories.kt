@@ -97,6 +97,19 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
+/**
+ * Returns a new read-only map containing only the specified key-value pair.
+ *
+ * Keep this overload distinct from the vararg overload so overload resolution
+ * matches the Kotlin stdlib API while reusing the shared map runtime path.
+ */
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> {
+    val result: MutableMap<K, V> = __kk_map_of(null, null, 1)
+    result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
@@ -105,6 +118,14 @@ public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
         result[pair.first] = pair.second
     }
     return result as Map<K, V>
+}
+
+@PublishedApi
+internal fun mapCapacity(expectedSize: Int): Int = when {
+    expectedSize < 0 -> expectedSize
+    expectedSize < 3 -> expectedSize + 1
+    expectedSize < (1 shl 30) -> ((expectedSize / 0.75F) + 1.0F).toInt()
+    else -> Int.MAX_VALUE
 }
 
 public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of(null, null, 0)
