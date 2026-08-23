@@ -1513,7 +1513,7 @@ extension CallTypeChecker {
                 resultType = sema.types.booleanType
                 _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
 
-            case "findLast", "firstOrNull", "lastOrNull", "singleOrNull":
+            case "findLast", "firstOrNull", "lastOrNull":
                 guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
                     return nil
                 }
@@ -1541,7 +1541,7 @@ extension CallTypeChecker {
                 }
 
             case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
-                 "count", "first", "last", "single", "find", "associateBy", "associateWith", "associate",
+                 "count", "first", "last", "single", "singleOrNull", "find", "associateBy", "associateWith", "associate",
                  "mapValues", "mapKeys", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "onEach", "distinct", "withIndex", "filterNotNull", "requireNoNulls", "asSequence", "sum", "average", "reversed", "asReversed":
                 // any(), none(), count(), first(), last() can be called with no args
                 if args.isEmpty {
@@ -1550,6 +1550,8 @@ extension CallTypeChecker {
                     case "count": resultType = sema.types.intType
                     case "first", "last", "single":
                         resultType = collectionElementType
+                    case "singleOrNull":
+                        resultType = sema.types.makeNullable(collectionElementType)
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
                     case "withIndex":
                         let indexedValueSymbol = lookupStdlibSymbol("IndexedValue", symbols: sema.symbols, interner: interner)
@@ -1672,7 +1674,7 @@ extension CallTypeChecker {
                         }
                     default: resultType = sema.types.anyType
                     }
-                    if ["any", "none", "first", "last", "single"].contains(calleeStr) {
+                    if ["any", "none", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
                     if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
@@ -1695,7 +1697,7 @@ extension CallTypeChecker {
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {
-                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last", "single": sema.types.booleanType
+                    case "filter", "filterNot", "filterKeys", "filterValues", "any", "none", "all", "takeWhile", "takeLastWhile", "dropWhile", "dropLastWhile", "find", "first", "last", "single", "singleOrNull": sema.types.booleanType
                     case "forEach", "onEach": sema.types.unitType
                     case "count": sema.types.booleanType
                     case "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull": sema.types.nullableAnyType
@@ -1901,6 +1903,7 @@ extension CallTypeChecker {
                     case "any", "none", "all": resultType = sema.types.booleanType
                     case "count": resultType = sema.types.intType
                     case "first", "last", "single": resultType = collectionElementType
+                    case "singleOrNull": resultType = sema.types.makeNullable(collectionElementType)
                     case "find": resultType = sema.types.makeNullable(collectionElementType)
                     case "associateBy":
                         if let mapSymbol = lookupStdlibSymbol("Map", symbols: sema.symbols, interner: interner) {
@@ -2086,7 +2089,7 @@ extension CallTypeChecker {
                     default: resultType = sema.types.anyType
                     }
 
-                    if ["any", "none", "all", "count", "find", "first", "last", "single"].contains(calleeStr) {
+                    if ["any", "none", "all", "count", "find", "first", "last", "single", "singleOrNull"].contains(calleeStr) {
                         if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                             if args.count == 1, let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
@@ -3899,6 +3902,8 @@ extension CallTypeChecker {
             // declaration or a removed synthetic runtime bridge.
             let iterableSourceHOFNames: Set = [
                 "filter",
+                "single",
+                "singleOrNull",
                 "reduce",
                 "reduceIndexed",
                 "reduceRight",
