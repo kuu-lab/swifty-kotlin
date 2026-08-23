@@ -108,6 +108,7 @@ public fun <K, V> Map<K, V>.toMutableMap(): MutableMap<K, V> {
     return result
 }
 
+@Suppress("UNCHECKED_CAST")
 public fun <K, V> Map<out K, V>.toMap(): Map<K, V> {
     if (this.size == 0) return emptyMap<K, V>()
     if (this.size == 1) {
@@ -115,19 +116,16 @@ public fun <K, V> Map<out K, V>.toMap(): Map<K, V> {
             return mapOf(Pair(entry.key, entry.value))
         }
     }
-    @Suppress("UNCHECKED_CAST")
     val typedSource = this as Map<K, V>
-    @Suppress("UNCHECKED_CAST")
     val copy = typedSource.toMutableMap() as Map<K, V>
     return copy
 }
 
 @SinceKotlin("1.1")
 @IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
 public fun <K, V, C : MutableMap<in K, in V>> Map<out K, V>.toMap(destination: C): C {
-    @Suppress("UNCHECKED_CAST")
     val typedSource = this as Map<K, V>
-    @Suppress("UNCHECKED_CAST")
     val typedDestination = destination as MutableMap<K, V>
     typedDestination.putAll(typedSource)
     return destination
