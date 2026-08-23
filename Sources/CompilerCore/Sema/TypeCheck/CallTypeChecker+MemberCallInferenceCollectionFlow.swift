@@ -406,6 +406,12 @@ extension CallTypeChecker {
             guard interner.resolve(calleeName) == "asSequence" else {
                 return false
             }
+            // KSP-1003: Map.asSequence() has its own source-backed overload.
+            // Do not let the generic Iterable fallback treat Map as a
+            // collection expression; Map is not an Iterable in Kotlin.
+            if isMapReceiver, bindBundledMapSourceFunction() {
+                return true
+            }
             let sourcePackages: [[InternedString]] = [
                 [interner.intern("kotlin"), interner.intern("sequences")],
                 [interner.intern("kotlin"), interner.intern("collections")],

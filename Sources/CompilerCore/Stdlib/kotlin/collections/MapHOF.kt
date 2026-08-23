@@ -8,6 +8,23 @@ import kotlin.internal.__valuesEqual
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
 
 /**
+ * Creates an [Iterable] instance that wraps the original map returning its entries when being iterated.
+ */
+public inline fun <K, V> Map<out K, V>.asIterable(): Iterable<Map.Entry<K, V>> {
+    return this.entries
+}
+
+/**
+ * Creates a lazy [Sequence] instance that wraps the original map returning its entries when being iterated.
+ */
+public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
+    val source = this
+    return object : Sequence<Map.Entry<K, V>> {
+        override fun iterator(): Iterator<Map.Entry<K, V>> = source.entries.iterator()
+    }
+}
+
+/**
  * Performs the given [action] on each entry.
  */
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
@@ -295,4 +312,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-
