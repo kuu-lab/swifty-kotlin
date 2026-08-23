@@ -10,11 +10,21 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// The runtime represents every mutable collection with a single boxed
-// implementation per kind, so the aliases target the mutable interfaces directly
-// instead of the java.util classes the JVM stdlib points at.
+// ArrayList has a concrete nominal identity in Kotlin/Native and Kotlin/Wasm.
+// CollectionLiteralLoweringPass maps its constructors to the tagged list box
+// bridges, while the declaration preserves the public class hierarchy.
+@KsSymbolName("__kk_array_list_init")
+private external fun <E> __kkArrayListInit(list: ArrayList<E>)
 
-public typealias ArrayList<E> = MutableList<E>
+public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableList<E> {
+    init {
+        __kkArrayListInit(this)
+    }
+
+    constructor()
+    constructor(initialCapacity: Int)
+    constructor(elements: Collection<E>)
+}
 
 public typealias HashSet<E> = MutableSet<E>
 

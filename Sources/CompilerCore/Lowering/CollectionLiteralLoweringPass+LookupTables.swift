@@ -59,6 +59,7 @@ struct CollectionLiteralLookupTables {
     var listOfNotNullName: InternedString { listLookup.listOfNotNullName }
     var arrayListName: InternedString { listLookup.arrayListName }
     var kkListOfName: InternedString { listLookup.kkListOfName }
+    var kkArrayListOfName: InternedString { listLookup.kkArrayListOfName }
     var kkListOfNotNullName: InternedString { listLookup.kkListOfNotNullName }
     var kkEmptyListName: InternedString { listLookup.kkEmptyListName }
     var kkListSizeName: InternedString { listLookup.kkListSizeName }
@@ -71,6 +72,7 @@ struct CollectionLiteralLookupTables {
     var kkListIteratorPreviousName: InternedString { listLookup.kkListIteratorPreviousName }
     var kkListToStringName: InternedString { listLookup.kkListToStringName }
     var kkCollectionToMutableListName: InternedString { listLookup.kkCollectionToMutableListName }
+    var kkCollectionToArrayListName: InternedString { listLookup.kkCollectionToArrayListName }
     var kkListAssociateToName: InternedString { listLookup.kkListAssociateToName }
     var kkListForEachName: InternedString { listLookup.kkListForEachName }
     var kkCollectionToCollectionName: InternedString { listLookup.kkCollectionToCollectionName }

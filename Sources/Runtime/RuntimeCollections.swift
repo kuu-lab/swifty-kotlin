@@ -96,6 +96,29 @@ public func kk_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: listRuntimeTypeID)
 }
 
+@_cdecl("__kk_array_list_of")
+public func kk_array_list_of(_ arrayRaw: Int, _ count: Int) -> Int {
+    let elements: [Int]
+    if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
+        elements = Array(array.elements.prefix(count))
+    } else {
+        elements = []
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: elements), typeID: arrayListRuntimeTypeID)
+}
+
+@_cdecl("__kk_array_list_init")
+public func kk_array_list_init(_ listRaw: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: listRaw),
+          let objectBox = tryCast(ptr, to: RuntimeObjectBox.self)
+    else {
+        return 0
+    }
+    objectBox.backingListBox = RuntimeListBox(elements: [])
+    runtimeRegisterObjectType(rawValue: listRaw, classID: arrayListRuntimeTypeID)
+    return 0
+}
+
 @_cdecl("kk_list_of_not_null")
 public func kk_list_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []
@@ -762,6 +785,12 @@ public func kk_collection_toMutableList(_ collRaw: Int) -> Int {
         return registerRuntimeObject(RuntimeListBox(values: values))
     }
     return registerRuntimeObject(RuntimeListBox(elements: []))
+}
+
+@_cdecl("__kk_collection_toArrayList")
+public func kk_collection_toArrayList(_ collRaw: Int) -> Int {
+    let values = runtimeCollectionOrArrayValues(from: collRaw) ?? runtimeIterableValues(from: collRaw) ?? []
+    return registerRuntimeObject(RuntimeListBox(values: values), typeID: arrayListRuntimeTypeID)
 }
 
 @_cdecl("__kk_collection_toTypedArray")

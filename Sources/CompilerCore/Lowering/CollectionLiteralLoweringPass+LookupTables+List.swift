@@ -14,6 +14,7 @@ struct ListLookupNames {
     let arrayListName: InternedString
     // Runtime ABI names
     let kkListOfName: InternedString
+    let kkArrayListOfName: InternedString
     let kkListOfNotNullName: InternedString
     let kkEmptyListName: InternedString
     let kkListSizeName: InternedString
@@ -26,6 +27,7 @@ struct ListLookupNames {
     let kkListIteratorPreviousName: InternedString
     let kkListToStringName: InternedString
     let kkCollectionToMutableListName: InternedString
+    let kkCollectionToArrayListName: InternedString
     // Higher-order collection function ABI names (FUNC-003)
     let kkListAssociateToName: InternedString
     let kkListForEachName: InternedString
@@ -97,6 +99,7 @@ struct ListLookupNames {
         listOfNotNullName = interner.intern("listOfNotNull")
         arrayListName = interner.intern("ArrayList")
         kkListOfName = interner.intern("__kk_list_of")
+        kkArrayListOfName = interner.intern("__kk_array_list_of")
         kkListOfNotNullName = interner.intern("kk_list_of_not_null")
         kkEmptyListName = interner.intern("__kk_emptyList")
         kkListSizeName = interner.intern("__kk_list_size")
@@ -109,6 +112,7 @@ struct ListLookupNames {
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
         kkListToStringName = interner.intern("kk_list_to_string")
         kkCollectionToMutableListName = interner.intern("__kk_collection_toMutableList")
+        kkCollectionToArrayListName = interner.intern("__kk_collection_toArrayList")
         kkListAssociateToName = .invalid
         kkListForEachName = interner.intern("kk_list_forEach")
         kkCollectionToCollectionName = interner.intern("__kk_collection_toCollection")

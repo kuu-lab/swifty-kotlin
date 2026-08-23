@@ -432,6 +432,7 @@ extension CallLowerer {
 
         if let storedMemberProperty = tryLowerStoredMemberPropertyRead(
             exprID,
+            receiverExpr: receiverExpr,
             loweredReceiverID: loweredReceiverID,
             args: args,
             ast: ast,

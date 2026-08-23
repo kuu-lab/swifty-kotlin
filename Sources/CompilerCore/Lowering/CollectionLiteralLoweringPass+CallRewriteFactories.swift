@@ -46,14 +46,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
             } else if count == 0 {
-                // mutableListOf()/arrayListOf() -> fresh instance via kk_list_of(null, 0)
+                // mutableListOf()/arrayListOf() -> fresh instance via the
+                // corresponding tagged list bridge.
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+                let runtimeCallee = callee == lookup.arrayListOfName
+                    ? lookup.kkArrayListOfName
+                    : lookup.kkListOfName
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkListOfName,
+                    callee: runtimeCallee,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -115,9 +119,14 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 }
-                let runtimeCallee = callee == lookup.listOfNotNullName
-                    ? lookup.kkListOfNotNullName
-                    : lookup.kkListOfName
+                let runtimeCallee: InternedString
+                if callee == lookup.listOfNotNullName {
+                    runtimeCallee = lookup.kkListOfNotNullName
+                } else if callee == lookup.arrayListOfName {
+                    runtimeCallee = lookup.kkArrayListOfName
+                } else {
+                    runtimeCallee = lookup.kkListOfName
+                }
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: runtimeCallee,
@@ -133,12 +142,12 @@ extension CollectionLiteralConstructionLoweringPass {
         // --- Rewrite ArrayList()/HashSet()/LinkedHashSet()/HashMap()/LinkedHashMap() constructors ---
         // 0 args → empty collection; 1 int arg (capacity) → empty collection;
         // 1 collection arg → copy.
-        if lookup.mutableListConstructorNames.contains(callee) {
+        if isStdlibArrayListConstructor(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             if arguments.count == 1,
                isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkCollectionToMutableListName,
+                    callee: lookup.kkCollectionToArrayListName,
                     arguments: [arguments[0]],
                     result: result,
                     canThrow: false,
@@ -154,7 +163,7 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListOfName,
+                callee: lookup.kkArrayListOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
                 canThrow: false,
