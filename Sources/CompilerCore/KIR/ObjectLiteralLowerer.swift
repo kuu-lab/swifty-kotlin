@@ -269,6 +269,12 @@ final class ObjectLiteralLowerer {
         else {
             return
         }
+        if sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: superCtorSymbol) == sema.types.anyClassSymbol
+        {
+            // Any's compiler-provided constructor has no body to delegate to.
+            return
+        }
 
         var argIDs: [KIRExprID] = [objectValue]
         for arg in objectDecl.superTypeConstructorArgs {
