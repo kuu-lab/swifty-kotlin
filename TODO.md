@@ -6902,13 +6902,15 @@
   - 未実装シンボル一覧:
     - `kotlin.native.getStackTraceAddresses` — fun Throwable.getStackTraceAddresses(): List  -- `final fun (kotlin/Throwable).kotlin.native/getStackTraceAddresses(): kotlin.collections/List<kotlin/Long>`
 
-- [ ] KSP-1194: kotlin.native.BitSet top-level の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1194: kotlin.native.BitSet top-level の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.BitSet` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/BitSet/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_BitSet_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_BitSet_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_BitSet_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: Kotlin 2.3.10 Native 公式 `BitSet.kt` の `ELEMENT_SIZE=64`、packed `LongArray`、`0 until length` initializer 評価、constructor default/Companion 契約を source-backed 実装へ反映。KSP-1195 の公開 member 27 件は本PRの対象外。
+  - 検証根拠: KSwiftK のstdlib metadataで3 symbol（default付きconstructor 2件・Companion）を確認し、initializer callback 5回の実行、Sema Golden、Kotlin/JVM非対応のためSKIP-DIFF、ABI link validationを確認。
   - 未実装シンボル一覧:
     - `kotlin.native.BitSet.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int = ...)`
     - `kotlin.native.BitSet.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Boolean>)`
