@@ -33,6 +33,10 @@ fun main() {
     println(listOf(1).plus(listOf(2)))
     println(listOf(1).plus(sequenceOf(2)))
     println(listOf(1).plus(arrayOf(2)))
+    println(listOf(1L, 2L).minus(3L))
+    println(listOf(1.0, 2.0).minus(3.0))
+    println(listOf(1.0f, 2.0f).minus(3.0f))
+    println(listOf('a', 'b').minus('c'))
     println(sequenceOf(1).plus(sequenceOf(2)).toList())
 
     println(listOf<String?>(null, "x").plus(sequenceOf<String?>(null, "x")))

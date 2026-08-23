@@ -107,7 +107,10 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "minus":
-                let resultType: TypeID? = if receiverForCheck == charType && rawRhsType == charType {
+                // Collection minus(element) must reach overload resolution just like plus(element).
+                let resultType: TypeID? = if !isNumericReceiver {
+                    nil
+                } else if receiverForCheck == charType && rawRhsType == charType {
                     intType
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType

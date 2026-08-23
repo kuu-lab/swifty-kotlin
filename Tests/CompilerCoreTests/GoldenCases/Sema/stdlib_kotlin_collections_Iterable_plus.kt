@@ -9,6 +9,11 @@ fun main() {
     val byArrayOperator: List<Int> = ints + arrayOf(11)
     val byPlusElement: List<Int> = ints.plusElement(12)
 
+    val longMinusElement: List<Long> = listOf(1L, 2L).minus(3L)
+    val doubleMinusElement: List<Double> = listOf(1.0, 2.0).minus(3.0)
+    val floatMinusElement: List<Float> = listOf(1.0f, 2.0f).minus(3.0f)
+    val charMinusElement: List<Char> = listOf('a', 'b').minus('c')
+
     val nullable: Iterable<String?> = listOf("a", null)
     val nullableSequence: Sequence<String?> = sequenceOf("b", null)
     val nullableArray: Array<String?> = arrayOf("c", null)
