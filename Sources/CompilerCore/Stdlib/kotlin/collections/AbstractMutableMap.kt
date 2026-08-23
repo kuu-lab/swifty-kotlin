@@ -13,4 +13,8 @@ package kotlin.collections
 /**
  * Provides a skeletal implementation of the MutableMap interface.
  */
-public abstract class AbstractMutableMap<K, V> protected constructor() : AbstractMap<K, V>(), MutableMap<K, V> {}
+public abstract class AbstractMutableMap<K, V> protected constructor() : AbstractMap<K, V>(), MutableMap<K, V> {
+    abstract override fun put(key: K, value: V): V?
+
+    abstract override val entries: MutableSet<MutableMap.MutableEntry<K, V>>
+}

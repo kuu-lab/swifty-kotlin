@@ -2116,6 +2116,27 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: readonlySupertype).count == 2)
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: mutableMapSymbol).count == 2)
 
+            let mutableEntryFQName = collectionsPkg + [
+                ctx.interner.intern("MutableMap"),
+                ctx.interner.intern("MutableEntry"),
+            ]
+            let mutableEntrySymbol = try #require(sema.symbols.lookup(fqName: mutableEntryFQName))
+            let mapEntrySymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [
+                ctx.interner.intern("Map"),
+                ctx.interner.intern("Entry"),
+            ]))
+            #expect(sema.symbols.directSupertypes(for: mutableEntrySymbol).contains(mapEntrySymbol))
+
+            let putSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("put")]))
+            let putInfo = try #require(sema.symbols.symbol(putSymbol))
+            #expect(putInfo.kind == .function)
+            #expect(putInfo.flags.contains(.abstractType))
+            #expect(try #require(sema.symbols.functionSignature(for: putSymbol)).parameterTypes.count == 2)
+            let entriesSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("entries")]))
+            let entriesInfo = try #require(sema.symbols.symbol(entriesSymbol))
+            #expect(entriesInfo.kind == .property)
+            #expect(entriesInfo.flags.contains(.abstractType))
+
             let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
             #expect(constructorInfo.kind == .constructor)
@@ -2175,16 +2196,19 @@ struct ListSyntheticMemberLinkTests {
             val mutable: MutableMap<String, Int> = values
             val missingValue = readonly[missing]
             mutable.putAll(emptyMap<String, Int>())
+            mutable.put(missing, 1)
             mutable.remove(missing)
             val keyView = mutable.keys
             val valueView = mutable.values
-            val entryView = readonly.entries
+            val readonlyEntryView = readonly.entries
+            val mutableEntryView = mutable.entries
             values.equals(readonly)
             values.hashCode()
             values.toString()
             keyView.size
             valueView.size
-            entryView.size
+            readonlyEntryView.size
+            mutableEntryView.size
             return missingValue
         }
         """
