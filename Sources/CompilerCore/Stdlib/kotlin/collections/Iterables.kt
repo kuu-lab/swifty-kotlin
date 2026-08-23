@@ -101,6 +101,30 @@ public fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
+public fun <T> Iterable<T>.count(): Int {
+    if (this is Collection<*>) return (this as Collection<*>).size
+
+    var count = 0
+    for (element in this) {
+        count += 1
+        if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    }
+    return count
+}
+
+public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
+    if (this is Collection<*> && (this as Collection<*>).isEmpty()) return 0
+
+    var count = 0
+    for (element in this) {
+        if (predicate(element)) {
+            count += 1
+            if (count < 0) throw ArithmeticException("Count overflow has happened.")
+        }
+    }
+    return count
+}
+
 public fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
     for (element in this) {
         val result = transform(element)
