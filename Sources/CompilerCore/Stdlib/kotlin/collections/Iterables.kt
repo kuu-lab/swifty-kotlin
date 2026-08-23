@@ -17,6 +17,19 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     return result
 }
 
+// KSP-997: Split each pair from a generic Iterable in encounter order.
+public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
+    val first = mutableListOf<T>()
+    val second = mutableListOf<R>()
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        val pair = iterator.next()
+        first.add(pair.first)
+        second.add(pair.second)
+    }
+    return Pair(first, second)
+}
+
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
