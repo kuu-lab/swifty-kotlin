@@ -1004,7 +1004,13 @@ final class CallTypeChecker {
             )
 
             // Resolve which numeric type this overload targets.
-            let supportedNumericTypes = [sema.types.longType, sema.types.doubleType, sema.types.floatType, sema.types.intType]
+            let resolvedName = interner.resolve(calleeName)
+            let supportedNumericTypes = [
+                sema.types.longType,
+                sema.types.doubleType,
+                sema.types.floatType,
+                sema.types.intType,
+            ] + (resolvedName == "minOf" ? [sema.types.byteType, sema.types.shortType] : [])
             if let resolvedParamType = supportedNumericTypes.first(where: { firstArgType == $0 }) {
                 var shouldUsePrimitiveComparisonFastPath = true
                 if args.count == 3 {
