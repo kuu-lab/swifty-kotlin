@@ -4553,7 +4553,8 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.none` — fun Map.none(): Boolean  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/none(): kotlin/Boolean`
 
-- [ ] KSP-1017: kotlin.collections.Map.plus-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1017: kotlin.collections.Map.plus-family の未実装 stdlib API を実装する（3 件）
+  - 完了 (2026-08-24): `MapHOF.kt` に Kotlin 2.3.10 と同じ `Map<out K, V>.plus(Iterable/Sequence/Array<Pair<K, V>>)` を追加。Sema Golden は `plus#4/#5/#6` の個別 callee と既存 Pair/Map・minus を確認し、diff は順序、last-write、独立性、empty/nullable、one-shot Sequence、例外タイミング、Array variance を kotlinc 2.3.10 と比較して PASS。
   - 対象: `kotlin.collections` / receiver `Map` / family `plus`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
