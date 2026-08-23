@@ -1,5 +1,14 @@
 package kotlin.collections
 
+/**
+ * A read-only collection of unique elements.
+ *
+ * The compiler reuses the compatibility shell for the residual `contains`
+ * and `isEmpty` runtime members while this declaration owns Set's nominal
+ * source surface.
+ */
+public interface Set<out E> : Collection<E>
+
 // Set HOF implementations migrated from Swift Runtime
 // MIGRATION-COL-013
 

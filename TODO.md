@@ -3615,7 +3615,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableSet` — interface kotlin.collections.MutableSet  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableSet : kotlin.collections/MutableCollection<#A>, kotlin.collections/Set<#A> {`
 
-- [ ] KSP-948: kotlin.collections.Set-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-948: kotlin.collections.Set-family の未実装 stdlib API を実装する（1 件） — `Set<out E> : Collection<E>` を `SetHOF.kt` で source-backed 化し、Set 固有の synthetic shell は `contains`/`isEmpty` の residual bridge として保持。Sema/Golden/diff 回帰と順序非依存 `Set.hashCode()` を確認。
   - 対象: `kotlin.collections` / top-level / family `Set`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/SetHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

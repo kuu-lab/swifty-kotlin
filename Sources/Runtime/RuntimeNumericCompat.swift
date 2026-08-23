@@ -204,6 +204,13 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         hash ^= Int64(instantBox.nanoOfSecond)
         return Int(truncatingIfNeeded: hash ^ (hash >> 32))
     }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        // Kotlin Set.hashCode() is the sum of element hash codes, independent
+        // of iteration order. RuntimeSetBox stores unique values already.
+        return setBox.values.reduce(0) { hash, element in
+            hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+        }
+    }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
     // RuntimePairBox is internal runtime state and keeps the pointer hash.
@@ -226,6 +233,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // instances compared with `==` reported equal but had different
     // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        if let setBox = objBox.backingSetBox {
+            // Some mutable set implementations use a RuntimeObjectBox shell
+            // with a RuntimeSetBox backing store; preserve the same Set hash
+            // contract for that representation.
+            return setBox.values.reduce(0) { hash, element in
+                hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+            }
+        }
         var hash = Int(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
             // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
