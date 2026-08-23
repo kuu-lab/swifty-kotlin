@@ -5,6 +5,9 @@ package kotlin.collections
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
 // so it works for List, Set and any user-defined Iterable alike.
 
+// KSP-963: Kotlin's Iterable.asIterable() is an identity conversion.
+public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this
+
 public fun <T> Iterable<T>.toList(): List<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
