@@ -118,6 +118,33 @@ extension BuildKIRRegressionTests {
         }
     }
 
+    // KSP-938: a source-backed CharSequence.iterator() returns CharIterator,
+    // so its inherited Iterator members must use interface dispatch in for-in.
+    @Test func testBuildKIRUsesSourceBackedCharIteratorDispatch() throws {
+        let source = """
+        fun sumChars(): Int {
+            var total = 0
+            for (ch in "abc") { total += ch.code }
+            return total
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumChars", in: module, interner: ctx.interner)
+            let directCallees = extractCallees(from: body, interner: ctx.interner)
+            let virtualCallees = extractVirtualCallees(from: body, interner: ctx.interner)
+
+            #expect(virtualCallees.contains("hasNext"), "CharIterator.hasNext must use interface dispatch, got: \(virtualCallees)")
+            #expect(virtualCallees.contains("next"), "CharIterator.next must use interface dispatch, got: \(virtualCallees)")
+            #expect(!directCallees.contains("hasNext"), "CharIterator.hasNext must not be a direct call, got: \(directCallees)")
+            #expect(!directCallees.contains("next"), "CharIterator.next must not be a direct call, got: \(directCallees)")
+        }
+    }
+
     @Test func testBuildKIRUsesUserNullableIteratorSubtypeDirectly() throws {
         let source = """
         class NullableCounter(private val limit: Int) : Iterator<String?> {
