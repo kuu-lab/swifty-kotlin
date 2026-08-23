@@ -1245,7 +1245,8 @@ extension DataFlowSemaPhase {
         // KSP-683 needs the migrated Duration nominals to remain source-backed
         // for their value-class and enum metadata.
         let resolvedFQName = fqName.map(interner.resolve)
-        return resolvedFQName == ["kotlin", "time", "Duration"]
+        return resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
     }
 
@@ -1276,6 +1277,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "io", "Closeable"]]
         case "__bundled_kotlin/collections/RandomAccess.kt":
             [["kotlin", "collections", "RandomAccess"]]
+        case "__bundled_kotlin/collections/AbstractIterator.kt":
+            [["kotlin", "collections", "Iterator"]]
         case "__bundled_kotlin/collections/MutableIterable.kt":
             [["kotlin", "collections", "MutableIterable"]]
         case "__bundled_kotlin/collections/AbstractCollection.kt":

@@ -190,12 +190,12 @@ extension BuildKIRRegressionTests {
 
             #expect(callCallees.contains("iterator"), "Expected custom iterator() call, got: \(callCallees)")
             #expect(
-                allCallees.contains("kk_iterator_hasNext"),
-                "Expected Iterator.hasNext to lower through the generic kk_iterator_hasNext runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+                allCallees.contains("kk_iterator_hasNext") || virtualCallees.contains("hasNext"),
+                "Expected Iterator.hasNext to use the source-backed virtual dispatch or generic runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
             )
             #expect(
-                allCallees.contains("kk_iterator_next"),
-                "Expected Iterator.next to lower through the generic kk_iterator_next runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
+                allCallees.contains("kk_iterator_next") || virtualCallees.contains("next"),
+                "Expected Iterator.next to use the source-backed virtual dispatch or generic runtime dispatcher, got: call=\(callCallees) virtual=\(virtualCallees)"
             )
             #expect(!allCallees.contains("kk_range_iterator"), "User Iterable loop should not use kk_range_iterator, got: \(allCallees)")
             #expect(!allCallees.contains("kk_range_hasNext"), "User Iterable loop should not use kk_range_hasNext, got: \(allCallees)")
