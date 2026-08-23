@@ -3841,8 +3841,8 @@ extension CallTypeChecker {
                     }
                 }
             } else if (calleeStr == "reduce" || calleeStr == "reduceOrNull" || calleeStr == "reduceIndexed" || calleeStr == "reduceIndexedOrNull"), args.count == 1 {
-                // Iterable reduce/reduceIndexed source declarations are bound
-                // directly below. Do not fall back to a Sequence declaration
+                // Iterable reduce-family source declarations are bound directly
+                // below. Do not fall back to a Sequence declaration
                 // for these names: the receiver may be a plain Set or another
                 // Iterable, and the source-backed Iterable implementation is
                 // the canonical dispatch target.
@@ -3851,7 +3851,9 @@ extension CallTypeChecker {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
                 } else if !isSequenceReceiver, isCollectionReceiver,
-                          bindBundledIterableSourceFunction(typeArguments: [collectionElementType]) {
+                          bindBundledIterableSourceFunction(
+                              typeArguments: [collectionElementType, collectionElementType]
+                          ) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }

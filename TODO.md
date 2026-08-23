@@ -4181,14 +4181,16 @@
     - `kotlin.collections.plus` — fun Iterable.plus(Sequence): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/plus(kotlin.sequences/Sequence<#A>): kotlin.collections/List<#A>`
     - `kotlin.collections.plus` — fun Iterable.plus(Array): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/plus(kotlin/Array<out #A>): kotlin.collections/List<#A>`
 
-- [ ] KSP-989: kotlin.collections.Iterable.reduce-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-989: kotlin.collections.Iterable.reduce-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `reduce`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_reduce.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterable_reduce.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterable_reduce.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: canonical な `inline fun <S, T : S>` の4 APIをiterator逐次評価で実装し、empty/singleton、nullable、index=1開始、operation例外時のtail非消費、custom/one-shot Iterable、SとTの型差を専用回帰で固定。Iterable専用のsource-backed bindingだけを2型引数へ更新し、List/Sequence/Array/Range/primitive array/Groupingの共有経路は変更していない。
+  - focused 検証: Sema source-backed回帰 PASS、専用Golden workerとgoldenの完全一致、KIR 4 API call確認、専用Backend/Runtime実行 PASS、`diff_kotlinc` `total=1 failed=0 passed=1 skipped=0`、`check_todo_ids`/`validate_runtime_abi_links`/`git diff --check` PASS。aggregate Golden/full suiteは共有負荷を避けてfocused結果とは分離し、greenとは扱わない。
+  - 実装済みシンボル一覧:
     - `kotlin.collections.reduce` — fun Iterable.reduce(Function2): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/reduce(kotlin/Function2<#A, #B, #A>): #A`
     - `kotlin.collections.reduceIndexed` — fun Iterable.reduceIndexed(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/reduceIndexed(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A`
     - `kotlin.collections.reduceIndexedOrNull` — fun Iterable.reduceIndexedOrNull(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/reduceIndexedOrNull(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A?`

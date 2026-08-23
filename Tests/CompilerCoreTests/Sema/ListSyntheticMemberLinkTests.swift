@@ -1115,11 +1115,19 @@ struct ListSyntheticMemberLinkTests {
         }
 
         fun reduceValues(values: Iterable<Int>): Int {
-            return values.reduce { acc, value -> acc + value }
+            return values.reduce { acc: Int, value: Int -> acc + value }
         }
 
         fun reduceIndexedValues(values: Iterable<Int>): Int {
-            return values.reduceIndexed { index, acc, value -> acc + index + value }
+            return values.reduceIndexed { index: Int, acc: Int, value: Int -> acc + index + value }
+        }
+
+        fun reduceOrNullValues(values: Iterable<Int>): Int? {
+            return values.reduceOrNull { acc: Int, value: Int -> acc + value }
+        }
+
+        fun reduceIndexedOrNullValues(values: Iterable<Int>): Int? {
+            return values.reduceIndexedOrNull { index: Int, acc: Int, value: Int -> acc + index + value }
         }
         """
 
@@ -1130,10 +1138,10 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), "Expected KSP-701 Iterable members to resolve cleanly, got: \(diagnosticSummary)")
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable collection members to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            for memberName in ["filter", "reduce", "reduceIndexed"] {
+            for memberName in ["filter", "reduce", "reduceIndexed", "reduceOrNull", "reduceIndexedOrNull"] {
                 let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
                     named: memberName,
                     sema: sema,
