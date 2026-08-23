@@ -734,15 +734,46 @@ final class InlineLoweringPass: LoweringPass {
     private func substitutedErasedResultUnboxingCallee(
         originalResult: KIRExprID,
         loweredResult: KIRExprID,
+        fallbackResultType: TypeID?,
         module: KIRModule,
         ctx: KIRContext
     ) -> InternedString? {
-        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx),
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(loweredResult), ctx: ctx)
+        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx)
+            || fallbackResultType != nil
+        else {
+            return nil
+        }
+        guard let primitive = nonNullPrimitiveKind(of: module.arena.exprType(loweredResult), ctx: ctx)
+            ?? nonNullPrimitiveKind(of: fallbackResultType, ctx: ctx)
         else {
             return nil
         }
         return ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner)
+    }
+
+    /// Imported inline KIR does not serialize expression types. Recover the
+    /// callable parameter's return type so an erased function-value result can
+    /// still be unboxed after type substitution at the call site.
+    private func substitutedCallableInvokeResultType(
+        symbol: SymbolID?,
+        inlineTarget: KIRFunction,
+        typeSubstitution: InlineTypeSubstitution?,
+        ctx: KIRContext
+    ) -> TypeID? {
+        guard let sema = ctx.sema,
+              let parameter = symbol.flatMap({ symbol in
+                  inlineTarget.params.first(where: { $0.symbol == symbol })
+              }) ?? inlineTarget.params.reversed().first(where: { parameter in
+                  if case .functionType = sema.types.kind(of: parameter.type) {
+                      return true
+                  }
+                  return false
+              }),
+              case let .functionType(functionType) = sema.types.kind(of: parameter.type)
+        else {
+            return nil
+        }
+        return substituteInlineType(functionType.returnType, using: typeSubstitution, ctx: ctx)
     }
 
     /// An imported generic higher-order function: its body was ABI-lowered when
@@ -1301,10 +1332,21 @@ final class InlineLoweringPass: LoweringPass {
                     )
                 }
                 if erasedInvoke, let result, let loweredResult,
+                   let substitutedResultType = substitutedCallableInvokeResultType(
+                       symbol: symbol,
+                       inlineTarget: inlineTarget,
+                       typeSubstitution: inlineTypeSubstitution,
+                       ctx: ctx
+                   ),
                    let unboxCallee = substitutedErasedResultUnboxingCallee(
-                       originalResult: result, loweredResult: loweredResult, module: module, ctx: ctx
+                       originalResult: result,
+                       loweredResult: loweredResult,
+                       fallbackResultType: substitutedResultType,
+                       module: module,
+                       ctx: ctx
                    )
                 {
+                    module.arena.setExprType(substitutedResultType, for: loweredResult)
                     let boxedResult = module.arena.appendTemporary(
                         type: ctx.sema?.types.nullableAnyType ?? module.arena.exprType(result)
                     )

@@ -33,6 +33,8 @@ extension CallLowerer {
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
         "isNotEmpty", "intersect", "last", "minus", "minusElement", "plusElement",
+        "min", "minBy", "minByOrNull", "minOf", "minOfOrNull", "minOfWith",
+        "minOfWithOrNull", "minOrNull", "minWith", "minWithOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
