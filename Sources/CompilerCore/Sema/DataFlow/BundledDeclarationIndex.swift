@@ -227,6 +227,15 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "collections", "MutableMap"] {
+            // Kotlin 2.3.10 keeps MutableMap.putAll(Map) and MutableMap.remove
+            // as members while also declaring source-backed overloads. The
+            // bundled index records arity but not parameter types, so these
+            // retained bridges are intentional overload collisions rather than
+            // missed KSP-002 skips.
+            let name = interner.resolve(key.name)
+            return (name == "putAll" || name == "remove") && key.arity == 1
+        }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }

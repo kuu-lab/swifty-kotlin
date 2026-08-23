@@ -60,6 +60,18 @@ func runtimeMapEntryNew(key: Int, value: Int) -> Int {
 }
 
 @inline(__always)
+func runtimeMutableMapEntryNew(mapRaw: Int, key: Int, value: Int) -> Int {
+    let raw = registerRuntimeObject(RuntimePairBox(first: key, second: value))
+    if let pointer = UnsafeMutableRawPointer(bitPattern: raw),
+       let pairBox = tryCast(pointer, to: RuntimePairBox.self) {
+        pairBox.mutableMapRaw = mapRaw
+        pairBox.mutableMapKey = key
+    }
+    runtimeRegisterObjectType(rawValue: raw, classID: mapEntryRuntimeTypeID)
+    return raw
+}
+
+@inline(__always)
 func runtimeIsMapEntry(rawValue: Int) -> Bool {
     runtimeObjectTypeID(rawValue: rawValue) == mapEntryRuntimeTypeID
 }
@@ -277,6 +289,19 @@ func runtimeMapIteratorBox(from rawValue: Int) -> RuntimeMapIteratorBox? {
     return tryCast(ptr, to: RuntimeMapIteratorBox.self)
 }
 
+func runtimeMutableMapIteratorBox(from rawValue: Int) -> RuntimeMutableMapIteratorBox? {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return nil
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return nil
+    }
+    return tryCast(ptr, to: RuntimeMutableMapIteratorBox.self)
+}
+
 func runtimeIndexingIteratorBox(from rawValue: Int) -> RuntimeIndexingIteratorBox? {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
         return nil
@@ -326,6 +351,7 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeMutableIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterator")
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 
@@ -333,13 +359,24 @@ private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(f
 private func registerIteratorItable(
     raw: Int,
     hasNext: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
-    next: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int
+    next: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
+    remove: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int)? = nil,
+    mutableIterator: Bool = false
 ) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeIteratorInterfaceTypeID), 0)
     let hasNextPtr = unsafeBitCast(hasNext, to: Int.self)
     _ = kk_object_register_itable_method(raw, 0, 0, hasNextPtr)
     let nextPtr = unsafeBitCast(next, to: Int.self)
     _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
+    if let remove {
+        let removePtr = unsafeBitCast(remove, to: Int.self)
+        _ = kk_object_register_itable_method(raw, 0, 2, removePtr)
+        if mutableIterator {
+            // MutableIterator declares remove as its direct method at slot 0.
+            _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIteratorInterfaceTypeID), 1)
+            _ = kk_object_register_itable_method(raw, 1, 0, removePtr)
+        }
+    }
 }
 
 /// Register the `kotlin.collections.Iterable` itable on a raw object handle.
@@ -438,9 +475,36 @@ private let runtimeMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoint
     return kk_map_iterator_next(iterRaw)
 }
 
+private let runtimeMutableMapIteratorHasNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_mutable_map_iterator_hasNext(iterRaw)
+}
+
+private let runtimeMutableMapIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_mutable_map_iterator_next(iterRaw)
+}
+
+private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return kk_mutable_map_iterator_remove(iterRaw)
+}
+
 func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeMapIteratorHasNextThunk, next: runtimeMapIteratorNextThunk)
+    return raw
+}
+
+func registerRuntimeObject(_ box: RuntimeMutableMapIteratorBox) -> Int {
+    let raw = registerRuntimeObject(box as AnyObject)
+    registerIteratorItable(
+        raw: raw,
+        hasNext: runtimeMutableMapIteratorHasNextThunk,
+        next: runtimeMutableMapIteratorNextThunk,
+        remove: runtimeMutableMapIteratorRemoveThunk,
+        mutableIterator: true
+    )
     return raw
 }
 

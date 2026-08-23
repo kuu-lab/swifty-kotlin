@@ -379,6 +379,34 @@ extension ExprLowerer {
                 {
                     return loadedValue
                 }
+                if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
+                   let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol)
+                {
+                    // A MutableMap delegate is live storage, not an eagerly
+                    // initialized value. Read it through getValue at each
+                    // access so an empty map remains valid at declaration time
+                    // and later writes are observed.
+                    let getterArgs = driver.memberLowerer.buildLocalDelegateAccessorArgs(
+                        localSymbol: symbol,
+                        sema: sema,
+                        arena: arena,
+                        interner: interner,
+                        instructions: &instructions
+                    )
+                    let propertyType = driver.ctx.localDeclaredType(for: symbol)
+                        ?? sema.symbols.propertyType(for: symbol)
+                        ?? sema.types.anyType
+                    let result = arena.appendTemporary(type: propertyType)
+                    instructions.append(.call(
+                        symbol: getValueSymbol,
+                        callee: interner.intern("getValue"),
+                        arguments: [delegateStorageID] + getterArgs,
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
                 if let localValue = driver.ctx.localValue(for: symbol) {
                     return loadLocalStdlibDelegateValue(
                         symbol: symbol,
@@ -1131,7 +1159,33 @@ extension ExprLowerer {
                         instructions.append(.constValue(result: unit, value: .unit))
                         return unit
                     }
-                    if isCustomDelegateDecl, let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
+                    if isCustomDelegateDecl,
+                       isMutableMapDelegateType(
+                           sema.bindings.exprType(for: initializer)
+                               ?? arena.exprType(initializerID)
+                               ?? sema.types.anyType,
+                           sema: sema,
+                           interner: interner
+                       )
+                    {
+                        // A Kotlin map delegate does not read its key during
+                        // declaration. Keep the live delegate handle and defer
+                        // getValue until the property is actually read.
+                        let effectiveDelegateID = lowerLocalProvideDelegateIfNeeded(
+                            symbol: symbol,
+                            rawDelegateID: initializerID,
+                            sema: sema,
+                            arena: arena,
+                            interner: interner,
+                            instructions: &instructions
+                        )
+                        driver.ctx.setLocalDelegateStorage(effectiveDelegateID, for: symbol)
+                        let propertyType = sema.symbols.propertyType(for: symbol)
+                            ?? sema.types.anyType
+                        driver.ctx.setLocalDeclaredType(propertyType, for: symbol)
+                        driver.ctx.setLocalValue(effectiveDelegateID, for: symbol)
+                    } else if isCustomDelegateDecl,
+                              let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol) {
                         // Local custom-delegate declaration (BUG-014 / KSP-CAP-007):
                         // bind `x` to `Prop().getValue(null, KProperty("x"))`, not
                         // to the `Prop()` instance itself (`initializerID` here) —
@@ -2695,5 +2749,22 @@ extension ExprLowerer {
             return true
         }
         return false
+    }
+
+    private func isMutableMapDelegateType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableMap"),
+        ]
     }
 }

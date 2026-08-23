@@ -256,8 +256,12 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 }
 
 final class RuntimePairBox {
-    let firstValue: RuntimeValue
-    let secondValue: RuntimeValue
+    var firstValue: RuntimeValue
+    var secondValue: RuntimeValue
+    // MutableMap.MutableEntry pairs retain the destination map so entry.value
+    // and setValue() observe subsequent mutations through the live view.
+    var mutableMapRaw: Int = 0
+    var mutableMapKey: Int = 0
 
     var first: Int { firstValue.legacyRawValue }
     var second: Int { secondValue.legacyRawValue }
@@ -477,48 +481,64 @@ final class RuntimeSetBox {
 final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
+    private let backingMap: RuntimeMapBox?
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
 
     var keyValues: [RuntimeValue] {
         get {
-            keyStorage
+            backingMap?.keyValues ?? keyStorage
         }
         set {
-            keyStorage = newValue
+            if let backingMap {
+                backingMap.keyValues = newValue
+            } else {
+                keyStorage = newValue
+            }
         }
     }
 
     var entryValues: [RuntimeValue] {
         get {
-            valueStorage
+            backingMap?.entryValues ?? valueStorage
         }
         set {
-            valueStorage = newValue
+            if let backingMap {
+                backingMap.entryValues = newValue
+            } else {
+                valueStorage = newValue
+            }
         }
     }
 
     var keys: [Int] {
         get {
-            keyStorage.map(\.legacyRawValue)
+            keyValues.map(\.legacyRawValue)
         }
         set {
-            keyStorage = newValue.map { RuntimeValue(raw: $0) }
+            keyValues = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
     var values: [Int] {
         get {
-            valueStorage.map(\.legacyRawValue)
+            entryValues.map(\.legacyRawValue)
         }
         set {
-            valueStorage = newValue.map { RuntimeValue(raw: $0) }
+            entryValues = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
-    init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+    init(
+        keys: [Int],
+        values: [Int],
+        defaultValueFnPtr: Int = 0,
+        defaultValueClosureRaw: Int = 0,
+        backingMap: RuntimeMapBox? = nil
+    ) {
         self.keyStorage = keys.map { RuntimeValue(raw: $0) }
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
+        self.backingMap = backingMap
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
     }
@@ -669,6 +689,21 @@ final class RuntimeMapIteratorBox {
         self.keys = keys
         self.values = values
         index = 0
+    }
+}
+
+/// MutableMap iterator whose entries remain connected to the destination map.
+final class RuntimeMutableMapIteratorBox {
+    let mapRaw: Int
+    let keys: [Int]
+    var index: Int
+    var lastKey: Int?
+
+    init(mapRaw: Int, keys: [Int]) {
+        self.mapRaw = mapRaw
+        self.keys = keys
+        index = 0
+        lastKey = nil
     }
 }
 
@@ -2491,6 +2526,7 @@ extension RuntimeArrayBox: RuntimeChildReferenceProviding {
 extension RuntimePairBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         [firstValue, secondValue].compactMap(\.childReferenceRawValue)
+            + (mutableMapRaw == 0 ? [] : [mutableMapRaw])
     }
 }
 
@@ -2511,6 +2547,10 @@ extension RuntimeMapBox: RuntimeChildReferenceProviding {
         keyValues.compactMap(\.childReferenceRawValue)
             + entryValues.compactMap(\.childReferenceRawValue)
     }
+}
+
+extension RuntimeMutableMapIteratorBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { mapRaw == 0 ? [] : [mapRaw] }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {

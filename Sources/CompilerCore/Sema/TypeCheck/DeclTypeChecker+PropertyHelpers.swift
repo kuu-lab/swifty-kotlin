@@ -84,7 +84,7 @@ extension DeclTypeChecker {
 
         // Resolve getValue operator (Kotlin spec J12).
         let getValueName = interner.intern("getValue")
-        let getValueCandidates = driver.helpers
+        var getValueCandidates = driver.helpers
             .collectMemberFunctionCandidates(
                 named: getValueName,
                 receiverType: delegateType,
@@ -95,6 +95,19 @@ extension DeclTypeChecker {
                 else { return false }
                 return sym.flags.contains(.operatorFunction)
             }
+
+        // KSP-1022: MutableMap's delegated accessors are top-level bundled
+        // extensions whose projected receiver is not accepted by the generic
+        // member candidate collector. Recover only those source-backed Map
+        // declarations here; ordinary delegates keep the normal lookup path.
+        if getValueCandidates.isEmpty,
+           isMutableMapDelegateType(delegateType, sema: sema, interner: interner) {
+            getValueCandidates = bundledMutableMapDelegateCandidates(
+                named: getValueName,
+                sema: sema,
+                interner: interner
+            )
+        }
         // Tracks whether getValue/setValue were actually resolved for the *effective*
         // delegate type (see below: provideDelegate, when present, fully supersedes
         // this direct check). Deliberately not read back from
@@ -114,7 +127,12 @@ extension DeclTypeChecker {
            result == nil
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
-            result = getValueSig.returnType
+            // MutableMap's source-backed getValue uses the exact value type
+            // from its receiver. The `V1 : V` return type is represented as a
+            // separate source type parameter, so recover that bound here when
+            // projected receiver lookup cannot substitute it automatically.
+            result = mutableMapDelegateValueType(delegateType, sema: sema, interner: interner)
+                ?? getValueSig.returnType
             getValueResolved = true
         } else if let getValueSymbol = getValueCandidates.first {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
@@ -124,7 +142,7 @@ extension DeclTypeChecker {
         // Check setValue for var properties.
         if isVar {
             let setValueName = interner.intern("setValue")
-            let setValueCandidates = driver.helpers
+            var setValueCandidates = driver.helpers
                 .collectMemberFunctionCandidates(
                     named: setValueName,
                     receiverType: delegateType,
@@ -135,6 +153,14 @@ extension DeclTypeChecker {
                     else { return false }
                     return sym.flags.contains(.operatorFunction)
                 }
+            if setValueCandidates.isEmpty,
+               isMutableMapDelegateType(delegateType, sema: sema, interner: interner) {
+                setValueCandidates = bundledMutableMapDelegateCandidates(
+                    named: setValueName,
+                    sema: sema,
+                    interner: interner
+                )
+            }
             if let setValueSymbol = setValueCandidates.first {
                 sema.symbols.setDelegateSetValueSymbol(setValueSymbol, for: symbol)
                 setValueResolved = true
@@ -312,6 +338,72 @@ extension DeclTypeChecker {
         }
 
         return result
+    }
+
+    private func isMutableMapDelegateType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableMap"),
+        ]
+    }
+
+    private func mutableMapDelegateValueType(
+        _ type: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        guard case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(type)),
+              classType.args.count == 2,
+              let symbol = sema.symbols.symbol(classType.classSymbol),
+              symbol.fqName == [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("MutableMap"),
+              ]
+        else {
+            return nil
+        }
+        return switch classType.args[1] {
+        case let .invariant(value), let .out(value), let .in(value): value
+        case .star: nil
+        }
+    }
+
+    private func bundledMutableMapDelegateCandidates(
+        named: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        sema.symbols.lookupByShortName(named).filter { candidateID in
+            guard let symbol = sema.symbols.symbol(candidateID),
+                  symbol.kind == .function,
+                  symbol.flags.contains(.operatorFunction),
+                  sema.symbols.isSourceBackedSymbol(candidateID),
+                  let signature = sema.symbols.functionSignature(for: candidateID),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClass) = sema.types.kind(of:
+                      sema.types.makeNonNullable(receiverType)
+                  ),
+                  let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
+            else {
+                return false
+            }
+            return receiverSymbol.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("MutableMap"),
+            ]
+        }
     }
 
     /// The interface a stdlib delegate factory's result conforms to for a given

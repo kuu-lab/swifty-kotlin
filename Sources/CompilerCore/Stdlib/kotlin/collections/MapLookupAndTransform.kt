@@ -30,6 +30,23 @@ private external fun <K, V> __kk_map_withDefault(map: Map<K, V>, defaultValue: (
 @KsSymbolName("__kk_map_implicit_default")
 private external fun <K, V> __kk_map_implicit_default(map: Map<K, V>, key: K): V?
 
+@KsSymbolName("__kk_map_has_implicit_default")
+private external fun <K, V> __kk_map_has_implicit_default(map: Map<K, V>): Boolean
+
+@KsSymbolName("__kk_mutable_map_iterator")
+private external fun <K, V> __kk_mutable_map_iterator(
+    map: MutableMap<K, V>
+): MutableIterator<MutableMap.MutableEntry<K, V>>
+
+@KsSymbolName("__kk_mutable_map_withDefault")
+private external fun <K, V> __kk_mutable_map_withDefault(
+    map: MutableMap<K, V>,
+    defaultValue: (K) -> V
+): MutableMap<K, V>
+
+@KsSymbolName("__kk_mutable_map_remove")
+private external fun <K, V> __kk_mutable_map_remove(map: MutableMap<K, V>, key: K): V?
+
 public fun <K, V> Map<K, V>.entries(): Set<Map.Entry<K, V>> = __kk_map_entries(this)
 
 public fun <K, V> Map<K, V>.keys(): Set<K> {
@@ -67,7 +84,7 @@ public fun <K, V> Map<K, V>.getValue(key: K): V {
         if (entry.key == key) return entry.value
     }
     val defaultValue = __kk_map_implicit_default(this, key)
-    if (defaultValue != null) return defaultValue
+    if (__kk_map_has_implicit_default(this)) return defaultValue as V
     throw NoSuchElementException("Key $key is missing in the map.")
 }
 
@@ -90,6 +107,81 @@ public inline fun <K, V> MutableMap<K, V>.getOrPut(key: K, defaultValue: () -> V
     val answer = defaultValue()
     this[key] = answer
     return answer
+}
+
+public inline fun <K, V> MutableMap<out K, V>.remove(key: K): V? {
+    return __kk_mutable_map_remove(this, key)
+}
+
+public inline operator fun <V, V1 : V> MutableMap<in String, out V>.getValue(
+    thisRef: Any?,
+    property: kotlin.reflect.KProperty<*>
+): V1 {
+    @Suppress("UNCHECKED_CAST")
+    return getValue(property.name) as V1
+}
+
+public inline operator fun <V> MutableMap<in String, in V>.setValue(
+    thisRef: Any?,
+    property: kotlin.reflect.KProperty<*>,
+    value: V
+) {
+    put(property.name, value)
+}
+
+public inline operator fun <K, V> MutableMap<K, V>.iterator(): MutableIterator<MutableMap.MutableEntry<K, V>> =
+    __kk_mutable_map_iterator(this)
+
+public inline operator fun <K, V> MutableMap<K, V>.minusAssign(key: K) {
+    remove(key)
+}
+
+public inline operator fun <K, V> MutableMap<K, V>.minusAssign(keys: Iterable<K>) {
+    for (key in keys) remove(key)
+}
+
+public inline operator fun <K, V> MutableMap<K, V>.minusAssign(keys: Sequence<K>) {
+    for (key in keys) remove(key)
+}
+
+public inline operator fun <K, V> MutableMap<K, V>.minusAssign(keys: Array<out K>) {
+    for (key in keys) remove(key)
+}
+
+public inline operator fun <K, V> MutableMap<in K, in V>.plusAssign(pair: Pair<K, V>) {
+    put(pair.first, pair.second)
+}
+
+public inline operator fun <K, V> MutableMap<in K, in V>.plusAssign(pairs: Iterable<Pair<K, V>>) {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public inline operator fun <K, V> MutableMap<in K, in V>.plusAssign(pairs: Sequence<Pair<K, V>>) {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public inline operator fun <K, V> MutableMap<in K, in V>.plusAssign(pairs: Array<out Pair<K, V>>) {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public inline operator fun <K, V> MutableMap<in K, in V>.plusAssign(map: Map<K, V>) {
+    for (entry in map.entries) put(entry.key, entry.value)
+}
+
+public fun <K, V> MutableMap<in K, in V>.putAll(pairs: Iterable<Pair<K, V>>): Unit {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public fun <K, V> MutableMap<in K, in V>.putAll(pairs: Sequence<Pair<K, V>>): Unit {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public fun <K, V> MutableMap<in K, in V>.putAll(pairs: Array<out Pair<K, V>>): Unit {
+    for (pair in pairs) put(pair.first, pair.second)
+}
+
+public inline operator fun <K, V> MutableMap<K, V>.set(key: K, value: V) {
+    put(key, value)
 }
 
 public fun <K, V> Map<K, V>.toList(): List<Pair<K, V>> {
@@ -115,3 +207,6 @@ public fun <K, V> Map<K, V>?.orEmpty(): Map<K, V> {
 
 public fun <K, V> Map<K, V>.withDefault(defaultValue: (K) -> V): Map<K, V> =
     __kk_map_withDefault(this, defaultValue)
+
+public fun <K, V> MutableMap<K, V>.withDefault(defaultValue: (K) -> V): MutableMap<K, V> =
+    __kk_mutable_map_withDefault(this, defaultValue)
