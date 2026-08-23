@@ -42,6 +42,14 @@ public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
 
 public fun <T> listOf(): List<T> = emptyList()
 
+@SinceKotlin("1.9")
+@Suppress("UNCHECKED_CAST")
+public fun <T> listOf(element: T): List<T> {
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    result.add(element)
+    return result as List<T>
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()
@@ -61,6 +69,9 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     }
     return result
 }
+
+public fun <T : Any> listOfNotNull(element: T?): List<T> =
+    if (element != null) listOf(element) else emptyList()
 
 public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
     val result: MutableList<T> = __kk_list_of(null, 0)
