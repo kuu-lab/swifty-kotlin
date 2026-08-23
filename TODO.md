@@ -2925,7 +2925,7 @@
     - `kotlin.RequiresOptIn.Level.valueOf` — fun Level.valueOf(String): Level  -- `final fun valueOf(kotlin/String): kotlin/RequiresOptIn.Level`
     - `kotlin.RequiresOptIn.Level.values` — fun Level.values(): Array  -- `final fun values(): kotlin/Array<kotlin/RequiresOptIn.Level>`
 
-- [ ] KSP-884: kotlin.Result top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-884: kotlin.Result top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Result` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Result/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2934,6 +2934,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Result.<init>` — constructor (Any)  -- `constructor <init>(kotlin/Any?)`
+  - 完了根拠: #5977（merge commit `8527dca3f637e8361fa5f60a3390270a61a7ae14`）で `Sources/CompilerCore/Stdlib/kotlin/Result/Stdlib.kt` に `internal constructor(value: Any?)` を実装し、専用 Golden/diff (`stdlib_kotlin_Result_n_n`) を追加済み。
 
 - [ ] KSP-885: kotlin.Result.Companion.Companion の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.Result.Companion` / receiver `Companion`
