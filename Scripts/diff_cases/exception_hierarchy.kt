@@ -4,11 +4,13 @@ fun main() {
     println(Error().message)
     println(Error("error").message)
     println(Error("error", cause).cause?.message)
+    println(Error(cause).message)
     println(Error(cause).cause?.message)
 
     println(IllegalArgumentException().message)
     println(IllegalArgumentException("argument").message)
     println(IllegalArgumentException("argument", cause).cause?.message)
+    println(IllegalArgumentException(cause).message)
     println(IllegalArgumentException(cause).cause?.message)
 
     println(IndexOutOfBoundsException().message)

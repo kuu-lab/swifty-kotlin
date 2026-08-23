@@ -361,22 +361,54 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Computes the effective visibility for a class's constructor (primary or
+    /// secondary) and whether that visibility was inherited from the owning
+    /// class/object rather than written explicitly on the constructor itself.
+    ///
+    /// The distinction matters for `VisibilityChecker`: an inherited-private
+    /// constructor's true accessibility ceiling is the owner's own visibility
+    /// (e.g. file scope for a top-level `private class`), whereas an explicitly
+    /// `private constructor` stays scoped to the class body/companion even when
+    /// its owner happens to carry the same visibility keyword.
+    func constructorVisibilityDetail(
+        explicitModifiers: Modifiers,
+        classKind: SymbolKind,
+        isSealedClass: Bool,
+        declarationVisibility: Visibility
+    ) -> (visibility: Visibility, isInheritedFromOwner: Bool) {
+        let explicitVisibilityModifiers: Modifiers = [.private, .internal, .protected, .public]
+        if !explicitModifiers.isDisjoint(with: explicitVisibilityModifiers) {
+            return (visibility(from: explicitModifiers), false)
+        }
+        if classKind == .class, isSealedClass {
+            return (.protected, false)
+        }
+        return (declarationVisibility, true)
+    }
+
+    func primaryConstructorVisibilityDetail(
+        for classDecl: ClassDecl,
+        classKind: SymbolKind,
+        declarationVisibility: Visibility
+    ) -> (visibility: Visibility, isInheritedFromOwner: Bool) {
+        constructorVisibilityDetail(
+            explicitModifiers: classDecl.primaryConstructorModifiers,
+            classKind: classKind,
+            isSealedClass: classDecl.modifiers.contains(.sealed),
+            declarationVisibility: declarationVisibility
+        )
+    }
+
     func primaryConstructorVisibility(
         for classDecl: ClassDecl,
         classKind: SymbolKind,
         declarationVisibility: Visibility
     ) -> Visibility {
-        let explicitVisibilityModifiers: Modifiers = [.private, .internal, .protected, .public]
-        let explicitVisibility = visibility(from: classDecl.primaryConstructorModifiers)
-        if !classDecl.primaryConstructorModifiers.isDisjoint(with: explicitVisibilityModifiers) {
-            return explicitVisibility
-        }
-        if classKind == .class,
-           classDecl.modifiers.contains(.sealed)
-        {
-            return .protected
-        }
-        return declarationVisibility
+        primaryConstructorVisibilityDetail(
+            for: classDecl,
+            classKind: classKind,
+            declarationVisibility: declarationVisibility
+        ).visibility
     }
 
     func primaryConstructorVisibility(
@@ -1219,7 +1251,6 @@ extension DataFlowSemaPhase {
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: bundledIndex)
-        registerSyntheticPlatformTimeConversionStubs(symbols: symbols, types: types, interner: interner)
         let stringBuilderOwner = [interner.intern("kotlin"), interner.intern("text"), interner.intern("StringBuilder")]
         if bundledIndex.contains(ownerFQName: stringBuilderOwner, name: interner.intern("append"), arity: 1) {
             patchSourceBackedStringBuilderSupertypes(symbols: symbols, types: types, interner: interner)

@@ -478,26 +478,6 @@ extension CallTypeChecker {
         )))
     }
 
-    // MARK: - Numeric companion static functions (STDLIB-NUM-130)
-
-    /// Returns the public signature and runtime link for primitive companion
-    /// functions whose owner type has no source-level Companion object.
-    func numericCompanionFunction(
-        typeName: String,
-        memberName: String,
-        sema: SemaModule
-    ) -> (returnType: TypeID, parameterType: TypeID, externalLinkName: String)? {
-        let types = sema.types
-        switch (typeName, memberName) {
-        case ("Double", "fromBits"):
-            return (types.doubleType, types.longType, "__kk_double_fromBits")
-        case ("Float", "fromBits"):
-            return (types.floatType, types.intType, "__kk_float_fromBits")
-        default:
-            return nil
-        }
-    }
-
     // MARK: - Numeric companion constants (STDLIB-153)
 
     func numericCompanionConstant(
@@ -507,16 +487,6 @@ extension CallTypeChecker {
     ) -> (TypeID, KIRExprKind)? {
         let types = sema.types
         switch (typeName, memberName) {
-        // Int (32-bit in Kotlin)
-        case ("Int", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int32.max)))
-        case ("Int", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int32.min)))
-        case ("Int", "SIZE_BITS"): return (types.intType, .intLiteral(32))
-        case ("Int", "SIZE_BYTES"): return (types.intType, .intLiteral(4))
-        // Long (64-bit)
-        case ("Long", "MAX_VALUE"): return (types.longType, .longLiteral(Int64.max))
-        case ("Long", "MIN_VALUE"): return (types.longType, .longLiteral(Int64.min))
-        case ("Long", "SIZE_BITS"): return (types.intType, .intLiteral(64))
-        case ("Long", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
         // Short
         case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
         case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))

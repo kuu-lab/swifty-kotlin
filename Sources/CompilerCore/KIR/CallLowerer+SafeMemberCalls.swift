@@ -1026,103 +1026,128 @@ extension CallLowerer {
     /// Determine if a callee method requires virtual dispatch.
     /// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
     /// or `nil` if the call should use direct (static) dispatch.
+    ///
+    /// Thin wrapper over the free `resolveVirtualDispatchKind` (below, outside
+    /// this extension) so existing `CallLowerer`-qualified call sites (and the
+    /// unit tests that exercise this by name) are unaffected; the free function
+    /// exists so lowering passes without a `CallLowerer` instance -- e.g.
+    /// `ConsolePrintLoweringPass`, which runs on already-built KIR well after
+    /// the originating driver/CallLowerer have gone out of scope -- can reuse
+    /// the exact same dispatch-kind resolution instead of hand-rolling a
+    /// (potentially divergent) direct-call-only rewrite.
     func resolveVirtualDispatch(
         callee: SymbolID,
         receiverTypeID: TypeID?,
         sema: SemaModule,
         interner: StringInterner
     ) -> KIRDispatchKind? {
-        guard let calleeSymbol = sema.symbols.symbol(callee),
-              calleeSymbol.kind == .function
-        else { return nil }
-        guard let parentID = sema.symbols.parentSymbol(for: callee),
-              let parentSymbol = sema.symbols.symbol(parentID)
-        else { return nil }
-        guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
-        if parentSymbol.kind == .interface {
-            return resolveItableDispatch(
-                callee: callee, parentID: parentID, layout: layout,
-                receiverTypeID: receiverTypeID, sema: sema, interner: interner
-            )
-        }
-        if parentSymbol.kind == .class {
-            return resolveVtableDispatch(callee: callee, parentID: parentID, layout: layout, sema: sema)
-        }
-        return nil
+        resolveVirtualDispatchKind(callee: callee, receiverTypeID: receiverTypeID, sema: sema, interner: interner)
     }
+}
 
-    private func resolveItableDispatch(
-        callee: SymbolID,
-        parentID: SymbolID,
-        layout: NominalLayout,
-        receiverTypeID: TypeID?,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> KIRDispatchKind? {
-        guard let receiverTypeID,
-              let methodSlot = layout.vtableSlots[callee]
-        else { return nil }
+/// Determine if a callee method requires virtual dispatch.
+/// Returns `.vtable(slot:)` for class methods or `.itable(slot:)` for interface methods,
+/// or `nil` if the call should use direct (static) dispatch.
+///
+/// A free function (not a `CallLowerer` member) so both BuildKIR-time callers
+/// (via `CallLowerer.resolveVirtualDispatch` above) and later, driver-less
+/// lowering passes can resolve the same dispatch kind for a callee symbol.
+func resolveVirtualDispatchKind(
+    callee: SymbolID,
+    receiverTypeID: TypeID?,
+    sema: SemaModule,
+    interner: StringInterner
+) -> KIRDispatchKind? {
+    guard let calleeSymbol = sema.symbols.symbol(callee),
+          calleeSymbol.kind == .function
+    else { return nil }
+    guard let parentID = sema.symbols.parentSymbol(for: callee),
+          let parentSymbol = sema.symbols.symbol(parentID)
+    else { return nil }
+    guard let layout = sema.symbols.nominalLayout(for: parentID) else { return nil }
+    if parentSymbol.kind == .interface {
+        return resolveItableDispatchKind(
+            callee: callee, parentID: parentID, layout: layout,
+            receiverTypeID: receiverTypeID, sema: sema, interner: interner
+        )
+    }
+    if parentSymbol.kind == .class {
+        return resolveVtableDispatchKind(callee: callee, parentID: parentID, layout: layout, sema: sema)
+    }
+    return nil
+}
 
-        let nonNullReceiverType = sema.types.makeNonNullable(receiverTypeID)
-        switch sema.types.kind(of: nonNullReceiverType) {
-        case let .classType(classType):
-            let receiverClassSymID = classType.classSymbol
-            guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
+private func resolveItableDispatchKind(
+    callee: SymbolID,
+    parentID: SymbolID,
+    layout: NominalLayout,
+    receiverTypeID: TypeID?,
+    sema: SemaModule,
+    interner: StringInterner
+) -> KIRDispatchKind? {
+    guard let receiverTypeID,
+          let methodSlot = layout.vtableSlots[callee]
+    else { return nil }
 
-            if receiverClassSym.kind == .class {
-                // If the receiver is a concrete class with no subtypes, use direct
-                // dispatch.  Kotlin classes are final by default, so this is safe and
-                // avoids the itable path which requires runtime typeInfo support.
-                if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
-                guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
-                let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
-                return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
-            }
+    let nonNullReceiverType = sema.types.makeNonNullable(receiverTypeID)
+    switch sema.types.kind(of: nonNullReceiverType) {
+    case let .classType(classType):
+        let receiverClassSymID = classType.classSymbol
+        guard let receiverClassSym = sema.symbols.symbol(receiverClassSymID) else { return nil }
 
-            // The receiver's static type is the interface itself (e.g. a function
-            // parameter typed `d: Describable`) — the concrete implementing class,
-            // and therefore the itable slot that class assigned to this interface,
-            // is unknown at this call site. Falling back to slot 0 here previously
-            // dispatched to whatever interface happened to occupy slot 0 on the
-            // object actually passed in (e.g. Printable instead of Describable).
-            // Defer the slot lookup to runtime instead, keyed by the interface's
-            // stable type ID (see kk_itable_lookup_dynamic).
-            if receiverClassSym.kind == .interface {
-                let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: parentID, sema: sema, interner: interner
-                )
-                return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
-            }
-        case .typeParam:
-            // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
-            // has an unknown concrete class at compile time, so the interface
-            // itable must be resolved dynamically at runtime.
+        if receiverClassSym.kind == .class {
+            // If the receiver is a concrete class with no subtypes, use direct
+            // dispatch.  Kotlin classes are final by default, so this is safe and
+            // avoids the itable path which requires runtime typeInfo support.
+            if sema.symbols.directSubtypes(of: receiverClassSymID).isEmpty { return nil }
+            guard let receiverLayout = sema.symbols.nominalLayout(for: receiverClassSymID) else { return nil }
+            let interfaceSlot = receiverLayout.itableSlots[parentID] ?? 0
+            return .itable(interfaceSlot: interfaceSlot, methodSlot: methodSlot)
+        }
+
+        // The receiver's static type is the interface itself (e.g. a function
+        // parameter typed `d: Describable`) — the concrete implementing class,
+        // and therefore the itable slot that class assigned to this interface,
+        // is unknown at this call site. Falling back to slot 0 here previously
+        // dispatched to whatever interface happened to occupy slot 0 on the
+        // object actually passed in (e.g. Printable instead of Describable).
+        // Defer the slot lookup to runtime instead, keyed by the interface's
+        // stable type ID (see kk_itable_lookup_dynamic).
+        if receiverClassSym.kind == .interface {
             let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
                 symbol: parentID, sema: sema, interner: interner
             )
             return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
-        default:
-            break
         }
-        return nil
+    case .typeParam:
+        // A generic receiver (e.g. `T : AutoCloseable` in `AutoCloseable.use`)
+        // has an unknown concrete class at compile time, so the interface
+        // itable must be resolved dynamically at runtime.
+        let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: parentID, sema: sema, interner: interner
+        )
+        return .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+    default:
+        break
     }
+    return nil
+}
 
-    private func resolveVtableDispatch(
-        callee: SymbolID,
-        parentID: SymbolID,
-        layout: NominalLayout,
-        sema: SemaModule
-    ) -> KIRDispatchKind? {
-        // Only use virtual dispatch if the class actually has subtypes.
-        // In Kotlin, classes are final by default; virtual dispatch is only
-        // needed when the class is open/abstract (has known subtypes).
-        //
-        // Compiler-created objects register their concrete vtable slot methods at
-        // allocation time, mirroring the existing itable method registry.  Raw
-        // kk_alloc-backed objects can still use KTypeInfo vtables via the runtime
-        // lookup fallback.
-        let subtypes = sema.symbols.directSubtypes(of: parentID)
-        guard !subtypes.isEmpty else { return nil }
-        return layout.vtableSlots[callee].map { .vtable(slot: $0) }
-    }
+private func resolveVtableDispatchKind(
+    callee: SymbolID,
+    parentID: SymbolID,
+    layout: NominalLayout,
+    sema: SemaModule
+) -> KIRDispatchKind? {
+    // Only use virtual dispatch if the class actually has subtypes.
+    // In Kotlin, classes are final by default; virtual dispatch is only
+    // needed when the class is open/abstract (has known subtypes).
+    //
+    // Compiler-created objects register their concrete vtable slot methods at
+    // allocation time, mirroring the existing itable method registry.  Raw
+    // kk_alloc-backed objects can still use KTypeInfo vtables via the runtime
+    // lookup fallback.
+    let subtypes = sema.symbols.directSubtypes(of: parentID)
+    guard !subtypes.isEmpty else { return nil }
+    return layout.vtableSlots[callee].map { .vtable(slot: $0) }
 }

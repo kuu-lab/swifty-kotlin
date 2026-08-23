@@ -95,6 +95,57 @@ struct CallableRefTypeIdentityTests {
         #expect(refKind == .functionRef, "Overloaded ::target should be marked as a function reference.")
     }
 
+    // MARK: - Generic call-site type inference tests
+
+    /// KSP-496 (found as a side-effect while validating a property callable-ref
+    /// Sema fix): a property callable reference passed directly into a generic
+    /// call (e.g. `listOf<T>(vararg elements: T)`) used to be type-checked
+    /// against the *unsubstituted* type parameter `T` rather than its own
+    /// natural `KProperty1<Owner, Value>` type, because `inferCallableRefExpr`
+    /// adopted `expectedType` verbatim even when it still mentioned a type
+    /// parameter. Binding the reference's static type to a bare type variable
+    /// made `lowerPropertyReferenceWrapperValue` (which requires a resolved
+    /// `KProperty*` classType) bail out and fall back to a legacy bare-symbol
+    /// callable path that crashes at runtime (calls the raw property accessor
+    /// with no receiver — see `Scripts/diff_cases/kproperty_generic_vararg_inference.kt`
+    /// for the end-to-end runtime regression).
+    @Test func testUnboundPropertyRefInGenericVarargCallGetsConcreteKProperty1Type() throws {
+        let source = """
+        class Counter(val v: Int)
+        fun main() {
+            val list = listOf(Counter::v)
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let callableRefExprID = try #require(firstExprID(in: ast) { _, expr in
+            if case .callableRef = expr { return true }
+            return false
+        })
+
+        let kProperty1Symbol = try #require(
+            sema.symbols.lookup(fqName: ["kotlin", "reflect", "KProperty1"].map { interner.intern($0) })
+        )
+
+        let boundType = try #require(sema.bindings.exprType(for: callableRefExprID))
+        guard case let .classType(classType) = sema.types.kind(of: boundType) else {
+            Issue.record(
+                "Counter::v inside listOf(...) should bind to a KProperty1 classType, got \(sema.types.renderType(boundType))"
+            )
+            return
+        }
+        #expect(
+            classType.classSymbol == kProperty1Symbol,
+            "Counter::v inside listOf(...) should bind to kotlin.reflect.KProperty1, not an unsubstituted type parameter."
+        )
+        #expect(classType.args.count == 2, "KProperty1<Counter, Int> should carry both type arguments.")
+    }
+
     // MARK: - KIR lowering tests
 
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {

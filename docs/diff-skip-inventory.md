@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-18
+最終更新: 2026-08-20
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -39,7 +39,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-005 | 0（2026-08-11 時点） | source Sequence/`sequence {}` builder の Iterator itable dispatch が整備され、`flatten_sequence_edge_cases.kt`/`sequence_lazy_eval.kt` の `--force-run-skipped` が green。他は全解消（CASE_INSENSITIVE_ORDER 誤登録＝BUG-154 は `origin/master` 側、property delegate lowering の実バグ＝BUG-151/BUG-170 は本 PR で修正） | — |
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 14 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。詳細は該当節） |
-| DEBT-DIFF-008 | 2 | primitive Number virtual dispatch 未実装 | runtime / lowering で boxed primitive に対する `Number.to*` メソッド dispatch を実装（`KSP-1540` 参照）。対象ケースは `stdlib_kotlin_n_Number_primitive.kt` / `stdlib_kotlin_n_Number_primitive_generic.kt` |
+| DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -327,7 +327,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 | case | root cause | 次アクション |
 | --- | --- | --- |
-| `platform_time_conversion.kt` | `Instant.fromEpochMilliseconds(1_234)`のようなcompanion-extension呼び出しでInt literalがLongへwideningされない実バグ。`toKotlinInstant()`/`toKotlinDuration()`(java.time→kotlin.time方向)も未実装 | Int→Long literal wideningをcompanion-extension呼び出し全般で修正(根本原因)。`toKotlinInstant`/`toKotlinDuration`実装 |
+| `platform_time_conversion.kt` | CLEANUP-STUB-126 で `java.time` / `java.util.concurrent.TimeUnit` の JVM interop synthetic surface を target-out として削除。kotlinc reference は成立するが kswiftc candidate の比較対象外 | JVM interop surface を再導入しない限り `SKIP-DIFF` を維持。Native/common time API の検証は別の Duration/Instant テストで行う |
 | ~~`jvm_preview.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：2件目以降のトップレベル複数行文字列プロパティと`@JvmRecord`/data class `toString()` 呼び出しをテストから除外） | — |
 | ~~`time_edge_cases.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：`Duration.Companion` の import を追加し、companion-extension 呼び出しで実kotlinc互換に修正） | — |
 | ~~`test_primitive_conversions.kt`~~ | 解除済み（2026-08-13、テスト入力の書き換え：存在しない変換呼び出しを削除し、実kotlinc互換の primitive 変換に修正） | — |
@@ -336,14 +336,18 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 `@file:OptIn(ExperimentalContracts::class)` の不足を修正し、bundled source-backed の `ContractBuilder.returns` / `SimpleEffect.implies` による `contract { returns() implies (...) }` 解決を確認した。`KotlinContractsEffectModelTests` の最小再現で候補側の implicit receiver 解決を固定し、通常の `diff_kotlinc.sh` 経路へ復帰した。
 
-## DEBT-DIFF-008: primitive Number virtual dispatch
+## DEBT-DIFF-008: primitive Number virtual dispatch（解消済み、2026-08-20）
 
-`KSP-747` で `kotlin.Number` を bundled stdlib ソース化したことにより、`val n: Number = 42` や `fun <T : Number> sumOf(a: T, b: T)` のように primitive を `Number` 型変数 / 上限境界のジェネリック引数に受けた場合に `n.toDouble()` / `a.toDouble()` 等が解決されるようになった。しかし、runtime / lowering 側で boxed primitive に対する `Number` の仮想メソッド dispatch が未整備のため、正しい値を返さないか実行時エラーとなる。
+`KSP-747` で `kotlin.Number` を bundled stdlib ソース化したことにより、`val n: Number = 42` や `fun <T : Number> sumOf(a: T, b: T)` のように primitive を `Number` 型変数 / 上限境界のジェネリック引数に受けた場合に `n.toDouble()` / `a.toDouble()` 等が解決されるようになった。しかし、runtime / lowering 側で boxed primitive に対する `Number` の仮想メソッド dispatch が未整備のため、正しい値を返さないか実行時エラーとなっていた。
 
-| case | root cause | 次アクション |
-| --- | --- | --- |
-| `stdlib_kotlin_n_Number_primitive.kt` | `Number` 型ローカル変数に primitive リテラルを代入した際、box / unbox または vtable/itable 経由で `Number.to*` が正しく primitive 値に dispatch されない | `KSP-1540` で runtime / lowering 対応後に `SKIP-DIFF` 解除 |
-| `stdlib_kotlin_n_Number_primitive_generic.kt` | `T : Number` 上限境界経由で primitive を受けた場合も同様の dispatch 不備 | `KSP-1540` で一括対応後に `SKIP-DIFF` 解除 |
+根本原因: 組み込み primitive 型（Int/Long/Double/Float/Short/Byte）は `Subtyping.swift` のハードコードされた規則でのみ `Number` に適合し、シンボルテーブル上の実際のオーバーライドクラスとしては登録されない。そのため Sema は `n.toDouble()` を抽象宣言 `kotlin.Number.toDouble` 自体へ解決し、`resolveVtableDispatch`（`CallLowerer+SafeMemberCalls.swift`）はプログラム中に `Number` を継承する**ユーザー定義クラスが1つも無い**限り vtable slot 解決を諦めて直接呼び出しにフォールバックしていた（KSP-1540 の2ケースはいずれもユーザー定義の `Number` 派生クラスを含まないため常にこの経路を通り、抽象宣言のプレースホルダ実装（ゼロ返却）を呼んでいた）。vtable dispatch を無条件に強制する対処も不成立: 組み込み box 型（`RuntimeIntBox` 等）はコンパイラ合成のクラスメタデータを持たない手書き Swift クラスのため、vtable slot lookup が実行時にクラッシュする（`KSWIFTK-RUNTIME-0001`）。
+
+修正: `CallLowerer+NumberConversionMemberCalls.swift`（`tryLowerNumberConversion`）が `Number.to*()` 呼び出しをレシーバ静的型が `Number` 自身または `T : Number` の消去型パラメータの場合にのみ横取りし、`kk_number_to_primitive`（`Sources/Runtime/RuntimeNumberConversionDispatch.swift`）へ実行時タグ判定付きでルーティングする。認識可能な primitive box（Int/Long/Double/Float。Short/Byte は Int box を共有）なら静的型経路と同じネイティブ変換 intrinsic を再利用し、それ以外（ユーザー定義 `Number` サブクラスの実インスタンス）は `kk_vtable_lookup` 経由で本来の vtable へフォールバックする。BUG-170（消去 `Comparable` dispatch、`kk_compare_any`）と同じ形の修正。回帰テスト: `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+NumberConversionDispatch.swift`。
+
+| case | 結果 |
+| --- | --- |
+| `stdlib_kotlin_n_Number_primitive.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
+| `stdlib_kotlin_n_Number_primitive_generic.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
 
 ## 解除手順
 

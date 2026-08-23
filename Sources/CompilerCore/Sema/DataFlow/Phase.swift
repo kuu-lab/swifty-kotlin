@@ -91,11 +91,17 @@ final class DataFlowSemaPhase: CompilerPhase {
         )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
+        // Enum header synthesis runs during bundled header collection rather
+        // than synthetic stub registration, so expose the same bundled index
+        // while headers are collected for source-backed enum API skip guards.
+        let previousBundledIndex = BundledSyntheticStubRegistration.bundledIndex
+        BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx,
             predeclared: predeclaredTupleHeaders
         )
+        BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
         types.functionInterfaceSymbol = symbols.lookupAll(
             fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
         ).first { symbols.symbol($0)?.kind == .interface }
@@ -103,11 +109,6 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
-        )
-        registerSyntheticThrowsAnnotationMembersIfNeeded(
-            symbols: symbols,
-            types: types,
             interner: ctx.interner
         )
         assignCompilationModuleFQNames(
@@ -201,9 +202,12 @@ final class DataFlowSemaPhase: CompilerPhase {
                   !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
                   let signature = symbols.functionSignature(for: symbol.id),
                   let receiverType = signature.receiverType,
-                  case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType))
+                  let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                      for: receiverType,
+                      types: types
+                  )
             else { continue }
-            symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol.id)
+            symbols.setParentSymbol(receiverSymbol, for: symbol.id)
         }
         var updatedIndex = bundledIndex
         updatedIndex.insertImportedStdlibSymbols(keys: importedStdlibKeys, interner: interner)

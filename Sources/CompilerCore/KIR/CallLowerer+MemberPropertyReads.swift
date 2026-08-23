@@ -195,14 +195,15 @@ extension CallLowerer {
         // intercepted earlier by `tryLowerObjectMemberPropertyRead`, which
         // reads them from their global slot via `loadGlobal` (mirroring how
         // `lowerMemberAssignExpr`/`lowerMemberCompoundAssignExpr` write them).
-        // Restricting this guard to `.class`/`.interface` keeps the read and
+        // Restricting this guard to nominal instance types keeps the read and
         // write sides symmetric instead of relying on call-order to keep a
-        // dead `.object` field-offset arm harmless.
+        // dead field-offset arm harmless.
         guard args.isEmpty,
               let propertySymbol = sema.bindings.identifierSymbol(for: exprID),
               let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               let ownerInfo = sema.symbols.symbol(ownerSymbol),
-              ownerInfo.kind == .class || ownerInfo.kind == .interface || ownerInfo.kind == .enumClass
+              ownerInfo.kind == .class || ownerInfo.kind == .interface
+                  || ownerInfo.kind == .enumClass || ownerInfo.kind == .annotationClass
         else {
             return nil
         }

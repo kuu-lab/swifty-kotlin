@@ -2,27 +2,6 @@ import Dispatch
 import Foundation
 
 // MARK: - kotlin.time experimental time runtime (STDLIB-TIME-180)
-// MARK: - Platform time conversion runtime (STDLIB-TIME-181)
-
-final class RuntimeJavaInstantBox {
-    let epochSeconds: Int64
-    let nanoOfSecond: Int32
-
-    init(epochSeconds: Int64, nanoOfSecond: Int32) {
-        self.epochSeconds = epochSeconds
-        self.nanoOfSecond = nanoOfSecond
-    }
-}
-
-final class RuntimeJavaDurationBox {
-    let seconds: Int64
-    let nanoAdjustment: Int32
-
-    init(seconds: Int64, nanoAdjustment: Int32) {
-        self.seconds = seconds
-        self.nanoAdjustment = nanoAdjustment
-    }
-}
 
 final class RuntimeJSDateBox {
     let epochMilliseconds: Double
@@ -78,21 +57,6 @@ private func runtimeInstantFromEpochMilliseconds(_ epochMilliseconds: Double) ->
     return RuntimeInstantBox(epochSeconds: clampedSeconds, nanoOfSecond: nanos)
 }
 
-private func runtimeJavaDurationComponents(from nanoseconds: Int64) -> (seconds: Int64, nanoAdjustment: Int32) {
-    // Use floor division so that nanoAdjustment is always in [0, 999_999_999].
-    // For positive values, truncation == floor; for negative values we adjust.
-    let seconds: Int64
-    if nanoseconds >= 0 {
-        seconds = nanoseconds / 1_000_000_000
-    } else {
-        // Guard against Int64.min overflow before subtracting 999_999_999.
-        let (adjusted, overflow) = nanoseconds.subtractingReportingOverflow(999_999_999)
-        seconds = overflow ? Int64.min / 1_000_000_000 : adjusted / 1_000_000_000
-    }
-    let nanoAdjustment = Int32(nanoseconds - seconds * 1_000_000_000)
-    return (seconds, nanoAdjustment)
-}
-
 private func runtimeSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
     let (result, overflow) = lhs.addingReportingOverflow(rhs)
     if overflow {
@@ -104,67 +68,6 @@ private func runtimeSaturatingAdd(_ lhs: Int64, _ rhs: Int64) -> Int64 {
 private func runtimeMonotonicNowNanoseconds() -> Int64 {
     let now = DispatchTime.now().uptimeNanoseconds
     return now <= UInt64(Int64.max) ? Int64(now) : Int64.max
-}
-
-@_cdecl("kk_instant_to_java_instant")
-public func kk_instant_to_java_instant(_ instantRaw: Int) -> Int {
-    guard let instant = runtimeKotlinInstantBox(from: instantRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_instant_to_java_instant received invalid Instant handle")
-    }
-    return registerRuntimeObject(
-        RuntimeJavaInstantBox(epochSeconds: instant.epochSeconds, nanoOfSecond: instant.nanoOfSecond)
-    )
-}
-
-@_cdecl("kk_duration_to_java_duration")
-public func kk_duration_to_java_duration(_ durationRaw: Int) -> Int {
-    guard let nanoseconds = runtimeDurationNanosecondsValue(from: durationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_duration_to_java_duration received invalid Duration handle")
-    }
-    let components = runtimeJavaDurationComponents(from: nanoseconds)
-    return registerRuntimeObject(
-        RuntimeJavaDurationBox(seconds: components.seconds, nanoAdjustment: components.nanoAdjustment)
-    )
-}
-
-/// Maps a java.util.concurrent.TimeUnit ordinal to the matching kotlin.time.DurationUnit ordinal.
-///
-/// Kotlin/JVM: timeUnit.toDurationUnit()
-///
-/// Both enums share identical entry ordering
-/// (0=NANOSECONDS, 1=MICROSECONDS, 2=MILLISECONDS, 3=SECONDS, 4=MINUTES, 5=HOURS, 6=DAYS),
-/// so the conversion is a 1:1 ordinal mapping. The explicit switch mirrors Kotlin's
-/// exhaustive `when` and traps any out-of-range ordinal (compiler/runtime enum mismatch).
-@_cdecl("kk_time_unit_to_duration_unit")
-public func kk_time_unit_to_duration_unit(_ timeUnitOrdinal: Int) -> Int {
-    switch timeUnitOrdinal {
-    case 0: return 0 // NANOSECONDS
-    case 1: return 1 // MICROSECONDS
-    case 2: return 2 // MILLISECONDS
-    case 3: return 3 // SECONDS
-    case 4: return 4 // MINUTES
-    case 5: return 5 // HOURS
-    case 6: return 6 // DAYS
-    default:
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_unit_to_duration_unit received unknown TimeUnit ordinal \(timeUnitOrdinal)")
-    }
-}
-
-// MARK: - DurationUnit <-> TimeUnit conversion (STDLIB-TIME-FN-012)
-
-/// Bridges `kotlin.time.DurationUnit.toTimeUnit()` to
-/// `java.util.concurrent.TimeUnit`. Both enums share identical entry order
-/// (NANOSECONDS=0, MICROSECONDS=1, MILLISECONDS=2, SECONDS=3, MINUTES=4,
-/// HOURS=5, DAYS=6), so the conversion is an ordinal identity. The incoming
-/// `unitOrdinal` is a DurationUnit ordinal lowered to a raw machine word; the
-/// returned value is the matching TimeUnit ordinal.
-@_cdecl("kk_duration_unit_to_time_unit")
-public func kk_duration_unit_to_time_unit(_ unitOrdinal: Int) -> Int {
-    guard (0...6).contains(unitOrdinal) else {
-        assertionFailure("KSwiftK: unknown DurationUnit ordinal \(unitOrdinal) – compiler/runtime enum mismatch?")
-        return unitOrdinal
-    }
-    return unitOrdinal
 }
 
 @_cdecl("kk_time_source_mark_now")

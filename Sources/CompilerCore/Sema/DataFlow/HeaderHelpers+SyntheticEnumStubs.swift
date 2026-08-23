@@ -381,6 +381,16 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let valuesName = interner.intern("values")
+        // Source-backed enum extensions such as
+        // `RequiresOptIn.Level.values()` own the class-name API. Do not add
+        // the generated enum member as a duplicate in that case.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: ownerFQName,
+            name: valuesName,
+            arity: 0
+        ) else {
+            return
+        }
         let valuesFQName = ownerFQName + [valuesName]
         guard symbols.lookupAll(fqName: valuesFQName).compactMap({ symbols.symbol($0) }).allSatisfy({ $0.kind != .function }) else {
             return

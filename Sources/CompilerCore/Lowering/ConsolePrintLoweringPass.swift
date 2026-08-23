@@ -195,6 +195,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             guard let stringExpr = Self.classToStringExpression(
                 argument: argument,
                 classSymbol: classSymbol,
+                receiverType: nonNullType,
                 arena: arena,
                 sema: sema,
                 interner: interner,
@@ -234,6 +235,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         guard let stringExpr = Self.classToStringExpression(
             argument: argument,
             classSymbol: classSymbol,
+            receiverType: nonNullType,
             arena: arena,
             sema: sema,
             interner: interner,
@@ -455,6 +457,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     private static func classToStringExpression(
         argument: KIRExprID,
         classSymbol: SemanticSymbol,
+        receiverType: TypeID,
         arena: KIRArena,
         sema: SemaModule,
         interner: StringInterner,
@@ -517,15 +520,35 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             toStringName
         }
         let toStringResult = arena.appendTemporary(type: stringType)
-        instructions.append(.call(
-            symbol: toStringSym,
-            callee: toStringCallee,
-            arguments: [argument],
-            result: toStringResult,
-            canThrow: false,
-            thrownResult: nil,
-            isSuperCall: false
-        ))
+        // A base-typed receiver holding a derived instance (e.g. `val a: Animal
+        // = Dog()`) must call the *runtime* type's override, not classSymbol's
+        // own -- resolveVirtualDispatchKind returns the vtable/itable slot for
+        // that when toString is overridable; a direct .call is only correct
+        // when the class is effectively final (no subtypes).
+        if let dispatchKind = resolveVirtualDispatchKind(
+            callee: toStringSym, receiverTypeID: receiverType, sema: sema, interner: interner
+        ) {
+            instructions.append(.virtualCall(
+                symbol: toStringSym,
+                callee: toStringCallee,
+                receiver: argument,
+                arguments: [],
+                result: toStringResult,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatchKind
+            ))
+        } else {
+            instructions.append(.call(
+                symbol: toStringSym,
+                callee: toStringCallee,
+                arguments: [argument],
+                result: toStringResult,
+                canThrow: false,
+                thrownResult: nil,
+                isSuperCall: false
+            ))
+        }
         return KIRExprWithInstructions(value: toStringResult, instructions: instructions)
     }
 

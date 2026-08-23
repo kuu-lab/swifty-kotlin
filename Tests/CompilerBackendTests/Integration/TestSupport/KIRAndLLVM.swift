@@ -44,6 +44,16 @@ func extractCallees(
     }
 }
 
+/// Imported stdlib functions are mangled in a precompiled artifact, while
+/// source-injected declarations retain their short Kotlin name in KIR.
+func isKotlinCallee(_ actual: String, named expected: String) -> Bool {
+    actual == expected || actual.hasPrefix("kk_fn_\(expected)_")
+}
+
+func containsKotlinCallee(_ expected: String, in callees: [String]) -> Bool {
+    callees.contains { isKotlinCallee($0, named: expected) }
+}
+
 func extractThrowFlags(
     from body: [KIRInstruction],
     interner: StringInterner
