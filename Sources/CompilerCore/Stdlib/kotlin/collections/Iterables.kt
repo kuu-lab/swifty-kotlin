@@ -52,7 +52,7 @@ public fun <T> Iterable<T>.last(): T {
 // using one iterator traversal for non-List receivers.
 public fun <T> Iterable<T>.elementAt(index: Int): T {
     if (this is List) {
-        val list = this as List<T>
+        val list = this
         if (index < 0 || index >= list.size) {
             throw IndexOutOfBoundsException("Index $index out of bounds for length ${list.size}")
         }
@@ -63,7 +63,7 @@ public fun <T> Iterable<T>.elementAt(index: Int): T {
 
 public fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
     if (this is List) {
-        val list = this as List<T>
+        val list = this
         if (index >= 0 && index < list.size) return list[index]
         return defaultValue(index)
     }
@@ -79,7 +79,7 @@ public fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T)
 
 public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
     if (this is List) {
-        val list = this as List<T>
+        val list = this
         if (index >= 0 && index < list.size) return list[index]
         return null
     }
