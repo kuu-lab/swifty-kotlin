@@ -4323,15 +4323,14 @@
     - `kotlin.collections.zip` — fun Iterable.zip(Array): List  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/zip(kotlin/Array<out #B>): kotlin.collections/List<kotlin/Pair<#A, #B>>`
     - `kotlin.collections.zip` — fun Iterable.zip(Array, Function2): List  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/zip(kotlin/Array<out #B>, kotlin/Function2<#A, #B, #C>): kotlin.collections/List<#C>`
 
-- [ ] KSP-1000: kotlin.collections.Iterator の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1000: kotlin.collections.Iterator の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterators.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterator_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterator_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterator_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.iterator` — fun Iterator.iterator(): Iterator  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterator<#A>).kotlin.collections/iterator(): kotlin.collections/Iterator<#A>`
+  - 完了根拠: `Iterators.kt` に `public inline operator fun <T> Iterator<T>.iterator(): Iterator<T> = this` をsource-backed化。Semaでsource binding/operator/inline/no-external-link、Golden/KIRで型とruntime bridgeなし、Backend/diffでidentity・未消費・nullable・for-inのcontinue/breakを検証し、ABI/TODO-ID/git diff checkをpass。新規Runtime ABIは不要。
 
 - [ ] KSP-1001: kotlin.collections.List の未実装 stdlib API を実装する（28 件）
   - 対象: `kotlin.collections` / receiver `List`

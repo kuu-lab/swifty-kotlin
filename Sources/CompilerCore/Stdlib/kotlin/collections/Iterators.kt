@@ -8,6 +8,12 @@
 
 package kotlin.collections
 
+/**
+ * Returns the given iterator itself. This allows an iterator to be used in a
+ * `for` loop without allocating or consuming another iterator.
+ */
+public inline operator fun <T> Iterator<T>.iterator(): Iterator<T> = this
+
 // KSP-626
 // IndexedValue and the indexed Iterable helpers migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
