@@ -10454,14 +10454,15 @@
     - `kotlin.time.TimeMark` — interface kotlin.time.TimeMark  -- `abstract interface kotlin.time/TimeMark {`
     - `kotlin.time.TimedValue` — class kotlin.time.TimedValue  -- `final class <#A: kotlin/Any?> kotlin.time/TimedValue {`
 
-- [ ] KSP-1473: kotlin.time.Instant の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1473: kotlin.time.Instant の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.time` / receiver `Instant`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Instant.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_Instant_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_Instant_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_Instant_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: KSP-472 の merged commit `f3efe5ce24568ea881e8dba846508f7971de53ca`（PR #4601）で、2 property は Kotlin source extension に移行済み。現行 `Instant.kt:24-28` は public getter を宣言し、`HeaderHelpers+SyntheticInstantStubs.swift:99-119` の hidden bridge と `RuntimeInstant.swift:167-186` の runtime 実装、`RuntimeABISpec+BridgeCoverage.swift:275-294` の ABI coverage が対応する。対象の direct synthetic property stub や name-string 特例はない。
+  - source/Sema 根拠: `InstantDistantPropertiesSyntheticTests` が source extension の package/type/receiver/declSite と hidden bridge の一意性を検証し、public property に external C link がないことを固定。
+  - 境界/backend/runtime 根拠: `CodegenBackendIntegrationTests+TimeEdgeCases.swift`、`RuntimeInstantTests.swift` が Kotlin 2.3.10 の past/future 境界と隣接値を検証。現行 `kswiftc`、Kotlin/JVM 2.3.10、Kotlin/Native 2.3.10 の最小ケースも `true / false / true / false` で一致した。
+  - 公式契約照合: DistantPast `(epochSeconds=-3217862419201, nanoseconds=999999999)`、DistantFuture `(3093527980800, nanoseconds=0)` に対し、正規化済み Runtime の seconds 閾値判定はそれぞれ `this <= DistantPast` / `this >= DistantFuture` と同値。公式 source の public inline getter と expect/actual 不在を確認し、KSP-472 既存の public source extension + hidden bridge を維持する。class/Companion/Clock/Duration や既存 bridge/ABI は変更しない。
+  - Golden/diff: 新規の `stdlib_kotlin_time_Instant_n.kt` は不要。既存の Sema/backend/runtime 回帰と KIR/LLVM bridge lowering で同一 surface を検証。
+  - 完了シンボル一覧:
     - `kotlin.time.isDistantFuture` — val Instant.isDistantFuture  -- `final val kotlin.time/isDistantFuture`
     - `kotlin.time.isDistantPast` — val Instant.isDistantPast  -- `final val kotlin.time/isDistantPast`
 
