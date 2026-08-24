@@ -517,7 +517,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testHashSetOfFactoryInfersMutableSetType() throws {
+    func testHashSetOfFactoryInfersHashSetType() throws {
         let source = """
         fun probe() {
             val values = hashSetOf(1, 2)
@@ -543,9 +543,9 @@ struct ListSyntheticMemberLinkTests {
             })
             let callType = try #require(sema.bindings.exprTypes[hashSetCall])
             guard case let .classType(classType) = sema.types.kind(of: callType) else {
-                Issue.record("Expected hashSetOf to produce a MutableSet class type"); return
+                Issue.record("Expected hashSetOf to produce a HashSet class type"); return
             }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableSet")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "HashSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(hashSetCall), "Expected hashSetOf to be tracked as a collection expression")
         }
