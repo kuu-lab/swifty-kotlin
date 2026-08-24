@@ -1976,7 +1976,7 @@
     - `kotlin.Throws.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin.reflect/KClass<out kotlin/Throwable>>...)`
   - 完了根拠（2026-08-23再監査）: PR #5885（merge commit `3824cb23899d7934b998b2c6f92690de70352a95`）で `kotlin.Throws` を source-backed 化し、PR #5892 の authoritative current merge commit `43a37804e9d806e71bda3ad62180d3c012d9e1b0` で bundled source の `vararg val` / `KClass` 対応後に宣言を復元。現行 `Sources/CompilerCore/Stdlib/kotlin/Throws.kt` の `public vararg val exceptionClasses: KClass<out Throwable>` が対象 constructor を提供し、`stdlib_kotlin_n_Throws` Golden/diff と `AnnotationSemanticTests+VersionAndVisibility.swift` が1引数・vararg・型・parameter名を回帰検証。旧synthetic helperは未使用定義のみで、対象Runtime/RuntimeABI/name-string特例の有効経路はない。
 
-- [ ] KSP-899: kotlin.Throws.Throws の未実装 stdlib API を実装する（1 件）
+- [x] KSP-899: kotlin.Throws.Throws の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Throws` / receiver `Throws`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Throws/Throws.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1985,6 +1985,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Throws.exceptionClasses` — val Throws.exceptionClasses: Array  -- `final val exceptionClasses`
+  - 完了根拠: PR #5885 (KSP-759) で `kotlin.Throws` をsource-backed化し、PR #5892 (KSP-CAP-014) / authoritative current merge commit `43a37804e9d806e71bda3ad62180d3c012d9e1b0` で `vararg val` property と `KClass` 型参照を修正し `Throws.kt` を復元。
+  - 現行 `Sources/CompilerCore/Stdlib/kotlin/Throws.kt` と `AnnotationSemanticTests+VersionAndVisibility.swift` が `exceptionClasses` と `Array<out KClass<out Throwable>>` 型を検証。既存 Golden/diff と property read はPASS、Throws固有のsynthetic登録呼び出し・Runtime ABI/name-string特例はなし。
 
 - [ ] KSP-900: kotlin.Triple top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Triple` / top-level
