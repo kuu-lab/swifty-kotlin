@@ -2167,7 +2167,7 @@
     - `kotlin.UShortArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.UShortArray.<init>` — constructor (ShortArray)  -- `constructor <init>(kotlin/ShortArray)`
 
-- [ ] KSP-915: kotlin.Unit.Unit の未実装 stdlib API を実装する（1 件）
+- [x] KSP-915: kotlin.Unit.Unit の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Unit` / receiver `Unit`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Unit/Unit.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2176,6 +2176,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Unit.toString` — fun Unit.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/Unit.kt` に source-backed `Unit.toString(): String` を実装し、builtin Unit値・source member dispatch・Any boxingを接続した。直接receiver、Any経由、Any-erased singleton identity、string template、Unit戻り値、identity、`is Unit` のGolden/diff回帰を追加した。共有Unit boxはGC lock下で一度だけ登録し、runtime reset後も同一pointerを保持する。
+  - 検証: focused Golden、`Scripts/diff_cases/stdlib_kotlin_Unit_Unit_n.kt`、`Tests/RuntimeTests/RuntimeUnitBoxingTests.swift`、`Scripts/check_todo_ids.sh`、`Scripts/validate_runtime_abi_links.sh`、`git diff --check` がpass。
 
 - [x] KSP-916: kotlin.UnsafeVariance top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.UnsafeVariance` / top-level

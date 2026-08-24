@@ -314,6 +314,11 @@ final class RuntimeBoolBox {
     }
 }
 
+/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
+/// compiler's raw zero representation; this box is used only at reference
+/// boundaries where Any must retain the value's runtime identity.
+final class RuntimeUnitBox {}
+
 final class RuntimeLongBox {
     let value: Int
 

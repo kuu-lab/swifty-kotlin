@@ -881,7 +881,20 @@ extension DataFlowSemaPhase {
             }
 
         case let .objectDecl(objectDecl):
-            let objectType = types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+            // Unit keeps its builtin value representation, but its source-backed
+            // object symbol must remain available for ordinary member dispatch.
+            let builtinNames = BuiltinTypeNames(interner: interner)
+            let isUnitObject = package == [interner.intern("kotlin")] && declaration.name == builtinNames.unit
+            if isUnitObject {
+                types.unitClassSymbol = symbol
+            }
+            // Unit's value representation is a builtin type, but its member
+            // declarations are source-backed. Use the builtin type as the
+            // member receiver so normal overload resolution accepts Unit
+            // values without a name-based dispatch exception.
+            let objectType = isUnitObject
+                ? unitType
+                : types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
             let objectScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,

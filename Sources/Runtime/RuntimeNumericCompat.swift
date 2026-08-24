@@ -8,6 +8,9 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    if runtimeIsUnitBox(value) {
+        return runtimeMakeStringPointer("kotlin.Unit")
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -189,6 +192,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value
     }
+    if runtimeIsUnitBox(value) {
+        return 0
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
             .filter { !$0.isEmpty }
@@ -289,6 +295,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     if tryCast(pointer, to: RuntimeULongBox.self) != nil {
         return 10
+    }
+    if runtimeIsUnitBox(value) {
+        return 11
     }
     return 100
 }
