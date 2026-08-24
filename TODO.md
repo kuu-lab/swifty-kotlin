@@ -2095,13 +2095,14 @@
     - `kotlin.UIntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.UIntArray.<init>` — constructor (IntArray)  -- `constructor <init>(kotlin/IntArray)`
 
-- [ ] KSP-909: kotlin.ULong top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-909: kotlin.ULong top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ULong` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULong/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ULong_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ULong_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ULong_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-23）：Kotlin 本家の `internal constructor(Long)` に合わせ、`Sources/CompilerCore/Stdlib/kotlin/ULong/Stdlib.kt` に source-backed internal constructor を追加。既存の Long→ULong numeric conversion、boxing/type token、operator、runtime、ABI 経路は保持し、専用 Sema Golden/diff/Sema 回帰と共有 ULong/KIR/Backend/Runtime 回帰で bit-pattern、型推論、Any boxing、`is ULong`、null-sentinel 境界を検証。
   - 未実装シンボル一覧:
     - `kotlin.ULong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
 
