@@ -243,7 +243,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticClockStubs.swift` | 451 | (b) | M8 time source migration. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
-| `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
+| `HeaderHelpers+SyntheticCoercionStubs.swift` | 654 | (b)+(c) | KSP-1531 numeric conversion classification; range/coercion source migration is tracked separately. |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
 | `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 845 | (c) | KSP-701/KSP-665 の分離先（`HeaderHelpers+SyntheticIterableRegistry.swift` 削除時と `+SyntheticStringTypeHelpers.swift` 削除時の残存 fallback shell が合流）。呼び出し元は `+SyntheticComparableAndCollectionStubs.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ。`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable` の型登録は bundled Kotlin source を再利用する fallback 専用で対応不要。`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の型シェルと `isEmpty`/`contains`/`add`系/`iterator`/`hasNext`/`next` メンバは、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的の bridge（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）で (c) 残置。`random`/`randomOrNull` は KSP-1509 が降格予定の `kk_list_random`/`kk_list_randomOrNull` と同一ブリッジを共有。次アクション: KSP-1542。 |
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
@@ -338,6 +338,100 @@ fiction audit ダンプを起点に棚卸し）:
 Mixed files are assigned to the bucket that owns most of the file today. The
 notes column calls out sub-blocks that should be split before the final delete or
 table migration.
+
+#### KSP-1531: primitive numeric conversion classification (2026-08-23)
+
+KSP-1531 fixes the classification boundary only; it does not change compiler,
+runtime, or ABI code. The current public numeric-member bridge surface is 70
+symbols: 68 ordinary numeric `@_cdecl` symbols plus the two member conversion
+bit bridges `kk_int_to_double_bits` and `kk_float_to_double_bits`. The Runtime
+and RuntimeABI sets are equal for this 70-symbol surface. The synthetic file has
+39 registrations, which collapse to 32 of those public symbols plus the
+synthetic-only identity `kk_int_to_int` (also present only as an ABI-parity
+entry). Unsigned receiver registrations are reached through the primitive
+conversion lowerer and the corresponding Runtime/ABI entries, not through that
+synthetic file.
+
+The reason codes are:
+
+- `C-WIDTH`: compiler-owned fixed-width sign/zero extension, truncation, or
+  representation-preserving integer conversion. The current KIR has no typed
+  numeric-cast instruction, so these cases still appear as runtime calls or
+  copies; `(c)` records the future single-instruction compiler owner rather
+  than claiming that migration has already happened.
+- `C-FP`: compiler-owned ordinary integer-to-Float/Double or Float-to-Double
+  numeric conversion. The current Runtime implementation encodes the result
+  for the raw-bit KIR/ABI representation, but it does not add Kotlin-specific
+  saturation, NaN handling, or rounding policy.
+- `B-CHAR`: Kotlin `Char` code-unit semantics, including the UInt16 narrowing
+  and code-value conversions.
+- `B-FP-SAT`: Kotlin Float/Double NaN, infinity, range clamp, and truncation
+  semantics for integral targets.
+- `B-FP-ABI`: IEEE payload/bit transport or Float/Double representation and
+  boxing boundary for an explicit bit-representation bridge. Ordinary numeric
+  FP conversion remains `C-FP`; a short runtime body is not sufficient to make
+  a representation bridge `(c)`.
+
+<!-- KSP-1531-SYMBOLS-BEGIN -->
+| Receiver | (c) compiler-residual symbols | (b) stdlib-semantics symbols | Reason | Follow-up owner |
+|---|---|---|---|---|
+| `Int` | `kk_int_to_byte`, `kk_int_to_float`, `kk_int_to_long`, `kk_int_to_short`, `kk_int_to_ubyte`, `kk_int_to_uint`, `kk_int_to_ulong`, `kk_int_to_ushort` | `kk_int_to_char`, `kk_int_to_double_bits` | `C-WIDTH`; `C-FP`; `B-CHAR`; `B-FP-ABI` | KSP-1536 |
+| `Long` | `kk_long_to_byte`, `kk_long_to_double`, `kk_long_to_float`, `kk_long_to_int`, `kk_long_to_short`, `kk_long_to_ubyte`, `kk_long_to_uint`, `kk_long_to_ulong`, `kk_long_to_ushort` | `kk_long_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1537 |
+| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | `kk_uint_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1532 |
+| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | `kk_ulong_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1533 |
+| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | `kk_ubyte_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1534 |
+| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | `kk_ushort_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1535 |
+| `Float` | — | `kk_float_to_char`, `kk_float_to_int`, `kk_float_to_long`, `kk_float_to_double_bits` | `B-CHAR`; `B-FP-SAT`; `B-FP-ABI` | KSP-1538 |
+| `Double` | `kk_double_to_float` | `kk_double_to_char`, `kk_double_to_int`, `kk_double_to_long` | `C-FP`; `B-CHAR`; `B-FP-SAT` | KSP-1538 |
+| `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
+<!-- KSP-1531-SYMBOLS-END -->
+
+The table is grounded in the current implementations. `RuntimeNumericCoercion`
+uses fixed-width truncating or representation-preserving operations for the
+integer `(c)` group, while its Char and floating-to-Char paths implement code
+unit narrowing, NaN/negative handling, upper clamping, and truncation.
+`RuntimeNumericCompat` implements floating-to-integral NaN/infinity clamping
+and truncation, and its ordinary Float/Double paths encode and decode IEEE
+payloads only for the current raw-bit ABI representation. The explicit
+`*_to_double_bits` member bridges are classified separately as `B-FP-ABI`.
+The bundled `float.kt` and `double.kt` implementations already own
+Float/Double-to-UInt/ULong saturation semantics, so those two source-backed API
+pairs have no current `kk_float_to_uint`/`kk_float_to_ulong` or
+`kk_double_to_uint`/`kk_double_to_ulong` symbol and are not residual bridge
+rows.
+
+`CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift` recognizes
+the ordinary primitive conversion targets, with `toChar` fast-path coverage
+limited to signed integer receivers. `CallLowerer+LegacyMemberLikeCalls.swift`
+`CallLowerer+SafeMemberCalls.swift`, and the top-level route in `CallLowerer.swift`
+contain 68 explicit conversion-symbol cases; `kk_float_to_char` and
+`kk_double_to_char` are resolved through the registered normal member-call path.
+These lowerers otherwise emit KIR `.call`
+or representation-preserving `.copy`; `KIRInstruction` currently has no typed
+numeric-cast case. Existing `CoercionRuntimeTests` and
+`RuntimeMathEdgeCaseTests` cover the wrap, truncation, Char, NaN, infinity, and
+precision boundaries used by this classification.
+
+The following adjacent surfaces are intentionally excluded from the 70-symbol
+set: the six Byte/Short receiver-only runtime bridges in
+`RuntimeABISpec+RuntimeOnlyBridge.swift`, `kk_float_to_bits`/
+`kk_double_to_bits`, operator-promotion helper `kk_int_to_float_bits`, and the
+erased `Number` conversion route owned by KSP-1540. `ULong.toUInt()` and
+`ULong.toLong()` are representation-preserving lowerer copies and have no
+dedicated `kk_ulong_to_uint`/`kk_ulong_to_long` symbol. The synthetic-only
+`kk_int_to_int` is an identity registration and is not a migration target.
+
+Enforcing evidence was collected mechanically from the current tree: the
+classification marker contains 70 unique symbols; Runtime `@_cdecl` ordinary
+conversion symbols plus the two member bit bridges contain the same 70; the
+RuntimeABI NumericConversion/BridgeCoverage union contains the same 70; and
+the lowerer inventory contains 68 explicit names plus the two normal-call
+Char fallbacks. The synthetic inventory contains 39 registrations / 33 unique
+external names, with 32 public symbols plus `kk_int_to_int`. TODO ID
+uniqueness, `Scripts/check_todo_ids.sh`, `git diff --check`, and docs marker
+set checks are part of this PR. Build, full test, Golden, kotlinc diff, and
+runtime ABI execution are intentionally not run because this task changes only
+`TODO.md` and this documentation table.
 
 ### RF-STUB-002 reference cleanup recipe
 
