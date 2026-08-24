@@ -1495,9 +1495,10 @@
     - `kotlin.Error.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.Error.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-839: kotlin.Exception top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-839: kotlin.Exception top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Exception` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Exception/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 完了根拠: merged PR #5790（merge commit `a16552084688bf85d55e444744ec84af9d41d592`）の現行 `Sources/CompilerCore/Stdlib/kotlin/Exceptions.kt` に、空・`String?`・`Throwable?`・`String?`+`Throwable?` の4 constructorを source-backed 宣言済み。`ExceptionSyntheticStubTests.testCommonExceptionHierarchyIsSourceBacked` が非synthetic・`Throwable` 親・4 arity・4 `__kk_exception_new*` linkを検証し、`exception_hierarchy.kt` と `RuntimeAssertionsTests.testSourceBackedExceptionCauseOnlyConstructors` が既存回帰として残る。runtime storage/type identity 用の4 bridge/ABI entryは意図的に保持する。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Exception_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Exception_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Exception_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
