@@ -5168,7 +5168,8 @@
     - `kotlin.collections.HashSet.retainAll` — fun HashSet.retainAll(Collection): Boolean  -- `final fun retainAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
     - `kotlin.collections.HashSet.size` — val HashSet.size: Int  -- `final val size`
 
-- [ ] KSP-1058: kotlin.collections.IndexedValue top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1058: kotlin.collections.IndexedValue top-level の未実装 stdlib API を実装する（1 件）
+  - 完了（2026-08-24 監査）: 現行 `Sources/CompilerCore/Stdlib/kotlin/collections/Iterators.kt` の `public data class IndexedValue<out T>(public val index: Int, public val value: T)` が対象 constructor `(Int, T)` を既に提供している。Kotlin 2.3.10 公式 source、JVM metadata/classfile、exact 2.3.10 kotlinc のいずれも public constructor、`out T`、`val` property parameters、nominal owner `kotlin.collections.IndexedValue` で一致する。source-backed Sema/KIR は生成 data-class members と同じ nominal owner を保持し、constructor-only kswiftc 実行および `with_index_basic.kt` の 2.3.10 kotlinc 差分が成功した。旧 synthetic registration は KSP-702 で撤去済みで、残る `kk_indexed_value_new` は runtime fast path 用の内部 bridgeであり、対象 constructor の重複実装ではない。source、synthetic、Iterable/Iterator.withIndex・forEachIndexed、data class member、他 task は変更していない。
   - 対象: `kotlin.collections.IndexedValue` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IndexedValue/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
