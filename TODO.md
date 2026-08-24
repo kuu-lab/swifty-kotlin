@@ -4695,7 +4695,7 @@
     - `kotlin.collections.plus` — fun Set.plus(Array): Set  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Set<#A>).kotlin.collections/plus(kotlin/Array<out #A>): kotlin.collections/Set<#A>`
     - `kotlin.collections.plusElement` — fun Set.plusElement(): Set  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Set<#A>).kotlin.collections/plusElement(#A): kotlin.collections/Set<#A>`
 
-- [ ] KSP-1025: kotlin.collections.AbstractCollection top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1025: kotlin.collections.AbstractCollection top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.AbstractCollection` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractCollection/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4704,6 +4704,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractCollection.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: KSP-633のmerged PR #5467 / commit `cbabf90985599eb7c724365e94723cf2a9aaed49` が `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractCollection.kt` に `public abstract class AbstractCollection<out E> protected constructor() : Collection<E>` をsource-backedで導入済み。現行Sema fallbackにも同じnominal ownerのprotected no-arg constructorが登録され、`Tests/CompilerCoreTests/Sema/ListSyntheticMemberLinkTests.swift` の `testAbstractCollectionSurfaceIsRegistered` が `.protected`・0 parameters・non-synthetic source-backed symbolを固定している。Kotlin 2.3.10公式stdlib source/metadataとexact `kotlinc`でも owner=`kotlin/collections/AbstractCollection`、`E` variance=`OUT`、constructor visibility=`protected`・0 parameters、subclass可・直接構築不可を確認した。既存の `Tests/CompilerBackendTests/StdlibArtifactRegressionTests.swift` のbundled source/precompiled artifact回帰2件、`Scripts/diff_cases/bug_200_precompiled_abstract_collection.kt` のKotlin 2.3.10 diffも再利用できるため、新規実装・専用bridge/stub/ABI/name-string特例・重複Goldenは追加しない。
 
 - [ ] KSP-1026: kotlin.collections.AbstractCollection.AbstractCollection の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.collections.AbstractCollection` / receiver `AbstractCollection`
