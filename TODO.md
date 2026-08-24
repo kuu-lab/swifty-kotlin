@@ -1789,13 +1789,14 @@
     - `kotlin.RequiresOptIn.level` — val RequiresOptIn.level: Level  -- `final val level`
     - `kotlin.RequiresOptIn.message` — val RequiresOptIn.message: String  -- `final val message`
 
-- [ ] KSP-883: kotlin.RequiresOptIn.Level.Level の未実装 stdlib API を実装する（3 件）
+- [x] KSP-883: kotlin.RequiresOptIn.Level.Level の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.RequiresOptIn.Level` / receiver `Level`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/RequiresOptIn/Level/Level.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_RequiresOptIn_Level_Level_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_RequiresOptIn_Level_Level_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_RequiresOptIn_Level_Level_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: #5978（merge commit `5dd10313f6099dcebdaaddcb41116b2217a0536e`）で`entries`/`valueOf`/`values`と専用回帰を実装済み。現行`RequiresOptIn.kt`に`enum class Level`があり、専用Golden/diff fixtureも現行masterに存在することを確認。
   - 未実装シンボル一覧:
     - `kotlin.RequiresOptIn.Level.entries` — val Level.entries: EnumEntries  -- `final val entries`
     - `kotlin.RequiresOptIn.Level.valueOf` — fun Level.valueOf(String): Level  -- `final fun valueOf(kotlin/String): kotlin/RequiresOptIn.Level`
