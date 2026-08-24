@@ -173,7 +173,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testArrayListOfFactoryInfersMutableListType() throws {
+    func testArrayListOfFactoryInfersArrayListType() throws {
         let source = """
         fun probe() {
             val values = arrayListOf(1, 2)
@@ -199,9 +199,9 @@ struct ListSyntheticMemberLinkTests {
             })
             let callType = try #require(sema.bindings.exprTypes[arrayListCall])
             guard case let .classType(classType) = sema.types.kind(of: callType) else {
-                Issue.record("Expected arrayListOf to produce a MutableList class type"); return
+                Issue.record("Expected arrayListOf to produce an ArrayList class type"); return
             }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableList")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "ArrayList")
             #expect(classType.args == [.invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(arrayListCall), "Expected arrayListOf to be tracked as a collection expression")
         }
