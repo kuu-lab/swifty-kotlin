@@ -27,8 +27,8 @@ public abstract class AbstractMutableCollection<E> protected constructor() : Abs
  * Removes a single instance of [element] from this collection, if present.
  */
 @IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.remove(element: T): Boolean {
-    @Suppress("UNCHECKED_CAST")
     return (this as MutableCollection<T>).remove(element)
 }
 
@@ -36,8 +36,8 @@ public inline fun <T> MutableCollection<out T>.remove(element: T): Boolean {
  * Removes all elements in [elements] from this collection.
  */
 @IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.removeAll(elements: Collection<T>): Boolean {
-    @Suppress("UNCHECKED_CAST")
     return (this as MutableCollection<T>).removeAll(elements)
 }
 
@@ -45,8 +45,8 @@ public inline fun <T> MutableCollection<out T>.removeAll(elements: Collection<T>
  * Retains only elements present in [elements].
  */
 @IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
 public inline fun <T> MutableCollection<out T>.retainAll(elements: Collection<T>): Boolean {
-    @Suppress("UNCHECKED_CAST")
     return (this as MutableCollection<T>).retainAll(elements)
 }
 
@@ -118,12 +118,12 @@ public fun <T> MutableCollection<in T>.addAll(elements: Iterable<T>): Boolean {
     return addAllIterable(this, elements)
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun <T> addAllIterable(
     destination: MutableCollection<in T>,
     elements: Iterable<T>
 ): Boolean {
     if (elements is Collection) {
-        @Suppress("UNCHECKED_CAST")
         val collection = elements as Collection<T>
         return addAllCollection(destination, collection)
     }
@@ -192,12 +192,12 @@ public fun <T> MutableCollection<in T>.removeAll(elements: Iterable<T>): Boolean
     return removeAllIterable(this, elements)
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun <T> removeAllIterable(
     destination: MutableCollection<in T>,
     elements: Iterable<T>
 ): Boolean {
     if (elements is Collection) {
-        @Suppress("UNCHECKED_CAST")
         return removeAllCollection(destination, elements as Collection<T>)
     }
     val list = mutableListOf<T>()
@@ -250,12 +250,12 @@ public fun <T> MutableCollection<in T>.retainAll(elements: Iterable<T>): Boolean
     return retainAllIterable(this, elements)
 }
 
+@Suppress("UNCHECKED_CAST")
 private fun <T> retainAllIterable(
     destination: MutableCollection<in T>,
     elements: Iterable<T>
 ): Boolean {
     if (elements is Collection) {
-        @Suppress("UNCHECKED_CAST")
         return retainAllCollection(destination, elements as Collection<T>)
     }
     val list = mutableListOf<T>()
