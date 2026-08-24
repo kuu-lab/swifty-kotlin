@@ -1622,4 +1622,43 @@ struct StdlibArtifactRegressionTests {
                 """)
         }
     }
+
+    /// KSP-1022: an imported non-inline range iterator must not be redirected
+    /// by InlineLoweringPass to the same-named MutableMap inline extension.
+    /// The name fallback is only valid when the call has no known semantic
+    /// symbol; artifact consumers otherwise lose the receiver-specific binding.
+    @Test
+    func testRangeHOFDoesNotUseSameNamedMutableMapIteratorFromArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println((1..5).reduce { acc, value -> acc + value })
+            println((1..5).reduceIndexed { index, acc, value -> acc + index * value })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "KSP1022RangeArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "15\n41\n")
+        }
+    }
 }

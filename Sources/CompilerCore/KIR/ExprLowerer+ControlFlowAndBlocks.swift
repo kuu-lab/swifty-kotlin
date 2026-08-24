@@ -380,7 +380,9 @@ extension ExprLowerer {
                     return loadedValue
                 }
                 if let delegateStorageID = driver.ctx.localDelegateStorage(for: symbol),
-                   let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol)
+                   let getValueSymbol = sema.symbols.delegateGetValueSymbol(for: symbol),
+                   let delegateType = sema.symbols.functionSignature(for: getValueSymbol)?.receiverType,
+                   isMutableMapDelegateType(delegateType, sema: sema, interner: interner)
                 {
                     // A MutableMap delegate is live storage, not an eagerly
                     // initialized value. Read it through getValue at each

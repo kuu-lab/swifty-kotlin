@@ -509,6 +509,13 @@ final class InlineLoweringPass: LoweringPass {
             // unrelated receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`).
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
                 target
+            } else if let symbol,
+                      ctx.sema?.symbols.symbol(symbol)?.flags.contains(.importedLibrary) == true
+            {
+                // Imported non-inline functions have no KIR body in the consumer
+                // module. Keep their resolved symbol intact instead of applying
+                // the name fallback to an unrelated same-named inline overload.
+                nil
             } else if let symbol, allFunctionsBySymbol[symbol] != nil {
                 nil
             } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
