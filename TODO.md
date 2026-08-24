@@ -10627,17 +10627,18 @@
     - `kotlin.time.Duration.Companion.seconds` — val Companion.seconds: Duration  -- `final val seconds`
     - `kotlin.time.Duration.Companion.seconds` — val Companion.seconds: Duration  -- `final val seconds`
 
-- [ ] KSP-1486: kotlin.time.DurationUnit.DurationUnit の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1486: kotlin.time.DurationUnit.DurationUnit の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.time.DurationUnit` / receiver `DurationUnit`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/DurationUnit/DurationUnit.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_DurationUnit_DurationUnit_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_DurationUnit_DurationUnit_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_DurationUnit_DurationUnit_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 監査対象シンボル:
     - `kotlin.time.DurationUnit.entries` — val DurationUnit.entries: EnumEntries  -- `final val entries`
     - `kotlin.time.DurationUnit.valueOf` — fun DurationUnit.valueOf(String): DurationUnit  -- `final fun valueOf(kotlin/String): kotlin.time/DurationUnit`
     - `kotlin.time.DurationUnit.values` — fun DurationUnit.values(): Array  -- `final fun values(): kotlin/Array<kotlin.time/DurationUnit>`
+  - 完了根拠（2026-08-24、現行 master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: merged PR #5789（merge commit `5f73f5e727ca2df79aa949029be45390c6985df2`）で `Sources/CompilerCore/Stdlib/kotlin/time/DurationUnit.kt` を実 bundled enum として導入済みであり、`HeaderHelpers+SyntheticDurationStubs.swift` は nominal shell のみを保持している。`entries` / `values` / `valueOf` は共通 enum の Sema・lowering・runtime 経路（`kk_enum_make_entries_list` / `kk_enum_make_values_array` / `kk_enum_valueOf_throw`）で exact に解決され、対象固有の bridge・Runtime ABI・name-string 特例は存在しない。`DurationUnitSyntheticSurfaceTests` と `EnumAPISurfaceInventoryTests` の既存回帰、および Kotlin 2.3.10 の公式 source・metadata・`kotlinc` に基づく最小再現で、`EnumEntries<DurationUnit>` / `DurationUnit` / `Array<DurationUnit>`、7 件の順序、`valueOf`、未知名の `IllegalArgumentException` を確認した。exact ID/symbol の current・archived task、open/merged PR、remote branch、history、open PR の変更ファイル、重複実装をライブ再監査し、新規 source・bridge 削除・Golden/diff 追加は不要と判断したため、本項は TODO 同期のみで完了とする。
 
 - [ ] KSP-1487: kotlin.time.ExperimentalTime top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.ExperimentalTime` / top-level
