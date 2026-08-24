@@ -2814,7 +2814,7 @@
     - `kotlin.collections.count` — fun Iterable.count(): Int  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(): kotlin/Int`
     - `kotlin.collections.count` — fun Iterable.count(Function1): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Int`
 
-- [ ] KSP-969: kotlin.collections.Iterable.drop-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-969: kotlin.collections.Iterable.drop-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `drop`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2824,6 +2824,9 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.drop` — fun Iterable.drop(Int): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/drop(kotlin/Int): kotlin.collections/List<#A>`
     - `kotlin.collections.dropWhile` — fun Iterable.dropWhile(Function1): List  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/dropWhile(kotlin/Function1<#A, kotlin/Boolean>): kotlin.collections/List<#A>`
+
+  - 完了根拠: `Iterables.kt` に本家準拠の public / public inline source-backed 実装を追加し、Sema は静的 `Iterable` で対象2件を source-backed `kotlin.collections.drop#0` / `dropWhile#0` に解決する。具体的な `List` は `#1` のList overloadを維持し、Sequence/Range/共有runtime・ABI経路は変更していない。
+  - 回帰: `stdlib_kotlin_collections_Iterable_drop.golden`（List/Iterableのcallee・`List<T>`結果型）、`stdlib_kotlin_collections_Iterable_drop.kt`（one-shot iterator、境界値、負数メッセージ、dropWhileの評価停止・例外・nullable要素）、kotlinc差分PASS。
 
 - [ ] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `element`
