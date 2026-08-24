@@ -9913,7 +9913,7 @@
     - `kotlin.text.HexFormat.BytesHexFormat.Builder.bytesPerLine` — val Builder.bytesPerLine: Int  -- `final var bytesPerLine`
     - `kotlin.text.HexFormat.BytesHexFormat.Builder.groupSeparator` — val Builder.groupSeparator: String  -- `final var groupSeparator`
 
-- [ ] KSP-1426: kotlin.text.HexFormat.Companion.Companion の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1426: kotlin.text.HexFormat.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.HexFormat.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9922,6 +9922,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.Companion.UpperCase` — val Companion.UpperCase: HexFormat  -- `final val UpperCase`
+  - 対応・検証（2026-08-24）: `HexFormat` の既存 companion に `public val UpperCase: HexFormat = HexFormat(upperCase = true)` を追加。Kotlin 2.3.10公式source/stdlib metadata（`getUpperCase(): HexFormat`, public final, `kotlin.text.HexFormat.Companion`）と照合し、KSP-1426専用Sema Golden・KSwiftK/kotlinc focused diff（`true`）・Golden render一致・`git diff --check` を確認。HexFormat nested format、他KSP task、Runtime/ABI bridgeは変更なし。
 
 - [ ] KSP-1427: kotlin.text.HexFormat.NumberHexFormat top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.HexFormat.NumberHexFormat` / top-level
