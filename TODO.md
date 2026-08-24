@@ -7069,7 +7069,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.NoInline.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1207: kotlin.native.ObjCName top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1207: kotlin.native.ObjCName top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.ObjCName` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ObjCName/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7078,6 +7078,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.ObjCName.<init>` — constructor (String, String, Boolean)  -- `constructor <init>(kotlin/String = ..., kotlin/String = ..., kotlin/Boolean = ...)`
+  - 完了根拠: KSP-667（PR #5034、merge commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）で導入済みの source-backed declaration に、Kotlin 2.3.10 Native と一致する ObjCName metadata を補完し、`NativePlatformAnnotationTests` で constructor の3 default parameters と ExperimentalObjCName opt-in を固定した。
 
 - [ ] KSP-1208: kotlin.native.ObjCName.ObjCName の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.ObjCName` / receiver `ObjCName`
