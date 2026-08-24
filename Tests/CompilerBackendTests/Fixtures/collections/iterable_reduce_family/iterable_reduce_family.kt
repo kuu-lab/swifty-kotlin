@@ -74,10 +74,14 @@ fun main() {
     val polymorphic: Iterable<ReduceChild> = ReduceChildIterable(
         listOf(ReduceChild(1), ReduceChild(2), ReduceChild(3), ReduceChild(4))
     )
-    val widened: ReduceBase = polymorphic.reduce { acc: ReduceBase, value -> ReduceBase(acc.value + value.value) }
-    val widenedIndexed: ReduceBase? = polymorphic.reduceIndexedOrNull {
-        index, acc: ReduceBase, value -> ReduceBase(acc.value + index + value.value)
+    val widenOperation: (ReduceBase, ReduceChild) -> ReduceBase = { acc, value ->
+        ReduceBase(acc.value + value.value)
     }
+    val widened: ReduceBase = polymorphic.reduce(widenOperation)
+    val widenIndexedOperation: (Int, ReduceBase, ReduceChild) -> ReduceBase = { index, acc, value ->
+        ReduceBase(acc.value + index + value.value)
+    }
+    val widenedIndexed: ReduceBase? = polymorphic.reduceIndexedOrNull(widenIndexedOperation)
     println(widened)
     println(widenedIndexed)
 
