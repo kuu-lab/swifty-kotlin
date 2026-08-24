@@ -1988,14 +1988,14 @@
   - 完了根拠: PR #5885 (KSP-759) で `kotlin.Throws` をsource-backed化し、PR #5892 (KSP-CAP-014) / authoritative current merge commit `43a37804e9d806e71bda3ad62180d3c012d9e1b0` で `vararg val` property と `KClass` 型参照を修正し `Throws.kt` を復元。
   - 現行 `Sources/CompilerCore/Stdlib/kotlin/Throws.kt` と `AnnotationSemanticTests+VersionAndVisibility.swift` が `exceptionClasses` と `Array<out KClass<out Throwable>>` 型を検証。既存 Golden/diff と property read はPASS、Throws固有のsynthetic登録呼び出し・Runtime ABI/name-string特例はなし。
 
-- [ ] KSP-900: kotlin.Triple top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-900: kotlin.Triple top-level の stdlib API（constructor 1件）。**完了（2026-08-23）**: PR #5471 / merge commit `ebfa70c17efe3f29df689713c9613d5a0332c6aa` で `Triple` 本体と constructor を `Sources/CompilerCore/Stdlib/kotlin/Tuples.kt` のsource-backed宣言へ移行し、PR #5899 / merge commit `b4f2e1a767631395539f5bd60f96bd1eadc41b2b` で nominal anchor移行も完了。現行 `@KsSymbolName("__kk_triple_new")` と `RuntimeTripleBox` allocation/type tagging/runtime ABI はconstructorに必要なlive経路として維持され、`Tests/CompilerCoreTests/GoldenCases/Sema/triple.kt` と `Scripts/diff_cases/pair_triple_basic.kt` がconstructor・型推論・生成/実行を回帰するため、TODO同期のみ実施。
   - 対象: `kotlin.Triple` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Triple/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Triple_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Triple_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Triple_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了対象:
     - `kotlin.Triple.<init>` — constructor (, , )  -- `constructor <init>(#A, #B, #C)`
 
 - [ ] KSP-901: kotlin.Triple.Triple の未実装 stdlib API を実装する（7 件）
