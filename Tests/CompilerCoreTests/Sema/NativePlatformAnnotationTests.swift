@@ -62,6 +62,40 @@ struct NativePlatformAnnotationTests {
     }
 
     @Test
+    func testFreezingIsDeprecatedCarriesOfficialKotlinMetadata() throws {
+        let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "native", "FreezingIsDeprecated"].map { interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let annotations = sema.symbols.annotations(for: symbol)
+
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["\"\"1.7\"\""]
+            },
+            "FreezingIsDeprecated must carry @SinceKotlin(\"1.7\"); got \(annotations)"
+        )
+        #expect(
+            annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" },
+            "FreezingIsDeprecated must carry @MustBeDocumented; got \(annotations)"
+        )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.Deprecated"
+                    && $0.arguments == ["\"\"Opting in for the freezing API is no longer supported.\"\""]
+            },
+            "FreezingIsDeprecated must carry its deprecation message; got \(annotations)"
+        )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.DeprecatedSinceKotlin"
+                    && $0.arguments == ["warningSince=\"\"2.1\"\""]
+            },
+            "FreezingIsDeprecated must carry @DeprecatedSinceKotlin(warningSince=\"2.1\"); got \(annotations)"
+        )
+    }
+
+    @Test
     func testFreezingIsDeprecatedCarriesNativeTargets() throws {
         let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "FreezingIsDeprecated"].map { interner.intern($0) }

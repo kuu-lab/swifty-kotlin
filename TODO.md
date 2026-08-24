@@ -6994,15 +6994,17 @@
   - 未実装シンボル一覧:
     - `kotlin.native.EagerInitialization.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1200: kotlin.native.FreezingIsDeprecated top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1200: kotlin.native.FreezingIsDeprecated top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.FreezingIsDeprecated` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/FreezingIsDeprecated/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Annotations.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_FreezingIsDeprecated_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_FreezingIsDeprecated_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_FreezingIsDeprecated_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 対象シンボル一覧:
     - `kotlin.native.FreezingIsDeprecated.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了確認（2026-08-24、現行master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）：merged PR #1606（commit `f67566a8a73727a192b9315ba549e2b78434a800`）がNative markerの合成登録と既存Sema回帰を追加し、merged PR #5034（commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）が対象annotationをbundled Kotlin sourceへ移行済み。現行sourceは引数なしannotation classと暗黙constructorを保持し、公式Kotlin 2.3.10の `SinceKotlin`、`Target`、`Retention`、`MustBeDocumented`、`RequiresOptIn`、`Deprecated`、`DeprecatedSinceKotlin` metadataを表現する。
+  - 公式Kotlin 2.3.10 Native KLIB metadata/ABIは `public constructor()` と `constructor <init>()`、指定11 Target、BINARY Retention、指定message＋`WARNING`を示す。`Tests/CompilerCoreTests/Sema/NativePlatformAnnotationTests.swift` が登録、公式metadata、Target、annotation使用時のWARNING、`OptIn`抑制を回帰固定する。
 
 - [ ] KSP-1201: kotlin.native.HiddenFromObjC top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.HiddenFromObjC` / top-level
