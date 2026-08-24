@@ -312,7 +312,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticRangeProgressionStubs.swift` | 1116 | (b) | M6 range/progression source migration. |
 | `HeaderHelpers+SyntheticRangeUntilStubs.swift` | 142 | (b) | M6 `..<`/`rangeUntil` source migration. |
 | `HeaderHelpers+SyntheticReadWriteLockStubs.swift` | 216 | (a) | JVM-style lock compatibility; cleanup or move behind explicit platform bridge. |
-| `HeaderHelpers+SyntheticRegexStubs.swift` | 974 | (b) | Regex public stdlib source migration candidate. |
+| `HeaderHelpers+SyntheticRegexStubs.swift` | deleted | (b) | ~~Regex public stdlib source migration candidate.~~ **完了・ファイル削除済み**（KSP-1521, 2026-08-23）。`MatchResult` / `Destructured` の nominal anchor は bundled Kotlin source に統合し、engine bridge は保持。 |
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
 | `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | deleted | (b) | `run`/`with`/`apply`/`let`/`also`/`takeIf`/`takeUnless` は bundled `kotlin/Standard.kt` へ移行済み。`use`/`usePinned`/`useContents` は compiler residual として別経路に残る。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
 | `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | 1463 | (b) | M4 sequence registration helper surface. |
