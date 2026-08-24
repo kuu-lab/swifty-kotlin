@@ -114,7 +114,7 @@
     ```
     kotlinc 2.3.10 は両方とも `ctor` / `fn` を出力する
   - 対応方針: `declarationDelegateExpression` 側でもトレーリングラムダを呼び出しの最終実引数として畳み込む（`propertyHeadTokens(includingTrailingLambdaTokens:)` の opt-in を delegate 経路にも広げる）。`observable`/`vetoable` の合成スタブが初期値 1 引数しか受け付けない点が KSP-CAP-005 時点で畳み込みを見送った理由なので、合成スタブ側のシグネチャ更新（または Kotlin 宣言への置換）と同時に行う必要がある
-- [ ] KSP-CAP-020: 拡張 operator `getValue`/`setValue` を property delegate の解決候補に含める。ブロック対象: KSP-491（本家形 `public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T`）
+- [x] KSP-CAP-020: 拡張 operator `getValue`/`setValue` を property delegate の解決候補に含める。ブロック対象: KSP-491（本家形 `public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T`）
   - **注記**: 旧 KSP-CAP-015（2026-08-06 記録）と同一症状で、`f9dea8961c` 付近の TODO.md 編集で台帳から消失していた。2026-08-18 `.build/debug/kswiftc` で再実機確認し変化なし。
   - 症状: `DeclTypeChecker+PropertyHelpers.swift` の `typeCheckDelegate` は `collectMemberFunctionCandidates`（メンバと supertype のみ走査）で候補を集めるため、拡張関数として宣言された operator は一切見えず `KSWIFTK-SEMA-0103` になる
   - 最小再現（kotlinc 2.3.10 は `ext` を出力。2026-08-18 再実機確認済み — `KSWIFTK-SEMA-0103`）:
@@ -124,6 +124,8 @@
     val p: String by Holder("ext")   // KSWIFTK-SEMA-0103
     ```
   - 影響: 本家 `kotlin.Lazy` は `getValue` をインターフェースのメンバではなく拡張として持つ。本項目未解消のまま KSP-491 を進めると `Lazy` インターフェースにメンバ `getValue` を生やす本家逸脱が必要になる
+  - 完了（2026-08-23）: `DeclTypeChecker+PropertyHelpers.swift` が member 優先で visible/imported/bundled extension を通常の overload resolver で receiver・operator・型引数・引数型・visibility とともに解決し、直接 delegate と provideDelegate 後の effective delegate の getValue/setValue に共通適用。Sema/KIR 回帰は val/var・generic・nullable thisRef・member 優先・import・non-operator/不適合 receiver・ambiguous・provideDelegate 後を固定し、resolved extension symbol のKIR call/linkまで確認。
+  - 検証: `swift build`、focused Sema/KIR 3件、既存 delegate Sema/KIR 28件、Backend/link 65件、関連 Sema Golden 4件、最小 `diff_kotlinc` 1件、直接 `kswiftc` 実行、runtime ABI 4件、TODO ID/diff check が pass（全Sema Golden suite はworker無出力で手動停止しtimeout扱い）
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 
