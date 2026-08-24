@@ -510,7 +510,7 @@ public func kk_mutable_map_iterator_remove(_ iterRaw: Int) -> Int {
     guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
           let key = iter.lastKey
     else {
-        fatalError("KSwiftK panic [(runtimePanicDiagnosticCode)]: MutableMap iterator remove() called before next()")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: MutableMap iterator remove() called before next()")
     }
     _ = kk_mutable_map_remove(iter.mapRaw, key)
     iter.lastKey = nil
