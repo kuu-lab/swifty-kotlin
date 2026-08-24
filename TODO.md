@@ -9121,7 +9121,7 @@
     - `kotlin.text.appendLine` — fun Appendable.appendLine(Char): Appendable  -- `final inline fun (kotlin.text/Appendable).kotlin.text/appendLine(kotlin/Char): kotlin.text/Appendable`
     - `kotlin.text.appendLine` — fun Appendable.appendLine(CharSequence): Appendable  -- `final inline fun (kotlin.text/Appendable).kotlin.text/appendLine(kotlin/CharSequence?): kotlin.text/Appendable`
 
-- [ ] KSP-1364: kotlin.text.CharSequence.any-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1364: kotlin.text.CharSequence.any-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `any`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
