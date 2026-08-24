@@ -10687,13 +10687,14 @@
     - `kotlin.time.Instant.Companion.parse` — fun Companion.parse(CharSequence): Instant  -- `final fun parse(kotlin/CharSequence): kotlin.time/Instant`
     - `kotlin.time.Instant.Companion.parseOrNull` — fun Companion.parseOrNull(CharSequence): Instant  -- `final fun parseOrNull(kotlin/CharSequence): kotlin.time/Instant?`
 
-- [ ] KSP-1491: kotlin.time.TestTimeSource top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1491: kotlin.time.TestTimeSource top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.TestTimeSource` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TestTimeSource/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_TestTimeSource_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_TestTimeSource_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_TestTimeSource_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（現行master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）：PR #5836 / merge commit `827a2bf08` の `Sources/CompilerCore/Stdlib/kotlin/time/TimeSources.kt` に `public class TestTimeSource : AbstractLongTimeSource(DurationUnit.NANOSECONDS)` が実装済みで、暗黙の public 引数なし constructor を提供する。`ExperimentalTimeSourceSyntheticSurfaceTests` の constructor signature（receiver `TestTimeSource`、parameters `[]`、return `TestTimeSource`）、Sema Golden `test_time_source.golden`、backend edge-case tests、既存 diff case `test_time_source_ksp650.kt` で確認済み。Kotlin 2.3.10 official `TimeSources.kt` / metadata / `kotlinc` でも同じ package・visibility・superclass・NANOSECONDS・初期 reading 0・`init { markNow() }` 契約を確認したため、KSP-1491 の追加 source/synthetic/compiler/runtime/ABI/test 変更は不要。
   - 未実装シンボル一覧:
     - `kotlin.time.TestTimeSource.<init>` — constructor ()  -- `constructor <init>()`
 
