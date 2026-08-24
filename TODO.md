@@ -1614,7 +1614,7 @@
     - `kotlin.FloatArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.FloatArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Float>)`
 
-- [ ] KSP-849: kotlin.IgnorableReturnValue top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-849: kotlin.IgnorableReturnValue top-level の未実装 stdlib API を実装する（1 件。KSP-741 で source-backed 実装済みのため重複実装はせず、暗黙 constructor の証跡を同期）
   - 対象: `kotlin.IgnorableReturnValue` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/IgnorableReturnValue/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1623,6 +1623,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.IgnorableReturnValue.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5857 / merge commit `0126a7897`（KSP-741）が現行 `Sources/CompilerCore/Stdlib/kotlin/IgnorableReturnValue.kt` の `public annotation class IgnorableReturnValue` を追加済み。明示的な constructor を省略した annotation class はheader collectionで暗黙の `constructor <init>()` として登録され、既存Golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_IgnorableReturnValue.kt`、diff `Scripts/diff_cases/stdlib_kotlin_n_IgnorableReturnValue.kt` の引数なし `@IgnorableReturnValue` が最小回帰。`AnnotationSemanticTests.swift` も登録とFUNCTION targetを検証し、対象のsynthetic登録・target注入・Runtime/ABI/name-string特例は現行残存なし。
 
 - [ ] KSP-851: kotlin.IllegalStateException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.IllegalStateException` / top-level
