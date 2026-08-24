@@ -10744,8 +10744,9 @@
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark.minus` — fun ValueTimeMark.minus(ComparableTimeMark): Duration  -- `final fun minus(kotlin.time/ComparableTimeMark): kotlin.time/Duration`
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark.toString` — fun ValueTimeMark.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1496: kotlin.time.TimedValue top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1496: kotlin.time.TimedValue top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.TimedValue` / top-level
+  - 完了根拠: Kotlin 2.3.10 の公式 source/metadata と照合し、`TimedValue<T>`（不変 `T : Any?`）の public constructor `(T, Duration)` を synthetic nominal surface に追加した。constructor は既存の `kk_timedvalue_new` runtime ABI bridge に接続し、KSP-1497 の data-class members と value/duration receiver surface は変更していない。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimedValue/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_TimedValue_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
