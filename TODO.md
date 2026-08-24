@@ -2334,13 +2334,15 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMutableList` — class kotlin.collections.AbstractMutableList  -- `abstract class <#A: kotlin/Any?> kotlin.collections/AbstractMutableList : kotlin.collections/AbstractMutableCollection<#A>, kotlin.collections/MutableList<#A> {`
 
-- [ ] KSP-930: kotlin.collections.AbstractMutableMap-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-930: kotlin.collections.AbstractMutableMap-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractMutableMap`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableMap.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_AbstractMutableMap.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractMutableMap.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractMutableMap.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 根拠: `AbstractMutableMap<K, V>` のsource-backed宣言で`AbstractMap<K, V>` / `MutableMap<K, V>`階層とprotected no-arg constructorを登録し、既存のsynthetic Map/MutableMap・runtime/ABI経路はfallback/shared surfaceとして保持。synthetic superclass shellへの無効なconstructor delegationだけをcompiler側で抑止。
+  - 回帰: `ListSyntheticMemberLinkTests` のsurface/supertype、nullable missing lookup、putAll/remove、keys/values/entries、equals/hashCode/toString、対象Golden、対象diff（mutation/view出力）を確認。
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMutableMap` — class kotlin.collections.AbstractMutableMap  -- `abstract class <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/AbstractMutableMap : kotlin.collections/AbstractMap<#A, #B>, kotlin.collections/MutableMap<#A, #B> {`
 
