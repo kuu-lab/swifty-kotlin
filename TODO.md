@@ -1823,7 +1823,8 @@
     - `kotlin.Result.Companion.failure` — fun Companion.failure(Throwable): Result  -- `final inline fun <#A2: kotlin/Any?> failure(kotlin/Throwable): kotlin/Result<#A2>`
     - `kotlin.Result.Companion.success` — fun Companion.success(): Result  -- `final inline fun <#A2: kotlin/Any?> success(#A2): kotlin/Result<#A2>`
 
-- [ ] KSP-886: kotlin.RuntimeException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-886: kotlin.RuntimeException top-level の未実装 stdlib API を実装する（4 件）
+  - 完了根拠: #5971 / merge `76dcd2048ca518efcd1801831e40d5b6def1e731` で4 constructor、専用Golden/diff、runtime/ABI cleanupを実装済み。現行 `Stdlib.kt` と専用Golden/diffで確認。
   - 対象: `kotlin.RuntimeException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/RuntimeException/Stdlib.kt`
   - bridge/stub 整理: `__kk_runtime_exception_new*` の Runtime 関数と `RuntimeABISpec` エントリを削除。SyntheticExceptionStubs は対象コンストラクタを登録しておらず、CallTypeChecker/CallLowerer の対象 name-string 特例もない。共通 Throwable accessor は source-backed subclass の storage 用に維持する。
