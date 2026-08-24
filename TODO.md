@@ -792,13 +792,14 @@
   - diff: `comparator_*.kt` 既存 + SAM 変換（ラムダから Comparator）と `Comparator` 明示実装クラスの両ケース
   - 前提: KSP-461。compiler-known anchor として Sema 初期化が先行参照している場合は (c) 残置と結論付け、根拠を `docs/stdlib-pipeline.md` §9 に記録して完了とする
 
-- [ ] KSP-1521: `MatchResult` / `MatchResult.Destructured` の nominal anchor を Kotlin source 化し `HeaderHelpers+SyntheticRegexStubs.swift` を削除する
+- [x] KSP-1521: `MatchResult` / `MatchResult.Destructured` の nominal anchor を Kotlin source 化し `HeaderHelpers+SyntheticRegexStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRegexStubs.swift`（77行。KSP-486/KSP-487 後は opaque anchor のみ）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult.kt`（既存 source に anchor を統合）
   - 削除/降格 kk_*: 対象 `kk_*` なし（engine 側は既に `__kk_regex_*`）
   - 手順: T
   - diff: `regex_*.kt` 既存 + `destructured` 分解宣言ケース
   - 前提: KSP-486, KSP-487。header 収集順で anchor が必須と判明した場合は (c) 残置理由を記録して完了とする
+  - 完了 (2026-08-23): `MatchResult` interface と internal constructor の `Destructured` を bundled Kotlin source に統合し、bundled-first の nominal header 収集で synthetic anchor 依存を解消。専用 stub/registry/direct registration を削除し、`__kk_match_result_*` / `__kk_regex_*` の engine bridge と Runtime/ABI 経路は保持。Sema source/visibility/ownership、destructured component1..9、groups/value/range/next、named/optional groups、Golden、regex diff、直接 kswiftc、Swift build、TODO-ID、ABI、diff-check を検証済み。
 
 - [ ] KSP-1522: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift`（63行。bundled source 収集前パスで型解決させるための bare placeholder）
