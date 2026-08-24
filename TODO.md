@@ -2036,14 +2036,15 @@
   - 未実装シンボル一覧:
     - `kotlin.UByte.<init>` — constructor (Byte)  -- `constructor <init>(kotlin/Byte)`
 
-- [ ] KSP-904: kotlin.UByte.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-904: kotlin.UByte.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.UByte.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UByte/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_UByte_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_UByte_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_UByte_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/UByte/Companion/Companion.kt` に `MAX_VALUE=255u` / `MIN_VALUE=0u` / `SIZE_BITS=8` / `SIZE_BYTES=1` を source-backed `UByte.Companion` property として実装。`UByte.MAX_VALUE` などの直接参照、`UByte.Companion.*` の明示 receiver、型・境界・定数式を focused Sema Golden と対象 diff で固定し、UByte 専用の4件の name-string fallback を削除。共有 unsigned fallback、boxing、runtime/ABI は変更なし。
+  - 実装シンボル一覧:
     - `kotlin.UByte.Companion.MAX_VALUE` — val Companion.MAX_VALUE: UByte  -- `final const val MAX_VALUE`
     - `kotlin.UByte.Companion.MIN_VALUE` — val Companion.MIN_VALUE: UByte  -- `final const val MIN_VALUE`
     - `kotlin.UByte.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
