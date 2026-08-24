@@ -1125,7 +1125,8 @@
     - `kotlin.Array.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.Array.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, #A>)`
 
-- [ ] KSP-808: kotlin.ArrayIndexOutOfBoundsException top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-808: kotlin.ArrayIndexOutOfBoundsException top-level の未実装 stdlib API を実装する（2 件）
+  - 完了 (2026-08-23): PR #5861（merge commit `1355e5417fb91a2f456d20bf960638ba04e23368`）で、現行 `Sources/CompilerCore/Stdlib/kotlin/ArrayIndexOutOfBoundsException.kt` が source-backed class と `()` / `String?` コンストラクタを提供済み。専用 Sema Golden、`Scripts/diff_cases/stdlib_kotlin_n_ArrayIndexOutOfBoundsException.kt`、Sema/Runtime ABI 回帰を含む全 CI 成功を確認。
   - 対象: `kotlin.ArrayIndexOutOfBoundsException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ArrayIndexOutOfBoundsException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
