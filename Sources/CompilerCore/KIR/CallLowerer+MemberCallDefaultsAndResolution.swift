@@ -329,6 +329,27 @@ extension CallLowerer {
                 {
                     return collectionIterator
                 }
+                // Collection.size is source-declared but runtime-backed. When
+                // it is inherited by a concrete List/Set/EnumEntries receiver,
+                // retain the receiver-specific bridge instead of letting the
+                // Collection declaration's generic link erase the nominal kind.
+                if fallbackName == "size",
+                   let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+                   let owner = sema.symbols.symbol(ownerID),
+                   owner.fqName == [
+                       interner.intern("kotlin"),
+                       interner.intern("collections"),
+                       interner.intern("Collection"),
+                   ],
+                   let collectionSize = unresolvedCollectionMemberCallee(
+                       memberName: fallbackName,
+                       receiverType: receiverType,
+                       sema: sema,
+                       interner: interner
+                   )
+                {
+                    return collectionSize
+                }
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.isSourceBackedSymbol(chosenCallee) {

@@ -746,7 +746,13 @@ extension CallLowerer {
         if args.isEmpty,
            let propSym = sema.bindings.identifierSymbol(for: exprID),
            let extLink = sema.symbols.externalLinkName(for: propSym),
-           !extLink.isEmpty
+           !extLink.isEmpty,
+           !shouldDeferCollectionSizePropertyRead(
+               propSym,
+               receiverExpr: receiverExpr,
+               sema: sema,
+               interner: interner
+           )
         {
             instructions.append(.call(
                 symbol: propSym,

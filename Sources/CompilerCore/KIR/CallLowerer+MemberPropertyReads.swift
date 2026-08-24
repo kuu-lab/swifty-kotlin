@@ -479,6 +479,7 @@ extension CallLowerer {
     func tryLowerExternalMemberPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -490,6 +491,19 @@ extension CallLowerer {
               let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
               !externalLinkName.isEmpty
         else {
+            return nil
+        }
+
+        // A source-backed Collection.size declaration is inherited by concrete
+        // collection receivers. Let the normal collection dispatch preserve
+        // List/Set/EnumEntries-specific bridges instead of taking the generic
+        // Collection ABI link here.
+        if shouldDeferCollectionSizePropertyRead(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
             return nil
         }
 
@@ -513,6 +527,32 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    func shouldDeferCollectionSizePropertyRead(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let property = sema.symbols.symbol(propertySymbol),
+              property.name == interner.intern("size"),
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerID)?.fqName == [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Collection"),
+              ],
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return unresolvedCollectionMemberCallee(
+            memberName: "size",
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
     }
 
     func objectLiteralPropertyUsesAccessor(

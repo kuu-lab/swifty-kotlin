@@ -421,6 +421,7 @@ extension CallLowerer {
         if let externalMemberProperty = tryLowerExternalMemberPropertyRead(
             exprID,
             loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
             args: args,
             sema: sema,
             arena: arena,
