@@ -74,6 +74,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             sema.bundledIndex = bundledIndex
         }
 
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+
         registerSyntheticDelegateStubs(
             symbols: symbols,
             types: types,
@@ -98,6 +104,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         // Enum header synthesis runs during bundled header collection rather
@@ -111,6 +122,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         types.functionInterfaceSymbol = symbols.lookupAll(
             fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
         ).first { symbols.symbol($0)?.kind == .interface }
