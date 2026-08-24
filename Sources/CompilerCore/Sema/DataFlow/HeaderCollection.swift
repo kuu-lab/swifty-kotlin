@@ -1294,6 +1294,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "random", "Random"]]
         case "__bundled_kotlin/random/JavaUtilRandom.kt":
             [["java", "util", "Random"]]
+        case "__bundled_kotlin/native/concurrent/FutureState/FutureState.kt":
+            [["kotlin", "native", "concurrent", "FutureState"]]
         case "__bundled_kotlin/text/StringEncoding.kt":
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":
