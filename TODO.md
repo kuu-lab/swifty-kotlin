@@ -978,7 +978,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ushortArrayOf` — fun ushortArrayOf(Array): UShortArray  -- `final inline fun kotlin/ushortArrayOf(kotlin/UShortArray...): kotlin/UShortArray`
 
-- [ ] KSP-794: kotlin.with-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-794: kotlin.with-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `with`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Standard.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -987,6 +987,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.with` — fun with(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin/with(#A, kotlin/Function1<#A, #B>): #B`
+  - 完了確認（2026-08-23、PR #5794 / merge commit `e61cff64521cd8d5a1ca5bea74ca9031d9b8f6c5`）：現行 `Sources/CompilerCore/Stdlib/kotlin/Standard.kt` の `public inline fun <T, R> with(receiver: T, block: T.() -> R): R`、`ScopeFunctionSourceMigrationTests`、`scope_functions` Golden/Backend/diff、およびPR #5794の全CI greenを確認。
 
 - [ ] KSP-795: kotlin.AutoCloseable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `AutoCloseable`
