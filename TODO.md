@@ -464,13 +464,14 @@
   - diff: `uarray_*.kt` 既存 + `UIntArray.toList()`/`asList()`、`Array<String>.toList()` ケース
   - 前提: KSP-1512
 
-- [ ] KSP-1514: Array の content 比較・文字列化（`contentEquals`/`contentHashCode`/`contentToString`/`contentDeepEquals`/`contentDeepHashCode`/`contentDeepToString`）を Kotlin 化する
+- [x] KSP-1514: Array の content 比較・文字列化（`contentEquals`/`contentHashCode`/`contentToString`/`contentDeepEquals`/`contentDeepHashCode`/`contentDeepToString`）を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（1239行のうち content 系）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayContentAndCopy.kt` 追記
   - 削除/降格 kk_*: `kk_array_contentDeepEquals`, `kk_array_contentDeepHashCode`, `kk_array_contentDeepToString`, `kk_array_contentHashCode`, `kk_byteArray_contentEquals`, `kk_*Array_contentToString`（primitive/unsigned 各型。着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*Array_content[a-zA-Z0-9_]*"\)' Sources/Runtime`）
   - 手順: T
   - diff: `array_content*.kt` 既存 + `contentDeepToString` の入れ子配列ケース、`contentEquals` の null 比較ケース
   - 前提: KSP-657
+  - 完了根拠: `ArrayContentAndCopy.kt` に generic/primitive/unsigned の全6 APIをsource-backed実装し、deep 3種のcycle-aware `__kk_*` bridgeだけを保持。対象synthetic/旧public `kk_*`/RuntimeABI登録を除去し、Semaリンク・PrimitiveArrayEdgeCases・Golden/diff/direct実行・ABI/TODO検証を通過。
 
 - [ ] KSP-1515: Array の copy 系（`copyOf`/`copyOf(newSize)`/`copyOf(newSize, init)`/`copyOfRange`/`copyInto`）を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（copy 系）
