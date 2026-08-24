@@ -6473,7 +6473,7 @@
     - `kotlin.experimental.ExperimentalObjCRefinement` — class kotlin.experimental.ExperimentalObjCRefinement  -- `open annotation class kotlin.experimental/ExperimentalObjCRefinement : kotlin/Annotation {`
     - `kotlin.experimental.ExperimentalTypeInference` — class kotlin.experimental.ExperimentalTypeInference  -- `open annotation class kotlin.experimental/ExperimentalTypeInference : kotlin/Annotation {`
 
-- [ ] KSP-1158: kotlin.experimental.ExpectRefinement top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1158: kotlin.experimental.ExpectRefinement top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExpectRefinement` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/experimental/ExpectRefinement/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6482,6 +6482,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.experimental.ExpectRefinement.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #1645 / commit `fac583a3c` の synthetic class・target・ExperimentalMultiplatform 導入と、PR #2079 / commit `83b8efec3` のTODO完了を確認。現行 synthetic registry に Kotlin 2.3.10 の SOURCE retention / SinceKotlin metadata と public implicit no-arg constructor を追加し、top-level expect-only semantics を `ExperimentalMarkerStubTests` の回帰で固定。
 
 - [ ] KSP-1159: kotlin.experimental.ExperimentalNativeApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalNativeApi` / top-level
