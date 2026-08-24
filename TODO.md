@@ -7944,7 +7944,7 @@
     - `kotlin.properties.ObservableProperty.setValue` — fun ObservableProperty.setValue(Any, KProperty, ): Unit  -- `open fun setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, #A)`
     - `kotlin.properties.ObservableProperty.toString` — fun ObservableProperty.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1277: kotlin.properties.PropertyDelegateProvider.PropertyDelegateProvider の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1277: kotlin.properties.PropertyDelegateProvider.PropertyDelegateProvider の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.PropertyDelegateProvider` / receiver `PropertyDelegateProvider`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/properties/PropertyDelegateProvider/PropertyDelegateProvider.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7953,6 +7953,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.properties.PropertyDelegateProvider.provideDelegate` — fun PropertyDelegateProvider.provideDelegate(, KProperty): #B  -- `abstract fun provideDelegate(#A, kotlin.reflect/KProperty<*>): #B`
+  - **完了 (2026-08-24, TODO同期)**: KSP-680（PR #5786、merge commit `f64c991b5d6dc9a5e5a6922bb357188477bd9b85`）で `Sources/CompilerCore/Stdlib/kotlin/properties/Interfaces.kt` に `public fun interface PropertyDelegateProvider<in T, out D>` と `public operator fun provideDelegate(thisRef: T, property: KProperty<*>): D` をsource-backed実装済み。現行 `PropertyDelegateProviderSourceTests` の宣言契約・戻り値型からの `getValue` 解決、`property_delegate_interfaces.kt` の `provideDelegate`/`getValue` 実行、`CodegenBackendPropertyDelegateEdgeCasesTests` のprovideDelegate回帰で確認した。
 
 - [ ] KSP-1278: kotlin.properties.ReadOnlyProperty.ReadOnlyProperty の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ReadOnlyProperty` / receiver `ReadOnlyProperty`
