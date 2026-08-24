@@ -104,13 +104,13 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Duration") { phase, symbols, types, interner, _ in
             phase.registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Instant") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "InstantRuntimeBridges") { phase, symbols, types, interner, _ in
             phase.registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Clock") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ClockRuntimeDispatch") { phase, symbols, types, interner, _ in
             phase.registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalTime") { phase, symbols, types, interner, context in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalTimeAnchors") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "StringBuilder") { phase, symbols, types, interner, context in
