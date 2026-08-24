@@ -599,6 +599,19 @@ extension CallLowerer {
         }
 
         switch valueSymbol.kind {
+        case .property where valueSymbol.flags.contains(.static)
+            && receiverSymbol.kind == .enumClass:
+            // Enum static properties such as `Color.entries` are represented
+            // by the enum lowering pass, not by an instance field or an enum
+            // constructor property. Preserve the property symbol so
+            // EnumEntriesLoweringPass can route `entries` to `entries$get`.
+            let valueType = sema.bindings.exprTypes[exprID]
+                ?? sema.symbols.propertyType(for: valueSymbolID)
+                ?? sema.types.anyType
+            let valueID = arena.appendExpr(.symbolRef(valueSymbolID), type: valueType)
+            instructions.append(.constValue(result: valueID, value: .symbolRef(valueSymbolID)))
+            return valueID
+
         case .property where valueSymbol.flags.contains(.constValue):
             guard let constant = sema.symbols.constValueExprKind(for: valueSymbolID) else {
                 return nil

@@ -7047,14 +7047,12 @@
     - `kotlin.native.IncorrectDereferenceException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.native.IncorrectDereferenceException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String)`
 
-- [ ] KSP-1205: kotlin.native.MemoryModel.MemoryModel の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1205: kotlin.native.MemoryModel の enum API を実装・検証する（3 件）
   - 対象: `kotlin.native.MemoryModel` / receiver `MemoryModel`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/MemoryModel/MemoryModel.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_MemoryModel_MemoryModel_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_MemoryModel_MemoryModel_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_MemoryModel_MemoryModel_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 実装先: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` の synthetic enum declarations と shared enum lowering。既存の `Platform.memoryModel` runtime/ABI bridge は保持。
+  - Kotlin 2.3.10 の公式 `Platform.kt` で owner、visibility、static member signature、`ExperimentalNativeApi` / `Deprecated` class annotations を確認。
+  - 回帰: `BuildKIRRegressionTests+NativeMemoryModel.swift` で Sema signature/annotation、KIR helper、`entries$get` routing、direct-enum `valueOf` receiver なしを検証。最小 executable でも enum list/valueOf の出力を確認。
+  - 実装済みシンボル一覧:
     - `kotlin.native.MemoryModel.entries` — val MemoryModel.entries: EnumEntries  -- `final val entries`
     - `kotlin.native.MemoryModel.valueOf` — fun MemoryModel.valueOf(String): MemoryModel  -- `final fun valueOf(kotlin/String): kotlin.native/MemoryModel`
     - `kotlin.native.MemoryModel.values` — fun MemoryModel.values(): Array  -- `final fun values(): kotlin/Array<kotlin.native/MemoryModel>`

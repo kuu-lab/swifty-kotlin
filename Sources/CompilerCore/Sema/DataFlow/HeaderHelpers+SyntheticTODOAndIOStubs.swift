@@ -779,4 +779,138 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Registers the generated enum APIs for the synthetic Native MemoryModel.
+    /// The generic enum lowering pass reuses these symbols when it emits the
+    /// values(), entries, and valueOf() bodies for the nominal enum owner.
+    func registerSyntheticMemoryModelEnumMembers(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let memoryModelFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("MemoryModel"),
+        ]
+        guard let enumSymbol = symbols.lookup(fqName: memoryModelFQName),
+              let enumInfo = symbols.symbol(enumSymbol)
+        else {
+            return
+        }
+        let enumType = types.make(.classType(ClassType(
+            classSymbol: enumSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let annotations = [
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.experimental.ExperimentalNativeApi"
+            ),
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.Deprecated",
+                arguments: [
+                    "message = \"The only possible value returned in runtime is MemoryModel.EXPERIMENTAL now. The usages of this enum can be safely removed.\"",
+                ]
+            ),
+        ]
+        var existingAnnotations = symbols.annotations(for: enumSymbol)
+        for annotation in annotations where !existingAnnotations.contains(annotation) {
+            existingAnnotations.append(annotation)
+        }
+        symbols.setAnnotations(existingAnnotations, for: enumSymbol)
+
+        let valuesName = interner.intern("values")
+        let valuesFQName = enumInfo.fqName + [valuesName]
+        let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        if let arraySymbol = symbols.lookup(fqName: arrayFQName),
+           symbols.lookupAll(fqName: valuesFQName).allSatisfy({ symbols.symbol($0)?.kind != .function })
+        {
+            let arrayType = types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(enumType)],
+                nullability: .nonNull
+            )))
+            let valuesSymbol = symbols.define(
+                kind: .function,
+                name: valuesName,
+                fqName: valuesFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(enumSymbol, for: valuesSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [],
+                    returnType: arrayType,
+                    isSuspend: false
+                ),
+                for: valuesSymbol
+            )
+        }
+
+        let valueOfName = interner.intern("valueOf")
+        let valueOfFQName = enumInfo.fqName + [valueOfName]
+        if symbols.lookupAll(fqName: valueOfFQName).allSatisfy({ symbols.symbol($0)?.kind != .function }) {
+            let parameterName = interner.intern("value")
+            let parameterSymbol = symbols.define(
+                kind: .valueParameter,
+                name: parameterName,
+                fqName: valueOfFQName + [parameterName],
+                declSite: nil,
+                visibility: .private,
+                flags: [.synthetic]
+            )
+            let valueOfSymbol = symbols.define(
+                kind: .function,
+                name: valueOfName,
+                fqName: valueOfFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(enumSymbol, for: valueOfSymbol)
+            symbols.setParentSymbol(valueOfSymbol, for: parameterSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    parameterTypes: [types.stringType],
+                    returnType: enumType,
+                    isSuspend: false,
+                    valueParameterSymbols: [parameterSymbol],
+                    valueParameterHasDefaultValues: [false],
+                    valueParameterIsVararg: [false]
+                ),
+                for: valueOfSymbol
+            )
+        }
+
+        let enumEntriesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries"),
+        ]
+        let entriesName = interner.intern("entries")
+        let entriesFQName = enumInfo.fqName + [entriesName]
+        if let enumEntriesSymbol = symbols.lookup(fqName: enumEntriesFQName),
+           symbols.lookupAll(fqName: entriesFQName).allSatisfy({ symbols.symbol($0)?.kind != .property })
+        {
+            let entriesType = types.make(.classType(ClassType(
+                classSymbol: enumEntriesSymbol,
+                args: [.invariant(enumType)],
+                nullability: .nonNull
+            )))
+            let entriesSymbol = symbols.define(
+                kind: .property,
+                name: entriesName,
+                fqName: entriesFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(enumSymbol, for: entriesSymbol)
+            symbols.setPropertyType(entriesType, for: entriesSymbol)
+        }
+    }
+
 }
