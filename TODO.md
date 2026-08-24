@@ -2187,12 +2187,14 @@
     - `kotlin.UnsafeVariance.<init>` — constructor ()  -- `constructor <init>()`
   - 完了根拠（KSP-916監査）: merged PR #5923 / merge `7ef9e6dde8d8ad77a2f560a031ef343dd104e23a`（head `c67feea75ddfe2883541456463d3d2a545e38017`）で追加済み。現行 `Sources/CompilerCore/Stdlib/kotlin/UnsafeVariance.kt` のsource-backed `public annotation class UnsafeVariance`（`@Target(TYPE)`、`@Retention(BINARY)`）には、annotation classのimplicit no-arg constructorが提供される。対応Golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_UnsafeVariance.kt` と `Scripts/diff_cases/stdlib_kotlin_n_UnsafeVariance.kt` が宣言解決・annotation適用・variance suppressionを観測し、focused Sema/diffはPASS。`CompilerKnownNames`/`VarianceCheck`はsemantic認識のため維持し、対象固有のsynthetic/bridge/stub/lowering/Runtime ABI登録はない。
 
-- [ ] KSP-917: kotlin.UnsupportedOperationException top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-917: kotlin.UnsupportedOperationException top-level の未実装 stdlib API を実装する（4 件。KSP-656 で実装済みだったため重複実装はせず、専用実行・回帰証跡を確認）
   - 対象: `kotlin.UnsupportedOperationException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UnsupportedOperationException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 既存実装監査: merged PR #5790 / merge commit `a16552084688bf85d55e444744ec84af9d41d592`（KSP-656）が追加した `Sources/CompilerCore/Stdlib/kotlin/Exceptions.kt` に、public source-backed classと4 constructor（`__kk_unsupported_operation_exception_new*`）が存在する。`HeaderHelpers+SyntheticExceptionStubs.swift` はUOEを再登録せず、`HeaderCollection.swift` は `__bundled_kotlin/Exceptions.kt` のsource symbolとして収集する。Runtimeの型box/祖先鎖と4 allocator、`RuntimeABISpec+Exception.swift` の4 ABI entryは現役基盤のため維持する。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_UnsupportedOperationException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_UnsupportedOperationException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_UnsupportedOperationException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 実行/既存回帰証跡: `ExceptionSyntheticStubTests` 11 tests（`testCommonExceptionHierarchyIsSourceBacked`を含む）、一時4-overload最小Kotlin再現（kswiftc実行結果はkotlincと一致）、`Scripts/diff_cases/throwable_properties.kt`、`Scripts/diff_cases/string_reduce.kt` の対象diffがPASS。source/test/runtime/ABIは変更せず、Runtime ABI再実行は既存の#5790証拠と対象面不変のため省略する。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.UnsupportedOperationException.<init>` — constructor ()  -- `constructor <init>()`
