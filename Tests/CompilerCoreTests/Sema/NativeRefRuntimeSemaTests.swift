@@ -140,6 +140,20 @@ struct NativeRefRuntimeSemaTests {
         )
     }
 
+    @Test
+    func testNativeRuntimeApiHasImplicitNoArgumentConstructor() throws {
+        let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "native", "runtime", "NativeRuntimeApi"].map { interner.intern($0) }
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")]).first(where: {
+                sema.symbols.symbol($0)?.kind == .constructor
+            }),
+            "NativeRuntimeApi must expose its implicit constructor"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(signature.parameterTypes.isEmpty)
+    }
+
     // MARK: - WeakReference<T>
 
     @Test

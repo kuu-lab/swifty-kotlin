@@ -7841,7 +7841,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes` — val MemoryUsage.totalObjectsSizeBytes: Long  -- `final val totalObjectsSizeBytes`
 
-- [ ] KSP-1268: kotlin.native.runtime.NativeRuntimeApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1268: kotlin.native.runtime.NativeRuntimeApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.NativeRuntimeApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/NativeRuntimeApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7850,6 +7850,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.runtime.NativeRuntimeApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: Kotlin 2.3.10 の公式 `NativeRuntimeApi.kt` と同じ source-backed annotation class を追加し、既存の synthetic marker 登録は source symbol の lookup に置換した。`NativeRefRuntimeSemaTests.testNativeRuntimeApiHasImplicitNoArgumentConstructor` が暗黙の引数なし constructor を検証する。GC/GCInfo/MemoryUsage/RootSetStatistics/SweepStatistics/Debugging および `kotlin.native.ref` の synthetic/runtime/ABI surface は変更していない。
 
 - [ ] KSP-1269: kotlin.native.runtime.RootSetStatistics top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.RootSetStatistics` / top-level
