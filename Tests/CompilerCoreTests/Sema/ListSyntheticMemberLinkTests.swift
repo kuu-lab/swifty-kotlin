@@ -2229,7 +2229,9 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Map
         import kotlin.collections.MutableMap
 
-        class ProbeMutableMap : AbstractMutableMap<String, Int>()
+        // KSP-928: AbstractMap.entries is source-backed and abstract, so the
+        // probe remains abstract while exercising both map supertypes.
+        abstract class ProbeMutableMap : AbstractMutableMap<String, Int>()
 
         fun acceptReadonly(values: Map<String, Int>) {}
         fun acceptMutable(values: MutableMap<String, Int>) {}
