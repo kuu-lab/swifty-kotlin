@@ -436,6 +436,16 @@ extension DataFlowSemaPhase {
             "UByteArray",
             "UShortArray",
         ]
+        // KSP-1513 owns the residual primitive-array `size` / `toList`
+        // synthetic members for unsigned arrays. Signed arrays are backed by
+        // bundled Kotlin source in ArrayConversions.kt (KSP-1512), while their
+        // class shells remain synthetic here for the primitive type system.
+        let unsignedPrimitiveArrayNames = [
+            "UByteArray",
+            "UShortArray",
+            "UIntArray",
+            "ULongArray",
+        ]
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
@@ -450,6 +460,9 @@ extension DataFlowSemaPhase {
                     visibility: .public,
                     flags: [.synthetic]
                 )
+            }
+            guard unsignedPrimitiveArrayNames.contains(name) else {
+                continue
             }
             // Register size property independently of class existence,
             // so that even if the class was defined elsewhere without size,
@@ -469,16 +482,8 @@ extension DataFlowSemaPhase {
 
                 // Set external link name for size property
                 let sizeLinkName: String = switch name {
-                case "IntArray": "kk_intArray_size"
-                case "LongArray": "kk_longArray_size"
-                case "ByteArray": "kk_byteArray_size"
-                case "ShortArray": "kk_shortArray_size"
                 case "UIntArray": "kk_uIntArray_size"
                 case "ULongArray": "kk_uLongArray_size"
-                case "DoubleArray": "kk_doubleArray_size"
-                case "FloatArray": "kk_floatArray_size"
-                case "BooleanArray": "kk_booleanArray_size"
-                case "CharArray": "kk_charArray_size"
                 case "UByteArray": "kk_uByteArray_size"
                 case "UShortArray": "kk_uShortArray_size"
                 default: "kk_array_size"
@@ -490,7 +495,7 @@ extension DataFlowSemaPhase {
         let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
         let listInterfaceSym = symbols.lookup(fqName: listFQName)
 
-        for name in primitiveArrayNames {
+        for name in unsignedPrimitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
             guard let arraySymbol = symbols.lookup(fqName: fqName) else {
@@ -511,16 +516,8 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(arraySymbol, for: toListSym)
 
                 let externalLinkName: String = switch name {
-                case "IntArray": "kk_intArray_toList"
-                case "LongArray": "kk_longArray_toList"
-                case "ByteArray": "kk_byteArray_toList"
-                case "ShortArray": "kk_shortArray_toList"
                 case "UIntArray": "kk_uIntArray_toList"
                 case "ULongArray": "kk_uLongArray_toList"
-                case "DoubleArray": "kk_doubleArray_toList"
-                case "FloatArray": "kk_floatArray_toList"
-                case "BooleanArray": "kk_booleanArray_toList"
-                case "CharArray": "kk_charArray_toList"
                 case "UByteArray": "kk_uByteArray_toList"
                 case "UShortArray": "kk_uShortArray_toList"
                 default: "kk_array_toList"
@@ -528,16 +525,8 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(externalLinkName, for: toListSym)
 
                 let elementType: TypeID = switch name {
-                case "IntArray": types.intType
-                case "LongArray": types.longType
-                case "ByteArray": types.byteType
-                case "ShortArray": types.shortType
                 case "UIntArray": types.uintType
                 case "ULongArray": types.ulongType
-                case "DoubleArray": types.doubleType
-                case "FloatArray": types.floatType
-                case "BooleanArray": types.booleanType
-                case "CharArray": types.charType
                 case "UByteArray": types.ubyteType
                 case "UShortArray": types.ushortType
                 default: types.intType
@@ -567,12 +556,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let unsignedPrimitiveArrayNames = [
-            "UByteArray",
-            "UShortArray",
-            "UIntArray",
-            "ULongArray",
-        ]
         for name in unsignedPrimitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]

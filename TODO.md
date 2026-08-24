@@ -449,7 +449,7 @@
   - diff: `list_sorted*.kt` 既存 + `shuffled(Random(7))` 決定値ケース（KSP-CAP-011 の非回帰確認）、`sum` の Int/Long/Double ケース
   - 前提: KSP-685, KSP-1510
 
-- [ ] KSP-1512: 符号付き primitive array の `size`/`toList` メンバを Kotlin 化する
+- [x] KSP-1512: 符号付き primitive array の `size`/`toList` メンバを Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListConversionMembers.swift`（`IntArray`/`LongArray`/`ShortArray`/`ByteArray`/`CharArray`/`BooleanArray`/`DoubleArray`/`FloatArray` 分）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` 追記（`size` は `ArrayIntrinsics.kt` の intrinsic を経由）
   - 削除/降格 kk_*: `kk_intArray_size`/`kk_intArray_toList` 他 8型×2 = 16件を `__kk_` 降格（`RuntimeArray*.swift`。着手時 `rg -o '@_cdecl\("kk_[a-z]+Array_(size|toList)"\)' Sources/Runtime`）
