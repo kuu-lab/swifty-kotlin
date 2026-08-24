@@ -1529,7 +1529,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalMultiplatform.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-842: kotlin.ExperimentalStdlibApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-842: kotlin.ExperimentalStdlibApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalStdlibApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1538,6 +1538,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ExperimentalStdlibApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5865 / merge commit `2d629c2b6ecdd3ca95f7e25e2e96d99373966df3` で `Sources/CompilerCore/Stdlib/kotlin/ExperimentalStdlibApi.kt` の public annotation class として source-backed 化し、対象の専用 synthetic 登録を削除済み。括弧・secondary constructor のない source annotation は `HeaderCollection.swift` の暗黙 primary constructor 規則で `ExperimentalStdlibApi.<init>()` を生成する。既存 `stdlib_kotlin_n_ExperimentalStdlibApi` Golden/diff、`AnnotationSemanticTests` の opt-in 回帰、および同じ空 constructor 規則を確認する Golden が pass。
 
 - [ ] KSP-843: kotlin.ExperimentalSubclassOptIn top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExperimentalSubclassOptIn` / top-level
