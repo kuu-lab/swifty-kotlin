@@ -2176,7 +2176,7 @@
   - 未実装シンボル一覧:
     - `kotlin.Unit.toString` — fun Unit.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-916: kotlin.UnsafeVariance top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-916: kotlin.UnsafeVariance top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.UnsafeVariance` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UnsafeVariance/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2185,6 +2185,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.UnsafeVariance.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（KSP-916監査）: merged PR #5923 / merge `7ef9e6dde8d8ad77a2f560a031ef343dd104e23a`（head `c67feea75ddfe2883541456463d3d2a545e38017`）で追加済み。現行 `Sources/CompilerCore/Stdlib/kotlin/UnsafeVariance.kt` のsource-backed `public annotation class UnsafeVariance`（`@Target(TYPE)`、`@Retention(BINARY)`）には、annotation classのimplicit no-arg constructorが提供される。対応Golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_UnsafeVariance.kt` と `Scripts/diff_cases/stdlib_kotlin_n_UnsafeVariance.kt` が宣言解決・annotation適用・variance suppressionを観測し、focused Sema/diffはPASS。`CompilerKnownNames`/`VarianceCheck`はsemantic認識のため維持し、対象固有のsynthetic/bridge/stub/lowering/Runtime ABI登録はない。
 
 - [ ] KSP-917: kotlin.UnsupportedOperationException top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.UnsupportedOperationException` / top-level
