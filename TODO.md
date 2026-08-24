@@ -801,7 +801,7 @@
   - 前提: KSP-486, KSP-487。header 収集順で anchor が必須と判明した場合は (c) 残置理由を記録して完了とする
   - 完了 (2026-08-23): `MatchResult` interface と internal constructor の `Destructured` を bundled Kotlin source に統合し、bundled-first の nominal header 収集で synthetic anchor 依存を解消。専用 stub/registry/direct registration を削除し、`__kk_match_result_*` / `__kk_regex_*` の engine bridge と Runtime/ABI 経路は保持。Sema source/visibility/ownership、destructured component1..9、groups/value/range/next、named/optional groups、Golden、regex diff、直接 kswiftc、Swift build、TODO-ID、ABI、diff-check を検証済み。
 
-- [ ] KSP-1522: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する
+- [x] KSP-1522: `Random` / `java.util.Random` の placeholder anchor を解消し `HeaderHelpers+SyntheticRandomStubs.swift` を削除する（完了 2026-08-23: 専用 stub/登録と reusable allowlist を削除し、bundled source-backed nominal の通常 header collection、`List.shuffled(Random)` の source-backed 解決、`JavaRandomInterop` の alias receiver 解決を維持。Sema/Backend/KIR、関連 Golden、integer-only diff、直接 `kswiftc`、TODO ID、Runtime ABI link 検証済み）
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticRandomStubs.swift`（63行。bundled source 収集前パスで型解決させるための bare placeholder）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/random/Random.kt` / `util/JavaRandom.kt`（宣言は既に Kotlin 側にあるため、必要なのは header 収集順の依存解消）
   - 削除/降格 kk_*: 対象 `kk_*` なし
