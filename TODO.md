@@ -2626,16 +2626,18 @@
     - `kotlin.collections.listOfNotNull` — fun listOfNotNull(element: T?): List<T>  -- `final fun <#A: kotlin/Any> kotlin.collections/listOfNotNull(#A?): kotlin.collections/List<#A>`
   - 完了根拠: `CollectionFactories.kt` に public source-backed の単一要素 overload を追加し、既存の empty/vararg overload と共有する `__kk_list_of` / `__kk_emptyList` lowering・runtime・ABI は保持した。`Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_list.kt` の Sema Golden と `Scripts/diff_cases/stdlib_kotlin_collections_n_list.kt` の diff 回帰で、generic/nullable/empty/singleton/副作用評価1回と List identity を確認する。
 
-- [ ] KSP-956: kotlin.collections.map-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-956: kotlin.collections.map-family の stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `map`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_map.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_map.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_map.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.mapCapacity` — fun mapCapacity(Int): Int  -- `final fun kotlin.collections/mapCapacity(kotlin/Int): kotlin/Int`
-    - `kotlin.collections.mapOf` — fun mapOf(Pair): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/mapOf(kotlin/Pair<#A, #B>): kotlin.collections/Map<#A, #B>`
+  - 完了根拠（2026-08-23）: `CollectionFactories.kt` に `@PublishedApi internal mapCapacity(Int)` の Kotlin/JVM 準拠算術（負値、small size、load-factor、`1 shl 30` 閾値、`Int.MAX_VALUE` saturation）と、vararg と区別された public `mapOf(Pair<K, V>)` を source-backed 化した。既存の map lowering、Pair boxing、Map/MutableMap、RuntimeMapBox、RuntimeABI は共有経路として保持した。
+  - 回帰根拠: Sema Golden、singleton の nullable lookup/iteration/equality と Pair 一回評価を含む kotlinc diff、既存 CollectionLiteralLoweringTests を確認した。`Map.hashCode()` の直接呼出しと spread vararg の runtime 不具合は master 既存の共有経路であり、本 TODO の変更には混在させていない。
+  - 対象シンボル:
+    - `kotlin.collections.mapCapacity` — `@PublishedApi internal fun mapCapacity(expectedSize: Int): Int`
+    - `kotlin.collections.mapOf` — `public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V>`
 
 - [ ] KSP-957: kotlin.collections.on-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / top-level / family `on`
