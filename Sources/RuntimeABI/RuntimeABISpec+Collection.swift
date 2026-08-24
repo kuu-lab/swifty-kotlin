@@ -619,10 +619,10 @@ public extension RuntimeABISpec {
             name: "__kk_mutable_map_iterator_remove",
             parameters: [
                 RuntimeABIParameter(name: "iterRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
+            section: "Collection"
         ),
         // Array
         RuntimeABIFunctionSpec(

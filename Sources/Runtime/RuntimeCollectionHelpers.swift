@@ -486,8 +486,7 @@ private let runtimeMutableMapIteratorNextThunk: @convention(c) (Int, UnsafeMutab
 }
 
 private let runtimeMutableMapIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
-    outThrown?.pointee = 0
-    return kk_mutable_map_iterator_remove(iterRaw)
+    kk_mutable_map_iterator_remove(iterRaw, outThrown)
 }
 
 func registerRuntimeObject(_ box: RuntimeMapIteratorBox) -> Int {

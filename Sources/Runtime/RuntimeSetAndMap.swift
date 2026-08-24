@@ -506,11 +506,16 @@ public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("__kk_mutable_map_iterator_remove")
-public func kk_mutable_map_iterator_remove(_ iterRaw: Int) -> Int {
+public func kk_mutable_map_iterator_remove(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
           let key = iter.lastKey
     else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: MutableMap iterator remove() called before next()")
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
+        return runtimeExceptionCaughtSentinel
     }
     _ = kk_mutable_map_remove(iter.mapRaw, key)
     iter.lastKey = nil
