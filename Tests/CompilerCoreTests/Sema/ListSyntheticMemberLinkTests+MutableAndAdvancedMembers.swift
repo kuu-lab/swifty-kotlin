@@ -932,7 +932,11 @@ extension ListSyntheticMemberLinkTests {
 
             for (memberName, externalLinkName) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    guard case let .memberCall(_, callee, _, _, range) = expr,
+                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    else {
+                        return false
+                    }
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
