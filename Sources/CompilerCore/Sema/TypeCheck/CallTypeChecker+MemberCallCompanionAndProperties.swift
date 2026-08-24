@@ -26,7 +26,7 @@ extension CallTypeChecker {
                 if let fieldType = sema.symbols.propertyType(for: candidate) {
                     return (candidate, fieldType)
                 }
-            case .property:
+            case .property where candidateSymbol.flags.contains(.static):
                 if let propertyType = sema.symbols.propertyType(for: candidate) {
                     return (candidate, propertyType)
                 }
