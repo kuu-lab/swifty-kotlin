@@ -1939,9 +1939,9 @@
   - 未実装シンボル一覧:
     - `kotlin.Suppress.names` — val Suppress.names: Array  -- `final val names`
 
-- [ ] KSP-896: kotlin.Throwable top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-896: kotlin.Throwable top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Throwable` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Throwable/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Throwable.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Throwable_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Throwable_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Throwable_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -1951,6 +1951,7 @@
     - `kotlin.Throwable.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
     - `kotlin.Throwable.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.Throwable.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
+  - 完了根拠: 4 constructor overloads are source-backed; JVM cause/message/null semantics are covered by the focused Golden, diff, and Runtime/ABI regressions.
 
 - [ ] KSP-897: kotlin.Throwable.Throwable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.Throwable` / receiver `Throwable`
