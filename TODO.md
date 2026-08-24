@@ -1573,7 +1573,7 @@
   - 完了根拠（PR #5855 / merge commit `e2ad9df493360f43f01dc4e1f3c7e24e946ea984`）：`Sources/CompilerCore/Stdlib/kotlin/ExposedCopyVisibility.kt` の `public annotation class ExposedCopyVisibility` が現行 source-backed 宣言として存在する。同宣言は primary/secondary constructor を明記せず、`HeaderCollection.swift` の `hasPrimaryCtorSyntax || !hasSecondaryCtors` 経路が暗黙の `constructor <init>()` を登録する。PR #5855 は対象の synthetic annotation 登録・target injection も削除済みで、現行の対象固有 Runtime/RuntimeABI/name-string 残余はない。
   - 回帰・検証：既存 `AnnotationSemanticTests`（15 tests）、`stdlib_kotlin_n_ExposedCopyVisibility` 専用 Golden、`Scripts/diff_cases/stdlib_kotlin_n_ExposedCopyVisibility.kt`（annotation 適用の最小ケース）、Runtime ABI 外部リンク検査（4 tests）、`bash Scripts/check_todo_ids.sh` が pass。
 
-- [ ] KSP-846: kotlin.ExtensionFunctionType top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-846: kotlin.ExtensionFunctionType top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ExtensionFunctionType` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ExtensionFunctionType/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1582,6 +1582,9 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ExtensionFunctionType.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5856 / merge commit `b682a2073c2c1dbe3f2da0bec810ce30c0445bb1` が `Sources/CompilerCore/Stdlib/kotlin/ExtensionFunctionType.kt` の `public annotation class ExtensionFunctionType` と既存 Golden/diff 回帰を追加済み。
+  - source-backed 登録根拠: `HeaderCollection.swift` は primary constructor syntax がない class でも secondary constructor がなければ暗黙の no-arg constructor を登録し、生成済み stdlib metadata でも `kotlin.ExtensionFunctionType.<init>` / `arity=0` / source-generated `kk_fn_ExtensionFunctionType_3584` を確認。`ExtensionFunctionType` の synthetic 登録、Runtime/RuntimeABI、CallTypeChecker/CallLowerer の専用残余は現行 tree にない。
+  - 回帰根拠: `AnnotationSemanticTests.testExtensionFunctionTypeResolvesInterfacePropertyAndTypeAlias`、`stdlib_kotlin_n_ExtensionFunctionType.golden`、`stdlib_kotlin_n_ExtensionFunctionType.kt` の kotlinc diff が pass。
 
 - [ ] KSP-847: kotlin.Float.Companion.Companion の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Float.Companion` / receiver `Companion`
