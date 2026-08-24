@@ -6330,7 +6330,7 @@
     - `kotlin.coroutines.EmptyCoroutineContext.plus` — fun EmptyCoroutineContext.plus(CoroutineContext): CoroutineContext  -- `final fun plus(kotlin.coroutines/CoroutineContext): kotlin.coroutines/CoroutineContext`
     - `kotlin.coroutines.EmptyCoroutineContext.toString` — fun EmptyCoroutineContext.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1146: kotlin.coroutines.RestrictsSuspension top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1146: kotlin.coroutines.RestrictsSuspension top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.coroutines.RestrictsSuspension` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/RestrictsSuspension/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6339,6 +6339,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.coroutines.RestrictsSuspension.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-24、master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: 現行 `HeaderHelpers+SyntheticCoroutineRegistry.swift` のpublic synthetic annotation classに、public・引数0件・戻り値 `kotlin.coroutines.RestrictsSuspension` のsynthetic constructorを登録し、Kotlin 2.3.10公式source／JVM metadataと一致する `@Target(AnnotationTarget.CLASS)`・`@Retention(AnnotationRetention.BINARY)`・`@SinceKotlin("1.3")` metadataを保持する。導入根拠はmerged commit `e8075e3ab12133e2fc10a0dbdff71244a61afe9e`。公式 `Continuation.kt` と `kotlin-stdlib.jar`、`kotlinc-jvm 2.3.10` のrestricted receiver診断でpackage・visibility・implicit constructor・metadata・restriction semantics・JVM platform availabilityを確認し、既存のclass/interface受理・function拒否回帰を含む `CoroutineIntrinsicsSyntheticStubTests` 6件をPASSした。現行のrestriction annotation registry／diagnostic pathは変更せず、source-backed移行、runtime/RuntimeABI、KIR/lowering特例、他coroutine stubは変更していない。
 
 - [ ] KSP-1147: kotlin.coroutines.SafeContinuation top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.coroutines.SafeContinuation` / top-level
