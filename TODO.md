@@ -8239,7 +8239,7 @@
     - `kotlin.ranges.CharRange.start` — val CharRange.start: Char  -- `final val start`
     - `kotlin.ranges.CharRange.toString` — fun CharRange.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1297: kotlin.ranges.CharRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1297: kotlin.ranges.CharRange.Companion.Companion の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.CharRange.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/CharRange/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -8248,6 +8248,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ranges.CharRange.Companion.EMPTY` — val Companion.EMPTY: CharRange  -- `final val EMPTY`
+  - 検証証拠 (2026-08-24): Kotlin 2.3.10 公式 `PrimitiveRanges.kt` の `CharRange.Companion.EMPTY = CharRange(1.toChar(), 0.toChar())`、stdlib metadata/bytecode の `Companion.getEMPTY(): CharRange` と owner/visibility を確認し、source-backed 実装・Companion anchor・Golden・Kotlin 2.3.10 diff を検証済み。
 
 - [ ] KSP-1298: kotlin.ranges.ClosedFloatingPointRange.ClosedFloatingPointRange の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.ranges.ClosedFloatingPointRange` / receiver `ClosedFloatingPointRange`
