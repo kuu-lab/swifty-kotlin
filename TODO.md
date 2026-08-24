@@ -1917,7 +1917,7 @@
     - `kotlin.SubclassOptInRequired.markerClass` — val SubclassOptInRequired.markerClass: Array  -- `final val markerClass`
   - 完了根拠: merged PR #5879 / merge commit `584cfa22916f3bf5d307d901ab0ebb943ba33bd1` の `Sources/CompilerCore/Stdlib/kotlin/SubclassOptInRequired.kt` が `vararg val markerClass: KClass<out Annotation>` をsource-backedで提供し、対象のsynthetic markerClass helperも同PRで削除済み。現行 `stdlib_kotlin_n_SubclassOptInRequired` Golden/diff と `AnnotationSemanticTests` の登録回帰に加え、最小再現の `a.markerClass` read が `kotlin.Array<out KClass<kotlin.Annotation>>` に解決され、KIRでも `kotlin.SubclassOptInRequired.markerClass` を参照することを確認した。対象固有のRuntime/RuntimeABI/name-string特例はなく、共有annotation/compiler/lowering経路は保持した。
 
-- [ ] KSP-894: kotlin.Suppress top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-894: kotlin.Suppress top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Suppress` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Suppress/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1926,6 +1926,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.Suppress.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin/String>...)`
+  - 完了根拠: PR #5888（merge commit `44abba9f7fa0785da0d17b1a9cf1fd0fcbd9958f`）で bundled source 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/Suppress.kt` の `public annotation class Suppress(vararg val names: String)` と、既存の `stdlib_kotlin_n_Suppress` Golden/diff の `@file:Suppress("UNUSED")` が vararg `String` constructor の型と解決を固定しており、対象の synthetic 登録・Runtime ABI・name-string 特例は残っていない。
 
 - [x] KSP-895: kotlin.Suppress.Suppress の未実装 stdlib API を実装する（1 件）
   - 完了根拠: merged PR #5888（merge commit `44abba9f7fa0785da0d17b1a9cf1fd0fcbd9958f`）の現行 `Sources/CompilerCore/Stdlib/kotlin/Suppress.kt` が source-backed `public annotation class Suppress(vararg val names: String)` を提供。`stdlib_kotlin_n_Suppress` の既存Sema Golden/diffが注釈surfaceを回帰し、一時最小再現 `fun readSuppressNames(s: Suppress): Array<out String> = s.names` で `names` property read と投影型をkswiftc/kotlinc双方で確認。Suppress専用のsynthetic/Runtime ABI/name-string特例は現行に残らない。
