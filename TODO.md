@@ -1874,7 +1874,7 @@
   - 完了根拠: merged PR #5880（merge commit `3d2bb9b20`）で bundled source 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/SinceKotlin.kt` の `public annotation class SinceKotlin(val version: String)` が constructor(String) と `version` property を提供する。
   - 既存回帰: `stdlib_kotlin_n_SinceKotlin.kt` の Sema Golden / `Scripts/diff_cases/stdlib_kotlin_n_SinceKotlin.kt` / `AnnotationSemanticTests+VersionAndVisibility.swift` が source-backed 登録と constructor(String)、version、annotation target/retention を確認済み。
 
-- [ ] KSP-890: kotlin.SinceKotlin.SinceKotlin の未実装 stdlib API を実装する（1 件）
+- [x] KSP-890: kotlin.SinceKotlin.SinceKotlin の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.SinceKotlin` / receiver `SinceKotlin`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/SinceKotlin/SinceKotlin.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1883,6 +1883,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.SinceKotlin.version` — val SinceKotlin.version: String  -- `final val version`
+  - 完了根拠: merged PR #5880（merge commit `3d2bb9b20`）で `Sources/CompilerCore/Stdlib/kotlin/SinceKotlin.kt` が source-backed 化され、`SinceKotlin.version: String` を提供。既存 `stdlib_kotlin_n_SinceKotlin.kt/.golden`、`Scripts/diff_cases/stdlib_kotlin_n_SinceKotlin.kt`、`AnnotationSemanticTests+VersionAndVisibility.swift` が version property と source-backed 登録を回帰確認済み。
 
 - [ ] KSP-891: kotlin.String top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.String` / top-level
