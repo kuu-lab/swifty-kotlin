@@ -1927,7 +1927,8 @@
   - 未実装シンボル一覧:
     - `kotlin.Suppress.<init>` — constructor (Array)  -- `constructor <init>(kotlin/Array<out kotlin/String>...)`
 
-- [ ] KSP-895: kotlin.Suppress.Suppress の未実装 stdlib API を実装する（1 件）
+- [x] KSP-895: kotlin.Suppress.Suppress の未実装 stdlib API を実装する（1 件）
+  - 完了根拠: merged PR #5888（merge commit `44abba9f7fa0785da0d17b1a9cf1fd0fcbd9958f`）の現行 `Sources/CompilerCore/Stdlib/kotlin/Suppress.kt` が source-backed `public annotation class Suppress(vararg val names: String)` を提供。`stdlib_kotlin_n_Suppress` の既存Sema Golden/diffが注釈surfaceを回帰し、一時最小再現 `fun readSuppressNames(s: Suppress): Array<out String> = s.names` で `names` property read と投影型をkswiftc/kotlinc双方で確認。Suppress専用のsynthetic/Runtime ABI/name-string特例は現行に残らない。
   - 対象: `kotlin.Suppress` / receiver `Suppress`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Suppress/Suppress.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
