@@ -1340,6 +1340,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "collections", "MutableIterable"]]
         case "__bundled_kotlin/collections/AbstractCollection.kt":
             [["kotlin", "collections", "AbstractCollection"]]
+        case "__bundled_kotlin/collections/AbstractSet.kt":
+            [["kotlin", "collections", "AbstractSet"]]
         case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
             [["kotlin", "collections", "AbstractMutableCollection"]]
         case "__bundled_kotlin/Result/Stdlib.kt":

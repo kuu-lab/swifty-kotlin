@@ -2354,13 +2354,14 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMutableSet` — class kotlin.collections.AbstractMutableSet  -- `abstract class <#A: kotlin/Any?> kotlin.collections/AbstractMutableSet : kotlin.collections/AbstractMutableCollection<#A>, kotlin.collections/MutableSet<#A> {`
 
-- [ ] KSP-932: kotlin.collections.AbstractSet-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-932: kotlin.collections.AbstractSet-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractSet`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractSet.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_AbstractSet.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractSet.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractSet.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠 (2026-08-23): `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractSet.kt` を追加し、`HeaderCollection` の既存synthetic shell再利用キーを同期。class hierarchy、protected constructor、out varianceをSema回帰と専用Goldenで固定し、Set型経由の重複排除・順序非依存 equality・異型Set/List・contains・hashCodeを専用diffでkotlincと一致確認。Set equality/hashCodeに必要な共有RuntimeSetBox hash経路のみ補修し、Set interface/factory/lowering/ABIは保持。AbstractSet が AbstractCollection から継承する `size`/`iterator` を abstract-class 制約検査が認識するよう補修し、最小 clean-diagnostics 回帰を追加。
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractSet` — class kotlin.collections.AbstractSet  -- `abstract class <#A: out kotlin/Any?> kotlin.collections/AbstractSet : kotlin.collections/AbstractCollection<#A>, kotlin.collections/Set<#A> {`
 
