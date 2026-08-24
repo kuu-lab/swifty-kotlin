@@ -8599,15 +8599,14 @@
   - 未実装シンボル一覧:
     - `kotlin.reflect.AssociatedObjectKey.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1326: kotlin.reflect.ExperimentalAssociatedObjects top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1326: kotlin.reflect.ExperimentalAssociatedObjects top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.reflect.ExperimentalAssociatedObjects` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/ExperimentalAssociatedObjects/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_ExperimentalAssociatedObjects_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_ExperimentalAssociatedObjects_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_ExperimentalAssociatedObjects_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.reflect.ExperimentalAssociatedObjects.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #1488（commits `2394cbf33` / `e283f4d5e`）で導入された marker と、merged PR #5032（commit `4aaf1b328`）で現行 `Sources/CompilerCore/Stdlib/kotlin/reflect/AssociatedObjects.kt` に移行された source-backed declaration が、Kotlin/Native 2.3.10 の `@RequiresOptIn(ERROR)`・`@Retention(BINARY)` と一致する。`HeaderCollection` の source-backed annotation class 共通経路が implicit public no-arg constructor を生成し、既存 `Tests/CompilerCoreTests/Sema/ExperimentalMarkerStubTests.swift` の登録・kind・opt-in severity・binary retention 回帰、および監査時の最小 Sema symbol/signature probe で constructor owner/return type/空引数を確認済み。AssociatedObjectKey、findAssociatedObject、他 reflect API の source/synthetic/compiler/runtime/ABI surface は変更していない。
 
 - [ ] KSP-1327: kotlin.reflect.KCallable.KCallable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KCallable` / receiver `KCallable`
