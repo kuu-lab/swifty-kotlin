@@ -1,6 +1,26 @@
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 
+import Foundation
+
+private final class RuntimeEnumEntriesCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entriesByEnumType: [Int64: Int] = [:]
+
+    func value(for enumTypeID: Int64, elements: [Int]) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = entriesByEnumType[enumTypeID] {
+            return cached
+        }
+        let raw = registerRuntimeObject(RuntimeListBox(elements: elements))
+        entriesByEnumType[enumTypeID] = raw
+        return raw
+    }
+}
+
+private let runtimeEnumEntriesCache = RuntimeEnumEntriesCache()
+
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -60,5 +80,18 @@ public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     }
 
     let safeCount = max(0, min(count, values.elements.count))
-    return registerRuntimeObject(RuntimeListBox(elements: Array(values.elements.prefix(safeCount))))
+    let elements = Array(values.elements.prefix(safeCount))
+    // Kotlin's EnumEntries is a stable immutable collection for each enum
+    // class. Generated enum elements carry that class ID in their runtime
+    // metadata; use it to share the list across getter calls.
+    let cacheKey: Int64?
+    if safeCount == 0 {
+        cacheKey = Int64.min
+    } else {
+        cacheKey = runtimeObjectTypeID(rawValue: elements[0])
+    }
+    guard let cacheKey else {
+        return registerRuntimeObject(RuntimeListBox(elements: elements))
+    }
+    return runtimeEnumEntriesCache.value(for: cacheKey, elements: elements)
 }

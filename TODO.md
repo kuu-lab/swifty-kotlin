@@ -4986,7 +4986,8 @@
   - 未実装シンボル一覧:
     - `kotlin.contracts.ExperimentalExtendedContracts.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1129: kotlin.contracts.InvocationKind.InvocationKind の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1129: kotlin.contracts.InvocationKind.InvocationKind の未実装 stdlib API を実装する（3 件）
+  - 完了根拠（2026-08-25）: InvocationKind.kt を source-backed 化し、共通 enum synthesis の Array<Enum>/EnumEntries<Enum> 型署名、完全修飾 valueOf エラー名、EnumEntries の enum 型単位の安定 identity を修正。Kotlin 2.3.10 artifact/kotlinc と専用 Golden/diff で4 entries、fresh values() array、stable entries、成功/失敗 valueOf を確認。
   - 対象: `kotlin.contracts.InvocationKind` / receiver `InvocationKind`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/contracts/InvocationKind/InvocationKind.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

@@ -426,9 +426,9 @@ extension LoweringPassRegressionTests {
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return interner.resolve(s)
         }
-        // Kotlin error message format: "No enum constant Fruit.UNKNOWN"
-        #expect(stringLiterals.contains("Fruit."),
-                "valueOf should embed \"Fruit.\" prefix for error messages; got: \(stringLiterals)")
+        // Kotlin error message format: "No enum constant test.Fruit.UNKNOWN"
+        #expect(stringLiterals.contains("test.Fruit."),
+                "valueOf should embed \"test.Fruit.\" prefix for error messages; got: \(stringLiterals)")
     }
 
     // MARK: - STDLIB-023-12: entries$get takes no parameters (zero-param getter)
