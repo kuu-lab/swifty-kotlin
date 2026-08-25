@@ -345,7 +345,7 @@ import Testing
         try assertKotlinOutput(source, moduleName: "NaNComparable", expected: "NaN\nNaN\n")
     }
 
-    @Test(.disabled("List indexing test temporarily disabled on Linux"))
+    @Test
     func testCodegenListOfIndexingUsesListRuntimeGet() throws {
         let source = """
         fun main() {

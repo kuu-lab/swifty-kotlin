@@ -191,10 +191,10 @@ public func kk_array_toMutableList(_ arrayRaw: Int) -> Int {
 // MARK: - Primitive array to List conversions
 
 /// IntArray.toList(): List<Int>
-@_cdecl("kk_intArray_toList")
+@_cdecl("__kk_intArray_toList")
 public func kk_intArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_intArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_intArray_toList")
     }
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
@@ -206,29 +206,29 @@ public func kk_intArray_toList(_ arrayRaw: Int) -> Int {
 /// runtimeNullSentinelInt, so generic Any-dispatch (toString/equals/`is`)
 /// would otherwise misreport it as null. kk_box_long_nonnull is safe because
 /// LongArray elements are never null.
-@_cdecl("kk_longArray_toList")
+@_cdecl("__kk_longArray_toList")
 public func kk_longArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_longArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_longArray_toList")
     }
     let boxed = array.elements.map { kk_box_long_nonnull($0) }
     return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// ByteArray.toList(): List<Byte>
-@_cdecl("kk_byteArray_toList")
+@_cdecl("__kk_byteArray_toList")
 public func kk_byteArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_byteArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_byteArray_toList")
     }
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
 
 /// ShortArray.toList(): List<Short>
-@_cdecl("kk_shortArray_toList")
+@_cdecl("__kk_shortArray_toList")
 public func kk_shortArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_shortArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_shortArray_toList")
     }
     return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
 }
@@ -261,45 +261,48 @@ public func kk_uLongArray_toList(_ arrayRaw: Int) -> Int {
 
 /// DoubleArray.toList(): List<Double>
 ///
-/// Boxes elements eagerly for the same reason as kk_longArray_toList above:
+/// Boxes elements eagerly for the same reason as __kk_longArray_toList above:
 /// a raw Double word holding -0.0 is bit-identical to runtimeNullSentinelInt,
 /// so generic Any-dispatch (toString/equals/`is`) would otherwise misreport it
 /// as null. kk_box_double_nonnull is safe because DoubleArray elements are
 /// never null.
-@_cdecl("kk_doubleArray_toList")
+@_cdecl("__kk_doubleArray_toList")
 public func kk_doubleArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_doubleArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_doubleArray_toList")
     }
     let boxed = array.elements.map { kk_box_double_nonnull($0) }
     return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// FloatArray.toList(): List<Float>
-@_cdecl("kk_floatArray_toList")
+@_cdecl("__kk_floatArray_toList")
 public func kk_floatArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_floatArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_floatArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_float($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// BooleanArray.toList(): List<Boolean>
-@_cdecl("kk_booleanArray_toList")
+@_cdecl("__kk_booleanArray_toList")
 public func kk_booleanArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_booleanArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_booleanArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_bool($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// CharArray.toList(): List<Char>
-@_cdecl("kk_charArray_toList")
+@_cdecl("__kk_charArray_toList")
 public func kk_charArray_toList(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_charArray_toList")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_charArray_toList")
     }
-    return registerRuntimeObject(RuntimeListBox(elements: Array(array.elements)))
+    let boxed = array.elements.map { kk_box_char($0) }
+    return registerRuntimeObject(RuntimeListBox(elements: boxed))
 }
 
 /// UByteArray.toList(): List<UByte>
@@ -429,7 +432,7 @@ public func kk_uLongArray_asLongArray(_ arrayRaw: Int) -> Int {
 // MARK: - Primitive array size property
 
 /// IntArray.size: Int
-@_cdecl("kk_intArray_size")
+@_cdecl("__kk_intArray_size")
 public func kk_intArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -438,7 +441,7 @@ public func kk_intArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// LongArray.size: Int
-@_cdecl("kk_longArray_size")
+@_cdecl("__kk_longArray_size")
 public func kk_longArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -447,7 +450,7 @@ public func kk_longArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// ByteArray.size: Int
-@_cdecl("kk_byteArray_size")
+@_cdecl("__kk_byteArray_size")
 public func kk_byteArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -456,7 +459,7 @@ public func kk_byteArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// ShortArray.size: Int
-@_cdecl("kk_shortArray_size")
+@_cdecl("__kk_shortArray_size")
 public func kk_shortArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -483,7 +486,7 @@ public func kk_uLongArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// DoubleArray.size: Int
-@_cdecl("kk_doubleArray_size")
+@_cdecl("__kk_doubleArray_size")
 public func kk_doubleArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -492,7 +495,7 @@ public func kk_doubleArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// FloatArray.size: Int
-@_cdecl("kk_floatArray_size")
+@_cdecl("__kk_floatArray_size")
 public func kk_floatArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -501,7 +504,7 @@ public func kk_floatArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// BooleanArray.size: Int
-@_cdecl("kk_booleanArray_size")
+@_cdecl("__kk_booleanArray_size")
 public func kk_booleanArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
@@ -510,7 +513,7 @@ public func kk_booleanArray_size(_ arrayRaw: Int) -> Int {
 }
 
 /// CharArray.size: Int
-@_cdecl("kk_charArray_size")
+@_cdecl("__kk_charArray_size")
 public func kk_charArray_size(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
