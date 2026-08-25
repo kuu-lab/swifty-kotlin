@@ -9423,7 +9423,7 @@
     - `kotlin.time.ComparableTimeMark.equals` — fun ComparableTimeMark.equals(Any): Boolean  -- `abstract fun equals(kotlin/Any?): kotlin/Boolean`
     - `kotlin.time.ComparableTimeMark.hashCode` — fun ComparableTimeMark.hashCode(): Int  -- `abstract fun hashCode(): kotlin/Int`
 
-- [ ] KSP-1483: kotlin.time.Duration top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1483: kotlin.time.Duration top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.Duration` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Duration/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9432,6 +9432,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.time.Duration.Companion` — object kotlin.time.Duration.Companion  -- `final object Companion {`
+  - 完了根拠（2026-08-25）: 現行の `HeaderHelpers+SyntheticDurationStubs.swift` が `kotlin.time.Duration.Companion` を public synthetic object として登録し、`Duration.kt` の Companion 拡張を同一 nominal に解決する。`DurationSyntheticStubTests` 8件、最小 `val companion = Duration.Companion` の kswiftc compile/run、Duration を含む Sema Golden shard、Kotlin 2.3.10 固定の既存 Duration diff 4件が pass。Kotlin 2.3.10 official source/API artifact と JVM artifact にも `public companion object` / `Duration$Companion` が存在する。KSP-1485 所有の members/constants は変更しない。
 
 - [ ] KSP-1484: kotlin.time.Duration.Duration の未実装 stdlib API を実装する（14 件）
   - 対象: `kotlin.time.Duration` / receiver `Duration`
