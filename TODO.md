@@ -6002,7 +6002,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.RefinesInSwift.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1213: kotlin.native.ShouldRefineInSwift top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1213: kotlin.native.ShouldRefineInSwift top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.ShouldRefineInSwift` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ShouldRefineInSwift/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6011,6 +6011,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.ShouldRefineInSwift.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: KSP-667（PR #5034、merge commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）で導入済みの `Sources/CompilerCore/Stdlib/kotlin/native/ObjCInterop.kt` に `public annotation class ShouldRefineInSwift` と暗黙の no-arg constructor が存在し、`Scripts/diff_cases/native_annotations.kt` と対応するSema Goldenが `@ShouldRefineInSwift` の宣言使用を保持している。
 
 - [ ] KSP-1214: kotlin.native.SymbolName top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.SymbolName` / top-level
