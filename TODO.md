@@ -6257,7 +6257,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.Continuation2.<init>` — constructor (Function2, CPointer, Boolean)  -- `constructor <init>(kotlin/Function2<#A, #B, kotlin/Unit>, kotlinx.cinterop/CPointer<kotlinx.cinterop/CFunction<kotlin/Function1<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?, kotlin/Unit>>>, kotlin/Boolean = ...)`
 
-- [ ] KSP-1233: kotlin.native.concurrent.Continuation2.Continuation2 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1233: kotlin.native.concurrent.Continuation2.Continuation2 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.Continuation2` / receiver `Continuation2`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation2/Continuation2.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6267,6 +6267,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.Continuation2.dispose` — fun Continuation2.dispose(): Unit  -- `final fun dispose()`
     - `kotlin.native.concurrent.Continuation2.invoke` — fun Continuation2.invoke(, ): Unit  -- `final fun invoke(#A, #B)`
+  - 完了根拠: Kotlin 2.3.10 の公式 `Continuation.kt` と `kotlinc-native` 2.3.10 の metadata/IR が、`Continuation2<T1, T2> : Function2<T1, T2, Unit>` の `open operator invoke(p1: T1, p2: T2): Unit` および `final dispose(): Unit`（Deprecated warning）を確認する。現行 `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` の登録と `NativeConcurrentSyntheticStubTests` の member/source-resolution 回帰が、generic arity、Unit 戻り値、operator/override flags、2引数呼び出しを固定し、導入は merged PR #1633 / commit `a5c1b3ce3` に由来する。KSP-1233 はこの2 membersのTODO同期だけとし、KSP-1232 constructor、class shell、Continuation0/1、callContinuation、DetachedObjectGraph、runtime/ABI surfaceは変更していない。
 
 - [ ] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / top-level
