@@ -898,6 +898,31 @@ final class CallLowerer {
                     interner: interner,
                     instructions: &instructions
                 )
+                if let throwableSymbol = sema.symbols.lookup(
+                    fqName: [interner.intern("kotlin"), interner.intern("Throwable")]
+                ) {
+                    let ownerType = sema.types.make(.classType(ClassType(
+                        classSymbol: ownerNominalSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    let throwableType = sema.types.make(.classType(ClassType(
+                        classSymbol: throwableSymbol,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                    // Capture a Kotlin-defined Throwable subclass at allocation time,
+                    // before its constructor body can observe the receiver.
+                    if sema.types.isSubtype(ownerType, throwableType) {
+                        let captureResult = arena.appendTemporary(type: intType)
+                        emitNonThrowingCall(
+                            callee: interner.intern("__kk_throwable_captureStackTrace"),
+                            arg: allocatedObj,
+                            result: captureResult,
+                            into: &instructions
+                        )
+                    }
+                }
             }
             finalArgIDs.insert(allocatedObj, at: 0)
         } else if let chosen,
