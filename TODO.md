@@ -5844,7 +5844,8 @@
     - `kotlin.native.CpuArchitecture.valueOf` — fun CpuArchitecture.valueOf(String): CpuArchitecture  -- `final fun valueOf(kotlin/String): kotlin.native/CpuArchitecture`
     - `kotlin.native.CpuArchitecture.values` — fun CpuArchitecture.values(): Array  -- `final fun values(): kotlin/Array<kotlin.native/CpuArchitecture>`
 
-- [ ] KSP-1199: kotlin.native.EagerInitialization top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1199: kotlin.native.EagerInitialization top-level の未実装 stdlib API を実装する（1 件）
+  - 完了根拠（2026-08-25 再監査）: merged KSP-667（PR #5034、commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）の `Sources/CompilerCore/Stdlib/kotlin/native/Annotations.kt` に、Kotlin 2.3.10 Native公式source同型の `public annotation class EagerInitialization` が導入済み。公式v2.3.10 Native source、macOS arm64 prebuilt artifactのKLIB metadata（`metadata_version=2.3.0`、`builtins_platform=NATIVE`、`native_targets` に `macos_arm64`、linkdataの `EagerInitialization`/`PROPERTY`/`BINARY`/`ExperimentalStdlibApi`/指定Deprecated message）、JVM/Native `kotlinc 2.3.10` の最小probeで package、visibility、`@Target(PROPERTY)`、`@Retention(BINARY)`、`@ExperimentalStdlibApi`、指定 `@Deprecated`、暗黙public no-arg constructorを確定した。現行 `NativePlatformAnnotationTests` 21 testsとKSwiftK最小property compile/runはPASSし、source registration/Sema以外に対象専用のsynthetic/KIR/lowering/backend/runtime/RuntimeABI bridgeは存在しないため、KSP-1199はTODO同期のみで完了とする。
   - 対象: `kotlin.native.EagerInitialization` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/EagerInitialization/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
