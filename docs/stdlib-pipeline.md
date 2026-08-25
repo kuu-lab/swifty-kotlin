@@ -164,9 +164,25 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: 通常のユーザーコンパイルは都度コンパイルを維持する。一方、
+方針: 通常の executable ユーザーコンパイルは事前コンパイル済み `.kklib` を既定経路にし、
+`--stdlib-from-source` を明示したデバッグ実行だけが bundled Kotlin source を注入する。
 `diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
 移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
+
+`kswiftc` の既定artifact解決は次の順序で行う。
+
+1. `KSWIFTK_STDLIB_LIBRARY`、実行ファイル相対の `KSwiftKStdlib.kklib`、SwiftPM resource bundle
+   (`KSwiftK_CompilerCore.bundle/Contents/Resources` または `KSwiftK_CompilerCore.resources`)、または
+   `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
+2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
+   ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
+   `stdlib-only` build を一度だけ生成する。生成中はcross-process lockを保持し、完成後にatomic moveする。
+3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
+   暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
+
+既定artifactは `emit == executable` に限定する。`object`、`llvm`、`kir` は source/introspection
+境界を保持し、LSPのartifact配線は ARCH-006 で扱う。`--stdlib-from-source` は既定artifactの
+発見・生成を無効化し、従来の bundled source 経路を明示的に選択する。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
