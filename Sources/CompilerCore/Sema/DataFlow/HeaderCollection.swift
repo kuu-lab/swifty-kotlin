@@ -1294,6 +1294,7 @@ extension DataFlowSemaPhase {
         let resolvedFQName = fqName.map(interner.resolve)
         return resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
     }
 
     /// The fully-qualified names a bundled source file is allowed to claim from

@@ -198,6 +198,7 @@ struct NativeConcurrentSyntheticStubTests {
         )
         #expect(sema.symbols.sourceFileID(for: transferMode) != nil)
         #expect(!sema.symbols.symbol(transferMode)!.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(transferMode))
     }
 
     @Test
