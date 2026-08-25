@@ -1062,7 +1062,7 @@
     - `kotlin.getValue` — fun KProperty0.getValue(Any, KProperty): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.reflect/KProperty0<#A>).kotlin/getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): #A`
     - `kotlin.isInitialized` — val KProperty0.isInitialized  -- `final val kotlin/isInitialized`
 
-- [ ] KSP-802: kotlin.KProperty1 の未実装 stdlib API を実装する（1 件）
+- [x] KSP-802: kotlin.KProperty1 の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `KProperty1`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KProperty1.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1071,6 +1071,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.getValue` — fun KProperty1.getValue(, KProperty): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.reflect/KProperty1<#A, #B>).kotlin/getValue(#A, kotlin.reflect/KProperty<*>): #B`
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 の `PropertyReferenceDelegates.kt` に一致する `public inline operator` 実装を `Sources/CompilerCore/Stdlib/kotlin/KProperty1.kt` に追加し、Sema Golden と kotlinc 差分ケースを追加。KSP-802 対象バッチの Golden 更新・再検証、Kotlin 2.3.10 参照実行、`kswiftc` 実行（`Ada` / `Grace`）を確認済み。対象 API に既存 bridge/stub/name-string 特例はなく、runtime/compiler 一般化は変更していない。
 
 - [ ] KSP-803: kotlin.Lazy の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `Lazy`
