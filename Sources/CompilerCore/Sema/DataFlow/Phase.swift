@@ -62,7 +62,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         predeclareBundledAnnotationHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredTupleHeaders
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
