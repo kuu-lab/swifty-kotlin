@@ -5609,13 +5609,14 @@
     - `kotlin.math.expm1` — fun expm1(Double): Double  -- `final fun kotlin.math/expm1(kotlin/Double): kotlin/Double`
     - `kotlin.math.expm1` — fun expm1(Float): Float  -- `final fun kotlin.math/expm1(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1183: kotlin.math.hypot-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1183: kotlin.math.hypot-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `hypot`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/hypot.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_math_n_hypot.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_math_n_hypot.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_math_n_hypot.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 公式 `MathH.kt`・artifact metadata・`kotlinc` と照合し、`Math.kt` の `hypot(Double, Double): Double` / `hypot(Float, Float): Float` が `dfc478e0fd`（merged PR #5831）由来のsource-backed declarationであることを確認。`__kk_math_hypot` / `__kk_math_hypot_float` のRuntime/RuntimeABI bridgeを保持し、Sema overload/source-backed、`math_advanced` Golden、Backend、Runtime edge、Double/Float diffを検証した。KSP-1182/1184および他のmath APIは変更していない。
   - 未実装シンボル一覧:
     - `kotlin.math.hypot` — fun hypot(Double, Double): Double  -- `final fun kotlin.math/hypot(kotlin/Double, kotlin/Double): kotlin/Double`
     - `kotlin.math.hypot` — fun hypot(Float, Float): Float  -- `final fun kotlin.math/hypot(kotlin/Float, kotlin/Float): kotlin/Float`
