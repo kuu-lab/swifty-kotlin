@@ -976,6 +976,37 @@ struct NativeConcurrentSyntheticStubTests {
                 "AnnotationTarget.TYPEALIAS",
             ]
         )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            }
+        )
+        #expect(annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" })
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["version = \"1.9\""]
+            }
+        )
+
+        let annotationType = sema.types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructors = sema.symbols.lookupAll(
+            fqName: fqName + [interner.intern("<init>")]
+        ).filter { sema.symbols.symbol($0)?.kind == .constructor }
+        #expect(constructors.count == 1)
+        let constructor = try #require(
+            constructors.first,
+            "Expected kotlin.native.concurrent.ObsoleteWorkersApi() constructor"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(sema.symbols.symbol(constructor)?.visibility == .public)
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType == annotationType)
     }
 
     // MARK: - Package existence
