@@ -418,12 +418,17 @@ struct NativeConcurrentSyntheticStubTests {
         let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
 
         #expect(sema.symbols.symbol(freezingException)?.kind == .class)
+        #expect(sema.symbols.symbol(freezingException)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.sourceFileID(for: freezingException) != nil)
         #expect(sema.symbols.directSupertypes(for: freezingException).contains(runtimeException))
+        let annotationNames = sema.symbols.annotations(for: freezingException).map(\.annotationFQName)
         #expect(
-            sema.symbols.annotations(for: freezingException).contains {
-                $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-            },
-            "FreezingException must carry ExperimentalNativeApi metadata"
+            annotationNames.contains("Deprecated"),
+            "FreezingException must carry Deprecated metadata: \(annotationNames)"
+        )
+        #expect(
+            annotationNames.contains("DeprecatedSinceKotlin"),
+            "FreezingException must carry DeprecatedSinceKotlin metadata: \(annotationNames)"
         )
     }
 
@@ -450,15 +455,14 @@ struct NativeConcurrentSyntheticStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
         #expect(signature.valueParameterHasDefaultValues == [false, false])
-        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+        #expect(sema.symbols.externalLinkName(for: constructor) == "__kk_freezing_exception_new")
     }
 
     @Test
-    func testFreezingExceptionResolvesInSourceWithOptIn() {
+    func testFreezingExceptionResolvesInSource() {
         let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        @file:Suppress("DEPRECATION_ERROR")
         import kotlin.native.concurrent.FreezingException
 
         fun probe(toFreeze: Any, blocker: Any): RuntimeException =

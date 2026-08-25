@@ -11,6 +11,25 @@
 // exception-type prefix). The `renderedMessage` property adds the type prefix
 // for stack-trace / toString() output, matching Kotlin JVM behaviour.
 
+final class RuntimeFreezingExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.native.concurrent.FreezingException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.native.concurrent.FreezingException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("FreezingException", message)
+    }
+}
+
 final class RuntimeAssertionErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.AssertionError"
@@ -417,6 +436,17 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
 
 // MARK: - Typed Allocators
 
+/// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
+func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
+    let message = "freezing of \(runtimeRenderAnyForPrint(toFreezeRaw)) has failed, first blocker is \(runtimeRenderAnyForPrint(blockerRaw))"
+    let throwable = RuntimeFreezingExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 /// Allocates an `AssertionError` with the given message.
 func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeAssertionErrorBox(message: message, cause: cause)
@@ -810,6 +840,11 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
 // exception types apart. See the source-backed constructor declarations in
 // Stdlib/kotlin/Exceptions.kt and Stdlib/kotlin/IllegalStateException/Stdlib.kt.
+
+@_cdecl("__kk_freezing_exception_new")
+public func kk_freezing_exception_new(_ toFreezeRaw: Int, _ blockerRaw: Int) -> Int {
+    runtimeAllocateFreezingException(toFreezeRaw: toFreezeRaw, blockerRaw: blockerRaw)
+}
 
 @_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {

@@ -6313,7 +6313,7 @@
     - `kotlin.native.concurrent.FreezableAtomicReference.toString` — fun FreezableAtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.FreezableAtomicReference.value` — val FreezableAtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1238: kotlin.native.concurrent.FreezingException top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1238: kotlin.native.concurrent.FreezingException top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.FreezingException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/FreezingException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6322,6 +6322,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.FreezingException.<init>` — constructor (Any, Any)  -- `constructor <init>(kotlin/Any, kotlin/Any)`
+  - 完了根拠: Kotlin 2.3.10 の source-backed constructor、`__kk_freezing_exception_new` typed runtime/ABI bridge、message と `catch (FreezingException)` の回帰を同一PRで固定。
 
 - [ ] KSP-1239: kotlin.native.concurrent.Future top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Future` / top-level

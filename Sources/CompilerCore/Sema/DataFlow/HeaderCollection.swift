@@ -1351,6 +1351,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "IndexOutOfBoundsException"]]
         case "__bundled_kotlin/NullPointerException/Stdlib.kt":
             [["kotlin", "NullPointerException"]]
+        case "__bundled_kotlin/native/concurrent/FreezingException/Stdlib.kt":
+            [["kotlin", "native", "concurrent", "FreezingException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
