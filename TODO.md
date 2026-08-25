@@ -5587,7 +5587,7 @@
     - `kotlin.math.cosh` — fun cosh(Double): Double  -- `final fun kotlin.math/cosh(kotlin/Double): kotlin/Double`
     - `kotlin.math.cosh` — fun cosh(Float): Float  -- `final fun kotlin.math/cosh(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1181: kotlin.math.exp-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1181: kotlin.math.exp-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `exp`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/exp.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5597,6 +5597,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.exp` — fun exp(Double): Double  -- `final fun kotlin.math/exp(kotlin/Double): kotlin/Double`
     - `kotlin.math.exp` — fun exp(Float): Float  -- `final fun kotlin.math/exp(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25 再監査）: Kotlin 2.3.10 公式 `MathH.kt` / JVM `MathJVM.kt` と stdlib artifact metadata/classfile が `kotlin.math` の public `exp(Double): Double` / `exp(Float): Float`、`@SinceKotlin("1.2")`、Native を含む共通 API、descriptor `(D)D` / `(F)F` を示す。exact `kotlinc 2.3.10` で Double/Float overload 解決、NaN、±Infinity、±0、overflow/underflow、戻り値精度を確認した。現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` の2 public wrapper（Double/Float）と internal `__kk_math_exp` / `__kk_math_exp_float` bridge は merged PR #5831 / commit `dfc478e0f` 由来で実装済みであり、Sema source-link、KIR/Backend lowering、Runtime/RuntimeABI、Golden・diff・edge 回帰が継続している。対象の追加 synthetic 登録、name-string 特例、重複実装はなく、expm1/ln/log/pow、他 math API は変更していない。
 
 - [ ] KSP-1182: kotlin.math.expm-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `expm`
