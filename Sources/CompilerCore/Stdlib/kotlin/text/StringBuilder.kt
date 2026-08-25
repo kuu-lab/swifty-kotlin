@@ -15,7 +15,7 @@ public class StringBuilder {
     override val length: Int
         get() = __kk_string_builder_length()
 
-    operator fun get(index: Int): Char {
+    override operator fun get(index: Int): Char {
         checkElementIndex(index)
         return toString()[index]
     }

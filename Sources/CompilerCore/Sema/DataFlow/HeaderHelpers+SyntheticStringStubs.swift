@@ -384,9 +384,8 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        // KSP-724: `CharSequence.get` is provided by bundled Kotlin source
-        // (`kotlin/text/StringSubstringSlice.kt`); the synthetic extension stub
-        // is no longer needed.
+        // KSP-817: `CharSequence.get` is provided by the bundled interface
+        // source; only the concrete String extension stub remains here.
 
         // BUG-152: `subSequence` on a value statically typed as `CharSequence` is
         // provided by bundled Kotlin source (StringSubstringSlice.kt).

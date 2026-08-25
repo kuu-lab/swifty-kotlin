@@ -4,18 +4,21 @@
 
 import Foundation
 
-// CharSequence.length occupies the first interface-property slot because the
-// synthetic CharSequence interface currently has no method slots. Registering
-// the bridge on runtime-created String boxes lets the normal interface-property
-// dispatch path serve both built-in and user-defined CharSequence receivers.
+// CharSequence.get occupies method slot 0 and CharSequence.length occupies
+// property getter slot 1. Runtime-created String boxes need both entries so
+// interface-typed calls use the same dispatch contract as source-defined
+// CharSequence implementations.
 private let runtimeCharSequenceInterfaceTypeID: Int64 =
     runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
+private let runtimeCharSequenceGetMethod: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, index, outThrown in
+    kk_char_sequence_get(raw, index, outThrown)
+}
 private let runtimeCharSequenceLengthGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     return kk_char_sequence_length(raw)
 }
 
-func runtimeRegisterCharSequenceLengthItable(_ raw: Int) {
+func runtimeRegisterCharSequenceItable(_ raw: Int) {
     _ = kk_object_register_itable_iface(
         raw,
         Int(runtimeCharSequenceInterfaceTypeID),
@@ -25,19 +28,24 @@ func runtimeRegisterCharSequenceLengthItable(_ raw: Int) {
         raw,
         0,
         0,
+        unsafeBitCast(runtimeCharSequenceGetMethod, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw,
+        0,
+        1,
         unsafeBitCast(runtimeCharSequenceLengthGetter, to: Int.self)
     )
 }
 
 @_cdecl("kk_char_sequence_length")
 public func kk_char_sequence_length(_ raw: Int) -> Int {
-    // KSP-724: Match the flat String aggregate length field used by String.length
-    // lowering, which stores the Unicode scalar count. The receiver may be any
-    // CharSequence implementation (String or StringBuilder handles).
+    // KSP-817: Match Kotlin's UTF-16 CharSequence.length contract. The receiver
+    // may be any CharSequence implementation (String or StringBuilder handles).
     if let text = runtimeCharSequenceText(from: raw) {
-        return text.unicodeScalars.count
+        return text.utf16.count
     }
-    return runtimeStringFromRawOrPanic(raw, caller: #function).unicodeScalars.count
+    return runtimeStringFromRawOrPanic(raw, caller: #function).utf16.count
 }
 
 // MARK: - STDLIB-190: first / last / single / firstOrNull / lastOrNull
@@ -180,15 +188,15 @@ public func kk_string_ifEmpty_flat(
 @_cdecl("kk_string_get")
 public func kk_string_get(_ strRaw: Int, _ indexRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
-    let scalars = runtimeStringScalars(strRaw)
-    guard indexRaw >= 0, indexRaw < scalars.count else {
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
         )
         return 0
     }
-    return Int(scalars[indexRaw].value)
+    return Int(codeUnits[indexRaw])
 }
 
 @_cdecl("kk_char_sequence_get")
@@ -205,15 +213,15 @@ public func kk_char_sequence_get(
         )
         return 0
     }
-    let scalars = Array(text.unicodeScalars)
-    guard indexRaw >= 0, indexRaw < scalars.count else {
+    let codeUnits = Array(text.utf16)
+    guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
         )
         return 0
     }
-    return Int(scalars[indexRaw].value)
+    return Int(codeUnits[indexRaw])
 }
 
 @_cdecl("kk_string_get_flat")
@@ -226,15 +234,15 @@ public func kk_string_get_flat(
     _ outThrown: UnsafeMutablePointer<Int>?
 ) -> Int {
     outThrown?.pointee = 0
-    let scalars = Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
-    guard indexRaw >= 0, indexRaw < scalars.count else {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard indexRaw >= 0, indexRaw < codeUnits.count else {
         runtimeSetThrown(
             outThrown,
-            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(scalars.count)")
+            runtimeAllocateStringIndexOutOfBoundsException(message: "index=\(indexRaw), length=\(codeUnits.count)")
         )
         return 0
     }
-    return Int(scalars[indexRaw].value)
+    return Int(codeUnits[indexRaw])
 }
 
 @_cdecl("kk_string_getOrNull_flat")

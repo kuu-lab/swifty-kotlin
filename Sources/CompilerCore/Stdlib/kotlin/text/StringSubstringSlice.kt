@@ -1,8 +1,8 @@
 package kotlin.text
 
 // KSP-406: substring / subSequence / slice / removeRange / replaceRange.
-// Character indices traverse toString().toList() because a flat String's
-// `length` observes UTF-8 byte length rather than the character count.
+// Character indices traverse toString().toList() because Kotlin String and
+// CharSequence lengths are measured in UTF-16 code units.
 
 private fun ksp406Slice(chars: List<Char>, startIndex: Int, endIndex: Int): String {
     val sb = StringBuilder()
@@ -42,14 +42,6 @@ public fun String.subSequence(startIndex: Int, endIndex: Int): String =
 // BUG-152: members reached through a value statically typed as `CharSequence`.
 public fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence =
     this.toString().substring(startIndex, endIndex)
-
-// KSP-724: `CharSequence.get` is implemented as an extension so that the
-// bundled `kotlin.CharSequence` interface can remain method-slot-free; the
-// runtime CharSequence itable length getter therefore stays at property slot 0.
-// The implementation delegates to `String.get` on the string view, which lowers
-// to the flat ABI runtime call `kk_string_get_flat` and avoids allocating a
-// `List<Char>` on every character access.
-public operator fun CharSequence.get(index: Int): Char = this.toString()[index]
 
 public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""

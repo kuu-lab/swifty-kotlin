@@ -399,9 +399,9 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
-        // `length` is the Unicode scalar count (the space string indices live in),
-        // `byteCount` the UTF-8 byte count; they only coincide for ASCII text.
-        self.length = value.unicodeScalars.count
+        // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
+        // `byteCount` is the UTF-8 byte count used by the flat ABI.
+        self.length = value.utf16.count
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
@@ -515,7 +515,7 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     // Native string construction is also used for temporary CharSequence
     // windows created by bundled text helpers. Keep those boxes on the same
     // interface-property itable path as registerRuntimeObject.
-    runtimeRegisterCharSequenceLengthItable(Int(bitPattern: opaque))
+    runtimeRegisterCharSequenceItable(Int(bitPattern: opaque))
     return opaque
 }
 
