@@ -307,20 +307,27 @@ extension BuildKIRRegressionTests {
     }
 
     @Test
-    func testIntArrayToListLowersToRuntimeCall() throws {
+    func testIntArrayToListLowersToSourceBackedCall() throws {
         let ctx = try sharedPrimitiveArrayCtx()
         let module = try #require(ctx.kir)
         let convertBody = try findKIRFunctionBody(named: "make9", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: convertBody, interner: ctx.interner)
 
-        let resolved = callNames.contains("kk_intArray_toList") || callNames.contains("kk_array_toList")
         #expect(
-            resolved,
-            "IntArray.toList() must lower to a runtime toList call; got: \(callNames)"
+            callNames == ["toList"],
+            "IntArray.toList() must remain a call to the bundled source declaration; got: \(callNames)"
         )
         #expect(
-            !(callNames.contains("toList")),
-            "toList must be fully rewritten to a runtime call; got: \(callNames)"
+            convertBody.compactMap { instruction -> SymbolID? in
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "toList"
+                else { return nil }
+                return symbol
+            }.contains(where: { symbol in
+                ctx.sema?.symbols.isSourceBackedSymbol(symbol) == true
+                    && ctx.sema?.symbols.externalLinkName(for: symbol) == nil
+            }),
+            "IntArray.toList() must resolve to source-backed Kotlin code; got: \(callNames)"
         )
     }
 }

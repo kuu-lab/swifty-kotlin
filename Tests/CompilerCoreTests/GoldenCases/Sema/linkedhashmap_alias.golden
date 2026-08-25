@@ -62,11 +62,11 @@ expr e@19:13 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__loc
 expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println#1
 expr e@20:13 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@20:13#1 memberCall recv=e@20:13 callee=keys args=[] type=kotlin.collections.Set<String> call=kotlin.collections.keys targs=[String,Int]
-expr e@20:13#2 memberCall recv=e@20:13#1 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.collections.toList#0 targs=[String]
+expr e@20:13#2 memberCall recv=e@20:13#1 callee=toList args=[] type=kotlin.collections.List<String> call=kotlin.collections.toList#8 targs=[String]
 expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#2] type=Unit call=kotlin.io.println#1
 expr e@21:13 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@21:13#1 memberCall recv=e@21:13 callee=values args=[] type=kotlin.collections.Collection<Int> call=kotlin.collections.values targs=[String,Int]
-expr e@21:13#2 memberCall recv=e@21:13#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.collections.toList#0 targs=[Int]
+expr e@21:13#2 memberCall recv=e@21:13#1 callee=toList args=[] type=kotlin.collections.List<Int> call=kotlin.collections.toList#8 targs=[Int]
 expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#2] type=Unit call=kotlin.io.println#1
 expr e@22:13 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
 expr e@22:13#1 memberCall recv=e@22:13 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> call=kotlin.collections.entries targs=[String,Int]
