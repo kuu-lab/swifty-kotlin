@@ -5527,7 +5527,7 @@
   - 未実装シンボル一覧:
     - `kotlin.io.print` — fun print(String): Unit  -- `final fun kotlin.io/print(kotlin/String)`
     - `kotlin.io.println` — fun println(String): Unit  -- `final fun kotlin.io/println(kotlin/String)`
-  - 完了根拠: Kotlin/Native 2.3.10 の source/metadata と一致する `internal external` の String overload を追加し、`Any?` overload は String overload 経由に整理。`println(String)` の改行は専用 `__kk_println_raw` bridge と Runtime ABI で固定し、Golden/diff/ABI 回帰を追加した。
+  - 完了根拠: Kotlin/Native 2.3.10 の source/metadata と一致する public String overload を追加し、内部の `__kk_print_raw` / `__kk_println_raw` bridge に委譲。`Any?` overload は String overload 経由に整理し、`println(String)` の改行は専用 bridge と Runtime ABI で固定した。Golden/diff/ABI 回帰を追加した。
 
 - [x] KSP-1164: kotlin.io.encoding top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.io.encoding` / top-level

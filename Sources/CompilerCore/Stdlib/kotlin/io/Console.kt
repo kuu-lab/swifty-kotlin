@@ -15,11 +15,19 @@ internal external fun __printRaw(message: Any?)
 // the call-site lowering may still use the shared raw bridge for user calls.
 @PublishedApi
 @KsSymbolName("__kk_print_raw")
-internal external fun print(message: String)
+internal external fun __printStringRaw(message: String)
 
 @PublishedApi
 @KsSymbolName("__kk_println_raw")
-internal external fun println(message: String)
+internal external fun __printlnStringRaw(message: String)
+
+public fun print(message: String) {
+    __printStringRaw(message)
+}
+
+public fun println(message: String) {
+    __printlnStringRaw(message)
+}
 
 public fun print() {
     __printRaw("")
