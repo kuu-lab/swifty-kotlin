@@ -44,11 +44,11 @@ final class DataFlowSemaPhase: CompilerPhase {
         // stub registrations that reference `Pair<...>` in their signatures. When
         // a prebuilt library is used instead, `loadImports` above already defined
         // the real symbols, so this pass simply finds nothing to do.
-        var predeclaredBundledHeaders: [DeclID: SymbolID] = [:]
+        var predeclaredEarlyHeaders: [DeclID: SymbolID] = [:]
         predeclareBundledTupleHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredBundledHeaders
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
         // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
         // extension bridges need the source symbol before synthetic
@@ -56,7 +56,16 @@ final class DataFlowSemaPhase: CompilerPhase {
         predeclareBundledStringEncodingHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
-            interner: ctx.interner, into: &predeclaredBundledHeaders
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-1522: bundled collection and interop headers refer to the
+        // source-backed Random types while synthetic members are registered.
+        // Forward-declare those real nominal headers before the synthetic pass
+        // so this ordering does not require placeholder anchors.
+        predeclareBundledRandomHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
@@ -72,6 +81,12 @@ final class DataFlowSemaPhase: CompilerPhase {
             // queries rely on source-backed stdlib declarations.
             sema.bundledIndex = bundledIndex
         }
+
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
 
         registerSyntheticDelegateStubs(
             symbols: symbols,
@@ -97,6 +112,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             diagnostics: ctx.diagnostics,
             interner: ctx.interner
         )
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         // Keep overlap diagnostics as an explicit guard test helper. Emitting
         // them during normal Sema pollutes user diagnostics for unaffected code.
         // Enum header synthesis runs during bundled header collection rather
@@ -107,9 +127,14 @@ final class DataFlowSemaPhase: CompilerPhase {
         collectAllHeaders(
             ast: ast, fileScopes: fileScopes,
             symbols: symbols, types: types, bindings: bindings, ctx: ctx,
-            predeclared: predeclaredBundledHeaders
+            predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        initializeSourceBackedCloseableTypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         types.functionInterfaceSymbol = symbols.lookupAll(
             fqName: [ctx.interner.intern("kotlin"), ctx.interner.intern("Function")]
         ).first { symbols.symbol($0)?.kind == .interface }
@@ -246,7 +271,7 @@ final class DataFlowSemaPhase: CompilerPhase {
         // BUG-143: forward-declare every top-level nominal type first, so a
         // signature may reference a class/interface/object declared later in the
         // same file (or in a file collected later). Seeded with whatever
-        // `predeclareBundledTupleHeaders` already predeclared in `Phase.run`;
+        // the early bundled nominal pass in `Phase.run` already predeclared;
         // `predeclareNominalTypeHeaders` skips declarations already present.
         var predeclared = initialPredeclared
         for file in orderedFiles {
