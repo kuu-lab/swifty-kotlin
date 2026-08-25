@@ -1392,6 +1392,8 @@ extension DataFlowSemaPhase {
                 ["kotlin", "ranges", "ClosedFloatingPointRange"],
                 ["kotlin", "ranges", "OpenEndRange"],
             ]
+        case "__bundled_kotlin/ranges/ULongRange/Stdlib.kt":
+            [["kotlin", "ranges", "ULongRange"]]
         default:
             []
         }
