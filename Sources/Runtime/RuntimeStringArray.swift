@@ -1595,6 +1595,39 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
 }
 
+/// Creates a KTypeProjection through its public constructor.
+/// The Kotlin constructor accepts either two nulls (a star projection) or
+/// two non-null values; every other pair throws IllegalArgumentException.
+@_cdecl("__kk_ktypeprojection_create_checked")
+public func __kk_ktypeprojection_create_checked(
+    _ varianceOrdinal: Int,
+    _ typeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+
+    let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
+    let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
+    guard varianceIsNull == typeIsNull else {
+        let message: String
+        if varianceIsNull {
+            message = "Star projection must have no type specified."
+        } else {
+            let varianceName: String = switch RuntimeKVariance(rawValue: varianceOrdinal) {
+            case .in: "IN"
+            case .out: "OUT"
+            case .invariant: "INVARIANT"
+            case nil: "INVARIANT"
+            }
+            message = "The projection variance \(varianceName) requires type to be specified."
+        }
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: message)
+        return 0
+    }
+
+    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, varianceIsNull ? -1 : varianceOrdinal)
+}
+
 /// Implements `typeOf<T>()` — creates a KType for the given type token.
 /// This is the reified inline function entry point. The compiler emits the
 /// type token and nullability at the call site.
