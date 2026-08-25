@@ -128,16 +128,20 @@ extension DataFlowSemaPhase {
             fqName: [interner.intern("kotlin"), interner.intern("native")],
             symbols: symbols
         )
-        let osFamilySymbol = ensureSyntheticPlatformEnumClass(
-            named: "OsFamily",
-            entries: [
-                "UNKNOWN", "MACOSX", "IOS", "TVOS", "WATCHOS",
-                "LINUX", "WINDOWS", "ANDROID", "WASM",
-            ],
-            in: kotlinNativePkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1210: use the bundled declaration when available so enum entry
+        // order and generated enum APIs come from the Kotlin source contract.
+        let osFamilyFQName = kotlinNativePkg + [interner.intern("OsFamily")]
+        let osFamilySymbol = symbols.lookup(fqName: osFamilyFQName)
+            ?? ensureSyntheticPlatformEnumClass(
+                named: "OsFamily",
+                entries: [
+                    "UNKNOWN", "MACOSX", "IOS", "LINUX", "WINDOWS",
+                    "ANDROID", "WASM", "TVOS", "WATCHOS",
+                ],
+                in: kotlinNativePkg,
+                symbols: symbols,
+                interner: interner
+            )
         let osFamilyType = types.make(.classType(ClassType(
             classSymbol: osFamilySymbol,
             args: [],
