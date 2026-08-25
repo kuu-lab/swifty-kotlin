@@ -196,10 +196,10 @@ extension CallLowerer {
             ]
             return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
         }()
-        // KSP-1512: signed primitive-array `toList` is a bundled Kotlin
-        // extension. Keep its selected source declaration so its private
-        // `__kk_*` bridge is emitted instead of the generic Array<T> shortcut.
-        let isSourceBackedSignedPrimitiveArrayToListCall: Bool = {
+        // KSP-1513: array `toList` is a bundled Kotlin extension. Keep its
+        // selected source declaration so its typed private `__kk_*` bridge is
+        // emitted instead of the generic array shortcut.
+        let isSourceBackedArrayToListCall: Bool = {
             guard interner.resolve(calleeName) == "toList",
                   let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -215,11 +215,12 @@ extension CallLowerer {
             ) else {
                 return false
             }
-            let signedPrimitiveArrayNames: Set<String> = [
+            let sourceBackedArrayNames: Set<String> = [
                 "IntArray", "LongArray", "ShortArray", "ByteArray",
                 "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
             ]
-            return signedPrimitiveArrayNames.contains(interner.resolve(receiverSymbol.name))
+            return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
@@ -1911,7 +1912,7 @@ extension CallLowerer {
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let runtimeCallee: String? = switch interner.resolve(calleeName) {
                 case "toList":
-                    isSourceBackedSignedPrimitiveArrayToListCall ? nil : "kk_array_toList"
+                    isSourceBackedArrayToListCall ? nil : "__kk_array_toList"
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":

@@ -213,15 +213,6 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapSymbols.mapSymbol
         )
 
-        registerListConversionMembers(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            listInterfaceSymbol: listInterfaceSymbol,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex
-        )
-
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions
         if let mutableListSym = symbols.lookup(
             fqName: kotlinCollectionsPkg + [interner.intern("MutableList")]

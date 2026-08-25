@@ -376,7 +376,7 @@ final class CallSupportLowerer {
             if hasAnySpread {
                 countExpr = arena.appendTemporary(type: intType)
                 emitNonThrowingCall(
-                    callee: interner.intern("kk_array_size"),
+                    callee: interner.intern("__kk_array_size"),
                     arg: packedArray,
                     result: countExpr,
                     into: &instructions
@@ -734,7 +734,7 @@ final class CallSupportLowerer {
     ) -> KIRExprID {
         let listID = arena.appendTemporary(type: anyType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_array_toList"),
+            callee: interner.intern("__kk_array_toList"),
             arg: arrayID,
             result: listID,
             into: &instructions

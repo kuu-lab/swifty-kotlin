@@ -159,7 +159,7 @@ final class ControlFlowLowerer {
         // silently misinterpret the array object as a range and never enter
         // the loop body (hasNext reads unrelated memory as the range bound).
         // Lower directly to an index-based loop instead, matching how arrays
-        // are already indexed everywhere else (kk_array_size / kk_array_get_inbounds).
+        // are already indexed everywhere else (__kk_array_size / kk_array_get_inbounds).
         if ReceiverClassifier(sema: sema, interner: interner)
             .isArrayLikeType(sema.types.makeNonNullable(iterableType))
         {
@@ -459,7 +459,7 @@ final class ControlFlowLowerer {
     }
 
     /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
-    /// (`i = 0; while (i < kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
+    /// (`i = 0; while (i < __kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
     /// rather than the range-iterator intrinsics used by lowerForExpr's
     /// general path, since arrays have no real `iterator()` member for Sema
     /// to bind (see the DEBT-KIR-005 comment at the lowerForExpr call site).
@@ -494,7 +494,7 @@ final class ControlFlowLowerer {
 
         let sizeID = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_array_size"),
+            callee: interner.intern("__kk_array_size"),
             arg: arrayID,
             result: sizeID,
             into: &instructions

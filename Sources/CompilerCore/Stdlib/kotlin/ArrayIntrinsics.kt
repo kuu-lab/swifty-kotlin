@@ -51,3 +51,21 @@ internal external fun __kkDoubleArraySize(array: DoubleArray): Int
 
 @KsSymbolName("__kk_floatArray_size")
 internal external fun __kkFloatArraySize(array: FloatArray): Int
+
+// KSP-1513: generic and unsigned array `size` bridges. The public members are
+// declared in bundled Kotlin source; these declarations retain only the
+// runtime storage access.
+@KsSymbolName("__kk_array_size")
+internal external fun __kkArraySize(array: Array<*>): Int
+
+@KsSymbolName("__kk_uByteArray_size")
+internal external fun __kkUByteArraySize(array: UByteArray): Int
+
+@KsSymbolName("__kk_uShortArray_size")
+internal external fun __kkUShortArraySize(array: UShortArray): Int
+
+@KsSymbolName("__kk_uIntArray_size")
+internal external fun __kkUIntArraySize(array: UIntArray): Int
+
+@KsSymbolName("__kk_uLongArray_size")
+internal external fun __kkULongArraySize(array: ULongArray): Int
