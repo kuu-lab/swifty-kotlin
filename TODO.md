@@ -7488,9 +7488,9 @@
     - `kotlin.reflect.KClass.equals` — fun KClass.equals(Any): Boolean  -- `abstract fun equals(kotlin/Any?): kotlin/Boolean`
     - `kotlin.reflect.KClass.hashCode` — fun KClass.hashCode(): Int  -- `abstract fun hashCode(): kotlin/Int`
 
-- [ ] KSP-1329: kotlin.reflect.KProperty0.KProperty0 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1329: kotlin.reflect.KProperty0.KProperty0 の stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KProperty0` / receiver `KProperty0`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KProperty0/KProperty0.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KProperties.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KProperty0_KProperty0_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KProperty0_KProperty0_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KProperty0_KProperty0_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -7498,6 +7498,9 @@
   - 未実装シンボル一覧:
     - `kotlin.reflect.KProperty0.get` — fun KProperty0.get(): #A  -- `abstract fun get(): #A`
     - `kotlin.reflect.KProperty0.invoke` — fun KProperty0.invoke(): #A  -- `abstract fun invoke(): #A`
+  - 完了(2026-08-25): `Sources/CompilerCore/Stdlib/kotlin/reflect/KProperties.kt` の source-backed `KProperty0.get(): V` と `override operator fun invoke(): V` が現行 master に存在する。導入は KSP-682 / merged PR #5041 / commit `26a317c070cc454461ce903808a9c388f4a98532`。
+  - 根拠: Kotlin 2.3.10 公式 `KProperty.kt` の `KProperty0<out V> : KProperty<V>, () -> V` / `get(): V` 契約、現行 `ReflectKProperty0SyntheticTests.swift` の非synthetic nominal identity・`Function0` supertype・receiver/戻り値・`get()`/`invoke()`解決、および既存 property-reference backend regression の実行値が一致する。対象2件に新規実装・Runtime/RuntimeABI変更は不要。
+  - 回帰: `Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+VirtualDispatch.swift` の bound/unbound/upcast property reference による `.get()` / `.invoke()` 実行、および Kotlin 2.3.10指定の `kproperty_default_inference.kt` / `kproperty_toplevel_bare_reference.kt` diff が green。
 
 - [ ] KSP-1330: kotlin.reflect.KProperty1.KProperty1 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KProperty1` / receiver `KProperty1`
