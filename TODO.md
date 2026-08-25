@@ -1041,7 +1041,7 @@
   - 未実装シンボル一覧:
     - `kotlin.setValue` — fun KMutableProperty0.setValue(Any, KProperty, ): Unit  -- `final inline fun <#A: kotlin/Any?> (kotlin.reflect/KMutableProperty0<#A>).kotlin/setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, #A)`
 
-- [ ] KSP-800: kotlin.KMutableProperty1 の未実装 stdlib API を実装する（1 件）
+- [x] KSP-800: kotlin.KMutableProperty1 の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `KMutableProperty1`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KMutableProperty1.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1050,6 +1050,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.setValue` — fun KMutableProperty1.setValue(, KProperty, ): Unit  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.reflect/KMutableProperty1<#A, #B>).kotlin/setValue(#A, kotlin.reflect/KProperty<*>, #B)`
+  - 完了根拠 (2026-08-25): Kotlin 2.3.10 公式 source の `public inline operator fun <T, V> KMutableProperty1<T, V>.setValue(thisRef: T, property: KProperty<*>, value: V): Unit` を `Sources/CompilerCore/Stdlib/kotlin/KMutableProperty1.kt` に移行し、既存 `KMutableProperty1.set(thisRef, value)` へ委譲。現行監査では対象の Runtime/ABI bridge、synthetic stub、compiler name-string 特例は存在しない。
+  - 検証根拠: Sema golden で `call=kotlin.setValue`、generic type arguments、`Unit` を固定し、Kotlin 2.3.10 との diff case は `7` / `9` の出力一致。
 
 - [ ] KSP-801: kotlin.KProperty0 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / receiver `KProperty0`
