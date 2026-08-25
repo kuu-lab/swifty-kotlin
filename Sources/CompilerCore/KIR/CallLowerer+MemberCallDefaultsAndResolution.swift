@@ -245,7 +245,9 @@ extension CallLowerer {
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
         guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
-            || isImportedInterfaceMember(chosenCallee, sema: sema) else { return nil }
+            || isImportedInterfaceMember(chosenCallee, sema: sema)
+            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+        else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]
