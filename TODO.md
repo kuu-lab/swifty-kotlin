@@ -7675,7 +7675,7 @@
     - `kotlin.sequences.filterNotTo` — fun Sequence.filterNotTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/filterNotTo(#B, kotlin/Function1<#A, kotlin/Boolean>): #B`
     - `kotlin.sequences.filterTo` — fun Sequence.filterTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/filterTo(#B, kotlin/Function1<#A, kotlin/Boolean>): #B`
 
-- [ ] KSP-1343: kotlin.sequences.Sequence.find-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1343: kotlin.sequences.Sequence.find-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `find`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7685,6 +7685,7 @@
   - 未実装シンボル一覧:
     - `kotlin.sequences.find` — fun Sequence.find(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/find(kotlin/Function1<#A, kotlin/Boolean>): #A?`
     - `kotlin.sequences.findLast` — fun Sequence.findLast(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/findLast(kotlin/Function1<#A, kotlin/Boolean>): #A?`
+  - 完了根拠: Kotlin 2.3.10 の `kotlin.sequences.Sequence<T>.find/findLast` を `public inline` の source-backed 実装へ移し、`find` の先頭一致短絡、`findLast` の前方全走査、nullable 要素、lazy/infinite sequence、例外伝播を回帰固定した。旧 `kk_sequence_find` / `kk_sequence_findLast` の Runtime/ABI/lowering 特例も削除した。
 
 - [ ] KSP-1344: kotlin.sequences.Sequence.first-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `first`

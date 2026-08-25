@@ -713,7 +713,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_mapIndexed"),
             interner.intern("kk_sequence_filterIndexed"),
-            interner.intern("kk_sequence_findLast"),
             interner.intern("kk_sequence_elementAt"),
             interner.intern("kk_sequence_min"),
             interner.intern("kk_sequence_ifEmpty"),
