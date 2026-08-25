@@ -6247,7 +6247,7 @@
     - `kotlin.native.concurrent.Continuation1.dispose` — fun Continuation1.dispose(): Unit  -- `final fun dispose()`
     - `kotlin.native.concurrent.Continuation1.invoke` — fun Continuation1.invoke(): Unit  -- `final fun invoke(#A)`
 
-- [ ] KSP-1232: kotlin.native.concurrent.Continuation2 top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1232: kotlin.native.concurrent.Continuation2 top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Continuation2` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation2/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6256,6 +6256,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.Continuation2.<init>` — constructor (Function2, CPointer, Boolean)  -- `constructor <init>(kotlin/Function2<#A, #B, kotlin/Unit>, kotlinx.cinterop/CPointer<kotlinx.cinterop/CFunction<kotlin/Function1<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?, kotlin/Unit>>>, kotlin/Boolean = ...)`
+  - 完了根拠: Kotlin 2.3.10 の公式 `Continuation.kt` と `kotlinc-native` の metadata/IR が、`T1`/`T2`、`Function2<T1, T2, Unit>`、`CPointer<CFunction<Function1<CPointer<out CPointed>?, Unit>>>`、`Boolean = false` の constructor を確認。現行 `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` の登録と `NativeConcurrentSyntheticStubTests.testContinuationConstructorsAreRegistered` の3引数・default検証が一致し、導入は merged PR #1633 / commit `a5c1b3ce3`。focused Sema 40 tests は PASS。
 
 - [ ] KSP-1233: kotlin.native.concurrent.Continuation2.Continuation2 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.Continuation2` / receiver `Continuation2`
