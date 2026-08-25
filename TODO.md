@@ -4037,13 +4037,14 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.IndexedValue.<init>` — constructor (Int, )  -- `constructor <init>(kotlin/Int, #A)`
 
-- [ ] KSP-1059: kotlin.collections.IndexedValue.IndexedValue の未実装 stdlib API を実装する（8 件）
+- [x] KSP-1059: kotlin.collections.IndexedValue.IndexedValue の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.collections.IndexedValue` / receiver `IndexedValue`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IndexedValue/IndexedValue.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_IndexedValue_IndexedValue_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_IndexedValue_IndexedValue_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_IndexedValue_IndexedValue_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-25、`origin/master=5da9a9fe8d8b1684b1e3d354de776fd5f3902240`）: Kotlin 2.3.10 の公式 `data class IndexedValue<out T>(val index: Int, val value: T)`、JVM artifact metadata、kotlinc の `component1` / `component2` / `copy`（default arguments）/ `equals` / `hashCode` / `index` / `toString` / `value` を確認。既存の `Iterators.kt` source declaration は正確だったため、source-backed data-class synthetic member signature に class type parameters を付与し、lowering 後も generic receiver contract を保持する最小 compiler 修正を実施。KSP-626 で旧 synthetic registration は既に除去済みで、対象専用の Runtime/RuntimeABI bridge は不要。対象 Golden shard PASS、source-backed 直接実行 PASS、Kotlin 2.3.10 diff PASS、TODO ID/Runtime ABI link checks PASS。KSP-1058 constructor、IndexedValue consumer APIs、他 TODO は対象外。
   - 未実装シンボル一覧:
     - `kotlin.collections.IndexedValue.component1` — fun IndexedValue.component1(): Int  -- `final fun component1(): kotlin/Int`
     - `kotlin.collections.IndexedValue.component2` — fun IndexedValue.component2(): #A  -- `final fun component2(): #A`
