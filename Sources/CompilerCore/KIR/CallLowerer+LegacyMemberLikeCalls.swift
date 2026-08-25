@@ -196,6 +196,31 @@ extension CallLowerer {
             ]
             return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
         }()
+        // KSP-1512: signed primitive-array `toList` is a bundled Kotlin
+        // extension. Keep its selected source declaration so its private
+        // `__kk_*` bridge is emitted instead of the generic Array<T> shortcut.
+        let isSourceBackedSignedPrimitiveArrayToListCall: Bool = {
+            guard interner.resolve(calleeName) == "toList",
+                  let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            guard let (_, receiverSymbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType), sema: sema
+            ) else {
+                return false
+            }
+            let signedPrimitiveArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+            ]
+            return signedPrimitiveArrayNames.contains(interner.resolve(receiverSymbol.name))
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -998,22 +1023,6 @@ extension CallLowerer {
                     instructions.append(.call(
                         symbol: nil,
                         callee: runtimeCallee,
-                        arguments: [loweredReceiverID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-            }
-            // STDLIB-532/534, STDLIB-SEQ-011: orEmpty() on nullable receivers
-            if sema.bindings.callBindings[exprID] == nil, calleeStr == "orEmpty" {
-                let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-                let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-                if isSequenceLikeType(nonNullReceiverType, sema: sema, interner: interner) {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_sequence_orEmpty"),
                         arguments: [loweredReceiverID],
                         result: result,
                         canThrow: false,
@@ -1902,7 +1911,7 @@ extension CallLowerer {
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let runtimeCallee: String? = switch interner.resolve(calleeName) {
                 case "toList":
-                    "kk_array_toList"
+                    isSourceBackedSignedPrimitiveArrayToListCall ? nil : "kk_array_toList"
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":

@@ -398,20 +398,6 @@ extension RuntimeSequenceTests {
     }
 
     @Test
-    func testSequenceOrEmptyReturnsEmptySequenceForNull() {
-        let seq = kk_sequence_orEmpty(runtimeNullSentinelInt)
-
-        #expect(sequenceElements(seq) == [])
-    }
-
-    @Test
-    func testSequenceOrEmptyReturnsExistingSequenceForNonNull() {
-        let seq = makeSequence([1, 2, 3])
-
-        #expect(kk_sequence_orEmpty(seq) == seq)
-    }
-
-    @Test
     func testSequenceFilterNotLazy() {
         // Test that filterNot is lazy by using a sequence builder
         _lazyTestYieldCounter = 0

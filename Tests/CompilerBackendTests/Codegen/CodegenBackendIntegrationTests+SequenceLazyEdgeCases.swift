@@ -1046,5 +1046,44 @@ struct CodegenBackendSequenceLazyEdgeCasesTests {
                 """ + "\n"
         )
     }
+
+    @Test
+    func testNullableSequenceOrEmptyAndSourceIteratorExecute() throws {
+        let source = """
+        fun main() {
+            val missing: Sequence<Int>? = null
+            val present: Sequence<Int>? = sequenceOf(1, 2)
+            println(missing.orEmpty().toList())
+            println(present.orEmpty().toList())
+
+            val iterator = sequenceOf(3, 4).iterator()
+            println(iterator.next())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "SequenceRegistrationRuntime",
+            expected: "[]\n[1, 2]\n3\n"
+        )
+    }
+
+    @Test
+    func testSequenceOrEmptyUsesBundledSourceCall() throws {
+        let source = """
+        fun normalize(input: Sequence<Int>?): Sequence<Int> = input.orEmpty()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceRegistrationKIR", emit: .kirDump)
+            try runToLowering(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "normalize", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(callees.contains("orEmpty"), "Expected the bundled orEmpty call, got: \(callees)")
+            #expect(!callees.contains("kk_sequence_orEmpty"), "Legacy Sequence.orEmpty bridge must not be emitted: \(callees)")
+        }
+    }
 }
 #endif

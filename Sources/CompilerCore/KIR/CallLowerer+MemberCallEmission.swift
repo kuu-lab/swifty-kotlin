@@ -573,7 +573,9 @@ extension CallLowerer {
                 && sema.symbols.externalLinkName(for: symbol)
                     .map { interner.intern($0) == loweredCallee } == true
         } ?? false
-        if loweredCallee == calleeName || isImportedLibraryLink,
+        if loweredCallee == calleeName
+            || isImportedLibraryLink
+            || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
