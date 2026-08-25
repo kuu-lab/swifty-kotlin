@@ -1274,15 +1274,10 @@
   - 未実装シンボル一覧:
     - `kotlin.Comparable.compareTo` — fun Comparable.compareTo(): Int  -- `abstract fun compareTo(#A): kotlin/Int`
 
-- [ ] KSP-820: kotlin.Comparator.Comparator の未実装 stdlib API を実装する（1 件）
-  - 対象: `kotlin.Comparator` / receiver `Comparator`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Comparator/Comparator.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Comparator_Comparator_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Comparator_Comparator_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Comparator_Comparator_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.Comparator.compare` — fun Comparator.compare(, ): Int  -- `abstract fun compare(#A, #A): kotlin/Int`
+- [x] KSP-820: kotlin.Comparator の stdlib API は source-backed 化済み（1 件。KSP-725 / PR #5860 / commit 71e35601a）
+  - 正規宣言: `Sources/CompilerCore/Stdlib/kotlin/Comparator.kt` の `public fun interface Comparator<in T>` と `public fun compare(a: T, b: T): Int`
+  - 完了根拠: 既存の `stdlib_kotlin_n_Comparator` Sema Golden/diff、`ComparatorSyntheticMemberLinkTests`、Comparator の SAM/callable-reference/dispatch 回帰で宣言と `compare` 呼び出しを確認。
+  - `SyntheticComparatorStubs` と comparator の共有 RuntimeABI bridge は、現行の早期 interface layout／共有 dispatch に必要なため保持。
 
 - [x] KSP-821: kotlin.ConcurrentModificationException top-level の未実装 stdlib API を実装する（4 件。KSP-656 で実装済みだったため重複実装はせず、既存の source/bridge/回帰証跡を再確認）
   - 対象: `kotlin.ConcurrentModificationException` / top-level
