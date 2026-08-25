@@ -5530,7 +5530,7 @@
     - `kotlin.math.asinh` — fun asinh(Double): Double  -- `final fun kotlin.math/asinh(kotlin/Double): kotlin/Double`
     - `kotlin.math.asinh` — fun asinh(Float): Float  -- `final fun kotlin.math/asinh(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1176: kotlin.math.atan-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1176: kotlin.math.atan-family の未実装 stdlib API を実装する（4 件。KSP-637 で実装済みだったため重複実装はせず、既存の source/bridge/回帰証跡を再確認）
   - 対象: `kotlin.math` / top-level / family `atan`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/atan.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5542,6 +5542,8 @@
     - `kotlin.math.atan` — fun atan(Float): Float  -- `final fun kotlin.math/atan(kotlin/Float): kotlin/Float`
     - `kotlin.math.atan2` — fun atan2(Double, Double): Double  -- `final fun kotlin.math/atan2(kotlin/Double, kotlin/Double): kotlin/Double`
     - `kotlin.math.atan2` — fun atan2(Float, Float): Float  -- `final fun kotlin.math/atan2(kotlin/Float, kotlin/Float): kotlin/Float`
+  - 完了根拠（merged PR #5831 / merge commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9`）：`Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` が4 overloadを public Kotlin source wrapperとして定義し、`__kk_math_atan*` / `__kk_math_atan2*` の内部 bridgeへ `(y, x)` 順で委譲する。対象 bridge は `Sources/Runtime/RuntimeNumericCompat.swift` と `Sources/RuntimeABI/RuntimeABISpec+Math.swift` に整合して存在し、旧 synthetic math 登録や public external link の重複はない。
+  - 既存回帰：`MathAPITargetInventoryTests`・`MathOverloadResolutionTests`・`MathSyntheticTopLevelLinkTests` が4 overloadの型／source-backed解決を、`RuntimeMathTests`・`RuntimeMathEdgeCaseTests` が atan の ±Inf と atan2 の象限・signed zero・NaN・±Inf を、codegen math tests と `math_advanced.kt` / `math_signed_zero_neg_inf.kt` 等の kotlinc diff が呼び出し順と実行結果を検証する。Kotlin 2.3.10 stdlib API metadata の4 exact signaturesとも一致する。
 
 - [ ] KSP-1177: kotlin.math.atanh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `atanh`
