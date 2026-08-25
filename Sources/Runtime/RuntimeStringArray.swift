@@ -46,6 +46,20 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
     }
 }
 
+func runtimeThrowableToString(_ receiver: Int) -> String? {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(receiver, slot: 0) else {
+        return nil
+    }
+    let method = unsafeBitCast(
+        methodRaw,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    guard let rendered = UnsafeMutableRawPointer(bitPattern: method(receiver, nil)) else {
+        return nil
+    }
+    return extractString(from: rendered)
+}
+
 private func runtimeThrowableStackTraceText(from throwableRaw: Int) -> String {
     if throwableRaw == runtimeNullSentinelInt || throwableRaw == 0 {
         return ""
@@ -1956,8 +1970,8 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         }
         return "?"
     }
-    if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
-        return "Throwable(\(throwable.renderedMessage))"
+    if let throwableString = runtimeThrowableToString(value) {
+        return throwableString
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
