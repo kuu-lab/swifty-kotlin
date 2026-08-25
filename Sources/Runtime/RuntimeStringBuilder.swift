@@ -257,15 +257,20 @@ public func __kk_string_builder_insert_char_sequence(
 
     let sourceLength = stringBuilderUTF16Units(sourceBuilder.value).count
     if sourceBuilder === sb {
-        // Java's CharSequence overload observes a self-referential builder while
-        // it inserts. Keep the original source length but read each code unit
-        // from the mutating receiver, matching StringBuilder's aaab behavior for
-        // StringBuilder("ab").insert(1, itself).
-        for offset in 0 ..< sourceLength {
-            let observed = stringBuilderUTF16Units(sb.value)
-            current.insert(observed[offset], at: index + offset)
-            sb.value = stringBuilderString(from: current)
+        // Java shifts the destination tail before reading a self-referential
+        // CharSequence. Keep that overlap behavior by reading the working buffer
+        // after the shift while filling the inserted window.
+        let originalLength = current.count
+        current.append(contentsOf: repeatElement(0, count: sourceLength))
+        if index < originalLength {
+            for sourceIndex in stride(from: originalLength - 1, through: index, by: -1) {
+                current[sourceIndex + sourceLength] = current[sourceIndex]
+            }
         }
+        for offset in 0 ..< sourceLength {
+            current[index + offset] = current[offset]
+        }
+        sb.value = stringBuilderString(from: current)
     } else {
         let inserted = stringBuilderUTF16Units(sourceBuilder.value)
         current.insert(contentsOf: inserted, at: index)
