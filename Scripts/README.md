@@ -160,6 +160,10 @@ kotlinc invocations run with `-XX:TieredStopAtLevel=1` (C1-only JIT,
 caller-provided `JAVA_OPTS` flags still win on conflict. Override or
 disable with `DIFF_KOTLINC_JAVA_OPTS` (empty disables). The plain `java`
 runs of reference jars are unaffected (`java` does not read `JAVA_OPTS`).
+Reference `java` runs disable HotSpot perf-data collection by default with
+`-XX:-UsePerfData`, preventing parallel CI workers from turning a locked
+`hsperfdata` diagnostic into a false stdout mismatch. Override with
+`DIFF_REFERENCE_JAVA_FLAGS` (set it empty to disable the default).
 
 Emit a machine-readable report (TSV) for CI tooling:
 

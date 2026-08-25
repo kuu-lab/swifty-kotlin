@@ -71,6 +71,7 @@ extension KotlinParser {
         var range = RangeAccumulator()
         var parenDepth = 0
         var bracketDepth = 0
+        var braceDepth = 0
 
         while !stream.atEOF() {
             let token = stream.peek()
@@ -83,7 +84,12 @@ extension KotlinParser {
             {
                 break
             }
-            if shouldStopStatementBefore(token, inBlock: inBlock) {
+            let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
+                !inBlock && braceDepth > 0
+            } else {
+                false
+            }
+            if shouldStopStatementBefore(token, inBlock: inBlock), !closesTopLevelExpressionBrace {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
@@ -101,6 +107,10 @@ extension KotlinParser {
                 bracketDepth += 1
             case .symbol(.rBracket):
                 bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
             default:
                 break
             }
