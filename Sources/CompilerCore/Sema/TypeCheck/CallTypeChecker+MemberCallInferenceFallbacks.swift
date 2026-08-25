@@ -531,8 +531,8 @@ extension CallTypeChecker {
 
     /// Returns true if `receiverType` conforms to AutoCloseable,
     /// so that `.use {}` is only treated as a scope function on closeable receivers.
-    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see
-    /// HeaderHelpers+SyntheticCloseableStubs.swift and Stdlib/kotlin/AutoCloseable.kt),
+    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see the
+    /// source-backed closeable cache and Stdlib/kotlin/AutoCloseable.kt),
     /// so checking AutoCloseable covers both Closeable and AutoCloseable receivers.
     ///
     /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
