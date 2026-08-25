@@ -1051,7 +1051,7 @@
   - 未実装シンボル一覧:
     - `kotlin.setValue` — fun KMutableProperty1.setValue(, KProperty, ): Unit  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.reflect/KMutableProperty1<#A, #B>).kotlin/setValue(#A, kotlin.reflect/KProperty<*>, #B)`
 
-- [ ] KSP-801: kotlin.KProperty0 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-801: kotlin.KProperty0 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / receiver `KProperty0`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/KProperty0.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1061,6 +1061,7 @@
   - 未実装シンボル一覧:
     - `kotlin.getValue` — fun KProperty0.getValue(Any, KProperty): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.reflect/KProperty0<#A>).kotlin/getValue(kotlin/Any?, kotlin.reflect/KProperty<*>): #A`
     - `kotlin.isInitialized` — val KProperty0.isInitialized  -- `final val kotlin/isInitialized`
+  - 完了根拠 (2026-08-25): `KProperty0.kt` に Kotlin 2.3.10 準拠の `inline operator getValue` と `inline isInitialized` intrinsic body を追加。`isInitialized` の property-literal 制約は既存の lateinit Sema/KIR intrinsic に接続し、値として保持した `KProperty0` を誤って実行時へ流さない回帰を追加。Sema golden shard、公式 Kotlin 2.3.10 との diff、`LateinitKIRTests` 3件が pass。
 
 - [ ] KSP-802: kotlin.KProperty1 の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `KProperty1`
