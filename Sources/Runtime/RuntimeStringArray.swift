@@ -1608,12 +1608,23 @@ public func __kk_ktypeprojection_create_checked(
 
     let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
     let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
+    // Nullable enum arguments cross the runtime ABI as boxed Int handles.
+    // Preserve the null sentinel before unboxing; kk_unbox_int maps null to 0.
+    let kotlinVarianceOrdinal = varianceIsNull ? -1 : kk_unbox_int(varianceOrdinal)
+    // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
+    // existing typeOf bridge's internal order IN, OUT, INVARIANT.
+    let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
+    case 0: 2 // INVARIANT
+    case 1: 0 // IN
+    case 2: 1 // OUT
+    default: kotlinVarianceOrdinal
+    }
     guard varianceIsNull == typeIsNull else {
         let message: String
         if varianceIsNull {
             message = "Star projection must have no type specified."
         } else {
-            let varianceName: String = switch RuntimeKVariance(rawValue: varianceOrdinal) {
+            let varianceName: String = switch RuntimeKVariance(rawValue: decodedVarianceOrdinal) {
             case .in: "IN"
             case .out: "OUT"
             case .invariant: "INVARIANT"
@@ -1625,7 +1636,7 @@ public func __kk_ktypeprojection_create_checked(
         return 0
     }
 
-    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, varianceIsNull ? -1 : varianceOrdinal)
+    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, decodedVarianceOrdinal)
 }
 
 /// Implements `typeOf<T>()` — creates a KType for the given type token.
