@@ -5340,7 +5340,7 @@
   - 未実装シンボル一覧:
     - `kotlin.experimental.ExpectRefinement.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1159: kotlin.experimental.ExperimentalNativeApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1159: kotlin.experimental.ExperimentalNativeApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalNativeApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/experimental/ExperimentalNativeApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5349,6 +5349,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.experimental.ExperimentalNativeApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-25 再監査）: 現行の所有source `Sources/CompilerCore/Stdlib/kotlin/experimental/NativeExperimentalAnnotations.kt` は Kotlin 2.3.10 の `public annotation class`、implicit no-arg constructor、`@RequiresOptIn(ERROR)`、BINARY retention、指定11 targets を満たす。source導入は merged commit `334a393e3`（KSP-667/#5034）。既存 `ExperimentalAnnotationSourceMigrationTests` の import/FQN/annotation usage/opt-in/metadata 回帰は serial PASS、Kotlin 2.3.10 の公式source・stdlib artifact metadata・kotlinc の直接 `ExperimentalNativeApi()` call と現行kswiftcの最小constructor call（Sema/KIR/LLVM生成・リンク・実行）も成功したため、追加source/compiler/runtime/ABI変更は不要。
 
 - [ ] KSP-1160: kotlin.experimental.ExperimentalObjCName top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalObjCName` / top-level
