@@ -6,7 +6,7 @@ package kotlin.text
 // Public APIs are now fully implemented in Kotlin. The legacy `__kk_string_*`
 // runtime bridges have been removed as part of the KSP-302 cleanup.
 
-private fun String.normalizeLineSeparators(): String {
+internal fun String.normalizeLineSeparators(): String {
     val sb = StringBuilder()
     var i = 0
     while (i < this.length) {
@@ -24,7 +24,7 @@ private fun String.normalizeLineSeparators(): String {
     return sb.toString()
 }
 
-private fun String.splitIntoLines(): List<String> {
+internal fun String.splitIntoLines(): List<String> {
     val src = normalizeLineSeparators()
     val result = mutableListOf<String>()
     var start = 0
