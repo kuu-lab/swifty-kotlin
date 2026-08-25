@@ -23,7 +23,7 @@ private fun compareNullable(a: Comparable<*>?, b: Comparable<*>?): Int {
 internal fun <T> compareValuesUnchecked(a: T?, b: T?): Int {
     if (a == null) return if (b == null) 0 else -1
     if (b == null) return 1
-    return a.compareTo(b)
+    return (a as Comparable<Any>).compareTo(b)
 }
 
 // --- compareValues / compareValuesBy ----------------------------------------
@@ -31,7 +31,7 @@ internal fun <T> compareValuesUnchecked(a: T?, b: T?): Int {
 public fun <T : Comparable<*>> compareValues(a: T?, b: T?): Int {
     if (a == null) return if (b == null) 0 else -1
     if (b == null) return 1
-    return a.compareTo(b)
+    return (a as Comparable<Any>).compareTo(b)
 }
 
 public fun <T> compareValuesBy(a: T, b: T, selector: (T) -> Comparable<*>?): Int =

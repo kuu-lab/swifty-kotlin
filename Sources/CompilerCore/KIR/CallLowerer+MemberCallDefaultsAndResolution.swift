@@ -226,6 +226,13 @@ extension CallLowerer {
               let parentID = sema.symbols.parentSymbol(for: callee),
               let parentSymbol = sema.symbols.symbol(parentID)
         else { return false }
+        // Comparable.compareTo is a source-backed declaration whose explicit
+        // runtime bridge performs the erased dispatch. It must not be treated
+        // as an imported abstract interface body, or boxed primitives would
+        // incorrectly enter the Comparable itable path.
+        if parentID == sema.types.comparableInterfaceSymbol {
+            return false
+        }
         return parentSymbol.kind == .interface
     }
 

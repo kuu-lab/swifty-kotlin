@@ -1,6 +1,6 @@
 
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
-/// Comparable<in T> sub-helpers (compareTo operator, primitive compatibility, null-safe extensions).
+/// Comparable<in T> sub-helpers (primitive compatibility and null-safe extensions).
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
@@ -75,42 +75,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-    }
-
-    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface.
-    func registerComparableCompareToOperator(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        comparableFQName: [InternedString],
-        comparableSymbol: SymbolID,
-        tParamSymbol: SymbolID,
-        tParamType: TypeID
-    ) {
-        let compareToName = interner.intern("compareTo")
-        let compareToFQName = comparableFQName + [compareToName]
-        guard symbols.lookup(fqName: compareToFQName) == nil else { return }
-        let receiverType = tParamType
-        let compareToSymbol = symbols.define(
-            kind: .function,
-            name: compareToName,
-            fqName: compareToFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(comparableSymbol, for: compareToSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [tParamType],
-                returnType: types.intType,
-                typeParameterSymbols: [tParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: compareToSymbol
-        )
-
     }
 
     /// Register null-safe comparison extensions for Comparable types.

@@ -373,32 +373,60 @@ extension TypeCheckHelpers {
 
     /// Collects all nominal symbols from a type, including all parts of an intersection.
     /// For type parameters, follows upper bounds to discover interface symbols.
-    func allNominalSymbols(of type: TypeID, types: TypeSystem, symbols: SymbolTable) -> [SymbolID] {
+    func allNominalSymbols(
+        of type: TypeID,
+        types: TypeSystem,
+        symbols: SymbolTable,
+        interner: StringInterner? = nil
+    ) -> [SymbolID] {
         var visited = Set<SymbolID>()
-        return allNominalSymbolsImpl(of: type, types: types, symbols: symbols, visited: &visited)
+        return allNominalSymbolsImpl(
+            of: type, types: types, symbols: symbols, interner: interner, visited: &visited
+        )
     }
 
     private func allNominalSymbolsImpl(
         of type: TypeID,
         types: TypeSystem,
         symbols: SymbolTable,
+        interner: StringInterner?,
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
         case let .classType(classType):
             return [classType.classSymbol]
+        case let .primitive(primitive, _):
+            // Primitive values use dedicated TypeIDs, but their synthetic class
+            // symbols carry the compiler-owned Comparable conformance and source
+            // member surface needed for ordinary member lookup.
+            guard let interner,
+                  let primitiveSymbol = symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern(primitive.kotlinName)
+            ]) else {
+                return []
+            }
+            return [primitiveSymbol]
         case .kClassType:
             if let kClassSymbol = types.kClassInterfaceSymbol {
                 return [kClassSymbol]
             }
             return []
         case let .intersection(parts):
-            return parts.flatMap { allNominalSymbolsImpl(of: $0, types: types, symbols: symbols, visited: &visited) }
+            return parts.flatMap {
+                allNominalSymbolsImpl(
+                    of: $0, types: types, symbols: symbols, interner: interner, visited: &visited
+                )
+            }
         case let .typeParam(typeParam):
             // Guard against cycles (e.g. T : U, U : T).
             guard visited.insert(typeParam.symbol).inserted else { return [] }
             let bounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
-            return bounds.flatMap { allNominalSymbolsImpl(of: $0, types: types, symbols: symbols, visited: &visited) }
+            return bounds.flatMap {
+                allNominalSymbolsImpl(
+                    of: $0, types: types, symbols: symbols, interner: interner, visited: &visited
+                )
+            }
         default:
             return []
         }
@@ -411,7 +439,12 @@ extension TypeCheckHelpers {
         allowedOwnerSymbols: Set<SymbolID>? = nil,
         interner: StringInterner
     ) -> [SymbolID] {
-        let nominalRoots = allNominalSymbols(of: receiverType, types: sema.types, symbols: sema.symbols)
+        let nominalRoots = allNominalSymbols(
+            of: receiverType,
+            types: sema.types,
+            symbols: sema.symbols,
+            interner: interner
+        )
 
         var ownerQueue: [(owner: SymbolID, depth: Int)] = nominalRoots.map { ($0, 0) }
         var visitedOwners: Set<SymbolID> = []
