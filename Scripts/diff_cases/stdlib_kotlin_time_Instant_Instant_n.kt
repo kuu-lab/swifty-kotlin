@@ -1,3 +1,4 @@
+// JAVA_FLAGS: -ea
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -24,4 +25,10 @@ fun main() {
     println(asAny.toString())
     println(negative.toString())
     println((negative as Any).toString())
+
+    try {
+        assert(false) { instant }
+    } catch (error: AssertionError) {
+        println(error.message)
+    }
 }

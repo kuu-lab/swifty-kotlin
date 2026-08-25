@@ -1853,6 +1853,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
     }
+    if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
+    }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"
     }
