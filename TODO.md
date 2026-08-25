@@ -3589,7 +3589,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractIterator.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1028: kotlin.collections.AbstractIterator.AbstractIterator の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1028: kotlin.collections.AbstractIterator.AbstractIterator の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections.AbstractIterator` / receiver `AbstractIterator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractIterator/AbstractIterator.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3601,6 +3601,7 @@
     - `kotlin.collections.AbstractIterator.done` — fun AbstractIterator.done(): Unit  -- `final fun done()`
     - `kotlin.collections.AbstractIterator.next` — fun AbstractIterator.next(): #A  -- `open fun next(): #A`
     - `kotlin.collections.AbstractIterator.setNext` — fun AbstractIterator.setNext(): Unit  -- `final fun setNext(#A)`
+  - 完了根拠: KSP-664（merged PR #5044、commit `0cb86890054c2b175cded80d1064a0e31647102b`）で追加された `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractIterator.kt` が、対象4件を Kotlin source-backed member として実装済み。Kotlin 2.3.10 の公式 source/artifact metadata と契約が一致し、現行 `ListSyntheticMemberLinkTests` の source-backed nominal/member resolution と `CodegenBackendIntegrationTests+SuperclassInitializers.swift` の subclass state-machine 回帰が通る。対象専用の synthetic registration、KIR/lowering name-string 特例、Runtime/RuntimeABI bridge は存在しない。
 
 - [ ] KSP-1029: kotlin.collections.AbstractList top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.AbstractList` / top-level
