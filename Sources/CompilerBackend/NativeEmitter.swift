@@ -359,10 +359,12 @@ struct NativeEmitter {
             return true
         case .object:
             // Top-level object singletons have a global instance.
-            // Companion objects (parent is a class/interface/enum) do not.
+            // Companion objects only need one when their virtual methods
+            // require a runtime receiver and vtable.
             if let parentID = symbols?.parentSymbol(for: symbol),
                let parent = symbols?.symbol(parentID),
-               parent.kind != .package {
+               parent.kind != .package,
+               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
                 return false
             }
             // Synthetic singleton stubs (e.g. kotlin.system.System) have no
@@ -391,6 +393,12 @@ struct NativeEmitter {
     private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
         guard let sym = symbols?.symbol(symbol), sym.kind == .object else {
             return false
+        }
+        if let parentID = symbols?.parentSymbol(for: symbol),
+           let parent = symbols?.symbol(parentID),
+           parent.kind != .package
+        {
+            return symbols?.companionObjectInitializerSymbol(for: parentID) == nil
         }
         return symbols?.objectInitializerSymbol(for: symbol) == nil
     }

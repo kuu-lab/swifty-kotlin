@@ -69,6 +69,34 @@ struct StdlibArtifactRegressionTests {
     }
     """
 
+    /// KSP-1165: a named companion object must remain an exact nested type when
+    /// the stdlib is consumed through a precompiled artifact.
+    @Test
+    func testBase64NamedCompanionTypeThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.ExperimentalEncodingApi
+
+        @OptIn(ExperimentalEncodingApi::class)
+        fun main() {
+            val default: Base64.Default = Base64.Default
+            val padding: Base64.PaddingOption = Base64.PaddingOption.ABSENT
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "Base64NestedArtifact",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
     /// BUG-200: bundled source and precompiled stdlib metadata must agree on
     /// abstract member modality and on the owner's type argument in overrides.
     @Test

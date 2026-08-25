@@ -257,9 +257,7 @@ public struct ObjectDecl: Codable {
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
     /// Arguments of the superclass constructor invocation in the object
-    /// header (`object : Base(n) { ... }`), populated only for object
-    /// literal expressions (KSP-CAP-018). Empty for interfaces, for `Base()`,
-    /// and for named `object` declarations (not yet threaded through).
+    /// header (`object : Base(n) { ... }`).
     public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]

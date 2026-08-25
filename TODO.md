@@ -5403,7 +5403,7 @@
   - 未実装シンボル一覧:
     - `kotlin.io.encoding.ExperimentalEncodingApi` — class kotlin.io.encoding.ExperimentalEncodingApi  -- `open annotation class kotlin.io.encoding/ExperimentalEncodingApi : kotlin/Annotation {`
 
-- [ ] KSP-1165: kotlin.io.encoding.Base64 top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1165: kotlin.io.encoding.Base64 top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.io.encoding.Base64` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5413,6 +5413,7 @@
   - 未実装シンボル一覧:
     - `kotlin.io.encoding.Base64.Default` — object kotlin.io.encoding.Base64.Default  -- `final object Default : kotlin.io.encoding/Base64 {`
     - `kotlin.io.encoding.Base64.PaddingOption` — enumClass kotlin.io.encoding.Base64.PaddingOption  -- `final enum class PaddingOption : kotlin/Enum<kotlin.io.encoding/Base64.PaddingOption> {`
+  - 完了根拠: KSP-482 で既に source-backed 化されていた `PaddingOption` の public nested enum と、既存 `Base64.Default` property を Kotlin 2.3.10 の named companion object `Default : Base64` に修正した。`Base64NestedDeclarationTests`、Sema Golden、Kotlin 2.3.10 kotlinc 差分 fixtureで nominal identity、companion access、enum entries 順を固定した。
 
 - [ ] KSP-1166: kotlin.io.encoding.Base64.Base64 の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.io.encoding.Base64` / receiver `Base64`

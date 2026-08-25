@@ -607,6 +607,28 @@ struct TypeCheckHelpers {
                 } else {
                     []
                 }
+                // A type imported by its outer declaration can be referenced by
+                // a qualified nested name (for example, `Base64.Default`). The
+                // full path is not globally qualified in that form, so walk the
+                // imported outer symbol before falling back to short-name lookup.
+                let qualifiedScopeCandidates: [SymbolID] = {
+                    guard path.count > 1, let scope else { return [] }
+                    var current = scope.lookup(path[0])
+                        .filter(isTypeLikeSymbol)
+                        .sorted(by: { $0.rawValue < $1.rawValue })
+                    for component in path.dropFirst() {
+                        current = current.flatMap { ownerID -> [SymbolID] in
+                            guard let owner = sema.symbols.symbol(ownerID) else { return [] }
+                            return sema.symbols.lookupAll(fqName: owner.fqName + [component])
+                                .filter(isTypeLikeSymbol)
+                        }
+                        .sorted(by: { $0.rawValue < $1.rawValue })
+                        if current.isEmpty {
+                            break
+                        }
+                    }
+                    return current
+                }()
                 let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
                     .sorted(by: { $0.rawValue < $1.rawValue })
                 // Fall back to short-name lookup so that packaged types
@@ -614,6 +636,8 @@ struct TypeCheckHelpers {
                 // by simple name (`Foo`) during type checking.
                 let candidates: [SymbolID] = if !scopeCandidates.isEmpty {
                     scopeCandidates
+                } else if !qualifiedScopeCandidates.isEmpty {
+                    qualifiedScopeCandidates
                 } else if !fqCandidates.isEmpty {
                     fqCandidates
                 } else {
