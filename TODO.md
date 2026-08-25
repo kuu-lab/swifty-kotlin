@@ -5659,13 +5659,15 @@
     - `kotlin.math.sin` — fun sin(Double): Double  -- `final fun kotlin.math/sin(kotlin/Double): kotlin/Double`
     - `kotlin.math.sin` — fun sin(Float): Float  -- `final fun kotlin.math/sin(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1187: kotlin.math.sinh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1187: kotlin.math.sinh-family の未実装 stdlib API を実装する（2 件）（KSP-637 / PR #5831 / merge commit `dfc478e0f` で実装済みのためTODO同期のみ）
   - 対象: `kotlin.math` / top-level / family `sinh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/sinh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_math_n_sinh.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_math_n_sinh.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_math_n_sinh.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-25、公開前の最新 `origin/master` `413cf7799`）: Kotlin 2.3.10 公式 common source / artifact metadata / exact `kotlinc` で、`kotlin.math` の public top-level `sinh(Double): Double` と `sinh(Float): Float`、`SinceKotlin("1.2")`、Common/JVM/Native を含む platform availability、NaN・±Infinity・±0・奇関数性・Double/Float精度を確認。現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` の source-backed 宣言（Double/Float）と `__kk_math_sinh` / `__kk_math_sinh_float` bridge、`Sources/Runtime/RuntimeNumericCompat.swift`、`Sources/RuntimeABI/RuntimeABISpec+Math.swift`、既存 Sema/KIR/lowering/backend/runtime/diff 回帰が契約を満たすことを確認した。本PRはこの節を含む `TODO.md` のみを変更し、sin/cosh/tanhその他の math API と KSP-1186/1188以降は変更しない。
+  - focused 検証: `swift build --jobs 2 -Xswiftc -swift-version -Xswiftc 6` PASS、`MathAPITargetInventoryTests` / `MathOverloadResolutionTests` / `MathSyntheticTopLevelLinkTests`（61 tests）・`CodegenBackendMathOverloadEdgeCasesTests`（6 tests）・`BundledStdlibExecutionTests`（37 tests）・`RuntimeMathEdgeCaseTests`（230 tests）PASS、`Scripts/diff_cases/math_transcendental_source.kt` の `diff_kotlinc` 1/1 PASS、同ケースの `kswiftc` 実行 PASS。
   - 未実装シンボル一覧:
     - `kotlin.math.sinh` — fun sinh(Double): Double  -- `final fun kotlin.math/sinh(kotlin/Double): kotlin/Double`
     - `kotlin.math.sinh` — fun sinh(Float): Float  -- `final fun kotlin.math/sinh(kotlin/Float): kotlin/Float`
