@@ -5362,7 +5362,7 @@
   - 未実装シンボル一覧:
     - `kotlin.experimental.ExperimentalObjCName.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1161: kotlin.experimental.ExperimentalObjCRefinement top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1161: kotlin.experimental.ExperimentalObjCRefinement top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalObjCRefinement` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/experimental/ExperimentalObjCRefinement/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5371,6 +5371,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.experimental.ExperimentalObjCRefinement.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-25 再監査）: merged KSP-667（PR #5034、commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）の bundled Kotlin declaration と既存の implicit no-arg constructor/Sema 経路を確認した。Kotlin 2.3.10 の公式 source・stdlib artifact metadata・exact kotlinc で package、public annotation class、`@Target(ANNOTATION_CLASS)`、`@Retention(BINARY)`、`@RequiresOptIn(ERROR)`、引数なし形を確定し、`ExperimentalMarkerStubTests`（44 tests）、`NativePlatformAnnotationTests`（21 tests）、対象を含む Sema Golden shard（8 cases）が PASS、既存 `native_annotations` は `SKIP-DIFF` として確認できたため、追加の source/compiler/runtime/ABI 変更は不要。
 
 - [ ] KSP-1162: kotlin.experimental.ExperimentalTypeInference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalTypeInference` / top-level
