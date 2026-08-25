@@ -5519,7 +5519,7 @@
     - `kotlin.math.asin` — fun asin(Double): Double  -- `final fun kotlin.math/asin(kotlin/Double): kotlin/Double`
     - `kotlin.math.asin` — fun asin(Float): Float  -- `final fun kotlin.math/asin(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1175: kotlin.math.asinh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1175: kotlin.math.asinh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `asinh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/asinh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5529,6 +5529,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.asinh` — fun asinh(Double): Double  -- `final fun kotlin.math/asinh(kotlin/Double): kotlin/Double`
     - `kotlin.math.asinh` — fun asinh(Float): Float  -- `final fun kotlin.math/asinh(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 公式 `MathH.kt` の `public expect fun asinh(x: Double): Double` / `public expect fun asinh(x: Float): Float` と `@SinceKotlin("1.2")`、stdlib artifact metadata の `kotlin/Double -> kotlin/Double` / `kotlin/Float -> kotlin/Float` を確認した。現行 `Math.kt` は PR #5831 / commit `dfc478e0f` で両 overload を source-backed wrapper として実装済みであり、既存の `__kk_math_asinh` / `__kk_math_asinh_float` bridge と RuntimeABI entry は低レベル実装として整合している。Sema inventory/overload 53 tests、RuntimeMathEdgeCase 230 tests、Kotlin 2.3.10 `math_hyperbolic.kt` diff、RuntimeABI external-link 4 tests が PASS したため、Math.kt・synthetic stub・専用 Golden/diff file は追加しない。
 
 - [ ] KSP-1176: kotlin.math.atan-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.math` / top-level / family `atan`
