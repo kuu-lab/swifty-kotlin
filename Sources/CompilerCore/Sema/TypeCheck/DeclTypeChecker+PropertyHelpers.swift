@@ -103,11 +103,13 @@ extension DeclTypeChecker {
             valueType: result,
             ctx: ctx
         )
+        let getValueExpectedType = result
+            ?? mutableMapDelegateValueType(delegateType, sema: sema, interner: interner)
         let getValueResolution = resolvePropertyDelegateFunction(
             named: getValueName,
             receiverType: delegateType,
             argumentTypes: Array(delegateAccessorArgs.prefix(2)),
-            expectedType: result,
+            expectedType: getValueExpectedType,
             range: delegateCallRange,
             ctx: ctx
         )
