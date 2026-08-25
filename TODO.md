@@ -9380,7 +9380,7 @@
     - `kotlin.time.AbstractLongTimeSource.read` — fun AbstractLongTimeSource.read(): Long  -- `abstract fun read(): kotlin/Long`
     - `kotlin.time.AbstractLongTimeSource.unit` — val AbstractLongTimeSource.unit: DurationUnit  -- `final val unit`
 
-- [ ] KSP-1480: kotlin.time.Clock top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1480: kotlin.time.Clock top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.time.Clock` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Clock/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9390,6 +9390,8 @@
   - 未実装シンボル一覧:
     - `kotlin.time.Clock.Companion` — object kotlin.time.Clock.Companion  -- `final object Companion`
     - `kotlin.time.Clock.System` — object kotlin.time.Clock.System  -- `final object System : kotlin.time/Clock {`
+  - 完了根拠: Kotlin 2.3.10 の公式 source/metadata/kotlinc で `Clock.Companion` と `Clock.System` が別の public object、`System : Clock`、custom `Clock` の virtual `now` dispatch であることを確認。`HeaderHelpers+SyntheticClockStubs.swift` に両 nominal surface と `System` の direct supertype を登録し、qualified nested type 解決を修正。
+  - 回帰: `ClockSyntheticSurfaceTests`、Sema Golden `stdlib_kotlin_time_Clock_n_n`、対象 `diff_kotlinc`、KIR/LLVM 生成、既存 Clock.System.now/Backend/Runtime/Runtime ABI link を確認。`Clock.kt`、Runtime、RuntimeABI の bridge は変更していない。
 
 - [ ] KSP-1481: kotlin.time.Clock.Clock の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.Clock` / receiver `Clock`
