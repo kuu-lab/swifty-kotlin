@@ -9567,9 +9567,9 @@
   - 未実装シンボル一覧:
     - `kotlin.time.TestTimeSource.plusAssign` — fun TestTimeSource.plusAssign(Duration): Unit  -- `final fun plusAssign(kotlin.time/Duration)`
 
-- [ ] KSP-1493: kotlin.time.TimeSource top-level の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1493: kotlin.time.TimeSource top-level の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.time.TimeSource` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_TimeSource_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_TimeSource_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_TimeSource_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -9578,6 +9578,7 @@
     - `kotlin.time.TimeSource.Companion` — object kotlin.time.TimeSource.Companion  -- `final object Companion`
     - `kotlin.time.TimeSource.Monotonic` — object kotlin.time.TimeSource.Monotonic  -- `final object Monotonic : kotlin.time/TimeSource.WithComparableMarks {`
     - `kotlin.time.TimeSource.WithComparableMarks` — interface kotlin.time.TimeSource.WithComparableMarks  -- `abstract interface WithComparableMarks : kotlin.time/TimeSource {`
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 の source/artifact/metadata/kotlinc 契約を照合し、`TimeSource.Companion` の空 object 宣言を source-backed として追加。既存の `Monotonic` object identity、`WithComparableMarks : TimeSource`、`Monotonic : WithComparableMarks`、`Monotonic.markNow(): ValueTimeMark` は維持し、KSP-1493 専用 Sema regression (`TimeSourceNominalSurfaceTests`) と既存 `experimental_time.kt` diff を各 1 worker で PASS、Runtime ABI external-link validation と TODO ID check も PASS。KSP-1474/1475/1494/1495 の member/extension API は変更していない。
 
 - [ ] KSP-1494: kotlin.time.TimeSource.Monotonic top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.TimeSource.Monotonic` / top-level
