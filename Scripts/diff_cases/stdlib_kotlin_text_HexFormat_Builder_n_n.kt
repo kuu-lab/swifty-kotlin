@@ -1,7 +1,7 @@
-// SKIP-DIFF (DEBT-DIFF-001): Kotlin 2.3.10 declares HexFormat.Builder's
-// constructor @PublishedApi internal, so the external JVM kotlinc reference
-// module rejects this direct constructor call. The candidate is checked by
-// the focused Sema Golden and direct kswiftc execution instead.
+// SKIP-DIFF (DEBT-DIFF-001): Kotlin 2.3.10 keeps HexFormat.Builder's no-arg
+// constructor @PublishedApi internal, so an external JVM kotlinc module
+// rejects this direct constructor call. The focused Sema Golden and direct
+// kswiftc execution cover the candidate path instead.
 
 import kotlin.text.HexFormat
 
