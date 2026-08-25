@@ -82,13 +82,15 @@ extension DeclTypeChecker {
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
+        let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
             solver: solver,
             diagnostics: diagnostics,
             ownerSymbol: symbol,
-            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax
+            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
+            explicitSuperclassSymbol: explicitSuperclassSymbol
         )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckClassLikeMembers(
