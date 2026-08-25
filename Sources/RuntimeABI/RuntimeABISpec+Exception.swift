@@ -83,6 +83,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_invalid_mutability_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_concurrent_modification_exception_new_message_cause",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),

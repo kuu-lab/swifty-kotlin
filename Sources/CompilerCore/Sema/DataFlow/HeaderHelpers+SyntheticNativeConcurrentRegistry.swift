@@ -657,6 +657,7 @@ extension DataFlowSemaPhase {
         registerNativeConcurrentConstructor(
             ownerSymbol: exceptionSymbol,
             ownerType: exceptionType,
+            externalLinkName: "__kk_invalid_mutability_exception_new_message",
             parameters: [(name: "message", type: types.stringType)],
             defaultValues: [false],
             symbols: symbols,
