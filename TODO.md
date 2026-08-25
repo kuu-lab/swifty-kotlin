@@ -5554,7 +5554,8 @@
     - `kotlin.math.atanh` — fun atanh(Double): Double  -- `final fun kotlin.math/atanh(kotlin/Double): kotlin/Double`
     - `kotlin.math.atanh` — fun atanh(Float): Float  -- `final fun kotlin.math/atanh(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1178: kotlin.math.cbrt-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1178: kotlin.math.cbrt-family の未実装 stdlib API を実装する（2 件）
+  - 完了根拠（2026-08-25）: KSP-637（merged PR #5831、commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9`）で現行 `Math.kt` に `cbrt(Double): Double` / `cbrt(Float): Float` の public source-backed wrapper と内部 `__kk_math_cbrt` / `__kk_math_cbrt_float` bridge が実装済み。Kotlin 2.3.10 の公式 source・stdlib artifact metadata・exact `kotlinc`・Kotlin/Native actual と照合し、Sema overload/source-link、KIR/lowering、Backend、Runtime/RuntimeABI、既存 Double/Float diff を確認した。NaN、±0、±∞、正負有限値の既存 Runtime 回帰も確認し、`Math.kt`、bridge/ABI、他の math API/TODO は変更していない。
   - 対象: `kotlin.math` / top-level / family `cbrt`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/cbrt.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
