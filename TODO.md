@@ -8704,7 +8704,7 @@
     - `kotlin.text.HexFormat.toString` — fun HexFormat.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.HexFormat.upperCase` — val HexFormat.upperCase: Boolean  -- `final val upperCase`
 
-- [ ] KSP-1421: kotlin.text.HexFormat.Builder top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1421: kotlin.text.HexFormat.Builder top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.HexFormat.Builder` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/HexFormat/Builder/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -8713,6 +8713,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.HexFormat.Builder.<init>` — constructor ()  -- `constructor <init>()`
+  - 対応・検証（2026-08-25）: 既存の source-backed `HexFormat` に Kotlin 2.3.10 公式 source と stdlib metadata 準拠の `public class Builder @PublishedApi internal constructor()` だけを追加。constructor は Kotlin 可視性が internal（JVM bytecode は public）で、公式 source の `upperCase = false`、未参照時の `bytes`/`number` default builder 遅延生成、各 `Builder()` の fresh identity は KSP-1422 以降の member implementation が所有するため本 TODO では追加していない。Kotlin 2.3.10 kotlinc の外部 module direct-constructor 拒否を確認し、Sema Golden と candidate-only diff case（`SKIP-DIFF` の根拠を記載）を追加。Runtime／RuntimeABI／synthetic／lowering の変更なし。
 
 - [ ] KSP-1422: kotlin.text.HexFormat.Builder.Builder の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.text.HexFormat.Builder` / receiver `Builder`

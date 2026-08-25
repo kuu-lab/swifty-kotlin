@@ -51,6 +51,8 @@ public class HexFormat(
     public val number: HexFormat
         get() = this
 
+    public class Builder @PublishedApi internal constructor()
+
     public companion object {
         @ExperimentalStdlibApi
         public val Default: HexFormat = HexFormat()
