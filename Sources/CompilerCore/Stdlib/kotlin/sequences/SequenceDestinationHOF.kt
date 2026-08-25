@@ -3,7 +3,7 @@ package kotlin.sequences
 // KSP-446
 // Sequence destination-collection higher-order functions migrated to Kotlin source.
 
-public fun <T, C : MutableCollection<T>> Sequence<T>.filterTo(
+public inline fun <T, C : MutableCollection<in T>> Sequence<T>.filterTo(
     destination: C,
     predicate: (T) -> Boolean
 ): C {
@@ -15,7 +15,7 @@ public fun <T, C : MutableCollection<T>> Sequence<T>.filterTo(
     return destination
 }
 
-public fun <T, C : MutableCollection<T>> Sequence<T>.filterNotTo(
+public inline fun <T, C : MutableCollection<in T>> Sequence<T>.filterNotTo(
     destination: C,
     predicate: (T) -> Boolean
 ): C {
@@ -73,7 +73,7 @@ public fun <T, R, C : MutableCollection<R>> Sequence<T>.flatMapTo(
     return destination
 }
 
-public fun <T, C : MutableCollection<T>> Sequence<T>.filterIndexedTo(
+public inline fun <T, C : MutableCollection<in T>> Sequence<T>.filterIndexedTo(
     destination: C,
     predicate: (Int, T) -> Boolean
 ): C {
@@ -115,7 +115,7 @@ public fun <T, R, C : MutableCollection<R>> Sequence<T>.flatMapIndexedTo(
     return destination
 }
 
-public fun <T : Any, C : MutableCollection<T>> Sequence<T?>.filterNotNullTo(
+public fun <C : MutableCollection<in T>, T : Any> Sequence<T?>.filterNotNullTo(
     destination: C
 ): C {
     val iterator = this.iterator()
@@ -126,7 +126,7 @@ public fun <T : Any, C : MutableCollection<T>> Sequence<T?>.filterNotNullTo(
     return destination
 }
 
-public inline fun <reified R : Any, C : MutableCollection<R>> Sequence<*>.filterIsInstanceTo(
+public inline fun <reified R, C : MutableCollection<in R>> Sequence<*>.filterIsInstanceTo(
     destination: C
 ): C {
     val iterator = this.iterator()
@@ -135,4 +135,9 @@ public inline fun <reified R : Any, C : MutableCollection<R>> Sequence<*>.filter
         if (element is R) destination.add(element)
     }
     return destination
+}
+
+public inline fun <reified R> Sequence<*>.filterIsInstance(): Sequence<R> {
+    @Suppress("UNCHECKED_CAST")
+    return filter { it is R } as Sequence<R>
 }

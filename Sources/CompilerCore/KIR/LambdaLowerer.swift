@@ -323,6 +323,14 @@ final class LambdaLowerer {
             } else {
                 driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
                 driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+                if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                   semanticSymbol.kind == .typeParameter,
+                   semanticSymbol.flags.contains(.reifiedTypeParameter)
+                {
+                    let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
+                    driver.ctx.setLocalValue(captureExpr, for: tokenSymbol)
+                    driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+                }
             }
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
@@ -369,6 +377,14 @@ final class LambdaLowerer {
             } else {
                 driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
                 driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureCapture.capturedSymbol)
+                if let semanticSymbol = sema.symbols.symbol(closureCapture.capturedSymbol),
+                   semanticSymbol.kind == .typeParameter,
+                   semanticSymbol.flags.contains(.reifiedTypeParameter)
+                {
+                    let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: closureCapture.capturedSymbol)
+                    driver.ctx.setLocalValue(closureExpr, for: tokenSymbol)
+                    driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+                }
             }
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
@@ -403,6 +419,14 @@ final class LambdaLowerer {
                 } else {
                     driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
                     driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+                    if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                       semanticSymbol.kind == .typeParameter,
+                       semanticSymbol.flags.contains(.reifiedTypeParameter)
+                    {
+                        let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
+                        driver.ctx.setLocalValue(loadedExpr, for: tokenSymbol)
+                        driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+                    }
                 }
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)

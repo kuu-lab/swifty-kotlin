@@ -562,6 +562,15 @@ extension LambdaLowerer {
         if let localValue = driver.ctx.localValue(for: symbol) {
             return boxRawSuspendFunctionValue(localValue)
         }
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .typeParameter,
+           semanticSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol)
+            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                return tokenValue
+            }
+        }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {

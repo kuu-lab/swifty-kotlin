@@ -7659,7 +7659,7 @@
     - `kotlin.sequences.elementAtOrElse` — fun Sequence.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.sequences.elementAtOrNull` — fun Sequence.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/elementAtOrNull(kotlin/Int): #A?`
 
-- [ ] KSP-1342: kotlin.sequences.Sequence.filter-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1342: kotlin.sequences.Sequence.filter-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `filter`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceDestinationHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

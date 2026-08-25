@@ -110,25 +110,6 @@ extension CallLowerer {
             )
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
-        let isSourceBackedListFilterCall: Bool = {
-            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
-                  chosenCallee != .invalid,
-                  let symbol = sema.symbols.symbol(chosenCallee),
-                  symbol.kind == .function,
-                  sema.symbols.isSourceBackedSymbol(chosenCallee)
-            else {
-                return false
-            }
-            let sourceBackedListFilterFQNames: Set<[InternedString]> = [
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filter")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNot")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNotNull")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIndexed")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstance")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstanceTo")],
-            ]
-            return sourceBackedListFilterFQNames.contains(symbol.fqName)
-        }()
         let isSourceBackedMemberCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -947,45 +928,6 @@ extension CallLowerer {
                 return result
             }
         }
-
-        // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
-        if args.isEmpty,
-           interner.resolve(calleeName) == "filterIsInstance",
-           !isSourceBackedListFilterCall,
-           isSequenceLikeType(
-            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
-            sema: sema,
-            interner: interner
-           )
-        {
-            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-            let nonNullResultType = sema.types.makeNonNullable(resultType)
-            // Extract element type from List<R> or Sequence<R>.
-            let elementType: TypeID = if case let .classType(classType) = sema.types.kind(of: nonNullResultType),
-                                         let firstArg = classType.args.first
-            {
-                switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let encodedToken = RuntimeTypeCheckToken.encode(type: elementType, sema: sema, interner: interner)
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
-            instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_sequence_filterIsInstance"),
-                arguments: [loweredReceiverID, tokenExpr],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
-
 
         if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
             receiverExpr: receiverExpr,

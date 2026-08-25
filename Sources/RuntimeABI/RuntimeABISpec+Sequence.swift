@@ -416,16 +416,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("filterIsInstance", arity: 0, fallback: "kk_sequence_filterIsInstance"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "typeToken", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_sequence_requireNoNulls",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
