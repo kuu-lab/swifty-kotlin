@@ -9512,7 +9512,7 @@
   - 未実装シンボル一覧:
     - `kotlin.time.Instant.Companion` — object kotlin.time.Instant.Companion  -- `final object Companion {`
 
-- [ ] KSP-1489: kotlin.time.Instant.Instant の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1489: kotlin.time.Instant.Instant の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.time.Instant` / receiver `Instant`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Instant/Instant.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9524,6 +9524,7 @@
     - `kotlin.time.Instant.hashCode` — fun Instant.hashCode(): Int  -- `final fun hashCode(): kotlin/Int`
     - `kotlin.time.Instant.toEpochMilliseconds` — fun Instant.toEpochMilliseconds(): Long  -- `final fun toEpochMilliseconds(): kotlin/Long`
     - `kotlin.time.Instant.toString` — fun Instant.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠: Kotlin 2.3.10の公式契約をsource-backed実装へ反映し、InstantのAny dispatchにhashCode/ISO文字列表現を接続。Sema golden、公式kotlinc 2.3.10 diff、RuntimeInstantTestsでnullable equality、boxing、negative epoch、Long境界、hash consistency、ISO表示を確認済み。
 
 - [ ] KSP-1490: kotlin.time.Instant.Companion.Companion の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.time.Instant.Companion` / receiver `Companion`
