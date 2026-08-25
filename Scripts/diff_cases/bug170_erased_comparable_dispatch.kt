@@ -5,7 +5,7 @@
 // sharing a Comparable interface) fell back to raw heap-address comparison
 // instead of dispatching to `compareTo`.
 //
-// BUG-223: the Bronze/Gold path (compareTo only as Ranked's interface default)
+// BUG-226: the Bronze/Gold path (compareTo only as Ranked's interface default)
 // additionally needs the Ranked → Comparable type-graph edge and Ranked's
 // default method in Comparable's itable. Both halves are covered here.
 
