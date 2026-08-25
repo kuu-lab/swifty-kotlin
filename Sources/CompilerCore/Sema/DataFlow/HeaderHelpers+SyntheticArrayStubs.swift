@@ -110,145 +110,12 @@ extension DataFlowSemaPhase {
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
-        // --- Array extension functions: contentDeepEquals, contentDeepToString, contentDeepHashCode, contentHashCode, copyInto, sliceArray, reversedArray ---
+        // --- Array extension functions: copyInto, sliceArray, reversedArray ---
         //
         // KSP-658: generic Array<T>.contentEquals / contentToString / copyOf /
         // copyOfRange are bundled Kotlin source
         // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt); their synthetic
         // stubs were removed so source resolution takes precedence.
-
-        // contentDeepEquals(other: Array<T>): Boolean
-        let contentDeepEqualsName = interner.intern("contentDeepEquals")
-        let contentDeepEqualsFQName = arrayFQName + [contentDeepEqualsName]
-        if symbols.lookup(fqName: contentDeepEqualsFQName) == nil {
-            let contentDeepEqualsSymbol = symbols.define(
-                kind: .function,
-                name: contentDeepEqualsName,
-                fqName: contentDeepEqualsFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentDeepEqualsSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            let otherArrayType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [otherArrayType],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentDeepEqualsSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentDeepEquals", for: contentDeepEqualsSymbol)
-        }
-
-        // contentHashCode(): Int
-        let contentHashCodeName = interner.intern("contentHashCode")
-        let contentHashCodeFQName = arrayFQName + [contentHashCodeName]
-        if symbols.lookup(fqName: contentHashCodeFQName) == nil {
-            let contentHashCodeSymbol = symbols.define(
-                kind: .function,
-                name: contentHashCodeName,
-                fqName: contentHashCodeFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentHashCodeSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.intType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentHashCodeSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentHashCode", for: contentHashCodeSymbol)
-        }
-
-        // contentDeepToString(): String
-        let contentDeepToStringName = interner.intern("contentDeepToString")
-        let contentDeepToStringFQName = arrayFQName + [contentDeepToStringName]
-        if symbols.lookup(fqName: contentDeepToStringFQName) == nil {
-            let contentDeepToStringSymbol = symbols.define(
-                kind: .function,
-                name: contentDeepToStringName,
-                fqName: contentDeepToStringFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentDeepToStringSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.stringType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentDeepToStringSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentDeepToString", for: contentDeepToStringSymbol)
-        }
-
-        // contentDeepHashCode(): Int
-        let contentDeepHashCodeName = interner.intern("contentDeepHashCode")
-        let contentDeepHashCodeFQName = arrayFQName + [contentDeepHashCodeName]
-        if symbols.lookup(fqName: contentDeepHashCodeFQName) == nil {
-            let contentDeepHashCodeSymbol = symbols.define(
-                kind: .function,
-                name: contentDeepHashCodeName,
-                fqName: contentDeepHashCodeFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: contentDeepHashCodeSymbol)
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let receiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.intType,
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: contentDeepHashCodeSymbol
-            )
-            symbols.setExternalLinkName("kk_array_contentDeepHashCode", for: contentDeepHashCodeSymbol)
-        }
 
         // reversedArray(): Array<T>
         let reversedArrayName = interner.intern("reversedArray")
@@ -436,6 +303,16 @@ extension DataFlowSemaPhase {
             "UByteArray",
             "UShortArray",
         ]
+        // KSP-1513 owns the residual primitive-array `size` / `toList`
+        // synthetic members for unsigned arrays. Signed arrays are backed by
+        // bundled Kotlin source in ArrayConversions.kt (KSP-1512), while their
+        // class shells remain synthetic here for the primitive type system.
+        let unsignedPrimitiveArrayNames = [
+            "UByteArray",
+            "UShortArray",
+            "UIntArray",
+            "ULongArray",
+        ]
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
@@ -450,6 +327,9 @@ extension DataFlowSemaPhase {
                     visibility: .public,
                     flags: [.synthetic]
                 )
+            }
+            guard unsignedPrimitiveArrayNames.contains(name) else {
+                continue
             }
             // Register size property independently of class existence,
             // so that even if the class was defined elsewhere without size,
@@ -469,16 +349,8 @@ extension DataFlowSemaPhase {
 
                 // Set external link name for size property
                 let sizeLinkName: String = switch name {
-                case "IntArray": "kk_intArray_size"
-                case "LongArray": "kk_longArray_size"
-                case "ByteArray": "kk_byteArray_size"
-                case "ShortArray": "kk_shortArray_size"
                 case "UIntArray": "kk_uIntArray_size"
                 case "ULongArray": "kk_uLongArray_size"
-                case "DoubleArray": "kk_doubleArray_size"
-                case "FloatArray": "kk_floatArray_size"
-                case "BooleanArray": "kk_booleanArray_size"
-                case "CharArray": "kk_charArray_size"
                 case "UByteArray": "kk_uByteArray_size"
                 case "UShortArray": "kk_uShortArray_size"
                 default: "kk_array_size"
@@ -490,7 +362,7 @@ extension DataFlowSemaPhase {
         let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
         let listInterfaceSym = symbols.lookup(fqName: listFQName)
 
-        for name in primitiveArrayNames {
+        for name in unsignedPrimitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
             guard let arraySymbol = symbols.lookup(fqName: fqName) else {
@@ -511,16 +383,8 @@ extension DataFlowSemaPhase {
                 symbols.setParentSymbol(arraySymbol, for: toListSym)
 
                 let externalLinkName: String = switch name {
-                case "IntArray": "kk_intArray_toList"
-                case "LongArray": "kk_longArray_toList"
-                case "ByteArray": "kk_byteArray_toList"
-                case "ShortArray": "kk_shortArray_toList"
                 case "UIntArray": "kk_uIntArray_toList"
                 case "ULongArray": "kk_uLongArray_toList"
-                case "DoubleArray": "kk_doubleArray_toList"
-                case "FloatArray": "kk_floatArray_toList"
-                case "BooleanArray": "kk_booleanArray_toList"
-                case "CharArray": "kk_charArray_toList"
                 case "UByteArray": "kk_uByteArray_toList"
                 case "UShortArray": "kk_uShortArray_toList"
                 default: "kk_array_toList"
@@ -528,16 +392,8 @@ extension DataFlowSemaPhase {
                 symbols.setExternalLinkName(externalLinkName, for: toListSym)
 
                 let elementType: TypeID = switch name {
-                case "IntArray": types.intType
-                case "LongArray": types.longType
-                case "ByteArray": types.byteType
-                case "ShortArray": types.shortType
                 case "UIntArray": types.uintType
                 case "ULongArray": types.ulongType
-                case "DoubleArray": types.doubleType
-                case "FloatArray": types.floatType
-                case "BooleanArray": types.booleanType
-                case "CharArray": types.charType
                 case "UByteArray": types.ubyteType
                 case "UShortArray": types.ushortType
                 default: types.intType
@@ -567,12 +423,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        let unsignedPrimitiveArrayNames = [
-            "UByteArray",
-            "UShortArray",
-            "UIntArray",
-            "ULongArray",
-        ]
         for name in unsignedPrimitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
@@ -933,124 +783,6 @@ extension DataFlowSemaPhase {
             }
         }
 
-        // Register contentToString() methods for primitive arrays.
-        for name in primitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
-                continue
-            }
-
-            let contentToStringName = interner.intern("contentToString")
-            let contentToStringFQName = fqName + [contentToStringName]
-            if symbols.lookup(fqName: contentToStringFQName) == nil {
-                let contentToStringSym = symbols.define(
-                    kind: .function,
-                    name: contentToStringName,
-                    fqName: contentToStringFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: contentToStringSym)
-
-                let externalLinkName: String = switch name {
-                case "IntArray": "kk_intArray_contentToString"
-                case "LongArray": "kk_longArray_contentToString"
-                case "ByteArray": "kk_byteArray_contentToString"
-                case "ShortArray": "kk_shortArray_contentToString"
-                case "UIntArray": "kk_uIntArray_contentToString"
-                case "ULongArray": "kk_uLongArray_contentToString"
-                case "DoubleArray": "kk_doubleArray_contentToString"
-                case "FloatArray": "kk_floatArray_contentToString"
-                case "BooleanArray": "kk_booleanArray_contentToString"
-                case "CharArray": "kk_charArray_contentToString"
-                case "UByteArray": "kk_uByteArray_contentToString"
-                case "UShortArray": "kk_uShortArray_contentToString"
-                default: fatalError("unhandled primitive array \(name) for contentToString")
-                }
-                symbols.setExternalLinkName(externalLinkName, for: contentToStringSym)
-
-                let arrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: [],
-                        returnType: types.stringType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: []
-                    ),
-                    for: contentToStringSym
-                )
-            }
-        }
-
-        // --- ByteArray.contentEquals / ByteArray.joinToString (DEBT-DIFF-005) ---
-        if let byteArraySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("ByteArray")]) {
-            let byteArrayFQName = kotlinPkg + [interner.intern("ByteArray")]
-            let byteArrayType = types.make(.classType(ClassType(
-                classSymbol: byteArraySymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-
-            let byteContentEqualsName = interner.intern("contentEquals")
-            let byteContentEqualsFQName = byteArrayFQName + [byteContentEqualsName]
-            if symbols.lookup(fqName: byteContentEqualsFQName) == nil {
-                let contentEqualsSym = symbols.define(
-                    kind: .function,
-                    name: byteContentEqualsName,
-                    fqName: byteContentEqualsFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(byteArraySymbol, for: contentEqualsSym)
-                symbols.setExternalLinkName("kk_byteArray_contentEquals", for: contentEqualsSym)
-
-                let otherParamName = interner.intern("other")
-                let otherParamSym = symbols.define(
-                    kind: .valueParameter,
-                    name: otherParamName,
-                    fqName: byteContentEqualsFQName + [otherParamName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(contentEqualsSym, for: otherParamSym)
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: byteArrayType,
-                        parameterTypes: [byteArrayType],
-                        returnType: types.booleanType,
-                        isSuspend: false,
-                        valueParameterSymbols: [otherParamSym],
-                        valueParameterHasDefaultValues: [false],
-                        valueParameterIsVararg: [false],
-                        typeParameterSymbols: []
-                    ),
-                    for: contentEqualsSym
-                )
-            }
-
-            // `ByteArray.joinToString` (both the plain and transform overloads) is
-            // registered uniformly for all primitive array types by the
-            // `primitiveArrayNames` loop below — including `ByteArray` — so it is
-            // deliberately not duplicated here. (It used to be duplicated, which
-            // made this block's `symbols.define` win the race and left the later
-            // loop's `if symbols.lookup(...) == nil` guard permanently false for
-            // `ByteArray`, silently skipping its transform overloads.)
-        }
-
         // Register reversedArray() and copyInto(destination, destinationOffset, startIndex, endIndex) for primitive arrays.
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
@@ -1144,7 +876,6 @@ extension DataFlowSemaPhase {
 
         let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [
             ("booleanArrayOf", "BooleanArray", types.booleanType),
-            ("ushortArrayOf", "UShortArray", types.ushortType),
             ("uintArrayOf", "UIntArray", types.uintType),
         ]
         for (factoryName, arrayName, elementType) in primitiveArrayFactoryTypes {
