@@ -1339,6 +1339,8 @@ extension DataFlowSemaPhase {
             [["java", "math", "BigDecimal"]]
         case "__bundled_kotlin/text/StringEncoding.kt":
             [["kotlin", "text", "Charset"]]
+        case "__bundled_kotlin/native/concurrent/TransferMode/TransferMode.kt":
+            [["kotlin", "native", "concurrent", "TransferMode"]]
         case "__bundled_kotlin/Throwable.kt":
             [["kotlin", "Throwable"]]
         case "__bundled_kotlin/text/CharacterCodingException.kt":
