@@ -867,6 +867,43 @@ extension ExprTypeChecker {
         }
     }
 
+    private func typeParameterSymbols(in type: TypeID, sema: SemaModule) -> Set<SymbolID> {
+        switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        case let .typeParam(typeParam):
+            return [typeParam.symbol]
+        case let .classType(classType):
+            return classType.args.reduce(into: Set<SymbolID>()) { symbols, argument in
+                switch argument {
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    symbols.formUnion(typeParameterSymbols(in: inner, sema: sema))
+                case .star:
+                    break
+                }
+            }
+        case let .functionType(functionType):
+            var symbols = Set<SymbolID>()
+            for receiver in functionType.contextReceivers {
+                symbols.formUnion(typeParameterSymbols(in: receiver, sema: sema))
+            }
+            if let receiver = functionType.receiver {
+                symbols.formUnion(typeParameterSymbols(in: receiver, sema: sema))
+            }
+            for parameter in functionType.params {
+                symbols.formUnion(typeParameterSymbols(in: parameter, sema: sema))
+            }
+            symbols.formUnion(typeParameterSymbols(in: functionType.returnType, sema: sema))
+            return symbols
+        case let .kClassType(kClassType):
+            return typeParameterSymbols(in: kClassType.argument, sema: sema)
+        case let .intersection(members):
+            return members.reduce(into: Set<SymbolID>()) { symbols, member in
+                symbols.formUnion(typeParameterSymbols(in: member, sema: sema))
+            }
+        default:
+            return []
+        }
+    }
+
     /// Resolves the explicit parameter type annotations recorded for a lambda
     /// literal (`{ a: Int, b: String -> ... }`). Returns nil when the lambda has
     /// no annotations or the recorded arity does not match the parameter list.
@@ -1035,6 +1072,26 @@ extension ExprTypeChecker {
                 contextReceiverTypes: ctx.contextReceiverTypes + expectedFunctionType.contextReceivers
             )
         }
+        let expectedReturnHasUnresolvedOutputTypeParameter: Bool = {
+            guard let expectedFunctionType else {
+                return false
+            }
+            let returnTypeParameters = typeParameterSymbols(in: expectedFunctionType.returnType, sema: sema)
+            guard !returnTypeParameters.isEmpty else {
+                return false
+            }
+            var inputTypeParameters = Set<SymbolID>()
+            for receiver in expectedFunctionType.contextReceivers {
+                inputTypeParameters.formUnion(typeParameterSymbols(in: receiver, sema: sema))
+            }
+            if let receiver = expectedFunctionType.receiver {
+                inputTypeParameters.formUnion(typeParameterSymbols(in: receiver, sema: sema))
+            }
+            for parameter in expectedFunctionType.params {
+                inputTypeParameters.formUnion(typeParameterSymbols(in: parameter, sema: sema))
+            }
+            return !returnTypeParameters.subtracting(inputTypeParameters).isEmpty
+        }()
         // Kotlin discards a Unit-expected lambda body's value rather than requiring
         // it to actually type as Unit (e.g. `repeat(3) { i -> someIntCall(i) }`).
         // Passing Unit down as the body's expectedType would incorrectly propagate
@@ -1044,6 +1101,11 @@ extension ExprTypeChecker {
         // type parameter (the `T` of `fun <T> f(action: () -> T): T`) is treated the
         // same way: it cannot constrain the body's own resolution, and pushing it
         // down makes a Unit-valued body (e.g. `{ println() }`) fail to type-check.
+        // The same applies when the unresolved output parameter is nested inside
+        // a contextual return type such as `List<R>`. It is free at this call site
+        // when it does not occur in the lambda's receiver or input parameters;
+        // the concrete body result must infer it instead of being checked against
+        // an outer placeholder.
         // Leaving it out lets the body infer its natural type so the caller can solve
         // the type variable from it.
         let bodyExpectedType: TypeID? = {
@@ -1052,6 +1114,9 @@ extension ExprTypeChecker {
                 return nil
             }
             if case .typeParam = sema.types.kind(of: expectedReturnType) {
+                return nil
+            }
+            if expectedReturnHasUnresolvedOutputTypeParameter {
                 return nil
             }
             return expectedReturnType
@@ -1117,6 +1182,7 @@ extension ExprTypeChecker {
             let shouldSkipSubtypeConstraint =
                 expectedFunctionType.returnType == sema.types.unitType
                 || expectedReturnIsTypeParam
+                || expectedReturnHasUnresolvedOutputTypeParameter
             if !shouldSkipSubtypeConstraint {
                 driver.emitSubtypeConstraint(
                     left: optimizedReturnType,
@@ -1137,6 +1203,7 @@ extension ExprTypeChecker {
             // concrete, inferred return type in those cases so the caller can
             // solve the type parameter from it.
             let shouldReturnResolvedFunctionType = expectedReturnIsTypeParam
+                || expectedReturnHasUnresolvedOutputTypeParameter
             let resultType: TypeID = if shouldReturnResolvedFunctionType {
                 sema.types.make(.functionType(FunctionType(
                     contextReceivers: expectedFunctionType.contextReceivers,
