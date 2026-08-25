@@ -5874,7 +5874,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.HiddenFromObjC.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1202: kotlin.native.HidesFromObjC top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1202: kotlin.native.HidesFromObjC top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.HidesFromObjC` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/HidesFromObjC/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5883,6 +5883,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.HidesFromObjC.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-25監査）: Kotlin 2.3.10 Native公式source/artifact metadataの `public actual annotation class HidesFromObjC`（引数なし、`Target(ANNOTATION_CLASS)`、`Retention(BINARY)`、`MustBeDocumented`、`ExperimentalObjCRefinement`、`SinceKotlin("1.8")`）、公式Native KLIB、`gap_v2.tsv` の `constructor <init>()` を確認。現行 `ObjCInterop.kt` のpublic引数なしsource declarationは、HeaderCollectionのimplicit primary constructor規則とHeaderHelpersのpublic visibility規則により対象constructorを提供し、Kotlin 2.3.10 `kotlinc` probe、既存 `NativePlatformAnnotationTests`、`native_annotations` Goldenで使用経路を確認した。KSP-1202の対象1件だけを同期し、他annotation・metadata・compiler/runtime/ABIの変更は行っていない。
 
 - [ ] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.ImmutableBlob` / receiver `ImmutableBlob`
