@@ -866,6 +866,44 @@ struct NativeConcurrentSyntheticStubTests {
     }
 
     @Test
+    func testNativeThreadLocalAnnotationHasNoArgConstructor() throws {
+        let (sema, interner) = try sharedSema()
+
+        let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map { interner.intern($0) }
+        let annotationSymbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let annotationType = sema.types.make(.classType(ClassType(
+            classSymbol: annotationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructorSymbol = try #require(
+            sema.symbols.lookup(fqName: fqName + [interner.intern("<init>")]),
+            "Expected kotlin.native.concurrent.ThreadLocal.<init> to be registered"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
+        #expect(sema.symbols.symbol(constructorSymbol)?.kind == .constructor)
+        #expect(signature.receiverType == nil)
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType == annotationType)
+        #expect(sema.symbols.externalLinkName(for: constructorSymbol) == nil)
+    }
+
+    @Test
+    func testNativeThreadLocalAnnotationConstructorResolvesInSource() throws {
+        let source = """
+        import kotlin.native.concurrent.ThreadLocal
+
+        fun construct(): Any? = ThreadLocal()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(
+            ctx.diagnostics.diagnostics.isEmpty,
+            "ThreadLocal() should resolve cleanly, got: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    @Test
     func testNativeThreadLocalAnnotationResolvesOnProperty() {
         let source = """
         import kotlin.native.concurrent.ThreadLocal
