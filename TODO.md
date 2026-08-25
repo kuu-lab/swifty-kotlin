@@ -1451,14 +1451,16 @@
   - 未実装シンボル一覧:
     - `kotlin.DslMarker.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-836: kotlin.Enum top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-836: kotlin.Enum top-level の未実装 stdlib API を実装する（2 件、2026-08-25 完了）
   - 対象: `kotlin.Enum` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum.kt`（既存 KSP-732 source shell を拡張。`Enum/` 配下の新規ファイルは作成しない）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Enum_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Enum_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Enum_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: Kotlin 2.3.10 公式 `Enum.kt` の constructor / `companion object` と built-ins metadata を照合し、protected 相当の `<init>(String, Int)` と `kotlin.Enum.Companion` を source-backed surface として登録。Sema regression は symbol kind / visibility / signature / Companion owner を確認。
+  - KSP-732/KSP-776 の既存 Enum Golden と Kotlin 2.3.10 exact diff、および KSP-836 最小 diff は pass。全 Sema Golden shard は広域実行のため完了判定に使用せず、KSP-836 worker 出力と golden の完全一致を確認。
+  - 実装シンボル一覧:
     - `kotlin.Enum.<init>` — constructor (String, Int)  -- `constructor <init>(kotlin/String, kotlin/Int)`
     - `kotlin.Enum.Companion` — object kotlin.Enum.Companion  -- `final object Companion`
 
