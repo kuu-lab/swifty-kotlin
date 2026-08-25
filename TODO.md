@@ -5670,7 +5670,8 @@
     - `kotlin.math.sinh` — fun sinh(Double): Double  -- `final fun kotlin.math/sinh(kotlin/Double): kotlin/Double`
     - `kotlin.math.sinh` — fun sinh(Float): Float  -- `final fun kotlin.math/sinh(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1188: kotlin.math.sqrt-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1188: kotlin.math.sqrt-family の未実装 stdlib API を実装する（2 件）
+  - 完了根拠: KSP-637 / PR #5831 / commit `dfc478e0f` で `Math.kt` に `sqrt(Double): Double` と `sqrt(Float): Float` の source-backed 公開 overload を導入済み。現行 master の Sema、Backend、Runtime、diff 回帰で両 overload を確認済み。
   - 対象: `kotlin.math` / top-level / family `sqrt`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/sqrt.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
