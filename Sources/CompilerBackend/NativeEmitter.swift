@@ -391,16 +391,26 @@ struct NativeEmitter {
     /// weak root slot instead of requiring a definition that the artifact
     /// intentionally does not export.
     private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
-        guard let sym = symbols?.symbol(symbol), sym.kind == .object else {
+        guard let symbols else { return false }
+        return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
+    }
+
+    /// Returns the weak-linkage decision for an imported object global.
+    /// A non-package parent is not sufficient to identify a companion object:
+    /// regular nested objects must use their own initializer metadata.
+    static func shouldUseWeakImportedObjectGlobalReference(
+        for symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let sym = symbols.symbol(symbol), sym.kind == .object else {
             return false
         }
-        if let parentID = symbols?.parentSymbol(for: symbol),
-           let parent = symbols?.symbol(parentID),
-           parent.kind != .package
+        if let parentID = symbols.parentSymbol(for: symbol),
+           symbols.companionObjectSymbol(for: parentID) == symbol
         {
-            return symbols?.companionObjectInitializerSymbol(for: parentID) == nil
+            return symbols.companionObjectInitializerSymbol(for: parentID) == nil
         }
-        return symbols?.objectInitializerSymbol(for: symbol) == nil
+        return symbols.objectInitializerSymbol(for: symbol) == nil
     }
 
     /// Ensures that any imported-library global referenced by `loadGlobal`,
