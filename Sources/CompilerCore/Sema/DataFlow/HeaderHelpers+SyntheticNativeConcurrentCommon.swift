@@ -137,6 +137,8 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         externalLinkName: String? = nil,
+        visibility: Visibility = .public,
+        annotations: [MetadataAnnotationRecord] = [],
         parameters: [(name: String, type: TypeID)],
         defaultValues: [Bool],
         typeParameterSymbols: [SymbolID] = [],
@@ -164,7 +166,7 @@ extension DataFlowSemaPhase {
             name: initName,
             fqName: constructorFQName,
             declSite: nil,
-            visibility: .public,
+            visibility: visibility,
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
@@ -201,6 +203,7 @@ extension DataFlowSemaPhase {
             ),
             for: constructorSymbol
         )
+        appendNativeConcurrentMetadataAnnotations(annotations, to: constructorSymbol, symbols: symbols)
     }
 
     func nativeConcurrentClassType(
