@@ -12,8 +12,8 @@ package kotlin.collections
 // here; the compiler-side shell in
 // `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` remains the fallback
 // for contexts without the bundled stdlib.
-// `iterator()` is intentionally omitted and stays a compiler residual: the
-// covariant override of the
+// `iterator()` is intentionally omitted (as with `Comparable.compareTo` in
+// KSP-669) and stays a compiler residual: the covariant override of the
 // read-only `Iterable.iterator()` has to be re-typed against the reused shell's
 // type parameter, which library metadata cannot express yet (BUG-200).
 
