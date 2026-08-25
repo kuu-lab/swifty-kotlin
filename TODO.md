@@ -1330,15 +1330,16 @@
   - 未実装シンボル一覧:
     - `kotlin.ContextFunctionTypeParams.count` — val ContextFunctionTypeParams.count: Int  -- `final val count`
 
-- [ ] KSP-825: kotlin.DeepRecursiveFunction top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-825: kotlin.DeepRecursiveFunction top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.DeepRecursiveFunction` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeepRecursiveFunction/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeepRecursive.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_DeepRecursiveFunction_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_DeepRecursiveFunction_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_DeepRecursiveFunction_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.DeepRecursiveFunction.<init>` — constructor (SuspendFunction2)  -- `constructor <init>(kotlin.coroutines/SuspendFunction2<kotlin/DeepRecursiveScope<#A, #B>, #A, #B>)`
+  - 完了根拠: merged PR #5508（merge commit `ed679246227092b0e82ba186b835d983b73fbbcc`）で導入済みの `DeepRecursive.kt` source-backed/runtime/ABI/lowering 基盤に、Kotlin 2.3.10 と一致する `suspend DeepRecursiveScope<T, R>.(T) -> R` を受ける public constructor を追加した。`DeepRecursiveSourceMigrationTests` が constructor の FQName・external link・generic receiver/parameter/return shape・bundled source ownership と construction/callRecursive の解決を検証し、既存の `DeepRecursiveFunctionTests`、`KotlinCompilationDeepRecursiveTests`、`Scripts/diff_cases/deep_recursive_function.kt` が構築・capture・再帰・invoke の回帰を検証する。
 
 - [ ] KSP-826: kotlin.DeepRecursiveScope.DeepRecursiveFunction の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.DeepRecursiveScope` / receiver `DeepRecursiveFunction`
