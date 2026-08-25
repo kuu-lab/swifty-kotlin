@@ -7746,7 +7746,7 @@
     - `kotlin.sequences.groupByTo` — fun Sequence.groupByTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #B, kotlin.collections/MutableList<#A>>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/groupByTo(#C, kotlin/Function1<#A, #B>): #C`
     - `kotlin.sequences.groupByTo` — fun Sequence.groupByTo(, Function1, Function1): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableMap<in #B, kotlin.collections/MutableList<#C>>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/groupByTo(#D, kotlin/Function1<#A, #B>, kotlin/Function1<#A, #C>): #D`
 
-- [ ] KSP-1349: kotlin.sequences.Sequence.grouping-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1349: kotlin.sequences.Sequence.grouping-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `grouping`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7755,6 +7755,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.sequences.groupingBy` — fun Sequence.groupingBy(Function1): Grouping  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/groupingBy(crossinline kotlin/Function1<#A, #B>): kotlin.collections/Grouping<#A, #B>`
+  - 完了根拠: Kotlin 2.3.10準拠の `inline` / `crossinline` 実装を追加し、遅延した `sourceIterator` と `keyOf` を `Grouping` に委譲。Sema Golden shard と Kotlin 2.3.10 `kotlinc` diff で、反復走査・キー順序・`eachCount` / `fold` / `reduce` / `aggregate` の互換性を確認した（Runtime/ABI bridge は不要）。
 
 - [ ] KSP-1350: kotlin.sequences.Sequence.join-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `join`
