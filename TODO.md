@@ -5543,7 +5543,7 @@
     - `kotlin.math.atan2` — fun atan2(Double, Double): Double  -- `final fun kotlin.math/atan2(kotlin/Double, kotlin/Double): kotlin/Double`
     - `kotlin.math.atan2` — fun atan2(Float, Float): Float  -- `final fun kotlin.math/atan2(kotlin/Float, kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1177: kotlin.math.atanh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1177: kotlin.math.atanh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `atanh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/atanh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5553,6 +5553,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.atanh` — fun atanh(Double): Double  -- `final fun kotlin.math/atanh(kotlin/Double): kotlin/Double`
     - `kotlin.math.atanh` — fun atanh(Float): Float  -- `final fun kotlin.math/atanh(kotlin/Float): kotlin/Float`
+  - 完了根拠: 現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` に public source-backed wrapper 2件と internal `__kk_math_atanh` / `__kk_math_atanh_float` bridge が存在し、KSP-637 の merged PR #5831 / commit `dfc478e0f` で導入済み。Sema の source ownership/Double・Float overload、KIR/backend の source wrapper lowering、Runtime edge cases、bundled execution、`math_transcendental_source.kt`、RuntimeABI の既存検証で2件の解決・実行経路を確認済み。
 
 - [ ] KSP-1178: kotlin.math.cbrt-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `cbrt`
