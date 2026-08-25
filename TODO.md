@@ -5497,7 +5497,7 @@
     - `kotlin.math.acos` — fun acos(Double): Double  -- `final fun kotlin.math/acos(kotlin/Double): kotlin/Double`
     - `kotlin.math.acos` — fun acos(Float): Float  -- `final fun kotlin.math/acos(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1173: kotlin.math.acosh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1173: kotlin.math.acosh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `acosh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/acosh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5507,6 +5507,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.acosh` — fun acosh(Double): Double  -- `final fun kotlin.math/acosh(kotlin/Double): kotlin/Double`
     - `kotlin.math.acosh` — fun acosh(Float): Float  -- `final fun kotlin.math/acosh(kotlin/Float): kotlin/Float`
+  - 完了根拠: KSP-637（PR #5831、commit `dfc478e0f`）で両 overloadのKotlin source wrapperと既存libm bridgeが導入済み。専用Golden/diffを追加し、既存のSema source-link、backend実行、Runtime edge回帰とRuntime ABIリンクを再検証する。
 
 - [ ] KSP-1174: kotlin.math.asin-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `asin`
