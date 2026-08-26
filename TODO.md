@@ -2804,7 +2804,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.contains` — fun Iterable.contains(): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/contains(#A): kotlin/Boolean`
 
-- [ ] KSP-968: kotlin.collections.Iterable.count-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-968: kotlin.collections.Iterable.count-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `count`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2814,6 +2814,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.count` — fun Iterable.count(): Int  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(): kotlin/Int`
     - `kotlin.collections.count` — fun Iterable.count(Function1): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Int`
+  - 完了根拠 (2026-08-23): `Iterables.kt` に Kotlin 原典準拠の `Iterable.count()` / `count(predicate)` を追加（Collection の size/isEmpty fast path、全要素1回評価、predicate true のみ加算、overflow 時 `ArithmeticException("Count overflow has happened.")`）。source-backed lowering の対象名を更新し、bridge/runtime/RuntimeABI の新規追加はなし。Sema Golden の `Iterable<Int>` / `Iterable<Int?>` overload binding と diff case の custom Iterable、empty、nullable、混在 predicate、例外中断を確認。
 
 - [x] KSP-969: kotlin.collections.Iterable.drop-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `drop`
