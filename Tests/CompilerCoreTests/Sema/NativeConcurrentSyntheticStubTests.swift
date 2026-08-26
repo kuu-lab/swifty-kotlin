@@ -556,6 +556,52 @@ struct NativeConcurrentSyntheticStubTests {
     }
 
     @Test
+    func testWorkerTopLevelNominalSurfaceMatchesKotlinNative() throws {
+        let (sema, interner) = try sharedSema()
+
+        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+        let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
+        let workerInfo = try #require(sema.symbols.symbol(workerSymbol))
+        let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
+
+        #expect(workerInfo.visibility == .public)
+        #expect(workerInfo.flags.contains(.valueType))
+        #expect(!workerInfo.flags.contains(.openType))
+        #expect(sema.symbols.valueClassUnderlyingType(for: workerSymbol) == sema.types.intType)
+        #expect(sema.symbols.annotations(for: workerSymbol).contains {
+            $0.annotationFQName == "kotlin.native.concurrent.ObsoleteWorkersApi"
+        })
+
+        let constructorFQName = workerFQName + [interner.intern("<init>")]
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: constructorFQName).first { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return false
+                }
+                return signature.parameterTypes == [sema.types.intType]
+                    && signature.returnType == workerType
+            }
+        )
+        let constructorInfo = try #require(sema.symbols.symbol(constructor))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(constructorInfo.visibility == .internal)
+        #expect(constructorSignature.receiverType == nil)
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
+        #expect(constructorSignature.valueParameterSymbols.count == 1)
+        #expect(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0])?.name == interner.intern("id"))
+        #expect(sema.symbols.annotations(for: constructor).contains {
+            $0.annotationFQName == "kotlin.PublishedApi"
+        })
+
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: workerSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(companionInfo.kind == .object)
+        #expect(companionInfo.visibility == .public)
+        #expect(sema.symbols.parentSymbol(for: companionSymbol) == workerSymbol)
+        #expect(sema.symbols.propertyType(for: companionSymbol) != nil)
+    }
+
+    @Test
     func testWorkerExecuteIsRegistered() throws {
         let (sema, interner) = try sharedSema()
 
