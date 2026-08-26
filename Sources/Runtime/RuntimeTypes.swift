@@ -274,14 +274,18 @@ final class RuntimePairBox {
 }
 
 final class RuntimeTripleBox {
-    let first: Int
-    let second: Int
-    let third: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+    let thirdValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
+    var third: Int { thirdValue.legacyRawValue }
 
     init(first: Int, second: Int, third: Int) {
-        self.first = first
-        self.second = second
-        self.third = third
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+        self.thirdValue = RuntimeValue(raw: third)
     }
 }
 
@@ -309,6 +313,11 @@ final class RuntimeBoolBox {
         self.value = value
     }
 }
+
+/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
+/// compiler's raw zero representation; this box is used only at reference
+/// boundaries where Any must retain the value's runtime identity.
+final class RuntimeUnitBox {}
 
 final class RuntimeLongBox {
     let value: Int
@@ -2495,7 +2504,9 @@ extension RuntimePairBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second, third] }
+    var childRefs: [Int] {
+        [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
