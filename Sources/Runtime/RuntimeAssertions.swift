@@ -679,7 +679,9 @@ private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
     }
 }
 
-private func runtimeCauseToString(from raw: Int) -> String? {
+// Shared by typed exception bridges and the source-backed Throwable(cause)
+// constructor. The JVM constructor derives its message from cause.toString().
+func runtimeCauseToString(from raw: Int) -> String? {
     guard raw != 0,
           raw != runtimeNullSentinelInt,
           let ptr = UnsafeMutableRawPointer(bitPattern: raw)
