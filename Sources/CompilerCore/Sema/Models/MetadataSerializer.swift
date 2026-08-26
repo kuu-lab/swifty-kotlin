@@ -646,6 +646,20 @@ package final class MetadataEncoder {
             return superFQNames.isEmpty ? nil : superFQNames.joined(separator: ",")
         }()
 
+        let valueClassUnderlyingTypeSig: String?
+        if symbol.flags.contains(.valueType),
+           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
+        {
+            valueClassUnderlyingTypeSig = mangler.encodeType(
+                underlyingType,
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+        } else {
+            valueClassUnderlyingTypeSig = nil
+        }
+
         if metadataAnchorOnly {
             // Synthetic nominal anchors need their declared layout sizes as
             // consumer-side synthesis hints. Do not serialize partial slot maps:
@@ -671,6 +685,7 @@ package final class MetadataEncoder {
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
+                    valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                     isExpect: symbol.flags.contains(.expectDeclaration),
                     isActual: symbol.flags.contains(.actualDeclaration)
                 )
@@ -688,6 +703,7 @@ package final class MetadataEncoder {
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
+                valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                 isExpect: symbol.flags.contains(.expectDeclaration),
                 isActual: symbol.flags.contains(.actualDeclaration)
             )
@@ -933,24 +949,10 @@ package final class MetadataEncoder {
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
-        let rawIsValueClass = symbol.flags.contains(.valueType)
-
-        var valueClassUnderlyingTypeSig: String?
-        if rawIsValueClass,
-           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
-        {
-            valueClassUnderlyingTypeSig = mangler.encodeType(
-                underlyingType,
-                symbols: symbols,
-                types: types,
-                nameResolver: { interner.resolve($0) }
-            )
-        }
-
         // Serialize isValueClass independently of whether the underlying type was found.
         // Even if underlying type extraction fails, mark it as a value class so importers
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
-        let isValueClass = rawIsValueClass
+        let isValueClass = symbol.flags.contains(.valueType)
 
         let annotationEntries = symbols.annotations(for: symbol.id)
 
