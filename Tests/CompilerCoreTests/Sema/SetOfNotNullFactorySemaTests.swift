@@ -4,6 +4,42 @@ import Testing
 
 @Suite
 struct SetOfNotNullFactorySemaTests {
+    @Test func testSetFactoryOverloadsResolveToBundledSource() throws {
+        let source = """
+        fun probe() {
+            val singleton = setOf(1)
+            val nullableSingleton = setOfNotNull("a")
+            val values = setOfNotNull("a", null, "b")
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, "Expected set factory overloads to type-check, got: \(errors)")
+
+            let sema = try #require(ctx.sema)
+            for name in ["setOf", "setOfNotNull"] {
+                let symbols = sema.symbols.lookupAll(fqName: ["kotlin", "collections", name].map(ctx.interner.intern))
+                #expect(
+                    symbols.contains { sema.symbols.isSourceBackedSymbol($0) },
+                    "Expected \(name) to have a bundled source declaration, got: \(symbols)"
+                )
+            }
+
+            let setOfSymbols = sema.symbols.lookupAll(fqName: ["kotlin", "collections", "setOf"].map(ctx.interner.intern))
+            let setOfElement = try #require(setOfSymbols.first { symbol in
+                guard let signature = sema.symbols.functionSignature(for: symbol) else { return false }
+                return signature.parameterTypes.count == 1 && signature.valueParameterIsVararg == [false]
+            })
+            let setOfElementSignature = try #require(sema.symbols.functionSignature(for: setOfElement))
+            #expect(setOfElementSignature.returnType != .invalid)
+            #expect(sema.symbols.isSourceBackedSymbol(setOfElement))
+        }
+    }
+
     @Test func testSetOfNotNullInfersNonNullSetElementType() throws {
         let source = """
         fun probe() {
