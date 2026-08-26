@@ -788,13 +788,14 @@
     - `kotlin.UIntArray` — fun UIntArray(Int, Function1): UIntArray  -- `final inline fun kotlin/UIntArray(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/UInt>): kotlin/UIntArray`
   - 完了根拠: PR #5920（merge commit `19408145b7b496f109283da2c320efb9cd11b622`）で `Sources/CompilerCore/Stdlib/kotlin/UIntArray.kt`、Sema Golden、`Scripts/diff_cases/stdlib_kotlin_n_UIntArray.kt` を追加済み。現行 master に実装と回帰が存在し、PR の CI / Devin Review は全成功。
 
-- [ ] KSP-763: kotlin.ULongArray-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-763: kotlin.ULongArray-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ULongArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULongArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_n_ULongArray.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_n_ULongArray.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_n_ULongArray.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: PR #5914（merge commit `d44aa6b673b2827d657648e8c404ed215a043580`）で `Sources/CompilerCore/Stdlib/kotlin/ULongArray.kt`、Sema Golden、diff ケースを追加済み。現行 master に実装と回帰が存在し、PR の CI / Devin Review は全成功。
   - 未実装シンボル一覧:
     - `kotlin.ULongArray` — fun ULongArray(Int, Function1): ULongArray  -- `final inline fun kotlin/ULongArray(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/ULong>): kotlin/ULongArray`
 
