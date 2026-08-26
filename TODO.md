@@ -7589,16 +7589,18 @@
     - `kotlin.reflect.KProperty1.get` — fun KProperty1.get(): #B  -- `abstract fun get(#A): #B`
     - `kotlin.reflect.KProperty1.invoke` — fun KProperty1.invoke(): #B  -- `abstract fun invoke(#A): #B`
 
-- [ ] KSP-1331: kotlin.reflect.KProperty2.KProperty2 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1331: kotlin.reflect.KProperty2.KProperty2 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KProperty2` / receiver `KProperty2`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KProperty2/KProperty2.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KProperty2_KProperty2_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KProperty2_KProperty2_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KProperty2_KProperty2_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 実装済みシンボル一覧:
     - `kotlin.reflect.KProperty2.get` — fun KProperty2.get(, ): #C  -- `abstract fun get(#A, #B): #C`
     - `kotlin.reflect.KProperty2.invoke` — fun KProperty2.invoke(, ): #C  -- `abstract fun invoke(#A, #B): #C`
+  - 完了根拠: 現行 `Sources/CompilerCore/Stdlib/kotlin/reflect/KProperties.kt` の `KProperty2<D, E, out V>` は `KProperty<V>` と `(D, E) -> V` を継承し、`get(receiver1: D, receiver2: E): V` と `override operator fun invoke(p1: D, p2: E): V` をsource-backedで提供している。導入履歴はKSP-682のPR #5041（commit `26a317c07`）で、KSP-1331のAPIを再実装せずTODOだけを同期した。
+  - 検証根拠: Kotlin 2.3.10公式 `KProperty.kt`、同版stdlib metadata/javap、同版kotlincのmember-extension property referenceで、第一receiver（宣言クラス）→第二receiver（extension receiver）の順序、`get`/Function2由来のinvoke dispatch、戻り値を確認。現行 `ReflectKProperty2SyntheticTests` は nominal identity、3型parameter、`KProperty`/`Function2` supertype、2 receiver順序、`get`/`invoke`解決を4/4 greenで固定している。KProperty2 wrapper/lowering自体は別課題のため変更していない。
 
 - [ ] KSP-1332: kotlin.reflect.KType.KType の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.reflect.KType` / receiver `KType`
