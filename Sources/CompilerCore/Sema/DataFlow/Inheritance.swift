@@ -605,18 +605,20 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Check that abstract class has at least one abstract member
+        // Check that an abstract class has an abstract member in its own body
+        // or an inherited abstract contract. Kotlin's skeletal collection
+        // classes, including AbstractSet, inherit their required size and
+        // iterator members from AbstractCollection.
         let children = symbols.children(ofFQName: symbolInfo.fqName)
-        var hasAbstractMember = false
-
-        for childID in children {
-            guard let childSym = symbols.symbol(childID) else { continue }
-            if (childSym.kind == .function || childSym.kind == .property) &&
-               childSym.flags.contains(.abstractType) {
-                hasAbstractMember = true
-                break
-            }
+        let hasDirectAbstractMember = children.contains { childID in
+            guard let childSym = symbols.symbol(childID) else { return false }
+            return (childSym.kind == .function || childSym.kind == .property) &&
+                childSym.flags.contains(.abstractType)
         }
+        let hasAbstractMember = hasDirectAbstractMember || !collectInheritedAbstractMembers(
+            for: symbol,
+            symbols: symbols
+        ).isEmpty
 
         if !hasAbstractMember {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
