@@ -341,7 +341,9 @@ extension CallTypeChecker {
 
         @discardableResult
         func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
-            guard !isSequenceReceiver, isCollectionReceiver else {
+            guard !isSequenceReceiver,
+                  isCollectionReceiver || (isIterableReceiver && (calleeStr == "drop" || calleeStr == "dropWhile"))
+            else {
                 return false
             }
             let sourceFQName = [
@@ -390,6 +392,67 @@ extension CallTypeChecker {
             ))
             sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
             return true
+        }
+
+        // KSP-969: bind the generic Iterable drop family for a statically
+        // Iterable receiver as well as concrete collection receivers. List
+        // overloads are attempted first so the more specific source-backed
+        // declaration keeps winning for List values.
+        let isIterableDropFamily = !isSequenceReceiver
+            && (calleeStr == "drop" || calleeStr == "dropWhile")
+            && (isCollectionReceiver || isIterableReceiver)
+        if isIterableDropFamily {
+            let collectionElementType = resolvedCollectionElementType(
+                receiverID: receiverID,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner,
+                ctx: ctx,
+                locals: &locals
+            )
+            guard args.count == 1 else {
+                return nil
+            }
+
+            let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner)
+            let resultType = if let listSymbol {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: listSymbol,
+                    args: [.invariant(collectionElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
+            let didBindSource: Bool
+            if calleeStr == "drop" {
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+            } else {
+                let predicateType = sema.types.make(.functionType(FunctionType(
+                    params: [collectionElementType],
+                    returnType: sema.types.booleanType
+                )))
+                if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                }
+                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: predicateType)
+                didBindSource = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    || bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                if didBindSource,
+                   let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
+                {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                }
+            }
+            guard didBindSource else {
+                return nil
+            }
+            sema.bindings.markCollectionExpr(id)
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
         }
 
         @discardableResult
