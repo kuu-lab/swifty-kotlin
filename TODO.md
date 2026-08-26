@@ -5709,7 +5709,7 @@
     - `kotlin.math.ln1p` — fun ln1p(Double): Double  -- `final fun kotlin.math/ln1p(kotlin/Double): kotlin/Double`
     - `kotlin.math.ln1p` — fun ln1p(Float): Float  -- `final fun kotlin.math/ln1p(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1185: kotlin.math.log-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1185: kotlin.math.log-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.math` / top-level / family `log`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/log.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5723,6 +5723,7 @@
     - `kotlin.math.log10` — fun log10(Float): Float  -- `final fun kotlin.math/log10(kotlin/Float): kotlin/Float`
     - `kotlin.math.log2` — fun log2(Double): Double  -- `final fun kotlin.math/log2(kotlin/Double): kotlin/Double`
     - `kotlin.math.log2` — fun log2(Float): Float  -- `final fun kotlin.math/log2(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 公式 `MathH.kt` の `public expect`（Double/Float の `log(x, base)`、`log10`、`log2`）と `kotlin-stdlib.jar` の `META-INF/kotlin-stdlib.kotlin_module` / JVM descriptor、`kotlinc` の境界値probeを突合。現行 `Math.kt` の6公開宣言はKSP-637のmerged PR #5831 / commit `dfc478e0f` 由来のsource-backed wrapperで、`__kk_math_log*` bridgeだけを内部に保持し、logのbase=1/0/負数・x=0/負数/NaN/Infinity・signed zero、log10/log2の0/負数/NaN/InfinityとDouble/Float精度を既存Runtime/Sema/Backend/diff回帰で確認した。対象6件に対応する追加のsynthetic登録、name-string特例、重複実装はなく、ln/ln1p、exp/pow、他math APIは変更していない。
 
 - [ ] KSP-1186: kotlin.math.sin-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `sin`
