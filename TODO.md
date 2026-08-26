@@ -6320,16 +6320,17 @@
   - 完了対象シンボル:
     - `kotlin.native.concurrent.Continuation1.<init>` — constructor (Function1, CPointer, Boolean)  -- `constructor <init>(kotlin/Function1<#A, kotlin/Unit>, kotlinx.cinterop/CPointer<kotlinx.cinterop/CFunction<kotlin/Function1<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?, kotlin/Unit>>>, kotlin/Boolean = ...)`
 
-- [ ] KSP-1231: kotlin.native.concurrent.Continuation1.Continuation1 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1231: kotlin.native.concurrent.Continuation1.Continuation1 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.Continuation1` / receiver `Continuation1`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation1/Continuation1.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Continuation1_Continuation1_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation1_Continuation1_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation1_Continuation1_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: current master の `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` が `Continuation1` に `dispose(): Unit` と `invoke(T1): Unit` を登録済みで、`NativeConcurrentSyntheticStubTests.swift` の `testContinuationMembersAreRegistered` と `testContinuationTypesResolveInSource` が receiver、generic 型、Unit 戻り値、operator/override flags、通常呼び出しと operator 呼び出しを検証している。Kotlin 2.3.10 の公式 `Continuation.kt` と stdlib klib metadata の宣言とも照合済み。Continuation1 固有の RuntimeABI、`kk_*`、KIR/lowering、name-string 特例は存在せず、constructor と callback 実体の runtime semantics は本 task の対象外とした。
+  - 実装済みシンボル一覧:
     - `kotlin.native.concurrent.Continuation1.dispose` — fun Continuation1.dispose(): Unit  -- `final fun dispose()`
-    - `kotlin.native.concurrent.Continuation1.invoke` — fun Continuation1.invoke(): Unit  -- `final fun invoke(#A)`
+    - `kotlin.native.concurrent.Continuation1.invoke` — fun Continuation1.invoke(#A): Unit  -- `open operator fun invoke(#A)`
 
 - [ ] KSP-1232: kotlin.native.concurrent.Continuation2 top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Continuation2` / top-level
