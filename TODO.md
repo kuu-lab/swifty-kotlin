@@ -6285,13 +6285,14 @@
     - `kotlin.native.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1228: kotlin.native.concurrent.Continuation0 top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1228: kotlin.native.concurrent.Continuation0 top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Continuation0` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation0/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Continuation0_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation0_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation0_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-25）: 現行 `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` の `Continuation0` 登録と `NativeConcurrentSyntheticStubTests` が、`Function0<Unit>` supertype、public constructor `(Function0<Unit>, CPointer<CFunction<Function1<CPointer<out CPointed>?, Unit>>>, Boolean = false)`、Deprecated metadata、Boolean default を固定している。Kotlin 2.3.10公式KLIB/sourceと `kotlinc-native 2.3.10` の最小probe、およびKSwiftのconstructor省略/明示呼出のKIR/LLVM/link/run probeが一致するため、KSP-1228のconstructorは既実装である。
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.Continuation0.<init>` — constructor (Function0, CPointer, Boolean)  -- `constructor <init>(kotlin/Function0<kotlin/Unit>, kotlinx.cinterop/CPointer<kotlinx.cinterop/CFunction<kotlin/Function1<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?, kotlin/Unit>>>, kotlin/Boolean = ...)`
 
