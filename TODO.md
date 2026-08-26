@@ -6305,14 +6305,19 @@
     - `kotlin.native.concurrent.Continuation0.dispose` — fun Continuation0.dispose(): Unit  -- `final fun dispose()`
     - `kotlin.native.concurrent.Continuation0.invoke` — fun Continuation0.invoke(): Unit  -- `final fun invoke()`
 
-- [ ] KSP-1230: kotlin.native.concurrent.Continuation1 top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1230: kotlin.native.concurrent.Continuation1 top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Continuation1` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation1/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Continuation1_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation1_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Continuation1_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-08-25 監査）:
+    - 現行 `HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` の synthetic surface と `NativeConcurrentSyntheticStubTests.testContinuationConstructorsAreRegistered` が、public `Continuation1<T1>` の `Function1<T1, Unit>`、`CPointer<CFunction<Function1<CPointer<out CPointed>?, Unit>>>`、`Boolean = false` を固定している。
+    - [Kotlin 2.3.10 official Continuation.kt](https://raw.githubusercontent.com/JetBrains/kotlin/v2.3.10/kotlin-native/runtime/src/main/kotlin/kotlin/native/concurrent/Continuation.kt)、2.3.10 Native KLIB metadata、`kotlinc-native 2.3.10` の generic/nullable/default/constructor probe が、invariant `T1`、`Function1<T1, Unit>` supertype、CPointer variance、`Deprecated` metadata、Boolean default を一致確認した。
+    - 導入履歴は merged history commit `a5c1b3ce3`（`Add native concurrent continuation type surfaces`）。KSP-1230 の exact open/merged PR・remote branch はなく、open PR の共有 file ownership は #6269 の FutureState と #6057 の Atomic であり、Continuation1 constructor の変更はない。
+    - KSP-1230 の範囲外である Continuation1 の Function1 代入境界は既存 KSP-1216 側の課題として修正せず、constructor 単体の KSwiftK probe は compile/link/run、focused Sema 40 tests、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` は pass。Native-only のため JVM `diff_kotlinc` の green は主張しない。
+  - 完了対象シンボル:
     - `kotlin.native.concurrent.Continuation1.<init>` — constructor (Function1, CPointer, Boolean)  -- `constructor <init>(kotlin/Function1<#A, kotlin/Unit>, kotlinx.cinterop/CPointer<kotlinx.cinterop/CFunction<kotlin/Function1<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?, kotlin/Unit>>>, kotlin/Boolean = ...)`
 
 - [ ] KSP-1231: kotlin.native.concurrent.Continuation1.Continuation1 の未実装 stdlib API を実装する（2 件）
