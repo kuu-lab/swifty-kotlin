@@ -23,6 +23,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_throwable_new_cause",
+            parameters: [
+                RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .opaquePointer,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_throwable_new_cause",
             parameters: [
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
