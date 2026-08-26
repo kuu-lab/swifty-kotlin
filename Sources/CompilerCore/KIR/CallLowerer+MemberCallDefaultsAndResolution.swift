@@ -235,8 +235,11 @@ extension CallLowerer {
         // when their declarations are imported interface members. Dispatching
         // those symbols through an itable is invalid for the built-in runtime
         // collection boxes; only source-backed/internal links may use virtual
-        // dispatch here.
-        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema) else { return nil }
+        // dispatch here. Clock bridges are the deliberate exception: their
+        // receiver is represented by a runtime-backed virtual object.
+        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+        else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]

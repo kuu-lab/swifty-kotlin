@@ -582,7 +582,9 @@ extension CallLowerer {
         let isRuntimeBridgedCallee = chosenCallee.map {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
-        if (loweredCallee == calleeName && !isRuntimeBridgedCallee) || isImportedLibraryLink,
+        if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || isImportedLibraryLink
+            || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
