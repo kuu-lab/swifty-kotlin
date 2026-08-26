@@ -2654,21 +2654,47 @@ extension NativeEmitter {
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
                 let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+                let sourceExternalCallSignature = !isInternalCall
+                    ? sourceExternalSignature(
+                        for: effectiveSymbol,
+                        argumentCount: argumentValues.count
+                    )
+                    : nil
+                // An interface declaration imported from a library is not in the
+                // consumer's internal function table, but its itable entries point
+                // at generated Kotlin functions, which always carry the hidden
+                // thrown channel. Keep the indirect function type consistent with
+                // that source-backed ABI (KSP-712).
+                let shouldAppendThrownChannel = usesThrownChannel
+                    || isInternalCall
+                    || sourceExternalCallSignature != nil
+                let sourceExternalFunction: LLVMFunction? = if let sourceExternalCallSignature {
+                    {
+                        var parameterTypes = loweredLLVMTypes(for: sourceExternalCallSignature.parameters)
+                        if shouldAppendThrownChannel {
+                            parameterTypes.append(outThrownPointerType)
+                        }
+                        return declareExternalFunction(
+                            named: effectiveExternalName,
+                            parameterTypes: parameterTypes,
+                            returnType: loweredLLVMType(
+                                for: sourceExternalCallSignature.returnType,
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                        )
+                    }()
+                } else {
+                    nil
+                }
                 let virtualSourceExternalCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
-                    guard !isInternalCall,
-                          let signature = sourceExternalSignature(
-                              for: effectiveSymbol,
-                              argumentCount: argumentValues.count
-                          ),
+                    guard let signature = sourceExternalCallSignature,
                           isStringAggregateType(signature.returnType)
                     else {
                         return nil
                     }
                     return signature
                 }()
-                let shouldAppendThrownChannel = usesThrownChannel
-                    || isInternalCall
-                    || virtualSourceExternalCallSignature != nil
 
                 var calleeFunction: LLVMFunction?
                 if let effectiveSymbol,
@@ -2685,20 +2711,8 @@ extension NativeEmitter {
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
-                } else if let virtualSourceExternalCallSignature {
-                    var parameterTypes = loweredLLVMTypes(for: virtualSourceExternalCallSignature.parameters)
-                    if shouldAppendThrownChannel {
-                        parameterTypes.append(outThrownPointerType)
-                    }
-                    calleeFunction = declareExternalFunction(
-                        named: effectiveExternalName,
-                        parameterTypes: parameterTypes,
-                        returnType: loweredLLVMType(
-                            for: virtualSourceExternalCallSignature.returnType,
-                            lowering: typeLowering,
-                            defaultType: int64Type
-                        )
-                    )
+                } else if let sourceExternalFunction {
+                    calleeFunction = sourceExternalFunction
                 } else {
                     calleeFunction = declareExternalFunction(
                         named: externalCalleeName,
