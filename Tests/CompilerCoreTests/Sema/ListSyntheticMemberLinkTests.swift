@@ -1679,6 +1679,85 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testCollectionInterfaceIsSourceBackedWithNativeSurface() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
+            let sema = try #require(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let collectionFQName = collectionsPkg + [ctx.interner.intern("Collection")]
+            let collectionSymbol = try #require(sema.symbols.lookup(fqName: collectionFQName))
+            let collectionInfo = try #require(sema.symbols.symbol(collectionSymbol))
+
+            #expect(collectionInfo.kind == .interface)
+            #expect(!collectionInfo.flags.contains(.synthetic))
+            #expect(sema.types.nominalTypeParameterVariances(for: collectionSymbol) == [.out])
+            let collectionFileID = try #require(sema.symbols.sourceFileID(for: collectionSymbol))
+            #expect(ctx.sourceManager.path(of: collectionFileID) == "__bundled_kotlin/collections/AbstractCollection.kt")
+
+            let iterableSymbol = try #require(sema.symbols.lookup(
+                fqName: collectionsPkg + [ctx.interner.intern("Iterable")]
+            ))
+            #expect(sema.symbols.directSupertypes(for: collectionSymbol).contains(iterableSymbol))
+            #expect(sema.types.directNominalSupertypes(for: collectionSymbol).contains(iterableSymbol))
+
+            let expectedExternalLinks: [String: String?] = [
+                "size": "__kk_collection_size",
+                "isEmpty": "__kk_collection_isEmpty",
+                "contains": "kk_op_contains",
+                "iterator": "kk_list_iterator",
+                "containsAll": "__kk_collection_containsAll",
+            ]
+            for (memberName, expectedExternalLink) in expectedExternalLinks {
+                let memberFQName = collectionFQName + [ctx.interner.intern(memberName)]
+                let members = sema.symbols.lookupAll(fqName: memberFQName).filter {
+                    sema.symbols.parentSymbol(for: $0) == collectionSymbol
+                }
+                #expect(members.count == 1, "Expected one source-backed Collection.(memberName) member")
+                let member = try #require(members.first)
+                let memberInfo = try #require(sema.symbols.symbol(member))
+                #expect(!memberInfo.flags.contains(.synthetic))
+                #expect(memberInfo.declSite != nil)
+                let memberFileID = try #require(sema.symbols.sourceFileID(for: member))
+                #expect(ctx.sourceManager.path(of: memberFileID) == "__bundled_kotlin/collections/AbstractCollection.kt")
+                #expect(sema.symbols.externalLinkName(for: member) == expectedExternalLink)
+            }
+
+            let iteratorSymbol = try #require(sema.symbols.lookup(
+                fqName: collectionsPkg + [ctx.interner.intern("Iterator")]
+            ))
+            for (memberName, expectedExternalLink) in [("hasNext", "kk_iterator_hasNext"), ("next", "kk_iterator_next")] {
+                let memberFQName = collectionsPkg + [ctx.interner.intern("Iterator"), ctx.interner.intern(memberName)]
+                let member = try #require(sema.symbols.lookupAll(fqName: memberFQName).first {
+                    sema.symbols.parentSymbol(for: $0) == iteratorSymbol
+                })
+                #expect(sema.symbols.externalLinkName(for: member) == expectedExternalLink)
+            }
+        }
+    }
+
+    @Test
+    func testSourceBackedCollectionMembersTypeCheckThroughCollectionReceiver() throws {
+        let source = """
+        import kotlin.collections.Collection
+
+        fun inspect(values: Collection<Int>, other: Collection<Int>): Boolean {
+            val size = values.size
+            val empty = values.isEmpty()
+            val member = values.contains(2)
+            val all = values.containsAll(other)
+            val iterator = values.iterator()
+            return size >= 0 && (empty || member || all || iterator.hasNext())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected Collection members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    @Test
     func testAbstractCollectionCanBeUsedAsCollectionSupertype() throws {
         let source = """
         import kotlin.collections.AbstractCollection
@@ -1760,6 +1839,34 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected concrete subclasses of the source-backed skeletal collections to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
+    func testAbstractCollectionProvidesConcreteCollectionDefaults() throws {
+        let source = """
+        import kotlin.collections.AbstractCollection
+        import kotlin.collections.Collection
+        import kotlin.collections.Iterator
+
+        class IntBag : AbstractCollection<Int>() {
+            override val size: Int
+                get() = 0
+
+            override fun iterator(): Iterator<Int> = ArrayList<Int>().iterator()
+        }
+
+        fun probe(values: IntBag): Boolean {
+            val collection: Collection<Int> = values
+            return collection.isEmpty() || collection.contains(1) || collection.containsAll(collection)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractCollection defaults to satisfy Collection members: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 
