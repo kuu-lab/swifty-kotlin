@@ -793,6 +793,11 @@ extension ExprTypeChecker {
         // Objects are singletons – always resolve to their nominal type so
         // that `ObjectName.member()` works.
         if symbol.kind == .object {
+            // Unit keeps its builtin value representation while retaining a
+            // source-backed object symbol for member dispatch.
+            if symbol.id == sema.types.unitClassSymbol {
+                return sema.types.unitType
+            }
             if let objectType = sema.symbols.propertyType(for: symbol.id) {
                 return objectType
             }
