@@ -133,8 +133,8 @@
 
 #### kotlin.collections [M3 実行体]（前提: KSP-305〜307。実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/`）
 
-- [ ] KSP-426: List sort/max/min を Kotlin 化（`sorted(By/With/Descending)` + `_primitive` 変種, mutable `sort*`, `max/min(By/Of/With)(OrNull)`）
-  - 削除 kk_*: `RuntimeCollectionHOFMaxMin.swift` の sorted 系 18 + max/min 系 20（rg で列挙）。比較コアは KSP-309 の Comparator Kotlin 実装を利用
+- [x] KSP-426: List sort/max/min を Kotlin 化（`sorted(By/With/Descending)` + `_primitive` 変種, mutable `sort*`, `max/min(By/Of/With)(OrNull)`）
+  - 完了根拠: merged PR #5061（commit `b4a1a52a6`）/ #5769（commit `7a8e6aa12`）で `ListSortingHOF.kt` / `ListExtremaHOF.kt` を source-backed 化し、#5908（commit `9cb8714e5`）の bundled stdlib 配線撤廃後も現行 master で維持。`ListSyntheticMemberLinkTests`、`ListAggregateHOFSourceMigrationTests`、`ComparisonsMax/MinWithOrNullFunctionTests`、`CollectionLiteralLoweringTests` と CompilerBackend の extrema 回帰が、対象 List API の source 解決・旧 `kk_list_*` external link 非依存を固定している。現行 master で source-backed link test 1件、`List.minWith` backend 回帰 1件、`list_sort_max_min.kt` / `list_max_min_with.kt` / `list_sorted_variants.kt` の kotlinc 差分3件を実行して全て pass。旧 synthetic/runtime fallback の残余は source-backed 呼び出し経路では選択されず、test-only shim とも混同しない。
 - [ ] KSP-428: List 集合演算・数値系を Kotlin 化（`plus`, `minus`, `intersect`, `union`, `subtract`, `distinct(By)`, `sum(Of/By)`, `average`, `reversed`, `asReversed`）
   - 削除 kk_*: 該当約 18 関数（rg で列挙）。`kk_list_shuffled(_random)` はエントロピー依存のため KSP-466 完了後に Kotlin 化
 #### kotlin.time [M8 実行体]
