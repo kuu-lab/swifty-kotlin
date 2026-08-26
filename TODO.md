@@ -216,7 +216,7 @@
 
 #### text / strings
 
-- [ ] KSP-693: `HeaderHelpers+SyntheticStringStubs.swift` を責務別に機械分割する（stdlib-pipeline.md 分類 (b) M1 文字列移行、約4,180行。現存最大級の合成スタブを検索/置換系・変換系・フォーマット系・bridge-only `__kk_*` 宣言等の責務別サブファイルへ機械的に移動のみで整理し、後続の M1 文字列 Kotlin 移行（(b)）の前段を整える。分割先の責務グループは着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift` で登録単位を全列挙して確定する。命名は責務ベースで既存の `HeaderHelpers+Synthetic*Stubs.swift` 命名慣習に合わせる。完了条件: 挙動変更ゼロ / `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数 ±0 / 共通ゲート G（`bash Scripts/swift_test.sh` / `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green））
+- [x] KSP-693: `HeaderHelpers+SyntheticStringStubs.swift` を責務別に機械分割する（stdlib-pipeline.md 分類 (b) M1 文字列移行、約4,180行。現存最大級の合成スタブを検索/置換系・変換系・フォーマット系・bridge-only `__kk_*` 宣言等の責務別サブファイルへ機械的に移動のみで整理し、後続の M1 文字列 Kotlin 移行（(b)）の前段を整える。分割先の責務グループは着手時 `rg 'func register' Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift` で登録単位を全列挙して確定する。命名は責務ベースで既存の `HeaderHelpers+Synthetic*Stubs.swift` 命名慣習に合わせる。完了条件: 挙動変更ゼロ / `Scripts/loc_report.sh` の `HeaderHelpers+Synthetic*` 合計行数 ±0 / 共通ゲート G（`bash Scripts/swift_test.sh` / `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` すべて green））。2026-08-26完了: 登録42件を型・変換・core・query・encoding・formatの6責務ファイルへ機械移動し、既存RegistrationHelpersへ共通helperを移動。登録順とexternalLinkName 40件は移動前後一致、API/ABI/lowering/runtime挙動の変更なし。`swift build --jobs 2`、StringSyntheticMemberLinkTests 4/4、String Golden Sema 8/8、Runtime ABI 4/4 PASS。`loc_report.sh` のHeaderHelpers+Synthetic合計は37296でベースライン±0、`git diff --check` PASS。
 
 #### delegates / reflect
 
