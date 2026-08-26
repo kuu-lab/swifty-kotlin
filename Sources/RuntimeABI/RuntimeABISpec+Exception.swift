@@ -607,6 +607,7 @@ public extension RuntimeABISpec {
             name: "__kk_throwable_rawStackFrames",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Exception"
@@ -615,6 +616,7 @@ public extension RuntimeABISpec {
             name: "__kk_throwable_toString",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
             section: "Exception"
