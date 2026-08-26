@@ -2565,7 +2565,7 @@
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Int, Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Int, kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
 
-- [ ] KSP-951: kotlin.collections.check-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-951: kotlin.collections.check-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `check`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/check.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2575,14 +2575,16 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.checkCountOverflow` — fun checkCountOverflow(Int): Int  -- `final inline fun kotlin.collections/checkCountOverflow(kotlin/Int): kotlin/Int`
     - `kotlin.collections.checkIndexOverflow` — fun checkIndexOverflow(Int): Int  -- `final inline fun kotlin.collections/checkIndexOverflow(kotlin/Int): kotlin/Int`
+  - 完了根拠 (2026-08-23): `check.kt` に `@PublishedApi internal inline` の純Kotlin実装を追加し、負値は本家同等の `ArithmeticException`（`Count/Index overflow has happened.`）、非負値は同値を返すことを `kswiftc` 直接実行と kotlinc friend-path 実行で `Int.MIN_VALUE/-1/0/1/Int.MAX_VALUE` について確認。Sema Golden 400件、対象候補実行、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` が pass。通常consumerからinternal APIを呼べないため対象diffは `SKIP-DIFF`（failed=0）とし、KSP-959所有の `throw*Overflow` helperおよびcompiler/runtime/ABI bridgeは追加・変更していない。
 
-- [ ] KSP-952: kotlin.collections.hash-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-952: kotlin.collections.hash-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / top-level / family `hash`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/hash.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_hash.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_hash.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_hash.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `hash.kt` で empty/vararg の4宣言をsource-backed化し、共有 map/set runtime bridge は保持。map Pair spread は `__kk_map_of_pairs` bridge へloweringし、対象Golden・lowering・Sema・backend・diff回帰を追加・更新済み。
   - 未実装シンボル一覧:
     - `kotlin.collections.hashMapOf` — fun hashMapOf(): HashMap  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/hashMapOf(): kotlin.collections/HashMap<#A, #B>`
     - `kotlin.collections.hashMapOf` — fun hashMapOf(Array): HashMap  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/hashMapOf(kotlin/Array<out kotlin/Pair<#A, #B>>...): kotlin.collections/HashMap<#A, #B>`
@@ -2614,7 +2616,7 @@
     - `kotlin.collections.linkedSetOf` — fun linkedSetOf(): HashSet  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(): kotlin.collections/HashSet<#A>`
     - `kotlin.collections.linkedSetOf` — fun linkedSetOf(Array): HashSet  -- `final fun <#A: kotlin/Any?> kotlin.collections/linkedSetOf(kotlin/Array<out #A>...): kotlin.collections/HashSet<#A>`
 
-- [ ] KSP-955: kotlin.collections.list-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-955: kotlin.collections.list-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `list`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2622,19 +2624,22 @@
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_list.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_list.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
-    - `kotlin.collections.listOf` — fun listOf(): List  -- `final fun <#A: kotlin/Any?> kotlin.collections/listOf(#A): kotlin.collections/List<#A>`
-    - `kotlin.collections.listOfNotNull` — fun listOfNotNull(): List  -- `final fun <#A: kotlin/Any> kotlin.collections/listOfNotNull(#A?): kotlin.collections/List<#A>`
+    - `kotlin.collections.listOf` — fun listOf(element: T): List<T>  -- `final fun <#A: kotlin/Any?> kotlin.collections/listOf(#A): kotlin.collections/List<#A>`
+    - `kotlin.collections.listOfNotNull` — fun listOfNotNull(element: T?): List<T>  -- `final fun <#A: kotlin/Any> kotlin.collections/listOfNotNull(#A?): kotlin.collections/List<#A>`
+  - 完了根拠: `CollectionFactories.kt` に public source-backed の単一要素 overload を追加し、既存の empty/vararg overload と共有する `__kk_list_of` / `__kk_emptyList` lowering・runtime・ABI は保持した。`Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_list.kt` の Sema Golden と `Scripts/diff_cases/stdlib_kotlin_collections_n_list.kt` の diff 回帰で、generic/nullable/empty/singleton/副作用評価1回と List identity を確認する。
 
-- [ ] KSP-956: kotlin.collections.map-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-956: kotlin.collections.map-family の stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `map`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_map.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_map.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_map.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.mapCapacity` — fun mapCapacity(Int): Int  -- `final fun kotlin.collections/mapCapacity(kotlin/Int): kotlin/Int`
-    - `kotlin.collections.mapOf` — fun mapOf(Pair): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin.collections/mapOf(kotlin/Pair<#A, #B>): kotlin.collections/Map<#A, #B>`
+  - 完了根拠（2026-08-23）: `CollectionFactories.kt` に `@PublishedApi internal mapCapacity(Int)` の Kotlin/JVM 準拠算術（負値、small size、load-factor、`1 shl 30` 閾値、`Int.MAX_VALUE` saturation）と、vararg と区別された public `mapOf(Pair<K, V>)` を source-backed 化した。既存の map lowering、Pair boxing、Map/MutableMap、RuntimeMapBox、RuntimeABI は共有経路として保持した。
+  - 回帰根拠: Sema Golden、singleton の nullable lookup/iteration/equality と Pair 一回評価を含む kotlinc diff、既存 CollectionLiteralLoweringTests を確認した。`Map.hashCode()` の直接呼出しと spread vararg の runtime 不具合は master 既存の共有経路であり、本 TODO の変更には混在させていない。
+  - 対象シンボル:
+    - `kotlin.collections.mapCapacity` — `@PublishedApi internal fun mapCapacity(expectedSize: Int): Int`
+    - `kotlin.collections.mapOf` — `public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V>`
 
 - [ ] KSP-957: kotlin.collections.on-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / top-level / family `on`
@@ -2649,7 +2654,7 @@
     - `kotlin.collections.onEachIndexed` — fun onEachIndexed(Function2): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/Iterable<#A>> (#B).kotlin.collections/onEachIndexed(kotlin/Function2<kotlin/Int, #A, kotlin/Unit>): #B`
     - `kotlin.collections.onEachIndexed` — fun onEachIndexed(Function2): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/Map<out #A, #B>> (#C).kotlin.collections/onEachIndexed(kotlin/Function2<kotlin/Int, kotlin.collections/Map.Entry<#A, #B>, kotlin/Unit>): #C`
 
-- [ ] KSP-958: kotlin.collections.set-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-958: kotlin.collections.set-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / top-level / family `set`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2660,17 +2665,19 @@
     - `kotlin.collections.setOf` — fun setOf(): Set  -- `final fun <#A: kotlin/Any?> kotlin.collections/setOf(#A): kotlin.collections/Set<#A>`
     - `kotlin.collections.setOfNotNull` — fun setOfNotNull(): Set  -- `final fun <#A: kotlin/Any> kotlin.collections/setOfNotNull(#A?): kotlin.collections/Set<#A>`
     - `kotlin.collections.setOfNotNull` — fun setOfNotNull(Array): Set  -- `final fun <#A: kotlin/Any> kotlin.collections/setOfNotNull(kotlin/Array<out #A?>...): kotlin.collections/Set<#A>`
+  - 完了根拠: `CollectionFactories.kt` に `setOf(element: T)`, `setOfNotNull(element: T?)`, `setOfNotNull(vararg elements: T?)` を public source-backed 宣言として追加し、既存の set bridge/lowering/RuntimeSetBox/ABI を維持。Sema/Golden/diff 回帰で固定。
 
-- [ ] KSP-959: kotlin.collections.throw-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-959: kotlin.collections.throw-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `throw`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/throw.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_throw.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_throw.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_throw.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 対象シンボル一覧:
     - `kotlin.collections.throwCountOverflow` — fun throwCountOverflow(): Unit  -- `final fun kotlin.collections/throwCountOverflow()`
     - `kotlin.collections.throwIndexOverflow` — fun throwIndexOverflow(): Unit  -- `final fun kotlin.collections/throwIndexOverflow()`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/throw.kt` に本家同等の `@PublishedApi` / `@SinceKotlin("1.3")` / `internal` source-backed 実装を追加し、両関数が常に `ArithmeticException` と本家同一メッセージを投げることを固定。ブロック本体で明示戻り値なしの本家契約は `Unit`（`Nothing` ではない）。focused Sema 回帰で非synthetic・非RuntimeABI・bundled source path・visibility・`Unit` を確認し、Sema Golden と direct kswiftc/kotlinc parity を通過。internal API のため通常 consumer diff は不可視であり、diff case は `SKIP-DIFF` として同一 package の direct 実行を別途確認。
 
 - [ ] KSP-960: kotlin.collections.Collection の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.collections` / receiver `Collection`
@@ -2734,13 +2741,14 @@
     - `kotlin.collections.foldTo` — fun Grouping.foldTo(, Function2, Function3): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableMap<in #B, #C>> (kotlin.collections/Grouping<#A, #B>).kotlin.collections/foldTo(#D, kotlin/Function2<#B, #A, #C>, kotlin/Function3<#B, #C, #A, #C>): #D`
     - `kotlin.collections.reduceTo` — fun Grouping.reduceTo(, Function3): #D  -- `final inline fun <#A: kotlin/Any?, #B: #A, #C: kotlin/Any?, #D: kotlin.collections/MutableMap<in #C, #A>> (kotlin.collections/Grouping<#B, #C>).kotlin.collections/reduceTo(#D, kotlin/Function3<#C, #A, #B, #A>): #D`
 
-- [ ] KSP-963: kotlin.collections.Iterable.as-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-963: kotlin.collections.Iterable.as-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `as`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_as.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Iterable_as.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Iterable_as.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-23）: `Iterables.kt` に `public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this` を追加。Sema Golden、custom `Iterable`/`List`/`Set`・nullable要素・generic inference・identity・iterator非消費の実行回帰、kotlinc差分、KIR/LLVM source-backed identity loweringを確認し、対象のRuntime/ABI bridgeは追加していない。
   - 未実装シンボル一覧:
     - `kotlin.collections.asIterable` — fun Iterable.asIterable(): Iterable  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/asIterable(): kotlin.collections/Iterable<#A>`
 
@@ -2797,7 +2805,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.contains` — fun Iterable.contains(): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/contains(#A): kotlin/Boolean`
 
-- [ ] KSP-968: kotlin.collections.Iterable.count-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-968: kotlin.collections.Iterable.count-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `count`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2807,8 +2815,9 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.count` — fun Iterable.count(): Int  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(): kotlin/Int`
     - `kotlin.collections.count` — fun Iterable.count(Function1): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/count(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Int`
+  - 完了根拠 (2026-08-23): `Iterables.kt` に Kotlin 原典準拠の `Iterable.count()` / `count(predicate)` を追加（Collection の size/isEmpty fast path、全要素1回評価、predicate true のみ加算、overflow 時 `ArithmeticException("Count overflow has happened.")`）。source-backed lowering の対象名を更新し、bridge/runtime/RuntimeABI の新規追加はなし。Sema Golden の `Iterable<Int>` / `Iterable<Int?>` overload binding と diff case の custom Iterable、empty、nullable、混在 predicate、例外中断を確認。
 
-- [ ] KSP-969: kotlin.collections.Iterable.drop-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-969: kotlin.collections.Iterable.drop-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `drop`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2818,6 +2827,9 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.drop` — fun Iterable.drop(Int): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/drop(kotlin/Int): kotlin.collections/List<#A>`
     - `kotlin.collections.dropWhile` — fun Iterable.dropWhile(Function1): List  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/dropWhile(kotlin/Function1<#A, kotlin/Boolean>): kotlin.collections/List<#A>`
+
+  - 完了根拠: `Iterables.kt` に本家準拠の public / public inline source-backed 実装を追加し、Sema は静的 `Iterable` で対象2件を source-backed `kotlin.collections.drop#0` / `dropWhile#0` に解決する。具体的な `List` は `#1` のList overloadを維持し、Sequence/Range/共有runtime・ABI経路は変更していない。
+  - 回帰: `stdlib_kotlin_collections_Iterable_drop.golden`（List/Iterableのcallee・`List<T>`結果型）、`stdlib_kotlin_collections_Iterable_drop.kt`（one-shot iterator、境界値、負数メッセージ、dropWhileの評価停止・例外・nullable要素）、kotlinc差分PASS。
 
 - [ ] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `element`
