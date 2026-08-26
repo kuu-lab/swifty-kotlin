@@ -9,6 +9,7 @@ extension CallTypeChecker {
         "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
         "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
         "any", "all", "none", "count", "joinToString",
+        "contentEquals", "contentHashCode", "contentToString",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import

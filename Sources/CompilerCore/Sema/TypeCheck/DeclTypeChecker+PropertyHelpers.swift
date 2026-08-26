@@ -2,6 +2,17 @@
 // Property accessor type-checking helpers extracted from DeclTypeChecker
 // to keep the main file within SwiftLint length limits.
 
+private struct PropertyDelegateFunctionResolution {
+    let symbol: SymbolID?
+    let substitutedTypeArguments: [TypeVarID: TypeID]
+    let diagnostic: Diagnostic?
+}
+
+private struct ResolvedPropertyDelegateSignature {
+    let parameterTypes: [TypeID]
+    let returnType: TypeID
+}
+
 extension DeclTypeChecker {
     func typeCheckGetter(
         _ getter: PropertyAccessorDecl,
@@ -82,19 +93,24 @@ extension DeclTypeChecker {
             for: SymbolID(rawValue: -(symbol.rawValue + 50000))
         )
 
-        // Resolve getValue operator (Kotlin spec J12).
+        // Resolve getValue through the property-delegate convention. Unlike a
+        // normal member lookup, the convention also admits visible extension
+        // functions whose receiver is the delegate type.
         let getValueName = interner.intern("getValue")
-        let getValueCandidates = driver.helpers
-            .collectMemberFunctionCandidates(
-                named: getValueName,
-                receiverType: delegateType,
-                sema: sema,
-                interner: interner
-            ).filter { candidateID in
-                guard let sym = sema.symbols.symbol(candidateID)
-                else { return false }
-                return sym.flags.contains(.operatorFunction)
-            }
+        let delegateCallRange = ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
+        let delegateAccessorArgs = propertyDelegateAccessorArgumentTypes(
+            for: symbol,
+            valueType: result,
+            ctx: ctx
+        )
+        let getValueResolution = resolvePropertyDelegateFunction(
+            named: getValueName,
+            receiverType: delegateType,
+            argumentTypes: Array(delegateAccessorArgs.prefix(2)),
+            expectedType: result,
+            range: delegateCallRange,
+            ctx: ctx
+        )
         // Tracks whether getValue/setValue were actually resolved for the *effective*
         // delegate type (see below: provideDelegate, when present, fully supersedes
         // this direct check). Deliberately not read back from
@@ -104,38 +120,47 @@ extension DeclTypeChecker {
         // check would otherwise mask the failure.
         var getValueResolved = false
         var setValueResolved = false
+        var getValueDiagnosticReported = getValueResolution?.diagnostic != nil
+        var setValueDiagnosticReported = false
 
-        if let getValueSymbol = getValueCandidates.first,
-           let getValueSig = resolvedDelegateMemberSignature(
-               for: getValueSymbol,
-               receiverType: delegateType,
+        if let getValueResolution,
+           let getValueSymbol = getValueResolution.symbol,
+           let getValueSig = resolvedDelegateCallSignature(
+               for: getValueResolution,
                sema: sema
-           ),
-           result == nil
+           )
         {
             sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
-            result = getValueSig.returnType
-            getValueResolved = true
-        } else if let getValueSymbol = getValueCandidates.first {
-            sema.symbols.setDelegateGetValueSymbol(getValueSymbol, for: symbol)
+            if result == nil {
+                result = getValueSig.returnType
+            }
             getValueResolved = true
         }
 
         // Check setValue for var properties.
-        if isVar {
+        if isVar, let valueType = result {
             let setValueName = interner.intern("setValue")
-            let setValueCandidates = driver.helpers
-                .collectMemberFunctionCandidates(
-                    named: setValueName,
-                    receiverType: delegateType,
-                    sema: sema,
-                    interner: interner
-                ).filter { candidateID in
-                    guard let sym = sema.symbols.symbol(candidateID)
-                    else { return false }
-                    return sym.flags.contains(.operatorFunction)
-                }
-            if let setValueSymbol = setValueCandidates.first {
+            let setValueResolution = resolvePropertyDelegateFunction(
+                named: setValueName,
+                receiverType: delegateType,
+                argumentTypes: propertyDelegateAccessorArgumentTypes(
+                    for: symbol,
+                    valueType: valueType,
+                    ctx: ctx
+                ),
+                expectedType: nil,
+                range: delegateCallRange,
+                ctx: ctx
+            )
+            setValueDiagnosticReported = setValueResolution?.diagnostic != nil
+            if let setValueResolution,
+               let setValueSymbol = setValueResolution.symbol,
+               let setValueSig = resolvedDelegateCallSignature(
+                   for: setValueResolution,
+                   sema: sema
+               ),
+               sema.types.isSubtype(setValueSig.returnType, sema.types.unitType)
+            {
                 sema.symbols.setDelegateSetValueSymbol(setValueSymbol, for: symbol)
                 setValueResolved = true
             }
@@ -167,68 +192,69 @@ extension DeclTypeChecker {
                     sema: sema
                 ) {
                     let actualDelegateType = sig.returnType
-                    let allGetValueCandidates = driver.helpers
-                        .collectMemberFunctionCandidates(
-                            named: getValueName,
-                            receiverType: actualDelegateType,
-                            sema: sema,
-                            interner: interner
-                        )
-                    // Accept operator functions first; fall back to any non-synthetic override
-                    // (Kotlin allows omitting 'operator' on overrides of operator functions).
-                    let actualGetValueCandidates = allGetValueCandidates.filter { candidateID in
-                        guard let sym = sema.symbols.symbol(candidateID)
-                        else { return false }
-                        return sym.flags.contains(.operatorFunction)
-                    }
-                    let actualGetValueSymbol = actualGetValueCandidates.first
-                        ?? allGetValueCandidates.first { candidateID in
-                            guard let sym = sema.symbols.symbol(candidateID)
-                            else { return false }
-                            return !sym.flags.contains(.synthetic)
-                        }
                     // provideDelegate's return type is the effective delegate, so its
                     // resolution (success or failure) fully supersedes the direct check above.
-                    getValueResolved = actualGetValueSymbol != nil
-                    if let actualGetValueSymbol {
+                    let actualAccessorArgs = propertyDelegateAccessorArgumentTypes(
+                        for: symbol,
+                        valueType: result,
+                        ctx: ctx
+                    )
+                    let actualGetValueResolution = resolvePropertyDelegateFunction(
+                        named: getValueName,
+                        receiverType: actualDelegateType,
+                        argumentTypes: Array(actualAccessorArgs.prefix(2)),
+                        expectedType: result,
+                        range: delegateCallRange,
+                        ctx: ctx,
+                        allowNonOperatorMemberOverride: true
+                    )
+                    getValueResolved = actualGetValueResolution?.symbol != nil
+                    getValueDiagnosticReported = actualGetValueResolution?.diagnostic != nil
+                    if let actualGetValueResolution,
+                       let actualGetValueSymbol = actualGetValueResolution.symbol
+                    {
                         sema.symbols.setDelegateGetValueSymbol(actualGetValueSymbol, for: symbol)
                         // When provideDelegate is present, the property type must be inferred from
                         // the actual delegate's getValue, not the original expression's getValue.
                         // Only override result if no explicit type annotation was provided.
                         if result == nil,
-                           let actualGetValueSig = resolvedDelegateMemberSignature(
-                               for: actualGetValueSymbol,
-                               receiverType: actualDelegateType,
+                           let actualGetValueSig = resolvedDelegateCallSignature(
+                               for: actualGetValueResolution,
                                sema: sema
                            ) {
                             result = actualGetValueSig.returnType
                         }
                     }
 
-                    if isVar {
+                    if isVar, let valueType = result {
                         let setValueName = interner.intern("setValue")
-                        let allSetValueCandidates = driver.helpers.collectMemberFunctionCandidates(
+                        let actualSetValueResolution = resolvePropertyDelegateFunction(
                             named: setValueName,
                             receiverType: actualDelegateType,
-                            sema: sema,
-                            interner: interner
+                            argumentTypes: propertyDelegateAccessorArgumentTypes(
+                                for: symbol,
+                                valueType: valueType,
+                                ctx: ctx
+                            ),
+                            expectedType: nil,
+                            range: delegateCallRange,
+                            ctx: ctx,
+                            allowNonOperatorMemberOverride: true
                         )
-                        let actualSetValueCandidates = allSetValueCandidates.filter { candidateID in
-                            guard let sym = sema.symbols.symbol(candidateID)
-                            else { return false }
-                            return sym.flags.contains(.operatorFunction)
-                        }
-                        let actualSetValueSymbol = actualSetValueCandidates.first
-                            ?? allSetValueCandidates.first { candidateID in
-                                guard let sym = sema.symbols.symbol(candidateID)
-                                else { return false }
-                                return !sym.flags.contains(.synthetic)
-                            }
                         // Same rationale as getValueResolved above: provideDelegate's
                         // return type supersedes the direct check.
-                        setValueResolved = actualSetValueSymbol != nil
-                        if let actualSetValueSymbol {
+                        setValueResolved = false
+                        setValueDiagnosticReported = actualSetValueResolution?.diagnostic != nil
+                        if let actualSetValueResolution,
+                           let actualSetValueSymbol = actualSetValueResolution.symbol,
+                           let actualSetValueSig = resolvedDelegateCallSignature(
+                               for: actualSetValueResolution,
+                               sema: sema
+                           ),
+                           sema.types.isSubtype(actualSetValueSig.returnType, sema.types.unitType)
+                        {
                             sema.symbols.setDelegateSetValueSymbol(actualSetValueSymbol, for: symbol)
+                            setValueResolved = true
                         }
                     }
                 }
@@ -292,14 +318,14 @@ extension DeclTypeChecker {
             )
         }
 
-        if !getValueResolved, !isKnownStdlibDelegate {
+        if !getValueResolved, !getValueDiagnosticReported, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
                 "Property delegate must have a 'getValue' operator function.",
                 range: ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
             )
         }
-        if isVar, !setValueResolved, !isKnownStdlibDelegate {
+        if isVar, !setValueResolved, !setValueDiagnosticReported, !isKnownStdlibDelegate {
             diagnostics.error(
                 "KSWIFTK-SEMA-0104",
                 "Mutable property delegate must have a 'setValue' operator function.",
@@ -312,6 +338,203 @@ extension DeclTypeChecker {
         }
 
         return result
+    }
+
+    /// Resolve one property-delegate convention function with the same
+    /// receiver/argument/generic rules used by ordinary calls. Member
+    /// candidates are probed first because a member always wins over an
+    /// extension; extensions are then taken from the visible scope and the
+    /// existing bundled-stdlib fallback.
+    private func resolvePropertyDelegateFunction(
+        named name: InternedString,
+        receiverType: TypeID,
+        argumentTypes: [TypeID],
+        expectedType: TypeID?,
+        range: SourceRange,
+        ctx: TypeInferenceContext,
+        allowNonOperatorMemberOverride: Bool = false
+    ) -> PropertyDelegateFunctionResolution? {
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let call = CallExpr(
+            range: range,
+            calleeName: name,
+            args: argumentTypes.map { CallArg(type: $0) }
+        )
+
+        let memberCandidates = driver.helpers
+            .collectMemberFunctionCandidates(
+                named: name,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            )
+            .filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function
+                else {
+                    return false
+                }
+                if symbol.flags.contains(.operatorFunction) {
+                    return true
+                }
+                // Kotlin permits an override to omit `operator` when the
+                // overridden declaration introduced the operator convention.
+                // This exception is limited to member overrides; a same-named
+                // non-operator extension is never a delegate convention.
+                return allowNonOperatorMemberOverride
+                    && symbol.flags.contains(.overrideMember)
+                    && !symbol.flags.contains(.synthetic)
+            }
+
+        func resolve(_ candidates: [SymbolID]) -> PropertyDelegateFunctionResolution? {
+            guard !candidates.isEmpty else { return nil }
+            let probe = ctx.resolver.probeCall(
+                candidates: candidates,
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+            guard !probe.viableCandidates.isEmpty else {
+                return nil
+            }
+            let resolved = ctx.resolver.resolveCall(
+                candidates: candidates,
+                call: call,
+                expectedType: expectedType,
+                implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+            return PropertyDelegateFunctionResolution(
+                symbol: resolved.chosenCallee,
+                substitutedTypeArguments: resolved.substitutedTypeArguments,
+                diagnostic: resolved.diagnostic
+            )
+        }
+
+        if let memberResolution = resolve(memberCandidates) {
+            if let diagnostic = memberResolution.diagnostic {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+            }
+            return memberResolution
+        }
+
+        let scopeCandidates = ctx.filterByVisibility(ctx.cachedScopeLookup(name)).visible
+            .filter { candidate in
+                guard let symbol = ctx.cachedSymbol(candidate),
+                      symbol.kind == .function,
+                      symbol.flags.contains(.operatorFunction),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType
+                else {
+                    return false
+                }
+                return driver.callChecker.extensionSyntheticFallbackReceiverMatches(
+                    callSiteReceiver: receiverType,
+                    declaredReceiver: declaredReceiver,
+                    sema: sema
+                )
+            }
+        let bundledCandidates = driver.callChecker.collectBundledStdlibExtensionCandidates(
+            named: name,
+            receiverType: receiverType,
+            requireOperator: true,
+            sema: sema,
+            interner: interner
+        )
+        var extensionCandidates: [SymbolID] = []
+        var seen: Set<SymbolID> = []
+        for candidate in scopeCandidates + bundledCandidates where seen.insert(candidate).inserted {
+            extensionCandidates.append(candidate)
+        }
+        if let extensionResolution = resolve(extensionCandidates) {
+            if let diagnostic = extensionResolution.diagnostic {
+                ctx.semaCtx.diagnostics.emit(diagnostic)
+            }
+            return extensionResolution
+        }
+        return nil
+    }
+
+    private func propertyDelegateAccessorArgumentTypes(
+        for propertySymbol: SymbolID,
+        valueType: TypeID?,
+        ctx: TypeInferenceContext
+    ) -> [TypeID] {
+        let sema = ctx.sema
+        let thisRefType = propertyDelegateThisRefType(
+            for: propertySymbol,
+            ctx: ctx
+        )
+        let kPropertyType: TypeID = if let kPropertySymbol = sema.symbols.lookup(fqName: [
+            ctx.interner.intern("kotlin"),
+            ctx.interner.intern("reflect"),
+            ctx.interner.intern("KProperty"),
+        ]) {
+            sema.types.make(.classType(ClassType(
+                classSymbol: kPropertySymbol,
+                args: [.star],
+                nullability: .nonNull
+            )))
+        } else {
+            sema.types.anyType
+        }
+        var result = [thisRefType, kPropertyType]
+        if let valueType {
+            result.append(valueType)
+        }
+        return result
+    }
+
+    private func propertyDelegateThisRefType(
+        for propertySymbol: SymbolID,
+        ctx: TypeInferenceContext
+    ) -> TypeID {
+        let sema = ctx.sema
+        if sema.symbols.symbol(propertySymbol)?.kind == .local {
+            return sema.types.nullableAnyType
+        }
+        if let extensionReceiver = sema.symbols.extensionPropertyReceiverType(for: propertySymbol) {
+            return extensionReceiver
+        }
+        if let owner = sema.symbols.parentSymbol(for: propertySymbol),
+           let ownerSymbol = sema.symbols.symbol(owner),
+           [.class, .interface, .object, .enumClass].contains(ownerSymbol.kind)
+        {
+            if let implicitReceiver = ctx.implicitReceiverType {
+                return implicitReceiver
+            }
+            return sema.types.make(.classType(ClassType(
+                classSymbol: owner,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+        return sema.types.nullableAnyType
+    }
+
+    private func resolvedDelegateCallSignature(
+        for resolution: PropertyDelegateFunctionResolution,
+        sema: SemaModule
+    ) -> ResolvedPropertyDelegateSignature? {
+        guard let symbol = resolution.symbol,
+              let signature = sema.symbols.functionSignature(for: symbol)
+        else {
+            return nil
+        }
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let substitute = { (type: TypeID) in
+            sema.types.substituteTypeParameters(
+                in: type,
+                substitution: resolution.substitutedTypeArguments,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+        return ResolvedPropertyDelegateSignature(
+            parameterTypes: signature.parameterTypes.map(substitute),
+            returnType: substitute(signature.returnType)
+        )
     }
 
     /// The interface a stdlib delegate factory's result conforms to for a given
