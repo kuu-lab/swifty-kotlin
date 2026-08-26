@@ -522,7 +522,10 @@ struct NativeConcurrentSyntheticStubTests {
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
         #expect(signature.receiverType == nil)
         #expect(signature.valueParameterHasDefaultValues == [false])
-        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+        #expect(
+            sema.symbols.externalLinkName(for: constructor)
+                == "__kk_invalid_mutability_exception_new_message"
+        )
     }
 
     @Test
