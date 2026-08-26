@@ -326,6 +326,53 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1522: forward-declares the source-backed `kotlin.random.Random` and
+    /// `java.util.Random` nominal types before synthetic collection and Sequence
+    /// members resolve their parameter types. `JavaRandomInterop.kt` can also be
+    /// collected before `JavaUtilRandom.kt`, so both owners must be available in
+    /// the same early pass.
+    func predeclareBundledRandomHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let targets: [([InternedString], InternedString)] = [
+            (
+                [interner.intern("kotlin"), interner.intern("random")],
+                interner.intern("Random")
+            ),
+            (
+                [interner.intern("java"), interner.intern("util")],
+                interner.intern("Random")
+            ),
+        ]
+        for (packageFQName, targetName) in targets {
+            for file in ast.sortedFiles where file.packageFQName == packageFQName {
+                let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                    guard let decl = ast.arena.decl(declID) else { return false }
+                    switch decl {
+                    case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                        return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                    case .funDecl, .propertyDecl, .enumEntryDecl:
+                        return false
+                    }
+                }
+                guard declaresTargetNominal,
+                      let fileScope = fileScopes[file.fileID.rawValue]
+                else { continue }
+                predeclareNominalTypeHeaders(
+                    file: file, ast: ast, symbols: symbols, scope: fileScope,
+                    sourceManager: sourceManager, diagnostics: diagnostics,
+                    interner: interner, into: &predeclared
+                )
+            }
+        }
+    }
+
     // swiftlint:disable:next cyclomatic_complexity function_body_length
     func collectHeader(
         declID: DeclID,
@@ -834,7 +881,20 @@ extension DataFlowSemaPhase {
             }
 
         case let .objectDecl(objectDecl):
-            let objectType = types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+            // Unit keeps its builtin value representation, but its source-backed
+            // object symbol must remain available for ordinary member dispatch.
+            let builtinNames = BuiltinTypeNames(interner: interner)
+            let isUnitObject = package == [interner.intern("kotlin")] && declaration.name == builtinNames.unit
+            if isUnitObject {
+                types.unitClassSymbol = symbol
+            }
+            // Unit's value representation is a builtin type, but its member
+            // declarations are source-backed. Use the builtin type as the
+            // member receiver so normal overload resolution accepts Unit
+            // values without a name-based dispatch exception.
+            let objectType = isUnitObject
+                ? unitType
+                : types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
             let objectScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
@@ -1280,8 +1340,12 @@ extension DataFlowSemaPhase {
             [["kotlin", "collections", "MutableIterable"]]
         case "__bundled_kotlin/collections/AbstractCollection.kt":
             [["kotlin", "collections", "AbstractCollection"]]
+        case "__bundled_kotlin/collections/AbstractSet.kt":
+            [["kotlin", "collections", "AbstractSet"]]
         case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
             [["kotlin", "collections", "AbstractMutableCollection"]]
+        case "__bundled_kotlin/collections/AbstractMutableMap.kt":
+            [["kotlin", "collections", "AbstractMutableMap"]]
         case "__bundled_kotlin/Result/Stdlib.kt":
             [["kotlin", "Result"]]
         case "__bundled_kotlin/text/StringBuilder.kt":
@@ -1290,10 +1354,6 @@ extension DataFlowSemaPhase {
             [["kotlin", "uuid", "Uuid"]]
         case "__bundled_java/math/BigDecimal.kt":
             [["java", "math", "BigDecimal"]]
-        case "__bundled_kotlin/random/Random.kt":
-            [["kotlin", "random", "Random"]]
-        case "__bundled_kotlin/random/JavaUtilRandom.kt":
-            [["java", "util", "Random"]]
         case "__bundled_kotlin/text/StringEncoding.kt":
             [["kotlin", "text", "Charset"]]
         case "__bundled_kotlin/Throwable.kt":

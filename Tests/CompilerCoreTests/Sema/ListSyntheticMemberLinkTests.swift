@@ -1811,7 +1811,10 @@ struct ListSyntheticMemberLinkTests {
             let abstractSetSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName))
             let abstractSetInfo = try #require(sema.symbols.symbol(abstractSetSymbol))
             #expect(abstractSetInfo.kind == .class)
-            #expect(abstractSetInfo.flags.contains(.synthetic))
+            // KSP-932: the nominal declaration now comes from the bundled
+            // `Stdlib/kotlin/collections/AbstractSet.kt` source. The
+            // compiler-side shell remains only as the no-stdlib fallback.
+            #expect(!abstractSetInfo.flags.contains(.synthetic))
             #expect(abstractSetInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractSetSymbol) == [.out])
 
@@ -1832,6 +1835,53 @@ struct ListSyntheticMemberLinkTests {
             #expect(constructorInfo.kind == .constructor)
             #expect(constructorInfo.visibility == .protected)
             #expect(try #require(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
+        }
+    }
+
+    @Test
+    func testSourceBackedAbstractSetUsesInheritedAbstractContract() throws {
+        let source = """
+        import kotlin.collections.AbstractSet
+
+        abstract class ProbeSet : AbstractSet<Int>()
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let abstractSetName = ctx.interner.intern("AbstractSet")
+            let abstractSetFQName = collectionsPkg + [abstractSetName]
+            let abstractSetSymbol = try #require(sema.symbols.lookup(fqName: abstractSetFQName))
+            let abstractSetInfo = try #require(sema.symbols.symbol(abstractSetSymbol))
+            let abstractCollectionName = ctx.interner.intern("AbstractCollection")
+            let abstractCollectionFQName = collectionsPkg + [abstractCollectionName]
+            let abstractCollectionSymbol = try #require(sema.symbols.lookup(fqName: abstractCollectionFQName))
+
+            // The bundled AbstractSet source has no direct abstract member;
+            // its abstract size/iterator contract is inherited from
+            // AbstractCollection, matching Kotlin's stdlib hierarchy.
+            #expect(!abstractSetInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.directSupertypes(for: abstractSetSymbol).contains(abstractCollectionSymbol))
+            let inheritedAbstractNames = sema.symbols.children(ofFQName: abstractCollectionFQName)
+                .compactMap { sema.symbols.symbol($0) }
+                .filter { symbol in
+                    (symbol.kind == .function || symbol.kind == .property) && symbol.flags.contains(.abstractType)
+                }
+                .map { ctx.interner.resolve($0.name) }
+            #expect(inheritedAbstractNames.contains("size"))
+            #expect(inheritedAbstractNames.contains("iterator"))
+
+            let falsePositiveWarnings = ctx.diagnostics.diagnostics.filter { diagnostic in
+                diagnostic.code == "KSWIFTK-SEMA-ABSTRACT" &&
+                    (diagnostic.message.contains("kotlin.collections.AbstractSet") ||
+                        diagnostic.message.contains("ProbeSet"))
+            }
+            #expect(
+                falsePositiveWarnings.isEmpty,
+                "AbstractSet's inherited abstract contract must not produce an empty-abstract-class warning for AbstractSet or its minimal subclass: \(falsePositiveWarnings)"
+            )
         }
     }
 
@@ -2102,7 +2152,7 @@ struct ListSyntheticMemberLinkTests {
             let abstractMutableMapSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName))
             let abstractMutableMapInfo = try #require(sema.symbols.symbol(abstractMutableMapSymbol))
             #expect(abstractMutableMapInfo.kind == .class)
-            #expect(abstractMutableMapInfo.flags.contains(.synthetic))
+            #expect(!abstractMutableMapInfo.flags.contains(.synthetic))
             #expect(abstractMutableMapInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableMapSymbol) == [.invariant, .invariant])
 
@@ -2115,6 +2165,27 @@ struct ListSyntheticMemberLinkTests {
             #expect(directSupertypes.contains(mutableMapSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: readonlySupertype).count == 2)
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableMapSymbol, supertype: mutableMapSymbol).count == 2)
+
+            let mutableEntryFQName = collectionsPkg + [
+                ctx.interner.intern("MutableMap"),
+                ctx.interner.intern("MutableEntry"),
+            ]
+            let mutableEntrySymbol = try #require(sema.symbols.lookup(fqName: mutableEntryFQName))
+            let mapEntrySymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [
+                ctx.interner.intern("Map"),
+                ctx.interner.intern("Entry"),
+            ]))
+            #expect(sema.symbols.directSupertypes(for: mutableEntrySymbol).contains(mapEntrySymbol))
+
+            let putSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("put")]))
+            let putInfo = try #require(sema.symbols.symbol(putSymbol))
+            #expect(putInfo.kind == .function)
+            #expect(putInfo.flags.contains(.abstractType))
+            #expect(try #require(sema.symbols.functionSignature(for: putSymbol)).parameterTypes.count == 2)
+            let entriesSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("entries")]))
+            let entriesInfo = try #require(sema.symbols.symbol(entriesSymbol))
+            #expect(entriesInfo.kind == .property)
+            #expect(entriesInfo.flags.contains(.abstractType))
 
             let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableMapFQName + [ctx.interner.intern("<init>")]))
             let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
@@ -2160,7 +2231,7 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Map
         import kotlin.collections.MutableMap
 
-        class ProbeMutableMap : AbstractMutableMap<String, Int>()
+        abstract class ProbeMutableMap : AbstractMutableMap<String, Int>()
 
         fun acceptReadonly(values: Map<String, Int>) {}
         fun acceptMutable(values: MutableMap<String, Int>) {}
@@ -2168,6 +2239,27 @@ struct ListSyntheticMemberLinkTests {
         fun probe(values: ProbeMutableMap) {
             acceptReadonly(values)
             acceptMutable(values)
+        }
+
+        fun inheritedMapSurface(values: ProbeMutableMap, missing: String): Int? {
+            val readonly: Map<String, Int> = values
+            val mutable: MutableMap<String, Int> = values
+            val missingValue = readonly[missing]
+            mutable.putAll(emptyMap<String, Int>())
+            mutable.put(missing, 1)
+            mutable.remove(missing)
+            val keyView = mutable.keys
+            val valueView = mutable.values
+            val readonlyEntryView = readonly.entries
+            val mutableEntryView = mutable.entries
+            values.equals(readonly)
+            values.hashCode()
+            values.toString()
+            keyView.size
+            valueView.size
+            readonlyEntryView.size
+            mutableEntryView.size
+            return missingValue
         }
         """
 
