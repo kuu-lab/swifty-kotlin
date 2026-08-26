@@ -856,44 +856,13 @@ final class CallLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let childExpr = arena.appendExpr(.intLiteral(childTypeID), type: intType)
-                instructions.append(.constValue(result: childExpr, value: .intLiteral(childTypeID)))
-                // Register the complete nominal supertype closure. Runtime-backed
-                // built-ins may not execute their own object allocation path, so
-                // direct edges alone do not make source-backed subclasses
-                // assignable to intermediate ancestors.
-                var pendingSupertypes = sema.symbols.directSupertypes(for: ownerNominalSymbol)
-                var registeredSupertypes: Set<SymbolID> = []
-                while let superSymbol = pendingSupertypes.first {
-                    pendingSupertypes.removeFirst()
-                    guard registeredSupertypes.insert(superSymbol).inserted else {
-                        continue
-                    }
-                    pendingSupertypes.append(contentsOf: sema.symbols.directSupertypes(for: superSymbol))
-
-                    let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                        symbol: superSymbol,
-                        sema: sema,
-                        interner: interner
-                    )
-                    let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-                    instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                    let registerResult = arena.appendTemporary(type: intType)
-                    let superKind = sema.symbols.symbol(superSymbol)?.kind
-                    let registerCallee: InternedString = if superKind == .interface {
-                        interner.intern("kk_type_register_iface")
-                    } else {
-                        interner.intern("kk_type_register_super")
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: registerCallee,
-                        arguments: [childExpr, parentExpr],
-                        result: registerResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
+                appendNominalSupertypeEdgeRegistrations(
+                    childSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 appendObjectItableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
