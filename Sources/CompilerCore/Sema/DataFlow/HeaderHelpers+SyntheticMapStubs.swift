@@ -916,6 +916,88 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableMapSymbol)
         symbols.setSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+
+        // The source-backed AbstractMutableMap declaration names the official
+        // nested MutableMap.MutableEntry type. Keep this nominal entry shell in
+        // the shared fallback path until MutableMap itself becomes source-backed.
+        let mutableEntryName = interner.intern("MutableEntry")
+        let mutableEntryFQName = mutableMapFQName + [mutableEntryName]
+        let mutableEntrySymbol: SymbolID
+        if let existing = symbols.lookup(fqName: mutableEntryFQName) {
+            mutableEntrySymbol = existing
+        } else {
+            let symbol = symbols.define(
+                kind: .interface,
+                name: mutableEntryName,
+                fqName: mutableEntryFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(mutableMapSymbol, for: symbol)
+            mutableEntrySymbol = symbol
+        }
+        types.setNominalTypeParameterSymbols([mutableKeyParamSymbol, mutableValueParamSymbol], for: mutableEntrySymbol)
+        types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableEntrySymbol)
+        if let mapEntrySymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("Map"), interner.intern("Entry")]
+        ) {
+            symbols.setDirectSupertypes([mapEntrySymbol], for: mutableEntrySymbol)
+            types.setNominalDirectSupertypes([mapEntrySymbol], for: mutableEntrySymbol)
+            symbols.setSupertypeTypeArgs(
+                [.out(keyType), .out(valueType)],
+                for: mutableEntrySymbol,
+                supertype: mapEntrySymbol
+            )
+            types.setNominalSupertypeTypeArgs(
+                [.out(keyType), .out(valueType)],
+                for: mutableEntrySymbol,
+                supertype: mapEntrySymbol
+            )
+        }
+
+        // Keep the official MutableMap.entries property available to the
+        // source-backed AbstractMutableMap declaration. The runtime-backed
+        // collection behavior remains on the existing shared map bridges.
+        let mutableSetSymbol = symbols.lookup(
+            fqName: kotlinCollectionsPkg + [interner.intern("MutableSet")]
+        )
+        let mutableEntryType = types.make(.classType(ClassType(
+            classSymbol: mutableEntrySymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+        let mutableEntriesType: TypeID
+        if let mutableSetSymbol {
+            mutableEntriesType = types.make(.classType(ClassType(
+                classSymbol: mutableSetSymbol,
+                args: [.invariant(mutableEntryType)],
+                nullability: .nonNull
+            )))
+        } else {
+            mutableEntriesType = types.anyType
+        }
+        let entriesName = interner.intern("entries")
+        let entriesFQName = mutableMapFQName + [entriesName]
+        let entriesPropertySymbol: SymbolID
+        if let existing = symbols.lookupAll(fqName: entriesFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .property
+        }) {
+            entriesPropertySymbol = existing
+        } else {
+            entriesPropertySymbol = symbols.define(
+                kind: .property,
+                name: entriesName,
+                fqName: entriesFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(mutableMapSymbol, for: entriesPropertySymbol)
+        }
+        symbols.setPropertyType(mutableEntriesType, for: entriesPropertySymbol)
+        symbols.setExternalLinkName("__kk_map_entries", for: entriesPropertySymbol)
+
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableMapSymbol,
             args: [.invariant(keyType), .invariant(valueType)],
@@ -1105,7 +1187,10 @@ extension DataFlowSemaPhase {
         return receiverType
     }
 
-    /// Register `kotlin.collections.AbstractMutableMap<K, V>` surface (STDLIB-COL-ABSTRACT-007).
+    /// Register the fallback `kotlin.collections.AbstractMutableMap<K, V>` surface
+    /// (STDLIB-COL-ABSTRACT-007). The bundled declaration in
+    /// `Stdlib/kotlin/collections/AbstractMutableMap.kt` owns the normal source-backed
+    /// path; this shell remains available for non-bundled metadata contexts.
     func registerSyntheticAbstractMutableMapStub(
         symbols: SymbolTable,
         types: TypeSystem,
