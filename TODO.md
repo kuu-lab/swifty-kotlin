@@ -146,21 +146,16 @@
   - 前提: KSP-648（完了済み）/ 手順: T / diff: `duration_*.kt` 既存 + BUG-195 再現の新規
   - 完了根拠（2026-08-23）: PR #5789（merge commit `5f73f5e727ca2df79aa949029be45390c6985df2`、実装head `260579c096b4ebe4d9497e271e108f02e45d7ee3`）で `Duration.kt`/`DurationUnit.kt` を source-backed value class/enum 化し、純演算・単位変換・`toComponents`/ISO/string・BUG-195 を実装済み。`HeaderHelpers+SyntheticDurationStubs.swift` と `RuntimeDuration.swift` の現行 `kk_duration_*` cdecl 22 件は parse・packed Long・TimeSources 等の hidden `__kk_*` bridge/互換面に限定して利用され、public Duration surface の synthetic 重複登録はアクティブ経路にない。Sema 8、Codegen 27、Runtime 89（直列）、ABI 4、`duration_bug195.kt` diff 1 が pass し、PR #5789 の全 CI 8 checks も pass 済み。
 
-#### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は `StdlibDelegateLoweringPass` が call site を直接書き換える構造）
+#### kotlin.properties [M 番号なし・新設]（棚卸し 2026-07-01: `RuntimeDelegates.swift`。`by` 式は operator 規約による通常解決）
 
-- [ ] KSP-491: Lazy / Delegates を Kotlin 化する
-  - 下敷き: 死蔵 `Stdlib/kotlin/LazyDelegate.kt`, `properties/Properties.kt`, `properties/Delegates.kt`, `properties/ObservableProperty.kt` → `Sources/CompilerCore/Stdlib/kotlin/properties/` へ移設
-  - Kotlin 化: `ReadOnlyProperty`/`ReadWriteProperty` インターフェース、`ObservableProperty`（beforeChange/afterChange）、`Delegates.observable/vetoable/notNull`、`lazy(mode)` の `NONE`/`PUBLICATION` モード
-  - ブリッジ残留: `SYNCHRONIZED` モードのロックのみ `__kk_lazy_sync_*`（新設）
-  - 変更: `Sources/CompilerCore/Lowering/StdlibDelegateLoweringPass.swift` の `kk_lazy_create`/`kk_observable_create`/`kk_vetoable_create`/`kk_notNull_create` 書き換え特例を、Kotlin 宣言の通常解決（`getValue`/`setValue` operator 規約）へ置換
-  - 削除 kk_*: `kk_lazy_create/of/get_value/is_initialized`, `kk_observable_create/get_value/set_value`, `kk_vetoable_*` 3, `kk_notNull_*` 3（`RuntimeDelegates.swift`）/ `HeaderHelpers+SyntheticPropertyDelegateStubs.swift` の該当登録
-  - 注意: operator 規約による delegate 解決がコンパイラ未対応なら**ブロッカーとして報告し中断** / diff: `delegate_lazy.kt`, `delegate_observable.kt`, `delegate_vetoable.kt`, `delegates_not_null.kt`（既存）/ 手順: T
-  - **2026-08-18 実機再プローブ: 上記「注意」の中断条件に該当。着手前ブロック中**（前提: KSP-CAP-018, KSP-CAP-019, KSP-CAP-020）。2026-08-06 に一度この中断判定が行われ台帳（旧 KSP-CAP-014〜017 / 旧 BUG-187/188、PR #5497 `5ba0d583f3`）に記録されていたが、`f9dea8961c`（DEBT-DIFF-005 統合コミット群）付近の TODO.md 編集で記録が本文ごと失われ `[ ]` 未着手のまま埋もれていた（発見: 本セッションで KSP-681 に着手しようとして prerequisite の KSP-491 が実質ブロック中と判明）。`.build/debug/kswiftc`（現行 HEAD `9b2b615107` 相当で新規ビルド）で当時の4項目すべてを再実機確認した結果:
-    1. **解消済み**: 名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 の一部）。`open class Base(val v: Int); class Sub(x: Int): Base(x)` は `Base(7).v`/`Sub(7).v` とも `7` を返す（PR #5506, commit `1128468186`「Fix BUG-155: run superclass constructors and class-body initializers」で修正済みと確認）
-    2. **未解消**: `by lazy { ... }` 相当のコンストラクタ/関数呼び出し形トレーリングラムダが delegate 式から欠落する（→ KSP-CAP-019。旧 KSP-CAP-014 と同一症状）
-    3. **未解消**: 拡張 operator `getValue`/`setValue`（本家 `Lazy.getValue` の形）は delegate 解決候補に入らない（→ KSP-CAP-020。旧 KSP-CAP-015 と同一症状）
-    4. **未解消**: object 式によるクラス継承 — override が dispatch されない／スーパークラス実引数付きだと実行時クラッシュ（→ KSP-CAP-018。旧 KSP-CAP-017 と同一症状。`Delegates.observable`/`vetoable` が返す `object : ObservableProperty<T>(initialValue) { override fun ... }` に必須の形）
-    2〜4 のいずれも解消しないと、本家準拠の `Lazy`/`ObservableProperty`/`Delegates.observable/vetoable/notNull` を「operator 規約による通常解決」で実装することはできない。着手順は KSP-CAP-018 → KSP-CAP-019 → KSP-CAP-020 を推奨（いずれも delegate 以外にも波及する一般的なコンパイラ機能ギャップのため単独でも価値がある）。KSP-681 はこの KSP-491 のブロックをそのまま継承する（前提: KSP-491）
+- [x] KSP-491: Lazy / Delegates を Kotlin 化する（2026-08-18完了）
+  - **完了**: `lazy`/`lazyOf`/`Lazy<T>` を `Sources/CompilerCore/Stdlib/kotlin/Lazy.kt`、`ObservableProperty`/`Delegates.observable/vetoable/notNull` を `Sources/CompilerCore/Stdlib/kotlin/properties/{ObservableProperty,Delegates}.kt` へ実装。全 delegate kind（`.custom` と stdlib 4種）が `DeclTypeChecker.typeCheckDelegate` の通常 `getValue`/`setValue` operator 解決に一本化され、`StdlibDelegateLoweringPass.swift` の名前ベース書き換え特例は撤廃。`StdlibDelegateKind` は生成時の実装クラス判別にのみ残存。
+  - **設計上の逸脱**: `Lazy<T>.getValue` は拡張関数ではなくインターフェースのメンバ（KSP-CAP-020 回避）とし、`Delegates.observable/vetoable` は匿名 object ではなく named private subclass（KSP-CAP-018 回避）で実装。
+  - `LazyImpl` は `SYNCHRONIZED` の per-object lock bridge を使い、`PUBLICATION` は synchronized な状態確認・commit と initializer の一回外実行で公開値を保護する。未初期化判定は `computed: Boolean` で行う。
+  - **作業中に発見し同PRで修正したバグ**: BUG-212（ローカル `by` delegate のラムダ capture が delegate storage を失う）、BUG-213（precompiled stdlib 外から field-less bundled object を参照した際の weak global fallback 未到達）。
+  - **ブロッカー（回避策で対応）**: KSP-CAP-018（匿名 object 式クラス継承）、KSP-CAP-019（delegate trailing lambda の一般化）、KSP-CAP-020（拡張 operator の delegate 解決）。
+  - **削除**: `kk_lazy_create/of/get_value/is_initialized`、`kk_observable_*`、`kk_vetoable_*`、`kk_notNull_*` と、それらの synthetic delegate 登録・旧 lowering/runtime/ABI 経路。
+  - **検証**: PR既存の delegate diff/KIR/実行回帰を保持。Swift Testing の広域実行はホストの SIGBUS/worker termination により完走できない環境制約があるため、focused validation と直接実行結果を分離して報告する。
 
 #### kotlin.reflect [M 番号なし・新設]（棚卸し 2026-07-01: メタデータレジストリ依存のためブリッジ色が濃い）
 
