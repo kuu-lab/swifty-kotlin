@@ -1651,7 +1651,7 @@
     - `kotlin.IllegalStateException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.IllegalStateException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-853: kotlin.Int.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-853: kotlin.Int.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Int.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Int/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1663,6 +1663,7 @@
     - `kotlin.Int.Companion.MIN_VALUE` — val Companion.MIN_VALUE: Int  -- `final const val MIN_VALUE`
     - `kotlin.Int.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.Int.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了根拠（2026-08-23再監査）: merged PR #5957（merge commit `c392836f5bf26f142497a854327ca7d0a23cb413`）で実装済み。現行 `Sources/CompilerCore/Stdlib/kotlin/Int/Companion/Companion.kt` が4 property（2147483647、-2147483648、32、4）をsource-backed getterとして提供し、Int専用の `numericCompanionConstant` fallback、`kk_int_max_value`/`kk_int_min_value` runtime/ABI残余は存在しない。`Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Int_Companion_Companion_n.kt`（`Int.X` と `Int.Companion.X`）および `Scripts/diff_cases/stdlib_kotlin_Int_Companion_Companion_n.kt` が最小回帰を固定し、既存 `CodegenBackendIntegerOverflowTests` がInt境界値のBackend実行を固定している。
 
 - [x] KSP-854: kotlin.IntArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.IntArray` / top-level
