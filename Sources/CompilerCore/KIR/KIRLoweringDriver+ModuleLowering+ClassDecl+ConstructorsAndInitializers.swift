@@ -138,7 +138,10 @@ extension KIRLoweringDriver {
             .lookupAll(fqName: superclassInfo.fqName + [compilationCtx.interner.intern("<init>")])
             .first { $0 != ctorSymbol }
         guard let superCtorSymbol,
-              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true,
+              // Synthetic nominal shells may expose a constructor for Sema
+              // compatibility without providing a linkable implementation.
+              !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
         else {
             return
         }
