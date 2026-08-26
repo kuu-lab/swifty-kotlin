@@ -236,6 +236,18 @@ final class CallLowerer {
         return abiIndex == abiParameters.count
     }
 
+    private func hasFunctionValueParameter(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+            return false
+        }
+        return signature.parameterTypes.contains { parameterType in
+            if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
+                return true
+            }
+            return false
+        }
+    }
+
     private func isFlatStringGroup(
         at index: Int,
         in parameters: [RuntimeABIParameter]
@@ -761,6 +773,22 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
+        if callableInvokeCallee == nil,
+           loweredCallable == nil,
+           let chosen,
+           isAtomicFactory,
+           !hasFunctionValueParameter(chosen, sema: sema)
+        {
+            return lowerAtomicScalarConstructorCall(
+                constructorSymbol: chosen,
+                finalArgIDs: finalArgIDs,
+                resultType: boundType ?? sema.types.anyType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
         if callableInvokeCallee != nil, let loweredCalleeExprID {
             finalArgIDs.insert(loweredCalleeExprID, at: 0)
             if let callableValueCallBinding,
@@ -962,22 +990,6 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
-        if callableInvokeCallee == nil,
-           loweredCallable == nil,
-           let chosen,
-           isAtomicFactory
-        {
-            return lowerAtomicScalarConstructorCall(
-                constructorSymbol: chosen,
-                finalArgIDs: finalArgIDs,
-                resultType: boundType ?? sema.types.anyType,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-        }
-
         // Inject callable value captures for coroutine launcher arguments.
         // When a suspend lambda/closure with captures is passed to a launcher
         // (runBlocking/launch/async), the capture values must be included in
