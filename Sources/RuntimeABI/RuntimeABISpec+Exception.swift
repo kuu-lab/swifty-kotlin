@@ -41,6 +41,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_freezing_exception_new",
+            parameters: [
+                RuntimeABIParameter(name: "toFreezeRaw", type: .intptr),
+                RuntimeABIParameter(name: "blockerRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_no_when_branch_matched_exception_new",
             parameters: [],
             returnType: .intptr,

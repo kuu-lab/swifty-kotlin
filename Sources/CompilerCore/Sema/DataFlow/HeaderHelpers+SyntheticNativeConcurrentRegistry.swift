@@ -586,23 +586,8 @@ extension DataFlowSemaPhase {
         )
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
-        appendNativeConcurrentMetadataAnnotations(
-            [MetadataAnnotationRecord(annotationFQName: "kotlin.experimental.ExperimentalNativeApi")],
-            to: exceptionSymbol,
-            symbols: symbols
-        )
-
-        registerNativeConcurrentConstructor(
-            ownerSymbol: exceptionSymbol,
-            ownerType: exceptionType,
-            parameters: [
-                (name: "toFreeze", type: types.anyType),
-                (name: "blocker", type: types.anyType),
-            ],
-            defaultValues: [false, false],
-            symbols: symbols,
-            interner: interner
-        )
+        // The exact constructor is owned by the bundled Kotlin declaration and
+        // its runtime bridge. Keep only this nominal anchor for source reuse.
     }
 
     // MARK: - InvalidMutabilityException
