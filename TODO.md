@@ -1695,7 +1695,7 @@
   - bridge/stub 整理: 対象の `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例は残留なし。
   - 回帰証跡: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_MustUseReturnValues_n_n.kt` / `.golden`、`Scripts/diff_cases/stdlib_kotlin_MustUseReturnValues_n_n.kt`。
 
-- [ ] KSP-864: kotlin.NotImplementedError top-level の未実装 stdlib API を実装する（KSP-616 で実装済みだったため重複実装はせず、専用 Golden/diff 証跡を追加。全体 Golden/diff ゲート未完了のため保留）
+- [x] KSP-864: kotlin.NotImplementedError top-level の未実装 stdlib API を実装する（KSP-616 で実装済みだったため重複実装はせず、専用 Golden/diff 証跡を追加。全体 Golden/diff ゲート完走済み）
   - 対象: `kotlin.NotImplementedError` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Preconditions.kt`（KSP-616 で no-arg / String constructor を source-backed 化済み）
   - bridge/stub 整理: `HeaderHelpers+SyntheticExceptionStubs.swift` の対象登録と CallTypeChecker/CallLowerer の対象 name-string 特例は残留なし。`__kk_not_implemented_error_new*` と `RuntimeABISpec` エントリは `NotImplementedError` 固有の runtime 型識別に必要な bridge のため維持する。
@@ -1704,6 +1704,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.NotImplementedError.<init>` — constructor (String)  -- `constructor <init>(kotlin/String = ...)`
+  - 完了根拠: merged PR #5465（merge `9a4996ea`）で `Preconditions.kt` を source-backed 化し、merged PR #5966（merge `c03f8664`）で専用 Golden/diff 証跡を追加済み。現行コード、Kotlin 2.3.10 契約、focused Golden/diff、Runtime 5 tests、aggregate Golden（27 tests / 10 suites）、Runtime ABI（4 tests）、full diff（`total=1031 failed=0 passed=1031 skipped=31`）を確認した。SKIP 31 件は既存かつ KSP-864 非起因として別計上する。
 
 - [ ] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Number` / receiver `Number`
