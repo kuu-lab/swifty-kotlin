@@ -36,7 +36,7 @@ extension CallLowerer {
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
-        "distinct", "distinctBy",
+        "distinct", "distinctBy", "count",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length

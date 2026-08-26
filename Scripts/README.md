@@ -280,7 +280,7 @@ bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackend
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\.' \
   --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/' \
   --target-prefix CompilerCoreTests \
-  --shard-index 0 --shard-count 3
+  --shard-index 0 --shard-count 6
 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```
