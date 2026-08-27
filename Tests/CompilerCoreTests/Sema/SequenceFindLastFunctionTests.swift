@@ -34,7 +34,7 @@ struct SequenceFindLastFunctionTests {
 
             let packageFQName = [
                 ctx.interner.intern("kotlin"),
-                ctx.interner.intern("collections"),
+                ctx.interner.intern("sequences"),
                 ctx.interner.intern("findLast"),
             ]
             let symbols = sema.symbols.lookupAll(fqName: packageFQName).filter { candidate in
@@ -50,7 +50,7 @@ struct SequenceFindLastFunctionTests {
             }
             #expect(!symbols.isEmpty, "Expected Sequence.findLast source extension to be registered")
             let hasSyntheticLink = symbols.contains { candidate in
-                sema.symbols.externalLinkName(for: candidate) == "kk_sequence_findLast"
+                sema.symbols.externalLinkName(for: candidate) != nil
             }
             #expect(!hasSyntheticLink, "Expected Sequence.findLast to be backed by source")
         }
