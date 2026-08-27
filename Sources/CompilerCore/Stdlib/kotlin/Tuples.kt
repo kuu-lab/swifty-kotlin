@@ -77,3 +77,12 @@ public class Triple<out A, out B, out C> {
     /** Converts this triple into a list. */
     public fun toList(): List<Any?> = listOf(first, second, third)
 }
+
+/**
+ * Returns a copy of this triple with optionally replaced component values.
+ */
+public fun <A, B, C> Triple<A, B, C>.copy(
+    first: A = this.first,
+    second: B = this.second,
+    third: C = this.third
+): Triple<A, B, C> = Triple(first, second, third)
