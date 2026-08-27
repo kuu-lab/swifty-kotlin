@@ -126,7 +126,7 @@ class RuntimeThrowableBox {
     let message: String?
     var cause: Int
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
-    /// Stores raw Int pointers to other runtime Throwable objects.
+    /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
 
     var exceptionFQName: String {
@@ -274,14 +274,18 @@ final class RuntimePairBox {
 }
 
 final class RuntimeTripleBox {
-    let first: Int
-    let second: Int
-    let third: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+    let thirdValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
+    var third: Int { thirdValue.legacyRawValue }
 
     init(first: Int, second: Int, third: Int) {
-        self.first = first
-        self.second = second
-        self.third = third
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+        self.thirdValue = RuntimeValue(raw: third)
     }
 }
 
@@ -309,6 +313,11 @@ final class RuntimeBoolBox {
         self.value = value
     }
 }
+
+/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
+/// compiler's raw zero representation; this box is used only at reference
+/// boundaries where Any must retain the value's runtime identity.
+final class RuntimeUnitBox {}
 
 final class RuntimeLongBox {
     let value: Int
@@ -1438,196 +1447,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
     }
 }
 
-// MARK: - Stdlib Delegate Types (P5-80)
-
-/// Thread-safety mode for `lazy` delegate.
-enum LazyThreadSafetyMode: Int {
-    case synchronized = 1
-    case none = 0
-    case publication = 2
-}
-
-/// Runtime box for `kotlin.lazy {}` delegate.
-/// Holds an initializer function pointer and caches the computed value.
-final class RuntimeLazyBox {
-    private enum CachedState {
-        case uninitialized
-        case initialized(Int)
-    }
-
-    private let initializerFnPtr: Int
-    private var cachedState: CachedState = .uninitialized
-    private let mode: LazyThreadSafetyMode
-    private let synchronizationLockKey: Int?
-    private let lock = NSLock()
-
-    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode, synchronizationLockKey: Int? = nil) {
-        self.initializerFnPtr = initializerFnPtr
-        self.mode = mode
-        self.synchronizationLockKey = synchronizationLockKey
-    }
-
-    init(initializedValue: Int) {
-        initializerFnPtr = 0
-        cachedState = .initialized(initializedValue)
-        mode = .none
-        synchronizationLockKey = nil
-    }
-
-    func getValue() -> Int {
-        switch mode {
-        case .synchronized:
-            if let synchronizationLockKey {
-                return runtimeWithLock(for: synchronizationLockKey) {
-                    lock.lock()
-                    defer { lock.unlock() }
-                    return getValueLocked()
-                }
-            }
-            lock.lock()
-            defer { lock.unlock() }
-            return getValueLocked()
-        case .publication:
-            return getValuePublication()
-        case .none:
-            return getValueUnsafe()
-        }
-    }
-
-    private func getValueLocked() -> Int {
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            let value = evaluateInitializer()
-            cachedState = .initialized(value)
-            return value
-        }
-    }
-
-    private func getValueUnsafe() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-        let value = evaluateInitializer()
-        cachedState = .initialized(value)
-        return value
-    }
-
-    private func getValuePublication() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-
-        let value = evaluateInitializer()
-        if compareAndSetCachedValue(expected: .uninitialized, update: .initialized(value)) {
-            return value
-        }
-        return cachedValue() ?? value
-    }
-
-    private func cachedValue() -> Int? {
-        lock.lock()
-        defer { lock.unlock() }
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            return nil
-        }
-    }
-
-    private func compareAndSetCachedValue(expected: CachedState, update: CachedState) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard cachedStateMatches(expected) else {
-            return false
-        }
-        cachedState = update
-        return true
-    }
-
-    private func cachedStateMatches(_ expected: CachedState) -> Bool {
-        switch (cachedState, expected) {
-        case (.uninitialized, .uninitialized):
-            return true
-        case (.initialized(let current), .initialized(let expected)):
-            return current == expected
-        default:
-            return false
-        }
-    }
-
-    private func evaluateInitializer() -> Int {
-        var thrown = 0
-        // `initializerFnPtr` is either a raw thunk pointer (property-delegate
-        // `by lazy { }`, whose initializer is built as a standalone top-level
-        // function) or a boxed Function0 value (plain `lazy { }` calls, whose
-        // lambda literal goes through the general closure-conversion path and
-        // may capture state). `kk_function_invoke_0` already dispatches on
-        // which of the two it was given -- reuse it instead of assuming the
-        // raw-thunk shape, which crashed for the boxed-closure case.
-        let value = kk_function_invoke_0(initializerFnPtr, &thrown)
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: lazy initializer threw")
-        }
-        return value
-    }
-
-    var isInitialized: Bool {
-        switch mode {
-        case .synchronized:
-            lock.lock()
-            defer { lock.unlock() }
-            return cachedStateIsInitialized()
-        case .publication:
-            return cachedValue() != nil
-        case .none:
-            return cachedStateIsInitialized()
-        }
-    }
-
-    private func cachedStateIsInitialized() -> Bool {
-        switch cachedState {
-        case .initialized:
-            return true
-        case .uninitialized:
-            return false
-        }
-    }
-}
-
-/// Runtime box for `Delegates.observable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback after each set.
-final class RuntimeObservableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.vetoable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback before each set;
-/// the callback returns non-zero to accept the change, zero to veto.
-final class RuntimeVetoableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.notNull<T>()` delegate.
-/// Throws `IllegalStateException` if accessed before being assigned.
-final class RuntimeNotNullBox {
-    var currentValue: Int?
-}
-
 /// Runtime reflection metadata record stored in the global registry.
 /// Populated from the binary metadata blob emitted by `RuntimeReflectionMetadataEmitter`.
 /// Each entry corresponds to a type or declaration that can be queried via `KClass` at runtime.
@@ -2495,7 +2314,9 @@ extension RuntimePairBox: RuntimeChildReferenceProviding {
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second, third] }
+    var childRefs: [Int] {
+        [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
