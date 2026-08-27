@@ -261,40 +261,21 @@ extension DeclTypeChecker {
             }
         }
 
-        // Kotlin requires a delegate's (effective, post-provideDelegate) type to expose
-        // getValue (and setValue for `var`) operators; a type lacking them is a compile
-        // error, not a silent fallback to Any?. Skip the small set of stdlib delegate
-        // factories (`lazy`, `Delegates.observable/vetoable/notNull`) whose dispatch KIR
-        // lowering still hardcodes structurally (StdlibDelegateLoweringPass) rather than
-        // resolving through the operator convention — that gap is tracked separately
-        // (KSP-491/492) and must stay silent until those factories are wired to real
-        // operator-based dispatch.
-        let isKnownStdlibDelegate = stdlibDelegateKind != .custom
-        if result == nil, isKnownStdlibDelegate {
-            // These factories are dispatched structurally rather than through the
-            // getValue operator, so the property type has to be read off the
-            // factory's return type (`Lazy<T>` / `ReadWriteProperty<Any?, T>`)
-            // instead of a resolved getValue signature.
-            result = stdlibDelegateValueType(
-                delegateType: delegateType,
-                kind: stdlibDelegateKind,
-                sema: sema,
-                interner: interner
-            )
-        }
-
-        // A stdlib delegate factory's trailing lambda is usually parsed into
-        // `delegateBody` separately from `delegateExpr` -- see
+        // A stdlib delegate factory's trailing lambda (`lazy { ... }`,
+        // `Delegates.observable(init) { property, old, new -> ... }`) is parsed
+        // into `delegateBody` separately from `delegateExpr` -- see
         // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
         // repackage it into a standalone synthetic function
-        // (`lowerDelegateLambdaBody`). Because it's not part of `delegateExpr`,
-        // the ordinary call-argument inference above would otherwise skip its
-        // identifiers (BUG-170). `lazy` is the exception: its required
-        // initializer lambda is included in `delegateExpr` so overload
-        // resolution sees the real call signature, and inference above already
-        // type-checks its body. Checking `delegateBody` again would duplicate
-        // every diagnostic from that initializer.
-        if isKnownStdlibDelegate, stdlibDelegateKind != .lazy, let delegateBody {
+        // (`lowerDelegateLambdaBody`). Because it's never part of `delegateExpr`,
+        // the ordinary call-argument inference above never visits it, so without
+        // this, none of its identifiers -- not even a reference to an unrelated
+        // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
+        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
+        // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
+        // allocates them with, then type-check the body in the same `ctx` used
+        // for this property's getter/initializer above so implicit-`this` member
+        // references resolve the same way theirs already do.
+        if let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
                 let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
@@ -318,14 +299,14 @@ extension DeclTypeChecker {
             )
         }
 
-        if !getValueResolved, !getValueDiagnosticReported, !isKnownStdlibDelegate {
+        if !getValueResolved, !getValueDiagnosticReported {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
                 "Property delegate must have a 'getValue' operator function.",
                 range: ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
             )
         }
-        if isVar, !setValueResolved, !setValueDiagnosticReported, !isKnownStdlibDelegate {
+        if isVar, !setValueResolved, !setValueDiagnosticReported {
             diagnostics.error(
                 "KSWIFTK-SEMA-0104",
                 "Mutable property delegate must have a 'setValue' operator function.",
@@ -563,42 +544,6 @@ extension DeclTypeChecker {
 
     private func stdlibDelegateInterfaceFQName(for kind: StdlibDelegateKind) -> [String] {
         kind == .lazy ? ["kotlin", "Lazy"] : ["kotlin", "properties", "ReadWriteProperty"]
-    }
-
-    /// The value type a stdlib delegate factory's result exposes:
-    /// `Lazy<T>` → `T`, `ReadWriteProperty<Any?, T>` → `T`. Returns nil when the
-    /// delegate type is not (a subtype of) the expected interface, e.g. because
-    /// the factory call itself failed to resolve.
-    private func stdlibDelegateValueType(
-        delegateType: TypeID,
-        kind: StdlibDelegateKind,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        let ownerFQName = stdlibDelegateInterfaceFQName(for: kind)
-        let valueArgIndex = kind == .lazy ? 0 : 1
-        guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName.map { interner.intern($0) }),
-              let delegateClass = resolveClassType(delegateType, sema: sema)
-        else {
-            return nil
-        }
-        let args: [TypeArg]
-        if delegateClass.classSymbol == ownerSymbol {
-            args = delegateClass.args
-        } else if let lifted = sema.types.liftedNominalSupertypeArgs(
-            from: delegateClass.classSymbol,
-            childArgs: delegateClass.args,
-            to: ownerSymbol
-        ) {
-            args = lifted
-        } else {
-            return nil
-        }
-        guard valueArgIndex < args.count else { return nil }
-        return switch args[valueArgIndex] {
-        case let .invariant(type), let .out(type), let .in(type): type
-        case .star: nil
-        }
     }
 
     private func resolvedDelegateMemberSignature(

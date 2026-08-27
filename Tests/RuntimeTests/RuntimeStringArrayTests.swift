@@ -1613,8 +1613,29 @@ struct RuntimeStringArrayTests {
     func testThrowableNewWithNilUsesDefaultMessage() {
         let throwable = __kk_throwable_new(nil)
         #expect(throwable as UnsafeMutableRawPointer? != nil)
+        #expect(__kk_throwable_message(Int(bitPattern: throwable)) == runtimeNullSentinelInt)
         let output = capturePrintln { kk_println_any(throwable) }
         #expect(output.contains("Throwable"))
+    }
+
+    @Test
+    func testThrowableNewCauseUsesCauseToStringAndPreservesCause() {
+        let cause = Int(bitPattern: __kk_throwable_new(makeRuntimeString("root cause")))
+        let throwable = Int(bitPattern: __kk_throwable_new_cause(cause))
+
+        #expect(runtimeStringValue(__kk_throwable_message(throwable)) == "java.lang.Throwable: root cause")
+        #expect(__kk_throwable_cause(throwable) == cause)
+    }
+
+    @Test
+    func testThrowableNewCauseWithNilPreservesNullMessageAndCause() {
+        let causeOnly = Int(bitPattern: __kk_throwable_new_cause(runtimeNullSentinelInt))
+        let messageCause = Int(bitPattern: __kk_throwable_new_with_cause(nil, runtimeNullSentinelInt))
+
+        for throwable in [causeOnly, messageCause] {
+            #expect(__kk_throwable_message(throwable) == runtimeNullSentinelInt)
+            #expect(__kk_throwable_cause(throwable) == runtimeNullSentinelInt)
+        }
     }
 
     @Test
