@@ -5647,7 +5647,7 @@
     - `kotlin.math.cbrt` — fun cbrt(Double): Double  -- `final fun kotlin.math/cbrt(kotlin/Double): kotlin/Double`
     - `kotlin.math.cbrt` — fun cbrt(Float): Float  -- `final fun kotlin.math/cbrt(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1179: kotlin.math.cos-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1179: kotlin.math.cos-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `cos`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/cos.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5657,6 +5657,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.cos` — fun cos(Double): Double  -- `final fun kotlin.math/cos(kotlin/Double): kotlin/Double`
     - `kotlin.math.cos` — fun cos(Float): Float  -- `final fun kotlin.math/cos(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10 公式 `MathH.kt`・stdlib artifact metadata・exact `kotlinc` 2.3.10 と照合し、public `cos(Double): Double` / `cos(Float): Float`、radian contract、代表角度の出力、既存の precision/tolerance、NaN/±Infinity の NaN 契約を確認。merged PR #5831（commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9`）由来の現行 `Math.kt` に2つの source-backed wrapper、`__kk_math_cos` / `__kk_math_cos_float` bridge、Runtime/RuntimeABI登録が既に存在し、対象の追加 synthetic 登録・name-string 特例・重複実装はない。Sema 61 tests、Runtime/backend 284 tests、Runtime ABI 4 tests、exact 2.3.10 diff 2 cases、build、TODO ID、diff-check が PASS。KSP-1179 は追加実装不要で、他の math API は変更していない。
 
 - [x] KSP-1180: kotlin.math.cosh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `cosh`
