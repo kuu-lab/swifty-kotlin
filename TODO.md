@@ -6922,7 +6922,7 @@
   - 未実装シンボル一覧:
     - `kotlin.properties.PropertyDelegateProvider.provideDelegate` — fun PropertyDelegateProvider.provideDelegate(, KProperty): #B  -- `abstract fun provideDelegate(#A, kotlin.reflect/KProperty<*>): #B`
 
-- [ ] KSP-1278: kotlin.properties.ReadOnlyProperty.ReadOnlyProperty の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1278: kotlin.properties.ReadOnlyProperty.ReadOnlyProperty の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ReadOnlyProperty` / receiver `ReadOnlyProperty`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/properties/ReadOnlyProperty/ReadOnlyProperty.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6931,6 +6931,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.properties.ReadOnlyProperty.getValue` — fun ReadOnlyProperty.getValue(, KProperty): #B  -- `abstract fun getValue(#A, kotlin.reflect/KProperty<*>): #B`
+  - **完了 (2026-08-24, TODO同期)**: KSP-680（PR #5786、merge commit `f64c991b5d6dc9a5e5a6922bb357188477bd9b85`）で `Sources/CompilerCore/Stdlib/kotlin/properties/Interfaces.kt` に `public fun interface ReadOnlyProperty<in T, out V>` と `public operator fun getValue(thisRef: T, property: KProperty<*>): V` をsource-backed実装済み。Kotlin 2.3.10公式source/compiler metadataと一致し、現行 `PropertyDelegateSyntheticStubTests` のnominal identity・variance・declSite、`property_delegate_interfaces.kt` のcustom `getValue`・operator dispatch・ReadWriteProperty分離・property metadata回帰で確認した。ReadOnlyPropertyの既存exact実装を維持し、compiler/runtime/ABIおよび隣接delegate APIは変更していない。
 
 - [ ] KSP-1279: kotlin.properties.ReadWriteProperty.ReadWriteProperty の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.properties.ReadWriteProperty` / receiver `ReadWriteProperty`
