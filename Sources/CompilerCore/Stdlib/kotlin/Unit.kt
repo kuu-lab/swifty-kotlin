@@ -10,4 +10,6 @@ package kotlin
 // KSP-765: migrate the nominal kotlin.Unit singleton to bundled Kotlin source.
 // Unit's value representation remains the compiler's builtin unit type; this
 // declaration supplies the source-backed public singleton symbol.
-public object Unit {}
+public object Unit {
+    override fun toString(): String = "kotlin.Unit"
+}
