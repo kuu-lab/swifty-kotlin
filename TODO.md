@@ -5077,7 +5077,7 @@
     - `kotlin.contracts.InvocationKind.valueOf` — fun InvocationKind.valueOf(String): InvocationKind  -- `final fun valueOf(kotlin/String): kotlin.contracts/InvocationKind`
     - `kotlin.contracts.InvocationKind.values` — fun InvocationKind.values(): Array  -- `final fun values(): kotlin/Array<kotlin.contracts/InvocationKind>`
 
-- [ ] KSP-1130: kotlin.contracts.SimpleEffect.SimpleEffect の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1130: kotlin.contracts.SimpleEffect.SimpleEffect の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.contracts.SimpleEffect` / receiver `SimpleEffect`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/contracts/SimpleEffect/SimpleEffect.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5086,6 +5086,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.contracts.SimpleEffect.implies` — fun SimpleEffect.implies(Boolean): ConditionalEffect  -- `abstract fun implies(kotlin/Boolean): kotlin.contracts/ConditionalEffect`
+  - 完了根拠（2026-08-24、master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: merged PR #5917 / commit `37480d2835fb73c60b9732b4d9f8b046d84b0959` が現行 `Sources/CompilerCore/Stdlib/kotlin/contracts/Effect.kt` に `public interface SimpleEffect : Effect` と `public infix fun implies(booleanExpression: Boolean): ConditionalEffect` をsource-backedで導入済み。Kotlin 2.3.10公式source・JVM metadata・`kotlinc-jvm 2.3.10`で package=`kotlin.contracts`、owner/receiver=`SimpleEffect`、public abstract member、infix、`Boolean`引数、`ConditionalEffect`戻り値を確認した。以前のsynthetic surfaceはmerged PR #2331 / commit `55da1ce2dd8d0c26b17a56238e39e48648f62b59` で導入され、現行source-backed実装へ移行済みである。
+  - 回帰根拠: `Tests/CompilerCoreTests/Sema/KotlinContractsEffectModelTests.swift` のsource-backed contracts surface・`returns() implies` 解決/diagnostic回帰がfocused PASS、`Tests/CompilerCoreTests/GoldenCases/Sema/contract_smartcast.golden` が `call=kotlin.contracts.SimpleEffect.implies` と `ConditionalEffect`戻り値を固定し、公式Kotlin 2.3.10を参照compilerにした focused diff（`contract_returns.kt`、`contracts_basic.kt`）も `total=2 failed=0 passed=2`。対象の追加runtime/ABI bridge・synthetic stub・compiler name-string特例・重複実装はない。
 
 - [ ] KSP-1131: kotlin.coroutines top-level の未実装 stdlib API を実装する（12 件）
   - 対象: `kotlin.coroutines` / top-level
