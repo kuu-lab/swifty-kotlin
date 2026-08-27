@@ -4,7 +4,7 @@ package kotlin.text
 // Character indices traverse toString().toList() because a flat String's
 // `length` observes UTF-8 byte length rather than the character count.
 
-private fun ksp406Slice(chars: List<Char>, startIndex: Int, endIndex: Int): String {
+private fun buildStringFromCharRange(chars: List<Char>, startIndex: Int, endIndex: Int): String {
     val sb = StringBuilder()
     var i = startIndex
     while (i < endIndex) {
@@ -20,7 +20,7 @@ public fun String.substring(startIndex: Int): String {
     if (startIndex < 0 || startIndex > length) {
         throw IndexOutOfBoundsException("begin $startIndex, end $length, length $length")
     }
-    return ksp406Slice(chars, startIndex, length)
+    return buildStringFromCharRange(chars, startIndex, length)
 }
 
 public fun String.substring(startIndex: Int, endIndex: Int): String {
@@ -29,7 +29,7 @@ public fun String.substring(startIndex: Int, endIndex: Int): String {
     if (startIndex < 0 || endIndex > length || startIndex > endIndex) {
         throw IndexOutOfBoundsException("begin $startIndex, end $endIndex, length $length")
     }
-    return ksp406Slice(chars, startIndex, endIndex)
+    return buildStringFromCharRange(chars, startIndex, endIndex)
 }
 
 @Deprecated(
@@ -76,8 +76,8 @@ public fun String.removeRange(startIndex: Int, endIndex: Int): String {
         throw IndexOutOfBoundsException("start=$startIndex, end=$endIndex, length=$length")
     }
     val sb = StringBuilder()
-    sb.append(ksp406Slice(chars, 0, startIndex))
-    sb.append(ksp406Slice(chars, endIndex, length))
+    sb.append(buildStringFromCharRange(chars, 0, startIndex))
+    sb.append(buildStringFromCharRange(chars, endIndex, length))
     return sb.toString()
 }
 
@@ -91,9 +91,9 @@ public fun String.replaceRange(startIndex: Int, endIndex: Int, replacement: Char
         throw IndexOutOfBoundsException("start=$startIndex, end=$endIndex, length=$length")
     }
     val sb = StringBuilder()
-    sb.append(ksp406Slice(chars, 0, startIndex))
-    sb.append(replacement)
-    sb.append(ksp406Slice(chars, endIndex, length))
+    sb.append(buildStringFromCharRange(chars, 0, startIndex))
+    sb.append(replacement.toString())
+    sb.append(buildStringFromCharRange(chars, endIndex, length))
     return sb.toString()
 }
 

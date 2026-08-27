@@ -63,6 +63,10 @@ public final class TypeSystem {
     /// as `stringClassSymbol`.
     public internal(set) var anyClassSymbol: SymbolID?
 
+    /// The source-backed `kotlin.Unit` object symbol used to resolve members on
+    /// the builtin Unit value representation.
+    public internal(set) var unitClassSymbol: SymbolID?
+
 
     /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.
     public weak var symbolTable: SymbolTable?

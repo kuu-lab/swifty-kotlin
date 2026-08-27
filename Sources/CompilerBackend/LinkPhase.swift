@@ -239,7 +239,17 @@ final class LinkPhase: CompilerPhase {
     func linkerDriverArgs(for target: TargetTriple) -> [String] {
         var args = ["-target", linkerTargetTriple(target)]
         if target.os.hasPrefix("linux") {
-            args.append(contentsOf: ["-Xlinker", "-no-pie", "-parse-as-library"])
+            // ELF dead stripping requires section-level garbage collection. Runtime functions
+            // referenced by direct calls or generated dispatch tables remain reachable.
+            args.append(contentsOf: [
+                "-Xlinker", "--gc-sections",
+                "-Xlinker", "-no-pie",
+                "-parse-as-library",
+            ])
+        } else if target.vendor == "apple", target.os == "macosx" {
+            // Keep functions reached through generated vtable/itable data while removing
+            // unreferenced runtime atoms from the executable.
+            args.append(contentsOf: ["-Xlinker", "-dead_strip"])
         }
         return args
     }
