@@ -347,8 +347,8 @@ KIRModule (lowered)
 | ジョブ | 内容 |
 |---|---|
 | `verify-todo-ids` | `TODO.md` のタスク ID 重複チェック |
-| `verify-core` | `CompilerCoreTests` / `SmokeTests` のみビルド・実行（LLVM 不要、シャード数 3） |
-| `verify-self-hosted` | `CompilerBackendTests` / `RuntimeTests` / `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` をビルド・実行 |
+| `verify-core` | `CompilerCoreTests` / `SmokeTests` のみビルド・実行（LLVM 不要、シャード数 6） |
+| `verify-self-hosted` | `CompilerBackendTests` / `RuntimeTests` / `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` をビルド・実行（シャード数 4） |
 | `verify-diff` | `kswiftc` リリースビルド後、`Scripts/diff_kotlinc.sh` で kotlinc 差分検証（シャード数 4） |
 
 セットアップアクション:
