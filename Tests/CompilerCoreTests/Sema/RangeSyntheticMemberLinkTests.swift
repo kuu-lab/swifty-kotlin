@@ -129,6 +129,70 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testCharProgressionFirstFamilyIsSourceBacked() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun firstValue(progression: CharProgression): Char = progression.first()
+            fun firstOrNullValue(progress: CharProgression): Char? = progress.firstOrNull()
+            fun lastValue(progression: CharProgression): Char = progression.last()
+            fun lastOrNullValue(progress: CharProgression): Char? = progress.lastOrNull()
+            """
+        )
+        try runSema(ctx)
+        #expect(
+            ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0102" }.isEmpty,
+            "CharProgression first/last source functions must not overlap synthetic properties: \(ctx.diagnostics.diagnostics)"
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { ctx.interner.intern($0) }
+        let charProgressionSymbol = try #require(sema.symbols.lookup(fqName: charProgressionFQName))
+        let charProgressionType = sema.types.make(.classType(ClassType(
+            classSymbol: charProgressionSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let expectedReturnTypes: [(name: String, typeName: String)] = [
+            ("first", "Char"),
+            ("firstOrNull", "Char?"),
+            ("last", "Char"),
+            ("lastOrNull", "Char?"),
+        ]
+        for expected in expectedReturnTypes {
+            let fqName = ["kotlin", "ranges", expected.name].map { ctx.interner.intern($0) }
+            let symbol = try #require(sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+                guard let signature = sema.symbols.functionSignature(for: symbolID) else { return false }
+                return signature.receiverType == charProgressionType
+                    && signature.parameterTypes.isEmpty
+            })
+            let signature = try #require(sema.symbols.functionSignature(for: symbol))
+            #expect(sema.symbols.externalLinkName(for: symbol) == nil)
+            #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false)
+            #expect(
+                sema.types.displayName(of: signature.returnType, symbols: sema.symbols, interner: ctx.interner) == expected.typeName,
+                "Unexpected return type for CharProgression.\(expected.name)"
+            )
+        }
+        for expected in expectedReturnTypes {
+            let callExpr = try #require(
+                ast.arena.exprs.enumerated().first { _, expr in
+                    guard case let .memberCall(_, callee, _, args, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == expected.name && args.isEmpty
+                }.map { ExprID(rawValue: Int32($0.offset)) }
+            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil)
+            #expect(
+                sema.symbols.symbol(chosenCallee)?.fqName == [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("ranges"),
+                    ctx.interner.intern(expected.name),
+                ]
+            )
+        }
+    }
+
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
 
