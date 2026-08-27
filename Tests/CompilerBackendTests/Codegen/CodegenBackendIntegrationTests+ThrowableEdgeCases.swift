@@ -150,6 +150,33 @@ struct CodegenBackendThrowableEdgeCasesTests {
         )
     }
 
+    // KSP-1242: InvalidMutabilityException(message) must allocate the typed
+    // runtime box so both its message property and RuntimeException catch
+    // dispatch remain observable after construction.
+    @Test
+    func testCodegenInvalidMutabilityExceptionConstructorAndCatch() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        import kotlin.native.concurrent.InvalidMutabilityException
+
+        fun main() {
+            try {
+                throw InvalidMutabilityException("mutation blocked")
+            } catch (e: InvalidMutabilityException) {
+                println(e.message)
+                println(e.cause == null)
+                println(e is RuntimeException)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "InvalidMutabilityExceptionConstructorAndCatch",
+            expected: "mutation blocked\ntrue\ntrue\n"
+        )
+    }
+
     // KSP-616: TODO() is a bundled Kotlin declaration throwing NotImplementedError,
     // which must stay catchable both as its own type and as its Error supertype.
     func testCodegenTodoThrowsCatchableNotImplementedError() throws {

@@ -203,5 +203,49 @@ struct CompilerTypesTests {
         #endif
         #expect(host.osVersion == nil)
     }
+
+    @Test func testDefaultStdlibArtifactIsExecutableOnlyAndOptOutIsExplicit() {
+        let common = TargetTriple.hostDefault()
+
+        #expect(
+            CompilerOptions.shouldUseDefaultStdlib(
+                allowDefaultStdlibLibrary: true,
+                includeStdlib: true,
+                stdlibOnly: false,
+                stdlibLibraryPath: nil,
+                emit: .executable
+            )
+        )
+        #expect(
+            !CompilerOptions.shouldUseDefaultStdlib(
+                allowDefaultStdlibLibrary: true,
+                includeStdlib: true,
+                stdlibOnly: false,
+                stdlibLibraryPath: nil,
+                emit: .kirDump
+            )
+        )
+        #expect(
+            !CompilerOptions.shouldUseDefaultStdlib(
+                allowDefaultStdlibLibrary: false,
+                includeStdlib: true,
+                stdlibOnly: false,
+                stdlibLibraryPath: nil,
+                emit: .executable
+            )
+        )
+
+        let sourceOptions = CompilerOptions(
+            moduleName: "SourceFallback",
+            inputs: ["main.kt"],
+            outputPath: "out",
+            emit: .executable,
+            target: common,
+            allowDefaultStdlibLibrary: false
+        )
+        #expect(sourceOptions.allowDefaultStdlibLibrary == false)
+        #expect(sourceOptions.stdlibLibraryPath == nil)
+        #expect(sourceOptions.includeStdlib)
+    }
 }
 #endif

@@ -4,6 +4,25 @@ import kotlin.internal.KsSymbolName
 
 // KSP-443: Sequence 変換・集合演算を Kotlin 化
 
+public inline fun <T> Sequence<T>.find(predicate: (T) -> Boolean): T? {
+    val iterator = this.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+public inline fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    val iterator = this.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 @KsSymbolName("kk_sequence_to_list")
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()
