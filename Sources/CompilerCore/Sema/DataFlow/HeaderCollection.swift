@@ -1339,7 +1339,10 @@ extension DataFlowSemaPhase {
         case "__bundled_kotlin/collections/MutableIterable.kt":
             [["kotlin", "collections", "MutableIterable"]]
         case "__bundled_kotlin/collections/AbstractCollection.kt":
-            [["kotlin", "collections", "AbstractCollection"]]
+            [
+                ["kotlin", "collections", "Collection"],
+                ["kotlin", "collections", "AbstractCollection"],
+            ]
         case "__bundled_kotlin/collections/AbstractSet.kt":
             [["kotlin", "collections", "AbstractSet"]]
         case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
@@ -1368,6 +1371,8 @@ extension DataFlowSemaPhase {
             [["kotlin", "IndexOutOfBoundsException"]]
         case "__bundled_kotlin/NullPointerException/Stdlib.kt":
             [["kotlin", "NullPointerException"]]
+        case "__bundled_kotlin/native/concurrent/FreezingException/Stdlib.kt":
+            [["kotlin", "native", "concurrent", "FreezingException"]]
         case "__bundled_kotlin/Exceptions.kt":
             [
                 ["kotlin", "Error"],
