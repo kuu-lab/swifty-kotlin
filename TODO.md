@@ -6963,7 +6963,7 @@
     - `kotlin.ranges.rangeTo` — fun rangeTo(): ClosedRange  -- `final fun <#A: kotlin/Comparable<#A>> (#A).kotlin.ranges/rangeTo(#A): kotlin.ranges/ClosedRange<#A>`
     - `kotlin.ranges.rangeUntil` — fun rangeUntil(): OpenEndRange  -- `final fun <#A: kotlin/Comparable<#A>> (#A).kotlin.ranges/rangeUntil(#A): kotlin.ranges/OpenEndRange<#A>`
 
-- [ ] KSP-1282: kotlin.ranges.CharProgression の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1282: kotlin.ranges.CharProgression の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges` / receiver `CharProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6972,9 +6972,9 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ranges.first` — fun CharProgression.first(): Char  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/first(): kotlin/Char`
-    - `kotlin.ranges.firstOrNull` — fun CharProgression.firstOrNull(): Char  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/firstOrNull(): kotlin/Char?`
+    - `kotlin.ranges.firstOrNull` — fun CharProgression.firstOrNull(): Char?  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/firstOrNull(): kotlin/Char?`
     - `kotlin.ranges.last` — fun CharProgression.last(): Char  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/last(): kotlin/Char`
-    - `kotlin.ranges.lastOrNull` — fun CharProgression.lastOrNull(): Char  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/lastOrNull(): kotlin/Char?`
+    - `kotlin.ranges.lastOrNull` — fun CharProgression.lastOrNull(): Char?  -- `final fun (kotlin.ranges/CharProgression).kotlin.ranges/lastOrNull(): kotlin/Char?`
 
 - [ ] KSP-1283: kotlin.ranges.ClosedRange の未実装 stdlib API を実装する（30 件）
   - 対象: `kotlin.ranges` / receiver `ClosedRange`

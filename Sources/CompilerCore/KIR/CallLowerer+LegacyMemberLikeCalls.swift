@@ -363,8 +363,16 @@ extension CallLowerer {
                     || name == "UIntProgression"
                     || name == "ULongProgression"
             }()
+            let isExplicitCharProgressionSourceCall = ast.arena.isExplicitCall(exprID)
+                && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
+                && {
+                    guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
+                        return false
+                    }
+                    return interner.resolve(symbol.name) == "CharProgression"
+                }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver {
+            if isRangeLikeReceiver && !isExplicitCharProgressionSourceCall {
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
