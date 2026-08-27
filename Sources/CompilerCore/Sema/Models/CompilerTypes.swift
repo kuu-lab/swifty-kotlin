@@ -93,6 +93,9 @@ public struct CompilerOptions: Equatable {
     public var stdlibOnly: Bool
     /// Path to a prebuilt stdlib .kklib. Disables bundled source injection.
     public var stdlibLibraryPath: String?
+    /// Whether the compiler may resolve the process default stdlib artifact.
+    /// CLI debug runs can disable this with `--stdlib-from-source`.
+    public var allowDefaultStdlibLibrary: Bool
 
     /// Search paths ordered with stdlibLibraryPath first and duplicates removed.
     public var effectiveLibrarySearchPaths: [String] {
@@ -114,6 +117,21 @@ public struct CompilerOptions: Equatable {
     /// Compilations that must exercise the bundled-source injection path opt out
     /// with `allowDefaultStdlibLibrary: false`.
     nonisolated(unsafe) public static var defaultStdlibLibraryPath: String? = nil
+
+    /// Returns whether the process default stdlib artifact applies to a run.
+    /// Keep the executable-only boundary: other emit modes are used by
+    /// source/introspection tests and by the LSP until their own architecture
+    /// tasks opt into artifact-backed analysis.
+    public static func shouldUseDefaultStdlib(
+        allowDefaultStdlibLibrary: Bool,
+        includeStdlib: Bool,
+        stdlibOnly: Bool,
+        stdlibLibraryPath: String?,
+        emit: EmitMode
+    ) -> Bool {
+        allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
+            && stdlibLibraryPath == nil && emit == .executable
+    }
 
     public init(
         moduleName: String,
@@ -151,9 +169,15 @@ public struct CompilerOptions: Equatable {
         self.irFlags = irFlags
         self.runtimeFlags = runtimeFlags
         self.stdlibSearchPaths = stdlibSearchPaths
+        self.allowDefaultStdlibLibrary = allowDefaultStdlibLibrary
 
-        let shouldUseDefaultStdlib = allowDefaultStdlibLibrary && includeStdlib && !stdlibOnly
-            && stdlibLibraryPath == nil && emit == .executable
+        let shouldUseDefaultStdlib = Self.shouldUseDefaultStdlib(
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary,
+            includeStdlib: includeStdlib,
+            stdlibOnly: stdlibOnly,
+            stdlibLibraryPath: stdlibLibraryPath,
+            emit: emit
+        )
         let resolvedStdlibLibraryPath = stdlibLibraryPath ?? (shouldUseDefaultStdlib ? Self.defaultStdlibLibraryPath : nil)
         self.stdlibLibraryPath = resolvedStdlibLibraryPath
         self.includeStdlib = includeStdlib && resolvedStdlibLibraryPath == nil

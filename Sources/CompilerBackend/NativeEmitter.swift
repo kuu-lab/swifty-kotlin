@@ -448,7 +448,7 @@ struct NativeEmitter {
         }
         for symbol in referencedSymbols.sorted(by: { stableGlobalSlotName(for: $0) < stableGlobalSlotName(for: $1) }) {
             guard globalVariables[symbol] == nil,
-                  shouldEmitImportedGlobalReference(for: symbol)
+                  shouldEmitImportedGlobalReference(for: symbol) || shouldUseWeakImportedGlobalReference(for: symbol)
             else {
                 continue
             }
