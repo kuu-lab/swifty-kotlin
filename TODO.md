@@ -5001,15 +5001,17 @@
     - `kotlin.concurrent.atomics.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1124: kotlin.concurrent.atomics.ExperimentalAtomicApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1124: kotlin.concurrent.atomics.ExperimentalAtomicApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.atomics.ExperimentalAtomicApi` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/ExperimentalAtomicApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/ExperimentalAtomicApi.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_atomics_ExperimentalAtomicApi_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_ExperimentalAtomicApi_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_atomics_ExperimentalAtomicApi_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.ExperimentalAtomicApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: Kotlin 2.3.10 公式 source/stdlib metadata の annotation contract を source-backed declaration として移行し、既存 synthetic marker 登録を削除した。HeaderCollection の implicit primary constructor により、対象は public・引数なし・戻り型 `ExperimentalAtomicApi` の単一 constructor になっている。
+  - 完了検証: 専用 Sema 回帰テスト、対象 Golden worker と fixture の一致、対象 diff_kotlinc（PASS）、`check_todo_ids.sh`（PASS）、`validate_runtime_abi_links.sh`（4 tests PASS）。runtime/ABI の対象変更はない。
 
 - [ ] KSP-1125: kotlin.contracts top-level の未実装 stdlib API を実装する（12 件）
   - 対象: `kotlin.contracts` / top-level
