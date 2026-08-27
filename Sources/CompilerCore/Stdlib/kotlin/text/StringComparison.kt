@@ -14,7 +14,7 @@ public fun String.commonPrefixWith(other: String, ignoreCase: Boolean = false): 
     val shortestLength = minOf(this.length, other.length)
     var i = 0
     while (i < shortestLength) {
-        if (!charsEqual(this[i], other[i], ignoreCase)) break
+        if (!__kkCharsEqual(this[i], other[i], ignoreCase)) break
         i++
     }
     if (i == 0) return ""
@@ -33,21 +33,12 @@ public fun String.commonSuffixWith(other: String, ignoreCase: Boolean = false): 
     val shortestLength = minOf(this.length, other.length)
     var i = 0
     while (i < shortestLength) {
-        if (!charsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) break
+        if (!__kkCharsEqual(this[this.length - 1 - i], other[other.length - 1 - i], ignoreCase)) break
         i++
     }
     if (i == 0) return ""
     if (i == this.length) return this
     return this.substring(this.length - i)
-}
-
-// Helper function to compare characters with optional case-insensitivity
-private fun charsEqual(a: Char, b: Char, ignoreCase: Boolean): Boolean {
-    if (!ignoreCase) {
-        return a == b
-    }
-    // Case-insensitive comparison using lowercase
-    return a.lowercaseChar() == b.lowercaseChar()
 }
 
 // KSP-413: compareTo(ignoreCase) / contentEquals / equals(ignoreCase) moved off the
@@ -62,7 +53,7 @@ private fun charsEqual(a: Char, b: Char, ignoreCase: Boolean): Boolean {
 // first, then their lower-cased forms, so that alphabets whose case mapping is
 // not a bijection still compare equal.
 
-private fun ksp413FoldedCompare(a: Char, b: Char): Int {
+private fun __kkFoldedCharCompare(a: Char, b: Char): Int {
     if (a == b) return 0
     val upperA = a.uppercaseChar()
     val upperB = b.uppercaseChar()
@@ -73,15 +64,40 @@ private fun ksp413FoldedCompare(a: Char, b: Char): Int {
     return lowerA.code - lowerB.code
 }
 
-private fun ksp413CharsEqualIgnoreCase(a: Char, b: Char): Boolean = ksp413FoldedCompare(a, b) == 0
+internal fun __kkCharsEqual(a: Char, b: Char, ignoreCase: Boolean): Boolean =
+    if (ignoreCase) __kkFoldedCharCompare(a, b) == 0 else a == b
 
-private fun ksp413ContentEquals(self: List<Char>, other: List<Char>, ignoreCase: Boolean): Boolean {
+internal fun __kkRegionMatches(
+    self: List<Char>,
+    thisOffset: Int,
+    other: List<Char>,
+    otherOffset: Int,
+    length: Int,
+    ignoreCase: Boolean
+): Boolean {
+    if (length < 0 || otherOffset < 0 || thisOffset < 0 ||
+        thisOffset > self.size - length ||
+        otherOffset > other.size - length
+    ) {
+        return false
+    }
+    var index = 0
+    while (index < length) {
+        if (!__kkCharsEqual(self[thisOffset + index], other[otherOffset + index], ignoreCase)) {
+            return false
+        }
+        index++
+    }
+    return true
+}
+
+private fun __kkContentEquals(self: List<Char>, other: List<Char>, ignoreCase: Boolean): Boolean {
     if (self.size != other.size) return false
     var index = 0
     while (index < self.size) {
         val a = self[index]
         val b = other[index]
-        if (a != b && !(ignoreCase && ksp413CharsEqualIgnoreCase(a, b))) return false
+        if (!__kkCharsEqual(a, b, ignoreCase)) return false
         index++
     }
     return true
@@ -103,7 +119,7 @@ public fun String.compareTo(other: String, ignoreCase: Boolean): Int {
         val b = otherChars[index]
         if (a != b) {
             if (!ignoreCase) return a.code - b.code
-            val difference = ksp413FoldedCompare(a, b)
+            val difference = __kkFoldedCharCompare(a, b)
             if (difference != 0) return difference
         }
         index++
@@ -119,7 +135,7 @@ public fun CharSequence?.contentEquals(other: CharSequence?): Boolean {
     val value = this
     if (value == null) return other == null
     if (other == null) return false
-    return ksp413ContentEquals(value!!.toString().toList(), other!!.toString().toList(), false)
+    return __kkContentEquals(value!!.toString().toList(), other!!.toString().toList(), false)
 }
 
 /**
@@ -132,7 +148,7 @@ public fun CharSequence?.contentEquals(other: CharSequence?, ignoreCase: Boolean
     val value = this
     if (value == null) return other == null
     if (other == null) return false
-    return ksp413ContentEquals(value!!.toString().toList(), other!!.toString().toList(), ignoreCase)
+    return __kkContentEquals(value!!.toString().toList(), other!!.toString().toList(), ignoreCase)
 }
 
 /**
@@ -143,7 +159,7 @@ public fun String?.equals(other: String?, ignoreCase: Boolean): Boolean {
     if (value == null) return other == null
     if (other == null) return false
     if (!ignoreCase) return value == other
-    return ksp413ContentEquals(value!!.toList(), other!!.toList(), true)
+    return __kkContentEquals(value!!.toList(), other!!.toList(), true)
 }
 
 /**
