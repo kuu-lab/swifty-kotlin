@@ -503,11 +503,6 @@ extension CallTypeChecker {
         case ("ULong", "MIN_VALUE"): return (types.ulongType, .ulongLiteral(0))
         case ("ULong", "SIZE_BITS"): return (types.intType, .intLiteral(64))
         case ("ULong", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
-        // UByte (8-bit unsigned)
-        case ("UByte", "MAX_VALUE"): return (types.ubyteType, .uintLiteral(UInt64(UInt8.max)))
-        case ("UByte", "MIN_VALUE"): return (types.ubyteType, .uintLiteral(0))
-        case ("UByte", "SIZE_BITS"): return (types.intType, .intLiteral(8))
-        case ("UByte", "SIZE_BYTES"): return (types.intType, .intLiteral(1))
         // UShort (16-bit unsigned)
         case ("UShort", "MAX_VALUE"): return (types.ushortType, .uintLiteral(UInt64(UInt16.max)))
         case ("UShort", "MIN_VALUE"): return (types.ushortType, .uintLiteral(0))
@@ -531,8 +526,8 @@ extension CallTypeChecker {
 
     /// Returns true if `receiverType` conforms to AutoCloseable,
     /// so that `.use {}` is only treated as a scope function on closeable receivers.
-    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see
-    /// HeaderHelpers+SyntheticCloseableStubs.swift and Stdlib/kotlin/AutoCloseable.kt),
+    /// Note: `kotlin.io.Closeable` now extends `kotlin.AutoCloseable` (see the
+    /// source-backed closeable cache and Stdlib/kotlin/AutoCloseable.kt),
     /// so checking AutoCloseable covers both Closeable and AutoCloseable receivers.
     ///
     /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
