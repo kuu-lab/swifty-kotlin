@@ -73,5 +73,39 @@ struct RuntimePlatformTests {
     func testIsDebugBinaryIgnoresPlatformRawArgument() {
         #expect(kk_platform_isDebugBinary(0) == kk_platform_isDebugBinary(99))
     }
+
+    // MARK: - KSP-1211 Platform surface
+
+    @Test
+    func testProgramNameReturnsNullableRuntimeString() {
+        let raw = kk_platform_programName(0)
+        if raw != runtimeNullSentinelInt {
+            #expect(runtimeStringFromRaw(raw) != nil)
+        }
+    }
+
+    @Test
+    func testAvailableProcessorsRuntimeEntryPointIsPositive() {
+        #expect(kk_platform_getAvailableProcessors(0) > 0)
+    }
+
+    @Test
+    func testAvailableProcessorsEnvironmentOverrideIsNullableRuntimeString() {
+        let raw = kk_platform_getAvailableProcessorsEnv(0)
+        if raw != runtimeNullSentinelInt {
+            #expect(runtimeStringFromRaw(raw) != nil)
+        }
+    }
+
+    @Test
+    func testMemoryLeakCheckerCanBeLoadedAndStored() {
+        let initial = kk_platform_isMemoryLeakCheckerActive_load(0)
+        #expect(initial == 0 || initial == 1)
+        let updated = initial == 0 ? 1 : 0
+        _ = kk_platform_isMemoryLeakCheckerActive_store(0, updated)
+        #expect(kk_platform_isMemoryLeakCheckerActive_load(0) == updated)
+        _ = kk_platform_isMemoryLeakCheckerActive_store(0, initial)
+        #expect(kk_platform_isMemoryLeakCheckerActive_load(0) == initial)
+    }
 }
 #endif
