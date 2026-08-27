@@ -5576,7 +5576,7 @@
     - `kotlin.math.acos` — fun acos(Float): Float  -- `final fun kotlin.math/acos(kotlin/Float): kotlin/Float`
   - 完了根拠: KSP-637 PR #5831 / merge commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9` が両 overload の bundled Kotlin source-backed wrapper と `__kk_math_acos` / `__kk_math_acos_float` bridge を導入済み。現行 `Math.kt`、`MathAPITargetInventoryTests`、`MathOverloadResolutionTests`、`MathSyntheticTopLevelLinkTests`、Runtime math edge tests、既存 `math_transcendental_source.kt` / `math_float_overloads_edge.kt` が両シンボルを固定しており、Kotlin 2.3.10 official source/artifact metadata/kotlinc 2.3.10 でも public Double/Float overload と NaN・±1・範囲外・±0 の契約を確認済み。追加実装・bridge整理は不要。
 
-- [ ] KSP-1173: kotlin.math.acosh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1173: kotlin.math.acosh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `acosh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/acosh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5586,6 +5586,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.acosh` — fun acosh(Double): Double  -- `final fun kotlin.math/acosh(kotlin/Double): kotlin/Double`
     - `kotlin.math.acosh` — fun acosh(Float): Float  -- `final fun kotlin.math/acosh(kotlin/Float): kotlin/Float`
+  - 完了根拠: KSP-637（PR #5831、commit `dfc478e0f`）で両 overloadのKotlin source wrapperと既存libm bridgeが導入済み。専用Golden/diffを追加し、既存のSema source-link、backend実行、Runtime edge回帰とRuntime ABIリンクを再検証する。
 
 - [x] KSP-1174: kotlin.math.asin-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `asin`
