@@ -83,7 +83,15 @@ extension CodegenRuntimeSupport {
         let cacheKey = runtimeBuildCacheKey(target: target, configuration: configuration)
         return try runtimeObjectCache.getOrLoad(cacheKey: cacheKey) {
             try withRuntimeBuildLock(cacheKey: cacheKey) {
-                let discovered = discoverScratchRuntimeObjectPaths(target: target, configuration: configuration)
+                // A non-empty scratch directory is NOT proof of a complete
+                // runtime build: a killed kswiftc can leave its child
+                // `swift build` orphaned and still writing objects, and an
+                // interrupted build leaves a partial set behind. Linking a
+                // partial set fails later with undefined `kk_*` symbols, so a
+                // scratch cache hit requires the manifest written only after
+                // a build completed under this lock.
+                let manifestURL = runtimeObjectsManifestURL(target: target, configuration: configuration)
+                let discovered = manifestValidatedRuntimeObjectPaths(manifestURL: manifestURL)
                 if !discovered.isEmpty {
                     return discovered
                 }
@@ -92,6 +100,7 @@ extension CodegenRuntimeSupport {
 
                 let built = discoverScratchRuntimeObjectPaths(target: target, configuration: configuration)
                 if !built.isEmpty {
+                    try writeRuntimeObjectsManifest(built, to: manifestURL)
                     return built
                 }
 
@@ -147,6 +156,42 @@ extension CodegenRuntimeSupport {
             inScratchBuildDirectory: runtimeBuildDirectory(target: target, configuration: configuration),
             scratchRootDirectory: runtimeBuildRootDirectory(target: target, configuration: configuration)
         )
+    }
+
+    private static func runtimeObjectsManifestURL(
+        target: TargetTriple,
+        configuration: RuntimeBuildConfiguration
+    ) -> URL {
+        runtimeBuildRootDirectory(target: target, configuration: configuration)
+            .appendingPathComponent("objects-\(configuration.rawValue).manifest")
+    }
+
+    // Exposed for testing, like discoverRuntimeObjectPaths below.
+    static func writeRuntimeObjectsManifest(_ paths: [String], to manifestURL: URL) throws {
+        try FileManager.default.createDirectory(
+            at: manifestURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try (paths.joined(separator: "\n") + "\n")
+            .write(to: manifestURL, atomically: true, encoding: .utf8)
+    }
+
+    // Returns the manifest's object paths only while every one of them still
+    // exists; anything else (no manifest, empty manifest, missing object)
+    // reports a cache miss so the runtime build re-runs.
+    static func manifestValidatedRuntimeObjectPaths(manifestURL: URL) -> [String] {
+        guard let contents = try? String(contentsOf: manifestURL, encoding: .utf8) else {
+            return []
+        }
+        let paths = contents
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map(String.init)
+        guard !paths.isEmpty,
+              paths.allSatisfy({ FileManager.default.fileExists(atPath: $0) })
+        else {
+            return []
+        }
+        return paths
     }
 
     // Exposed for testing so the discovery/fallback logic can be exercised
