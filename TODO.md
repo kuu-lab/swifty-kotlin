@@ -6492,7 +6492,7 @@
     - `kotlin.native.concurrent.MutableData.withBufferLocked` — fun MutableData.withBufferLocked(Function2): #A1  -- `final fun <#A1: kotlin/Any?> withBufferLocked(kotlin/Function2<kotlin/ByteArray, kotlin/Int, #A1>): #A1`
     - `kotlin.native.concurrent.MutableData.withPointerLocked` — fun MutableData.withPointerLocked(Function2): #A1  -- `final fun <#A1: kotlin/Any?> withPointerLocked(kotlin/Function2<kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>, kotlin/Int, #A1>): #A1`
 
-- [ ] KSP-1245: kotlin.native.concurrent.ObsoleteWorkersApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1245: kotlin.native.concurrent.ObsoleteWorkersApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.ObsoleteWorkersApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObsoleteWorkersApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6501,6 +6501,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.ObsoleteWorkersApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: synthetic `ObsoleteWorkersApi` に Kotlin 2.3.10 と同じ public 0 引数 constructor と annotation metadata（RequiresOptIn、11 targets、BINARY retention、SinceKotlin 1.9、MustBeDocumented）を保持し、Sema回帰・Sema Golden・Native-only diff fixture・TODO ID検査で確認。
 
 - [ ] KSP-1246: kotlin.native.concurrent.SharedImmutable top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.SharedImmutable` / top-level
