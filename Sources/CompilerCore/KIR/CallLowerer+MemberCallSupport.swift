@@ -93,11 +93,24 @@ func resolveClassOwnToStringCallee(
     sema: SemaModule,
     interner: StringInterner
 ) -> (callee: InternedString, symbol: SymbolID)? {
-    guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
-        return nil
-    }
     let toStringName = interner.intern("toString")
-    let toStringFQName = classSymbol.fqName + [toStringName]
+    let toStringFQName: [InternedString]
+    if case .unit = sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        // Unit has the builtin value representation, so it has no classType
+        // symbol to resolve. Its source-backed object member is still the
+        // authoritative implementation for direct and statically-known calls.
+        guard let unitClassSymbol = sema.types.unitClassSymbol,
+              let unitSymbol = sema.symbols.symbol(unitClassSymbol)
+        else {
+            return nil
+        }
+        toStringFQName = unitSymbol.fqName + [toStringName]
+    } else {
+        guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return nil
+        }
+        toStringFQName = classSymbol.fqName + [toStringName]
+    }
     let toStringSymbolID: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
         guard let sym = sema.symbols.symbol(id), sym.kind == .function else { return false }
         let sig = sema.symbols.functionSignature(for: id)

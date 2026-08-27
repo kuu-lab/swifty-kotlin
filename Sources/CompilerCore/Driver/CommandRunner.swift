@@ -80,6 +80,21 @@ private final class CommandPipeDrain: @unchecked Sendable {
 package enum CommandRunner {
     private static let drainTimeoutSeconds: TimeInterval = 20
     private static let terminationGracePeriodSeconds: TimeInterval = 1
+#if os(Linux)
+    /// swift-corelibs-foundation's `Process.run()` is not thread-safe on Linux:
+    /// concurrent launches race on posix_spawn / `/proc/self/fd` and can SIGSEGV
+    /// (see CommandRunnerTests timeout note). Serialize only the spawn window so
+    /// child processes still run in parallel.
+    private static let processLaunchLock = NSLock()
+#endif
+
+    private static func withProcessLaunchLock<T>(_ body: () throws -> T) rethrows -> T {
+#if os(Linux)
+        processLaunchLock.lock()
+        defer { processLaunchLock.unlock() }
+#endif
+        return try body()
+    }
 
     /// Resolves an executable by scanning `$PATH`, but only trusts directories
     /// that cannot be tampered with by another local user. This prevents a
@@ -174,57 +189,68 @@ package enum CommandRunner {
     ) throws -> CommandResult {
         let startTime: UInt64 = (phaseTimer != nil && subPhaseName != nil) ? DispatchTime.now().uptimeNanoseconds : 0
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        if let currentDirectoryPath {
-            process.currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
-        }
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        let stdoutReadHandle = stdoutPipe.fileHandleForReading
-        let stderrReadHandle = stderrPipe.fileHandleForReading
-        let stdoutWriteHandle = stdoutPipe.fileHandleForWriting
-        let stderrWriteHandle = stderrPipe.fileHandleForWriting
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        // Drain both pipes before waiting for process termination to avoid
-        // deadlocks when child output exceeds the kernel pipe buffer.
         let output = LockedCommandOutput()
         let drainGroup = DispatchGroup()
-        let stdoutDrain = CommandPipeDrain(
-            handle: stdoutReadHandle,
-            output: output,
-            stream: .stdout,
-            group: drainGroup,
-            name: "CommandRunner.stdout"
-        )
-        let stderrDrain = CommandPipeDrain(
-            handle: stderrReadHandle,
-            output: output,
-            stream: .stderr,
-            group: drainGroup,
-            name: "CommandRunner.stderr"
-        )
-        stdoutDrain.start()
-        stderrDrain.start()
-
         let terminatedSemaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            terminatedSemaphore.signal()
-        }
+        var didStartDrain = false
 
         do {
-            try process.run()
+            try withProcessLaunchLock {
+                process.executableURL = URL(fileURLWithPath: executable)
+                process.arguments = arguments
+                if let currentDirectoryPath {
+                    process.currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
+                }
+
+                let stdoutPipe = Pipe()
+                let stderrPipe = Pipe()
+                let stdoutReadHandle = stdoutPipe.fileHandleForReading
+                let stderrReadHandle = stderrPipe.fileHandleForReading
+                let stdoutWriteHandle = stdoutPipe.fileHandleForWriting
+                let stderrWriteHandle = stderrPipe.fileHandleForWriting
+                process.standardOutput = stdoutPipe
+                process.standardError = stderrPipe
+
+                // Drain both pipes before waiting for process termination to avoid
+                // deadlocks when child output exceeds the kernel pipe buffer.
+                let stdoutDrain = CommandPipeDrain(
+                    handle: stdoutReadHandle,
+                    output: output,
+                    stream: .stdout,
+                    group: drainGroup,
+                    name: "CommandRunner.stdout"
+                )
+                let stderrDrain = CommandPipeDrain(
+                    handle: stderrReadHandle,
+                    output: output,
+                    stream: .stderr,
+                    group: drainGroup,
+                    name: "CommandRunner.stderr"
+                )
+                stdoutDrain.start()
+                stderrDrain.start()
+                didStartDrain = true
+
+                process.terminationHandler = { _ in
+                    terminatedSemaphore.signal()
+                }
+
+                do {
+                    try process.run()
+                } catch {
+                    stdoutWriteHandle.closeFile()
+                    stderrWriteHandle.closeFile()
+                    throw error
+                }
+                stdoutWriteHandle.closeFile()
+                stderrWriteHandle.closeFile()
+            }
         } catch {
-            stdoutWriteHandle.closeFile()
-            stderrWriteHandle.closeFile()
-            _ = wait(for: drainGroup, timeout: drainTimeoutSeconds)
+            if didStartDrain {
+                _ = wait(for: drainGroup, timeout: drainTimeoutSeconds)
+            }
             throw CommandRunnerError.launchFailed("Failed to launch \(executable): \(error)")
         }
-        stdoutWriteHandle.closeFile()
-        stderrWriteHandle.closeFile()
 
         var didExit = wait(for: terminatedSemaphore, timeout: timeout)
         let didTimeOut = !didExit
