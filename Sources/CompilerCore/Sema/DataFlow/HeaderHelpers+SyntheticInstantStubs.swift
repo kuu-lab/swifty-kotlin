@@ -1,10 +1,10 @@
-/// Synthetic stubs for kotlin.time.Instant class (STDLIB-TIME-083).
+/// Residual compiler/runtime support for kotlin.time.Instant (STDLIB-TIME-083).
 ///
-/// Creates the `Instant.Companion` synthetic object so that bundled Kotlin
-/// source extensions on the companion (`Instant.now()`, `fromEpochMilliseconds`)
-/// can resolve. The factories themselves are implemented in
-/// `Stdlib/kotlin/time/Instant.kt` and delegate to `kk_instant_now` /
-/// `kk_instant_from_epoch_millis` via `@KsSymbolName` external declarations.
+/// The public Instant API is implemented in `Stdlib/kotlin/time/Instant.kt`.
+/// This residual file only creates the nominal/bootstrap symbols required by
+/// source loading and registers the hidden bridge declarations used by that
+/// source. The runtime Instant handle and OS-clock implementation remain in
+/// RuntimeInstant.swift.
 ///
 /// Also registers `__kk_instant_*` bridge methods used by
 /// `Stdlib/kotlin/time/Instant.kt` to implement `epochSeconds`,
