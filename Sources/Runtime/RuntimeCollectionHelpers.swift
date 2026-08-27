@@ -817,6 +817,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
     }
+    if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
+    }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"

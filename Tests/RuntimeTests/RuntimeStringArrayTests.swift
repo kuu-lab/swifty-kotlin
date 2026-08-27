@@ -1038,6 +1038,18 @@ struct RuntimeStringArrayTests {
         #expect(extractString(from: converted) ?? "" == expected)
     }
 
+    @Test
+    func testInstantAssertionMessageUsesIsoRepresentation() {
+        let instantRaw = kk_instant_from_epoch_seconds(1, 500_000_000)
+        let expected = "1970-01-01T00:00:01.500Z"
+
+        #expect(runtimeRenderAnyForPrint(instantRaw) == expected)
+
+        let assertionRaw = kk_assertion_error_new_message(instantRaw)
+        let assertion = throwableBox(from: assertionRaw)
+        #expect(assertion?.message == expected)
+    }
+
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
 
