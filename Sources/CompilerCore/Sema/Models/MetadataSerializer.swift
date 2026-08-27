@@ -833,6 +833,18 @@ package final class MetadataEncoder {
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
                 || enumEntriesGetterSymbol != nil
+            // Runtime-backed properties can be declared in bundled source
+            // without a Kotlin getter body (for example Collection.size). The
+            // property symbol's external link must still cross the library
+            // boundary as a synthetic getter link; otherwise consumers restore
+            // the property as an itable getter and runtime collection boxes
+            // cannot satisfy the dispatch.
+            if !hasCustomGetter,
+               let propertyLink = symbols.externalLinkName(for: symbol.id),
+               !propertyLink.isEmpty
+            {
+                propertyGetterExternalLinkName = propertyLink
+            }
             if hasCustomGetter,
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
