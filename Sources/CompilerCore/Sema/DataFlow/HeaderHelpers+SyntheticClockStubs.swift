@@ -1,9 +1,9 @@
-/// Synthetic stubs for kotlin.time.Clock (STDLIB-TIME-086).
+/// Residual compiler/runtime support for kotlin.time.Clock (STDLIB-TIME-086).
 ///
-/// Registers `kotlin.time.Clock` interface with its instance method `now()`
-/// as a direct native bridge (kk_clock_now). Clock is a user-implementable
-/// interface, so `now()` must remain a real class member for virtual dispatch
-/// to work.
+/// `Clock` and the public `Clock.System.now()` API are source-backed. This
+/// residual file retains the interface member bridge and the nested object
+/// anchor required by source loading. `Clock` is user-implementable, so
+/// `now()` must remain an interface member for virtual dispatch to work.
 ///
 /// `Clock.System` is created as a nested object so that the bundled Kotlin
 /// source extension `Clock.System.now()` in Stdlib/kotlin/time/Clock.kt can
@@ -42,7 +42,7 @@ extension DataFlowSemaPhase {
 
         // MARK: - Clock interface
 
-        let clockSymbol = ensureClassSymbol(
+        let clockSymbol = ensureInterfaceSymbol(
             named: "Clock",
             in: kotlinTimePkg,
             symbols: symbols,
