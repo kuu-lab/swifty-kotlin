@@ -1310,7 +1310,6 @@ extension CallLowerer {
                 let elementAtOrElseName = interner.intern("elementAtOrElse")
                 let elementAtOrNullName = interner.intern("elementAtOrNull")
                 let filterIndexedName = interner.intern("filterIndexed")
-                let findLastName = interner.intern("findLast")
                 let lastName = interner.intern("last")
                 let minName = interner.intern("min")
                 if calleeName == mapName {
@@ -1359,16 +1358,10 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_filterIndexed"
                 } else if calleeName == lastName {
                     runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_last" : "kk_sequence_last"
-                } else if calleeName == findLastName {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == minName {
                     runtimeCallee = "kk_sequence_min"
                 } else if calleeName == interner.intern("max") {
                     runtimeCallee = "kk_sequence_max"
-                } else if calleeName == interner.intern("find") {
-                    runtimeCallee = "kk_sequence_find"
-                } else if calleeName == interner.intern("findLast") {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == interner.intern("intersect") {
                     runtimeCallee = "kk_sequence_intersect"
                 } else if calleeName == interner.intern("any") {
@@ -1457,8 +1450,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_find"
-                        || runtimeCallee == "kk_sequence_findLast"
                         || runtimeCallee == "kk_sequence_takeLast"
                         || runtimeCallee == "kk_sequence_elementAt"
                         || runtimeCallee == "kk_sequence_elementAtOrElse"
