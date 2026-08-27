@@ -1154,13 +1154,12 @@ run_case() {
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  # Matching non-zero compile exits short-circuit the run/stdout comparison
-  # below, so this "passes" without either side ever executing. The match is
-  # necessary but not sufficient evidence of equivalent behavior — both
-  # compilers reject their own input for possibly unrelated reasons (stderr is
-  # not diffed). Flag it so a green run isn't mistaken for verified parity.
+  # Matching non-zero compile exits skip the run/stdout comparison below, then
+  # the matching-failure branch forces this case to FAIL. Compile stderr is
+  # retained in the failure output and artifacts; matching exit codes alone
+  # never count as verified parity.
   if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
-    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not imply matching failure reasons (stderr is not diffed) — this PASS is inconclusive, not verified parity"
+    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not verify parity — compile stderr is reported below; this case will FAIL"
   fi
 
   if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
