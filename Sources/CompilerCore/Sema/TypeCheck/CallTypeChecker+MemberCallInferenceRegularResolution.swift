@@ -590,6 +590,7 @@ extension CallTypeChecker {
 
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: memberLookupType,
@@ -618,6 +619,7 @@ extension CallTypeChecker {
         }
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let extensionPropertyType = resolveExtensionPropertyGetter(
                id: id,
                calleeName: calleeName,

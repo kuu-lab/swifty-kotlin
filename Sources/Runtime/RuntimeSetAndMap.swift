@@ -129,6 +129,17 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     return 1
 }
 
+@_cdecl("__kk_collection_containsAll")
+public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
+    let iteratorRaw = kk_list_iterator(elementsRaw)
+    while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+        if kk_op_contains(collRaw, kk_list_iterator_next(iteratorRaw)) == 0 {
+            return 0
+        }
+    }
+    return 1
+}
+
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")

@@ -95,7 +95,7 @@ expr e@13:18#1 memberCall recv=e@13:18 callee=to args=[_:e@13:25] type=kotlin.Pa
 expr e@13:29 string(v) type=String
 expr e@13:36 int(18) type=Int
 expr e@13:29#1 memberCall recv=e@13:29 callee=to args=[_:e@13:36] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@13:12 call callee=e@13:12#1 args=[_:e@13:18#1,_:e@13:29#1] type=kotlin.collections.Map<String, out Int> call=kotlin.collections.mapOf#1 targs=[String,Int]
+expr e@13:12 call callee=e@13:12#1 args=[_:e@13:18#1,_:e@13:29#1] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf#2 targs=[String,Int]
 expr e@13:5 compoundAssign(plusAssign) name=map value=e@13:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#4 targs=[String,Int]
 expr e@14:5 name(map) type=kotlin.collections.MutableMap<String, Int?> ref=__local_0.map
 expr e@14:23 string(v) type=String
