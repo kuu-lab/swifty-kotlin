@@ -15,8 +15,29 @@ extension CollectionVirtualCallRewriteLoweringPass {
         symbol: SymbolID?,
         callee: InternedString,
         lookup: CollectionLiteralLookupTables,
+        receiver: KIRExprID,
         context: VirtualCallRewriteContext
     ) -> Bool {
+        // KSP-1512: primitive-array `size` is a bundled Kotlin extension, so
+        // do not replace it with the generic Array<T> runtime bridge when the
+        // receiver is one of the signed primitive arrays.
+        if callee == lookup.sizeName,
+           let symbol,
+           let sema = context.sema,
+           sema.symbols.isSourceBackedSymbol(symbol),
+           let receiverType = context.module.arena.exprType(receiver),
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               receiverType,
+               sema: sema
+           )
+        {
+            let signedPrimitiveArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+            ]
+            return signedPrimitiveArrayNames.contains(context.interner.resolve(receiverSymbol.name))
+        }
+
         guard callee == lookup.foldName
             || callee == lookup.foldRightName
             || callee == lookup.reduceName
@@ -173,6 +194,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             symbol: symbol,
             callee: callee,
             lookup: lookup,
+            receiver: receiver,
             context: context
         ) {
             return false
