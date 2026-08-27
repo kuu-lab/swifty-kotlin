@@ -243,6 +243,24 @@ struct RuntimeAssertionsTests {
                 "Throwable should be last in hierarchy")
     }
 
+    // MARK: - RuntimeInvalidMutabilityExceptionBox
+
+    @Test
+    func testInvalidMutabilityExceptionBoxRuntimeIdentity() {
+        let box = RuntimeInvalidMutabilityExceptionBox(message: "mutation blocked")
+        #expect(box.exceptionFQName == "kotlin.native.concurrent.InvalidMutabilityException")
+        #expect(box.message == "mutation blocked")
+        #expect(box.cause == 0)
+        #expect(box.renderedMessage == "InvalidMutabilityException: mutation blocked")
+        #expect(box.exceptionHierarchyFQNames == [
+            "kotlin.native.concurrent.InvalidMutabilityException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ])
+        #expect(runtimeValueIsThrowableBox(box))
+    }
+
     // MARK: - RuntimeArrayIndexOutOfBoundsExceptionBox
 
     @Test
@@ -492,6 +510,19 @@ struct RuntimeAssertionsTests {
         #expect(withCauseBox.cause == noArg)
         #expect(causeOnlyBox.message == "java.util.ConcurrentModificationException")
         #expect(causeOnlyBox.cause == noArg)
+    }
+
+    @Test
+    func testInvalidMutabilityExceptionRuntimeConstructor() throws {
+        let messageRaw = makeRuntimeString("mutation blocked")
+        let raw = kk_invalid_mutability_exception_new_message(messageRaw)
+        let box = try #require(
+            runtimeBox(from: raw, as: RuntimeInvalidMutabilityExceptionBox.self),
+            "Expected a typed InvalidMutabilityException runtime box"
+        )
+
+        #expect(box.message == "mutation blocked")
+        #expect(box.cause == 0)
     }
 
     @Test
