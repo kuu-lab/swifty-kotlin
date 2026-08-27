@@ -95,10 +95,10 @@ struct GoldenHarnessShardingTests {
         let shard = try #require(
             GoldenHarnessShard.fromEnvironment([
                 "KSWIFTK_GOLDEN_SHARD_INDEX": "1",
-                "KSWIFTK_GOLDEN_SHARD_COUNT": "3",
+                "KSWIFTK_GOLDEN_SHARD_COUNT": "6",
             ])
         )
-        #expect(shard.select(Array(0 ..< 8)) == [1, 4, 7])
+        #expect(shard.select(Array(0 ..< 8)) == [1, 7])
     }
 }
 
