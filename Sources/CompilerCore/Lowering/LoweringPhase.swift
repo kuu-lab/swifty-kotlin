@@ -30,7 +30,6 @@ public final class LoweringPhase: CompilerPhase {
 
         ValueClassUnboxingPass(), // VAL-001: must run before PropertyLowering
         PropertyLoweringPass(),
-        StdlibDelegateLoweringPass(),
         JvmStaticLoweringPass(),
         JvmOverloadsLoweringPass(),
         DataEnumSealedSynthesisPass(),
