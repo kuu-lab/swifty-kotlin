@@ -6055,15 +6055,17 @@
     - `kotlin.native.ObjCName.name` — val ObjCName.name: String  -- `final val name`
     - `kotlin.native.ObjCName.swiftName` — val ObjCName.swiftName: String  -- `final val swiftName`
 
-- [ ] KSP-1209: kotlin.native.ObsoleteNativeApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1209: kotlin.native.ObsoleteNativeApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.ObsoleteNativeApi` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ObsoleteNativeApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Annotations.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ObsoleteNativeApi_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ObsoleteNativeApi_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ObsoleteNativeApi_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 対象シンボル一覧:
     - `kotlin.native.ObsoleteNativeApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了確認（2026-08-25、現行master `5da9a9fe8d8b1684b1e3d354de776fd5f3902240`）：merged PR #1609（commit `25b2e81fc3c24a9e45f39be1b35361f363019c6b`、merge commit `52d0f9c5ff3776881e47e1132fd539701b1447d6`）が synthetic marker・metadata・opt-in Sema 回帰を導入し、merged PR #5034（commit `334a393e347cbb6ca247a1c998d8b3f784b45845`）が `Sources/CompilerCore/Stdlib/kotlin/native/Annotations.kt` の source-backed public annotation class へ移行済み。現行コードに対象専用の synthetic / KIR / lowering / Runtime / RuntimeABI bridge はなく、annotation class の暗黙引数なし constructor を保持する。
+  - Kotlin 2.3.10 の公式 Native source・KLIB metadata（`metadata_version=2.3.0`、`compiler_version=2.3.10`）と一致する package、public visibility、指定11 Target、BINARY Retention、`RequiresOptIn(ERROR)`、message、`<init>()` を確認。公式 `kotlinc-native` と KSwiftK の最小 `@ObsoleteNativeApi()` 宣言/呼出しは、未 opt-in で診断、`-opt-in` / `@file:OptIn` で成功し、現行 `NativePlatformAnnotationTests` 21 tests も全PASS。
 
 - [ ] KSP-1210: kotlin.native.OsFamily.OsFamily の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.OsFamily` / receiver `OsFamily`
