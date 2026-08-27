@@ -15,7 +15,6 @@ symbol fq=constrain.$0.T kind=typeParameter vis=private flags=_
 symbol fq=constrain.$0.set kind=valueParameter vis=private flags=_
 symbol fq=createSet kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.MutableSet<Int>
 symbol fq=customExtension kind=function vis=public flags=_ sig=recv=kotlin.collections.MutableSet<String> params=[] ret=String
-symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableSet.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableSet.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean

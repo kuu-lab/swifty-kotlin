@@ -8,7 +8,7 @@ symbol fq=golden.sema.ProbeSet.values kind=property vis=public flags=_ type=kotl
 symbol fq=golden.sema.inspect kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Set<Int>,kotlin.collections.Collection<Int>] ret=Boolean
 symbol fq=golden.sema.inspect.$2.collection kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.inspect.$2.values kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.Collection kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection.contains kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Collection<out kotlin.collections.Collection.E> params=[kotlin.collections.Collection.E] ret=Boolean
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int

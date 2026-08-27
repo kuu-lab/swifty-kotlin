@@ -41,8 +41,8 @@ struct SetSourceMigrationTests {
         #expect(sema.symbols.directSupertypes(for: setSymbol) == [collectionSymbol])
         #expect(sema.symbols.supertypeTypeArgs(for: setSymbol, supertype: collectionSymbol).count == 1)
 
-        // KSP-942 remains synthetic on this master; KSP-948 must not import it.
-        #expect(collectionInfo.flags.contains(.synthetic))
+        // KSP-934 is source-backed on this master; KSP-948 shares its Collection supertype.
+        #expect(!collectionInfo.flags.contains(.synthetic))
     }
 
     @Test
