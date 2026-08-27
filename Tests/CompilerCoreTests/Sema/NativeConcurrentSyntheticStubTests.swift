@@ -418,12 +418,17 @@ struct NativeConcurrentSyntheticStubTests {
         let runtimeException = try symbol(["kotlin", "RuntimeException"], sema: sema, interner: interner)
 
         #expect(sema.symbols.symbol(freezingException)?.kind == .class)
+        #expect(sema.symbols.symbol(freezingException)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.sourceFileID(for: freezingException) != nil)
         #expect(sema.symbols.directSupertypes(for: freezingException).contains(runtimeException))
+        let annotationNames = sema.symbols.annotations(for: freezingException).map(\.annotationFQName)
         #expect(
-            sema.symbols.annotations(for: freezingException).contains {
-                $0.annotationFQName == "kotlin.experimental.ExperimentalNativeApi"
-            },
-            "FreezingException must carry ExperimentalNativeApi metadata"
+            annotationNames.contains("Deprecated"),
+            "FreezingException must carry Deprecated metadata: \(annotationNames)"
+        )
+        #expect(
+            annotationNames.contains("DeprecatedSinceKotlin"),
+            "FreezingException must carry DeprecatedSinceKotlin metadata: \(annotationNames)"
         )
     }
 
@@ -450,15 +455,14 @@ struct NativeConcurrentSyntheticStubTests {
         let signature = try #require(sema.symbols.functionSignature(for: constructor))
 
         #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
-        #expect(signature.receiverType == nil)
         #expect(signature.valueParameterHasDefaultValues == [false, false])
-        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+        #expect(sema.symbols.externalLinkName(for: constructor) == "__kk_freezing_exception_new")
     }
 
     @Test
-    func testFreezingExceptionResolvesInSourceWithOptIn() {
+    func testFreezingExceptionResolvesInSource() {
         let source = """
-        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        @file:Suppress("DEPRECATION_ERROR")
         import kotlin.native.concurrent.FreezingException
 
         fun probe(toFreeze: Any, blocker: Any): RuntimeException =
@@ -549,6 +553,52 @@ struct NativeConcurrentSyntheticStubTests {
             "Expected kotlin.native.concurrent.Worker to be registered"
         )
         #expect(sema.symbols.symbol(symbol)?.kind == .class)
+    }
+
+    @Test
+    func testWorkerTopLevelNominalSurfaceMatchesKotlinNative() throws {
+        let (sema, interner) = try sharedSema()
+
+        let workerFQName = ["kotlin", "native", "concurrent", "Worker"].map { interner.intern($0) }
+        let workerSymbol = try #require(sema.symbols.lookup(fqName: workerFQName))
+        let workerInfo = try #require(sema.symbols.symbol(workerSymbol))
+        let workerType = try #require(sema.symbols.propertyType(for: workerSymbol))
+
+        #expect(workerInfo.visibility == .public)
+        #expect(workerInfo.flags.contains(.valueType))
+        #expect(!workerInfo.flags.contains(.openType))
+        #expect(sema.symbols.valueClassUnderlyingType(for: workerSymbol) == sema.types.intType)
+        #expect(sema.symbols.annotations(for: workerSymbol).contains {
+            $0.annotationFQName == "kotlin.native.concurrent.ObsoleteWorkersApi"
+        })
+
+        let constructorFQName = workerFQName + [interner.intern("<init>")]
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: constructorFQName).first { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return false
+                }
+                return signature.parameterTypes == [sema.types.intType]
+                    && signature.returnType == workerType
+            }
+        )
+        let constructorInfo = try #require(sema.symbols.symbol(constructor))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(constructorInfo.visibility == .internal)
+        #expect(constructorSignature.receiverType == nil)
+        #expect(constructorSignature.valueParameterHasDefaultValues == [false])
+        #expect(constructorSignature.valueParameterSymbols.count == 1)
+        #expect(sema.symbols.symbol(constructorSignature.valueParameterSymbols[0])?.name == interner.intern("id"))
+        #expect(sema.symbols.annotations(for: constructor).contains {
+            $0.annotationFQName == "kotlin.PublishedApi"
+        })
+
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: workerSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(companionInfo.kind == .object)
+        #expect(companionInfo.visibility == .public)
+        #expect(sema.symbols.parentSymbol(for: companionSymbol) == workerSymbol)
+        #expect(sema.symbols.propertyType(for: companionSymbol) != nil)
     }
 
     @Test
