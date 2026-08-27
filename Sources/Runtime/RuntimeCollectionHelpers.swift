@@ -59,9 +59,9 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
 // These slots are the generated interface property getter slots in the current
-// bundled layout: Collection.size follows four inherited vtable entries, while
+// bundled layout: Collection.size follows six inherited vtable entries, while
 // Map.size is the first property after two vtable entries.
-private let runtimeCollectionSizeGetterSlot = 4
+private let runtimeCollectionSizeGetterSlot = 6
 private let runtimeMapSizeGetterSlot = 2
 
 /// Source-defined Collection/Map implementations expose `size` through the
@@ -262,24 +262,20 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     return nil
 }
 
-private let ksp409CharSequenceIteratorTypeID = runtimeStableNominalTypeID(
-    fqName: "kotlin.text.Ksp409CharSequenceIterator"
+private let charSequenceIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.text.CharSequenceCharIterator"
+)
+private let charIteratorTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.CharIterator"
 )
 
 /// Source-backed `CharIterator` returns its concrete Char representation at
 /// the iterator ABI boundary. Preserve that type when a generic runtime bridge
 /// materializes the iterator as `RuntimeValue`.
 func runtimeSourceIteratorValue(_ rawValue: Int, iteratorRaw: Int) -> RuntimeValue {
-    let isCharSequenceIterator: Bool = if runtimeObjectTypeID(rawValue: iteratorRaw) == ksp409CharSequenceIteratorTypeID {
-        true
-    } else if let pointer = UnsafeMutableRawPointer(bitPattern: iteratorRaw),
-              runtimeIsObjectPointer(pointer),
-              let iterator = tryCast(pointer, to: RuntimeObjectBox.self),
-              let source = iterator.values.first?.legacyRawValue
-    {
-        // Library-produced object literals may use classID 0, but the
-        // KSP-409 iterator still captures its CharSequence as the first slot.
-        runtimeStringFromRaw(source) != nil
+    let isCharSequenceIterator: Bool = if let iteratorTypeID = runtimeObjectTypeID(rawValue: iteratorRaw) {
+        iteratorTypeID == charSequenceIteratorTypeID
+            || runtimeIsAssignable(sourceTypeID: iteratorTypeID, targetTypeID: charIteratorTypeID)
     } else {
         false
     }
@@ -603,6 +599,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
+        return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
+    }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
         return lhs == rhs
     }
@@ -721,9 +720,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let lhsTriple = tryCast(lhsPtr, to: RuntimeTripleBox.self),
        let rhsTriple = tryCast(rhsPtr, to: RuntimeTripleBox.self)
     {
-        return runtimeValuesEqual(lhsTriple.first, rhsTriple.first)
-            && runtimeValuesEqual(lhsTriple.second, rhsTriple.second)
-            && runtimeValuesEqual(lhsTriple.third, rhsTriple.third)
+        return runtimeValuesEqual(lhsTriple.firstValue, rhsTriple.firstValue)
+            && runtimeValuesEqual(lhsTriple.secondValue, rhsTriple.secondValue)
+            && runtimeValuesEqual(lhsTriple.thirdValue, rhsTriple.thirdValue)
     }
     if let lhsLocale = tryCast(lhsPtr, to: RuntimeLocaleBox.self),
        let rhsLocale = tryCast(rhsPtr, to: RuntimeLocaleBox.self)
@@ -843,6 +842,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if runtimeIsUnitBox(elem) {
+        return "kotlin.Unit"
+    }
     if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
         return stringBox.value
     }
@@ -896,9 +898,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(ptr, to: RuntimeTripleBox.self) {
-        let first = runtimeElementToString(tripleBox.first)
-        let second = runtimeElementToString(tripleBox.second)
-        let third = runtimeElementToString(tripleBox.third)
+        let first = runtimeElementToString(tripleBox.firstValue)
+        let second = runtimeElementToString(tripleBox.secondValue)
+        let third = runtimeElementToString(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {

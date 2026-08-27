@@ -23,12 +23,8 @@ symbol fq=collectionIsEmpty kind=function vis=public flags=_ sig=recv=_ params=[
 symbol fq=collectionIsEmpty.$0.value kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
 symbol fq=kotlin.Pair kind=class vis=public flags=_
-symbol fq=kotlin.collections.Collection kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Collection.isEmpty kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Collection<out kotlin.collections.Collection.E> params=[] ret=Boolean
-symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Iterable.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Iterable.iterator kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Iterable<out kotlin.collections.Iterable.E> params=[] ret=kotlin.collections.Iterator<out kotlin.collections.Iterable.E> type=() -> kotlin.collections.Iterator<out kotlin.collections.Iterable.E>
 symbol fq=kotlin.collections.Iterator kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
@@ -47,15 +43,15 @@ file fstdlib_kotlin_collections_n_if package=_
   decl main fun main sym=main
 expr e@4:36 int(1) type=Int
 expr e@5:50 call callee=e@5:50#1 args=[] type=kotlin.collections.List<out String?> call=kotlin.collections.emptyList targs=[String?]
-expr e@5:50#2 memberCall recv=e@5:50 callee=iterator args=[] type=kotlin.collections.Iterator<out String?> call=kotlin.collections.Iterable.iterator
+expr e@5:50#2 memberCall recv=e@5:50 callee=iterator args=[] type=kotlin.collections.Iterator<out String?> call=kotlin.collections.Collection.iterator
 expr e@9:36 int(0) type=Int
 expr e@10:50 call callee=e@10:50#1 args=[] type=kotlin.collections.List<out String?> call=kotlin.collections.emptyList targs=[String?]
-expr e@10:50#2 memberCall recv=e@10:50 callee=iterator args=[] type=kotlin.collections.Iterator<out String?> call=kotlin.collections.Iterable.iterator
+expr e@10:50#2 memberCall recv=e@10:50 callee=iterator args=[] type=kotlin.collections.Iterator<out String?> call=kotlin.collections.Collection.iterator
 expr e@14:36 int(1) type=Int
 expr e@13:62 string(key) type=String
 expr e@13:71 int(1) type=Int
 expr e@13:62#1 memberCall recv=e@13:62 callee=to args=[_:e@13:71] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@13:41 call callee=e@13:41#1 args=[_:e@13:62#1] type=kotlin.collections.Map<String?, out Int?> call=kotlin.collections.mapOf#1 targs=[String?,Int?]
+expr e@13:41 call callee=e@13:41#1 args=[_:e@13:62#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf#1 targs=[String?,Int?]
 expr e@18:36 int(0) type=Int
 expr e@17:46 call callee=e@17:46#1 args=[] type=kotlin.collections.Map<String?, out Int?> call=kotlin.collections.emptyMap targs=[String?,Int?]
 expr e@21:62 name(value) type=kotlin.collections.Collection<String?> ref=collectionIsEmpty.$0.value
