@@ -61,11 +61,51 @@ struct DeepRecursiveSourceMigrationTests {
             #expect(bundledSourcePath(for: classSymbol, sema: sema, ctx: ctx) == true)
         }
 
-        let factorySymbol = try #require(sema.symbols.lookupAll(fqName: functionFQName).first { symbolID in
-            sema.symbols.symbol(symbolID)?.kind == .function
+        let constructorFQName = functionFQName + [ctx.interner.intern("<init>")]
+        let constructorSymbol = try #require(sema.symbols.lookupAll(fqName: constructorFQName).first { symbolID in
+            sema.symbols.symbol(symbolID)?.kind == .constructor
         })
-        #expect(sema.symbols.externalLinkName(for: factorySymbol) == "__kk_deep_recursive_function_new")
-        #expect(bundledSourcePath(for: factorySymbol, sema: sema, ctx: ctx) == true)
+        #expect(sema.symbols.externalLinkName(for: constructorSymbol) == "__kk_deep_recursive_function_new")
+        #expect(
+            bundledSourcePath(for: constructorSymbol, sema: sema, ctx: ctx) == true,
+            "constructor source path: \(sourcePath(for: constructorSymbol, sema: sema, ctx: ctx) ?? "<none>")"
+        )
+
+        let functionClassSymbol = try #require(classSymbol(named: "DeepRecursiveFunction", sema: sema, ctx: ctx))
+        let functionTypeParameterSymbols = sema.types.nominalTypeParameterSymbols(for: functionClassSymbol)
+        let scopeClassSymbol = try #require(classSymbol(named: "DeepRecursiveScope", sema: sema, ctx: ctx))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
+        #expect(constructorSignature.parameterTypes.count == 1)
+        guard case let .functionType(blockType) = sema.types.kind(of: constructorSignature.parameterTypes[0]) else {
+            Issue.record("DeepRecursiveFunction constructor should take a function type")
+            return
+        }
+        #expect(blockType.isSuspend)
+        guard let receiver = blockType.receiver,
+              case let .classType(receiverClass) = sema.types.kind(of: receiver)
+        else {
+            Issue.record("DeepRecursiveFunction constructor block should have a DeepRecursiveScope receiver")
+            return
+        }
+        #expect(receiverClass.classSymbol == scopeClassSymbol)
+        let receiverTypeParameterSymbols = receiverClass.args.compactMap { argument -> SymbolID? in
+            guard case let .invariant(type) = argument,
+                  case let .typeParam(typeParameter) = sema.types.kind(of: type)
+            else {
+                return nil
+            }
+            return typeParameter.symbol
+        }
+        #expect(receiverTypeParameterSymbols == functionTypeParameterSymbols)
+        #expect(blockType.params.count == 1)
+        guard case let .typeParam(valueType) = sema.types.kind(of: blockType.params[0]),
+              case let .typeParam(returnType) = sema.types.kind(of: blockType.returnType)
+        else {
+            Issue.record("DeepRecursiveFunction constructor block should use the class type parameters")
+            return
+        }
+        #expect(valueType.symbol == functionTypeParameterSymbols[0])
+        #expect(returnType.symbol == functionTypeParameterSymbols[1])
 
         let invokeSymbol = try #require(member("invoke", of: functionFQName, sema: sema, ctx: ctx))
         #expect(sema.symbols.externalLinkName(for: invokeSymbol) == "__kk_deep_recursive_function_invoke")
@@ -99,8 +139,12 @@ struct DeepRecursiveSourceMigrationTests {
             guard let chosen = sema.bindings.callBinding(for: exprID)?.chosenCallee else { return false }
             return sema.symbols.externalLinkName(for: chosen) == "__kk_deep_recursive_function_new"
         })
-        let factoryCallee = try #require(sema.bindings.callBinding(for: factoryCall)?.chosenCallee)
-        #expect(bundledSourcePath(for: factoryCallee, sema: sema, ctx: ctx) == true)
+        let constructorCallee = try #require(sema.bindings.callBinding(for: factoryCall)?.chosenCallee)
+        #expect(sema.symbols.symbol(constructorCallee)?.kind == .constructor)
+        #expect(
+            bundledSourcePath(for: constructorCallee, sema: sema, ctx: ctx) == true,
+            "constructor source path: \(sourcePath(for: constructorCallee, sema: sema, ctx: ctx) ?? "<none>")"
+        )
 
         // `callRecursive(...)` inside the block resolves through ordinary
         // member lookup on the DeepRecursiveScope receiver, not a Sema special case.
@@ -134,13 +178,37 @@ struct DeepRecursiveSourceMigrationTests {
         }
     }
 
+    private func classSymbol(
+        named name: String,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> SymbolID? {
+        let fqName = ["kotlin", name].map { ctx.interner.intern($0) }
+        return sema.symbols.lookupAll(fqName: fqName).first { symbolID in
+            sema.symbols.symbol(symbolID)?.kind == .class
+        }
+    }
+
     private func bundledSourcePath(
         for symbol: SymbolID,
         sema: SemaModule,
         ctx: CompilationContext
     ) -> Bool {
-        guard let fileID = sema.symbols.sourceFileID(for: symbol) else { return false }
-        return ctx.sourceManager.path(of: fileID).contains("__bundled_kotlin/DeepRecursive.kt")
+        sourcePath(for: symbol, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/DeepRecursive.kt") == true
+    }
+
+    private func sourcePath(
+        for symbol: SymbolID,
+        sema: SemaModule,
+        ctx: CompilationContext
+    ) -> String? {
+        // Constructors use their declaration range for source ownership while
+        // the containing class carries the explicit source file ID.
+        let fileID = sema.symbols.sourceFileID(for: symbol)
+            ?? sema.symbols.symbol(symbol)?.declSite?.start.file
+            ?? sema.symbols.parentSymbol(for: symbol).flatMap { sema.symbols.sourceFileID(for: $0) }
+        guard let fileID else { return nil }
+        return ctx.sourceManager.path(of: fileID)
     }
 }
 #endif
