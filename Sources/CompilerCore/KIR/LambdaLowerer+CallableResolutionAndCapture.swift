@@ -562,6 +562,16 @@ extension LambdaLowerer {
         if let localValue = driver.ctx.localValue(for: symbol) {
             return boxRawSuspendFunctionValue(localValue)
         }
+        // KSP-491: a delegated local (`val x by lazy { ... }`/`by Prop()`) has
+        // no `localValue` -- its storage is the delegate instance, tracked
+        // separately (see ExprLowerer's `.localDecl` case) so getValue can be
+        // called fresh at each read instead of caching one read forever. A
+        // lambda capturing such a local must still capture *something*, or
+        // reads inside the lambda body find neither a local value nor
+        // delegate storage and silently read a zeroed slot.
+        if let delegateStorage = driver.ctx.localDelegateStorage(for: symbol) {
+            return delegateStorage
+        }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
