@@ -100,6 +100,43 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_platform_programName",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_isMemoryLeakCheckerActive_load",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_isMemoryLeakCheckerActive_store",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_platform_getAvailableProcessorsEnv",
+            parameters: [
+                RuntimeABIParameter(name: "platformRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "System",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_system_gc",
             parameters: [],
             returnType: .void,
