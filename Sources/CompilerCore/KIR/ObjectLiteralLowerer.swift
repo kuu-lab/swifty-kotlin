@@ -410,39 +410,18 @@ final class ObjectLiteralLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
-        let intType = sema.types.intType
         let childTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
             symbol: objectSymbol,
             sema: sema,
             interner: interner
         )
-        let childExpr = arena.appendExpr(.intLiteral(childTypeID), type: intType)
-        instructions.append(.constValue(result: childExpr, value: .intLiteral(childTypeID)))
-
-        for superSymbol in sema.symbols.directSupertypes(for: objectSymbol) {
-            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: superSymbol,
-                sema: sema,
-                interner: interner
-            )
-            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let registerResult = arena.appendTemporary(type: intType)
-            let superKind = sema.symbols.symbol(superSymbol)?.kind
-            let registerCallee: InternedString = if superKind == .interface {
-                interner.intern("kk_type_register_iface")
-            } else {
-                interner.intern("kk_type_register_super")
-            }
-            instructions.append(.call(
-                symbol: nil,
-                callee: registerCallee,
-                arguments: [childExpr, parentExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: objectSymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
 
         // REFL-004: Register KClass binary metadata for this type.
         registerKClassMetadata(

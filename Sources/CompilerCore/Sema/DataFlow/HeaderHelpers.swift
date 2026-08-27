@@ -1224,7 +1224,6 @@ extension DataFlowSemaPhase {
             skipStats.logIfEnabled()
         }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
             types: types,
@@ -1246,7 +1245,6 @@ extension DataFlowSemaPhase {
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
@@ -1267,7 +1265,6 @@ extension DataFlowSemaPhase {
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
@@ -1522,6 +1519,24 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
         types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
         types.numberClassSymbol = numberSymbol
+    }
+
+    /// Resolve the source-backed or imported kotlin.Unit object while
+    /// preserving the compiler's builtin Unit value representation.
+    func resolveUnitClassSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let unitName = BuiltinTypeNames(interner: interner).unit
+        let unitFQName = kotlinPkg + [unitName]
+        if let unitSymbol = symbols.lookupAll(fqName: unitFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .object
+        }) {
+            types.unitClassSymbol = unitSymbol
+        }
     }
 
     /// Look up or define a synthetic interface symbol in the given package.

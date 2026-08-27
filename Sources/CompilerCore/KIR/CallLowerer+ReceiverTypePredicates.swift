@@ -105,25 +105,25 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         switch symbol.name {
         case knownNames.intArray:
-            return interner.intern("kk_intArray_size")
+            return interner.intern("__kk_intArray_size")
         case knownNames.longArray:
-            return interner.intern("kk_longArray_size")
+            return interner.intern("__kk_longArray_size")
         case knownNames.byteArray:
-            return interner.intern("kk_byteArray_size")
+            return interner.intern("__kk_byteArray_size")
         case knownNames.shortArray:
-            return interner.intern("kk_shortArray_size")
+            return interner.intern("__kk_shortArray_size")
         case knownNames.uintArray:
             return interner.intern("kk_uIntArray_size")
         case knownNames.ulongArray:
             return interner.intern("kk_uLongArray_size")
         case knownNames.doubleArray:
-            return interner.intern("kk_doubleArray_size")
+            return interner.intern("__kk_doubleArray_size")
         case knownNames.floatArray:
-            return interner.intern("kk_floatArray_size")
+            return interner.intern("__kk_floatArray_size")
         case knownNames.booleanArray:
-            return interner.intern("kk_booleanArray_size")
+            return interner.intern("__kk_booleanArray_size")
         case knownNames.charArray:
-            return interner.intern("kk_charArray_size")
+            return interner.intern("__kk_charArray_size")
         case knownNames.ubyteArray:
             return interner.intern("kk_uByteArray_size")
         case knownNames.ushortArray:
