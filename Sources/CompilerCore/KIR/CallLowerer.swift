@@ -188,7 +188,7 @@ final class CallLowerer {
         let abiValueParameters = spec.parameters.filter { parameter in
             !(spec.isThrowing && parameter.name == "outThrown" && parameter.type == .nullableIntptrPointer)
         }
-        guard abiParametersMatchFactorySignature(abiValueParameters, signature) else {
+        guard abiParametersMatchFactorySignature(abiValueParameters, signature, sema: sema) else {
             return false
         }
         switch spec.returnType {
@@ -208,11 +208,25 @@ final class CallLowerer {
     /// constructors are not mistaken for normal `this`-accepting constructors.
     private func abiParametersMatchFactorySignature(
         _ abiParameters: [RuntimeABIParameter],
-        _ signature: FunctionSignature
+        _ signature: FunctionSignature,
+        sema: SemaModule
     ) -> Bool {
         var abiIndex = 0
-        for _ in signature.parameterTypes {
+        for parameterType in signature.parameterTypes {
             guard abiIndex < abiParameters.count else { return false }
+            // Function-valued constructor parameters are expanded to a raw
+            // function pointer and closure handle before reaching a runtime
+            // factory bridge (for example DeepRecursiveFunction's block).
+            if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
+                guard abiIndex + 1 < abiParameters.count,
+                      abiParameters[abiIndex].type == .intptr,
+                      abiParameters[abiIndex + 1].type == .intptr
+                else {
+                    return false
+                }
+                abiIndex += 2
+                continue
+            }
             if isFlatStringGroup(at: abiIndex, in: abiParameters) {
                 abiIndex += 4
             } else {
@@ -220,6 +234,18 @@ final class CallLowerer {
             }
         }
         return abiIndex == abiParameters.count
+    }
+
+    private func hasFunctionValueParameter(_ symbolID: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: symbolID) else {
+            return false
+        }
+        return signature.parameterTypes.contains { parameterType in
+            if case .functionType = sema.types.kind(of: sema.types.makeNonNullable(parameterType)) {
+                return true
+            }
+            return false
+        }
     }
 
     private func isFlatStringGroup(
@@ -730,6 +756,9 @@ final class CallLowerer {
         } else {
             nil
         }
+        let isAtomicFactory = chosen.map {
+            isAtomicScalarConstructor($0, sema: sema, knownNames: knownNames)
+        } ?? false
         if callableInvokeCallee == nil,
            loweredCallable == nil,
            let stringBuilderOwnerSymbol = stringBuilderConstructorOwner(chosen, sema: sema, knownNames: knownNames)
@@ -747,7 +776,8 @@ final class CallLowerer {
         if callableInvokeCallee == nil,
            loweredCallable == nil,
            let chosen,
-           isAtomicScalarConstructor(chosen, sema: sema, knownNames: knownNames)
+           isAtomicFactory,
+           !hasFunctionValueParameter(chosen, sema: sema)
         {
             return lowerAtomicScalarConstructorCall(
                 constructorSymbol: chosen,
@@ -777,6 +807,7 @@ final class CallLowerer {
         if callableInvokeCallee == nil, let loweredCallable {
             finalArgIDs.insert(contentsOf: loweredCallable.captureArguments, at: 0)
         } else if let chosen,
+                  !isAtomicFactory,
                   sema.symbols.symbol(chosen)?.kind == .constructor
         {
             // Constructor calls need an allocated object as the implicit receiver (p0).
@@ -825,44 +856,13 @@ final class CallLowerer {
                     sema: sema,
                     interner: interner
                 )
-                let childExpr = arena.appendExpr(.intLiteral(childTypeID), type: intType)
-                instructions.append(.constValue(result: childExpr, value: .intLiteral(childTypeID)))
-                // Register the complete nominal supertype closure. Runtime-backed
-                // built-ins may not execute their own object allocation path, so
-                // direct edges alone do not make source-backed subclasses
-                // assignable to intermediate ancestors.
-                var pendingSupertypes = sema.symbols.directSupertypes(for: ownerNominalSymbol)
-                var registeredSupertypes: Set<SymbolID> = []
-                while let superSymbol = pendingSupertypes.first {
-                    pendingSupertypes.removeFirst()
-                    guard registeredSupertypes.insert(superSymbol).inserted else {
-                        continue
-                    }
-                    pendingSupertypes.append(contentsOf: sema.symbols.directSupertypes(for: superSymbol))
-
-                    let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                        symbol: superSymbol,
-                        sema: sema,
-                        interner: interner
-                    )
-                    let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-                    instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                    let registerResult = arena.appendTemporary(type: intType)
-                    let superKind = sema.symbols.symbol(superSymbol)?.kind
-                    let registerCallee: InternedString = if superKind == .interface {
-                        interner.intern("kk_type_register_iface")
-                    } else {
-                        interner.intern("kk_type_register_super")
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: registerCallee,
-                        arguments: [childExpr, parentExpr],
-                        result: registerResult,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
+                appendNominalSupertypeEdgeRegistrations(
+                    childSymbol: ownerNominalSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
                 appendObjectItableMethodRegistrations(
                     objectValue: allocatedObj,
                     nominalSymbol: ownerNominalSymbol,
@@ -959,7 +959,6 @@ final class CallLowerer {
                 instructions: &instructions
             )
         }
-
         // Inject callable value captures for coroutine launcher arguments.
         // When a suspend lambda/closure with captures is passed to a launcher
         // (runBlocking/launch/async), the capture values must be included in
