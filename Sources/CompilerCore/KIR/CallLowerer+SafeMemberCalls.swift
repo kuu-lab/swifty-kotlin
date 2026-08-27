@@ -746,7 +746,13 @@ extension CallLowerer {
         if args.isEmpty,
            let propSym = sema.bindings.identifierSymbol(for: exprID),
            let extLink = sema.symbols.externalLinkName(for: propSym),
-           !extLink.isEmpty
+           !extLink.isEmpty,
+           !shouldDeferCollectionSizePropertyRead(
+               propSym,
+               receiverExpr: receiverExpr,
+               sema: sema,
+               interner: interner
+           )
         {
             instructions.append(.call(
                 symbol: propSym,
@@ -978,7 +984,7 @@ extension CallLowerer {
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
             if !isSuperCall,
                let chosen,
-               !hasExternalLink,
+               (!hasExternalLink || isClockRuntimeVirtualBridge(chosen, sema: sema)),
                let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             {
                 var vcArguments = finalArguments
@@ -1021,6 +1027,19 @@ extension CallLowerer {
     /// link name, not the mere presence of one, decides.
     func kirIsRuntimeBridgedCallee(_ callee: SymbolID, sema: SemaModule) -> Bool {
         !Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
+    }
+
+    /// `Clock.now()` keeps a runtime bridge as its fallback for the
+    /// compiler-created `TimeSource.asClock()` wrapper, but it is also a
+    /// user-implementable interface member. Allow its bridge-backed
+    /// declaration to use the normal itable path so a source override is not
+    /// bypassed by a direct `kk_clock_now` call.
+    func isClockRuntimeVirtualBridge(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard sema.symbols.externalLinkName(for: callee) == "kk_clock_now",
+              let parentID = sema.symbols.parentSymbol(for: callee),
+              sema.symbols.symbol(parentID)?.kind == .interface
+        else { return false }
+        return true
     }
 
     /// Determine if a callee method requires virtual dispatch.
