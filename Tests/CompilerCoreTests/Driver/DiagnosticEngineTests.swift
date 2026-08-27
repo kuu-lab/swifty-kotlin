@@ -160,6 +160,110 @@ struct DiagnosticEngineTests {
     }
 
     @Test
+    func testRenderIncludesASCIIMessageSourceLineAndCaret() {
+        let srcMgr = SourceManager()
+        let source = "fun main() {\n    println(42)\n}\n"
+        let fileID = srcMgr.addFile(path: "ascii.kt", contents: Data(source.utf8))
+        let prefix = "fun main() {\n    "
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + "println".utf8.count)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-ASCII", "bad call", range: range)
+
+        #expect(engine.render(srcMgr) ==
+            "ascii.kt:2:5: error E-ASCII: bad call\n    println(42)\n    ^")
+    }
+
+    @Test
+    func testRenderPreservesTabsInCaretIndentation() {
+        let srcMgr = SourceManager()
+        let source = "fun main() {\n\tprintln(42)\n}\n"
+        let fileID = srcMgr.addFile(path: "tab.kt", contents: Data(source.utf8))
+        let prefix = "fun main() {\n\t"
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + "println".utf8.count)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-TAB", "bad call", range: range)
+
+        #expect(engine.render(srcMgr) ==
+            "tab.kt:2:2: error E-TAB: bad call\n\tprintln(42)\n\t^")
+    }
+
+    @Test
+    func testRenderUsesUTF8OffsetsAndUTF16WidthForUnicodeCaret() {
+        let srcMgr = SourceManager()
+        let source = "val 😀 = 1\n"
+        let fileID = srcMgr.addFile(path: "unicode.kt", contents: Data(source.utf8))
+        let prefix = "val 😀 "
+        let startOffset = prefix.utf8.count
+        let range = SourceRange(
+            start: SourceLocation(file: fileID, offset: startOffset),
+            end: SourceLocation(file: fileID, offset: startOffset + 1)
+        )
+
+        let engine = DiagnosticEngine()
+        engine.error("E-UNICODE", "bad value", range: range)
+
+        // The source offset is UTF-8 based; the astral scalar needs two spaces to align visually.
+        #expect(engine.render(srcMgr) ==
+            "unicode.kt:1:7: error E-UNICODE: bad value\nval 😀 = 1\n       ^")
+    }
+
+    @Test
+    func testRenderClampsKnownSourceAndOmitsMissingSourceSnippet() {
+        let srcMgr = SourceManager()
+        let knownFileID = srcMgr.addFile(path: "known.kt", contents: Data("one\ntwo".utf8))
+        let missingFileID = FileID(rawValue: 99)
+
+        let knownEngine = DiagnosticEngine()
+        knownEngine.error("E-END", "past end", range: SourceRange(
+            start: SourceLocation(file: knownFileID, offset: 999),
+            end: SourceLocation(file: knownFileID, offset: 1000)
+        ))
+        #expect(knownEngine.render(srcMgr) ==
+            "known.kt:2:4: error E-END: past end\ntwo\n   ^")
+
+        let missingEngine = DiagnosticEngine()
+        missingEngine.error("E-MISSING", "missing source", range: SourceRange(
+            start: SourceLocation(file: missingFileID, offset: 999),
+            end: SourceLocation(file: missingFileID, offset: 1000)
+        ))
+        #expect(missingEngine.render(srcMgr) == ":1:1: error E-MISSING: missing source")
+    }
+
+    @Test
+    func testRenderShowsStartLineForMultilineRangeAndPreservesTrailingEmptyLine() {
+        let srcMgr = SourceManager()
+        let source = "first\nsecond\nthird\n"
+        let fileID = srcMgr.addFile(path: "multi.kt", contents: Data(source.utf8))
+        let secondLineOffset = "first\n".utf8.count
+        let endOffset = secondLineOffset + "second\nthird".utf8.count
+        let finalLineOffset = source.utf8.count
+
+        let engine = DiagnosticEngine()
+        engine.warning("W-MULTI", "multiline range", range: SourceRange(
+            start: SourceLocation(file: fileID, offset: secondLineOffset),
+            end: SourceLocation(file: fileID, offset: endOffset)
+        ))
+        engine.error("E-FINAL", "final line", range: SourceRange(
+            start: SourceLocation(file: fileID, offset: finalLineOffset),
+            end: SourceLocation(file: fileID, offset: finalLineOffset)
+        ))
+
+        #expect(engine.render(srcMgr) ==
+            "multi.kt:2:1: warning W-MULTI: multiline range\nsecond\n^\n"
+            + "multi.kt:4:1: error E-FINAL: final line\n\n^")
+    }
+
+    @Test
     func testRenderSortsByFileThenLineColumn() {
         let srcMgr = SourceManager()
         let fileA = srcMgr.addFile(path: "a.kt", contents: Data("abc\ndef\n".utf8))
@@ -180,11 +284,13 @@ struct DiagnosticEngineTests {
         ))
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 3)
-        #expect(lines[0].contains("E-A0"))
-        #expect(lines[1].contains("E-A1"))
-        #expect(lines[2].contains("E-B"))
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-A") || $0.contains("E-B")
+        }
+        #expect(headers.count == 3)
+        #expect(headers[0].contains("E-A0"))
+        #expect(headers[1].contains("E-A1"))
+        #expect(headers[2].contains("E-B"))
     }
 
     @Test
@@ -201,11 +307,13 @@ struct DiagnosticEngineTests {
         engine.error("E-1", "err", range: range)
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 2)
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-1") || $0.contains("W-1")
+        }
+        #expect(headers.count == 2)
         // Errors (rank 0) come before warnings (rank 1)
-        #expect(lines[0].contains("error"))
-        #expect(lines[1].contains("warning"))
+        #expect(headers[0].contains("error"))
+        #expect(headers[1].contains("warning"))
     }
 
     @Test
@@ -221,10 +329,12 @@ struct DiagnosticEngineTests {
         ))
 
         let rendered = engine.render(srcMgr)
-        let lines = rendered.split(separator: "\n")
-        #expect(lines.count == 2)
-        #expect(lines[0].contains("E-RANGE"))
-        #expect(lines[1].contains("E-NORANGE"))
+        let headers = rendered.split(separator: "\n").filter {
+            $0.contains("E-RANGE") || $0.contains("E-NORANGE")
+        }
+        #expect(headers.count == 2)
+        #expect(headers[0].contains("E-RANGE"))
+        #expect(headers[1].contains("E-NORANGE"))
     }
 
     @Test
