@@ -670,5 +670,14 @@ public extension RuntimeABISpec {
             section: "Exception",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_throwable_captureStackTrace",
+            parameters: [
+                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
     ]
 }
