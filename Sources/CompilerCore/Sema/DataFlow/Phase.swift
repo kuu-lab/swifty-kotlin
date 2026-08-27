@@ -282,6 +282,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        resolveUnitClassSymbol(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
 
         // Type aliases are collected before the remaining headers so that their
         // underlying type is available to signatures that mention the alias.
