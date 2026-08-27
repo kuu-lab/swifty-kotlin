@@ -448,6 +448,44 @@ final class CallSupportLowerer {
             instructions.append(.constValue(result: sentinel, value: .intLiteral(0)))
             normalized.append(sentinel)
         }
+
+        // `$default` stubs are synthetic calls and therefore do not carry the
+        // original function signature into ABILoweringPass. Preserve the erased
+        // representation for explicitly supplied primitive arguments here when
+        // a generic or Any-typed parameter is forwarded through such a stub.
+        // Defaulted parameters remain sentinels and are materialized inside the
+        // stub before the ordinary call boundary applies its own boxing rules.
+        if mask != 0 {
+            for paramIndex in 0 ..< parameterCount {
+                let parameterKind = sema.types.kind(of: signature.parameterTypes[paramIndex])
+                guard mask & (Int64(1) << paramIndex) == 0,
+                      paramIndex < normalized.count,
+                      let sourceType = arena.exprType(normalized[paramIndex])
+                else {
+                    continue
+                }
+                let isErasedParameter: Bool
+                switch parameterKind {
+                case .any, .typeParam:
+                    isErasedParameter = true
+                default:
+                    isErasedParameter = false
+                }
+                guard isErasedParameter else {
+                    continue
+                }
+                normalized[paramIndex] = boxValueForAnySlot(
+                    normalized[paramIndex],
+                    sourceType: sourceType,
+                    types: sema.types,
+                    symbols: sema.symbols,
+                    interner: interner,
+                    arena: arena,
+                    resultType: signature.parameterTypes[paramIndex],
+                    into: &instructions
+                )
+            }
+        }
         return NormalizedCallResult(arguments: normalized, defaultMask: mask)
     }
 
