@@ -321,6 +321,17 @@ package final class MetadataEncoder {
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
+                // KSP-908: UIntArray(IntArray) is an internal storage
+                // constructor. It must remain in the stdlib object for
+                // source-backed implementation calls, but must not be
+                // imported as a public overload by consumer modules.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "UIntArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
                 // STDLIB-SHARED-016: Compiler-generated enum static helpers
                 // (values/valueOf/entries) for non-public enum classes are not part
                 // of the stdlib surface and cannot be resolved on the consumer side.
@@ -806,6 +817,18 @@ package final class MetadataEncoder {
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
                 || enumEntriesGetterSymbol != nil
+            // Runtime-backed properties can be declared in bundled source
+            // without a Kotlin getter body (for example Collection.size). The
+            // property symbol's external link must still cross the library
+            // boundary as a synthetic getter link; otherwise consumers restore
+            // the property as an itable getter and runtime collection boxes
+            // cannot satisfy the dispatch.
+            if !hasCustomGetter,
+               let propertyLink = symbols.externalLinkName(for: symbol.id),
+               !propertyLink.isEmpty
+            {
+                propertyGetterExternalLinkName = propertyLink
+            }
             if hasCustomGetter,
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
