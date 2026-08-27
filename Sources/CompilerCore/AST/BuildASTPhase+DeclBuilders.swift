@@ -728,22 +728,19 @@ extension BuildASTPhase {
             withoutDefault[...]
         }
 
-        guard let nameToken = nameSearchTokens.last(where: { token in
-            if isParameterModifierToken(token) {
-                return false
-            }
-            return TypeRefParserCore.isTypeLikeNameToken(token.kind)
+        // A modifier keyword (`inner`, `sealed`, `vararg`, `override`, ...) is only
+        // acting as a modifier when something else follows it in the name slot; when
+        // it's the rightmost candidate before the colon, it IS the parameter name
+        // (Kotlin modifier keywords are valid plain identifiers outside modifier
+        // position). `lastIndex(where:)` already finds that rightmost candidate, so
+        // no separate keyword-exclusion pass is needed here.
+        guard let nameIndex = nameSearchTokens.lastIndex(where: { token in
+            TypeRefParserCore.isTypeLikeNameToken(token.kind)
         }) else {
             return
         }
+        let nameToken = nameSearchTokens[nameIndex]
         guard let name = internedIdentifier(from: nameToken, interner: interner) else {
-            return
-        }
-        if case let .keyword(keyword) = nameToken.kind,
-           isLeadingDeclarationKeyword(keyword),
-           keyword != .value,
-           keyword != .data
-        {
             return
         }
 
@@ -755,27 +752,32 @@ extension BuildASTPhase {
             typeRef = nil
         }
 
-        let isVararg = withoutDefault.contains(where: { token in
+        // Only the modifier-prefix zone (tokens strictly before the resolved name)
+        // can carry real `vararg`/`crossinline`/`noinline`/`override`/`val`/`var`
+        // modifiers; scanning the full token list would misfire when the parameter
+        // is simply named one of these keywords (e.g. `val override: Int`).
+        let modifierPrefixTokens = withoutDefault[..<nameIndex]
+        let isVararg = modifierPrefixTokens.contains(where: { token in
             if case .keyword(.vararg) = token.kind {
                 return true
             }
             return false
         })
-        let isCrossinline = withoutDefault.contains(where: { token in
+        let isCrossinline = modifierPrefixTokens.contains(where: { token in
             if case .keyword(.crossinline) = token.kind {
                 return true
             }
             return false
         })
-        let isNoinline = withoutDefault.contains(where: { token in
+        let isNoinline = modifierPrefixTokens.contains(where: { token in
             if case .keyword(.noinline) = token.kind {
                 return true
             }
             return false
         })
-        let isValProperty = withoutDefault.contains(where: { $0.kind == .keyword(.val) })
-        let isVarProperty = withoutDefault.contains(where: { $0.kind == .keyword(.var) })
-        let isOverrideProperty = withoutDefault.contains(where: { $0.kind == .keyword(.override) })
+        let isValProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.val) })
+        let isVarProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.var) })
+        let isOverrideProperty = modifierPrefixTokens.contains(where: { $0.kind == .keyword(.override) })
         let defaultValueExpr: ExprID?
         if let defaultTokens = split.defaultTokens?
             .filter({ $0.kind != .symbol(.semicolon) }),
