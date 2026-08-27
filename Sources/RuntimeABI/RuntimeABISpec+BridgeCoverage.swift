@@ -367,7 +367,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
-            bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"]),
+            bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
+            isThrowing: false),
             bridgeSpec("kk_with_timeout", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
             bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
         ]
