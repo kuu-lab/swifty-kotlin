@@ -27,7 +27,7 @@ struct MatchResultTypeTests {
         package sample0
 
         fun probe(input: String): String? {
-            val match = Regex("(a)(b)").find(input) ?: return null
+            val match = Regex("(a)(b)(c)(d)(e)(f)(g)(h)(i)").find(input) ?: return null
             val value = match.value
             val range = match.range
             val groupValues = match.groupValues
@@ -36,8 +36,19 @@ struct MatchResultTypeTests {
             val second = match.component2()
             val nextMatch = match.next()
             val destructured = match.destructured
+            val (one, two, three, four, five, six, seven, eight, nine) = destructured
+            val directThree = destructured.component3()
+            val directFour = destructured.component4()
+            val directFive = destructured.component5()
+            val directSix = destructured.component6()
+            val directSeven = destructured.component7()
+            val directEight = destructured.component8()
+            val directNine = destructured.component9()
             return value + range.first + groupValues.size + groups.size +
-                first + second + destructured.component1() + destructured.match.value +
+                first + second +
+                one + two + three + four + five + six + seven + eight + nine +
+                directThree + directFour + directFive + directSix + directSeven + directEight + directNine +
+                destructured.component1() + destructured.match.value +
                 (nextMatch?.value ?: "")
         }
         """#,
@@ -165,24 +176,30 @@ struct MatchResultTypeTests {
         return try #require(sema.bindings.identifierSymbol(for: exprID))
     }
 
-    // MARK: - 1. MatchResult class symbol
+    // MARK: - 1. MatchResult interface symbol
 
-    @Test func testMatchResultClassSymbolIsRegistered() throws {
-        let (sema, interner, _) = try sharedSema()
+    @Test func testMatchResultInterfaceSymbolIsRegistered() throws {
+        let (sema, interner, ctx) = try sharedSema()
         let fq = ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
-            "kotlin.text.MatchResult class symbol must be registered by sema"
+            "kotlin.text.MatchResult interface symbol must be registered by sema"
         )
         let info = try #require(sema.symbols.symbol(sym))
-        #expect(info.kind == .class,
-                       "MatchResult should be registered with kind=class")
+        #expect(info.kind == .interface,
+                       "MatchResult should be registered with kind=interface")
+        #expect(!info.flags.contains(.synthetic),
+                "MatchResult must not depend on a synthetic nominal anchor")
+        #expect(
+            sourcePath(for: sym, sema: sema, ctx: ctx)?.contains(Self.bundledSourcePath) == true,
+            "MatchResult must be backed by the bundled Kotlin source"
+        )
     }
 
     // MARK: - 2. MatchResult.Destructured nested class
 
     @Test func testMatchResultDestructuredClassSymbolIsRegistered() throws {
-        let (sema, interner, _) = try sharedSema()
+        let (sema, interner, ctx) = try sharedSema()
         let fq = ["kotlin", "text", "MatchResult", "Destructured"].map { interner.intern($0) }
         let sym = try #require(
             sema.symbols.lookup(fqName: fq),
@@ -191,6 +208,29 @@ struct MatchResultTypeTests {
         let info = try #require(sema.symbols.symbol(sym))
         #expect(info.kind == .class,
                        "MatchResult.Destructured should be registered with kind=class")
+        #expect(!info.flags.contains(.synthetic),
+                "MatchResult.Destructured must not depend on a synthetic nominal anchor")
+        #expect(
+            sourcePath(for: sym, sema: sema, ctx: ctx)?.contains(Self.bundledSourcePath) == true,
+            "MatchResult.Destructured must be backed by the bundled Kotlin source"
+        )
+
+        let matchResultFQName = ["kotlin", "text", "MatchResult"].map { interner.intern($0) }
+        #expect(
+            sema.symbols.parentSymbol(for: sym) == sema.symbols.lookup(fqName: matchResultFQName),
+            "Destructured must be owned by MatchResult"
+        )
+        let constructorFQName = fq + [interner.intern("<init>")]
+        let constructor = try #require(
+            sema.symbols.lookup(fqName: constructorFQName),
+            "MatchResult.Destructured must have a constructor symbol"
+        )
+        let constructorInfo = try #require(sema.symbols.symbol(constructor))
+        #expect(constructorInfo.kind == .constructor)
+        #expect(constructorInfo.visibility == .internal,
+                "Destructured's opaque-handle constructor must remain internal")
+        #expect(sema.symbols.parentSymbol(for: constructor) == sym,
+                "Destructured constructor must be owned by Destructured")
     }
 
     // MARK: - 3. Public members resolve to bundled Kotlin source
@@ -207,7 +247,9 @@ struct MatchResultTypeTests {
         let sema = try #require(ctx.sema)
         let members = [
             "value", "range", "groupValues", "groups",
-            "component1", "component2", "next", "destructured", "match",
+            "component1", "component2", "component3", "component4", "component5",
+            "component6", "component7", "component8", "component9",
+            "next", "destructured", "match",
         ]
         for member in members {
             let symbol = try memberSymbol(member, in: path, in: ctx)
