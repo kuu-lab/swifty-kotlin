@@ -5624,7 +5624,7 @@
   - 完了根拠（merged PR #5831 / merge commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9`）：`Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` が4 overloadを public Kotlin source wrapperとして定義し、`__kk_math_atan*` / `__kk_math_atan2*` の内部 bridgeへ `(y, x)` 順で委譲する。対象 bridge は `Sources/Runtime/RuntimeNumericCompat.swift` と `Sources/RuntimeABI/RuntimeABISpec+Math.swift` に整合して存在し、旧 synthetic math 登録や public external link の重複はない。
   - 既存回帰：`MathAPITargetInventoryTests`・`MathOverloadResolutionTests`・`MathSyntheticTopLevelLinkTests` が4 overloadの型／source-backed解決を、`RuntimeMathTests`・`RuntimeMathEdgeCaseTests` が atan の ±Inf と atan2 の象限・signed zero・NaN・±Inf を、codegen math tests と `math_advanced.kt` / `math_signed_zero_neg_inf.kt` 等の kotlinc diff が呼び出し順と実行結果を検証する。Kotlin 2.3.10 stdlib API metadata の4 exact signaturesとも一致する。
 
-- [ ] KSP-1177: kotlin.math.atanh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1177: kotlin.math.atanh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `atanh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/atanh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5634,6 +5634,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.atanh` — fun atanh(Double): Double  -- `final fun kotlin.math/atanh(kotlin/Double): kotlin/Double`
     - `kotlin.math.atanh` — fun atanh(Float): Float  -- `final fun kotlin.math/atanh(kotlin/Float): kotlin/Float`
+  - 完了根拠: 現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` に public source-backed wrapper 2件と internal `__kk_math_atanh` / `__kk_math_atanh_float` bridge が存在し、KSP-637 の merged PR #5831 / commit `dfc478e0f` で導入済み。Sema の source ownership/Double・Float overload、KIR/backend の source wrapper lowering、Runtime edge cases、bundled execution、`math_transcendental_source.kt`、RuntimeABI の既存検証で2件の解決・実行経路を確認済み。
 
 - [ ] KSP-1178: kotlin.math.cbrt-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `cbrt`
