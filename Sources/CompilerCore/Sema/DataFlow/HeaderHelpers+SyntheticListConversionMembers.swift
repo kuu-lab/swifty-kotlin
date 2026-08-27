@@ -36,10 +36,9 @@ extension DataFlowSemaPhase {
         let kotlinPkg = [interner.intern("kotlin")]
         // KSP-628 + KSP-629: List.toTypedArray / to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
         // are bundled Kotlin source (Stdlib/kotlin/collections/ArrayConversions.kt).
-        // Only the receiving array types' own `size` / `toList` members stay synthetic.
+        // KSP-1512 moves signed primitive-array `size` / `toList` to the same
+        // source file. KSP-1513 retains the unsigned array members here.
         for arrayTypeName in [
-            "CharArray", "BooleanArray", "ShortArray", "DoubleArray",
-            "FloatArray", "IntArray", "LongArray", "ByteArray",
             "UByteArray", "UShortArray", "UIntArray", "ULongArray",
         ] {
             registerPrimitiveArrayCoreMembers(
@@ -84,16 +83,8 @@ extension DataFlowSemaPhase {
 
             // Set external link name for size property
             let sizeLinkName: String = switch arrayTypeName {
-            case "IntArray": "kk_intArray_size"
-            case "LongArray": "kk_longArray_size"
-            case "ByteArray": "kk_byteArray_size"
-            case "ShortArray": "kk_shortArray_size"
             case "UIntArray": "kk_uIntArray_size"
             case "ULongArray": "kk_uLongArray_size"
-            case "DoubleArray": "kk_doubleArray_size"
-            case "FloatArray": "kk_floatArray_size"
-            case "BooleanArray": "kk_booleanArray_size"
-            case "CharArray": "kk_charArray_size"
             case "UByteArray": "kk_uByteArray_size"
             case "UShortArray": "kk_uShortArray_size"
             default: "kk_array_size"
@@ -116,16 +107,8 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(arraySymbol, for: toListSym)
 
             let externalLinkName: String = switch arrayTypeName {
-            case "IntArray": "kk_intArray_toList"
-            case "LongArray": "kk_longArray_toList"
-            case "ByteArray": "kk_byteArray_toList"
-            case "ShortArray": "kk_shortArray_toList"
             case "UIntArray": "kk_uIntArray_toList"
             case "ULongArray": "kk_uLongArray_toList"
-            case "DoubleArray": "kk_doubleArray_toList"
-            case "FloatArray": "kk_floatArray_toList"
-            case "BooleanArray": "kk_booleanArray_toList"
-            case "CharArray": "kk_charArray_toList"
             case "UByteArray": "kk_uByteArray_toList"
             case "UShortArray": "kk_uShortArray_toList"
             default: "kk_array_toList"

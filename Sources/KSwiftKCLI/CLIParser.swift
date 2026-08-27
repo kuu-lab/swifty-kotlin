@@ -38,6 +38,7 @@ enum CLIParser {
       --no-stdlib            Disable automatic stdlib inclusion
       --stdlib-only          Compile bundled stdlib only as a .kklib (implies --emit library)
       --stdlib-library <path> Use <path>.kklib as the stdlib instead of source injection
+      --stdlib-from-source   Debug fallback: inject bundled stdlib Kotlin sources
       -g                     Emit debug info
     """
 
@@ -59,6 +60,7 @@ enum CLIParser {
         var includeStdlib: Bool = true
         var stdlibOnly: Bool = false
         var stdlibLibraryPath: String? = nil
+        var allowDefaultStdlibLibrary = true
         var explicitIncludeStdlib: Bool? = nil
         var target = TargetTriple.hostDefault()
 
@@ -143,6 +145,10 @@ enum CLIParser {
                 let path = try requireValue(option: arg, args: args, index: &index)
                 stdlibLibraryPath = path
                 includeStdlib = false
+            case "--stdlib-from-source":
+                allowDefaultStdlibLibrary = false
+                includeStdlib = true
+                explicitIncludeStdlib = true
             case "-g":
                 debugInfo = true
             default:
@@ -175,6 +181,11 @@ enum CLIParser {
             includeStdlib = true
         }
 
+        if stdlibLibraryPath != nil && !allowDefaultStdlibLibrary {
+            throw CLIParseError.incompatibleStdlibOptions(
+                "--stdlib-library cannot be combined with --stdlib-from-source"
+            )
+        }
         if stdlibLibraryPath != nil && explicitIncludeStdlib == true {
             throw CLIParseError.incompatibleStdlibOptions("--stdlib-library cannot be combined with --stdlib")
         }
@@ -201,7 +212,8 @@ enum CLIParser {
             includeStdlib: includeStdlib,
             diagnosticsFormat: diagnosticsFormat,
             stdlibOnly: stdlibOnly,
-            stdlibLibraryPath: stdlibLibraryPath
+            stdlibLibraryPath: stdlibLibraryPath,
+            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
 
