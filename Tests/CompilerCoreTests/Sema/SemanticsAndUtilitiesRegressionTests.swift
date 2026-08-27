@@ -274,30 +274,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathNameExtensionPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample13
-
-            fun cleanupStub117RemovedCase13() {}
-            """,
-            // testPathNameWithoutExtensionPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample14
-
-            fun cleanupStub117RemovedCase14() {}
-            """,
-            // testPathExtensionPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample15
-
-            fun cleanupStub117RemovedCase15() {}
-            """,
-            // testPathStringExtensionPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample16
-
-            fun cleanupStub117RemovedCase16() {}
-            """,
             // testCopyActionResultInIOPathPackageSurfaceIsResolved
             """
             package sample17
@@ -313,89 +289,17 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathAppendTextExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample18
-
-            fun cleanupStub117RemovedCase18() {}
-            """,
-            // testPathWriteTextOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            """
-            package sample19
-
-            fun cleanupStub117RemovedCase19() {}
-            """,
-            // testPathCopyToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample20
-
-            fun cleanupStub117RemovedCase20() {}
-            """,
             // CLEANUP-STUB-116 removed fileAttributesView; keep this slot to preserve path indices.
             """
             package sample21
 
             fun cleanupStub116RemovedCase21() {}
             """,
-            // testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample22
-
-            fun cleanupStub117RemovedCase22() {}
-            """,
-            // testPathIsDirectoryOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample23
-
-            fun cleanupStub117RemovedCase23() {}
-            """,
-            // testPathListDirectoryEntriesGlobExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample24
-
-            fun cleanupStub117RemovedCase24() {}
-            """,
-            // testPathOutputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample25
-
-            fun cleanupStub117RemovedCase25() {}
-            """,
-            // testPathInputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample26
-
-            fun cleanupStub117RemovedCase26() {}
-            """,
-            // testPathBaseSubpathsTopLevelFactoryInIOPathPackageSurfaceIsResolved
-            """
-            package sample27
-
-            fun cleanupStub117RemovedCase27() {}
-            """,
-            // testPathFileVisitorBuilderActionTopLevelFunctionSurfaceIsResolved
-            """
-            package sample28
-
-            fun cleanupStub117RemovedCase28() {}
-            """,
-            // testPathVisitFileTreeVisitorExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample29
-
-            fun cleanupStub117RemovedCase29() {}
-            """,
             // CLEANUP-STUB-116 removed Path.useLines; keep this slot to preserve path indices.
             """
             package sample30
 
             fun cleanupStub116RemovedCase30() {}
-            """,
-            // testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample31
-
-            fun cleanupStub117RemovedCase31() {}
             """,
             // CLEANUP-STUB-116 removed useDirectoryEntries; keep this slot to preserve path indices.
             """
@@ -409,131 +313,11 @@ struct SemanticsAndUtilitiesRegressionTests {
 
             fun cleanupStub116RemovedCase33() {}
             """,
-            // testPathTopLevelPathStringFactoryShapeInIOPathPackageSurfaceIsResolved
-            """
-            package sample34
-
-            fun cleanupStub117RemovedCase34() {}
-            """,
-            // testPathReaderCharsetOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample35
-
-            fun cleanupStub117RemovedCase35() {}
-            """,
-            // testPathSetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample36
-
-            fun cleanupStub117RemovedCase36() {}
-            """,
             // CLEANUP-STUB-116 removed fileAttributesViewOrNull; keep this slot to preserve path indices.
             """
             package sample37
 
             fun cleanupStub116RemovedCase37() {}
-            """,
-            // testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample38
-
-            fun cleanupStub117RemovedCase38() {}
-            """,
-            // testPathGetOwnerOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample39
-
-            fun cleanupStub117RemovedCase39() {}
-            """,
-            // testPathMoveToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample40
-
-            fun cleanupStub117RemovedCase40() {}
-            """,
-            // testPathIsRegularFileOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample41
-
-            fun cleanupStub117RemovedCase41() {}
-            """,
-            // testPathExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample42
-
-            fun cleanupStub117RemovedCase42() {}
-            """,
-            // testPathForEachDirectoryEntryExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample43
-
-            fun cleanupStub117RemovedCase43() {}
-            """,
-            // testPathNotExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample44
-
-            fun cleanupStub117RemovedCase44() {}
-            """,
-            // testPathAppendLinesIterableExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample45
-
-            fun cleanupStub117RemovedCase45() {}
-            """,
-            // testPathWriteLinesIterableExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            """
-            package sample46
-
-            fun cleanupStub117RemovedCase46() {}
-            """,
-            // testPathForEachLineExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample47
-
-            fun cleanupStub117RemovedCase47() {}
-            """,
-            // testPathWriteLinesSequenceExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            """
-            package sample48
-
-            fun cleanupStub117RemovedCase48() {}
-            """,
-            // testPathWriterOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            """
-            package sample49
-
-            fun cleanupStub117RemovedCase49() {}
-            """,
-            // testPathBufferedWriterExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample50
-
-            fun cleanupStub117RemovedCase50() {}
-            """,
-            // testPathFileSizeExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample51
-
-            fun cleanupStub117RemovedCase51() {}
-            """,
-            // testPathRelativeToOrNullExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample52
-
-            fun cleanupStub117RemovedCase52() {}
-            """,
-            // testPathSetPosixFilePermissionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample53
-
-            fun cleanupStub117RemovedCase53() {}
-            """,
-            // testPathGetPosixFilePermissionsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample54
-
-            fun cleanupStub117RemovedCase54() {}
             """,
             // testOnErrorResultInIOPathPackageSurfaceIsResolved
             """
@@ -549,96 +333,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testPathCreateDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample56
-
-            fun cleanupStub117RemovedCase56() {}
-            """,
-            // testPathCreateDirectoryAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample57
-
-            fun cleanupStub117RemovedCase57() {}
-            """,
-            // testPathCreateFileAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample58
-
-            fun cleanupStub117RemovedCase58() {}
-            """,
-            // testPathCreateParentDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample59
-
-            fun cleanupStub117RemovedCase59() {}
-            """,
-            // testPathDeleteIfExistsExtensionFunctionInIOPathPackageSurfaceMatchesOfficialShape
-            """
-            package sample60
-
-            fun cleanupStub117RemovedCase60() {}
-            """,
-            // testPathCreateSymbolicLinkPointingToAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample61
-
-            fun cleanupStub117RemovedCase61() {}
-            """,
-            // testCreateTempDirectoryDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample62
-
-            fun cleanupStub117RemovedCase62() {}
-            """,
-            // testCreateTempDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample63
-
-            fun cleanupStub117RemovedCase63() {}
-            """,
-            // testCreateTempFileDirectoryPrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample64
-
-            fun cleanupStub117RemovedCase64() {}
-            """,
-            // testCreateTempFilePrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample65
-
-            fun cleanupStub117RemovedCase65() {}
-            """,
-            // testPathCopyToRecursivelyOverwriteExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample66
-
-            fun cleanupStub117RemovedCase66() {}
-            """,
-            // testPathCopyToRecursivelyCopyActionExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample67
-
-            fun cleanupStub117RemovedCase67() {}
-            """,
-            // testPathReadSymbolicLinkExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample68
-
-            fun cleanupStub117RemovedCase68() {}
-            """,
-            // testPathRelativeToOrSelfExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample69
-
-            fun cleanupStub117RemovedCase69() {}
-            """,
-            // testPathRelativeToExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample70
-
-            fun cleanupStub117RemovedCase70() {}
-            """,
             // testPathWalkOptionInIOPathPackageSurfaceIsResolved
             """
             package sample71
@@ -652,42 +346,6 @@ struct SemanticsAndUtilitiesRegressionTests {
                         }
                     }
 
-            """,
-            // testPathWalkOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            """
-            package sample72
-
-            fun cleanupStub117RemovedCase72() {}
-            """,
-            // testPathInvariantSeparatorsPathStringPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample73
-
-            fun cleanupStub117RemovedCase73() {}
-            """,
-            // testPathInvariantSeparatorsPathPropertyInIOPathPackageSurfaceIsResolved
-            """
-            package sample74
-
-            fun cleanupStub117RemovedCase74() {}
-            """,
-            // testPathAbsoluteExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample75
-
-            fun cleanupStub117RemovedCase75() {}
-            """,
-            // testPathAbsolutePathStringExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample76
-
-            fun cleanupStub117RemovedCase76() {}
-            """,
-            // testPathAppendBytesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            """
-            package sample77
-
-            fun cleanupStub117RemovedCase77() {}
             """,
             // testMemoryOrderInAtomicsPackageIsResolved
             """
@@ -839,372 +497,30 @@ struct SemanticsAndUtilitiesRegressionTests {
                 #expect(!(ctx.diagnostics.hasError), "AtomicNativePtr in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
-            // testPathNameExtensionPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[13]
-                #expect(true)
-            }
-
-            // testPathNameWithoutExtensionPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[14]
-                #expect(true)
-            }
-
-            // testPathExtensionPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[15]
-                #expect(true)
-            }
-
-            // testPathStringExtensionPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[16]
-                #expect(true)
-            }
-
             // testCopyActionResultInIOPathPackageSurfaceIsResolved
             do {
-                let samplePath = paths[17]
+                let samplePath = paths[13]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError), "CopyActionResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
-            // testPathAppendTextExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[18]
-                #expect(true)
-            }
-
-            // testPathWriteTextOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[19]
-                #expect(true)
-            }
-
-            // testPathCopyToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[20]
-                #expect(true)
-            }
-
-            // testPathGetLastModifiedTimeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[22]
-                #expect(true)
-            }
-
-            // testPathIsDirectoryOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[23]
-                #expect(true)
-            }
-
-            // testPathListDirectoryEntriesGlobExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[24]
-                #expect(true)
-            }
-
-            // testPathOutputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[25]
-                #expect(true)
-            }
-
-            // testPathInputStreamOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[26]
-                #expect(true)
-            }
-
-            // testPathBaseSubpathsTopLevelFactoryInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[27]
-                #expect(true)
-            }
-
-            // testPathFileVisitorBuilderActionTopLevelFunctionSurfaceIsResolved
-            do {
-                let samplePath = paths[28]
-                #expect(true)
-            }
-
-            // testPathVisitFileTreeVisitorExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[29]
-                #expect(true)
-            }
-
-            // testPathReadAttributesStringOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[31]
-                #expect(true)
-            }
-
-            // testPathTopLevelPathStringFactoryShapeInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[34]
-                #expect(true)
-            }
-
-            // testPathReaderCharsetOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[35]
-                #expect(true)
-            }
-
-            // testPathSetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[36]
-                #expect(true)
-            }
-
-            // testPathGetAttributeOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[38]
-                #expect(true)
-            }
-
-            // testPathGetOwnerOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[39]
-                #expect(true)
-            }
-
-            // testPathMoveToOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[40]
-                #expect(true)
-            }
-
-            // testPathIsRegularFileOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[41]
-                #expect(true)
-            }
-
-            // testPathExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[42]
-                #expect(true)
-            }
-
-            // testPathForEachDirectoryEntryExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[43]
-                #expect(true)
-            }
-
-            // testPathNotExistsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[44]
-                #expect(true)
-            }
-
-            // testPathAppendLinesIterableExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[45]
-                #expect(true)
-            }
-
-            // testPathWriteLinesIterableExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[46]
-                #expect(true)
-            }
-
-            // testPathForEachLineExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[47]
-                #expect(true)
-            }
-
-            // testPathWriteLinesSequenceExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[48]
-                #expect(true)
-            }
-
-            // testPathWriterOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[49]
-                #expect(true)
-            }
-
-            // testPathBufferedWriterExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[50]
-                #expect(true)
-            }
-
-            // testPathFileSizeExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[51]
-                #expect(true)
-            }
-
-            // testPathRelativeToOrNullExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[52]
-                #expect(true)
-            }
-
-            // testPathSetPosixFilePermissionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[53]
-                #expect(true)
-            }
-
-            // testPathGetPosixFilePermissionsOptionsExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[54]
-                #expect(true)
-            }
-
             // testOnErrorResultInIOPathPackageSurfaceIsResolved
             do {
-                let samplePath = paths[55]
+                let samplePath = paths[19]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError), "OnErrorResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
-            // testPathCreateDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[56]
-                #expect(true)
-            }
-
-            // testPathCreateDirectoryAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[57]
-                #expect(true)
-            }
-
-            // testPathCreateFileAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[58]
-                #expect(true)
-            }
-
-            // testPathCreateParentDirectoriesAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[59]
-                #expect(true)
-            }
-
-            // testPathDeleteIfExistsExtensionFunctionInIOPathPackageSurfaceMatchesOfficialShape
-            do {
-                let samplePath = paths[60]
-                #expect(true)
-            }
-
-            // testPathCreateSymbolicLinkPointingToAttributesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[61]
-                #expect(true)
-            }
-
-            // testCreateTempDirectoryDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[62]
-                #expect(true)
-            }
-
-            // testCreateTempDirectoryPrefixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[63]
-                #expect(true)
-            }
-
-            // testCreateTempFileDirectoryPrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[64]
-                #expect(true)
-            }
-
-            // testCreateTempFilePrefixSuffixAttributesTopLevelFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[65]
-                #expect(true)
-            }
-
-            // testPathCopyToRecursivelyOverwriteExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[66]
-                #expect(true)
-            }
-
-            // testPathCopyToRecursivelyCopyActionExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[67]
-                #expect(true)
-            }
-
-            // testPathReadSymbolicLinkExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[68]
-                #expect(true)
-            }
-
-            // testPathRelativeToOrSelfExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[69]
-                #expect(true)
-            }
-
-            // testPathRelativeToExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[70]
-                #expect(true)
-            }
-
             // testPathWalkOptionInIOPathPackageSurfaceIsResolved
             do {
-                let samplePath = paths[71]
+                let samplePath = paths[20]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError), "PathWalkOption entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
-            // testPathWalkOptionsExtensionFunctionInIOPathPackageSurfaceIsRegistered
-            do {
-                let samplePath = paths[72]
-                #expect(true)
-            }
-
-            // testPathInvariantSeparatorsPathStringPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[73]
-                #expect(true)
-            }
-
-            // testPathInvariantSeparatorsPathPropertyInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[74]
-                #expect(true)
-            }
-
-            // testPathAbsoluteExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[75]
-                #expect(true)
-            }
-
-            // testPathAbsolutePathStringExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[76]
-                #expect(true)
-            }
-
-            // testPathAppendBytesExtensionFunctionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[77]
-                #expect(true)
-            }
-
             // testMemoryOrderInAtomicsPackageIsResolved
             do {
-                let samplePath = paths[78]
+                let samplePath = paths[21]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError), "MemoryOrder in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }

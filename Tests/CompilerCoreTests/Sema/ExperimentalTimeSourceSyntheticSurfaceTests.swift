@@ -143,6 +143,35 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         )
     }
 
+    @Test func testExperimentalTimeImplicitConstructorIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
+        let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
+        let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
+            interner.intern("ExperimentalTime"),
+        ]))
+        let experimentalTimeType = sema.types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let constructorSymbol = try #require(sema.symbols.lookupAll(
+            fqName: kotlinTime + [interner.intern("ExperimentalTime"), interner.intern("<init>")]
+        ).first { symbolID in
+            guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = sema.symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.receiverType == experimentalTimeType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == experimentalTimeType
+        })
+        let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
+        #expect(constructorInfo.visibility == .public)
+        #expect(constructorInfo.flags.contains(.synthetic))
+    }
+
     @Test func testExperimentalTimeIsApplicableToFunction() {
         // Regression: ExperimentalTime previously only allowed @Target(ANNOTATION_CLASS),
         // which wrongly rejected the propagating opt-in form `@ExperimentalTime fun ...`.
@@ -447,6 +476,10 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         let clockSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
             interner.intern("Clock"),
         ]))
+        #expect(
+            sema.symbols.symbol(clockSymbol)?.kind == .interface,
+            "Clock must remain a user-implementable interface"
+        )
         let timeSourceType = sema.types.make(.classType(ClassType(
             classSymbol: timeSourceSymbol,
             args: [],
@@ -471,6 +504,19 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         #expect(signature.receiverType == timeSourceType)
         #expect(signature.parameterTypes == [instantType])
         #expect(signature.returnType == clockType)
+
+        let nowSymbol = try #require(sema.symbols.lookupAll(fqName: kotlinTime + [
+            interner.intern("Clock"),
+            interner.intern("now"),
+        ]).first { symbol in
+            guard let nowSignature = sema.symbols.functionSignature(for: symbol) else {
+                return false
+            }
+            return nowSignature.receiverType == clockType
+                && nowSignature.parameterTypes.isEmpty
+                && nowSignature.returnType == instantType
+        })
+        #expect(sema.symbols.externalLinkName(for: nowSymbol) == "kk_clock_now")
     }
 
     @Test func testTimeSourceAsClockResolvesInSource() throws {
