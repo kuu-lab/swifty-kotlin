@@ -36,7 +36,7 @@ extension CallLowerer {
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
-        "distinct", "distinctBy",
+        "distinct", "distinctBy", "count",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -196,6 +196,31 @@ extension CallLowerer {
             ]
             return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
         }()
+        // KSP-1512: signed primitive-array `toList` is a bundled Kotlin
+        // extension. Keep its selected source declaration so its private
+        // `__kk_*` bridge is emitted instead of the generic Array<T> shortcut.
+        let isSourceBackedSignedPrimitiveArrayToListCall: Bool = {
+            guard interner.resolve(calleeName) == "toList",
+                  let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            guard let (_, receiverSymbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType), sema: sema
+            ) else {
+                return false
+            }
+            let signedPrimitiveArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+            ]
+            return signedPrimitiveArrayNames.contains(interner.resolve(receiverSymbol.name))
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -338,8 +363,16 @@ extension CallLowerer {
                     || name == "UIntProgression"
                     || name == "ULongProgression"
             }()
+            let isExplicitCharProgressionSourceCall = ast.arena.isExplicitCall(exprID)
+                && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
+                && {
+                    guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
+                        return false
+                    }
+                    return interner.resolve(symbol.name) == "CharProgression"
+                }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver {
+            if isRangeLikeReceiver && !isExplicitCharProgressionSourceCall {
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
@@ -421,6 +454,7 @@ extension CallLowerer {
         if let externalMemberProperty = tryLowerExternalMemberPropertyRead(
             exprID,
             loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
             args: args,
             sema: sema,
             arena: arena,
@@ -1276,7 +1310,6 @@ extension CallLowerer {
                 let elementAtOrElseName = interner.intern("elementAtOrElse")
                 let elementAtOrNullName = interner.intern("elementAtOrNull")
                 let filterIndexedName = interner.intern("filterIndexed")
-                let findLastName = interner.intern("findLast")
                 let lastName = interner.intern("last")
                 let minName = interner.intern("min")
                 if calleeName == mapName {
@@ -1325,16 +1358,10 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_filterIndexed"
                 } else if calleeName == lastName {
                     runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_last" : "kk_sequence_last"
-                } else if calleeName == findLastName {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == minName {
                     runtimeCallee = "kk_sequence_min"
                 } else if calleeName == interner.intern("max") {
                     runtimeCallee = "kk_sequence_max"
-                } else if calleeName == interner.intern("find") {
-                    runtimeCallee = "kk_sequence_find"
-                } else if calleeName == interner.intern("findLast") {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == interner.intern("intersect") {
                     runtimeCallee = "kk_sequence_intersect"
                 } else if calleeName == interner.intern("any") {
@@ -1423,8 +1450,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_find"
-                        || runtimeCallee == "kk_sequence_findLast"
                         || runtimeCallee == "kk_sequence_takeLast"
                         || runtimeCallee == "kk_sequence_elementAt"
                         || runtimeCallee == "kk_sequence_elementAtOrElse"
@@ -1886,7 +1911,7 @@ extension CallLowerer {
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let runtimeCallee: String? = switch interner.resolve(calleeName) {
                 case "toList":
-                    "kk_array_toList"
+                    isSourceBackedSignedPrimitiveArrayToListCall ? nil : "kk_array_toList"
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":

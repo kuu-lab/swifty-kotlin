@@ -1,22 +1,52 @@
 package kotlin
 
 import kotlin.internal.KsSymbolName
+import kotlin.reflect.KProperty
 
+/*
+ * KSP-491: real Kotlin implementation of `Lazy`/`lazy`/`lazyOf`, replacing the
+ * synthetic `HeaderHelpers+SyntheticPropertyDelegateStubs` shells and the
+ * `kk_lazy_*` runtime bridge (RuntimeDelegates.swift/RuntimeTypes.swift).
+ *
+ * `getValue` is declared as an interface member here (not as the extension
+ * function real kotlin-stdlib uses) because property-delegate resolution
+ * (`DeclTypeChecker.typeCheckDelegate` -> `collectMemberFunctionCandidates`)
+ * only walks members/supertypes, not extension functions in scope
+ * (tracked separately as a compiler capability gap). It carries a default
+ * body (`= value`) so a class implementing `Lazy<T>` directly -- without
+ * using `by lazy { ... }` -- does not also have to implement `getValue`
+ * itself, matching real kotlin-stdlib's extension-based shape where only
+ * `value`/`isInitialized` are abstract.
+ */
 public interface Lazy<out T> {
     public val value: T
     public fun isInitialized(): Boolean
+    public operator fun getValue(thisRef: Any?, property: KProperty<*>): T = value
 }
 
-// KSP-781: top-level lazy factories are bundled Kotlin source.
-// The delegate lowering path still uses its separate runtime-backed handle;
-// this implementation covers ordinary Lazy values returned by these factories.
-
 @KsSymbolName("__kk_lazy_sync_lock")
-private external fun __lazySyncLock(lock: Any): Unit
+internal external fun __lazySyncLock(lock: Any): Unit
 
 @KsSymbolName("__kk_lazy_sync_unlock")
-private external fun __lazySyncUnlock(lock: Any): Unit
+internal external fun __lazySyncUnlock(lock: Any): Unit
 
+// `initializer` is kept non-nullable (rather than nulled out after first use
+// to release the closure for GC, as a hand-written impl normally would):
+// this compiler doesn't resolve invoking a nullable function-typed value
+// through `!!`/`?.invoke()` (a compiler capability gap unrelated to KSP-491).
+// `lazyOf`'s "no real initializer" case below supplies a dummy that a
+// pre-seeded `computed = true` guarantees is never reached.
+//
+// "computed" tracks initialization instead of comparing `cached` against a
+// sentinel `UNINITIALIZED` marker value (the approach a hand-written impl
+// would normally take): `LazyImpl`'s creation-time KIR lowering constructs
+// this class directly in *caller* code (to route around the trailing-lambda
+// gap noted on `lazy(mode, ...)` below), so a sentinel would have to be a
+// bundled `object` singleton loaded across that compilation-unit boundary --
+// which this compiler's library metadata/codegen does not support for a
+// zero-field `object` (its cross-module global slot is not exported; a
+// compiler capability gap unrelated to KSP-491 otherwise). A plain
+// caller-constructible `Boolean` sidesteps that entirely.
 internal class LazyImpl<T>(
     private val initializer: () -> T,
     private val mode: LazyThreadSafetyMode,
@@ -25,8 +55,13 @@ internal class LazyImpl<T>(
     initialComputed: Boolean
 ) : Lazy<T> {
     private var cached: Any? = initialValue
-    private var hasValue: Boolean = initialComputed
+    private var computed: Boolean = initialComputed
 
+    // The cast is in its own regular function, not the `value` getter body
+    // directly: this compiler doesn't resolve a class type parameter (`T`)
+    // referenced from inside a property getter block body (a compiler
+    // capability gap unrelated to KSP-491) but does resolve it from an
+    // ordinary member function body.
     @Suppress("UNCHECKED_CAST")
     private fun computeValue(): T {
         if (mode == LazyThreadSafetyMode.PUBLICATION) {
@@ -35,22 +70,22 @@ internal class LazyImpl<T>(
         if (mode == LazyThreadSafetyMode.SYNCHRONIZED) {
             // Keep every read under the same monitor as initialization. A
             // double-checked fast path would require volatile storage for
-            // `cached` and `hasValue`, which is not available to this
-            // source-backed implementation.
-            __lazySyncLock(synchronizationLock ?: this)
+            // `cached` and `computed`, which is not available here.
+            val lock = synchronizationLock ?: this
+            __lazySyncLock(lock)
             try {
-                if (!hasValue) {
+                if (!computed) {
                     cached = initializer()
-                    hasValue = true
+                    computed = true
                 }
                 return cached as T
             } finally {
-                __lazySyncUnlock(synchronizationLock ?: this)
+                __lazySyncUnlock(lock)
             }
         }
-        if (!hasValue) {
+        if (!computed) {
             cached = initializer()
-            hasValue = true
+            computed = true
         }
         return cached as T
     }
@@ -58,12 +93,12 @@ internal class LazyImpl<T>(
     @Suppress("UNCHECKED_CAST")
     private fun computePublicationValue(): T {
         // PUBLICATION may run the initializer more than once, but only the
-        // first completed value is published. Synchronize both the fast-path
-        // read and the commit so the published value is never overwritten.
+        // first completed value is published. Synchronize the state checks
+        // and commit so a published value is never overwritten.
         var published: Any? = null
         var wasInitialized = false
         synchronized(this) {
-            if (hasValue) {
+            if (computed) {
                 published = cached
                 wasInitialized = true
             }
@@ -74,23 +109,20 @@ internal class LazyImpl<T>(
 
         val candidate = initializer()
         synchronized(this) {
-            if (!hasValue) {
+            if (!computed) {
                 cached = candidate
-                hasValue = true
+                computed = true
             }
             published = cached
         }
         return published as T
     }
 
-    override val value: T
-        get() = computeValue()
+    override val value: T get() = computeValue()
 
-    override fun isInitialized(): Boolean {
-        // Match Kotlin's non-blocking initialization-state query. In
-        // particular, do not wait for a synchronized initializer to finish.
-        return hasValue
-    }
+    override fun isInitialized(): Boolean = computed
+
+    override fun getValue(thisRef: Any?, property: KProperty<*>): T = value
 }
 
 public fun <T> lazy(initializer: () -> T): Lazy<T> =
@@ -99,15 +131,12 @@ public fun <T> lazy(initializer: () -> T): Lazy<T> =
 public fun <T> lazy(lock: Any?, initializer: () -> T): Lazy<T> =
     LazyImpl(initializer, LazyThreadSafetyMode.SYNCHRONIZED, lock, null, false)
 
-public fun <T> lazy(
-    mode: LazyThreadSafetyMode,
-    initializer: () -> T
-): Lazy<T> = LazyImpl(initializer, mode, null, null, false)
+// `initializer` carries a default for the same reason `Delegates.observable`'s
+// `onChange` does (see Delegates.kt): `by lazy(mode) { ... }`'s trailing lambda
+// never reaches this call's argument list, so lowering supplies the real
+// initializer directly when constructing the delegate object.
+public fun <T> lazy(mode: LazyThreadSafetyMode, initializer: () -> T = { throw IllegalStateException() }): Lazy<T> =
+    LazyImpl(initializer, mode, null, null, false)
 
-public fun <T> lazyOf(value: T): Lazy<T> = LazyImpl(
-    { throw IllegalStateException("unreachable: lazyOf value is pre-seeded") },
-    LazyThreadSafetyMode.NONE,
-    null,
-    value,
-    true
-)
+public fun <T> lazyOf(value: T): Lazy<T> =
+    LazyImpl<T>({ throw IllegalStateException("unreachable: lazyOf's value is pre-seeded") }, LazyThreadSafetyMode.NONE, null, value, true)
