@@ -14,7 +14,6 @@ symbol fq=golden.sema.uuidInstanceApiSurface.$0.a kind=valueParameter vis=privat
 symbol fq=golden.sema.uuidInstanceApiSurface.$0.b kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.uuidInstanceApiSurface.$0.other kind=valueParameter vis=private flags=_
 symbol fq=kotlin.ByteArray kind=class vis=public flags=synthetic type=kotlin.ByteArray
-symbol fq=kotlin.ByteArray.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.UByteArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UByteArray.size kind=property vis=public flags=synthetic type=Int
 file fstdlib_kotlin_uuid_Uuid_Uuid_n package=golden.sema annotations=[@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class,kotlin.ExperimentalUnsignedTypes::class)]
@@ -71,7 +70,7 @@ expr e@19:35 name(text) type=String ref=__local_4.text
 expr e@19:41 name(hex) type=String ref=__local_5.hex
 expr e@19:46 name(hexDash) type=String ref=__local_6.hexDash
 expr e@19:56 name(bytes) type=kotlin.ByteArray ref=__local_7.bytes
-expr e@19:56#1 memberCall recv=e@19:56 callee=size args=[] type=Int ref=kotlin.ByteArray.size
+expr e@19:56#1 memberCall recv=e@19:56 callee=size args=[] type=Int call=kotlin.collections.size.$get#1
 expr e@19:70 name(ubytes) type=kotlin.UByteArray ref=__local_8.ubytes
 expr e@19:70#1 memberCall recv=e@19:70 callee=size args=[] type=Int ref=kotlin.UByteArray.size
 expr e@19:84 name(longSum) type=Long ref=__local_9.longSum
