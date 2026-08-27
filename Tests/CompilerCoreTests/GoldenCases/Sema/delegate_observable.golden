@@ -1,17 +1,12 @@
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.name kind=property vis=public flags=mutable type=String
-symbol fq=kotlin.properties.Delegates kind=object vis=public flags=synthetic type=kotlin.properties.Delegates
-symbol fq=kotlin.properties.Delegates.observable kind=function vis=public flags=synthetic sig=recv=kotlin.properties.Delegates params=[kotlin.properties.Delegates.observable.T,(Any, kotlin.properties.Delegates.observable.T, kotlin.properties.Delegates.observable.T) -> Unit] ret=kotlin.properties.ReadWriteProperty<in Any?, kotlin.properties.Delegates.observable.T> defaults=[0,1]
-symbol fq=kotlin.properties.Delegates.observable.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.properties.Delegates.observable.initialValue kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.properties.Delegates.observable.onChange kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.properties.ReadWriteProperty kind=interface vis=public flags=_
+symbol fq=kotlin.reflect.KProperty kind=interface vis=public flags=synthetic
 file fdelegate_observable package=golden.sema
   decl golden.sema.name property name var=1 sym=golden.sema.name
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@5:21 name(Delegates) type=kotlin.properties.Delegates ref=kotlin.properties.Delegates
 expr e@5:42 string(initial) type=String
-expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty<in Any?, String> call=kotlin.properties.Delegates.observable targs=[String]
+expr e@5:21#1 memberCall recv=e@5:21 callee=observable args=[_:e@5:42] type=kotlin.properties.ReadWriteProperty<Any?, String> call=kotlin.properties.Delegates.observable targs=[String]
 expr e@6:28 name(old) type=String ref=s-0
 expr e@6:36 name(new) type=String ref=s-1
 expr e@6:13 stringTemplate[lit(changed from ),expr(e@6:28),lit( to ),expr(e@6:36)] type=String
