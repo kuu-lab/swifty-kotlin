@@ -230,6 +230,14 @@ extension CallTypeChecker {
         return sourceBacked.contains(memberName)
     }
 
+    private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 0 else { return false }
+        return memberName == "first"
+            || memberName == "firstOrNull"
+            || memberName == "last"
+            || memberName == "lastOrNull"
+    }
+
     private func bindSourceRangeHOFCall(
         _ id: ExprID,
         memberName: String,
@@ -242,18 +250,27 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        guard isIntRangeSourceBackedHOF(memberName, argCount: args.count),
-              let receiverType = sema.bindings.exprType(for: receiverID),
+        guard let receiverType = sema.bindings.exprType(for: receiverID),
               let rangeKind = MemberRuntimeDispatch.rangeReceiverKind(
                   receiverExpr: receiverID,
                   receiverType: receiverType,
                   sema: sema,
                   interner: interner
-              ),
-              (rangeKind == .intRange || rangeKind == .intProgression
-                  || ((memberName == "random" || memberName == "randomOrNull")
-                      && (rangeKind == .longRange || rangeKind == .charRange
-                          || rangeKind == .uintRange || rangeKind == .ulongRange))),
+              )
+        else {
+            return nil
+        }
+
+        let isSourceBackedRangeCall =
+            ((rangeKind == .intRange || rangeKind == .intProgression)
+                && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .charProgression
+                && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
+            || ((memberName == "random" || memberName == "randomOrNull")
+                && (rangeKind == .longRange || rangeKind == .charRange
+                    || rangeKind == .uintRange || rangeKind == .ulongRange))
+
+        guard isSourceBackedRangeCall,
               let sourceSymbol = sourceRangeHOFSymbol(
                   memberName: memberName,
                   rangeKind: rangeKind,
@@ -429,6 +446,8 @@ extension CallTypeChecker {
             return [kotlin, ranges, interner.intern("IntRange")]
         case .intProgression:
             return [kotlin, ranges, interner.intern("IntProgression")]
+        case .charProgression:
+            return [kotlin, ranges, interner.intern("CharProgression")]
         case .longRange:
             return [kotlin, ranges, interner.intern("LongRange")]
         case .charRange:

@@ -110,6 +110,13 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func kkThrowableNewCauseSignature() throws {
+        let spec = try requireSpec("__kk_throwable_new_cause")
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.map(\.type) == [.intptr])
+    }
+
+    @Test
     func kkFloorModSignatures() throws {
         for name in ["kk_op_floor_mod", "kk_op_lfloor_mod"] {
             let spec = try requireSpec(name)
