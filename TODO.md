@@ -5658,13 +5658,15 @@
     - `kotlin.math.cos` — fun cos(Double): Double  -- `final fun kotlin.math/cos(kotlin/Double): kotlin/Double`
     - `kotlin.math.cos` — fun cos(Float): Float  -- `final fun kotlin.math/cos(kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1180: kotlin.math.cosh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1180: kotlin.math.cosh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `cosh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/cosh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_math_n_cosh.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_math_n_cosh.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_math_n_cosh.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-25、公開前の最新 `origin/master` `413cf7799`）: Kotlin 2.3.10 公式 common/JVM source、stdlib artifact metadata、exact `kotlinc` で `kotlin.math.cosh(Double): Double` と `cosh(Float): Float`、`SinceKotlin("1.2")`、NaN/±0/±Infinity、偶関数性、代表値、Double/Floatのoverflow・精度/roundingを確認。現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` の2つのpublic source-backed wrapperと `__kk_math_cosh` / `__kk_math_cosh_float` bridgeは、KSP-637 / merged PR #5831 / merge commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9` で実装済み。追加のsynthetic登録、CallTypeChecker/CallLowererのname-string特例、重複実装はなく、KSP-1180はTODO同期のみとした。
+  - focused 検証: `MathAPITargetInventoryTests`、`MathOverloadResolutionTests`、`MathSyntheticTopLevelLinkTests`、`CodegenBackendMathOverloadEdgeCasesTests`、`BundledStdlibExecutionTests`、`RuntimeMathEdgeCaseTests`、既存 `math_transcendental_source.kt` / `math_signed_zero_neg_inf.kt` のKotlin 2.3.10 diff、Runtime ABI validatorを確認済み。cosh以外のmath API、KSP-1179/1181以降、他TODOは変更していない。
   - 未実装シンボル一覧:
     - `kotlin.math.cosh` — fun cosh(Double): Double  -- `final fun kotlin.math/cosh(kotlin/Double): kotlin/Double`
     - `kotlin.math.cosh` — fun cosh(Float): Float  -- `final fun kotlin.math/cosh(kotlin/Float): kotlin/Float`
