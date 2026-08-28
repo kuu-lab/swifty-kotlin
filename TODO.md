@@ -5978,7 +5978,7 @@
   - 未実装シンボル一覧:
     - `kotlin.native.FreezingIsDeprecated.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1201: kotlin.native.HiddenFromObjC top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1201: kotlin.native.HiddenFromObjC top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.HiddenFromObjC` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/HiddenFromObjC/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5987,6 +5987,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.native.HiddenFromObjC.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-24監査）: Kotlin 2.3.10 Native公式sourceの `public actual annotation class HiddenFromObjC` 宣言と同版metadataスナップショット `gap_v2.tsv:881-882` の `constructor <init>()` を確認。現行 `Sources/CompilerCore/Stdlib/kotlin/native/ObjCInterop.kt:50-58` は `public annotation class` で、`HeaderCollection.swift:461-480` のimplicit default constructor規則により引数なしconstructorを生成し、`HeaderHelpers.swift:364-400` のvisibility規則によりpublic visibilityを継承する。`HiddenFromObjC()` の最小caseはobject/KIR生成に成功し、既存 `NativePlatformAnnotationTests` 21件もPASS。KSP-667のsource移行commit `334a393e3` と元のsynthetic実装commit `7bfbd8310`、対象固有のsynthetic/runtime/ABI重複なしを確認した。
 
 - [x] KSP-1202: kotlin.native.HidesFromObjC top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.HidesFromObjC` / top-level
