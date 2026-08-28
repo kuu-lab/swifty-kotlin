@@ -356,6 +356,8 @@ extension TypeCheckHelpers {
 
     func nominalSymbol(of type: TypeID, types: TypeSystem) -> SymbolID? {
         switch types.kind(of: type) {
+        case .unit:
+            return types.unitClassSymbol
         case let .classType(classType):
             return classType.classSymbol
         case let .intersection(parts):
@@ -393,6 +395,8 @@ extension TypeCheckHelpers {
         visited: inout Set<SymbolID>
     ) -> [SymbolID] {
         switch types.kind(of: type) {
+        case .unit:
+            return types.unitClassSymbol.map { [$0] } ?? []
         case let .classType(classType):
             return [classType.classSymbol]
         case let .primitive(primitive, _):
