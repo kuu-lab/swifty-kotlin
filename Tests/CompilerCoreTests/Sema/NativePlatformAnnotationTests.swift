@@ -140,6 +140,116 @@ struct NativePlatformAnnotationTests {
     }
 
     @Test
+    func testObjCNameCarriesExactTopLevelConstructorAndMetadata() throws {
+        let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "native", "ObjCName"].map { interner.intern($0) }
+        let symbol = try #require(
+            sema.symbols.lookup(fqName: fqName),
+            "kotlin.native.ObjCName must be registered"
+        )
+
+        #expect(sema.symbols.symbol(symbol)?.kind == .annotationClass)
+        #expect(sema.symbols.isSourceBackedSymbol(symbol))
+
+        let annotations = sema.symbols.annotations(for: symbol)
+        let target = try #require(
+            annotations.first { $0.annotationFQName == "kotlin.annotation.Target" },
+            "ObjCName must carry @Target metadata"
+        )
+        #expect(
+            Set(target.arguments)
+            == Set([
+                "AnnotationTarget.CLASS",
+                "AnnotationTarget.PROPERTY",
+                "AnnotationTarget.VALUE_PARAMETER",
+                "AnnotationTarget.FUNCTION",
+            ])
+        )
+        let retention = try #require(
+            annotations.first { $0.annotationFQName == "kotlin.annotation.Retention" },
+            "ObjCName must carry @Retention metadata"
+        )
+        #expect(retention.arguments == ["AnnotationRetention.BINARY"])
+        #expect(
+            annotations.contains { $0.annotationFQName == "kotlin.annotation.MustBeDocumented" },
+            "ObjCName must carry @MustBeDocumented metadata"
+        )
+        #expect(
+            annotations.contains { $0.annotationFQName == "kotlin.experimental.ExperimentalObjCName" },
+            "ObjCName must require ExperimentalObjCName opt-in"
+        )
+        let sinceKotlin = try #require(
+            annotations.first { $0.annotationFQName == "kotlin.SinceKotlin" },
+            "ObjCName must carry @SinceKotlin metadata"
+        )
+        #expect(
+            sinceKotlin.arguments.contains { $0.contains("1.8") },
+            "ObjCName must be available since Kotlin 1.8; got \(sinceKotlin.arguments)"
+        )
+
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: fqName + [interner.intern("<init>")]).first {
+                sema.symbols.symbol($0)?.kind == .constructor
+            },
+            "kotlin.native.ObjCName.<init> must be registered"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(
+            signature.parameterTypes
+            == [sema.types.stringType, sema.types.stringType, sema.types.booleanType]
+        )
+        #expect(signature.valueParameterHasDefaultValues == [true, true, true])
+        #expect(signature.valueParameterIsVararg == [false, false, false])
+        #expect(
+            signature.valueParameterSymbols.map { interner.resolve(sema.symbols.symbol($0)!.name) }
+            == ["name", "swiftName", "exact"]
+        )
+    }
+
+    @Test
+    func testUsingObjCNameWithoutOptInProducesErrorDiagnostic() {
+        let source = """
+        import kotlin.native.ObjCName
+
+        @ObjCName
+        fun nativeNameProbe(): Int = 1
+
+        fun useNativeNameProbe(): Int = nativeNameProbe()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInErrors = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN" && $0.severity == .error
+        }
+
+        #expect(
+            !optInErrors.isEmpty,
+            "Expected error-level opt-in diagnostic for ObjCName usage"
+        )
+    }
+
+    @Test
+    func testOptingInToObjCNameSuppressesDiagnostic() {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalObjCName::class)
+        import kotlin.native.ObjCName
+
+        @ObjCName
+        fun nativeNameProbe(): Int = 1
+
+        fun useNativeNameProbe(): Int = nativeNameProbe()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        let optInDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-OPT-IN"
+        }
+
+        #expect(
+            optInDiagnostics.isEmpty,
+            "Expected no opt-in diagnostic when ExperimentalObjCName is opted into"
+        )
+    }
+
+    @Test
     func testHiddenFromObjCAnnotationIsRegistered() throws {
         let (sema, interner) = try sharedSema()
         let fqName = ["kotlin", "native", "HiddenFromObjC"].map { interner.intern($0) }
