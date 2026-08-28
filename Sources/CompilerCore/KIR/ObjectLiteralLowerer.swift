@@ -409,8 +409,8 @@ final class ObjectLiteralLowerer {
             sema: sema,
             interner: interner
         )
-        appendTypeAncestryRegistrations(
-            rootSymbol: objectSymbol,
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: objectSymbol,
             sema: sema,
             arena: arena,
             interner: interner,

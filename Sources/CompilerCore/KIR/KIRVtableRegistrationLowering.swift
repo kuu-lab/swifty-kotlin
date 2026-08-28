@@ -208,6 +208,73 @@ func itableBridgeSymbolForMethod(
     return bridgeSymbol
 }
 
+/// Registers every direct supertype edge in the ancestor graph of `childSymbol`.
+/// Constructor sites used to emit only `child → direct parent`, so a never-
+/// instantiated intermediate interface (`Ranked : Comparable<Ranked>`) never
+/// contributed `Ranked → Comparable`. Erased `kk_compare_any` then could not
+/// prove the operands were Comparable and fell back to pointer comparison.
+func appendNominalSupertypeEdgeRegistrations(
+    childSymbol: SymbolID,
+    extraDirectSupertypes: [SymbolID] = [],
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    let intType = sema.types.intType
+    var pending: [SymbolID] = [childSymbol]
+    var visited: Set<SymbolID> = []
+
+    while let current = pending.popLast() {
+        guard visited.insert(current).inserted else { continue }
+        var parents = sema.symbols.directSupertypes(for: current)
+        if current == childSymbol {
+            for extra in extraDirectSupertypes where !parents.contains(extra) {
+                parents.append(extra)
+            }
+        }
+        pending.append(contentsOf: parents)
+        guard !parents.isEmpty else { continue }
+
+        let currentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: current,
+            sema: sema,
+            interner: interner
+        )
+        guard currentTypeID != 0 else { continue }
+        let currentExpr = arena.appendExpr(.intLiteral(currentTypeID), type: intType)
+        instructions.append(.constValue(result: currentExpr, value: .intLiteral(currentTypeID)))
+
+        var registeredParents: Set<SymbolID> = []
+        for parent in parents {
+            guard registeredParents.insert(parent).inserted else { continue }
+            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: parent,
+                sema: sema,
+                interner: interner
+            )
+            guard parentTypeID != 0 else { continue }
+            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
+            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
+            let registerResult = arena.appendTemporary(type: intType)
+            let superKind = sema.symbols.symbol(parent)?.kind
+            let registerCallee: InternedString = if superKind == .interface {
+                interner.intern("kk_type_register_iface")
+            } else {
+                interner.intern("kk_type_register_super")
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [currentExpr, parentExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
 func appendObjectItableMethodRegistrations(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -342,118 +409,102 @@ func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
     sema: SemaModule,
-    interner: StringInterner
+    interner _: StringInterner
 ) -> SymbolID? {
-    guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
-        return nil
-    }
-
-    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
-    let interfaceParamCount = interfaceParameterTypes?.count
-
-    // Scans the members declared directly on `nominal` (not inherited) for
-    // one matching `interfaceMethod`'s name/signature. `requireSourceBacked`
-    // rejects a bodyless declaration (e.g. `Comparable.compareTo` itself,
-    // Sources/CompilerCore/Stdlib/kotlin/Comparable.kt's intentionally
-    // omitted "compiler residual") so phase 2 below can't mistake an
-    // interface's own abstract redeclaration for an implementation.
-    func directCandidate(on nominal: SymbolID, requireSourceBacked: Bool) -> SymbolID? {
-        guard let ownerSym = sema.symbols.symbol(nominal) else { return nil }
-        let children = sema.symbols.children(ofFQName: ownerSym.fqName)
-        var firstCandidate: SymbolID?
-        var arityMatch: SymbolID?
-        for candidate in children {
-            guard let candidateSym = sema.symbols.symbol(candidate),
-                  candidateSym.kind == .function,
-                  candidateSym.name == methodSym.name,
-                  sema.symbols.parentSymbol(for: candidate) == nominal
-            else {
-                continue
-            }
-            if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
-                continue
-            }
-            if firstCandidate == nil {
-                firstCandidate = candidate
-            }
-            let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
-            // Prefer a full parameter-type match so same-arity overloads
-            // (e.g. StringBuilder.append(Char) vs append(String)) land in
-            // the correct itable slot. Type parameters are wildcards.
-            if let interfaceParameterTypes,
-               kirOverrideParameterTypesMatch(
-                   candidateParameterTypes: candidateParams,
-                   interfaceParameterTypes: interfaceParameterTypes,
-                   types: sema.types
-               )
-            {
-                return candidate
-            }
-            // BUG-166: fall back to arity matching when type IDs don't
-            // line up (e.g. untracked signatures), then to first name match.
-            if arityMatch == nil,
-               let interfaceParamCount,
-               candidateParams.count == interfaceParamCount
-            {
-                arityMatch = candidate
-            }
-        }
-        return arityMatch ?? firstCandidate
-    }
-
     var visited: Set<SymbolID> = []
-    var classChain: [SymbolID] = []
     var current: SymbolID? = nominalSymbol
     while let nominal = current, visited.insert(nominal).inserted {
-        classChain.append(nominal)
-        if let found = directCandidate(on: nominal, requireSourceBacked: false) {
+        if let found = kirFindMatchingMethod(
+            matching: interfaceMethod,
+            on: nominal,
+            sema: sema
+        ) {
             return found
         }
         current = kirSuperclass(of: nominal, sema: sema)
     }
 
-    // BUG-224: the loop above only walks the class superclass chain
-    // (`kirSuperclass` returns `.class`/`.enumClass`/`.object` ancestors
-    // only), so a method whose sole body comes from an interface's own
-    // default implementation — rather than an override on `nominalSymbol` or
-    // one of its superclasses — was never found here. Callers then fell back
-    // to `interfaceMethod` itself, which is wrong whenever the vtable slot's
-    // canonical symbol is a higher, bodyless ancestor interface's abstract
-    // declaration (e.g. `Comparable.compareTo` when the concrete default
-    // lives on an intermediate `Ranked : Comparable<Ranked>`). Walk the
-    // transitive interface graph nearest-first, seeded from every class-chain
-    // node's own directly-declared interfaces in declaration order (not a
-    // `Set`, so traversal — and any tie among source-backed candidates — is
-    // deterministic), and accept only a source-backed default so an
-    // interface's own abstract redeclaration of the same method can't be
-    // mistaken for an implementation. A source-backed but still bodyless
-    // redeclaration (`interface Mid : Comparable<Mid> { override fun
-    // compareTo(other: Mid): Int }` with no `=` body — legal Kotlin) is not
-    // distinguished from a real default here; Sema already requires some
-    // concrete implementation to exist somewhere in the hierarchy, and this
-    // narrow edge case is left out of scope rather than threading KIR body
-    // lowering state into this Sema-level resolver.
-    var interfaceQueue: [SymbolID] = []
-    for classNode in classChain {
-        interfaceQueue.append(contentsOf: sema.symbols.directSupertypes(for: classNode).filter {
-            sema.symbols.symbol($0)?.kind == .interface
-        })
-    }
-    var interfaceVisited: Set<SymbolID> = []
-    var index = 0
-    while index < interfaceQueue.count {
-        let interfaceSymbol = interfaceQueue[index]
-        index += 1
-        guard interfaceVisited.insert(interfaceSymbol).inserted else { continue }
-        if let found = directCandidate(on: interfaceSymbol, requireSourceBacked: true) {
-            return found
+    // Interface default implementations live on the interface itself
+    // (`Ranked.compareTo` for `Comparable.compareTo`). Prefer the closest
+    // owner so a residual `Comparable.compareTo` does not win over Ranked.
+    var bestDefault: (distance: Int, symbol: SymbolID)?
+    for interfaceSymbol in kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema) {
+        guard let found = kirFindMatchingMethod(
+            matching: interfaceMethod,
+            on: interfaceSymbol,
+            sema: sema,
+            requireSourceBacked: true
+        ) else {
+            continue
         }
-        interfaceQueue.append(contentsOf: sema.symbols.directSupertypes(for: interfaceSymbol).filter {
-            sema.symbols.symbol($0)?.kind == .interface
-        })
+        let distance = kirNominalDistance(from: nominalSymbol, to: interfaceSymbol, sema: sema) ?? Int.max
+        if let currentBest = bestDefault {
+            if distance < currentBest.distance {
+                bestDefault = (distance, found)
+            }
+        } else {
+            bestDefault = (distance, found)
+        }
+    }
+    return bestDefault?.symbol
+}
+
+private func kirFindMatchingMethod(
+    matching interfaceMethod: SymbolID,
+    on nominal: SymbolID,
+    sema: SemaModule,
+    requireSourceBacked: Bool = false
+) -> SymbolID? {
+    guard let methodSym = sema.symbols.symbol(interfaceMethod),
+          let ownerSym = sema.symbols.symbol(nominal)
+    else {
+        return nil
     }
 
-    return nil
+    let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
+    let interfaceParamCount = interfaceParameterTypes?.count
+    let children = sema.symbols.children(ofFQName: ownerSym.fqName)
+    var firstCandidate: SymbolID?
+    var arityMatch: SymbolID?
+    for candidate in children {
+        guard let candidateSym = sema.symbols.symbol(candidate),
+              candidateSym.kind == .function,
+              candidateSym.name == methodSym.name,
+              sema.symbols.parentSymbol(for: candidate) == nominal
+        else {
+            continue
+        }
+        // Interface fallback must use a body-bearing source declaration;
+        // synthetic residual declarations are not executable defaults.
+        if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
+            continue
+        }
+        if firstCandidate == nil {
+            firstCandidate = candidate
+        }
+        let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+        // Prefer a full parameter-type match so same-arity overloads
+        // (e.g. StringBuilder.append(Char) vs append(String)) land in
+        // the correct itable slot. Type parameters are wildcards.
+        if let interfaceParameterTypes,
+           kirOverrideParameterTypesMatch(
+               candidateParameterTypes: candidateParams,
+               interfaceParameterTypes: interfaceParameterTypes,
+               types: sema.types
+           )
+        {
+            return candidate
+        }
+        // BUG-166: fall back to arity matching when type IDs don't
+        // line up (e.g. untracked signatures), then to first name match.
+        if arityMatch == nil,
+           let interfaceParamCount,
+           candidateParams.count == interfaceParamCount
+        {
+            arityMatch = candidate
+        }
+    }
+    return arityMatch ?? firstCandidate
 }
 
 /// A class implementing an interface can declare several overloads sharing

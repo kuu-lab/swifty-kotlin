@@ -577,25 +577,6 @@ extension DataEnumSealedSynthesisPass {
 
         // Register supertype edges so boxed enum values can answer `is`/`as`
         // against kotlin.Enum and implemented interfaces (e.g. Comparable).
-        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: owner.id, sema: sema, interner: interner
-        )
-        let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
-        body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
-        // BUG-224: walk the full transitive closure of declared supertypes
-        // (e.g. `enum class E : Ranked` where `Ranked : Comparable<Ranked>`),
-        // not just the direct ones.
-        appendTypeAncestryRegistrations(
-            rootSymbol: owner.id,
-            sema: sema,
-            arena: module.arena,
-            interner: interner,
-            instructions: &body
-        )
-        // kotlin.Enum/Comparable conformance is implicit and not reflected in
-        // Sema's declared-supertypes graph, so register these two directly;
-        // the transitive walk above only covers supertypes reachable from
-        // `owner.id`'s own declared clause.
         let kotlinPkg = [interner.intern("kotlin")]
         var extraEnumSupers: [SymbolID] = []
         if let enumBaseSymbol = sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Enum")]) {
@@ -604,29 +585,14 @@ extension DataEnumSealedSynthesisPass {
         if let comparableSymbol = sema.types.comparableInterfaceSymbol {
             extraEnumSupers.append(comparableSymbol)
         }
-        for superSymbol in extraEnumSupers {
-            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: superSymbol, sema: sema, interner: interner
-            )
-            guard parentTypeID != 0 else { continue }
-            let parentExpr = module.arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-            body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let registerResult = module.arena.appendTemporary(type: intType)
-            let superKind = sema.symbols.symbol(superSymbol)?.kind
-            let registerCallee: InternedString = if superKind == .interface {
-                interner.intern("kk_type_register_iface")
-            } else {
-                interner.intern("kk_type_register_super")
-            }
-            body.append(.call(
-                symbol: nil,
-                callee: registerCallee,
-                arguments: [classIDExpr, parentExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: owner.id,
+            extraDirectSupertypes: extraEnumSupers,
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
 
         body.append(.returnUnit)
 
