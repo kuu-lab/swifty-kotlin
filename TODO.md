@@ -8802,14 +8802,15 @@
     - `kotlin.text.CharCategory.valueOf` — fun CharCategory.valueOf(String): CharCategory  -- `final fun valueOf(kotlin/String): kotlin.text/CharCategory`
     - `kotlin.text.CharCategory.values` — fun CharCategory.values(): Array  -- `final fun values(): kotlin/Array<kotlin.text/CharCategory>`
 
-- [ ] KSP-1418: kotlin.text.CharacterCodingException top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1418: kotlin.text.CharacterCodingException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.CharacterCodingException` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/CharacterCodingException/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/CharacterCodingException.kt`（KSP-656 #5790 で source-backed class として導入済み）
+  - bridge/stub 整理: 現行 source ownership を維持し、2 constructor の汎用 `__kk_throwable_new` routing を typed `__kk_character_coding_exception_new*` Runtime/RuntimeABI bridge に置換。`CharacterCodingException` 固有の source-backed Sema registration は既存のまま利用。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharacterCodingException_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharacterCodingException_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharacterCodingException_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharacterCodingException_n_n.kt` を追加。JVM actual に nullable-message constructor がないため `SKIP-DIFF (DEBT-DIFF-001)` とし、Kotlin/Native 2.3.10 の直接実行結果と candidate の output を一致確認。
+  - 完了ゲート: focused Sema (`CharacterCodingExceptionTypeTests` 6 tests / `ExceptionSyntheticStubTests` 11 tests)、Golden worker、Runtime ABI export/spec parity（3 tests）、Native candidate/official output parity、`check_todo_ids.sh` pass。
+  - 完了根拠: Kotlin/Native 2.3.10 official source/metadata は public open class、direct `Exception`、public `()` / `(String?)`、`SinceKotlin("1.3")` を示す。現行 master の KSP-656 merge commit `a16552084688bf85d55e444744ec84af9d41d592` と source ownership を確認し、本 PR で両 constructor の message/nullability・nominal catch identity・RuntimeABI link を固定した。
+  - 対象シンボル:
     - `kotlin.text.CharacterCodingException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.text.CharacterCodingException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
 
