@@ -411,13 +411,14 @@
   - diff: `list_sorted_with.kt`/`list_max_with*.kt` 既存 + `compareBy` 併用ケース
   - 前提: KSP-461, KSP-684
 
-- [ ] KSP-1508: `List<E>` の `zip`/`zip(transform)`/`unzip`/`partition`/`sumOf` を Kotlin 化する
+- [x] KSP-1508: `List<E>` の `zip`/`zip(transform)`/`unzip`/`partition`/`sumOf` を Kotlin 化する（PR #6390 で実装・回帰を追加）
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`zip`/`unzip`/`partition`/`sumOf` 登録）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListAggregateHOF.kt` 追記（`Pair` は `Tuples.kt`）
   - 削除/降格 kk_*: `kk_list_zip`, `kk_list_zip_transform`, および着手時 `rg -o '@_cdecl\("kk_list_(unzip|partition|sumOf)[a-zA-Z0-9_]*"\)' Sources/Runtime` で確定する分
   - 手順: T
   - diff: `list_zip*.kt`/`list_partition.kt` 既存 + `unzip`、長さ不一致 `zip`、`sumOf` の Int/Long/Double オーバーロードケース
   - 前提: KSP-426, KSP-706
+  - 完了根拠: 現行 master で `zip`/`zip(transform)` は既存の private bridge、`unzip`/`partition` と `sumOf(Int)` は source-backed 済みだったため経路を維持し、Kotlin 2.3.10 の契約に不足していた `List.sumOf(Long)`/`List.sumOf(Double)` と戻り型選択を追加。Sema 5/5、Codegen 1/1、`list_sumof_numeric.kt` diff、既存 `list_zip.kt`/`list_zip_unzip.kt`/`list_partition.kt` diff、TODO ID、Runtime ABI、build が pass。Iterable/Sequence の別タスクと他 TODO は変更していない。
 
 - [ ] KSP-1509: `List<E>` の `random`/`randomOrNull` を Kotlin 化し `HeaderHelpers+SyntheticListAggregateMembers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（KSP-1505〜1508 完了後の残余 + `registerListAggregateMembers` orchestrator）
