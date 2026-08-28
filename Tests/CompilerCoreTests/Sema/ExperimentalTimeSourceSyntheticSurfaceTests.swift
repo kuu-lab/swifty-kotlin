@@ -143,6 +143,35 @@ struct ExperimentalTimeSourceSyntheticSurfaceTests {
         )
     }
 
+    @Test func testExperimentalTimeImplicitConstructorIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
+        let kotlinTime = ["kotlin", "time"].map { interner.intern($0) }
+        let experimentalTimeSymbol = try #require(sema.symbols.lookup(fqName: kotlinTime + [
+            interner.intern("ExperimentalTime"),
+        ]))
+        let experimentalTimeType = sema.types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let constructorSymbol = try #require(sema.symbols.lookupAll(
+            fqName: kotlinTime + [interner.intern("ExperimentalTime"), interner.intern("<init>")]
+        ).first { symbolID in
+            guard sema.symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = sema.symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.receiverType == experimentalTimeType
+                && signature.parameterTypes.isEmpty
+                && signature.returnType == experimentalTimeType
+        })
+        let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
+        #expect(constructorInfo.visibility == .public)
+        #expect(constructorInfo.flags.contains(.synthetic))
+    }
+
     @Test func testExperimentalTimeIsApplicableToFunction() {
         // Regression: ExperimentalTime previously only allowed @Target(ANNOTATION_CLASS),
         // which wrongly rejected the propagating opt-in form `@ExperimentalTime fun ...`.
