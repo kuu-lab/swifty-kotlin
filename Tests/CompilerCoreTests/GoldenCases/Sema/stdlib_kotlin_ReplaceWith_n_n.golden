@@ -4,4 +4,4 @@ file fstdlib_kotlin_ReplaceWith_n_n package=golden.sema
   decl golden.sema.oldApi fun oldApi sym=golden.sema.oldApi
   decl golden.sema.newApi fun newApi sym=golden.sema.newApi
 expr e@7:21 int(1) type=Int
-expr e@9:21#1 int(2) type=Int
+expr e@9:21 int(2) type=Int
