@@ -657,7 +657,9 @@
   - diff: `numeric_conversions*.kt` + `Double.NaN.toInt()`、`Double.POSITIVE_INFINITY.toLong()`、`(-0.5).toInt()` の kotlinc 一致ケース
   - 前提: KSP-1531, KSP-1536
 
-- [ ] KSP-1539: `Char` の数値変換メンバを Kotlin 化し `HeaderHelpers+SyntheticCoercionStubs.swift` の変換残余を削除する
+- [x] KSP-1539: `Char` の数値変換メンバを Kotlin 化し `HeaderHelpers+SyntheticCoercionStubs.swift` の変換残余を削除する
+  - 完了記録（2026-08-28）: `Numbers.kt` に Kotlin 2.3.10 の Char 数値変換メンバ `toByte`/`toShort`/`toInt`/`toLong` を `Char.code` 経路で追加し、deprecated な4件の警告・置換契約も合わせた。2.3.10 に存在しない `Char.toUInt()`/`toULong()` は追加せず、既存の過剰な synthetic surface として `HeaderHelpers+SyntheticCoercionStubs.swift`、Runtime、RuntimeABI、lowerer から Char 専用の `kk_char_to_int`/`kk_char_to_long`/`kk_char_to_uint`/`kk_char_to_ulong` を除去した。KSP-1532〜1538 の別 owner の変換は変更していない。
+  - 回帰: `CharSyntheticMemberLinkTests`、`CodegenBackendNumericBoundariesTests.testCharNumericConversionsPreserveCodeUnitSemantics`、`ABIMismatchTests.charNumericBridgeABIsRemoved`、`Scripts/diff_cases/char_numeric_conversions.kt` を追加・更新。
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift`（Char 受け手分 + KSP-1532〜1538 完了後の残余。coercion 本体は `RangeCoercion.kt` で source 化済み）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記（`Char.code` 経路と整合）
   - 削除/降格 kk_*: `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong`（Char code-unit semantics の (b)。`toByte()`/`toShort()` は `kk_char_to_int` へ寄せる synthetic alias で、別の現行 Runtime symbol ではない。`kk_math_pow` が同ファイルに残る場合は KSP-637 と重複しないよう確認）
