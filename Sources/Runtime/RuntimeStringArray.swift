@@ -138,7 +138,7 @@ private func runtimeAllocateArrayBox(length: Int) -> Int {
 
 @_cdecl("__kk_throwable_new")
 public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMutableRawPointer {
-    let text = extractString(from: message) ?? "Throwable"
+    let text = extractString(from: message)
     let throwableInt = runtimeAllocateThrowable(message: text)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new: allocation returned null")
@@ -148,11 +148,22 @@ public func __kk_throwable_new(_ message: UnsafeMutableRawPointer?) -> UnsafeMut
 
 @_cdecl("__kk_throwable_new_with_cause")
 public func __kk_throwable_new_with_cause(_ message: UnsafeMutableRawPointer?, _ causeRaw: Int) -> UnsafeMutableRawPointer {
-    let text = extractString(from: message) ?? "Throwable"
+    let text = extractString(from: message)
     let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
     let throwableInt = runtimeAllocateThrowable(message: text, cause: cause)
     guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
         runtimeStructuredPanic("__kk_throwable_new_with_cause: allocation returned null")
+    }
+    return ptr
+}
+
+@_cdecl("__kk_throwable_new_cause")
+public func __kk_throwable_new_cause(_ causeRaw: Int) -> UnsafeMutableRawPointer {
+    let cause = (causeRaw == runtimeNullSentinelInt || causeRaw == 0) ? 0 : causeRaw
+    let message = runtimeCauseToString(from: cause)
+    let throwableInt = runtimeAllocateThrowable(message: message, cause: cause)
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: throwableInt) else {
+        runtimeStructuredPanic("__kk_throwable_new_cause: allocation returned null")
     }
     return ptr
 }
@@ -770,8 +781,9 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         return 0
 
     case RuntimeTypeTokenEncoding.unitBase:
-        // The Unit singleton is represented as the integer 0 at runtime.
-        return value == 0 ? 1 : 0
+        // Direct Unit values remain integer 0; Any-erased Unit values use the
+        // runtime box so they remain distinguishable from other raw values.
+        return runtimeIsUnitValue(value) ? 1 : 0
 
     case RuntimeTypeTokenEncoding.nominalBase:
         if let sourceTypeID = runtimeObjectTypeID(rawValue: value) {
@@ -1823,6 +1835,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     guard isObjectPointer else {
         return String(value)
     }
+    if runtimeIsUnitBox(value) {
+        return "kotlin.Unit"
+    }
     if let boolBox = tryCast(raw, to: RuntimeBoolBox.self) {
         return boolBox.value ? "true" : "false"
     }
@@ -1880,9 +1895,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(raw, to: RuntimeTripleBox.self) {
-        let first = runtimeRenderAnyForPrint(tripleBox.first)
-        let second = runtimeRenderAnyForPrint(tripleBox.second)
-        let third = runtimeRenderAnyForPrint(tripleBox.third)
+        let first = runtimeRenderAnyForPrint(tripleBox.firstValue)
+        let second = runtimeRenderAnyForPrint(tripleBox.secondValue)
+        let third = runtimeRenderAnyForPrint(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if tryCast(raw, to: RuntimeIndexingIterableBox.self) != nil {
