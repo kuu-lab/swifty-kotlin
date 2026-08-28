@@ -137,7 +137,7 @@ public inline fun <reified R, C : MutableCollection<in R>> Sequence<*>.filterIsI
     return destination
 }
 
+@Suppress("UNCHECKED_CAST")
 public inline fun <reified R> Sequence<*>.filterIsInstance(): Sequence<R> {
-    @Suppress("UNCHECKED_CAST")
     return filter { it is R } as Sequence<R>
 }

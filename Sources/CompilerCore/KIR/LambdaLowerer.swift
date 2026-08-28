@@ -314,24 +314,7 @@ final class LambdaLowerer {
         for capture in functionCaptureBindings {
             let captureExpr = arena.appendExpr(.symbolRef(capture.param.symbol), type: capture.param.type)
             lambdaBody.append(.constValue(result: captureExpr, value: .symbolRef(capture.param.symbol)))
-            if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
-               semanticSymbol.kind == .local,
-               semanticSymbol.flags.contains(.mutable)
-            {
-                driver.ctx.setMutableCaptureCell(captureExpr, for: capture.capturedSymbol)
-                driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-            } else {
-                driver.ctx.setLocalValue(captureExpr, for: capture.capturedSymbol)
-                driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-                if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
-                   semanticSymbol.kind == .typeParameter,
-                   semanticSymbol.flags.contains(.reifiedTypeParameter)
-                {
-                    let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
-                    driver.ctx.setLocalValue(captureExpr, for: tokenSymbol)
-                    driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
-                }
-            }
+            bindCapturedLambdaValue(captureExpr, capture: capture, sema: sema)
             if capture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: captureExpr)
             }
@@ -368,24 +351,7 @@ final class LambdaLowerer {
            let closureParam = lambdaParameters.first,
            let closureExpr = driver.ctx.localValue(for: closureParam.symbol)
         {
-            if let semanticSymbol = sema.symbols.symbol(closureCapture.capturedSymbol),
-               semanticSymbol.kind == .local,
-               semanticSymbol.flags.contains(.mutable)
-            {
-                driver.ctx.setMutableCaptureCell(closureExpr, for: closureCapture.capturedSymbol)
-                driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureCapture.capturedSymbol)
-            } else {
-                driver.ctx.setLocalValue(closureExpr, for: closureCapture.capturedSymbol)
-                driver.ctx.setLocalDeclaredType(closureCapture.declaredType, for: closureCapture.capturedSymbol)
-                if let semanticSymbol = sema.symbols.symbol(closureCapture.capturedSymbol),
-                   semanticSymbol.kind == .typeParameter,
-                   semanticSymbol.flags.contains(.reifiedTypeParameter)
-                {
-                    let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: closureCapture.capturedSymbol)
-                    driver.ctx.setLocalValue(closureExpr, for: tokenSymbol)
-                    driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
-                }
-            }
+            bindCapturedLambdaValue(closureExpr, capture: closureCapture, sema: sema)
             if closureCapture.capturedSymbol == savedReceiverSymbol {
                 driver.ctx.setImplicitReceiver(symbol: closureParam.symbol, exprID: closureExpr)
             }
@@ -410,24 +376,7 @@ final class LambdaLowerer {
                     canThrow: false,
                     thrownResult: nil
                 ))
-                if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
-                   semanticSymbol.kind == .local,
-                   semanticSymbol.flags.contains(.mutable)
-                {
-                    driver.ctx.setMutableCaptureCell(loadedExpr, for: capture.capturedSymbol)
-                    driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-                } else {
-                    driver.ctx.setLocalValue(loadedExpr, for: capture.capturedSymbol)
-                    driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
-                    if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
-                       semanticSymbol.kind == .typeParameter,
-                       semanticSymbol.flags.contains(.reifiedTypeParameter)
-                    {
-                        let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
-                        driver.ctx.setLocalValue(loadedExpr, for: tokenSymbol)
-                        driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
-                    }
-                }
+                bindCapturedLambdaValue(loadedExpr, capture: capture, sema: sema)
                 if capture.capturedSymbol == savedReceiverSymbol {
                     driver.ctx.setImplicitReceiver(symbol: capture.param.symbol, exprID: loadedExpr)
                 }
@@ -587,6 +536,45 @@ final class LambdaLowerer {
             }
         }
         return lambdaValueExpr
+    }
+
+    /// Re-establishes one captured symbol's value inside a lambda body's
+    /// fresh scope (`resetScopeForFunction()` clears the outer scope's
+    /// bindings, including delegate storage -- see `ScopeSnapshot`), keyed
+    /// off the *kind* of thing `capturedValue` holds:
+    /// - a mutable local's captured value is a box cell (`setMutableCaptureCell`)
+    /// - a delegated local's (KSP-491: `val x by lazy { ... }`/`by Prop()`)
+    ///   captured value is the delegate *instance*, not a value
+    ///   (`setLocalDelegateStorage`) -- reads inside the lambda body must
+    ///   still call getValue fresh, exactly like reads in the declaring
+    ///   scope (see `ExprLowerer.readLocalDelegateValue`), or a vetoable/
+    ///   observable delegate's writes wouldn't be observed from inside the
+    ///   lambda
+    /// - anything else is a plain captured value (`setLocalValue`)
+    private func bindCapturedLambdaValue(
+        _ capturedValue: KIRExprID,
+        capture: (capturedSymbol: SymbolID, param: KIRParameter, valueExpr: KIRExprID, declaredType: TypeID),
+        sema: SemaModule
+    ) {
+        if sema.symbols.delegateGetValueSymbol(for: capture.capturedSymbol) != nil {
+            driver.ctx.setLocalDelegateStorage(capturedValue, for: capture.capturedSymbol)
+        } else if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+                  semanticSymbol.kind == .local,
+                  semanticSymbol.flags.contains(.mutable)
+        {
+            driver.ctx.setMutableCaptureCell(capturedValue, for: capture.capturedSymbol)
+        } else {
+            driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
+        }
+        driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+        if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+           semanticSymbol.kind == .typeParameter,
+           semanticSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
+            driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
+            driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+        }
     }
 
     private func materializeEscapingCallableValue(

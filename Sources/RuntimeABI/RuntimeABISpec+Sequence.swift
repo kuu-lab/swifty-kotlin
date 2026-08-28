@@ -590,17 +590,6 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_findLast",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_sequence_contains",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
@@ -1098,17 +1087,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_none",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_find",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),

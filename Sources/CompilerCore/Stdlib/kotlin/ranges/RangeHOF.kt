@@ -22,7 +22,7 @@ import kotlin.random.Random
 // definition ahead of that dispatch being wired directly to it, matching the pattern
 // used by MIGRATION-RANGE-003 (RangeCoercion.kt) and MIGRATION-COL-002 (ListHOF.kt).
 //
-// `first`, `last`, `step` are intentionally NOT included here: they are
+// The `first`, `last`, and `step` properties are intentionally NOT included here: they are
 // constant-time field reads with no pure-Kotlin expression available (would
 // require introducing new native bridge plumbing for zero behavioral change).
 // `count()`, `sum()`, and `reversed()` are now included and wired to the shared
@@ -924,6 +924,33 @@ public fun CharRange.sum(): Int {
 public external fun CharRange.reversed(): CharRange
 
 // MARK: - CharProgression
+
+private fun charProgressionDescription(progression: CharProgression): String {
+    val step = progression.step
+    return if (step > 0) {
+        "${progression.first}..${progression.last} step $step"
+    } else {
+        "${progression.first} downTo ${progression.last} step ${-step}"
+    }
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.first(): Char {
+    if (isEmpty()) throw NoSuchElementException("Progression ${charProgressionDescription(this)} is empty.")
+    return this.first
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.firstOrNull(): Char? = if (isEmpty()) null else this.first
+
+@SinceKotlin("1.7")
+public fun CharProgression.last(): Char {
+    if (isEmpty()) throw NoSuchElementException("Progression ${charProgressionDescription(this)} is empty.")
+    return this.last
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.lastOrNull(): Char? = if (isEmpty()) null else this.last
 
 public fun CharProgression.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
