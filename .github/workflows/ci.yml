@@ -603,11 +603,6 @@ jobs:
           DIFF_COMPILE_TIMEOUT: "180"
           DIFF_LOG_PASS: "0"
         run: bash Scripts/diff_diagnostics.sh --report "$DIFF_REPORT" Scripts/diagnostic_cases
-      - name: Fail when diagnostic differential mismatches exist
-        if: steps.diff_diagnostics.outcome == 'failure'
-        run: |
-          echo "Diagnostic differential cases failed." >&2
-          exit 1
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
@@ -633,6 +628,11 @@ jobs:
         if: steps.diff_kotlinc.outcome == 'failure'
         run: |
           echo "kotlinc diff regression cases failed." >&2
+          exit 1
+      - name: Fail when diagnostic differential mismatches exist
+        if: steps.diff_diagnostics.outcome == 'failure'
+        run: |
+          echo "Diagnostic differential cases failed." >&2
           exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
