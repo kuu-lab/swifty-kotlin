@@ -3975,7 +3975,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.ByteIterator.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1049: kotlin.collections.CharIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1049: kotlin.collections.CharIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.CharIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CharIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3984,6 +3984,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.CharIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-24 ライブ監査）: PR #5044（merge commit `0cb86890054c2b175cded80d1064a0e31647102b`）で `Sources/CompilerCore/Stdlib/kotlin/collections/PrimitiveIterators.kt` に `public abstract class CharIterator : Iterator<Char>`、final `next()` → `nextChar()`、abstract `nextChar()` が実装済み。明示的な constructor がない形は Kotlin の暗黙 no-arg primary constructor であり、現行 Sema の `HeaderCollection.swift` が no-secondary-ctor class に `<init>()` を public として生成する。synthetic iterator stub、target-specific Runtime/ABI/name-string bridge は残っていない。
+  - 回帰根拠: `Tests/CompilerCoreTests/Sema/ListSyntheticMemberLinkTests.swift::testPrimitiveIteratorSurfacesAreRegistered` が PASS。`ProbeCharIterator : CharIterator()` の一時最小ケースも構築済み kswiftc でコンパイル・実行し、`x` を出力した（作業ツリー外、PR差分には含めない）。
 
 - [ ] KSP-1050: kotlin.collections.Collection.Collection の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections.Collection` / receiver `Collection`
