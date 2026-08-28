@@ -271,6 +271,51 @@ public inline operator fun <K, V> Map<K, V>.plus(map: Map<K, V>): Map<K, V> {
 }
 
 /**
+ * Returns a map containing all entries of the original map and the given collection of pairs.
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.plus(pairs: Iterable<Pair<K, V>>): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (entry in this.entries) {
+        result[entry.key] = entry.value
+    }
+    for (pair in pairs) {
+        result[pair.first] = pair.second
+    }
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map and the given sequence of pairs.
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.plus(pairs: Sequence<Pair<K, V>>): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (entry in this.entries) {
+        result[entry.key] = entry.value
+    }
+    for (pair in pairs) {
+        result[pair.first] = pair.second
+    }
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map and the given array of pairs.
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.plus(pairs: Array<out Pair<K, V>>): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (entry in this.entries) {
+        result[entry.key] = entry.value
+    }
+    for (pair in pairs) {
+        result[pair.first] = pair.second
+    }
+    return result as Map<K, V>
+}
+
+/**
  * Returns a map containing all entries of the original map except the entry with the given [key].
  */
 @Suppress("UNCHECKED_CAST")
@@ -295,4 +340,3 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
-
