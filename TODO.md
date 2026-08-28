@@ -9004,9 +9004,9 @@
     - `kotlin.text.MatchResult.Destructured.component10` — fun Destructured.component10(): String  -- `final inline fun component10(): kotlin/String`
     - `kotlin.text.MatchResult.Destructured.toList` — fun Destructured.toList(): List  -- `final fun toList(): kotlin.collections/List<kotlin/String>`
 
-- [ ] KSP-1435: kotlin.text.Regex top-level の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1435: kotlin.text.Regex top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.Regex` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Regex/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_Regex_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_Regex_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_Regex_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -9016,6 +9016,7 @@
     - `kotlin.text.Regex.<init>` — constructor (String, Set)  -- `constructor <init>(kotlin/String, kotlin.collections/Set<kotlin.text/RegexOption>)`
     - `kotlin.text.Regex.<init>` — constructor (String, RegexOption)  -- `constructor <init>(kotlin/String, kotlin.text/RegexOption)`
     - `kotlin.text.Regex.Companion` — object kotlin.text.Regex.Companion  -- `final object Companion {`
+  - 完了根拠: PR #5669（merge commit `3765b961bc315aeb72a9abb64dec665b1d578bbb`）で Regex の source-backed declarations と compiler/runtime bridge を導入済み。現行 master の `Regex.kt` に3 constructors（String、RegexOption、Set<RegexOption>）と public Companion があり、`RegexAPISurfaceInventoryTests` / `RegexSemaLoweringTests` / `RegexOptionEnumTests` / `RuntimeRegexTests` の focused 69件、ならびに4 diff cases（constructors、Set<RegexOption>、invalid pattern）が PASS。
 
 - [ ] KSP-1436: kotlin.text.Regex.Regex の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.text.Regex` / receiver `Regex`
