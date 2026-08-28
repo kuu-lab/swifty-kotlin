@@ -342,9 +342,9 @@
   - diff: `range_progression.kt` 新規 + `range_basic.kt`/`range_until.kt` 既存
   - 前提: KSP-451, KSP-456, KSP-708, KSP-709
 
-- [ ] KSP-715: Uuid (`java.util.UUID` shell) を Kotlin 化し `HeaderHelpers+SyntheticUuidStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUuidStubs.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/uuid/Uuid.kt` 追記（`java.util.UUID` class shell）
+- [x] KSP-715: Uuid (`java.util.UUID` shell) を Kotlin 化し `HeaderHelpers+SyntheticUuidStubs.swift` を削除する
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticUuidStubs.swift`（削除済み）
+  - 実装先: `Sources/CompilerCore/Stdlib/java/util/UUID.kt`（`java.util.UUID` class shell）
   - 削除/降格 kk_*: `kk_uuid_*` public ブリッジ（`RuntimeUuid.swift`。着手時 `rg -o '@_cdecl\("kk_uuid[a-zA-Z0-9_]*"\)' Sources/Runtime`）
   - 手順: T
   - diff: `uuid_basic.kt` 等既存 + `java.util.UUID` 生成・変換ケース
