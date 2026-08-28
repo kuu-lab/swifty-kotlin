@@ -9693,7 +9693,7 @@
   - 未実装シンボル一覧:
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark` — class kotlin.time.TimeSource.Monotonic.ValueTimeMark  -- `final value class ValueTimeMark : kotlin.time/ComparableTimeMark {`
 
-- [ ] KSP-1495: kotlin.time.TimeSource.Monotonic.ValueTimeMark.ValueTimeMark の未実装 stdlib API を実装する（6 件）
+- [x] KSP-1495: kotlin.time.TimeSource.Monotonic.ValueTimeMark.ValueTimeMark の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.time.TimeSource.Monotonic.ValueTimeMark` / receiver `ValueTimeMark`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource/Monotonic/ValueTimeMark/ValueTimeMark.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9707,6 +9707,7 @@
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark.hashCode` — fun ValueTimeMark.hashCode(): Int  -- `final fun hashCode(): kotlin/Int`
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark.minus` — fun ValueTimeMark.minus(ComparableTimeMark): Duration  -- `final fun minus(kotlin.time/ComparableTimeMark): kotlin.time/Duration`
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark.toString` — fun ValueTimeMark.toString(): String  -- `final fun toString(): kotlin/String`
+  - 完了根拠（2026-08-28）: Kotlin 2.3.10公式 source/artifact metadata の6件を照合し、既存のValueTimeMarkに source-backed member として実装。`equals`/`hashCode`/`toString` はLong readingのvalue-class生成契約、`minus(ComparableTimeMark)` は異なる時刻源を拒否する公式契約に合わせた。専用Sema Goldenとkotlinc diff回帰を追加し、KSP-1494/1496/1497、TimeMark共通拡張、Runtime/RuntimeABI、synthetic residual登録は変更していない。
 
 - [ ] KSP-1496: kotlin.time.TimedValue top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.TimedValue` / top-level
