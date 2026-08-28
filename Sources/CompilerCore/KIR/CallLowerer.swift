@@ -1578,8 +1578,8 @@ final class CallLowerer {
         case ("toInt", sema.types.ulongType, sema.types.intType): interner.intern("kk_ulong_to_int")
         case ("toInt", sema.types.ubyteType, sema.types.intType): interner.intern("kk_ubyte_to_int")
         case ("toInt", sema.types.ushortType, sema.types.intType): interner.intern("kk_ushort_to_int")
-        case ("toInt", sema.types.doubleType, sema.types.intType): interner.intern("kk_double_to_int")
-        case ("toInt", sema.types.floatType, sema.types.intType): interner.intern("kk_float_to_int")
+        case ("toInt", sema.types.doubleType, sema.types.intType): interner.intern("__kk_double_to_int")
+        case ("toInt", sema.types.floatType, sema.types.intType): interner.intern("__kk_float_to_int")
         case ("toInt", sema.types.charType, sema.types.intType): interner.intern("kk_char_to_int")
         case ("toInt", sema.types.byteType, sema.types.intType): nil
         case ("toInt", sema.types.shortType, sema.types.intType): nil
@@ -1588,8 +1588,8 @@ final class CallLowerer {
         case ("toLong", sema.types.uintType, sema.types.longType): interner.intern("kk_uint_to_long")
         case ("toLong", sema.types.ubyteType, sema.types.longType): interner.intern("kk_ubyte_to_long")
         case ("toLong", sema.types.ushortType, sema.types.longType): interner.intern("kk_ushort_to_long")
-        case ("toLong", sema.types.doubleType, sema.types.longType): interner.intern("kk_double_to_long")
-        case ("toLong", sema.types.floatType, sema.types.longType): interner.intern("kk_float_to_long")
+        case ("toLong", sema.types.doubleType, sema.types.longType): interner.intern("__kk_double_to_long")
+        case ("toLong", sema.types.floatType, sema.types.longType): interner.intern("__kk_float_to_long")
         case ("toLong", sema.types.charType, sema.types.longType): interner.intern("kk_char_to_long")
         case ("toLong", sema.types.byteType, sema.types.longType): nil
         case ("toLong", sema.types.shortType, sema.types.longType): nil
@@ -1617,7 +1617,7 @@ final class CallLowerer {
         case ("toFloat", sema.types.floatType, sema.types.floatType): nil
         case ("toDouble", sema.types.intType, sema.types.doubleType): interner.intern("kk_int_to_double_bits")
         case ("toDouble", sema.types.longType, sema.types.doubleType): interner.intern("kk_long_to_double")
-        case ("toDouble", sema.types.floatType, sema.types.doubleType): interner.intern("kk_float_to_double_bits")
+        case ("toDouble", sema.types.floatType, sema.types.doubleType): interner.intern("__kk_float_to_double_bits")
         case ("toDouble", sema.types.doubleType, sema.types.doubleType): nil
         case ("toByte", sema.types.intType, sema.types.byteType): interner.intern("kk_int_to_byte")
         case ("toByte", sema.types.longType, sema.types.byteType): interner.intern("kk_long_to_byte")
