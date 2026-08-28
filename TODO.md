@@ -9683,13 +9683,14 @@
     - `kotlin.time.TimeSource.WithComparableMarks` — interface kotlin.time.TimeSource.WithComparableMarks  -- `abstract interface WithComparableMarks : kotlin.time/TimeSource {`
   - 完了根拠（2026-08-25）: Kotlin 2.3.10 の source/artifact/metadata/kotlinc 契約を照合し、`TimeSource.Companion` の空 object 宣言を source-backed として追加。既存の `Monotonic` object identity、`WithComparableMarks : TimeSource`、`Monotonic : WithComparableMarks`、`Monotonic.markNow(): ValueTimeMark` は維持し、KSP-1493 専用 Sema regression (`TimeSourceNominalSurfaceTests`) と既存 `experimental_time.kt` diff を各 1 worker で PASS、Runtime ABI external-link validation と TODO ID check も PASS。KSP-1474/1475/1494/1495 の member/extension API は変更していない。
 
-- [ ] KSP-1494: kotlin.time.TimeSource.Monotonic top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1494: kotlin.time.TimeSource.Monotonic top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.TimeSource.Monotonic` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource/Monotonic/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_TimeSource_Monotonic_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_TimeSource_Monotonic_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_TimeSource_Monotonic_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-08-28、現行 master `0e494bbd4443bdefbc2a16b44203d8e05e174cad`）：KSP-649（PR #5673、merge commit `8b2b1f6fb66fc2cb84ad1e65aabcc871dc24ecf4`）で `Sources/CompilerCore/Stdlib/kotlin/time/TimeSource.kt` に `@JvmInline public value class ValueTimeMark internal constructor(internal val reading: Long) : ComparableTimeMark` を source-backed 実装済み。Kotlin 2.3.10 公式 `TimeSource.kt` の `@JvmInline public value class ... : ComparableTimeMark` と、stdlib metadata の `kotlin.time.TimeSource$Monotonic$ValueTimeMark`（public final、underlying reading、`ComparableTimeMark` 実装）を照合した。KSP-1493（PR #6356）の `TimeSourceNominalSurfaceTests` は nested symbol lookup と `TimeSource.Monotonic.markNow()` の戻り値型同一性をPASSし、Kotlin 2.3.10を明示した既存 `time_mark_basic.kt` / `experimental_time.kt` / `experimental_time_edge_cases.kt` のdiff、Runtime ABI external-link validationもPASSしたため、対象classの追加source/synthetic/compiler/runtime/ABI/regression変更は不要。KSP-1495のValueTimeMark member APIは対象外とした。
   - 未実装シンボル一覧:
     - `kotlin.time.TimeSource.Monotonic.ValueTimeMark` — class kotlin.time.TimeSource.Monotonic.ValueTimeMark  -- `final value class ValueTimeMark : kotlin.time/ComparableTimeMark {`
 
