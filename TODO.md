@@ -451,13 +451,14 @@
   - diff: `array_conversions*.kt` 既存 + 各 primitive array の `size`/`toList` ケース
   - 前提: KSP-657
 
-- [ ] KSP-1513: unsigned array の `size`/`toList`/`asList` と `Array<T>` の `size`/`toList` を Kotlin 化し `HeaderHelpers+SyntheticListConversionMembers.swift` を削除する
+- [x] KSP-1513: unsigned array の `size`/`toList`/`asList` と `Array<T>` の `size`/`toList` を Kotlin 化し `HeaderHelpers+SyntheticListConversionMembers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListConversionMembers.swift`（`UIntArray`/`ULongArray`/`UShortArray`/`UByteArray` + `Array<T>`。KSP-1512 完了後の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/UArrays.kt` / `ArrayConversions.kt` 追記
   - 削除/降格 kk_*: `kk_uIntArray_size`/`kk_uIntArray_toList`/`kk_uIntArray_asList` 他 unsigned 4型分、`kk_array_size`, `kk_array_toList`
   - 手順: T
   - diff: `uarray_*.kt` 既存 + `UIntArray.toList()`/`asList()`、`Array<String>.toList()` ケース
   - 前提: KSP-1512
+  - 完了根拠: `UArrays.kt`/`ArrayConversions.kt` に対象public surfaceをsource-backed化し、typed `__kk_*` bridgeだけを保持。残存synthetic登録と `HeaderHelpers+SyntheticListConversionMembers.swift` を削除し、unsigned/genericのSema・lowering/backend、Kotlin 2.3.10 diff、対象Golden直接生成、RuntimeABI link検証、`git diff --check`を通過。`toList`のcopyと`asList`のbacking view、unsigned boxingも直接実行で確認。
 
 - [x] KSP-1514: Array の content 比較・文字列化（`contentEquals`/`contentHashCode`/`contentToString`/`contentDeepEquals`/`contentDeepHashCode`/`contentDeepToString`）を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（1239行のうち content 系）

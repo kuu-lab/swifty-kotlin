@@ -174,7 +174,7 @@ extension CallLowerer {
         if (defaultMask & endIndexMaskBit) != 0 {
             let sizeExpr = arena.appendTemporary(type: intType)
             emitNonThrowingCall(
-                callee: interner.intern("kk_array_size"),
+                callee: interner.intern("__kk_array_size"),
                 arg: arguments[0],
                 result: sizeExpr,
                 into: &instructions
@@ -208,7 +208,7 @@ extension CallLowerer {
         let intType = sema.types.intType
         let sizeExpr = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_array_size"),
+            callee: interner.intern("__kk_array_size"),
             arg: arguments[0],
             result: sizeExpr,
             into: &instructions
