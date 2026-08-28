@@ -4018,7 +4018,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.FloatIterator.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1053: kotlin.collections.Grouping.Grouping の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1053: kotlin.collections.Grouping.Grouping の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.Grouping` / receiver `Grouping`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Grouping/Grouping.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4027,6 +4027,12 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.Grouping.keyOf` — fun Grouping.keyOf(): #B  -- `abstract fun keyOf(#A): #B`
+  - 完了根拠（2026-08-24監査）:
+    - merged PR #5480 / commit `ace220876a253cf828086ae0ed8b129f37f7d391` で `Grouping` を bundled Kotlin source へ移行済み。
+    - 現行 `Sources/CompilerCore/Stdlib/kotlin/collections/Grouping.kt:14-19` に `public interface Grouping<T, out K>` と `public fun keyOf(element: T): K` が存在する。
+    - Kotlin 2.3.10公式source/stdlib metadata/kotlinc probeで、`T`入力・`K`出力、`K`の`out` variance、public abstract member、parameter/return generic contractを一致確認済み。
+    - 現行KSwiftK stdlib artifactの`metadata.bin`にも `kotlin.collections.Grouping.keyOf` が `F1<Grouping<T,K>,T,K>` / `modality=abstract` として登録され、直接keyOf probeはKSwiftKでコンパイル・実行成功。
+    - 既存 `Scripts/diff_cases/grouping_basic.kt` のKotlin 2.3.10 diff、既存Grouping Sema goldens（`grouping_eachCountTo` / `collection_grouping_fold_to`）、`testGroupingReduceToCompiles`、Runtime ABI 4 testsがfocused PASS。
 
 - [ ] KSP-1054: kotlin.collections.HashMap top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections.HashMap` / top-level
