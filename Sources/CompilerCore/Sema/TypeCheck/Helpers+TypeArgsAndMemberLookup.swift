@@ -566,9 +566,10 @@ extension TypeCheckHelpers {
         }
 
         let receiverKind = sema.types.kind(of: receiverType)
-        if ownersInLookupOrder.isEmpty, case .primitive = receiverKind {
-            // Primitive receivers have no nominal owners, so probe the synthetic stdlib
-            // packages that host their extension members.
+        if case .primitive = receiverKind {
+            // Primitive receivers may also have a nominal compatibility symbol (for
+            // example the compiler-owned Comparable conformance). Probe the synthetic
+            // stdlib packages as well so extension overloads remain visible.
             let primitiveExtensionPackages: [[InternedString]] = [
                 [interner.intern("kotlin")],
                 [interner.intern("kotlin"), interner.intern("ranges")],
