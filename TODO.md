@@ -4199,8 +4199,9 @@
     - `kotlin.collections.ListIterator.previous` — fun ListIterator.previous(): #A  -- `abstract fun previous(): #A`
     - `kotlin.collections.ListIterator.previousIndex` — fun ListIterator.previousIndex(): Int  -- `abstract fun previousIndex(): kotlin/Int`
 
-- [ ] KSP-1065: kotlin.collections.LongIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1065: kotlin.collections.LongIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.LongIterator` / top-level
+  - 完了根拠（PR #1819 / merge commit `89297482f1b0cedfc8968f726d9a7daf51503a9c`、source migration は KSP-664 / commit `0cb86890054c2b175cded80d1064a0e31647102b`）：現行 `Sources/CompilerCore/Stdlib/kotlin/collections/PrimitiveIterators.kt` が `public abstract class LongIterator : Iterator<Long>`、引数なし constructor、`final next(): Long = nextLong()`、`abstract nextLong(): Long` を source-backed で提供している。`ListSyntheticMemberLinkTests` の primitive iterator surface / subclass assignability 回帰は PASS、対象 synthetic stub・`kk_*` bridge・RuntimeABI 残留はない。
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/LongIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_LongIterator_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
