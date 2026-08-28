@@ -3312,20 +3312,56 @@ extension CallTypeChecker {
                     sema.bindings.bindExprType(id, type: sema.types.anyType)
                     return sema.types.anyType
                 }
+                let isListSumOf = calleeStr == "sumOf"
+                    && (receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver)
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
                     params: [collectionElementType],
-                    returnType: sema.types.intType
+                    returnType: isListSumOf ? sema.types.anyType : sema.types.intType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                resultType = sema.types.intType
+                let selectorType = isListSumOf
+                    ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
+                    : sema.types.intType
+                let supportedListSumOfType = selectorType == sema.types.intType
+                    || selectorType == sema.types.longType
+                    || selectorType == sema.types.doubleType
+                resultType = isListSumOf && supportedListSumOfType
+                    ? selectorType
+                    : sema.types.intType
+                if isListSumOf,
+                   supportedListSumOfType,
+                   case .lambdaLiteral = ast.arena.expr(args[0].expr)
+                {
+                    // The temporary Any return type above supplies the lambda's
+                    // input type while its body is inferred. Restore the
+                    // concrete selector type before KIR lowering so the closure
+                    // ABI remains raw for primitive results such as Double.
+                    sema.bindings.bindExprType(
+                        args[0].expr,
+                        type: sema.types.make(.functionType(FunctionType(
+                            params: [collectionElementType],
+                            returnType: selectorType,
+                            isSuspend: false,
+                            nullability: .nonNull
+                        )))
+                    )
+                }
                 if isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                 } else {
                     let didBindSource = calleeStr == "sumOf"
-                        ? bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        ? bindBundledListSourceFunction(
+                            typeArguments: [collectionElementType],
+                            matchingParameterType: isListSumOf && supportedListSumOfType
+                                ? sema.types.make(.functionType(FunctionType(
+                                    params: [collectionElementType],
+                                    returnType: selectorType
+                                )))
+                                : nil
+                        )
                         : bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     if didBindSource,
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
