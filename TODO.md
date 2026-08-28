@@ -427,13 +427,14 @@
   - diff: `list_random*.kt` 既存 + `random(Random(7))` 決定値ケース、空リストの `randomOrNull`/例外ケース
   - 前提: KSP-685, KSP-1505, KSP-1506, KSP-1507, KSP-1508
 
-- [ ] KSP-1510: `List<E>` の filter 群（`filter`/`filterIndexed`/`filterNot`/`filterNotNull`/`filterIsInstance`）を Kotlin 化する
+- [x] KSP-1510: `List<E>` の filter 群（`filter`/`filterIndexed`/`filterNot`/`filterNotNull`/`filterIsInstance`）を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListTransformMembers.swift`（210行のうち filter 系登録）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListFilterHOF.kt` 追記
   - 削除/降格 kk_*: 着手時 `rg -o '@_cdecl\("kk_list_filter[a-zA-Z0-9_]*"\)' Sources/Runtime` で列挙し削除/降格。`filterIsInstance` は型テスト lowering が必要なため `CallTypeChecker`/`CallLowerer` の名前特例も同一 PR で整理（不可能なら KSP-CAP 追加を報告）
   - 手順: T
   - diff: `list_filter*.kt` 既存 + `filterIsInstance<String>()`、`filterNotNull` の nullable 要素ケース
   - 前提: KSP-421, KSP-700
+  - 完了根拠（2026-08-28監査）: KSP-306 の merged PR #4573（2026-07-10）で5 APIと `*To` 変種を bundled Kotlin sourceへ移行し、List の synthetic 登録・公開 `kk_list_filter*` runtime 経路・直接 lowering を削除済み。`ListFilterHOFSourceMigrationTests`、List synthetic member link、`filter`/`filterNot`/`filterIndexed`/`filterNotNull`/`filterIsInstance` の macOS arm64 codegen 回帰を確認済み。
 
 - [ ] KSP-1511: `List<E>` の `sorted`/`sortedDescending`/`shuffled`/`sum` を Kotlin 化し `HeaderHelpers+SyntheticListTransformMembers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListTransformMembers.swift`（KSP-1510 完了後の残余。`sum`/`distinctBy` を含むファイル冒頭コメントの「not yet source-backed」分）
