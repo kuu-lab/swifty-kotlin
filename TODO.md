@@ -9629,7 +9629,7 @@
     - `kotlin.time.ExperimentalTime.<init>` — constructor ()  -- `constructor <init>()`
   - 完了根拠（2026-08-25、現行 master `dea447af6740dcdebd5ecdc73760e690a79fd820`）：KSP-712（PR #6054、merge commit `be006cb0000597bdc06e59acfb1366123a5be573`）後の residual synthetic marker に、Kotlin 2.3.10 の public implicit no-arg constructor と一致する synthetic constructor を追加し、Sema 回帰で nominal identity・visibility・引数なしを固定した。公式 source/metadata の ERROR opt-in、BINARY retention、11 Target は既存実装で維持され、他の time symbol・runtime/ABI bridge は変更していない。
 
-- [ ] KSP-1488: kotlin.time.Instant top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1488: kotlin.time.Instant top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.time.Instant` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/Instant/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9638,6 +9638,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.time.Instant.Companion` — object kotlin.time.Instant.Companion  -- `final object Companion {`
+  - 完了根拠: Kotlin 2.3.10 公式 `Instant.kt` の `public companion object`、stdlib JVM metadata の `kotlin.time.Instant$Companion` object と一致する `ensureInstantCompanionSymbol` が現行Semaに実装済み。`CompanionObjectTests+ExtensionFunctionShorthandCalls` の bundled `Instant.Companion` shorthand と `InstantDistantPropertiesSyntheticTests.testInstantCompanionFactoriesAreKotlinSourceExtensions` が同一nominalの解決を検証しているため、KSP-1488はTODO同期のみとする。
 
 - [x] KSP-1489: kotlin.time.Instant.Instant の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.time.Instant` / receiver `Instant`
