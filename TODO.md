@@ -9044,7 +9044,7 @@
     - `kotlin.text.Regex.Companion.escape` — fun Companion.escape(String): String  -- `final fun escape(kotlin/String): kotlin/String`
     - `kotlin.text.Regex.Companion.escapeReplacement` — fun Companion.escapeReplacement(String): String  -- `final fun escapeReplacement(kotlin/String): kotlin/String`
 
-- [ ] KSP-1438: kotlin.text.RegexOption.RegexOption の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1438: kotlin.text.RegexOption.RegexOption の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.text.RegexOption` / receiver `RegexOption`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/RegexOption/RegexOption.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9055,6 +9055,7 @@
     - `kotlin.text.RegexOption.entries` — val RegexOption.entries: EnumEntries  -- `final val entries`
     - `kotlin.text.RegexOption.valueOf` — fun RegexOption.valueOf(String): RegexOption  -- `final fun valueOf(kotlin/String): kotlin.text/RegexOption`
     - `kotlin.text.RegexOption.values` — fun RegexOption.values(): Array  -- `final fun values(): kotlin/Array<kotlin.text/RegexOption>`
+  - 完了根拠: `Regex.kt` の RegexOption declaration order を Kotlin 2.3.10 公式順序に揃え、既存の enum synthesis（Sema/KIR/lowering/runtime/ABI）で3 APIを実装。RegexOption 専用 Golden は public ownership/visibility/return type、Kotlin 2.3.10 kotlinc diff は順序・entries identity・valueOf成功/IllegalArgumentException を確認済み。
 
 - [ ] KSP-1439: kotlin.text.StringBuilder top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.StringBuilder` / top-level
