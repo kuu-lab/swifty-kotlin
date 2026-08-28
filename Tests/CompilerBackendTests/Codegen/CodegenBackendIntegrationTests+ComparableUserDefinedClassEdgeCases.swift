@@ -89,10 +89,12 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
         )
     }
 
-    // BUG-170: through an erased `T : Comparable<T>` bound the operands can have
-    // different runtime types (subclass vs base, or two classes sharing a
-    // Comparable interface); dispatch must still reach the user `compareTo`
-    // instead of comparing heap addresses.
+    // BUG-170 / BUG-226: through an erased `T : Comparable<T>` bound the
+    // operands can have different runtime types (subclass vs base, or two
+    // classes sharing a Comparable interface). Dispatch must still reach the
+    // user `compareTo` instead of comparing heap addresses — including when
+    // compareTo is only an interface default (Bronze/Gold) and allocation
+    // order is reversed.
     @Test
     func testCodegenComparisonOperatorsDispatchCompareToAcrossRelatedRuntimeTypes() throws {
         let source = """
@@ -126,6 +128,11 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
             println(larger(bronze, gold).rank)
             println(larger(gold, bronze).rank)
 
+            val goldFirst: Ranked = Gold()
+            val bronzeSecond: Ranked = Bronze()
+            println(larger(bronzeSecond, goldFirst).rank)
+            println(larger(goldFirst, bronzeSecond).rank)
+
             val animal: Animal = Animal()
             val elephant: Animal = Elephant()
             println(larger(animal, elephant).weight())
@@ -140,6 +147,8 @@ struct CodegenBackendComparableUserDefinedClassEdgeCasesTests {
             moduleName: "ComparisonOperatorsCompareToAcrossRelatedRuntimeTypes",
             expected:
                 """
+                3
+                3
                 3
                 3
                 100
