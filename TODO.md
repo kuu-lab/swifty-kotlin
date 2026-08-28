@@ -3735,15 +3735,13 @@
     - `kotlin.collections.AbstractMap.toString` — fun AbstractMap.toString(): String  -- `open fun toString(): kotlin/String`
     - `kotlin.collections.AbstractMap.values` — val AbstractMap.values: Collection  -- `open val values`
 
-- [ ] KSP-1033: kotlin.collections.AbstractMutableCollection top-level の未実装 stdlib API を実装する（1 件）
-  - 対象: `kotlin.collections.AbstractMutableCollection` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableCollection/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_AbstractMutableCollection_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_AbstractMutableCollection_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_AbstractMutableCollection_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.AbstractMutableCollection.<init>` — constructor ()  -- `constructor <init>()`
+- [x] KSP-1033: kotlin.collections.AbstractMutableCollection top-level の未実装 stdlib API を実装する（1 件）
+  - 完了（2026-08-24、TODO同期のみ）: KSP-633のmerged PR #5467 / commit `cbabf90985599eb7c724365e94723cf2a9aaed49` が `AbstractMutableCollection<E>` のsource-backed宣言を追加済み。gap audit由来の本TODOは実装後に生成されたため、未実装の根拠にはならない。
+  - 現行コード: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMutableCollection.kt:18` に `public abstract class AbstractMutableCollection<E> protected constructor() : AbstractCollection<E>(), MutableCollection<E>` が存在する。`E` はinvariantで、引数なしconstructorはprotected。`HeaderCollection.swift` のbundled source mappingと `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の非bundled fallbackも同じ契約を保持する。KIR/Runtime/ABIに対象symbol固有の処理はなく、Loweringは一般collection factory predicateのnominal name判定のみ。
+  - Kotlin 2.3.10根拠: 公式JVM sourceの `AbstractMutableCollection.kt` は `public actual abstract class AbstractMutableCollection<E> protected actual constructor() : MutableCollection<E>, AbstractCollection<E>()`。公式API metadataは `E` をinvariant、`MutableCollection<E>` と `AbstractCollection<E>` をsupertypeとして掲載し、`MutableCollection` 自体もinvariant。公式stdlib classfile metadataは `mv=[2,3,0]`、`ACC_ABSTRACT`、`protected ()V`、`<E> ... AbstractCollection<E> ... Collection<E>` を保持する。公式2.3.10 `kotlinc-jvm`の最小再現で、constructor契約を満たすconcrete subclassと両supertypeへの受け渡し、`AbstractCollection`のcovarianceを受理し、mutable type parameterのvariance変換を拒否することを確認した。
+  - 既存回帰: `Tests/CompilerCoreTests/Sema/ListSyntheticMemberLinkTests.swift:testAbstractMutableCollectionSurfaceIsRegistered` がsource-backed/non-synthetic、abstract、invariant、`AbstractCollection`/`MutableCollection` supertypes、protected・引数なし`<init>`を検証し、`testAbstractMutableCollectionCanBeUsedAsMutableCollectionSupertype` がabstract subclassと両collection supertypeへの受け渡しを検証する。KSP-633の `Scripts/diff_cases/ksp633_abstract_collections.kt` もsource-backed collection surfaceをkotlincと比較する既存ケース。
+  - 競合監査: open PR #6225（KSP-1019）の最新head `692e7650414bdb111941880b0d96598ef3868e00` は同ファイルへMutableCollection extensionを追記するだけで、既存のclass宣言・protected constructorを変更・重複しない。
+  - 未実装シンボル一覧: なし（constructor `<init>()` はKSP-633で実装済み）。
 
 - [ ] KSP-1034: kotlin.collections.AbstractMutableCollection.AbstractMutableCollection の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections.AbstractMutableCollection` / receiver `AbstractMutableCollection`
