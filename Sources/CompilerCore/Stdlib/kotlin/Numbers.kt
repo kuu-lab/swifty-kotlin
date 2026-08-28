@@ -1,6 +1,7 @@
 package kotlin
 
 import kotlin.internal.KsSymbolName
+import kotlin.text.__charFromCode
 
 // KSP-642: rotateLeft / rotateRight は shl / ushr / or の合成だけで表現でき、
 // ランタイムブリッジを必要としない（kk_int_rotateLeft 等 4 関数を削除）。
@@ -18,6 +19,18 @@ public fun Long.rotateLeft(bitCount: Int): Long =
 
 public fun Long.rotateRight(bitCount: Int): Long =
     (this shl (64 - bitCount)) or (this ushr bitCount)
+
+// KSP-1536: Keep the public Int conversion members in bundled Kotlin source.
+// The runtime bridges remain internal representation support: Char uses the
+// existing code-unit constructor bridge, while Double uses the IEEE payload
+// bridge required by the current primitive representation.
+
+@KsSymbolName("kk_int_to_double_bits")
+internal external fun __intToDouble(value: Int): Double
+
+public inline fun Int.toChar(): Char = __charFromCode(this)
+
+public inline fun Int.toDouble(): Double = __intToDouble(this)
 
 // KSP-647: Floating-point bit-pattern conversions keep the ABI-specific
 // reinterpretation in the runtime while exposing the public API as Kotlin.

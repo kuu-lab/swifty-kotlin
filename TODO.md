@@ -633,7 +633,7 @@
   - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
   - 前提: KSP-1531, KSP-1532
 
-- [ ] KSP-1536: `Int` の数値変換メンバを Kotlin 化する
+- [x] KSP-1536: `Int` の数値変換メンバを Kotlin 化する
   - 対象: KSP-1531 で (b) と判定した Int 受け手2件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
   - 削除/降格 kk_*: `kk_int_to_char`, `kk_int_to_double_bits`（`kk_int_to_double_bits` は IEEE payload bridge として (b)。 (c) の8件と synthetic-only identity `kk_int_to_int` は compiler intrinsic/identity owner として残す）
