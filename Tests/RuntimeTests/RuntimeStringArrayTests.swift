@@ -940,6 +940,22 @@ struct RuntimeStringArrayTests {
         }
     }
 
+    @Test
+    func testStringGetOrNullUsesUTF16CodeUnits() {
+        let expectedCodeUnits = Array("🥦".utf16)
+        let stringRaw = registerRuntimeObject(RuntimeStringBox("🥦"))
+
+        #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 0)) == Int(expectedCodeUnits[0]))
+        #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 1)) == Int(expectedCodeUnits[1]))
+        #expect(kk_string_getOrNull(stringRaw, 2) == runtimeNullSentinelInt)
+
+        withFlatString("🥦") { data, length, byteCount, hash in
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 0) == Int(expectedCodeUnits[0]))
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == Int(expectedCodeUnits[1]))
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 2) == runtimeNullSentinelInt)
+        }
+    }
+
     // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
     // KSP-410: count/any/all/none/find/findLast are bundled Kotlin source
     // (StringHOF.kt). None of these lower to a flat runtime cdecl anymore;

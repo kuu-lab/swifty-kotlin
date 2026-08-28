@@ -116,11 +116,11 @@ public func kk_string_singleOrNull(_ strRaw: Int) -> Int {
 
 @_cdecl("kk_string_getOrNull")
 public func kk_string_getOrNull(_ strRaw: Int, _ index: Int) -> Int {
-    let scalars = runtimeStringScalars(strRaw)
-    guard index >= 0, index < scalars.count else {
+    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
+    guard index >= 0, index < codeUnits.count else {
         return runtimeNullSentinelInt
     }
-    return kk_box_char(Int(scalars[index].value))
+    return kk_box_char(Int(codeUnits[index]))
 }
 
 // MARK: - Flat ABI wrappers
@@ -253,11 +253,11 @@ public func kk_string_getOrNull_flat(
     _ hash: Int,
     _ indexRaw: Int
 ) -> Int {
-    let scalars = Array(runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash).unicodeScalars)
-    guard indexRaw >= 0, indexRaw < scalars.count else {
+    let codeUnits = runtimeStringUTF16CodeUnitsFromFlat(data: data, length: length, byteCount: byteCount, hash: hash)
+    guard indexRaw >= 0, indexRaw < codeUnits.count else {
         return runtimeNullSentinelInt
     }
-    return Int(scalars[indexRaw].value)
+    return Int(codeUnits[indexRaw])
 }
 
 @_cdecl("kk_string_compareTo_member")
