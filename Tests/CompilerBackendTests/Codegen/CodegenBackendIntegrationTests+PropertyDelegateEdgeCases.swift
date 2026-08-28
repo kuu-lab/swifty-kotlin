@@ -331,6 +331,66 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
         )
     }
 
+    // A mutable delegated local must remain delegate storage when captured by
+    // a lambda, so reads and writes continue to dispatch getValue/setValue.
+    @Test
+    func testCodegenLocalMutableDelegateCaptureInLambdaUsesAccessors() throws {
+        let source = """
+        class IntProp {
+            var backing: Int = 1
+            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {
+                backing = value
+            }
+        }
+        fun main() {
+            var value by IntProp()
+            val update = {
+                println(value)
+                value = 7
+                println(value)
+            }
+            update()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalMutableDelegateLambdaCapture",
+            expected:
+                """
+                1
+                7
+                """ + "\n"
+        )
+    }
+
+    // A delegated local captured by a nested local function must be restored
+    // as delegate storage after the function scope is reset.
+    @Test
+    func testCodegenLocalDelegateCaptureInNestedFunctionUsesAccessor() throws {
+        let source = """
+        class IntProp {
+            var backing: Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
+        }
+        fun main() {
+            val value by IntProp()
+            fun readValue(): Int = value
+            println(readValue())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalDelegateNestedFunctionCapture",
+            expected:
+                """
+                42
+                """ + "\n"
+        )
+    }
+
     // MARK: - DEBT-KIR-008: class-member `by lazy` per-instance storage/capture
 
     // A class member's `by lazy { ... }` body used to lower into a standalone

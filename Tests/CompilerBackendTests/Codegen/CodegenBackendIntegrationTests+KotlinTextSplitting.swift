@@ -452,6 +452,37 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
         )
     }
 
+    @Test func testSourceIteratorCapturingStringPreservesIntElements() throws {
+        let source = """
+        class StringBackedIntSequence(private val source: String) : Sequence<Int> {
+            override fun iterator(): Iterator<Int> {
+                val capturedSource = source
+                return object : Iterator<Int> {
+                    private var index = 0
+
+                    override fun hasNext(): Boolean = index < capturedSource.length
+
+                    override fun next(): Int {
+                        val value = index + 1
+                        index++
+                        return value
+                    }
+                }
+            }
+        }
+
+        fun main() {
+            println(StringBackedIntSequence("abc").toList())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "StringBackedIntSequence",
+            expected: "[1, 2, 3]\n"
+        )
+    }
+
     @Test func testKotlinTextLinesEdgeCases() throws {
         let source = """
         fun main() {
