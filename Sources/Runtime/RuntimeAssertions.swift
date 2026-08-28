@@ -124,6 +124,25 @@ final class RuntimeConcurrentModificationExceptionBox: RuntimeThrowableBox {
     }
 }
 
+final class RuntimeInvalidMutabilityExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.native.concurrent.InvalidMutabilityException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.native.concurrent.InvalidMutabilityException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("InvalidMutabilityException", message)
+    }
+}
+
 final class RuntimeArrayIndexOutOfBoundsExceptionBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.ArrayIndexOutOfBoundsException"
@@ -495,6 +514,15 @@ func runtimeAllocateConcurrentModificationException(message: String?, cause: Int
     return Int(bitPattern: ptr)
 }
 
+func runtimeAllocateInvalidMutabilityException(message: String?) -> Int {
+    let throwable = RuntimeInvalidMutabilityExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 func runtimeAllocateArrayIndexOutOfBoundsException(message: String?) -> Int {
     let throwable = RuntimeArrayIndexOutOfBoundsExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
@@ -790,6 +818,13 @@ public func kk_concurrent_modification_exception_new() -> Int {
 @_cdecl("__kk_concurrent_modification_exception_new_message")
 public func kk_concurrent_modification_exception_new_message(_ messageRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
+    )
+}
+
+@_cdecl("__kk_invalid_mutability_exception_new_message")
+public func kk_invalid_mutability_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateInvalidMutabilityException(
         message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }

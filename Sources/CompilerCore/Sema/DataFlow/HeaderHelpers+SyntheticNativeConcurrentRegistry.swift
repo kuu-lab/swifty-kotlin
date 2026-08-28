@@ -158,6 +158,7 @@ extension DataFlowSemaPhase {
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
                 symbols: symbols,
+                types: types,
                 interner: interner
             )
         }
@@ -167,6 +168,7 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let obsoleteWorkersApiSymbol = ensureAnnotationClassSymbol(
@@ -203,9 +205,32 @@ extension DataFlowSemaPhase {
                         "AnnotationTarget.TYPEALIAS",
                     ]
                 ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Retention",
+                    arguments: ["AnnotationRetention.BINARY"]
+                ),
+                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.SinceKotlin",
+                    arguments: ["version = \"1.9\""]
+                ),
             ],
             to: obsoleteWorkersApiSymbol,
             symbols: symbols
+        )
+
+        let obsoleteWorkersApiType = types.make(.classType(ClassType(
+            classSymbol: obsoleteWorkersApiSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerNativeConcurrentConstructor(
+            ownerSymbol: obsoleteWorkersApiSymbol,
+            ownerType: obsoleteWorkersApiType,
+            parameters: [],
+            defaultValues: [],
+            symbols: symbols,
+            interner: interner
         )
 
         let sharedImmutableSymbol = ensureAnnotationClassSymbol(
@@ -642,6 +667,7 @@ extension DataFlowSemaPhase {
         registerNativeConcurrentConstructor(
             ownerSymbol: exceptionSymbol,
             ownerType: exceptionType,
+            externalLinkName: "__kk_invalid_mutability_exception_new_message",
             parameters: [(name: "message", type: types.stringType)],
             defaultValues: [false],
             symbols: symbols,
