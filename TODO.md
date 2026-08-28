@@ -7738,13 +7738,15 @@
     - `kotlin.sequences.sequenceOf` — fun sequenceOf(): Sequence  -- `final inline fun <#A: kotlin/Any?> kotlin.sequences/sequenceOf(): kotlin.sequences/Sequence<#A>`
     - `kotlin.sequences.sequenceOf` — fun sequenceOf(): Sequence  -- `final fun <#A: kotlin/Any?> kotlin.sequences/sequenceOf(#A): kotlin.sequences/Sequence<#A>`
 
-- [ ] KSP-1339: kotlin.sequences.Iterator の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1339: kotlin.sequences.Iterator の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.sequences` / receiver `Iterator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/Iterator.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Iterator_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Iterator_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Iterator_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了 (2026-08-24、既存実装のTODO同期): merged PR #5821 / commit `82c9776405e7e91a83e91012eed0aed409e6fc90`（KSP-631）が、現行 `Sources/CompilerCore/Stdlib/kotlin/sequences/Sequences.kt` に `public fun <T> Iterator<T>.asSequence(): Sequence<T>` を追加済み。Kotlin 2.3.10公式source（`kotlin/collections/Sequences.kt`）、JVM metadata（`kotlin.sequences.asSequence`, receiver `kotlin.collections.Iterator<T>`, `Sequence<T>`, public/final, nullable-capable `T`）、および2.3.10 `kotlinc`の挙動と一致する。
+  - 回帰根拠: `IteratorAsSequenceSourceMigrationTests`（source-backed解決・external linkなし）、`CodegenBackendSequenceLazyEdgeCasesTests/testIteratorAsSequencePreservesLazyOneShotSemantics`、`Scripts/diff_cases/iterator_as_sequence.kt` を確認。公式kotlinc 2.3.10/kswiftcの出力一致、focused diff `total=1 failed=0 passed=1`、Sema/Backend各1件PASS。Iterator用のruntime/ABI bridge・synthetic stubは存在せず、List/Array/Stringなど別receiverの既存bridgeは対象外として保持。
   - 未実装シンボル一覧:
     - `kotlin.sequences.asSequence` — fun Iterator.asSequence(): Sequence  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterator<#A>).kotlin.sequences/asSequence(): kotlin.sequences/Sequence<#A>`
 
