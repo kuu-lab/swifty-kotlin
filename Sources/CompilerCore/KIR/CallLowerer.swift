@@ -1251,6 +1251,7 @@ final class CallLowerer {
             "kk_runtime_result_run_catching",
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
+            "__kk_enum_entries_get",
         ].contains(name)
     }
 
@@ -1264,6 +1265,7 @@ final class CallLowerer {
             "kk_runtime_result_on_failure",
             "kk_runtime_result_recover",
             "__kk_synchronized",
+            "__kk_enum_entries_get",
         ].contains(interner.resolve(calleeName))
     }
 
