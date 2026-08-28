@@ -21,7 +21,7 @@ func runtimeRegisterStringBuilderType(_ raw: Int) -> Int {
     runtimeRegisterObjectType(rawValue: raw, classID: stringBuilderTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderCharSequenceSuperTypeID)
     runtimeRegisterTypeEdge(childTypeID: stringBuilderTypeID, parentTypeID: stringBuilderAppendableSuperTypeID)
-    runtimeRegisterCharSequenceLengthItable(raw)
+    runtimeRegisterCharSequenceItable(raw)
     return raw
 }
 
@@ -475,10 +475,10 @@ public func __kk_string_builder_toString(_ sbRaw: Int) -> Int {
 
 @_cdecl("__kk_string_builder_length_prop")
 public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
-    // KSP-724: StringBuilder.length must agree with String.length and with
-    // CharSequence.length dispatch, all of which count Unicode scalars.
+    // KSP-817: StringBuilder.length must agree with String.length and with
+    // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return sb.value.unicodeScalars.count
+    return sb.value.utf16.count
 }
 
 @_cdecl("__kk_string_builder_clear")

@@ -1258,13 +1258,14 @@
     - `kotlin.CharArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.CharArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Char>)`
 
-- [ ] KSP-817: kotlin.CharSequence.CharSequence の未実装 stdlib API を実装する（2 件）
+- [x] KSP-817: kotlin.CharSequence.CharSequence の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.CharSequence` / receiver `CharSequence`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/CharSequence/CharSequence.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/CharSequence.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_CharSequence_CharSequence_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_CharSequence_CharSequence_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_CharSequence_CharSequence_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `CharSequence.get(Int): Char` を nominal source member 化し、operator の interface dynamic dispatch と String/StringBuilder runtime itable（method slot 0、length getter slot 1）を追加。専用 Golden/diff と user-defined receiver の KIR/backend 回帰を追加。
   - 未実装シンボル一覧:
     - `kotlin.CharSequence.get` — fun CharSequence.get(Int): Char  -- `abstract fun get(kotlin/Int): kotlin/Char`
     - `kotlin.CharSequence.length` — val CharSequence.length: Int  -- `abstract val length`

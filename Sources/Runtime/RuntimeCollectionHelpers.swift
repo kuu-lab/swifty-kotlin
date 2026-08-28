@@ -306,7 +306,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     let raw = Int(bitPattern: opaque)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
     if box is RuntimeStringBox {
-        runtimeRegisterCharSequenceLengthItable(raw)
+        runtimeRegisterCharSequenceItable(raw)
     }
     return raw
 }
