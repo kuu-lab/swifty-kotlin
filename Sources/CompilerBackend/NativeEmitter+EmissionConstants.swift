@@ -365,6 +365,8 @@ extension NativeEmitter {
             }
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
+        case "__kk_int_range_induction_add":
+            lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_add_\(instructionIndex)")
         case "kk_op_sub":
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
@@ -436,6 +438,12 @@ extension NativeEmitter {
         case "kk_op_le":
             if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "le_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "le64_\(instructionIndex)")
+            } else {
+                lowered = nil
+            }
+        case "__kk_int_range_induction_le":
+            if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_le_\(instructionIndex)") {
+                lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "range_induction_le64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
