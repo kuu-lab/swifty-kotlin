@@ -900,9 +900,16 @@ extension CallTypeChecker {
             if resultType != sema.types.anyType {
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.markCollectionExpr(id)
-                let didBindSource = !isSequenceReceiver && bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
+                let didBindSource: Bool = if isSequenceReceiver {
+                    bindBundledSequenceDestinationSourceFunction(
+                        typeArguments: [filterType],
+                        parameterMapping: [:]
+                    )
+                } else {
+                    bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
+                }
                 let ownerFQName = isSequenceReceiver
-                    ? [interner.intern("kotlin"), interner.intern("sequences"), interner.intern("Sequence")]
+                    ? [interner.intern("kotlin"), interner.intern("sequences")]
                     : KnownCompilerNames(interner: interner).kotlinCollectionsListFQName
                 if !didBindSource,
                    let chosenCallee = sema.symbols.lookupAll(fqName: ownerFQName + [calleeName]).first(where: { symbolID in

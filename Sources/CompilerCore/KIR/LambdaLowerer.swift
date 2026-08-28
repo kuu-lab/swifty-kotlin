@@ -567,6 +567,14 @@ final class LambdaLowerer {
             driver.ctx.setLocalValue(capturedValue, for: capture.capturedSymbol)
         }
         driver.ctx.setLocalDeclaredType(capture.declaredType, for: capture.capturedSymbol)
+        if let semanticSymbol = sema.symbols.symbol(capture.capturedSymbol),
+           semanticSymbol.kind == .typeParameter,
+           semanticSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: capture.capturedSymbol)
+            driver.ctx.setLocalValue(capturedValue, for: tokenSymbol)
+            driver.ctx.setLocalDeclaredType(sema.types.intType, for: tokenSymbol)
+        }
     }
 
     private func materializeEscapingCallableValue(

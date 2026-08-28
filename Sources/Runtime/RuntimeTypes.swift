@@ -714,7 +714,6 @@ enum SequenceStepKind {
     /// STDLIB-HOF-022: Additional lazy transformation steps
     case mapNotNullStep(fnPtr: Int, closureRaw: Int)
     case filterNotNullStep
-    case filterIsInstanceStep(typeToken: Int)
     case requireNoNullsStep
     case mapIndexedStep(fnPtr: Int, closureRaw: Int)
     case mapIndexedNotNullStep(fnPtr: Int, closureRaw: Int)
