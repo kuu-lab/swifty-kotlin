@@ -192,6 +192,25 @@ struct NativeRefRuntimeSemaTests {
     }
 
     @Test
+    func testWeakReferenceImplDoesNotEmitEmptyAbstractClassWarning() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+            fun weakReferenceImplType(): Any? = null
+            """
+        )
+
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                    && $0.message.contains("kotlin.native.ref.WeakReferenceImpl")
+            },
+            "WeakReferenceImpl must retain its abstract get() contract"
+        )
+    }
+
+    @Test
     func testWeakReferenceHasGetMember() throws {
         let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }

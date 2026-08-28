@@ -16,7 +16,9 @@ import kotlin.native.internal.ExportForCompiler
 public class WeakReference<T : Any> private constructor()
 
 @PublishedApi
-internal abstract class WeakReferenceImpl
+internal abstract class WeakReferenceImpl {
+    abstract fun get(): Any?
+}
 
 @ExperimentalNativeApi
 @SinceKotlin("1.9")
