@@ -5479,7 +5479,7 @@
     - `kotlin.io.print` — fun print(String): Unit  -- `final fun kotlin.io/print(kotlin/String)`
     - `kotlin.io.println` — fun println(String): Unit  -- `final fun kotlin.io/println(kotlin/String)`
 
-- [ ] KSP-1164: kotlin.io.encoding top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1164: kotlin.io.encoding top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.io.encoding` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5488,6 +5488,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.io.encoding.ExperimentalEncodingApi` — class kotlin.io.encoding.ExperimentalEncodingApi  -- `open annotation class kotlin.io.encoding/ExperimentalEncodingApi : kotlin/Annotation {`
+  - 完了根拠: merged PR #5032 / commit `4aaf1b328b52f633964bafa7893c0fb3c5734637` の現行 source-backed declarationをKotlin 2.3.10の公式 `@RequiresOptIn(ERROR)`、BINARY retention、11 targets、`@MustBeDocumented`、`@SinceKotlin("1.8")`に補正し、`ExperimentalEncodingApiSourceTests`、Sema Golden、kotlinc diff回帰で固定した。
 
 - [ ] KSP-1165: kotlin.io.encoding.Base64 top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.io.encoding.Base64` / top-level
