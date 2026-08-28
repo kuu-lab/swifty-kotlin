@@ -56,6 +56,9 @@ public class HexFormat(
     public companion object {
         @ExperimentalStdlibApi
         public val Default: HexFormat = HexFormat()
+
+        /** A default hexadecimal format that emits upper-case digits. */
+        public val UpperCase: HexFormat = HexFormat(upperCase = true)
     }
 }
 
