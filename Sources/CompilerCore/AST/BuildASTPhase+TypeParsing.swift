@@ -491,16 +491,4 @@ extension BuildASTPhase {
         }
         return parsed.consumed == tokens.count ? parsed.ref : nil
     }
-
-    func isParameterModifierToken(_ token: Token) -> Bool {
-        guard case let .keyword(keyword) = token.kind else {
-            return false
-        }
-        switch keyword {
-        case .vararg, .crossinline, .noinline:
-            return true
-        default:
-            return false
-        }
-    }
 }
