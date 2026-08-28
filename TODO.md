@@ -5051,7 +5051,7 @@
     - `kotlin.contracts.ContractBuilder.returns` — fun ContractBuilder.returns(Any): Returns  -- `abstract fun returns(kotlin/Any?): kotlin.contracts/Returns`
     - `kotlin.contracts.ContractBuilder.returnsNotNull` — fun ContractBuilder.returnsNotNull(): ReturnsNotNull  -- `abstract fun returnsNotNull(): kotlin.contracts/ReturnsNotNull`
 
-- [ ] KSP-1127: kotlin.contracts.ExperimentalContracts top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1127: kotlin.contracts.ExperimentalContracts top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.contracts.ExperimentalContracts` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/contracts/ExperimentalContracts/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5060,6 +5060,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.contracts.ExperimentalContracts.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: `#5917` の merged commit `37480d2835fb73c60b9732b4d9f8b046d84b095a` で source-backed declaration に移行済み。現行 `Contracts.kt` の public annotation class から implicit public no-arg constructor がSema登録され、stdlib metadataへserializeされ、consumer library importで復元されることを focused test / Golden / diff で確認。
 
 - [x] KSP-1128: kotlin.contracts.ExperimentalExtendedContracts top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.contracts.ExperimentalExtendedContracts` / top-level
