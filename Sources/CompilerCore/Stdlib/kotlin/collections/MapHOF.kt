@@ -199,6 +199,32 @@ public inline fun <K, V, R> Map<K, V>.mapValuesTo(
 }
 
 /**
+ * Returns the first entry yielding the smallest value of the given [selector].
+ */
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minByOrThrow")
+@kotlin.internal.InlineOnly
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <K, V, R : Comparable<R>> Map<out K, V>.minBy(
+    selector: (Map.Entry<K, V>) -> R
+): Map.Entry<K, V> {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minEntry = iterator.next()
+    if (!iterator.hasNext()) return minEntry
+    var minValue = selector(minEntry)
+    do {
+        val entry = iterator.next()
+        val value = selector(entry)
+        if (minValue > value) {
+            minEntry = entry
+            minValue = value
+        }
+    } while (iterator.hasNext())
+    return minEntry
+}
+
+/**
  * Returns the first entry yielding the largest value of the given [selector] or `null`
  * if there are no entries.
  */
@@ -238,6 +264,248 @@ public inline fun <K, V, R : Comparable<R>> Map<K, V>.minByOrNull(
             minEntry = entry
             minValue = value
         }
+    }
+    return minEntry
+}
+
+/**
+ * Returns the smallest value yielded by [selector].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.minOf(selector: (Map.Entry<K, V>) -> Double): Double {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (value.isNaN()) {
+            minValue = value
+        } else if (!minValue.isNaN()) {
+            if (minValue == 0.0 && value == 0.0) {
+                minValue = if (minValue.toBits() < 0L || value.toBits() < 0L) -0.0 else 0.0
+            } else if (value < minValue) {
+                minValue = value
+            }
+        }
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value yielded by [selector].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.minOf(selector: (Map.Entry<K, V>) -> Float): Float {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (value.isNaN()) {
+            minValue = value
+        } else if (!minValue.isNaN()) {
+            if (minValue == 0.0f && value == 0.0f) {
+                minValue = if (minValue.toBits() < 0 || value.toBits() < 0) -0.0f else 0.0f
+            } else if (value < minValue) {
+                minValue = value
+            }
+        }
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value yielded by [selector].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V, R : Comparable<R>> Map<out K, V>.minOf(
+    selector: (Map.Entry<K, V>) -> R
+): R {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (minValue > value) minValue = value
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value yielded by [selector] or `null` if there are no entries.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.minOfOrNull(selector: (Map.Entry<K, V>) -> Double): Double? {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) return null
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (value.isNaN()) {
+            minValue = value
+        } else if (!minValue.isNaN()) {
+            if (minValue == 0.0 && value == 0.0) {
+                minValue = if (minValue.toBits() < 0L || value.toBits() < 0L) -0.0 else 0.0
+            } else if (value < minValue) {
+                minValue = value
+            }
+        }
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value yielded by [selector] or `null` if there are no entries.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.minOfOrNull(selector: (Map.Entry<K, V>) -> Float): Float? {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) return null
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (value.isNaN()) {
+            minValue = value
+        } else if (!minValue.isNaN()) {
+            if (minValue == 0.0f && value == 0.0f) {
+                minValue = if (minValue.toBits() < 0 || value.toBits() < 0) -0.0f else 0.0f
+            } else if (value < minValue) {
+                minValue = value
+            }
+        }
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value yielded by [selector] or `null` if there are no entries.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V, R : Comparable<R>> Map<out K, V>.minOfOrNull(
+    selector: (Map.Entry<K, V>) -> R
+): R? {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) return null
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (minValue > value) minValue = value
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value according to [comparator] yielded by [selector].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V, R> Map<out K, V>.minOfWith(
+    comparator: Comparator<in R>,
+    selector: (Map.Entry<K, V>) -> R
+): R {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the smallest value according to [comparator] yielded by [selector],
+ * or `null` if there are no entries.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <K, V, R> Map<out K, V>.minOfWithOrNull(
+    comparator: Comparator<in R>,
+    selector: (Map.Entry<K, V>) -> R
+): R? {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) return null
+    val firstEntry = iterator.next()
+    if (!iterator.hasNext()) return selector(firstEntry)
+    var minValue = selector(firstEntry)
+    do {
+        val value = selector(iterator.next())
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    } while (iterator.hasNext())
+    return minValue
+}
+
+/**
+ * Returns the first entry selected by [comparator] as the smallest.
+ */
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minWithOrThrow")
+@kotlin.internal.InlineOnly
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <K, V> Map<out K, V>.minWith(
+    comparator: Comparator<in Map.Entry<K, V>>
+): Map.Entry<K, V> {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minEntry = iterator.next()
+    while (iterator.hasNext()) {
+        val entry = iterator.next()
+        if (comparator.compare(minEntry, entry) > 0) minEntry = entry
+    }
+    return minEntry
+}
+
+/**
+ * Returns the first entry selected by [comparator] as the smallest, or `null`
+ * if there are no entries.
+ */
+@SinceKotlin("1.4")
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.minWithOrNull(
+    comparator: Comparator<in Map.Entry<K, V>>
+): Map.Entry<K, V>? {
+    val iterator = this.entries.iterator()
+    if (!iterator.hasNext()) return null
+    var minEntry = iterator.next()
+    while (iterator.hasNext()) {
+        val entry = iterator.next()
+        if (comparator.compare(minEntry, entry) > 0) minEntry = entry
     }
     return minEntry
 }

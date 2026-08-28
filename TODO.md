@@ -3448,14 +3448,14 @@
     - `kotlin.collections.maxWith` — fun Map.maxWith(Comparator): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/maxWith(kotlin/Comparator<in kotlin.collections/Map.Entry<#A, #B>>): kotlin.collections/Map.Entry<#A, #B>`
     - `kotlin.collections.maxWithOrNull` — fun Map.maxWithOrNull(Comparator): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/maxWithOrNull(kotlin/Comparator<in kotlin.collections/Map.Entry<#A, #B>>): kotlin.collections/Map.Entry<#A, #B>?`
 
-- [ ] KSP-1014: kotlin.collections.Map.min-family の未実装 stdlib API を実装する（11 件）
+- [x] KSP-1014: kotlin.collections.Map.min-family の未実装 stdlib API を実装する（11 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `min`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Map_min.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Map_min.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Map_min.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 対象シンボル一覧:
     - `kotlin.collections.minBy` — fun Map.minBy(Function1): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Comparable<#C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minBy(kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, #C>): kotlin.collections/Map.Entry<#A, #B>`
     - `kotlin.collections.minOf` — fun Map.minOf(Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Comparable<#C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minOf(kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, #C>): #C`
     - `kotlin.collections.minOf` — fun Map.minOf(Function1): Double  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minOf(kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin/Double>): kotlin/Double`
@@ -3467,6 +3467,7 @@
     - `kotlin.collections.minOfWithOrNull` — fun Map.minOfWithOrNull(Comparator, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minOfWithOrNull(kotlin/Comparator<in #C>, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, #C>): #C?`
     - `kotlin.collections.minWith` — fun Map.minWith(Comparator): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minWith(kotlin/Comparator<in kotlin.collections/Map.Entry<#A, #B>>): kotlin.collections/Map.Entry<#A, #B>`
     - `kotlin.collections.minWithOrNull` — fun Map.minWithOrNull(Comparator): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minWithOrNull(kotlin/Comparator<in kotlin.collections/Map.Entry<#A, #B>>): kotlin.collections/Map.Entry<#A, #B>?`
+  - 完了確認（2026-08-24、Kotlin 2.3.10）：`MapHOF.kt` に対象11 APIを追加し、Map receiverのvariance、Comparable/Double/Float overload、Comparator variance、空Map・tie・評価回数・nullable key/value・例外・NaN/±0/infinityをkotlincと照合。Sema Golden shard（1 test / 8 cases）、`diff_kotlinc`（1/1）、source注入実行、ABI external-link（4 tests）、TODO-ID検査をpass。対象専用のsynthetic/runtime/ABI bridgeは無く、共有imported-inline loweringの型復元だけを追加し、隣接 `minByOrNull` と共有bridgeは保持した。
 
 - [ ] KSP-1015: kotlin.collections.Map.minus-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `minus`
