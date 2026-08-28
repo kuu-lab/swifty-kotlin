@@ -6479,7 +6479,7 @@
     - `kotlin.native.concurrent.Future.state` — val Future.state: FutureState  -- `final val state`
     - `kotlin.native.concurrent.Future.toString` — fun Future.toString(): String  -- `final fun toString(): kotlin/String`
 
-- [ ] KSP-1241: kotlin.native.concurrent.FutureState.FutureState の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1241: kotlin.native.concurrent.FutureState.FutureState の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.concurrent.FutureState` / receiver `FutureState`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/FutureState/FutureState.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
