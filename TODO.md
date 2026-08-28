@@ -3656,15 +3656,12 @@
     - `kotlin.collections.AbstractCollection.toArray` — fun AbstractCollection.toArray(Array): Array  -- `open fun <#A1: kotlin/Any?> toArray(kotlin/Array<#A1>): kotlin/Array<#A1>`
     - `kotlin.collections.AbstractCollection.toString` — fun AbstractCollection.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1027: kotlin.collections.AbstractIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1027: kotlin.collections.AbstractIterator top-level の未実装 stdlib API を実装する（1 件。KSP-664で既にsource-backed実装済みのため、重複実装はせずTODO同期のみ）
   - 対象: `kotlin.collections.AbstractIterator` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_AbstractIterator_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_AbstractIterator_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_AbstractIterator_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.collections.AbstractIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 既存実装監査: KSP-664 PR #5044 / commit `0cb868900` の `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractIterator.kt` が `public abstract class AbstractIterator<T> : Iterator<T>` として実装済み。明示的なprimary constructorが無い場合も、Kotlinのsource declarationからpublic no-arg constructor `AbstractIterator.<init>()` が生成されるため、指定パスへの重複クラス追加やsynthetic constructor登録は不要。
+  - Kotlin 2.3.10照合: 公式source・stdlib metadata/JVM class・2.3.10 kotlincで、constructorのpublic visibility、`T` generic、`AbstractIterator<T>()` subclass construction、`state`/`nextValue`のstate-machine ownershipを確認。
+  - bridge/stub監査: AbstractIterator専用の `__kk_*` / `kk_*` Runtime、RuntimeABI、CallTypeChecker/CallLowerer name-string特例は現行コードに残留なし。既存のgeneric iterator runtime bridgeは別用途のため変更なし。
+  - 回帰証跡: `CompilerCoreTests.ListSyntheticMemberLinkTests` の `testAbstractIteratorSurfaceIsRegistered` / `testAbstractIteratorSubclassProtectedMembersResolve`、`CompilerBackendTests.CodegenSuperclassInitializerTests.testUserDefinedAbstractIteratorSubclassYieldsStoredValue`（出力 `42`）、`Scripts/diff_cases/superclass_initializers.kt`（PASS）、`validate_runtime_abi_links.sh`（4件PASS）を再確認。専用Golden/diff fixtureは重複するため追加しない。
 
 - [x] KSP-1028: kotlin.collections.AbstractIterator.AbstractIterator の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections.AbstractIterator` / receiver `AbstractIterator`
