@@ -93,7 +93,7 @@
   - **未解消（別途対応が必要、本 PR のスコープ外）**:
     1. メンバ宣言を1つも持たない object 式（`object : Base(x) {}` のような空ボディ）は上記修正の対象外。`declID`（`ObjectDecl`）自体が生成されず（`parseObjectLiteralDecl` が空ボディで `nil` を返す）、`ObjectLiteralLowerer.lowerObjectLiteralExpr` の別経路（`ensureObjectLiteralGeneratedDecls`、`classID=0` で `nominalLayout` を計算しない簡易パス）を通るため、この PR の修正が届かない。`Delegates.observable`/`vetoable` は必ず override メンバを持つため実害はないが、上記の最小再現2番目のケース単体は依然クラッシュする。
     2. 名前付き（非リテラル）`object : Base(x) { ... }` 宣言は本項目の対象外（症状1は名前付きでも再現しないが、症状2のコンストラクタ実引数破棄と、加えて base 型変数経由での virtual dispatch がレシーバに誤った定数値を積む別バグ — 発見元 p9、`.symbolRef` 定数が `loadGlobal` の代わりに使われている — が残存。詳細未起票、必要になったら新規 CAP として切り出す）
-- [ ] KSP-CAP-019: delegate 式のトレーリングラムダを通常の呼び出し実引数として解決する。ブロック対象: KSP-491・KSP-492・KSP-680・KSP-681
+- [x] KSP-CAP-019: delegate 式のトレーリングラムダを通常の呼び出し実引数として解決する。ブロック対象: KSP-491・KSP-492・KSP-680・KSP-681
   - **注記**: 旧 KSP-CAP-014（2026-08-06 記録、番号は現 KSP-CAP-014「vararg val プロパティ」とは無関係の別ブロッカー）と同一症状で、`f9dea8961c` 付近の TODO.md 編集で台帳から消失していた。2026-08-18 `.build/debug/kswiftc` で再実機確認し、症状・原因とも変化なし（コードコメント `Sources/CompilerCore/AST/BuildASTPhase+TypeParsing.swift` の `propertyHeadTokens` に同一の設計判断が残存）。
   - 症状: `by <factory> { ... }` 形の delegate 式でトレーリングラムダが delegate 式から切り離され、`PropertyDecl.delegateBody` として別経路で保持される（`BuildASTPhase+TypeParsing.swift` の `propertyHeadTokens` が `.block` 子ノードで打ち切り、`BuildASTPhase+DeclBuilders.swift` の `makePropertyDecl` が再パース）。このため operator 規約による通常解決から見ると、コンストラクタ形 `by MyLazy { ... }` は実引数 0 個の呼び出し（→ `KSWIFTK-SEMA-0103`）、関数形 `by myLazy { ... }` は初期化ラムダ欠落のまま lowering され実行時クラッシュになる。`kk_lazy_create` 等の特例経路だけが `delegateBody` を拾えるので、現状の `by lazy { ... }` は「動いて見える」
   - 最小再現（`operator fun getValue` をメンバとして持つユーザー定義 delegate。括弧付き `by myLazy({ ... })` は正常動作するのでトレーリングラムダ固有。2026-08-18 再実機確認済み — ctor 形は `KSWIFTK-SEMA-0103`、関数形は `KSWIFTK-RUNTIME-0001: kk_array_get_inbounds precondition failed`）:
@@ -113,7 +113,8 @@
     val b: String by myLazy { "fn" }          // 実行時 KSWIFTK-RUNTIME-0001: kk_array_get_inbounds precondition failed
     ```
     kotlinc 2.3.10 は両方とも `ctor` / `fn` を出力する
-  - 対応方針: `declarationDelegateExpression` 側でもトレーリングラムダを呼び出しの最終実引数として畳み込む（`propertyHeadTokens(includingTrailingLambdaTokens:)` の opt-in を delegate 経路にも広げる）。`observable`/`vetoable` の合成スタブが初期値 1 引数しか受け付けない点が KSP-CAP-005 時点で畳み込みを見送った理由なので、合成スタブ側のシグネチャ更新（または Kotlin 宣言への置換）と同時に行う必要がある
+  - 対応方針: `declarationDelegateExpression` 側でもトレーリングラムダを呼び出しの最終実引数として畳み込み（`propertyHeadTokens(includingTrailingLambdaTokens:)` を delegate 経路でも opt-in）。`delegateBody` は call argument の同じ AST body を参照して既存の delegate lowering と互換にし、二重診断・二重実行を防止。`observable`/`vetoable` の合成スタブは既存の callback 引数・default signature と整合することを確認し、別移行は含めていない。
+  - **完了 (2026-08-23)**: ctor/factory の top-level・member・local delegated property、generic inference、capture、multi-statement lambda、括弧付き対照、missing `getValue` の単一診断、lambda 一回実行を回帰固定。`CompilerCoreTests+TrailingLambdaParsing.swift`、`DelegatePropertyKIRTests.swift`、`CodegenBackendIntegrationTests+PropertyDelegateEdgeCases.swift`、`Scripts/diff_cases/delegate_trailing_lambda.kt` を追加し、delegate observable/vetoable の Sema Golden 3件は新しい通常 call argument 形へ機械的に更新した。`swift build`、focused AST/Sema/KIR/codegen、関連 Parser/Diagnostics/Sema Golden、直接 `kswiftc`、`diff_kotlinc`、runtime ABI、TODO ID、`git diff --check` を pass。
 - [x] KSP-CAP-020: 拡張 operator `getValue`/`setValue` を property delegate の解決候補に含める。ブロック対象: KSP-491（本家形 `public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T`）
   - **注記**: 旧 KSP-CAP-015（2026-08-06 記録）と同一症状で、`f9dea8961c` 付近の TODO.md 編集で台帳から消失していた。2026-08-18 `.build/debug/kswiftc` で再実機確認し変化なし。
   - 症状: `DeclTypeChecker+PropertyHelpers.swift` の `typeCheckDelegate` は `collectMemberFunctionCandidates`（メンバと supertype のみ走査）で候補を集めるため、拡張関数として宣言された operator は一切見えず `KSWIFTK-SEMA-0103` になる
@@ -153,7 +154,7 @@
   - **設計上の逸脱**: `Lazy<T>.getValue` は拡張関数ではなくインターフェースのメンバ（KSP-CAP-020 回避）とし、`Delegates.observable/vetoable` は匿名 object ではなく named private subclass（KSP-CAP-018 回避）で実装。
   - `LazyImpl` は `SYNCHRONIZED` の per-object lock bridge を使い、`PUBLICATION` は synchronized な状態確認・commit と initializer の一回外実行で公開値を保護する。未初期化判定は `computed: Boolean` で行う。
   - **作業中に発見し同PRで修正したバグ**: BUG-212（ローカル `by` delegate のラムダ capture が delegate storage を失う）、BUG-213（precompiled stdlib 外から field-less bundled object を参照した際の weak global fallback 未到達）。
-  - **ブロッカー（回避策で対応）**: KSP-CAP-018（匿名 object 式クラス継承）、KSP-CAP-019（delegate trailing lambda の一般化）、KSP-CAP-020（拡張 operator の delegate 解決）。
+  - **ブロッカー（回避策で対応）**: KSP-CAP-018（匿名 object 式クラス継承）、KSP-CAP-020（拡張 operator の delegate 解決）。
   - **削除**: `kk_lazy_create/of/get_value/is_initialized`、`kk_observable_*`、`kk_vetoable_*`、`kk_notNull_*` と、それらの synthetic delegate 登録・旧 lowering/runtime/ABI 経路。
   - **検証**: PR既存の delegate diff/KIR/実行回帰を保持。Swift Testing の広域実行はホストの SIGBUS/worker termination により完走できない環境制約があるため、focused validation と直接実行結果を分離して報告する。
 
