@@ -7513,7 +7513,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.ULongProgression.Companion.fromClosedRange` — fun Companion.fromClosedRange(ULong, ULong, Long): ULongProgression  -- `final fun fromClosedRange(kotlin/ULong, kotlin/ULong, kotlin/Long): kotlin.ranges/ULongProgression`
 
-- [ ] KSP-1320: kotlin.ranges.ULongRange top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1320: kotlin.ranges.ULongRange top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ranges.ULongRange` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/ULongRange/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -7523,6 +7523,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.ULongRange.<init>` — constructor (ULong, ULong)  -- `constructor <init>(kotlin/ULong, kotlin/ULong)`
     - `kotlin.ranges.ULongRange.Companion` — object kotlin.ranges.ULongRange.Companion  -- `final object Companion {`
+  - 完了根拠: Kotlin 2.3.10 の nominal identity に合わせ、constructor と空の top-level `Companion` を bundled Kotlin source に移行。既存の `kk_ulong_rangeTo` ABI factory と KSP-1321 receiver residuals は保持し、KSP-1322 `Companion.EMPTY` は未変更。
 
 - [ ] KSP-1321: kotlin.ranges.ULongRange.ULongRange の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.ranges.ULongRange` / receiver `ULongRange`
