@@ -275,7 +275,20 @@ struct LinkPhaseIntegrationTests {
         let args = LinkPhase().linkerDriverArgs(for: linuxTarget)
 
         #expect(Array(args.prefix(2)) == ["-target", "x86_64-unknown-linux-gnu"])
-        #expect(args.contains("-no-pie"))
+        #expect(Array(args.suffix(5)) == [
+            "-Xlinker", "--gc-sections",
+            "-Xlinker", "-no-pie",
+            "-parse-as-library",
+        ])
+    }
+
+    @Test
+    func testLinkerDriverArgsEnableDeadStripForAppleTargets() {
+        let macTarget = TargetTriple(arch: "arm64", vendor: "apple", os: "macosx", osVersion: nil)
+        let args = LinkPhase().linkerDriverArgs(for: macTarget)
+
+        #expect(Array(args.suffix(2)) == ["-Xlinker", "-dead_strip"])
+        #expect(!args.contains("--gc-sections"))
     }
 
     @Test
