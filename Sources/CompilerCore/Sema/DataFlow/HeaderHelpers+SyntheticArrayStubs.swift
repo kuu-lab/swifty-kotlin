@@ -110,7 +110,7 @@ extension DataFlowSemaPhase {
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
-        // --- Array extension functions: copyInto, sliceArray, reversedArray ---
+        // --- Array extension functions: sliceArray, reversedArray ---
         //
         // KSP-658: generic Array<T>.contentEquals / contentToString / copyOf /
         // copyOfRange are bundled Kotlin source
@@ -151,56 +151,6 @@ extension DataFlowSemaPhase {
                     classTypeParameterCount: 1
                 ),
                 for: reversedArraySymbol
-            )
-        }
-
-        // copyInto(destination, destinationOffset, startIndex, endIndex): Array<T>
-        let copyIntoName = interner.intern("copyInto")
-        let copyIntoFQName = arrayFQName + [copyIntoName]
-        if symbols.lookup(fqName: copyIntoFQName) == nil {
-            let copyIntoSymbol = symbols.define(
-                kind: .function,
-                name: copyIntoName,
-                fqName: copyIntoFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: copyIntoSymbol)
-            symbols.setExternalLinkName("kk_array_copyInto", for: copyIntoSymbol)
-
-            let arrayTypeParam = types.make(.typeParam(TypeParamType(symbol: tParamSymbol, nullability: .nonNull)))
-            let arrayType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [.invariant(arrayTypeParam)],
-                nullability: .nonNull
-            )))
-            let parameterSymbols = ["destination", "destinationOffset", "startIndex", "endIndex"].map { parameterName in
-                let internedParameterName = interner.intern(parameterName)
-                let parameterSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: internedParameterName,
-                    fqName: copyIntoFQName + [internedParameterName],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(copyIntoSymbol, for: parameterSymbol)
-                return parameterSymbol
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: arrayType,
-                    parameterTypes: [arrayType, types.intType, types.intType, types.intType],
-                    returnType: arrayType,
-                    isSuspend: false,
-                    valueParameterSymbols: parameterSymbols,
-                    valueParameterHasDefaultValues: [false, true, true, true],
-                    valueParameterIsVararg: [false, false, false, false],
-                    typeParameterSymbols: [tParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: copyIntoSymbol
             )
         }
 
@@ -514,7 +464,9 @@ extension DataFlowSemaPhase {
                         flags: [.synthetic]
                     )
                     symbols.setParentSymbol(arraySymbol, for: toTypedArraySym)
-                    symbols.setExternalLinkName("kk_array_copyOf", for: toTypedArraySym)
+                    // KSP-1515: this is the residual toTypedArray allocation bridge;
+                    // the public Array.copyOf overloads are source-backed below.
+                    symbols.setExternalLinkName("__kk_array_copyOf", for: toTypedArraySym)
 
                     let elementType: TypeID = switch name {
                     case "UByteArray": types.ubyteType
@@ -555,146 +507,6 @@ extension DataFlowSemaPhase {
         // conversions (asByteArray/asShortArray/asIntArray/asLongArray) are now
         // implemented in bundled Kotlin (Stdlib/kotlin/collections/UArrays.kt), which
         // delegates to the __kk_u*Array_as*Array runtime bridges.
-
-        // Register copyOf(newSize) and copyOf(newSize, init) for unsigned primitive arrays.
-        for name in unsignedPrimitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
-                continue
-            }
-
-            let elementType: TypeID = switch name {
-            case "UByteArray": types.ubyteType
-            case "UShortArray": types.ushortType
-            case "UIntArray": types.uintType
-            case "ULongArray": types.ulongType
-            default: types.intType
-            }
-            let arrayReceiverType = types.make(.classType(ClassType(
-                classSymbol: arraySymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let initFunctionType = types.make(.functionType(FunctionType(
-                params: [types.intType],
-                returnType: elementType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let copyOfName = interner.intern("copyOf")
-            let copyOfFQName = fqName + [copyOfName]
-
-            func registerCopyOfOverload(
-                parameterTypes: [TypeID],
-                parameterNames: [String],
-                parameterFQNameSuffix: String,
-                externalLinkName: String,
-                flags: SymbolFlags = [.synthetic]
-            ) {
-                let alreadyRegistered = symbols.lookupAll(fqName: copyOfFQName).contains { symbolID in
-                    guard let sig = symbols.functionSignature(for: symbolID) else { return false }
-                    return sig.receiverType == arrayReceiverType
-                        && sig.parameterTypes == parameterTypes
-                        && sig.returnType == arrayReceiverType
-                }
-                guard !alreadyRegistered else { return }
-                let copyOfSym = symbols.define(
-                    kind: .function,
-                    name: copyOfName,
-                    fqName: copyOfFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: flags
-                )
-                symbols.setParentSymbol(arraySymbol, for: copyOfSym)
-                symbols.setExternalLinkName(externalLinkName, for: copyOfSym)
-                let parameterSymbols = parameterNames.map { parameterName -> SymbolID in
-                    let internedParameterName = interner.intern(parameterName)
-                    let parameterSymbol = symbols.define(
-                        kind: .valueParameter,
-                        name: internedParameterName,
-                        fqName: copyOfFQName + [interner.intern("\(parameterName)$\(parameterFQNameSuffix)")],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(copyOfSym, for: parameterSymbol)
-                    return parameterSymbol
-                }
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: parameterTypes,
-                        returnType: arrayReceiverType,
-                        isSuspend: false,
-                        valueParameterSymbols: parameterSymbols,
-                        valueParameterHasDefaultValues: Array(repeating: false, count: parameterTypes.count),
-                        valueParameterIsVararg: Array(repeating: false, count: parameterTypes.count),
-                        typeParameterSymbols: []
-                    ),
-                    for: copyOfSym
-                )
-            }
-
-            registerCopyOfOverload(
-                parameterTypes: [types.intType],
-                parameterNames: ["newSize"],
-                parameterFQNameSuffix: "newSize",
-                externalLinkName: "kk_array_copyOf_newSize"
-            )
-            registerCopyOfOverload(
-                parameterTypes: [types.intType, initFunctionType],
-                parameterNames: ["newSize", "init"],
-                parameterFQNameSuffix: "newSizeInit",
-                externalLinkName: "kk_array_copyOf_newSize_init",
-                flags: [.synthetic, .inlineFunction, .throwingFunction]
-            )
-        }
-
-        // Register copyOfRange(fromIndex, toIndex) for unsigned primitive arrays.
-        for name in unsignedPrimitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
-                continue
-            }
-
-            let copyOfRangeName = interner.intern("copyOfRange")
-            let copyOfRangeFQName = fqName + [copyOfRangeName]
-            if symbols.lookup(fqName: copyOfRangeFQName) == nil {
-                let copyOfRangeSym = symbols.define(
-                    kind: .function,
-                    name: copyOfRangeName,
-                    fqName: copyOfRangeFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: copyOfRangeSym)
-                symbols.setExternalLinkName("kk_array_copyOfRange", for: copyOfRangeSym)
-
-                let arrayType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayType,
-                        parameterTypes: [types.intType, types.intType],
-                        returnType: arrayType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: []
-                    ),
-                    for: copyOfRangeSym
-                )
-            }
-        }
 
         // Register sliceArray(indices: IntRange) and sliceArray(indices: Iterable<Int>) for primitive arrays.
         for name in primitiveArrayNames {
@@ -825,53 +637,6 @@ extension DataFlowSemaPhase {
                 )
             }
 
-            let copyIntoName = interner.intern("copyInto")
-            let copyIntoFQName = fqName + [copyIntoName]
-            if symbols.lookup(fqName: copyIntoFQName) == nil {
-                let copyIntoSym = symbols.define(
-                    kind: .function,
-                    name: copyIntoName,
-                    fqName: copyIntoFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: copyIntoSym)
-                symbols.setExternalLinkName("kk_array_copyInto", for: copyIntoSym)
-
-                let arrayType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                let parameterSymbols = ["destination", "destinationOffset", "startIndex", "endIndex"].map { parameterName in
-                    let internedParameterName = interner.intern(parameterName)
-                    let parameterSymbol = symbols.define(
-                        kind: .valueParameter,
-                        name: internedParameterName,
-                        fqName: copyIntoFQName + [internedParameterName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(copyIntoSym, for: parameterSymbol)
-                    return parameterSymbol
-                }
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayType,
-                        parameterTypes: [arrayType, types.intType, types.intType, types.intType],
-                        returnType: arrayType,
-                        isSuspend: false,
-                        valueParameterSymbols: parameterSymbols,
-                        valueParameterHasDefaultValues: [false, true, true, true],
-                        valueParameterIsVararg: [false, false, false, false],
-                        typeParameterSymbols: []
-                    ),
-                    for: copyIntoSym
-                )
-            }
         }
 
         let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [

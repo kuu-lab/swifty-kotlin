@@ -177,10 +177,10 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
-        // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
-        // When Sema resolves the call to that source declaration, skip the legacy
-        // kk_array_copyOf* interception below so the resolved symbol is emitted.
+        // KSP-1515: Array copy APIs now have bundled Kotlin source implementations
+        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt). When Sema resolves
+        // the call to one of those declarations, skip the legacy copy interception
+        // below so the resolved source symbol is emitted.
         let isSourceBackedArrayCopyCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -1702,74 +1702,6 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall,
-               interner.resolve(calleeName) == "copyOf"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_copyOf_newSize"),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        if args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall {
-                if interner.resolve(calleeName) == "copyOf" {
-                    let fnPtrExpr: KIRExprID
-                    let envPtrExpr: KIRExprID
-                    if normalizedArgIDs.count >= 3 {
-                        fnPtrExpr = normalizedArgIDs[1]
-                        envPtrExpr = normalizedArgIDs[2]
-                    } else {
-                        let split = splitCallableLambdaArgument(
-                            normalizedArgIDs[1],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        fnPtrExpr = split.fnPtrExpr
-                        envPtrExpr = split.envPtrExpr
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOf_newSize_init"),
-                        arguments: [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if interner.resolve(calleeName) == "copyOfRange" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOfRange"),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: true,
-                        thrownResult: arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
-                        )
-                    ))
-                    return result
-                }
-            }
-        }
-
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
 
         // KSP-307: ListWindowChunk public functions are source-backed, but codegen
@@ -1915,9 +1847,9 @@ extension CallLowerer {
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":
-                    "kk_array_copyOf"
+                    "__kk_array_copyOf"
                 case "copyOf":
-                    isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
+                    isSourceBackedArrayCopyCall ? nil : "__kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
                 default:
