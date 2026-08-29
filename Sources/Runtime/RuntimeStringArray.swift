@@ -410,9 +410,9 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
 
     init(_ value: String) {
         let bytes = Array(value.utf8)
-        // `length` is the Unicode scalar count (the space string indices live in),
-        // `byteCount` the UTF-8 byte count; they only coincide for ASCII text.
-        self.length = value.unicodeScalars.count
+        // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
+        // `byteCount` is the UTF-8 byte count used by the flat ABI.
+        self.length = value.utf16.count
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))
@@ -526,7 +526,7 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     // Native string construction is also used for temporary CharSequence
     // windows created by bundled text helpers. Keep those boxes on the same
     // interface-property itable path as registerRuntimeObject.
-    runtimeRegisterCharSequenceLengthItable(Int(bitPattern: opaque))
+    runtimeRegisterCharSequenceItable(Int(bitPattern: opaque))
     return opaque
 }
 
@@ -1607,6 +1607,50 @@ public func __kk_ktypeprojection_create(_ typeRaw: Int, _ varianceOrdinal: Int) 
     return registerRuntimeObject(box, typeID: kTypeProjectionRuntimeTypeID)
 }
 
+/// Creates a KTypeProjection through its public constructor.
+/// The Kotlin constructor accepts either two nulls (a star projection) or
+/// two non-null values; every other pair throws IllegalArgumentException.
+@_cdecl("__kk_ktypeprojection_create_checked")
+public func __kk_ktypeprojection_create_checked(
+    _ varianceOrdinal: Int,
+    _ typeRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+
+    let varianceIsNull = varianceOrdinal == runtimeNullSentinelInt
+    let typeIsNull = typeRaw == 0 || typeRaw == runtimeNullSentinelInt
+    // Nullable enum arguments cross the runtime ABI as boxed Int handles.
+    // Preserve the null sentinel before unboxing; kk_unbox_int maps null to 0.
+    let kotlinVarianceOrdinal = varianceIsNull ? -1 : kk_unbox_int(varianceOrdinal)
+    // KVariance declares INVARIANT, IN, OUT, while RuntimeKVariance keeps the
+    // existing typeOf bridge's internal order IN, OUT, INVARIANT.
+    let decodedVarianceOrdinal: Int = switch kotlinVarianceOrdinal {
+    case 0: 2 // INVARIANT
+    case 1: 0 // IN
+    case 2: 1 // OUT
+    default: kotlinVarianceOrdinal
+    }
+    guard varianceIsNull == typeIsNull else {
+        let message: String
+        if varianceIsNull {
+            message = "Star projection must have no type specified."
+        } else {
+            let varianceName: String = switch RuntimeKVariance(rawValue: decodedVarianceOrdinal) {
+            case .in: "IN"
+            case .out: "OUT"
+            case .invariant: "INVARIANT"
+            case nil: "INVARIANT"
+            }
+            message = "The projection variance \(varianceName) requires type to be specified."
+        }
+        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: message)
+        return 0
+    }
+
+    return __kk_ktypeprojection_create(typeIsNull ? 0 : typeRaw, decodedVarianceOrdinal)
+}
+
 /// Implements `typeOf<T>()` — creates a KType for the given type token.
 /// This is the reified inline function entry point. The compiler emits the
 /// type token and nullability at the call site.
@@ -1867,6 +1911,9 @@ func runtimeRenderAnyForPrint(_ value: Int) -> String {
     }
     if let throwable = tryCast(raw, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
+    }
+    if let instantBox = tryCast(raw, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
     }
     if let listBox = tryCast(raw, to: RuntimeListBox.self) {
         return "[\(listBox.values.map(runtimeRenderAnyForPrint).joined(separator: ", "))]"

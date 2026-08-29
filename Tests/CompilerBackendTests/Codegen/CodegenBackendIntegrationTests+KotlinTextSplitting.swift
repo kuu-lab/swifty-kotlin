@@ -345,6 +345,113 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
         )
     }
 
+    @Test func testKotlinTextChunkWindowZipAcrossCharSequences() throws {
+        let source = """
+        fun main() {
+            val string = "abcde"
+            val chars: CharSequence = StringBuilder("abcde")
+
+            println(string.chunked(2))
+            println(chars.chunked(2))
+            println(string.chunked(2) { it.toString().uppercase() })
+            println(chars.chunked(2) { it.toString().uppercase() })
+
+            println(string.windowed(3, 2, true))
+            println(chars.windowed(3, 2, true))
+            println(string.windowed(3, 2, true) { it.length })
+            println(chars.windowed(3, 2, true) { it.length })
+
+            println(string.chunkedSequence(2).toList())
+            println(chars.chunkedSequence(2).toList())
+            println(string.chunkedSequence(2) { it.toString().uppercase() }.toList())
+            println(chars.chunkedSequence(2) { it.toString().uppercase() }.toList())
+            println(string.windowedSequence(3, 2, false).toList())
+            println(chars.windowedSequence(3, 2, false).toList())
+            println(string.windowedSequence(3, 2, true) { it.length }.toList())
+            println(chars.windowedSequence(3, 2, true) { it.length }.toList())
+
+            println(string.zip("XYZ"))
+            println(chars.zip("XYZ"))
+            println(string.zip("XYZ") { left, right -> "$left$right" })
+            println(chars.zip("XYZ") { left, right -> "$left$right" })
+            println(string.zipWithNext())
+            println(chars.zipWithNext())
+            println(string.zipWithNext { left, right -> "$left$right" })
+            println(chars.zipWithNext { left, right -> "$left$right" })
+
+            var transformCalls = 0
+            val lazy: Sequence<String> = chars.windowedSequence(2) { window: CharSequence ->
+                transformCalls++
+                window.toString()
+            }
+            println(transformCalls)
+            println(lazy.iterator().next())
+            println(transformCalls)
+
+            try {
+                chars.chunked(0)
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowed(2, 0)
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowedSequence(0).toList()
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowedSequence(2, 0).toList()
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextChunkWindowZipAcrossCharSequences",
+            expected:
+                """
+                [ab, cd, e]
+                [ab, cd, e]
+                [AB, CD, E]
+                [AB, CD, E]
+                [abc, cde, e]
+                [abc, cde, e]
+                [3, 3, 1]
+                [3, 3, 1]
+                [ab, cd, e]
+                [ab, cd, e]
+                [AB, CD, E]
+                [AB, CD, E]
+                [abc, cde]
+                [abc, cde]
+                [3, 3, 1]
+                [3, 3, 1]
+                [(a, X), (b, Y), (c, Z)]
+                [(a, X), (b, Y), (c, Z)]
+                [aX, bY, cZ]
+                [aX, bY, cZ]
+                [(a, b), (b, c), (c, d), (d, e)]
+                [(a, b), (b, c), (c, d), (d, e)]
+                [ab, bc, cd, de]
+                [ab, bc, cd, de]
+                0
+                ab
+                1
+                size must be positive, but was 0
+                step must be positive, but was 0
+                size must be positive, but was 0
+                step must be positive, but was 0
+                """
+                + "\n"
+        )
+    }
+
     @Test func testSourceIteratorCapturingStringPreservesIntElements() throws {
         let source = """
         class StringBackedIntSequence(private val source: String) : Sequence<Int> {

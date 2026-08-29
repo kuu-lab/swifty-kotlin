@@ -361,7 +361,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     let raw = Int(bitPattern: opaque)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
     if box is RuntimeStringBox {
-        runtimeRegisterCharSequenceLengthItable(raw)
+        runtimeRegisterCharSequenceItable(raw)
     }
     return raw
 }
@@ -871,6 +871,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     }
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
+    }
+    if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
     }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.values.map { runtimeElementToString($0) }
