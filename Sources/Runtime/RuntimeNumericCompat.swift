@@ -8,6 +8,9 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    if runtimeIsUnitBox(value) {
+        return runtimeMakeStringPointer("kotlin.Unit")
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -189,6 +192,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value
     }
+    if runtimeIsUnitBox(value) {
+        return 0
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
             .filter { !$0.isEmpty }
@@ -200,9 +206,17 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
+    }
+    // Kotlin Set.hashCode() is the sum of the element hash codes, independent
+    // of insertion order. Keep Any.hashCode() consistent with Set equality for
+    // runtime-backed sets, including sets reached through an erased Any value.
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        return setBox.elements.reduce(0) { partial, element in
+            partial &+ kk_any_hashCode(element, 0)
+        }
     }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
@@ -289,6 +303,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     if tryCast(pointer, to: RuntimeULongBox.self) != nil {
         return 10
+    }
+    if runtimeIsUnitBox(value) {
+        return 11
     }
     return 100
 }

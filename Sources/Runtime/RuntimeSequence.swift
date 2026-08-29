@@ -613,17 +613,6 @@ private func runtimeSequenceTransformElement(
                 yield: yield
             )
         }
-    case let .filterIsInstanceStep(typeToken):
-        if kk_op_is(element, typeToken) != 0 {
-            runtimeSequenceTransformElement(
-                element,
-                steps: steps,
-                stepIndex: stepIndex + 1,
-                state: state,
-                outThrown: outThrown,
-                yield: yield
-            )
-        }
     case .requireNoNullsStep:
         if runtimeNormalizeNullableCollectionValue(element) == nil {
             outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: kSequenceRequireNoNullsFoundNull)
@@ -1053,7 +1042,7 @@ func runtimeTraverseSequenceWithState(
             return
         case .mapStep, .filterStep, .filterNotStep, .takeStep, .dropStep, .distinctStep,
              .distinctByStep, .zipStep, .takeWhileStep, .dropWhileStep, .onEachStep,
-             .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep, .filterIsInstanceStep,
+             .onEachIndexedStep, .mapNotNullStep, .filterNotNullStep,
              .filterIndexedStep, .requireNoNullsStep, .mapIndexedStep, .mapIndexedNotNullStep, .withIndexStep, .flatMapStep,
              .flatMapIndexedStep, .chunkedTransformStep, .shuffledStep:
             continue
@@ -1486,8 +1475,6 @@ private func evaluateSequence(
             elements = applyMapNotNullStep(elements, fnPtr: fnPtr, closureRaw: closureRaw, outThrown: outThrown)
         case .filterNotNullStep:
             elements = applyFilterNotNullStep(elements)
-        case let .filterIsInstanceStep(typeToken):
-            elements = applyFilterIsInstanceStep(elements, typeToken: typeToken)
         case .requireNoNullsStep:
             elements = applyRequireNoNullsStep(elements, outThrown: outThrown)
         case let .mapIndexedStep(fnPtr, closureRaw):
@@ -2011,22 +1998,6 @@ public func kk_sequence_filterNotNull(_ seqRaw: Int) -> Int {
     }
     var newSteps = seq.steps
     newSteps.append(.filterNotNullStep)
-    let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
-    return registerRuntimeObject(newSeq)
-}
-
-@_cdecl("kk_sequence_filterIsInstance")
-public func kk_sequence_filterIsInstance(_ seqRaw: Int, _ typeToken: Int) -> Int {
-    guard let seq = runtimeSequenceBox(from: seqRaw) else {
-        let sourceElements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-        let newSeq = RuntimeSequenceBox(steps: [
-            .source(elements: sourceElements),
-            .filterIsInstanceStep(typeToken: typeToken),
-        ])
-        return registerRuntimeObject(newSeq)
-    }
-    var newSteps = seq.steps
-    newSteps.append(.filterIsInstanceStep(typeToken: typeToken))
     let newSeq = RuntimeSequenceBox(steps: newSteps, constrainOnceState: seq.constrainOnceState)
     return registerRuntimeObject(newSeq)
 }
@@ -2561,100 +2532,6 @@ public func kk_sequence_last(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<In
     }
     return result
 }
-
-@_cdecl("kk_sequence_find")
-public func kk_sequence_find(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var found = false
-    var result = 0
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: outThrown) { elem in
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = true
-                result = elem
-                return false
-            }
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return runtimeNullSentinelInt
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = true
-                result = elem
-                break
-            }
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    return found ? result : runtimeNullSentinelInt
-}
-
-@_cdecl("kk_sequence_findLast")
-public func kk_sequence_findLast(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let lambda = unsafeBitCast(fnPtr, to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self)
-    var found = runtimeNullSentinelInt
-    var hasMatch = false
-    var traversalState: SequenceTraversalState?
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        let state = SequenceTraversalState()
-        traversalState = state
-        runtimeTraverseSequenceWithState(seq, state: state, outThrown: outThrown) { elem in
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return false
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = elem
-                hasMatch = true
-            }
-            return true
-        }
-    } else {
-        for elem in runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function) {
-            var thrown = 0
-            let predicateResult = lambda(closureRaw, elem, &thrown)
-            if thrown != 0 {
-                outThrown?.pointee = thrown
-                return runtimeNullSentinelInt
-            }
-            if maybeUnbox(predicateResult) != 0 {
-                found = elem
-                hasMatch = true
-            }
-        }
-    }
-    if let outThrown, outThrown.pointee != 0 { return runtimeNullSentinelInt }
-    if let traversalState, traversalState.limitReached {
-        outThrown?.pointee = runtimeAllocateThrowable(message: kSequenceGeneratorLimitReached)
-        return runtimeNullSentinelInt
-    }
-    return hasMatch ? found : runtimeNullSentinelInt
-}
-
 
 @_cdecl("kk_sequence_lastOrNull")
 public func kk_sequence_lastOrNull(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

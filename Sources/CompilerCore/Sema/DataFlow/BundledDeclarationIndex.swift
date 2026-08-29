@@ -143,6 +143,13 @@ struct BundledDeclarationIndex: Sendable {
             if Self.isSyntheticJoinToTransformOverload(symbol.id, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
+            // A Kotlin property and an extension function may share the same
+            // owner, name, and arity. Do not report the retained synthetic
+            // property when the bundled declaration is the source-backed
+            // function being migrated (for example CharProgression.first).
+            if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
+                continue
+            }
             guard contains(key), reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
@@ -210,6 +217,39 @@ struct BundledDeclarationIndex: Sendable {
                 return true
             }
             return false
+        }
+    }
+
+    private static func hasSourceBackedFunctionOverlap(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { interner.intern($0) }
+        let migratedNames = Set(["first", "firstOrNull", "last", "lastOrNull"].map { interner.intern($0) })
+        guard symbol.kind == .property,
+              key.ownerFQName == charProgressionFQName,
+              migratedNames.contains(key.name)
+        else {
+            return false
+        }
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.kind == .function,
+                  !candidate.flags.contains(.synthetic),
+                  candidate.declSite != nil,
+                  let candidateKey = memberKey(
+                      for: candidate,
+                      symbolID: candidate.id,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return candidateKey == key
         }
     }
 
