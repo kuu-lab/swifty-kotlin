@@ -21,6 +21,7 @@
 extension DataFlowSemaPhase {
     func registerSyntheticExperimentalMarkerStubs(
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let kotlinPkg = ensurePackage(
@@ -51,6 +52,7 @@ extension DataFlowSemaPhase {
             packageFQName: kotlinExperimentalPkg,
             packageSymbol: kotlinExperimentalPkgSymbol,
             symbols: symbols,
+            types: types,
             interner: interner
         )
     }
@@ -127,6 +129,7 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         packageSymbol: SymbolID,
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let className = interner.intern("ExpectRefinement")
@@ -154,6 +157,14 @@ extension DataFlowSemaPhase {
                 annotationFQName: "kotlin.annotation.Target",
                 arguments: ["AnnotationTarget.CLASS"]
             ),
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.annotation.Retention",
+                arguments: ["AnnotationRetention.SOURCE"]
+            ),
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.SinceKotlin",
+                arguments: ["\"2.2\""]
+            ),
             MetadataAnnotationRecord(annotationFQName: "kotlin.ExperimentalMultiplatform"),
         ]
 
@@ -166,5 +177,44 @@ extension DataFlowSemaPhase {
         if didAppend {
             symbols.setAnnotations(annotations, for: classSymbol)
         }
+
+        let ownerType = types.make(.classType(ClassType(
+            classSymbol: classSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let initName = interner.intern("<init>")
+        let initFQName = classFQName + [initName]
+        let hasImplicitConstructor = symbols.lookupAll(fqName: initFQName).contains { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty && signature.returnType == ownerType
+        }
+        guard !hasImplicitConstructor else {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: initFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(classSymbol, for: constructorSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                parameterTypes: [],
+                returnType: ownerType,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: constructorSymbol
+        )
     }
 }
