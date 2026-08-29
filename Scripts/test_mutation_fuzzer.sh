@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
+# --generate-only never compiles, so STDLIB_ARGS is intentionally left out of
+# run_generator() and the manifest-check heredoc below.
 STDLIB_ARGS=()
 if [[ -n "${FUZZ_STDLIB_LIBRARY:-}" ]]; then
   STDLIB_ARGS=(--stdlib-library "$FUZZ_STDLIB_LIBRARY")
@@ -34,6 +36,7 @@ import sys
 
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 operations = {entry["mutation"]["operation"] for entry in manifest}
+# Kept in sync by hand with the operations mutate_diff_cases.py can choose from.
 expected = {"replace", "delete", "swap"}
 missing = expected - operations
 if missing:
@@ -56,7 +59,6 @@ PY
   --duration-seconds 90 \
   --timeout-seconds 30 \
   "${STDLIB_ARGS[@]}" \
-  --workers 1 \
-  --report "$TEMP_DIR/focused-report.json"
+  --workers 1
 
 echo "Mutation fuzzer focused tests passed."
