@@ -146,6 +146,7 @@ extension BuildASTPhase.ExpressionParser {
             var args: [CallArgument] = []
             var typeArgs: [TypeRefID] = []
             var memberEndRange = memberToken.range
+            var hasExplicitCall = false
             if matches(.symbol(.lessThan)) {
                 let savedIndex = index
                 if let ta = tryParseExplicitTypeArgs() {
@@ -157,6 +158,7 @@ extension BuildASTPhase.ExpressionParser {
             if matches(.symbol(.lParen)),
                let open = consume()
             {
+                hasExplicitCall = true
                 args = parseCallArguments(implicitLambdaLabel: memberName)
                 let close = consumeIf(.symbol(.rParen))
                 memberEndRange = close?.range ?? open.range
@@ -170,21 +172,29 @@ extension BuildASTPhase.ExpressionParser {
             }
             let range = mergeRanges(astArena.exprRange(expr), memberEndRange, fallback: dotToken.range)
             if isSafeDot {
-                expr = astArena.appendExpr(.safeMemberCall(
+                let memberCall = astArena.appendExpr(.safeMemberCall(
                     receiver: expr,
                     callee: memberName,
                     typeArgs: typeArgs,
                     args: args,
                     range: range
                 ))
+                if hasExplicitCall {
+                    astArena.markExplicitCall(memberCall)
+                }
+                expr = memberCall
             } else {
-                expr = astArena.appendExpr(.memberCall(
+                let memberCall = astArena.appendExpr(.memberCall(
                     receiver: expr,
                     callee: memberName,
                     typeArgs: typeArgs,
                     args: args,
                     range: range
                 ))
+                if hasExplicitCall {
+                    astArena.markExplicitCall(memberCall)
+                }
+                expr = memberCall
             }
         }
         return expr
