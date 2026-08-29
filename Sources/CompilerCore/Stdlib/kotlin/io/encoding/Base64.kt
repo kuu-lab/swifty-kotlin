@@ -151,8 +151,7 @@ public open class Base64 internal constructor(
         return bytes.toByteArray()
     }
 
-    public companion object {
-        public val Default: Base64 = Base64(STANDARD_ALPHABET, 0)
+    public companion object Default : Base64(STANDARD_ALPHABET, 0) {
         public val UrlSafe: Base64 = Base64(URL_SAFE_ALPHABET, 0)
         public val Mime: Base64 = Base64(STANDARD_ALPHABET, MIME_LINE_LENGTH)
         public val Pem: Base64 = Base64(STANDARD_ALPHABET, PEM_LINE_LENGTH)

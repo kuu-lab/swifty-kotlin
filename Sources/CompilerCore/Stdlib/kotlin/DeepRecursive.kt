@@ -8,23 +8,24 @@ import kotlin.internal.KsSymbolName
 // reason the bridges exist, so all four entry points stay in the runtime as
 // demoted __kk_* bridges (Sources/Runtime/RuntimeDeepRecursive.swift).
 //
-// The block is modelled as a non-suspend receiver lambda
-// `DeepRecursiveScope<T, R>.(T) -> R`; the runtime calls it with the scope
-// handle as its receiver argument, so `callRecursive` is an ordinary member
-// call on that handle rather than a compiler special case.
+// The block is modelled as the suspend receiver lambda
+// `suspend DeepRecursiveScope<T, R>.(T) -> R` required by Kotlin's public API.
+// The runtime calls it with the scope handle as its receiver argument, so
+// `callRecursive` is an ordinary member call on that handle rather than a
+// compiler special case.
 
 public class DeepRecursiveScope<T, R> private constructor() {
     @KsSymbolName("__kk_deep_recursive_scope_callRecursive")
     public external fun callRecursive(value: T): R
 }
 
-public class DeepRecursiveFunction<T, R> private constructor() {
+public class DeepRecursiveFunction<T, R> {
+    @KsSymbolName("__kk_deep_recursive_function_new")
+    public constructor(block: suspend DeepRecursiveScope<T, R>.(T) -> R)
+
     @KsSymbolName("__kk_deep_recursive_function_invoke")
     public external operator fun invoke(value: T): R
 
     @KsSymbolName("__kk_deep_recursive_function_callRecursive")
     public external fun callRecursive(value: T): R
 }
-
-@KsSymbolName("__kk_deep_recursive_function_new")
-public external fun <T, R> DeepRecursiveFunction(block: DeepRecursiveScope<T, R>.(T) -> R): DeepRecursiveFunction<T, R>

@@ -14,39 +14,50 @@ struct RuntimeStringBuilderTests {
         #expect(runtimeStringValue(__kk_string_builder_toString(builder)) == "hello")
     }
 
-    // BUG-211: the CharSequence.length getter is an interface property. Runtime
-    // StringBuilder objects must advertise its itable slot so bundled Kotlin
-    // extensions can dispatch through the same path as user-defined classes.
+    // KSP-817: runtime-backed CharSequence values must expose the same method
+    // and property slots as source-defined implementations.
     @Test
-    func testCharSequenceLengthItableRegistrationForRuntimeObjects() {
+    func testCharSequenceItableRegistrationForRuntimeObjects() {
         let builder = makeBuilder("abc")
         let string = makeRuntimeString("hello")
         let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
-        let getterRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 0)
-        let stringGetterRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 0)
+        let getRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 0)
+        let stringGetRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 0)
+        let lengthRaw = kk_itable_lookup_dynamic(builder, interfaceTypeID, 1)
+        let stringLengthRaw = kk_itable_lookup_dynamic(string, interfaceTypeID, 1)
 
-        #expect(getterRaw != 0)
-        #expect(stringGetterRaw != 0)
+        #expect(getRaw != 0)
+        #expect(stringGetRaw != 0)
+        #expect(lengthRaw != 0)
+        #expect(stringLengthRaw != 0)
 
-        let getter = unsafeBitCast(
-            getterRaw,
+        let get = unsafeBitCast(
+            getRaw,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        var getThrown = 0
+        #expect(get(builder, 1, &getThrown) == 98)
+        #expect(getThrown == 0)
+
+        let length = unsafeBitCast(
+            lengthRaw,
             to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
         )
-        var thrown = 0
-        #expect(getter(builder, &thrown) == 3)
-        #expect(thrown == 0)
+        var lengthThrown = 0
+        #expect(length(builder, &lengthThrown) == 3)
+        #expect(lengthThrown == 0)
     }
 
-    // BUG-211: temporary String boxes created through the low-level UTF-8
+    // KSP-817: temporary String boxes created through the low-level UTF-8
     // constructor must also participate in CharSequence.length dispatch.
     @Test
-    func testUTF8StringConstructorRegistersCharSequenceLengthItable() {
+    func testUTF8StringConstructorRegistersCharSequenceItable() {
         let bytes = Array("window".utf8)
         let raw = bytes.withUnsafeBufferPointer { buffer in
             Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
         }
         let interfaceTypeID = Int(runtimeStableNominalTypeID(fqName: "kotlin.CharSequence"))
-        let getterRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, 0)
+        let getterRaw = kk_itable_lookup_dynamic(raw, interfaceTypeID, 1)
 
         #expect(getterRaw != 0)
 

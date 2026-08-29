@@ -5,4 +5,4 @@ expr e@3:33 int(5) type=Int
 expr e@3:36 int(2) type=Int
 expr e@3:39 int(8) type=Int
 expr e@3:42 int(1) type=Int
-expr e@3:27 call callee=e@3:27#1 args=[_:e@3:33,_:e@3:36,_:e@3:39,_:e@3:42] type=Int call=kotlin.comparisons.minOf#7
+expr e@3:27 call callee=e@3:27#1 args=[_:e@3:33,_:e@3:36,_:e@3:39,_:e@3:42] type=Int call=kotlin.comparisons.minOf#10
