@@ -190,4 +190,79 @@ struct CodegenRuntimeObjectDiscoveryTests {
             #expect(discovered.map(canonicalPath) == [canonicalPath(wmoObject.path)])
         }
     }
+
+    // A scratch directory holding objects but no completion manifest must be
+    // treated as a cache miss: an interrupted or still-running (orphaned)
+    // `swift build` leaves a partial object set behind, and linking it fails
+    // with undefined `kk_*` runtime symbols.
+    @Test
+    func testObjectsWithoutManifestAreNotACacheHit() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            try writeObject(buildDirectory.appendingPathComponent("RuntimeArrayBasics.swift.o"))
+            let manifestURL = scratchRoot.appendingPathComponent("objects-debug.manifest")
+
+            let validated = CodegenRuntimeSupport.manifestValidatedRuntimeObjectPaths(
+                manifestURL: manifestURL
+            )
+
+            #expect(validated.isEmpty)
+        }
+    }
+
+    @Test
+    func testManifestRoundTripValidatesExistingObjects() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            let first = buildDirectory.appendingPathComponent("RuntimeArrayBasics.swift.o")
+            let second = buildDirectory.appendingPathComponent("RuntimeSequence.swift.o")
+            try writeObject(first)
+            try writeObject(second)
+            let manifestURL = scratchRoot.appendingPathComponent("objects-debug.manifest")
+
+            try CodegenRuntimeSupport.writeRuntimeObjectsManifest(
+                [first.path, second.path],
+                to: manifestURL
+            )
+            let validated = CodegenRuntimeSupport.manifestValidatedRuntimeObjectPaths(
+                manifestURL: manifestURL
+            )
+
+            #expect(validated == [first.path, second.path])
+        }
+    }
+
+    // A manifest naming an object that has since disappeared is stale and
+    // must report a miss so the runtime build re-runs.
+    @Test
+    func testManifestListingMissingObjectIsStale() throws {
+        try withScratchLayout { buildDirectory, scratchRoot in
+            let survivor = buildDirectory.appendingPathComponent("RuntimeArrayBasics.swift.o")
+            let removed = buildDirectory.appendingPathComponent("RuntimeSequence.swift.o")
+            try writeObject(survivor)
+            let manifestURL = scratchRoot.appendingPathComponent("objects-debug.manifest")
+
+            try CodegenRuntimeSupport.writeRuntimeObjectsManifest(
+                [survivor.path, removed.path],
+                to: manifestURL
+            )
+            let validated = CodegenRuntimeSupport.manifestValidatedRuntimeObjectPaths(
+                manifestURL: manifestURL
+            )
+
+            #expect(validated.isEmpty)
+        }
+    }
+
+    @Test
+    func testEmptyManifestIsACacheMiss() throws {
+        try withScratchLayout { _, scratchRoot in
+            let manifestURL = scratchRoot.appendingPathComponent("objects-debug.manifest")
+            try CodegenRuntimeSupport.writeRuntimeObjectsManifest([], to: manifestURL)
+
+            let validated = CodegenRuntimeSupport.manifestValidatedRuntimeObjectPaths(
+                manifestURL: manifestURL
+            )
+
+            #expect(validated.isEmpty)
+        }
+    }
 }

@@ -177,6 +177,54 @@ struct NativeRefRuntimeSemaTests {
     }
 
     @Test
+    func testWeakReferenceNominalDeclarationIsSourceBackedWithAnyBound() throws {
+        let (sema, interner) = try sharedSema()
+        let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
+        let classSymbol = try #require(sema.symbols.lookup(fqName: classFQName))
+        let classInfo = try #require(sema.symbols.symbol(classSymbol))
+        let typeParam = try #require(sema.types.nominalTypeParameterSymbols(for: classSymbol).first)
+
+        #expect(!classInfo.flags.contains(.synthetic), "WeakReference should be backed by bundled Kotlin source")
+        #expect(classInfo.visibility == .public)
+        #expect(classInfo.declSite != nil)
+        #expect(sema.symbols.typeParameterUpperBounds(for: typeParam) == [sema.types.anyType])
+    }
+
+    @Test
+    func testWeakReferenceImplNominalDeclarationIsInternalAbstractPublishedApi() throws {
+        let (sema, interner) = try sharedSema()
+        let fqName = ["kotlin", "native", "ref", "WeakReferenceImpl"].map { interner.intern($0) }
+        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let info = try #require(sema.symbols.symbol(symbol))
+
+        #expect(info.kind == .class)
+        #expect(info.visibility == .internal)
+        #expect(info.flags.contains(.abstractType))
+        #expect(!info.flags.contains(.synthetic))
+        #expect(info.declSite != nil)
+        #expect(hasOptInAnnotation(on: symbol, markerContaining: "PublishedApi", sema: sema))
+    }
+
+    @Test
+    func testWeakReferenceImplDoesNotEmitEmptyAbstractClassWarning() {
+        let ctx = runSemaCollectingDiagnostics(
+            """
+            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+            fun weakReferenceImplType(): Any? = null
+            """
+        )
+
+        #expect(
+            !ctx.diagnostics.diagnostics.contains {
+                $0.code == "KSWIFTK-SEMA-ABSTRACT"
+                    && $0.message.contains("kotlin.native.ref.WeakReferenceImpl")
+            },
+            "WeakReferenceImpl must retain its abstract get() contract"
+        )
+    }
+
+    @Test
     func testWeakReferenceHasGetMember() throws {
         let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
@@ -266,9 +314,57 @@ struct NativeRefRuntimeSemaTests {
         let signature = try #require(sema.symbols.functionSignature(for: sym))
         #expect(signature.parameterTypes.count == 2, "createCleaner should accept (value, block)")
         #expect(
-            sema.symbols.externalLinkName(for: sym) == "kk_cleaner_create",
-            "createCleaner should lower to kk_cleaner_create"
+            sema.symbols.externalLinkName(for: sym) == nil,
+            "source-backed createCleaner should own the public API declaration"
         )
+        let bridgeFQName = ["kotlin", "native", "ref", "createCleanerBridge"].map { interner.intern($0) }
+        let bridge = try #require(sema.symbols.lookup(fqName: bridgeFQName))
+        #expect(sema.symbols.externalLinkName(for: bridge) == "kk_cleaner_create")
+    }
+
+    @Test
+    func testCreateCleanerHasExactGenericCleanerSignatureAndAnnotations() throws {
+        let (sema, interner) = try sharedSema()
+        let functionFQName = ["kotlin", "native", "ref", "createCleaner"].map { interner.intern($0) }
+        let functionSymbol = try #require(sema.symbols.lookupAll(fqName: functionFQName).first)
+        let signature = try #require(sema.symbols.functionSignature(for: functionSymbol))
+        let typeParam = try #require(signature.typeParameterSymbols.first)
+
+        #expect(signature.typeParameterSymbols.count == 1)
+        #expect(signature.classTypeParameterCount == 0)
+        #expect(signature.typeParameterUpperBoundsList == [[]], "createCleaner<T> should retain the implicit nullable Any? bound")
+        #expect(signature.parameterTypes.count == 2)
+
+        if case let .typeParam(resourceType) = sema.types.kind(of: signature.parameterTypes[0]) {
+            #expect(resourceType.symbol == typeParam)
+        } else {
+            Issue.record("createCleaner resource parameter should use its generic T")
+        }
+
+        if case let .functionType(cleanupAction) = sema.types.kind(of: signature.parameterTypes[1]) {
+            #expect(cleanupAction.params.count == 1)
+            if case let .typeParam(resourceType) = sema.types.kind(of: cleanupAction.params[0]) {
+                #expect(resourceType.symbol == typeParam)
+            } else {
+                Issue.record("createCleaner cleanupAction should receive its generic T")
+            }
+            #expect(cleanupAction.returnType == sema.types.unitType)
+        } else {
+            Issue.record("createCleaner cleanupAction should be a Function1<T, Unit>")
+        }
+
+        if case let .classType(returnType) = sema.types.kind(of: signature.returnType) {
+            let returnInfo = try #require(sema.symbols.symbol(returnType.classSymbol))
+            #expect(interner.resolve(returnInfo.fqName.last ?? interner.intern("")) == "Cleaner")
+        } else {
+            Issue.record("createCleaner should return kotlin.native.ref.Cleaner")
+        }
+
+        #expect(!sema.symbols.symbol(functionSymbol)!.flags.contains(.synthetic))
+        #expect(sema.symbols.symbol(functionSymbol)!.declSite != nil)
+        #expect(hasOptInAnnotation(on: functionSymbol, markerContaining: "ExperimentalNativeApi", sema: sema))
+        #expect(hasOptInAnnotation(on: functionSymbol, markerContaining: "SinceKotlin", sema: sema))
+        #expect(hasOptInAnnotation(on: functionSymbol, markerContaining: "ExportForCompiler", sema: sema))
     }
 
     @Test
