@@ -106,6 +106,36 @@ struct DriverTests {
         }
     }
 
+    @Test
+    func testRunFrontendDefaultStopsAfterParseError() {
+        let path = NSTemporaryDirectory() + "frontend_parse_error_\(UUID().uuidString).kt"
+        let source = """
+        package demo
+
+        }
+        fun recovered(): Int = 42
+        """
+        let options = CompilerOptions(
+            moduleName: "Test",
+            inputs: [path],
+            outputPath: "/dev/null",
+            emit: .object,
+            target: defaultTargetTriple(),
+            includeStdlib: false
+        )
+        let result = CompilerDriver().runFrontend(
+            options: options,
+            inMemorySources: [path: Data(source.utf8)]
+        )
+
+        #expect(result.context.ast == nil, "Default frontend policy should remain fail-fast")
+        #expect(result.context.sema == nil, "Default frontend policy should not run Sema")
+        #expect(
+            result.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0006" },
+            "Expected parse recovery diagnostic: \(result.diagnostics.map(\.code))"
+        )
+    }
+
     // MARK: - run
 
     @Test

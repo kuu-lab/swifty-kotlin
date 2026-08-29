@@ -939,31 +939,9 @@ extension CallLowerer {
         ) ?? sema.bindings.callBindings[exprID]
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-        let receiverLooksLikeArray: Bool = if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
-        {
-            [
-                "Array", "IntArray", "LongArray", "UIntArray", "DoubleArray", "FloatArray", "BooleanArray", "CharArray",
-                "UShortArray",
-            ].contains(interner.resolve(symbol.name))
-        } else {
-            false
-        }
-        // A receiver routes to the String runtime entry (`kk_string_get`) only when it is genuinely
-        // CharSequence-like (String, CharSequence, StringBuilder, ...). The element-type check alone is
-        // not enough: `List<Char>` also yields a Char element but must use its own `get` member, otherwise
-        // the List handle is reinterpreted as a string handle and panics at runtime.
-        let receiverIsCharSequence: Bool = if let charSequenceSym = sema.types.charSequenceInterfaceSymbol {
-            sema.types.isSubtype(
-                nonNullReceiverType,
-                sema.types.make(.classType(ClassType(classSymbol: charSequenceSym, args: [], nullability: .nonNull)))
-            )
-        } else {
-            false
-        }
         let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
         if indices.count == 1,
            receiverUsesFlatStringABI
-           || (receiverIsCharSequence && !receiverLooksLikeArray && boundType == sema.types.charType)
         {
             let indexID = driver.lowerExpr(
                 indices[0],
@@ -979,9 +957,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern(
-                    receiverUsesFlatStringABI ? "kk_string_get_flat" : "kk_char_sequence_get"
-                ),
+                callee: interner.intern("kk_string_get_flat"),
                 arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,

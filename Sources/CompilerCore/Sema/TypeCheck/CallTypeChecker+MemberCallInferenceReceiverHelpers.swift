@@ -351,6 +351,12 @@ extension CallTypeChecker {
                 sema.types.booleanType
             case "collect", "collectLatest":
                 sema.types.unitType
+            case "transform":
+                // Flow.transform emits values through its collector receiver;
+                // the callback itself returns Unit. The lightweight Flow
+                // special case has no receiver-type inference for those
+                // emissions, so keep its output type conservatively erased.
+                sema.types.unitType
             case "takeWhile", "dropWhile":
                 sema.types.unitType
             case "catch":
@@ -382,11 +388,17 @@ extension CallTypeChecker {
 
             if memberName != "collect" && memberName != "collectLatest" {
                 sema.bindings.markFlowExpr(id)
-                let resultElementType: TypeID = if memberName == "map" || memberName == "transform",
+                let resultElementType: TypeID = if memberName == "map",
                                                    case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
                                                    let mappedType = sema.bindings.exprType(for: bodyExpr)
                 {
                     mappedType
+                } else if memberName == "transform" {
+                    // The callback's Unit result is not a Flow element. Values
+                    // emitted by the transform are represented by the runtime
+                    // bridge and remain type-erased until a richer collector
+                    // receiver model is available.
+                    sema.types.anyType
                 } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest" {
                     sema.types.anyType
                 } else {
