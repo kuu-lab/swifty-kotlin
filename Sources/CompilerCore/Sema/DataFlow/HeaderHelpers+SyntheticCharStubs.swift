@@ -266,6 +266,13 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        // KSP-1416: Keep CharCategory's public Companion nominal available
+        // while its enum entries and members remain synthetic until KSP-1417.
+        _ = ensureSyntheticCharCompanionSymbol(
+            ownerSymbol: charCategorySymbol,
+            symbols: symbols,
+            interner: interner
+        )
         let charCategoryType = types.make(.classType(ClassType(
             classSymbol: charCategorySymbol,
             args: [],

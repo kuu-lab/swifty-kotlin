@@ -289,6 +289,10 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         let javaIOPkg = ensureJavaIOPackage(symbols: symbols, interner: interner)
+        let javaIOCloseableSymbol = ensureJavaIOCloseableCompatibilityAnchor(
+            symbols: symbols,
+            interner: interner
+        )
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
         let fileSymbol = ensureClassSymbol(
             named: "File",
@@ -840,15 +844,11 @@ extension DataFlowSemaPhase {
         //   currently produced by `File.bufferedReader()` etc.).
         // - Closeable supertype (STDLIB-IO-093) lets `.use {}` work:
         //   `file.bufferedReader().use { reader -> ... }`.
-        if let closeableSymbol = types.ioCloseableInterfaceSymbol {
-            symbols.setDirectSupertypes([closeableSymbol], for: readerSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: readerSymbol)
-            symbols.setDirectSupertypes([readerSymbol, closeableSymbol], for: bufferedReaderSymbol)
-            types.setNominalDirectSupertypes([readerSymbol, closeableSymbol], for: bufferedReaderSymbol)
-        } else {
-            symbols.setDirectSupertypes([readerSymbol], for: bufferedReaderSymbol)
-            types.setNominalDirectSupertypes([readerSymbol], for: bufferedReaderSymbol)
-        }
+        let readerCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
+        symbols.setDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
+        types.setNominalDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
+        symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
+        types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091)
 
         // BufferedReader.read() -> Int  (STDLIB-IO-091)
@@ -986,15 +986,11 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(bufferedWriterType, for: bufferedWriterSymbol)
 
         // Register BufferedWriter as a Closeable subtype (STDLIB-IO-093)
-        if let closeableSymbol = types.ioCloseableInterfaceSymbol {
-            symbols.setDirectSupertypes([closeableSymbol], for: writerSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: writerSymbol)
-            symbols.setDirectSupertypes([writerSymbol, closeableSymbol], for: bufferedWriterSymbol)
-            types.setNominalDirectSupertypes([writerSymbol, closeableSymbol], for: bufferedWriterSymbol)
-        } else {
-            symbols.setDirectSupertypes([writerSymbol], for: bufferedWriterSymbol)
-            types.setNominalDirectSupertypes([writerSymbol], for: bufferedWriterSymbol)
-        }
+        let writerCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
+        symbols.setDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
+        types.setNominalDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
+        symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
+        types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
 
         // File.bufferedWriter() -> BufferedWriter
         registerFileMemberFunction(
@@ -1128,12 +1124,11 @@ extension DataFlowSemaPhase {
 
         // Register InputStream/OutputStream as Closeable subtypes (STDLIB-IO-093)
         // so that .use {} works with stream resources.
-        if let closeableSymbol = types.ioCloseableInterfaceSymbol {
-            symbols.setDirectSupertypes([closeableSymbol], for: inputStreamSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: inputStreamSymbol)
-            symbols.setDirectSupertypes([closeableSymbol], for: outputStreamSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: outputStreamSymbol)
-        }
+        let streamCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
+        symbols.setDirectSupertypes([streamCloseableSymbol], for: inputStreamSymbol)
+        types.setNominalDirectSupertypes([streamCloseableSymbol], for: inputStreamSymbol)
+        symbols.setDirectSupertypes([streamCloseableSymbol], for: outputStreamSymbol)
+        types.setNominalDirectSupertypes([streamCloseableSymbol], for: outputStreamSymbol)
         symbols.setDirectSupertypes([inputStreamSymbol], for: sequenceInputStreamSymbol)
         types.setNominalDirectSupertypes([inputStreamSymbol], for: sequenceInputStreamSymbol)
         symbols.setDirectSupertypes([inputStreamSymbol], for: byteArrayInputStreamSymbol)
@@ -1649,10 +1644,9 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(printWriterType, for: printWriterSymbol)
 
         // Register PrintWriter as a Closeable subtype so that .use {} works
-        if let closeableSymbol = types.ioCloseableInterfaceSymbol {
-            symbols.setDirectSupertypes([closeableSymbol], for: printWriterSymbol)
-            types.setNominalDirectSupertypes([closeableSymbol], for: printWriterSymbol)
-        }
+        let printWriterCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
+        symbols.setDirectSupertypes([printWriterCloseableSymbol], for: printWriterSymbol)
+        types.setNominalDirectSupertypes([printWriterCloseableSymbol], for: printWriterSymbol)
 
         // File.printWriter() -> PrintWriter
         registerFileMemberFunction(
@@ -2244,6 +2238,34 @@ extension DataFlowSemaPhase {
             )
         }
         return javaIOPkg
+    }
+
+    /// Keep the JVM compatibility nominal without synthesizing the common
+    /// `kotlin.AutoCloseable` or `kotlin.io.Closeable` declarations.
+    func ensureJavaIOCloseableCompatibilityAnchor(
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID {
+        let javaIOPkg = ensureJavaIOPackage(symbols: symbols, interner: interner)
+        let closeableName = interner.intern("Closeable")
+        let closeableFQName = javaIOPkg + [closeableName]
+        if let existing = symbols.lookupAll(fqName: closeableFQName).first(where: {
+            symbols.symbol($0)?.kind == .interface
+        }) {
+            return existing
+        }
+        let symbol = symbols.define(
+            kind: .interface,
+            name: closeableName,
+            fqName: closeableFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        if let packageSymbol = symbols.lookup(fqName: javaIOPkg) {
+            symbols.setParentSymbol(packageSymbol, for: symbol)
+        }
+        return symbol
     }
 
     /// Register a top-level Kotlin extension function in `packageFQName` with the

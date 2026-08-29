@@ -128,7 +128,8 @@ extension DataFlowSemaPhase {
         let collectionInterfaceSymbol = registerSyntheticCollectionStub(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
+            iterableInterfaceSymbol: iterableInterfaceSymbol,
+            bundledIndex: bundledIndex
         )
 
         let abstractCollectionSymbol = registerSyntheticAbstractCollectionStub(
@@ -211,15 +212,6 @@ extension DataFlowSemaPhase {
             interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             mapInterfaceSymbol: mapSymbols.mapSymbol
-        )
-
-        registerListConversionMembers(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            listInterfaceSymbol: listInterfaceSymbol,
-            mapInterfaceSymbol: mapSymbols.mapSymbol,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex
         )
 
         // STDLIB-021: Collection.toMutableList() and Iterable mutable conversions

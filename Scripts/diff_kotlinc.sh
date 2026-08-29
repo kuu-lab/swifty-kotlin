@@ -26,6 +26,10 @@ KOTLINC_REF_CACHE_FINGERPRINT=""
 # kotlinc process. Set to empty to disable. Prepended so caller-provided
 # JAVA_OPTS flags win on conflict (the JVM uses the last occurrence).
 DIFF_KOTLINC_JAVA_OPTS="${DIFF_KOTLINC_JAVA_OPTS--XX:TieredStopAtLevel=1}"
+# Disable HotSpot perf-data collection for short-lived reference JVMs. Under
+# parallel CI load, a locked hsperfdata file can make HotSpot print a warning
+# to stdout; that diagnostic is not program output and makes the diff flaky.
+DIFF_REFERENCE_JAVA_FLAGS="${DIFF_REFERENCE_JAVA_FLAGS--XX:-UsePerfData}"
 KEEP_TEMP=0
 REPORT_PATH=""
 DIFF_PARALLEL="${DIFF_PARALLEL:-1}"
@@ -119,6 +123,9 @@ Environment:
                      JVM options prepended to JAVA_OPTS for kotlinc
                      invocations (default: -XX:TieredStopAtLevel=1;
                      set to empty to disable)
+  DIFF_REFERENCE_JAVA_FLAGS
+                     JVM options passed to reference java runs (default:
+                     -XX:-UsePerfData; set to empty to disable)
   DIFF_STDLIB_LIBRARY
                      Path to an existing KSwiftKStdlib.kklib to reuse; if unset,
                      the runner builds one under DIFF_ARTIFACT_ROOT
@@ -788,6 +795,7 @@ else
   echo "Kotlinc reference cache: disabled"
 fi
 echo "Kotlinc JAVA_OPTS: ${JAVA_OPTS:-}"
+echo "Reference JAVA_FLAGS: ${DIFF_REFERENCE_JAVA_FLAGS:-<empty>}"
 if [[ -n "$DIFF_STDLIB_LIBRARY" ]]; then
   echo "Stdlib artifact: $DIFF_STDLIB_LIBRARY (provided)"
 else
@@ -1097,19 +1105,19 @@ run_case() {
         else
           if needs_stdin_eof "$kt_file"; then
             # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           else
             # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
           fi
         fi
       else
         if needs_stdin_eof "$kt_file"; then
           # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         else
           # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         fi
       fi
     fi
@@ -1146,13 +1154,12 @@ run_case() {
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  # Matching non-zero compile exits short-circuit the run/stdout comparison
-  # below, so this "passes" without either side ever executing. The match is
-  # necessary but not sufficient evidence of equivalent behavior — both
-  # compilers reject their own input for possibly unrelated reasons (stderr is
-  # not diffed). Flag it so a green run isn't mistaken for verified parity.
+  # Matching non-zero compile exits skip the run/stdout comparison below, then
+  # the matching-failure branch forces this case to FAIL. Compile stderr is
+  # retained in the failure output and artifacts; matching exit codes alone
+  # never count as verified parity.
   if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
-    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not imply matching failure reasons (stderr is not diffed) — this PASS is inconclusive, not verified parity"
+    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not verify parity — compile stderr is reported below; this case will FAIL"
   fi
 
   if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
