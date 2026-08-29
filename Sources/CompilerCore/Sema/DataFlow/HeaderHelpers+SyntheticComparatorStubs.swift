@@ -6,7 +6,7 @@
 /// `String.Companion.CASE_INSENSITIVE_ORDER` and `CallTypeChecker` comparator
 /// helpers — can resolve the `kotlin.Comparator` symbol before bundled header
 /// collection runs. The bundled source reuses this symbol via
-/// `HeaderCollection.reusableSyntheticSourceDeclarationKeys`.
+/// `HeaderCollection.reusableSyntheticDeclarationSymbol`.
 extension DataFlowSemaPhase {
     func registerSyntheticComparatorStubs(
         symbols: SymbolTable,
