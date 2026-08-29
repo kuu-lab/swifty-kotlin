@@ -160,6 +160,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             generatedMembers.contains($0)
         } || sema.bindings.callBindings.values.contains {
             generatedMembers.contains($0.chosenCallee)
+        } || sema.bindings.exprTypes.values.contains {
+            guard case let .classType(classType) = sema.types.kind(of: $0) else {
+                return false
+            }
+            return classType.classSymbol == osFamilySymbol
         }
         guard isReferenced else {
             return

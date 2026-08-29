@@ -85,5 +85,48 @@ extension BuildKIRRegressionTests {
             )
         }
     }
+
+    @Test
+    func testNativeOsFamilyNominalIsRetainedForPlatformPropertyType() throws {
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+
+        import kotlin.native.Platform
+
+        fun main() {
+            val osFamily = Platform.osFamily
+            println(osFamily)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToLowering(ctx)
+
+            #expect(
+                !ctx.diagnostics.hasError,
+                "Platform.osFamily should lower without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+            )
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let osFamilyFQName = [
+                interner.intern("kotlin"),
+                interner.intern("native"),
+                interner.intern("OsFamily"),
+            ]
+            let osFamilySymbol = try #require(sema.symbols.lookup(fqName: osFamilyFQName))
+            #expect(sema.symbols.isSourceBackedSymbol(osFamilySymbol))
+
+            let module = try #require(ctx.kir)
+            #expect(
+                module.arena.declarations.contains { declaration in
+                    guard case let .nominalType(nominal) = declaration else { return false }
+                    return nominal.symbol == osFamilySymbol
+                },
+                "Platform.osFamily must retain the source-backed OsFamily nominal in consumer KIR"
+            )
+        }
+    }
 }
 #endif
