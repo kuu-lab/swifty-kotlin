@@ -45,6 +45,23 @@ struct ReflectAssociatedObjectKeySyntheticTests {
         #expect(symbol.visibility == .public)
         #expect(symbol.flags.contains(.synthetic))
 
+        let constructorFQName = fqName + [ctx.interner.intern("<init>")]
+        let constructors = sema.symbols.lookupAll(fqName: constructorFQName)
+        #expect(constructors.count == 1)
+        let constructorID = try #require(constructors.first)
+        let constructor = try #require(sema.symbols.symbol(constructorID))
+        #expect(constructor.kind == .constructor)
+        #expect(constructor.visibility == .public)
+        #expect(constructor.flags.contains(.synthetic))
+        #expect(sema.symbols.parentSymbol(for: constructorID) == symbolID)
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructorID))
+        #expect(constructorSignature.parameterTypes.isEmpty)
+        guard case let .classType(returnType) = sema.types.kind(of: constructorSignature.returnType) else {
+            Issue.record("Expected AssociatedObjectKey.<init>() to return its annotation class type")
+            return
+        }
+        #expect(returnType.classSymbol == symbolID)
+
         let annotations = sema.symbols.annotations(for: symbolID)
         #expect(
             annotations.contains {
