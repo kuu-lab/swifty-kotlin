@@ -19,12 +19,22 @@ extension CallTypeChecker {
         let enumValuesName = interner.intern("enumValues")
         let enumValueOfName = interner.intern("enumValueOf")
         let enumEntriesName = interner.intern("enumEntries")
-        guard calleeName == enumValuesName || calleeName == enumValueOfName || calleeName == enumEntriesName else {
+        let enumEntriesIntrinsicName = interner.intern("enumEntriesIntrinsic")
+        guard calleeName == enumValuesName
+            || calleeName == enumValueOfName
+            || calleeName == enumEntriesName
+            || calleeName == enumEntriesIntrinsicName
+        else {
             return nil
         }
         let (visibleCandidates, _) = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName))
         let kotlinPackage = interner.intern("kotlin")
-        let sourceBackedIntrinsicFQName = [kotlinPackage, calleeName]
+        let kotlinEnumsPackage = interner.intern("enums")
+        let sourceBackedIntrinsicFQName: [InternedString] = if calleeName == enumValuesName || calleeName == enumValueOfName {
+            [kotlinPackage, calleeName]
+        } else {
+            [kotlinPackage, kotlinEnumsPackage, calleeName]
+        }
         let hasNonSyntheticUserCandidate = visibleCandidates.contains { candidate in
             guard let symbol = ctx.cachedSymbol(candidate) else {
                 return false
@@ -32,9 +42,9 @@ extension CallTypeChecker {
             if symbol.flags.contains(.synthetic) {
                 return false
             }
-            // KSP-776: enumValues/enumValueOf are now declared by the bundled
-            // Kotlin source. Keep the intrinsic path for that declaration, but
-            // let a real user declaration with the same short name shadow it.
+            // KSP-776/KSP-1156: these declarations are bundled Kotlin source.
+            // Keep the intrinsic path for that declaration, but let a real user
+            // declaration with the same short name shadow it.
             return symbol.fqName != sourceBackedIntrinsicFQName
                 || !ctx.sema.symbols.isSourceBackedSymbol(candidate)
         }
@@ -109,7 +119,7 @@ extension CallTypeChecker {
             return .enumValueOf(enumType: enumType, stubSymbol: stubSymbol)
         }
 
-        if calleeName == enumEntriesName {
+        if calleeName == enumEntriesName || calleeName == enumEntriesIntrinsicName {
             guard args.isEmpty else {
                 return nil
             }
@@ -129,7 +139,7 @@ extension CallTypeChecker {
             let stubSymbol = sema.symbols.lookup(fqName: [
                 interner.intern("kotlin"),
                 interner.intern("enums"),
-                interner.intern("enumEntries"),
+                calleeName,
             ])
             guard let stubSymbol else {
                 return nil

@@ -179,10 +179,16 @@ enum SyntheticSymbolScheme {
         decode(symbol)?.kind == .setter
     }
 
+    /// Reverse of the property accessor constructors: recovers the original
+    /// property symbol from either a synthetic getter or setter accessor.
+    static func originalPropertySymbolFromAccessor(_ accessor: SymbolID) -> SymbolID {
+        decode(accessor)?.original ?? .invalid
+    }
+
     /// Reverse of `propertySetterAccessorSymbol(for:)`: recovers the original
     /// property symbol from a synthetic setter accessor symbol.
     static func originalPropertySymbolFromSetterAccessor(_ setterAccessor: SymbolID) -> SymbolID {
-        decode(setterAccessor)?.original ?? .invalid
+        originalPropertySymbolFromAccessor(setterAccessor)
     }
 
 }
