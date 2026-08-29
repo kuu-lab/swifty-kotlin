@@ -72,6 +72,26 @@ struct BundledStdlibExecutionTests {
     }
 
     @Test
+    func testThrowableGetStackTraceAddressesUsesReceiverState() throws {
+        try compileAndRunKotlin(
+            """
+            @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+            import kotlin.native.getStackTraceAddresses
+
+            class TestThrowable : Throwable()
+
+            fun main() {
+                val throwable = TestThrowable()
+                val first = throwable.getStackTraceAddresses()
+                val second = throwable.getStackTraceAddresses()
+                println(first.isNotEmpty() && first == second)
+            }
+            """,
+            expectedOutput: "true\n"
+        )
+    }
+
+    @Test
     func testForInRangePrintsSequence() throws {
         try compileAndRunKotlin(
             """
