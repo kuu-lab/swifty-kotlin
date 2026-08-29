@@ -53,6 +53,23 @@ func runtimeIsHeapObject(_ rawValue: Int) -> Bool {
     }
 }
 
+func runtimeIsUnitBox(_ rawValue: Int) -> Bool {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue) else {
+        return false
+    }
+    let isObjectPointer = runtimeStorage.withGCLock { state in
+        state.objectPointers.contains(UInt(bitPattern: ptr))
+    }
+    guard isObjectPointer else {
+        return false
+    }
+    return tryCast(ptr, to: RuntimeUnitBox.self) != nil
+}
+
+func runtimeIsUnitValue(_ rawValue: Int) -> Bool {
+    rawValue == 0 || runtimeIsUnitBox(rawValue)
+}
+
 func runtimeRegisterObjectType(rawValue: Int, classID: Int64) {
     guard let ptr = UnsafeMutableRawPointer(bitPattern: rawValue), classID != 0 else {
         return
@@ -187,7 +204,7 @@ func runtimeComparableOperandsAreCompatible(
     }
 }
 
-func runtimeAllocateThrowable(message: String, cause: Int = 0) -> Int {
+func runtimeAllocateThrowable(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeThrowableBox(message: message, cause: cause)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
