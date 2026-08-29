@@ -606,7 +606,7 @@ private func runtimeRegexMatchEntire(_ regexRaw: Int, input rawStr: String) -> I
 // Named constants for Kotlin `RegexOption` enum ordinals.
 // These must stay in sync with the enum entry declaration order in
 // `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`.
-private let kRegexOptionOrdinalLiteral  = 3
+private let kRegexOptionOrdinalLiteral  = 2
 private let kRegexOptionOrdinalCanonEq  = 6
 
 /// Maps a Kotlin `RegexOption` enum ordinal to `NSRegularExpression.Options`.
@@ -615,18 +615,18 @@ private let kRegexOptionOrdinalCanonEq  = 6
 /// enum entry declaration order in
 /// `Sources/CompilerCore/Stdlib/kotlin/text/Regex.kt`.
 /// The canonical order is defined by Kotlin's `kotlin.text.RegexOption`:
-///   0 = IGNORE_CASE, 1 = MULTILINE, 2 = DOT_MATCHES_ALL,
-///   3 = LITERAL, 4 = UNIX_LINES, 5 = COMMENTS, 6 = CANON_EQ
+///   0 = IGNORE_CASE, 1 = MULTILINE, 2 = LITERAL, 3 = UNIX_LINES,
+///   4 = COMMENTS, 5 = DOT_MATCHES_ALL, 6 = CANON_EQ
 /// If the compiler-side entry order changes, these ordinals must be updated
 /// to match.
 private func nsRegexOption(fromOrdinal ordinal: Int) -> NSRegularExpression.Options {
     switch ordinal {
     case 0: return .caseInsensitive          // IGNORE_CASE
     case 1: return .anchorsMatchLines        // MULTILINE
-    case 2: return .dotMatchesLineSeparators  // DOT_MATCHES_ALL
     case kRegexOptionOrdinalLiteral: return []  // LITERAL (handled via escapedPattern)
-    case 4: return .useUnixLineSeparators        // UNIX_LINES
-    case 5: return .allowCommentsAndWhitespace   // COMMENTS
+    case 3: return .useUnixLineSeparators        // UNIX_LINES
+    case 4: return .allowCommentsAndWhitespace   // COMMENTS
+    case 5: return .dotMatchesLineSeparators     // DOT_MATCHES_ALL
     case kRegexOptionOrdinalCanonEq: return []   // CANON_EQ (handled via NFC normalization)
     default:
         assertionFailure("KSwiftK: unknown RegexOption ordinal \(ordinal) – compiler/runtime enum mismatch?")
