@@ -454,6 +454,8 @@ extension ABILoweringPass {
         _ kind: TypeKind,
         boxingCalleeTable: BoxingCalleeTable
     ) -> InternedString? {
+        // Unit is a builtin value rather than a PrimitiveType, but it still
+        // needs a heap representation when it crosses an erased Any boundary.
         boxingCalleeTable.boxCallee(for: kind, requireNonNull: true)
     }
 }

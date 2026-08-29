@@ -10,10 +10,10 @@ import kotlin.internal.KsSymbolName
 public enum class RegexOption {
     IGNORE_CASE,
     MULTILINE,
-    DOT_MATCHES_ALL,
     LITERAL,
     UNIX_LINES,
     COMMENTS,
+    DOT_MATCHES_ALL,
     CANON_EQ
 }
 
