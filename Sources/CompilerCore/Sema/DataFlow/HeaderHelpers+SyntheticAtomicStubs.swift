@@ -131,12 +131,6 @@ extension DataFlowSemaPhase {
             types: types
         )
 
-        registerSyntheticAtomicAnnotation(
-            named: "ExperimentalAtomicApi",
-            in: atomicsPkg,
-            symbols: symbols,
-            interner: interner
-        )
         let memoryOrderSymbol = ensureAtomicMemoryOrderEnum(
             in: atomicsPkg,
             symbols: symbols,
