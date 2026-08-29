@@ -50,30 +50,17 @@ chunk_alternations() {
 }
 
 detect_workers() {
-    local detected
-
-    # Linux: use nproc if available.
-    if detected="$(nproc 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-        return
-    fi
-
-    # macOS: use logical cores by default to maximize XCTest worker concurrency.
-    if detected="$(sysctl -n hw.logicalcpu 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-        return
-    fi
-
-    if detected="$(sysctl -n hw.physicalcpu 2>/dev/null)" \
-        && [[ "$detected" =~ ^[0-9]+$ ]] \
-        && (( detected > 0 )); then
-        printf "%s" "$detected"
-        return
-    fi
+    local cmd detected
+    # Try, in order: Linux nproc, then macOS logical cores (maximizes XCTest
+    # worker concurrency), then macOS physical cores as a last resort.
+    for cmd in nproc "sysctl -n hw.logicalcpu" "sysctl -n hw.physicalcpu"; do
+        if detected="$($cmd 2>/dev/null)" \
+            && [[ "$detected" =~ ^[0-9]+$ ]] \
+            && (( detected > 0 )); then
+            printf "%s" "$detected"
+            return
+        fi
+    done
 
     printf ""
 }
@@ -102,11 +89,9 @@ kswiftk_append_compile_cache_flags() {
 # This is a separate mechanism from the -Xswiftc -cache-compile-job flags used
 # by the legacy native build system and must be set in the environment.
 kswiftk_setup_compile_cache_env() {
-    if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]]; then
-        if [[ "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
-            export EnableSwiftCachingByDefault=true
-            export EnableClangCachingByDefault=true
-            export EnableSwiftExplicitModulesByDefault=true
-        fi
+    if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+        export EnableSwiftCachingByDefault=true
+        export EnableClangCachingByDefault=true
+        export EnableSwiftExplicitModulesByDefault=true
     fi
 }
