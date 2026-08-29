@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
 JAVA_BIN="${JAVA_BIN:-java}"
@@ -35,7 +37,7 @@ Options:
   --keep-temp            Keep per-case temporary directories until process exit
   --report <path>        Write a TSV report (case, status, artifact directory)
   --artifact-root <path> Persist failure artifacts under this directory
-  --force-run-skipped    Run cases marked with // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE
+  --force-run-skipped    Run cases marked with // SKIP-DIFF
   --self-test            Run shell-level acceptance/rejection parity regression tests
   -h, --help             Show this help
 
@@ -110,9 +112,6 @@ while [[ $# -gt 0 ]]; do
     --self-test)
       SELF_TEST=1
       ;;
-    --parallel|--no-parallel)
-      # Diagnostics are intentionally serial in the first stage to keep the gate lightweight.
-      ;;
     -h|--help)
       usage
       exit 0
@@ -143,18 +142,12 @@ if [[ $SELF_TEST -eq 1 && -n "$TARGET" ]]; then
   exit 1
 fi
 
-sanitize_case_name() {
-  local case_path="$1"
-  case_path="${case_path#$ROOT_DIR/}"
-  printf '%s' "$case_path" | tr '/[:space:]' '__' | tr -cd '[:alnum:]_.-'
-}
-
 should_skip_case() {
   local case_path="$1"
   if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
     return 1
   fi
-  grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$case_path"
+  grep -Eq '^[[:space:]]*//[[:space:]]*SKIP-DIFF\b' "$case_path"
 }
 
 expected_outcome() {
@@ -232,8 +225,8 @@ result: FAIL
 reason: $result_reason
 ref_compile_exit: $ref_exit
 candidate_compile_exit: $candidate_exit
-ref_error_lines: $(lines_display "$destination/ref_error_lines.txt")
-candidate_error_lines: $(lines_display "$destination/candidate_error_lines.txt")
+ref_error_lines: $ref_lines
+candidate_error_lines: $candidate_lines
 compile_timeout_seconds: $COMPILE_TIMEOUT
 kswiftc: $KSWIFTC
 kotlinc: $KOTLINC
@@ -245,7 +238,7 @@ set -euo pipefail
 cd $(printf '%q' "$ROOT_DIR")
 DIFF_REQUIRE_JDK21=$(printf '%q' "$DIFF_REQUIRE_JDK21") \
   KSWIFTC=$(printf '%q' "$KSWIFTC") KOTLINC=$(printf '%q' "$KOTLINC") \
-  bash Scripts/diff_diagnostics.sh --no-parallel --keep-temp \
+  bash Scripts/diff_diagnostics.sh --keep-temp \
     --artifact-root $(printf '%q' "$ARTIFACT_ROOT") $(printf '%q' "$case_path")
 EOF
   chmod +x "$destination/repro.sh"
@@ -254,8 +247,8 @@ EOF
 
 run_case() {
   local case_path="$1"
-  local tmp_dir="$TMP_ROOT/$(sanitize_case_name "$case_path")"
-  mkdir -p "$tmp_dir"
+  local tmp_dir
+  tmp_dir="$(mktemp -d "$TMP_ROOT/case.XXXXXX")"
 
   local ref_exit=0 candidate_exit=0
   local flags expectation result_reason result_status artifact_dir=""
@@ -380,7 +373,7 @@ FAKE_CANDIDATE
   local case_path output
   for case_path in accept.kt reject_same.kt; do
     output="$self_tmp/$case_path.out"
-    if ! DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
+    if ! DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
       "$self_tmp/$case_path" >"$output" 2>&1; then
       echo "self-test expected PASS but failed: $case_path" >&2
@@ -391,7 +384,7 @@ FAKE_CANDIDATE
 
   for case_path in reject_candidate_accept.kt reject_lines.kt; do
     output="$self_tmp/$case_path.out"
-    if DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --no-parallel --compile-timeout 5 \
+    if DIFF_REQUIRE_JDK21=0 "$SCRIPT_PATH" --compile-timeout 5 \
       --kswiftc "$candidate_fake" --kotlinc "$ref_fake" --artifact-root "$self_tmp/artifacts" \
       "$self_tmp/$case_path" >"$output" 2>&1; then
       echo "self-test expected FAIL but passed: $case_path" >&2
@@ -435,7 +428,7 @@ if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
   exit 1
 fi
 
-java_major="$("$JAVA_BIN" -version 2>&1 | awk -F'"' '/version/ { print $2; exit }' | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
+java_major="$(java_major_version "$JAVA_BIN")"
 if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
   if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
     echo "java is too old for the diagnostic diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2

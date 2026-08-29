@@ -28,6 +28,16 @@ sanitize_case_name() {
     printf '%s' "$input"
 }
 
+# Parse the major version number out of `<bin> -version`'s stderr (JDK 21+
+# prints "21.0.x"; JDK 8 prints "1.8.0_x"). Empty output means the version
+# string couldn't be parsed; callers decide how to treat that.
+java_major_version() {
+    local java_bin="$1"
+    "$java_bin" -version 2>&1 \
+        | awk -F'"' '/version/ { print $2; exit }' \
+        | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }'
+}
+
 # Interleaved shard selection over stdin lines: line i (0-based) passes only
 # when i % count == index. count=1 passes every line. Both diff_kotlinc.sh and
 # shard_swift_tests.sh stripe work across CI runners with this rule; changing
