@@ -43,6 +43,8 @@ fun main() {
     println("hello".replaceRange(1, 3, "XY"))
     println("hello".replaceRange(1..2, "XY"))
     println("hello".replaceRange(2, 2, "Z"))
+    val replacement: CharSequence = StringBuilder("XY")
+    println("hello".replaceRange(1, 3, replacement))
 
     // empty string
     println("".substring(0) + "|")
