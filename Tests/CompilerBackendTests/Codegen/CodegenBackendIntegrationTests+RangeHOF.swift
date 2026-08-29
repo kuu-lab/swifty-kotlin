@@ -252,5 +252,41 @@ struct CodegenBackendRangeHOFTests {
                 """ + "\n"
         )
     }
+
+    @Test
+    func testCodegenUIntRangeMapFilterHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1u..5u).map { it * 2u })
+            println((1u..5u).mapIndexed { index, value -> index.toUInt() + value })
+            println((1u..5u).mapNotNull { if (it % 2u == 0u) null else it })
+            println((1u..5u).filter { it % 2u == 1u })
+            println((1u..5u).filterIndexed { index, _ -> index % 2 == 0 })
+            println((1u..5u).filterNot { it % 2u == 0u })
+            println((5u..1u).mapNotNull { it })
+            println((5u..1u).filterIndexed { index, _ -> index == 0 })
+            println((5u downTo 1u).mapIndexed { index, value -> index.toUInt() + value })
+            println((5u downTo 1u).filterNot { it % 2u == 0u })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UIntRangeMapFilterHOFExecution",
+            expected:
+                """
+                [2, 4, 6, 8, 10]
+                [1, 3, 5, 7, 9]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                []
+                []
+                [5, 5, 5, 5, 5]
+                [5, 3, 1]
+                """ + "\n"
+        )
+    }
 }
 #endif

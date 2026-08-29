@@ -175,7 +175,7 @@ extension BuildKIRRegressionTests {
             "primitive Char elements should not be boxed; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_toList"),
+            !callNames.contains("kk_array_toList") && !callNames.contains("__kk_array_toList"),
             "inline charArrayOf should not route through List varargs; got: \(callNames)"
         )
     }

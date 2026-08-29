@@ -32,11 +32,18 @@ struct NativeStackTraceAddressesSurfaceTests {
     func testGetStackTraceAddressesIsRegistered() throws {
         let (sema, interner) = try sharedSema()
         let nativeFQName = ["kotlin", "native", "getStackTraceAddresses"].map { interner.intern($0) }
+        let throwableFQName = ["kotlin", "Throwable"].map { interner.intern($0) }
         let listFQName = ["kotlin", "collections", "List"].map { interner.intern($0) }
+        let throwableSymbol = try #require(sema.symbols.lookup(fqName: throwableFQName))
+        let throwableType = sema.types.make(.classType(ClassType(
+            classSymbol: throwableSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
         let listSymbol = try #require(sema.symbols.lookup(fqName: listFQName))
         let listLongType = sema.types.make(.classType(ClassType(
             classSymbol: listSymbol,
-            args: [.out(sema.types.longType)],
+            args: [.invariant(sema.types.longType)],
             nullability: .nonNull
         )))
         let candidates = sema.symbols.lookupAll(fqName: nativeFQName)
@@ -44,7 +51,7 @@ struct NativeStackTraceAddressesSurfaceTests {
             guard let signature = sema.symbols.functionSignature(for: candidate) else {
                 return false
             }
-            return signature.receiverType == nil
+            return signature.receiverType == throwableType
                 && signature.parameterTypes.isEmpty
                 && signature.returnType == listLongType
         }
@@ -65,7 +72,7 @@ struct NativeStackTraceAddressesSurfaceTests {
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         import kotlin.native.getStackTraceAddresses
 
-        fun probe(): List<Long> = getStackTraceAddresses()
+        fun probe(throwable: Throwable): List<Long> = throwable.getStackTraceAddresses()
         """
         let ctx = runSemaCollectingDiagnostics(source)
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
