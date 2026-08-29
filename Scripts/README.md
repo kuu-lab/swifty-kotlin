@@ -4,7 +4,7 @@
 
 | Script | CI | Purpose |
 |---|---|---|
-| `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations |
+| `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
@@ -21,6 +21,14 @@
 - Tune workers: `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
 - Tune build jobs: `SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh`
 - Disable parallel mode: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh`
+
+If a run crashes with a signal (e.g. `*** Signal 11: ...` / `exited with
+unexpected signal code`) and no per-test failure line was parsed, the whole
+`swift test` invocation is retried up to 3 times before failing the step.
+This targets swift-corelibs-foundation's Linux `Process.run()` races that
+`CommandRunner.processLaunchLock` cannot fully close (unrelated threads in
+the same xctest process can still mutate the fd table mid-spawn); genuine
+test failures are never retried, since they always produce a parsed failure.
 
 When you are iterating on test failures after a successful build, you can also
 reuse the existing build products:
