@@ -67,6 +67,39 @@ struct UuidAPISurfaceInventoryTests {
     }
 
     @Test
+    func testJavaUuidShellIsSourceBackedWithJavaConstructorShape() throws {
+        let (ctx, sema, interner) = try sharedSema()
+        let javaUuidSourceFileID = try #require(
+            ctx.sourceManager.fileID(forPath: "__bundled_java/util/UUID.kt")
+        )
+        let javaUuidPath = ["java", "util", "UUID"]
+        let javaUuidSymbol = try #require(
+            sema.symbols.lookup(fqName: javaUuidPath.map { interner.intern($0) })
+        )
+        let javaUuidInfo = try #require(sema.symbols.symbol(javaUuidSymbol))
+        #expect(javaUuidInfo.kind == .class)
+        #expect(!javaUuidInfo.flags.contains(.synthetic), "java.util.UUID must be source-backed")
+        #expect(sema.symbols.sourceFileID(for: javaUuidSymbol) == javaUuidSourceFileID)
+
+        let constructorPath = javaUuidPath + ["<init>"]
+        let constructors = sema.symbols.lookupAll(fqName: constructorPath.map { interner.intern($0) })
+            .filter { sema.symbols.symbol($0)?.kind == .constructor }
+        let constructor = try #require(constructors.first, "java.util.UUID constructor must exist")
+        let constructorInfo = try #require(sema.symbols.symbol(constructor))
+        #expect(!constructorInfo.flags.contains(.synthetic))
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(signature.parameterTypes == [sema.types.longType, sema.types.longType])
+        #expect(
+            signature.returnType == sema.types.make(.classType(ClassType(
+                classSymbol: javaUuidSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        )
+        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+    }
+
+    @Test
     func testUuidPublicClassApisAreSourceBackedWithoutPureRuntimeLinks() throws {
         let (ctx, sema, interner) = try sharedSema()
         let uuidSourceFileID = try #require(ctx.sourceManager.fileID(forPath: "__bundled_kotlin/uuid/Uuid.kt"))
