@@ -306,7 +306,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     let raw = Int(bitPattern: opaque)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
     if box is RuntimeStringBox {
-        runtimeRegisterCharSequenceLengthItable(raw)
+        runtimeRegisterCharSequenceItable(raw)
     }
     return raw
 }
@@ -544,6 +544,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
+        return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
+    }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
         return lhs == rhs
     }
@@ -662,9 +665,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let lhsTriple = tryCast(lhsPtr, to: RuntimeTripleBox.self),
        let rhsTriple = tryCast(rhsPtr, to: RuntimeTripleBox.self)
     {
-        return runtimeValuesEqual(lhsTriple.first, rhsTriple.first)
-            && runtimeValuesEqual(lhsTriple.second, rhsTriple.second)
-            && runtimeValuesEqual(lhsTriple.third, rhsTriple.third)
+        return runtimeValuesEqual(lhsTriple.firstValue, rhsTriple.firstValue)
+            && runtimeValuesEqual(lhsTriple.secondValue, rhsTriple.secondValue)
+            && runtimeValuesEqual(lhsTriple.thirdValue, rhsTriple.thirdValue)
     }
     if let lhsLocale = tryCast(lhsPtr, to: RuntimeLocaleBox.self),
        let rhsLocale = tryCast(rhsPtr, to: RuntimeLocaleBox.self)
@@ -784,6 +787,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if runtimeIsUnitBox(elem) {
+        return "kotlin.Unit"
+    }
     if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
         return stringBox.value
     }
@@ -811,6 +817,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
     }
+    if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
+    }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
@@ -837,9 +846,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(ptr, to: RuntimeTripleBox.self) {
-        let first = runtimeElementToString(tripleBox.first)
-        let second = runtimeElementToString(tripleBox.second)
-        let third = runtimeElementToString(tripleBox.third)
+        let first = runtimeElementToString(tripleBox.firstValue)
+        let second = runtimeElementToString(tripleBox.secondValue)
+        let third = runtimeElementToString(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {

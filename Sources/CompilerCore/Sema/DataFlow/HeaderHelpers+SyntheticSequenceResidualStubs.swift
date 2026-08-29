@@ -2,7 +2,7 @@ import RuntimeABI
 
 /// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`,
 /// `forEach`, `forEachIndexed`, `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`,
-/// `takeLastWhile`, `shuffled`, `reversed`, `filterIsInstance`) that are not yet migrated
+/// `takeLastWhile`, `shuffled`, and `reversed`) that are not yet migrated
 /// to bundled Kotlin source.
 ///
 /// KSP-694: Consolidated residual Sequence stubs after KSP-441..446 and KSP-308
@@ -380,40 +380,5 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // filterIsInstance<R>(): Sequence<R> (STDLIB-SEQ-FN-026)
-        do {
-            let rName = interner.intern("R")
-            let rSymbol = symbols.define(
-                kind: .typeParameter,
-                name: rName,
-                fqName: sequenceFQName + [interner.intern("filterIsInstance"), rName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.reifiedTypeParameter]
-            )
-            let rType = types.make(.typeParam(TypeParamType(
-                symbol: rSymbol,
-                nullability: .nonNull
-            )))
-            let sequenceRType = types.make(.classType(ClassType(
-                classSymbol: sequenceSymbol,
-                args: [.out(rType)],
-                nullability: .nonNull
-            )))
-            registerSequenceMemberStub(
-                named: "filterIsInstance",
-                externalLinkName: "kk_sequence_filterIsInstance",
-                receiverType: receiverType,
-                parameters: [],
-                returnType: sequenceRType,
-                sequenceSymbol: sequenceSymbol,
-                sequenceFQName: sequenceFQName,
-                typeParamSymbol: typeParamSymbol,
-                symbols: symbols,
-                interner: interner,
-                additionalTypeParameterSymbols: [rSymbol],
-                additionalTypeParameterUpperBoundsList: [[]]
-            )
-        }
     }
 }
