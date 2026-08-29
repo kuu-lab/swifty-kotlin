@@ -4,4 +4,4 @@ file fstdlib_kotlin_coroutines_RestrictsSuspension_n_n package=golden.sema
   decl golden.sema.RestrictedScope class RestrictedScope sym=golden.sema.RestrictedScope
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@9:13 string(ok) type=String
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13] type=Unit call=kotlin.io.println#1
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13] type=Unit call=kotlin.io.println#2
