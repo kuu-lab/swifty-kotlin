@@ -599,7 +599,29 @@ jar_main_class() {
   local jar_path="$1"
   unzip -p "$jar_path" META-INF/MANIFEST.MF 2>/dev/null \
     | tr -d '\r' \
-    | awk -F': ' '/^Main-Class:/ { print $2; exit }'
+    | awk '
+      function emit_main_class() {
+        if (reading_main_class && !emitted_main_class) {
+          print main_class
+          emitted_main_class = 1
+        }
+      }
+      /^Main-Class: / {
+        emit_main_class()
+        main_class = substr($0, 13)
+        reading_main_class = 1
+        next
+      }
+      reading_main_class && /^ / {
+        main_class = main_class substr($0, 2)
+        next
+      }
+      reading_main_class {
+        emit_main_class()
+        reading_main_class = 0
+      }
+      END { emit_main_class() }
+    '
 }
 
 fingerprint_kotlinc_classpath() {
