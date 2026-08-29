@@ -31,28 +31,16 @@ jobs:
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
 
-  verify-core:
-    name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/3)
+  build-debug-tests:
+    name: Build debug Swift test bundle once
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        include:
-          - shard_index: 0
-            shard_label: 1
-          - shard_index: 1
-            shard_label: 2
-          - shard_index: 2
-            shard_label: 3
+    timeout-minutes: 60
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
-      SWIFT_TEST_BUILD_TARGETS: CompilerCoreTests
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +57,113 @@ jobs:
         with:
           swift-version: "6.3"
           build-variant: fast
-          save: ${{ github.event_name != 'pull_request' && matrix.shard_index == 0 && 'true' || 'false' }}
+          save: "false"
+      - name: Configure build parallelism
+        run: |
+          worker_count="$(nproc)"
+          if ! [[ "$worker_count" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Unable to detect a positive logical CPU count: $worker_count" >&2
+            exit 1
+          fi
+          echo "SWIFT_TEST_BUILD_JOBS=$worker_count" >> "$GITHUB_ENV"
+          echo "Detected $worker_count logical CPUs"
+      - name: Build compiler and all tests
+        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
+      - name: Package debug test bundle
+        run: |
+          archive_name="swift-debug-tests.tar.zst"
+          archive_path="$RUNNER_TEMP/$archive_name"
+          tar -I 'zstd -T0 -1'             --exclude='.build/out/CompilationCache.noindex'             -cf "$archive_path" .build
+          archive_size="$(du -h "$archive_path" | cut -f1)"
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum "$archive_name" > "$archive_name.sha256"
+          )
+          split --bytes=1900M --numeric-suffixes=0 --suffix-length=2             "$archive_path" "$RUNNER_TEMP/$archive_name.part-"
+          part_count="$(find "$RUNNER_TEMP" -maxdepth 1 -name "$archive_name.part-*" -type f | wc -l)"
+          rm "$archive_path"
+          {
+            echo "## Debug test bundle artifact"
+            echo
+            echo "- Compressed size: \`$archive_size\`"
+            echo "- Upload parts: \`$part_count\`"
+            echo "- Compilation CAS excluded: \`$SWIFT_CAS_PATH\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload debug test bundle artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-debug-tests-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/swift-debug-tests.tar.zst.part-*
+            ${{ runner.temp }}/swift-debug-tests.tar.zst.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  verify-core:
+    name: Verification 1/5 (CompilerCore and Smoke, shard ${{ matrix.shard_label }}/6)
+    needs: build-debug-tests
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - shard_index: 0
+            shard_label: 1
+          - shard_index: 1
+            shard_label: 2
+          - shard_index: 2
+            shard_label: 3
+          - shard_index: 3
+            shard_label: 4
+          - shard_index: 4
+            shard_label: 5
+          - shard_index: 5
+            shard_label: 6
+    env:
+      KSWIFTK_CI_FAST_BUILD: "1"
+      SWIFT_BUILD_SYSTEM: native
+      SWIFT_ENABLE_COMPILE_CACHE: "1"
+      SWIFT_ENABLE_CACHE_REMARKS: "1"
+      SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
+      SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
+    steps:
+      - name: Fail when the shared debug build failed
+        if: needs.build-debug-tests.result != 'success'
+        run: |
+          echo "Shared debug test build concluded: ${{ needs.build-debug-tests.result }}" >&2
+          exit 1
+      - uses: actions/checkout@v7
+      - name: Prepare Linux runner
+        uses: ./.github/actions/setup-self-hosted
+      - name: Setup Swift
+        uses: ./.github/actions/setup-swift
+        with:
+          swift-version: "6.3"
+      - name: Show toolchain versions
+        run: swift --version
+      - name: Download debug test bundle artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: swift-debug-tests-${{ github.run_id }}
+          path: ${{ runner.temp }}/swift-debug-tests-artifact
+      - name: Verify and extract debug test bundle
+        run: |
+          artifact_dir="$RUNNER_TEMP/swift-debug-tests-artifact"
+          archive_path="$RUNNER_TEMP/swift-debug-tests.tar.zst"
+          cat "$artifact_dir"/swift-debug-tests.tar.zst.part-* > "$archive_path"
+          (
+            cd "$RUNNER_TEMP"
+            cp "$artifact_dir/swift-debug-tests.tar.zst.sha256" .
+            sha256sum --check swift-debug-tests.tar.zst.sha256
+          )
+          rm -rf .build
+          tar -I zstd -xf "$archive_path" -C "$GITHUB_WORKSPACE"
+          test -d .build
+          mkdir -p "$SWIFT_CAS_PATH"
       - name: Configure CompilerCore test parallelism
         run: |
           worker_count="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)"
@@ -83,8 +177,6 @@ jobs:
             echo "SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=$worker_count"
           } >> "$GITHUB_ENV"
           echo "CompilerCore parallelization width: $worker_count"
-      - name: Build compiler and tests
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Run smoke tests with strict concurrency warnings
         if: matrix.shard_index == 0
         env:
@@ -96,12 +188,12 @@ jobs:
             --mode dynamic --list-filter '^CompilerCoreTests\.' \
             --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' \
             --target-prefix CompilerCoreTests \
-            --shard-index "${{ matrix.shard_index }}" --shard-count 3 \
+            --shard-index "${{ matrix.shard_index }}" --shard-count 6 \
             -- $SWIFT_XSWIFTC_FLAGS
       - name: Run CompilerCore golden batch shard
         env:
           KSWIFTK_GOLDEN_SHARD_INDEX: ${{ matrix.shard_index }}
-          KSWIFTK_GOLDEN_SHARD_COUNT: 3
+          KSWIFTK_GOLDEN_SHARD_COUNT: 6
           SWIFT_TEST_PARALLEL: "1"
         run: |
           bash Scripts/swift_test.sh --skip-build \
@@ -119,7 +211,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Verification 1/5 reproduce (shard ${{ matrix.shard_label }}/3)"
+            echo "## Verification 1/5 reproduce (shard ${{ matrix.shard_label }}/6)"
             echo '```bash'
             echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
             echo "KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/build_swift_tests.sh -j \"\$worker_count\" $SWIFT_XSWIFTC_FLAGS"
@@ -127,33 +219,43 @@ jobs:
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter SmokeTests $SWIFT_XSWIFTC_FLAGS"
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.FrontendParallelBenchmarkTests/' $SWIFT_XSWIFTC_FLAGS"
             fi
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 3 -- $SWIFT_XSWIFTC_FLAGS"
-            echo "KSWIFTK_GOLDEN_SHARD_INDEX=${{ matrix.shard_index }} KSWIFTK_GOLDEN_SHARD_COUNT=3 SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\\.' --list-exclude '^CompilerCoreTests\\.(FrontendParallelBenchmarkTests|GoldenDiagnosticsGoldenTests|GoldenLexerGoldenTests|GoldenParserGoldenTests|GoldenSemaGoldenTests|SmokeTests)/' --target-prefix CompilerCoreTests --shard-index ${{ matrix.shard_index }} --shard-count 6 -- $SWIFT_XSWIFTC_FLAGS"
+            echo "KSWIFTK_GOLDEN_SHARD_INDEX=${{ matrix.shard_index }} KSWIFTK_GOLDEN_SHARD_COUNT=6 SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^CompilerCoreTests\\.Golden(Diagnostics|Lexer|Parser|Sema)GoldenTests/' $SWIFT_XSWIFTC_FLAGS"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   verify-self-hosted:
-    name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP, shard ${{ matrix.shard_label }}/2)
+    name: Verification 2-3/5 (Backend, Runtime, CLI, and LSP, shard ${{ matrix.shard_label }}/4)
+    needs: build-debug-tests
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         include:
           - shard_index: 0
             shard_label: 1
           - shard_index: 1
             shard_label: 2
+          - shard_index: 2
+            shard_label: 3
+          - shard_index: 3
+            shard_label: 4
     env:
       KSWIFTK_CI_FAST_BUILD: "1"
       SWIFT_BUILD_SYSTEM: native
       SWIFT_ENABLE_COMPILE_CACHE: "1"
       SWIFT_ENABLE_CACHE_REMARKS: "1"
       SWIFT_CAS_PATH: ${{ github.workspace }}/.build/out/CompilationCache.noindex
-      SWIFT_TEST_BUILD_TARGETS: ${{ matrix.shard_index == 0 && 'CompilerBackendTests RuntimeTests RuntimeTestsParallel KSwiftKCLITests LSPServerTests' || 'CompilerBackendTests' }}
       SWIFT_XSWIFTC_FLAGS: -Xswiftc -swift-version -Xswiftc 6 -Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency
     steps:
+      - name: Fail when the shared debug build failed
+        if: needs.build-debug-tests.result != 'success'
+        run: |
+          echo "Shared debug test build concluded: ${{ needs.build-debug-tests.result }}" >&2
+          exit 1
       - uses: actions/checkout@v7
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
@@ -165,12 +267,25 @@ jobs:
         uses: ./.github/actions/setup-llvm
       - name: Show toolchain versions
         run: swift --version
-      - name: Setup SwiftPM build cache
-        uses: ./.github/actions/setup-swiftpm-cache
+      - name: Download debug test bundle artifact
+        uses: actions/download-artifact@v8
         with:
-          swift-version: "6.3"
-          build-variant: fast
-          save: ${{ github.event_name != 'pull_request' && matrix.shard_index == 0 && 'true' || 'false' }}
+          name: swift-debug-tests-${{ github.run_id }}
+          path: ${{ runner.temp }}/swift-debug-tests-artifact
+      - name: Verify and extract debug test bundle
+        run: |
+          artifact_dir="$RUNNER_TEMP/swift-debug-tests-artifact"
+          archive_path="$RUNNER_TEMP/swift-debug-tests.tar.zst"
+          cat "$artifact_dir"/swift-debug-tests.tar.zst.part-* > "$archive_path"
+          (
+            cd "$RUNNER_TEMP"
+            cp "$artifact_dir/swift-debug-tests.tar.zst.sha256" .
+            sha256sum --check swift-debug-tests.tar.zst.sha256
+          )
+          rm -rf .build
+          tar -I zstd -xf "$archive_path" -C "$GITHUB_WORKSPACE"
+          test -d .build
+          mkdir -p "$SWIFT_CAS_PATH"
       - name: Configure backend test parallelism
         run: |
           worker_count="$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)"
@@ -184,13 +299,11 @@ jobs:
             echo "SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=$worker_count"
           } >> "$GITHUB_ENV"
           echo "Backend parallelization width: $worker_count"
-      - name: Build compiler and tests
-        run: bash Scripts/build_swift_tests.sh -j "$SWIFT_TEST_BUILD_JOBS" $SWIFT_XSWIFTC_FLAGS
       - name: Run CompilerBackendTests shard with strict concurrency warnings
         run: |
           bash Scripts/shard_swift_tests.sh \
             --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests \
-            --shard-index "${{ matrix.shard_index }}" --shard-count 2 \
+            --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
             -- $SWIFT_XSWIFTC_FLAGS
       - name: Run RuntimeTests (serialized, chunked) with strict concurrency warnings
         if: matrix.shard_index == 0
@@ -219,11 +332,11 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Verification 2-3/5 reproduce (shard ${{ matrix.shard_label }}/2)"
+            echo "## Verification 2-3/5 reproduce (shard ${{ matrix.shard_label }}/4)"
             echo '```bash'
             echo "worker_count=\"\$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN)\""
             echo 'KSWIFTK_CI_FAST_BUILD=1 SWIFT_BUILD_SYSTEM=native SWIFT_ENABLE_COMPILE_CACHE=1 bash Scripts/build_swift_tests.sh -j "$worker_count" $SWIFT_XSWIFTC_FLAGS'
-            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests --shard-index ${{ matrix.shard_index }} --shard-count 2 -- $SWIFT_XSWIFTC_FLAGS"
+            echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/CompilerBackendTests --target-prefix CompilerBackendTests --shard-index ${{ matrix.shard_index }} --shard-count 4 -- $SWIFT_XSWIFTC_FLAGS"
             if [[ "${{ matrix.shard_index }}" == "0" ]]; then
               echo 'SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=0 SWIFT_TEST_BUILD_JOBS="$worker_count" bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests --target-prefix RuntimeTests -- $SWIFT_XSWIFTC_FLAGS'
               echo "SWIFT_BUILD_SYSTEM=native SWIFT_TEST_PARALLEL=1 SWIFT_TEST_WORKERS=\"\$worker_count\" SWIFT_TEST_BUILD_JOBS=\"\$worker_count\" bash Scripts/swift_test.sh --skip-build --filter '^RuntimeTestsParallel\\.' $SWIFT_XSWIFTC_FLAGS"
@@ -371,24 +484,28 @@ jobs:
             ${{ runner.temp }}/kswiftc-release.tar.zst
             ${{ runner.temp }}/kswiftc-release.tar.zst.sha256
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
           compression-level: 0
 
   verify-diff:
-    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/2)
+    name: Verification 5/5 (kotlinc Diff, shard ${{ matrix.shard_label }}/4)
     needs: build-release-kswiftc
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 4
       matrix:
         include:
           - shard_index: 0
             shard_label: 1
           - shard_index: 1
             shard_label: 2
+          - shard_index: 2
+            shard_label: 3
+          - shard_index: 3
+            shard_label: 4
     env:
       KOTLIN_VERSION: "2.3.10"
       KOTLINX_COROUTINES_VERSION: "1.10.2"
@@ -473,6 +590,19 @@ jobs:
           java -version
           kotlinc -version
           "$KSWIFTC" --version || true
+      - name: Run diagnostic harness self-test
+        if: matrix.shard_index == 0
+        run: DIFF_REQUIRE_JDK21=0 bash Scripts/diff_diagnostics.sh --self-test
+      - name: Run diagnostic differential cases
+        id: diff_diagnostics
+        if: matrix.shard_index == 0
+        continue-on-error: true
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_diagnostics_report.tsv
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_diagnostics_artifacts
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_LOG_PASS: "0"
+        run: bash Scripts/diff_diagnostics.sh --report "$DIFF_REPORT" Scripts/diagnostic_cases
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
@@ -487,7 +617,7 @@ jobs:
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \
-              --shard-index "${{ matrix.shard_index }}" --shard-count 2 \
+              --shard-index "${{ matrix.shard_index }}" --shard-count 4 \
               --report "$DIFF_REPORT" Scripts/diff_cases
       - name: Summarize kotlinc diff artifacts
         if: always() && steps.diff_kotlinc.outcome != 'cancelled'
@@ -499,6 +629,11 @@ jobs:
         run: |
           echo "kotlinc diff regression cases failed." >&2
           exit 1
+      - name: Fail when diagnostic differential mismatches exist
+        if: steps.diff_diagnostics.outcome == 'failure'
+        run: |
+          echo "Diagnostic differential cases failed." >&2
+          exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
@@ -507,5 +642,7 @@ jobs:
           path: |
             ${{ runner.temp }}/diff_kotlinc_report.tsv
             ${{ runner.temp }}/diff_kotlinc_artifacts
+            ${{ runner.temp }}/diff_diagnostics_report.tsv
+            ${{ runner.temp }}/diff_diagnostics_artifacts
           if-no-files-found: ignore
           retention-days: 30

@@ -79,5 +79,29 @@ struct RuntimeBoxedDoubleSignedZeroTests {
         #expect(elements?.first != runtimeNullSentinelInt)
         #expect(elements.map { $0.map { kk_unbox_double($0) } } == [bits(-0.0), bits(1.0)])
     }
+
+    @Test
+    func testCharBooleanAndFloatArrayToListBoxElements() {
+        let charArray = RuntimeArrayBox(length: 2)
+        charArray.elements[0] = 97
+        charArray.elements[1] = 90
+        let charList = kk_charArray_toList(registerRuntimeObject(charArray))
+        let charElements = runtimeListBox(from: charList)?.elements ?? []
+        #expect(charElements.map(kk_unbox_char) == [97, 90])
+
+        let booleanArray = RuntimeArrayBox(length: 2)
+        booleanArray.elements[0] = 1
+        booleanArray.elements[1] = 0
+        let booleanList = kk_booleanArray_toList(registerRuntimeObject(booleanArray))
+        let booleanElements = runtimeListBox(from: booleanList)?.elements ?? []
+        #expect(booleanElements.map(kk_unbox_bool) == [1, 0])
+
+        let floatArray = RuntimeArrayBox(length: 2)
+        floatArray.elements[0] = Int(Float(3.5).bitPattern)
+        floatArray.elements[1] = Int(Float(-4.5).bitPattern)
+        let floatList = kk_floatArray_toList(registerRuntimeObject(floatArray))
+        let floatElements = runtimeListBox(from: floatList)?.elements ?? []
+        #expect(floatElements.map(kk_unbox_float) == [Int(Float(3.5).bitPattern), Int(Float(-4.5).bitPattern)])
+    }
 }
 #endif
