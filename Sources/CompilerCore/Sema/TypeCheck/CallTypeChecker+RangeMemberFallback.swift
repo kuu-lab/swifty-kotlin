@@ -2,7 +2,7 @@
 import Foundation
 
 extension CallTypeChecker {
-    // MARK: - IntRange member fallback (STDLIB-090/091/092/093)
+    // MARK: - Range member fallback (STDLIB-090/091/092/093)
 
     func tryRangeMemberFallback(
         _ id: ExprID,
@@ -238,6 +238,14 @@ extension CallTypeChecker {
             || memberName == "lastOrNull"
     }
 
+    private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 1 else { return false }
+        return [
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+        ].contains(memberName)
+    }
+
     private func bindSourceRangeHOFCall(
         _ id: ExprID,
         memberName: String,
@@ -264,6 +272,8 @@ extension CallTypeChecker {
         let isSourceBackedRangeCall =
             ((rangeKind == .intRange || rangeKind == .intProgression)
                 && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
+            || ((rangeKind == .uintRange || rangeKind == .uintProgression)
+                && isUIntRangeSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || ((memberName == "random" || memberName == "randomOrNull")
@@ -454,6 +464,8 @@ extension CallTypeChecker {
             return [kotlin, ranges, interner.intern("CharRange")]
         case .uintRange:
             return [kotlin, ranges, interner.intern("UIntRange")]
+        case .uintProgression:
+            return [kotlin, ranges, interner.intern("UIntProgression")]
         case .ulongRange:
             return [kotlin, ranges, interner.intern("ULongRange")]
         default:
