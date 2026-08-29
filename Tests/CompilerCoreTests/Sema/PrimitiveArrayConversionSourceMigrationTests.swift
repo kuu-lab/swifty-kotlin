@@ -3,9 +3,8 @@
 import Foundation
 import Testing
 
-/// KSP-1512: signed primitive-array `size` / `toList` are bundled Kotlin
-/// declarations, while unsigned primitive arrays and Array<T> retain their
-/// synthetic runtime-backed members for KSP-1513.
+/// KSP-1512/KSP-1513: primitive-array and generic-array conversions are bundled
+/// Kotlin declarations with private runtime bridges.
 @Suite(.serialized)
 struct PrimitiveArrayConversionSourceMigrationTests {
     @Test
@@ -86,13 +85,29 @@ struct PrimitiveArrayConversionSourceMigrationTests {
     }
 
     @Test
-    func unsignedAndGenericArrayMembersRetainSyntheticRuntimeLinks() throws {
+    func unsignedAndGenericArrayMembersResolveToBundledSource() throws {
         let source = """
-        fun exercise(unsigned: UIntArray, objects: Array<Int>) {
-            unsigned.size
-            unsigned.toList()
-            objects.size
-            objects.toList()
+        fun exercise(
+            ubytes: UByteArray,
+            ushorts: UShortArray,
+            uints: UIntArray,
+            ulongs: ULongArray,
+            objects: Array<Int>
+        ) {
+            val ubyteSize: Int = ubytes.size
+            val ubyteCopy: List<UByte> = ubytes.toList()
+            val ubyteView: List<UByte> = ubytes.asList()
+            val ushortSize: Int = ushorts.size
+            val ushortCopy: List<UShort> = ushorts.toList()
+            val ushortView: List<UShort> = ushorts.asList()
+            val uintSize: Int = uints.size
+            val uintCopy: List<UInt> = uints.toList()
+            val uintView: List<UInt> = uints.asList()
+            val ulongSize: Int = ulongs.size
+            val ulongCopy: List<ULong> = ulongs.toList()
+            val ulongView: List<ULong> = ulongs.asList()
+            val objectSize: Int = objects.size
+            val objectCopy: List<Int> = objects.toList()
         }
         """
 
@@ -102,18 +117,19 @@ struct PrimitiveArrayConversionSourceMigrationTests {
 
             #expect(
                 ctx.diagnostics.diagnostics.isEmpty,
-                "Expected residual synthetic array members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
+                "Expected unsigned and generic array members to type-check cleanly, got: \(ctx.diagnostics.diagnostics)"
             )
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedLinks: [String: String] = [
-                "UIntArray.size": "kk_uIntArray_size",
-                "UIntArray.toList": "kk_uIntArray_toList",
-                "Array.size": "kk_array_size",
-                "Array.toList": "kk_array_toList",
+            let expectedMembers: Set<String> = [
+                "UByteArray.size", "UByteArray.toList", "UByteArray.asList",
+                "UShortArray.size", "UShortArray.toList", "UShortArray.asList",
+                "UIntArray.size", "UIntArray.toList", "UIntArray.asList",
+                "ULongArray.size", "ULongArray.toList", "ULongArray.asList",
+                "Array.size", "Array.toList",
             ]
-            var observedLinks: [String: String] = [:]
+            var observedMembers: Set<String> = []
 
             for index in ast.arena.exprs.indices {
                 let exprID = ExprID(rawValue: Int32(index))
@@ -126,12 +142,16 @@ struct PrimitiveArrayConversionSourceMigrationTests {
                       let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
                 else { continue }
                 let key = "\(ctx.interner.resolve(receiverSymbol.name)).\(ctx.interner.resolve(callee))"
-                guard expectedLinks[key] != nil else { continue }
-                observedLinks[key] = sema.symbols.externalLinkName(for: chosenCallee)
-                #expect(!sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(key) to retain its synthetic declaration")
+                guard expectedMembers.contains(key) else { continue }
+                observedMembers.insert(key)
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(key) to resolve to bundled source")
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected \(key) to have no public runtime link")
+                if ctx.interner.resolve(callee) == "size" {
+                    #expect(sema.bindings.exprType(for: exprID) == sema.types.intType)
+                }
             }
 
-            #expect(observedLinks == expectedLinks, "Unexpected residual array links: \(observedLinks)")
+            #expect(observedMembers == expectedMembers, "Unexpected unsigned/generic array members: \(observedMembers)")
         }
     }
 }

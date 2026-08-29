@@ -46,7 +46,7 @@ struct ReflectKTypeProjectionSyntheticTests {
         ))
 
         #expect(sema.symbols.symbol(kTypeProjectionSymbol)?.kind == .class)
-        #expect(sema.symbols.symbol(kTypeProjectionSymbol)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(kTypeProjectionSymbol)?.flags.contains(.synthetic) == false)
 
         let nullableKVariance = sema.types.makeNullable(sema.types.make(.classType(ClassType(
             classSymbol: kVarianceSymbol,
@@ -82,6 +82,40 @@ struct ReflectKTypeProjectionSyntheticTests {
             fqName: reflectPackage + [interner.intern("KType"), interner.intern("arguments")]
         ))
         #expect(sema.symbols.propertyType(for: argumentsSymbol) == listOfProjection)
+    }
+
+    @Test func testKTypeProjectionConstructorAndCompanionAreSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let reflectPackage = [interner.intern("kotlin"), interner.intern("reflect")]
+        let projectionName = interner.intern("KTypeProjection")
+        let constructor = try #require(sema.symbols.lookup(
+            fqName: reflectPackage + [projectionName, interner.intern("<init>")]
+        ))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructor))
+        let kTypeSymbol = try #require(sema.symbols.lookup(
+            fqName: reflectPackage + [interner.intern("KType")]
+        ))
+        let kVarianceSymbol = try #require(sema.symbols.lookup(
+            fqName: reflectPackage + [interner.intern("KVariance")]
+        ))
+        let nullableKType = sema.types.makeNullable(sema.types.make(.classType(ClassType(
+            classSymbol: kTypeSymbol, args: [], nullability: .nonNull
+        ))))
+        let nullableKVariance = sema.types.makeNullable(sema.types.make(.classType(ClassType(
+            classSymbol: kVarianceSymbol, args: [], nullability: .nonNull
+        ))))
+        #expect(sema.symbols.symbol(constructor)?.kind == .constructor)
+        #expect(constructorSignature.parameterTypes == [nullableKVariance, nullableKType])
+        #expect(sema.symbols.externalLinkName(for: constructor) == "__kk_ktypeprojection_create_checked")
+
+        let companion = try #require(sema.symbols.lookup(
+            fqName: reflectPackage + [projectionName, interner.intern("Companion")]
+        ))
+        #expect(sema.symbols.symbol(companion)?.kind == .object)
+        #expect(sema.symbols.symbol(companion)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.parentSymbol(for: companion) == sema.symbols.lookup(
+            fqName: reflectPackage + [projectionName]
+        ))
     }
 
     @Test func testKTypeProjectionPropertiesResolveInSource() throws {
