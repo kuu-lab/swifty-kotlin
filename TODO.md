@@ -5847,7 +5847,7 @@
     - `kotlin.math.tan` — fun tan(Float): Float  -- `final fun kotlin.math/tan(kotlin/Float): kotlin/Float`
   - 完了根拠（2026-08-25）: Kotlin 2.3.10 の公式 common source `MathH.kt` と JVM source/artifact metadata/kotlinc で、`public` な `kotlin.math` top-level の `tan(Double): Double` / `tan(Float): Float`、`@SinceKotlin("1.2")`、radians 入力、`NaN|+Inf|-Inf` の `NaN` 契約、JVM の Double/Float overload と platform availability を確認。現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` の両 public wrapper は KSP-637 / merged PR #5831 / commit `dfc478e0f` で既に source-backed 化され、`MathAPITargetInventoryTests`・`MathOverloadResolutionTests`・`MathSyntheticTopLevelLinkTests`・`RuntimeMathEdgeCaseTests` と既存 `math_transcendental_source.kt` / `math_trig_functions.kt` / `math_float_overloads.kt` が Sema/source dispatch/runtime/diff 回帰を保持している。KSP-1189 の実装追加、sin/cos/tanh 等の他 task、bridge の推測変更は不要。
 
-- [ ] KSP-1190: kotlin.math.tanh-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1190: kotlin.math.tanh-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.math` / top-level / family `tanh`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/tanh.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5857,6 +5857,7 @@
   - 未実装シンボル一覧:
     - `kotlin.math.tanh` — fun tanh(Double): Double  -- `final fun kotlin.math/tanh(kotlin/Double): kotlin/Double`
     - `kotlin.math.tanh` — fun tanh(Float): Float  -- `final fun kotlin.math/tanh(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25 再監査）: KSP-637 の merged PR #5831 / merge commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9` で source-backed 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/math/Math.kt` は `tanh(Double): Double` / `tanh(Float): Float` と `__kk_math_tanh` / `__kk_math_tanh_float` bridge を保持し、既存 Sema overload/link、backend lowering、runtime edge、Kotlin 2.3.10 diff の各検証で契約を確認した。focused 実績は Sema 61 tests、backend 1 test、runtime tanh 7 tests、diff 2 cases、Runtime ABI 4 tests の全 PASS。実装・bridge・golden・diff の追加変更は不要で、KSP-1190 の TODO 同期のみを行った。
 
 - [ ] KSP-1191: kotlin.native top-level の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.native` / top-level
