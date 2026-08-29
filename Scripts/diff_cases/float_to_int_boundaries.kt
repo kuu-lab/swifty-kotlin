@@ -9,6 +9,7 @@ fun main() {
     println(3.99.toInt())
     println((-3.99).toInt())
     println(2.5.toInt())
+    println((-0.5).toInt())
     // Double -> Long special values / out of range
     println(Double.NaN.toLong())
     println(Double.POSITIVE_INFINITY.toLong())

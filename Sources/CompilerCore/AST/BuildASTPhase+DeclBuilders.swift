@@ -257,13 +257,20 @@ extension BuildASTPhase {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        let superTypeEntries = declarationSuperTypeEntries(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
             modifiers: modifiers,
             annotations: annotations,
-            superTypes: declarationSuperTypes(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            superTypes: superTypeEntries.map(\.typeRef),
+            superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
             classBodyInitOrder: declarationClassBodyInitOrder(from: nodeID, in: arena, interner: interner),
