@@ -8098,12 +8098,13 @@
     - `kotlin.sequences.singleOrNull` — fun Sequence.singleOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/singleOrNull(): #A?`
     - `kotlin.sequences.singleOrNull` — fun Sequence.singleOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/singleOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
 
-- [ ] KSP-1358: kotlin.sequences.Sequence.sorted-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1358: kotlin.sequences.Sequence.sorted-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `sorted`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceSortingHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_sorted.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sorted.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_sorted.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 完了根拠: `Sequence.sortedWith(Comparator<in T>)` を source-backed 化し、`iterator()` 時の source 消費、Comparator dispatch、stable sorting、empty/duplicate、comparator 例外伝播を実装・回帰固定。旧 Sequence 用 `kk_sequence_sortedWith` runtime/ABI/lowering 経路は削除済み。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.sequences.sortedWith` — fun Sequence.sortedWith(Comparator): Sequence  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/sortedWith(kotlin/Comparator<in #A>): kotlin.sequences/Sequence<#A>`
