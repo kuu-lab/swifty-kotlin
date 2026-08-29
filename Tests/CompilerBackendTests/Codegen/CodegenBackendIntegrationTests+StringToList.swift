@@ -121,5 +121,51 @@ struct CodegenBackendStringToListTests {
                 + "\n"
         )
     }
+
+    @Test
+    func testCodegenCharSequenceCollectionConversionsUseSourceIterator() throws {
+        let source = """
+        fun main() {
+            val text: CharSequence = "caba"
+
+            val iterator = text.iterator()
+            println(iterator.next())
+
+            var iterated = 0
+            for (character in text) iterated++
+            println(iterated)
+
+            println(text.asIterable().toList().size)
+            println(text.asSequence().toList())
+            println(text.toMutableList().size)
+            println(text.toCharArray().size)
+            println(text.toTypedArray().size)
+
+            val destination = mutableListOf<Char>('!')
+            println(text.toCollection(destination))
+            println(text.toSortedSet())
+            println(text.withIndex().toList().size)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharSequenceCollectionConversions",
+            expected:
+                """
+                c
+                4
+                4
+                [c, a, b, a]
+                4
+                4
+                4
+                [!, c, a, b, a]
+                [a, b, c]
+                4
+                """
+                + "\n"
+        )
+    }
 }
 #endif

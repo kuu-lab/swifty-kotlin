@@ -18,19 +18,6 @@
       "file": "error_semantic_basic.kt",
       "range": {
         "start": { "line": 6, "character": 15 },
-        "end": { "line": 6, "character": 31 }
-      },
-      "severity": 1,
-      "severityLabel": "error",
-      "code": "KSWIFTK-SEMA-0002",
-      "source": "kswiftk",
-      "message": "No viable overload found for call.",
-      "codeActions": []
-    },
-    {
-      "file": "error_semantic_basic.kt",
-      "range": {
-        "start": { "line": 6, "character": 15 },
         "end": { "line": 6, "character": 20 }
       },
       "severity": 1,

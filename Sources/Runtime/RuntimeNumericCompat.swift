@@ -8,6 +8,9 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    if runtimeIsUnitBox(value) {
+        return runtimeMakeStringPointer("kotlin.Unit")
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -189,6 +192,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value
     }
+    if runtimeIsUnitBox(value) {
+        return 0
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
             .filter { !$0.isEmpty }
@@ -200,9 +206,17 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
+    }
+    // Kotlin Set.hashCode() is the sum of the element hash codes, independent
+    // of insertion order. Keep Any.hashCode() consistent with Set equality for
+    // runtime-backed sets, including sets reached through an erased Any value.
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        return setBox.elements.reduce(0) { partial, element in
+            partial &+ kk_any_hashCode(element, 0)
+        }
     }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
@@ -289,6 +303,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     }
     if tryCast(pointer, to: RuntimeULongBox.self) != nil {
         return 10
+    }
+    if runtimeIsUnitBox(value) {
+        return 11
     }
     return 100
 }
@@ -379,8 +396,8 @@ public func kk_int_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
-@_cdecl("kk_float_to_double_bits")
-public func kk_float_to_double_bits(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_double_bits")
+public func __kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
 }
 
@@ -1070,8 +1087,8 @@ public func kk_op_ushr(_ lhs: Int, _ rhs: Int) -> Int {
     return Int(bitPattern: UInt(bitPattern: lhs) >> shift)
 }
 
-@_cdecl("kk_double_to_int")
-public func kk_double_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_int")
+public func __kk_double_to_int(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int32.max) { return Int(Int32.max) }
@@ -1079,8 +1096,8 @@ public func kk_double_to_int(_ value: Int) -> Int {
     return Int(Int32(d))
 }
 
-@_cdecl("kk_float_to_int")
-public func kk_float_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_int")
+public func __kk_float_to_int(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int32.max) { return Int(Int32.max) }
@@ -1088,8 +1105,8 @@ public func kk_float_to_int(_ value: Int) -> Int {
     return Int(Int32(f))
 }
 
-@_cdecl("kk_double_to_long")
-public func kk_double_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_long")
+public func __kk_double_to_long(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int64.max) { return Int(Int64.max) }
@@ -1097,8 +1114,8 @@ public func kk_double_to_long(_ value: Int) -> Int {
     return Int(Int64(d))
 }
 
-@_cdecl("kk_float_to_long")
-public func kk_float_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_long")
+public func __kk_float_to_long(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int64.max) { return Int(Int64.max) }
