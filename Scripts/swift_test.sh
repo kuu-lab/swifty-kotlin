@@ -66,10 +66,7 @@ declare -a command=(swift test)
 
 # Select the same build system used by build_swift_tests.sh so per-test-target
 # products (swiftbuild) and their compilation cache are reused.
-build_system="${SWIFT_BUILD_SYSTEM:-}"
-if [[ -n "$build_system" ]]; then
-    command+=(--build-system "$build_system")
-fi
+kswiftk_append_build_system_flag command
 
 # When running a single test target product (required with swiftbuild's
 # per-test-target products), tell `swift test` which product to load. Without
