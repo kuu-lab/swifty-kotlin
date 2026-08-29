@@ -384,15 +384,12 @@ extension BuildASTPhase {
                     // while still inside the initializer expression (e.g.
                     // `= Comparator<Int> { a, b -> a - b }`).
                     //
-                    // Only recurse for `declarationPropertyInitializer`, which
-                    // opts in via `includingTrailingLambdaTokens`, and for the
-                    // source-backed `lazy` delegate factory. The latter has a
-                    // required initializer parameter in its real Kotlin
-                    // signature, so `declarationDelegateExpression` opts in
-                    // after identifying the factory. The synthetic
-                    // `observable`/`vetoable` paths keep their callbacks in
-                    // `PropertyDecl.delegateBody` because their compatibility
-                    // signatures resolve only the initial-value argument.
+                    // Only recurse for property initializers and delegate
+                    // expressions, which explicitly opt in because a direct
+                    // block is a trailing call argument. Delegate lowering
+                    // still stores that same lambda body in
+                    // `PropertyDecl.delegateBody` for its existing
+                    // synthetic/runtime path.
                     guard includingTrailingLambdaTokens else {
                         return tokens
                     }
@@ -493,17 +490,5 @@ extension BuildASTPhase {
             return nil
         }
         return parsed.consumed == tokens.count ? parsed.ref : nil
-    }
-
-    func isParameterModifierToken(_ token: Token) -> Bool {
-        guard case let .keyword(keyword) = token.kind else {
-            return false
-        }
-        switch keyword {
-        case .vararg, .crossinline, .noinline:
-            return true
-        default:
-            return false
-        }
     }
 }

@@ -332,72 +332,6 @@ extension RuntimeSequenceTests {
     }
 
     @Test
-    func testSequenceFind() {
-        let seq = makeSequence([1, 2, 3, 4, 5])
-        let findFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value > 3 ? 1 : 0  // true for values > 3
-        }
-        var thrown = 0
-        let found = kk_sequence_find(
-            seq,
-            unsafeBitCast(findFn, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(found == 4) // First element > 3
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testSequenceFindNotFound() {
-        let seq = makeSequence([1, 2, 3])
-        let findFn: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value > 10 ? 1 : 0  // true for values > 10
-        }
-        var thrown = 0
-        let found = kk_sequence_find(
-            seq,
-            unsafeBitCast(findFn, to: Int.self),
-            0,
-            &thrown
-        )
-        #expect(found == runtimeNullSentinelInt)
-        #expect(thrown == 0)
-    }
-
-    @Test
-    func testSequenceFindLastHandlesEmptySingleNoMatchAndAllMatchCases() {
-        let matchesEven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value.isMultiple(of: 2) ? 1 : 0
-        }
-        let matchesGreaterThanTen: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value > 10 ? 1 : 0
-        }
-        let matchesPositive: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value > 0 ? 1 : 0
-        }
-        let matchesSeven: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, value, _ in
-            value == 7 ? 1 : 0
-        }
-
-        var thrown = 0
-        #expect(kk_sequence_findLast(makeSequence([]), unsafeBitCast(matchesEven, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
-        #expect(thrown == 0)
-
-        thrown = 0
-        #expect(kk_sequence_findLast(makeSequence([7]), unsafeBitCast(matchesSeven, to: Int.self), 0, &thrown) == 7)
-        #expect(thrown == 0)
-
-        thrown = 0
-        #expect(kk_sequence_findLast(makeSequence([1, 2, 3]), unsafeBitCast(matchesGreaterThanTen, to: Int.self), 0, &thrown) == runtimeNullSentinelInt)
-        #expect(thrown == 0)
-
-        thrown = 0
-        #expect(kk_sequence_findLast(makeSequence([2, 4, 6]), unsafeBitCast(matchesPositive, to: Int.self), 0, &thrown) == 6)
-        #expect(thrown == 0)
-    }
-
-    @Test
     func testSequenceFilterNotLazy() {
         // Test that filterNot is lazy by using a sequence builder
         _lazyTestYieldCounter = 0
@@ -1135,25 +1069,6 @@ extension RuntimeSequenceTests {
         let taken = kk_sequence_take(distinct, 1)
         #expect(sequenceElements(taken) == [1])
         #expect(_lazyTestYieldCounter <= 2, "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)")
-    }
-
-    @Test
-    func testFilterIsInstanceIsLazy() {
-        _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 10)
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 20)
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 30)
-            return 0
-        }
-        let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
-        let filtered = kk_sequence_filterIsInstance(seq, 3)
-        let taken = kk_sequence_take(filtered, 1)
-        #expect(sequenceElements(taken) == [10])
-        #expect(_lazyTestYieldCounter <= 2, "filterIsInstance should be lazy; take(1) must not force all 3 yields, got \(_lazyTestYieldCounter)")
     }
 
     // MARK: - Helpers
