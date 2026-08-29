@@ -24,6 +24,8 @@ jobs:
       FUZZ_TIMEOUT_SECONDS: "30"
     steps:
       - uses: actions/checkout@v7
+      - name: Run mutation-generator smoke test
+        run: bash Scripts/test_mutation_fuzzer.sh
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift
@@ -43,8 +45,6 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nightly-mutation-fuzzer"
           "$KSWIFTC" --stdlib-only --emit library \
             -o "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib"
-      - name: Run mutation-generator smoke test
-        run: bash Scripts/test_mutation_fuzzer.sh
       - name: Replay committed crash corpus
         env:
           KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc

@@ -8,7 +8,6 @@ set -euo pipefail
 # so this script stays generator-only and needs no kswiftc/stdlib inputs.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kswiftk-mutation-test.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
@@ -16,7 +15,7 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 run_generator() {
   local output_dir="$1"
   "$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-    --seed-dir "$ROOT_DIR/Scripts/diff_cases" \
+    --seed-dir "$SCRIPT_DIR/diff_cases" \
     --seed 23023 \
     --cases 24 \
     --duration-seconds 30 \
