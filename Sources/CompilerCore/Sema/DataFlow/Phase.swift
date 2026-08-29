@@ -59,6 +59,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1334: make the source-backed KTypeProjection nominal available
+        // before reflection synthetic stubs attach its residual properties.
+        predeclareBundledKTypeProjectionHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
