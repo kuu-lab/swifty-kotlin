@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Smoke-tests the mutation generator itself (determinism + operation
+# coverage). Compiling generated/corpus cases against kswiftc is the nightly
+# workflow's job (nightly-mutation-fuzzer.yml) — its "Replay committed crash
+# corpus" and "Run bounded mutation fuzzer" steps already cover that ground,
+# so this script stays generator-only and needs no kswiftc/stdlib inputs.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
-# --generate-only never compiles, so STDLIB_ARGS is intentionally left out of
-# run_generator() and the manifest-check heredoc below.
-STDLIB_ARGS=()
-if [[ -n "${FUZZ_STDLIB_LIBRARY:-}" ]]; then
-  STDLIB_ARGS=(--stdlib-library "$FUZZ_STDLIB_LIBRARY")
-fi
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kswiftk-mutation-test.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
@@ -44,21 +43,4 @@ if missing:
 print(f"Deterministic mutation smoke: {len(manifest)} cases, operations={sorted(operations)}")
 PY
 
-"$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-  --kswiftc "$KSWIFTC" \
-  --replay-dir "$ROOT_DIR/Tests/CrashCorpus" \
-  "${STDLIB_ARGS[@]}" \
-  --timeout-seconds 30 \
-  --workers 1
-
-"$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-  --kswiftc "$KSWIFTC" \
-  --seed-dir "$ROOT_DIR/Scripts/diff_cases" \
-  --seed 23023 \
-  --cases 2 \
-  --duration-seconds 90 \
-  --timeout-seconds 30 \
-  "${STDLIB_ARGS[@]}" \
-  --workers 1
-
-echo "Mutation fuzzer focused tests passed."
+echo "Mutation generator smoke test passed."

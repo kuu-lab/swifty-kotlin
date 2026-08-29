@@ -43,10 +43,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/nightly-mutation-fuzzer"
           "$KSWIFTC" --stdlib-only --emit library \
             -o "$RUNNER_TEMP/nightly-mutation-fuzzer/KSwiftKStdlib.kklib"
-      - name: Run focused mutation-fuzzer and corpus tests
-        env:
-          KSWIFTC: ${{ github.workspace }}/.build/release/kswiftc
-          FUZZ_STDLIB_LIBRARY: ${{ runner.temp }}/nightly-mutation-fuzzer/KSwiftKStdlib.kklib
+      - name: Run mutation-generator smoke test
         run: bash Scripts/test_mutation_fuzzer.sh
       - name: Replay committed crash corpus
         env:
