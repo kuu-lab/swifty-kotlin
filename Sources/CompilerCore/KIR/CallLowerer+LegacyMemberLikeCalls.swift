@@ -36,7 +36,7 @@ extension CallLowerer {
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
-        "distinct", "distinctBy",
+        "distinct", "distinctBy", "count",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -110,25 +110,6 @@ extension CallLowerer {
             )
         }
         let chosenCalleeForArgumentAdaptation = sema.bindings.callBindings[exprID]?.chosenCallee
-        let isSourceBackedListFilterCall: Bool = {
-            guard let chosenCallee = chosenCalleeForArgumentAdaptation,
-                  chosenCallee != .invalid,
-                  let symbol = sema.symbols.symbol(chosenCallee),
-                  symbol.kind == .function,
-                  sema.symbols.isSourceBackedSymbol(chosenCallee)
-            else {
-                return false
-            }
-            let sourceBackedListFilterFQNames: Set<[InternedString]> = [
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filter")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNot")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterNotNull")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIndexed")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstance")],
-                [interner.intern("kotlin"), interner.intern("collections"), interner.intern("filterIsInstanceTo")],
-            ]
-            return sourceBackedListFilterFQNames.contains(symbol.fqName)
-        }()
         let isSourceBackedMemberCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -195,6 +176,32 @@ extension CallLowerer {
                 [interner.intern("kotlin"), interner.intern("collections"), interner.intern("copyOfRange")],
             ]
             return sourceBackedArrayCopyFQNames.contains(symbol.fqName)
+        }()
+        // KSP-1513: array `toList` is a bundled Kotlin extension. Keep its
+        // selected source declaration so its typed private `__kk_*` bridge is
+        // emitted instead of the generic array shortcut.
+        let isSourceBackedArrayToListCall: Bool = {
+            guard interner.resolve(calleeName) == "toList",
+                  let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            guard let (_, receiverSymbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType), sema: sema
+            ) else {
+                return false
+            }
+            let sourceBackedArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
+            ]
+            return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
@@ -338,8 +345,16 @@ extension CallLowerer {
                     || name == "UIntProgression"
                     || name == "ULongProgression"
             }()
+            let isExplicitCharProgressionSourceCall = ast.arena.isExplicitCall(exprID)
+                && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
+                && {
+                    guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
+                        return false
+                    }
+                    return interner.resolve(symbol.name) == "CharProgression"
+                }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver {
+            if isRangeLikeReceiver && !isExplicitCharProgressionSourceCall {
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
@@ -421,6 +436,7 @@ extension CallLowerer {
         if let externalMemberProperty = tryLowerExternalMemberPropertyRead(
             exprID,
             loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
             args: args,
             sema: sema,
             arena: arena,
@@ -923,45 +939,6 @@ extension CallLowerer {
             }
         }
 
-        // filterIsInstance<R>() — encode type token from result type (STDLIB-114 / STDLIB-SEQ-FN-026)
-        if args.isEmpty,
-           interner.resolve(calleeName) == "filterIsInstance",
-           !isSourceBackedListFilterCall,
-           isSequenceLikeType(
-            sema.types.makeNonNullable(sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType),
-            sema: sema,
-            interner: interner
-           )
-        {
-            let resultType = sema.bindings.exprTypes[exprID] ?? sema.types.anyType
-            let nonNullResultType = sema.types.makeNonNullable(resultType)
-            // Extract element type from List<R> or Sequence<R>.
-            let elementType: TypeID = if case let .classType(classType) = sema.types.kind(of: nonNullResultType),
-                                         let firstArg = classType.args.first
-            {
-                switch firstArg {
-                case let .invariant(t), let .out(t), let .in(t): t
-                case .star: sema.types.anyType
-                }
-            } else {
-                sema.types.anyType
-            }
-            let encodedToken = RuntimeTypeCheckToken.encode(type: elementType, sema: sema, interner: interner)
-            let intType = sema.types.make(.primitive(.int, .nonNull))
-            let tokenExpr = arena.appendExpr(.intLiteral(encodedToken), type: intType)
-            instructions.append(.constValue(result: tokenExpr, value: .intLiteral(encodedToken)))
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_sequence_filterIsInstance"),
-                arguments: [loweredReceiverID, tokenExpr],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
-
-
         if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
             receiverExpr: receiverExpr,
             calleeName: calleeName,
@@ -1276,7 +1253,6 @@ extension CallLowerer {
                 let elementAtOrElseName = interner.intern("elementAtOrElse")
                 let elementAtOrNullName = interner.intern("elementAtOrNull")
                 let filterIndexedName = interner.intern("filterIndexed")
-                let findLastName = interner.intern("findLast")
                 let lastName = interner.intern("last")
                 let minName = interner.intern("min")
                 if calleeName == mapName {
@@ -1325,16 +1301,10 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_filterIndexed"
                 } else if calleeName == lastName {
                     runtimeCallee = useIterableRuntimeForCollectionFallback ? "__kk_iterable_last" : "kk_sequence_last"
-                } else if calleeName == findLastName {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == minName {
                     runtimeCallee = "kk_sequence_min"
                 } else if calleeName == interner.intern("max") {
                     runtimeCallee = "kk_sequence_max"
-                } else if calleeName == interner.intern("find") {
-                    runtimeCallee = "kk_sequence_find"
-                } else if calleeName == interner.intern("findLast") {
-                    runtimeCallee = "kk_sequence_findLast"
                 } else if calleeName == interner.intern("intersect") {
                     runtimeCallee = "kk_sequence_intersect"
                 } else if calleeName == interner.intern("any") {
@@ -1423,8 +1393,6 @@ extension CallLowerer {
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
                         || runtimeCallee == "kk_sequence_firstNotNullOfOrNull"
-                        || runtimeCallee == "kk_sequence_find"
-                        || runtimeCallee == "kk_sequence_findLast"
                         || runtimeCallee == "kk_sequence_takeLast"
                         || runtimeCallee == "kk_sequence_elementAt"
                         || runtimeCallee == "kk_sequence_elementAtOrElse"
@@ -1886,7 +1854,7 @@ extension CallLowerer {
             if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner) {
                 let runtimeCallee: String? = switch interner.resolve(calleeName) {
                 case "toList":
-                    "kk_array_toList"
+                    isSourceBackedArrayToListCall ? nil : "__kk_array_toList"
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":
