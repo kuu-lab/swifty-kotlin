@@ -307,7 +307,7 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
             isThrowing: false),
-            bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: [],
+            bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
             isThrowing: false),
             bridgeSpec("kk_native_getUnhandledExceptionHook", section: "Native", params: [],
             isThrowing: false),

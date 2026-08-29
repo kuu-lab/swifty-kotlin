@@ -18,6 +18,7 @@ extension DataFlowSemaPhase {
         registerAssociatedObjectKeyAnnotation(
             kotlinReflectPkg: kotlinReflectPkg,
             symbols: symbols,
+            types: types,
             interner: interner
         )
         registerFindAssociatedObjectFunction(
@@ -1488,11 +1489,36 @@ extension DataFlowSemaPhase {
     private func registerAssociatedObjectKeyAnnotation(
         kotlinReflectPkg: [InternedString],
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let symbol = ensureAnnotationClassSymbol(
             named: "AssociatedObjectKey", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
+        let annotationType = types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructorName = interner.intern("<init>")
+        let annotationFQName = symbols.symbol(symbol)?.fqName
+            ?? (kotlinReflectPkg + [interner.intern("AssociatedObjectKey")])
+        let constructorFQName = annotationFQName + [constructorName]
+        if symbols.lookupAll(fqName: constructorFQName).isEmpty {
+            let constructor = symbols.define(
+                kind: .constructor,
+                name: constructorName,
+                fqName: constructorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(symbol, for: constructor)
+            symbols.setFunctionSignature(FunctionSignature(
+                parameterTypes: [],
+                returnType: annotationType
+            ), for: constructor)
+        }
         let targetRecord = MetadataAnnotationRecord(
             annotationFQName: "kotlin.annotation.Target",
             arguments: ["AnnotationTarget.ANNOTATION_CLASS"]

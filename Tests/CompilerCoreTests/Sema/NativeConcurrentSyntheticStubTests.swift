@@ -239,13 +239,52 @@ struct NativeConcurrentSyntheticStubTests {
         let (sema, interner) = try sharedSema()
 
         let baseFQName = ["kotlin", "native", "concurrent", "FutureState"].map { interner.intern($0) }
-        for entry in ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"] {
+        let enumSymbol = try #require(sema.symbols.lookup(fqName: baseFQName))
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: enumSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        for entry in ["INVALID", "SCHEDULED", "COMPUTED", "CANCELLED", "THROWN"] {
             let entryFQName = baseFQName + [interner.intern(entry)]
-            #expect(
-                sema.symbols.lookup(fqName: entryFQName) != nil,
+            let entrySymbol = try #require(
+                sema.symbols.lookup(fqName: entryFQName),
                 "Expected FutureState.\(entry) to be registered"
             )
+            #expect(sema.symbols.propertyType(for: entrySymbol) == enumType)
         }
+    }
+
+    @Test
+    func testFutureStateIsBackedByBundledSource() throws {
+        let (sema, interner) = try sharedSema()
+
+        let futureState = try symbol(
+            ["kotlin", "native", "concurrent", "FutureState"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(sema.symbols.sourceFileID(for: futureState) != nil)
+        #expect(!sema.symbols.symbol(futureState)!.flags.contains(.synthetic))
+    }
+
+    @Test
+    func testFutureStateFourAPIsResolveWithExactTypes() throws {
+        let source = """
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
+        import kotlin.native.concurrent.FutureState
+
+        fun entries(): kotlin.enums.EnumEntries<FutureState> = FutureState.entries
+        fun value(): Int = FutureState.COMPUTED.value
+        fun valueOf(): FutureState = FutureState.valueOf("THROWN")
+        fun values(): Array<FutureState> = FutureState.values()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected FutureState APIs to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
     }
 
     // MARK: - Continuation0 / Continuation1 / Continuation2 classes

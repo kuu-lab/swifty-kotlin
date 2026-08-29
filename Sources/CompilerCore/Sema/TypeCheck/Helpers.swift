@@ -609,6 +609,25 @@ struct TypeCheckHelpers {
                 }
                 let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
                     .sorted(by: { $0.rawValue < $1.rawValue })
+                // Resolve nested types through the imported or package-scoped
+                // nominal root before falling back to the short name. This is
+                // required when several nominal types expose the same nested
+                // name, such as kotlin.time.Clock.Companion.
+                let nestedCandidates: [SymbolID] = {
+                    guard path.count > 1, let scope else {
+                        return []
+                    }
+                    let rootCandidates = scope.lookup(path[0]).filter(isTypeLikeSymbol)
+                    return rootCandidates.flatMap { rootSymbol -> [SymbolID] in
+                        guard let rootInfo = sema.symbols.symbol(rootSymbol) else {
+                            return []
+                        }
+                        return sema.symbols.lookupAll(
+                            fqName: rootInfo.fqName + Array(path.dropFirst())
+                        ).filter(isTypeLikeSymbol)
+                    }
+                    .sorted(by: { $0.rawValue < $1.rawValue })
+                }()
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.
@@ -616,6 +635,8 @@ struct TypeCheckHelpers {
                     scopeCandidates
                 } else if !fqCandidates.isEmpty {
                     fqCandidates
+                } else if !nestedCandidates.isEmpty {
+                    nestedCandidates
                 } else {
                     sema.symbols.lookupByShortName(shortName).filter(isTypeLikeSymbol)
                         .sorted(by: { $0.rawValue < $1.rawValue })

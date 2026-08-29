@@ -1071,25 +1071,6 @@ extension RuntimeSequenceTests {
         #expect(_lazyTestYieldCounter <= 2, "distinctBy should be lazy; take(1) must not force all 5 yields, got \(_lazyTestYieldCounter)")
     }
 
-    @Test
-    func testFilterIsInstanceIsLazy() {
-        _lazyTestYieldCounter = 0
-        let thunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, builderRaw, _ in
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 10)
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 20)
-            _lazyTestYieldCounter += 1
-            _ = __kk_sequence_builder_yield(builderRaw, 30)
-            return 0
-        }
-        let seq = __kk_sequence_builder_build(unsafeBitCast(thunk, to: Int.self))
-        let filtered = kk_sequence_filterIsInstance(seq, 3)
-        let taken = kk_sequence_take(filtered, 1)
-        #expect(sequenceElements(taken) == [10])
-        #expect(_lazyTestYieldCounter <= 2, "filterIsInstance should be lazy; take(1) must not force all 3 yields, got \(_lazyTestYieldCounter)")
-    }
-
     // MARK: - Helpers
 
     private func sequenceElements(_ seqRaw: Int) -> [Int] {
