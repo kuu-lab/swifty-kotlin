@@ -548,18 +548,8 @@ if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
 fi
 
-if ! [[ -x "$KSWIFTC" ]]; then
-  echo "kswiftc not found or not executable: $KSWIFTC" >&2
-  exit 1
-fi
-
-if ! command -v "$KOTLINC" >/dev/null 2>&1; then
-  echo "kotlinc command not found: $KOTLINC" >&2
-  exit 1
-fi
-
-if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
-  echo "java command not found: $JAVA_BIN" >&2
+if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
+  echo "unzip command not found: unzip" >&2
   exit 1
 fi
 
@@ -567,27 +557,8 @@ fi
 # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
 # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
 # which produces spurious FAILs against kswiftc. CI pins java-version 21.
-java_major="$("$JAVA_BIN" -version 2>&1 \
-  | awk -F'"' '/version/ { print $2; exit }' \
-  | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
-if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
-  if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
-    echo "java is too old for the diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2
-    echo "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs." >&2
-    echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
-    exit 1
-  fi
-fi
-
-if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
-  echo "unzip command not found: unzip" >&2
-  exit 1
-fi
-
-if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
-  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
-  exit 1
-fi
+require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diff gate" \
+  "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
 
 warm_kotlinc() {
   local warm_timeout
@@ -898,12 +869,8 @@ persist_artifacts() {
 
   local case_name
   case_name="$(sanitize_case_name "$case_path")"
-  local destination="$ARTIFACT_ROOT/${case_name}"
-  local suffix=1
-  while [[ -e "$destination" ]]; do
-    destination="$ARTIFACT_ROOT/${case_name}_$suffix"
-    suffix=$((suffix + 1))
-  done
+  local destination
+  destination="$(unique_artifact_destination "$ARTIFACT_ROOT" "$case_name")"
 
   mv "$tmp_dir" "$destination"
 
@@ -953,14 +920,6 @@ EOF
   LAST_ARTIFACT_DIR="$destination"
 }
 
-should_skip_case() {
-  local kt_file="$1"
-  if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
-    return 1
-  fi
-  grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$kt_file"
-}
-
 # Cases that need stdin=EOF (e.g. readLine() returning null)
 needs_stdin_eof() {
   local kt_file="$1"
@@ -972,13 +931,6 @@ needs_stdin_eof() {
 get_diff_line_pattern() {
   local kt_file="$1"
   grep -E '^[[:space:]]*//[[:space:]]*DIFF_LINE_PATTERN:' "$kt_file" 2>/dev/null | head -1 | sed 's/.*DIFF_LINE_PATTERN:[[:space:]]*//'
-}
-
-# Extract extra kotlinc flags from // KOTLINC_FLAGS: directives in the test file
-# Format: // KOTLINC_FLAGS: <flags>
-get_kotlinc_extra_flags() {
-  local kt_file="$1"
-  grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
 # Extract extra JVM flags (e.g. -ea) from // JAVA_FLAGS: directives in the test
@@ -1045,7 +997,7 @@ run_case() {
   fi
 
   local kotlinc_extra_flags
-  kotlinc_extra_flags="$(get_kotlinc_extra_flags "$kt_file")"
+  kotlinc_extra_flags="$(read_case_directive_flags "$kt_file" 'KOTLINC_FLAGS')"
 
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
@@ -1272,7 +1224,7 @@ SKIPPED=0
 if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
-    if should_skip_case "$test_case"; then
+    if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       echo "SKIP $test_case (// SKIP-DIFF)"
       SKIPPED=$((SKIPPED + 1))
       if [[ -n "$REPORT_PATH" ]]; then
@@ -1306,7 +1258,7 @@ else
   fi
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
-    if should_skip_case "$test_case"; then
+    if should_skip_diff_case "$test_case" "$FORCE_RUN_SKIPPED"; then
       CASE_KIND[$i]="SKIP"
       SKIPPED=$((SKIPPED + 1))
       continue
