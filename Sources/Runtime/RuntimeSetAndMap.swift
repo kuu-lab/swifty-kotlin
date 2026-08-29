@@ -403,6 +403,14 @@ public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: Unsa
     return defaultValue
 }
 
+@_cdecl("__kk_map_has_default")
+public func kk_map_has_default(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return 0
+    }
+    return map.defaultValueFnPtr == 0 ? 0 : 1
+}
+
 @_cdecl("__kk_map_withDefault")
 public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {

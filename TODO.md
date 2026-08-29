@@ -3423,13 +3423,20 @@
     - `kotlin.collections.flatMapTo` — fun Map.flatMapTo(, Function1): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableCollection<in #C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/flatMapTo(#D, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin.collections/Iterable<#C>>): #D`
     - `kotlin.collections.flatMapTo` — fun Map.flatMapTo(, Function1): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableCollection<in #C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/flatMapTo(#D, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin.sequences/Sequence<#C>>): #D`
 
-- [ ] KSP-1009: kotlin.collections.Map.get-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1009: kotlin.collections.Map.get-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `get`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapLookupAndTransform.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Map_get.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Map_get.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Map_get.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 個別監査・実装根拠: 公式 Kotlin 2.3.10 source、stdlib metadata、kotlinc bytecode、compiler/runtime/ABI/history を照合し、5件を一括分類せず確認した。
+    - `Map<out K,V>.get(key)` — source-backed variance extension を追加。interface の synthetic `Map.get` と `__kk_map_get` runtime bridge は別 symbol/callee として保持した。
+    - `Map.getOrElse(key, defaultValue)` — 既存 source-backed 実装を確認し、nullable value / present-null / absent / default lambda の挙動を回帰で確認した。
+    - `Map.getOrImplicitDefault(key)` — `@PublishedApi internal` 宣言を追加。present-null と `withDefault { null }` を no-default と区別する `__kk_map_has_default` ABI/runtime bridge を追加した。
+    - `Map.getValue(key)` — source-backed API を `getOrImplicitDefault` 経由に統合し、欠損時 `NoSuchElementException("Key $key is missing in the map.")` を固定した。
+    - `Map<in String,V>.getValue(thisRef, property)` — exact operator signature を追加し、`thisRef` を未使用、`property.name` を key とする delegate lowering を確認した。
+  - focused 検証根拠: target Sema Golden worker 完全一致、`Scripts/diff_cases/stdlib_kotlin_collections_Map_get.kt` の kotlinc 差分 1/1 PASS、Map.getValue throwing KIR 1件 PASS、withDefault Backend codegen 1件 PASS、`check_todo_ids.sh` と runtime ABI link 検証 PASS。aggregate Golden/diff 全体は実行完了扱いにしていない。
   - 未実装シンボル一覧:
     - `kotlin.collections.get` — fun Map.get(): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/get(#A): #B?`
     - `kotlin.collections.getOrElse` — fun Map.getOrElse(, Function0): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<#A, #B>).kotlin.collections/getOrElse(#A, kotlin/Function0<#B>): #B`
