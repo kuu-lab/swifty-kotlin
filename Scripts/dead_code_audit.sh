@@ -91,12 +91,15 @@ else
 fi
 mkdir -p "$WORK"
 
-if [[ $KEEP_TMP -eq 0 ]]; then
-  trap 'rm -rf "$WORK"' EXIT
-fi
+[[ $KEEP_TMP -eq 1 ]] || trap 'rm -rf "$WORK"' EXIT
 
 log() {
-  [[ $VERBOSE -eq 1 ]] && printf '%s\n' "$*" >&2 || true
+  [[ $VERBOSE -eq 1 ]] || return 0
+  printf '%s\n' "$*" >&2
+}
+
+count() {
+  wc -l < "$1" | tr -d ' '
 }
 
 # ── Step 1: Runtime の @_cdecl kk_*/__kk_* 宣言一覧 ───────────────────────
@@ -104,7 +107,7 @@ log() {
 grep -rhoE '@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)' Sources/Runtime --include="*.swift" \
     | sed 's/@_cdecl("//;s/")//' \
     | LC_ALL=C sort -u > "$WORK/runtime_cdecl.txt"
-log "[1] Runtime @_cdecl declarations: $(wc -l < "$WORK/runtime_cdecl.txt" | tr -d ' ')"
+log "[1] Runtime @_cdecl declarations: $(count "$WORK/runtime_cdecl.txt")"
 
 # ── Step 2: 静的 kk_* 参照（CompilerCore + CompilerBackend + bundled .kt） ─
 # kk_print_string_flat のように CompilerBackend でのみ emit される名前や、
@@ -113,7 +116,7 @@ log "[1] Runtime @_cdecl declarations: $(wc -l < "$WORK/runtime_cdecl.txt" | tr 
     grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources/CompilerCore Sources/CompilerBackend --include="*.swift"
     grep -rhoE '_*kk_[a-zA-Z0-9_]+' Sources --include="*.kt"
 } | LC_ALL=C sort -u > "$WORK/kk_compilercore.txt"
-log "[2] Static refs (CompilerCore+Backend+kt): $(wc -l < "$WORK/kk_compilercore.txt" | tr -d ' ')"
+log "[2] Static refs (CompilerCore+Backend+kt): $(count "$WORK/kk_compilercore.txt")"
 
 # ── Step 3: 動的補間プレフィックス（前方一致除外用） ──────────────────────
 # (a) インライン補間 "kk_xxx_\(...)" のリテラル前半。
@@ -126,7 +129,7 @@ log "[2] Static refs (CompilerCore+Backend+kt): $(wc -l < "$WORK/kk_compilercore
         | grep -oE '"_*kk_[a-zA-Z0-9_]+"' \
         | tr -d '"'
 } | LC_ALL=C sort -u > "$WORK/kk_dyn_prefixes.txt"
-log "[3] Dynamic prefixes (inline + two-stage): $(wc -l < "$WORK/kk_dyn_prefixes.txt" | tr -d ' ')"
+log "[3] Dynamic prefixes (inline + two-stage): $(count "$WORK/kk_dyn_prefixes.txt")"
 
 # ── Step 4: StdlibSurfaceSpec 表駆動 HOF リンク名 ─────────────────────────
 # list / set / map / sequence の HOF（array は RuntimeOnlyBridge で別管理のため対象外）
@@ -134,13 +137,13 @@ grep -rhoE '"kk_[a-zA-Z0-9_]+"' Sources/RuntimeABI \
     --include="StdlibSurfaceSpec+*.swift" \
     | sed 's/"//g' \
     | LC_ALL=C sort -u > "$WORK/kk_stdlib_surface.txt"
-log "[4] StdlibSurfaceSpec link names: $(wc -l < "$WORK/kk_stdlib_surface.txt" | tr -d ' ')"
+log "[4] StdlibSurfaceSpec link names: $(count "$WORK/kk_stdlib_surface.txt")"
 
 # ── Step 5: Tests からの参照（語境界一致） ────────────────────────────────
 # superstring 誤検知に注意: kk_http_client_post と kk_http_client_post_async は別物
 (grep -rhoE '\b_*kk_[a-zA-Z0-9_]+\b' Tests --include="*.swift" || true) \
     | LC_ALL=C sort -u > "$WORK/kk_tests.txt"
-log "[5] Test references: $(wc -l < "$WORK/kk_tests.txt" | tr -d ' ')"
+log "[5] Test references: $(count "$WORK/kk_tests.txt")"
 
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
 # @_cdecl 行と func 定義行を除外することで、他の Runtime 関数からの実際の呼び出しを取得する
@@ -149,26 +152,30 @@ log "[5] Test references: $(wc -l < "$WORK/kk_tests.txt" | tr -d ' ')"
     | grep -vE '\bfunc _*kk_' \
     | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
-log "[6] Runtime-internal refs: $(wc -l < "$WORK/kk_runtime_internal.txt" | tr -d ' ')"
+log "[6] Runtime-internal refs: $(count "$WORK/kk_runtime_internal.txt")"
 
 # ── Step 7: 動的プレフィックスに前方一致する cdecl 名を抽出 ──────────────
-{
-  while IFS= read -r prefix; do
-    grep "^${prefix}" "$WORK/runtime_cdecl.txt" || true
-  done < "$WORK/kk_dyn_prefixes.txt"
-} | LC_ALL=C sort -u > "$WORK/kk_dyn_matched.txt"
-log "[7] Dynamic-prefix matched cdecl names: $(wc -l < "$WORK/kk_dyn_matched.txt" | tr -d ' ')"
+# プレフィックスごとに grep を fork する代わりに、全プレフィックスを1つの
+# パターンファイルにまとめて grep -f で一括照合する（プロセス生成コストを削減）。
+if [[ -s "$WORK/kk_dyn_prefixes.txt" ]]; then
+  sed 's/^/^/' "$WORK/kk_dyn_prefixes.txt" \
+      | grep -f - "$WORK/runtime_cdecl.txt" \
+      | LC_ALL=C sort -u > "$WORK/kk_dyn_matched.txt" || true
+else
+  : > "$WORK/kk_dyn_matched.txt"
+fi
+log "[7] Dynamic-prefix matched cdecl names: $(count "$WORK/kk_dyn_matched.txt")"
 
 # ── Step 8: コンパイラ到達可能集合（静的 + 動的 + 表駆動） ───────────────
 LC_ALL=C sort -u "$WORK/kk_compilercore.txt" \
                  "$WORK/kk_dyn_matched.txt" \
                  "$WORK/kk_stdlib_surface.txt" > "$WORK/kk_reachable.txt"
-log "[8] Compiler-reachable total: $(wc -l < "$WORK/kk_reachable.txt" | tr -d ' ')"
+log "[8] Compiler-reachable total: $(count "$WORK/kk_reachable.txt")"
 
 # ── Step 9: 候補 = cdecl − コンパイラ到達可能 ────────────────────────────
 comm -23 "$WORK/runtime_cdecl.txt" "$WORK/kk_reachable.txt" \
     > "$WORK/kk_candidates.txt"
-log "[9] Candidates (compiler-unreachable): $(wc -l < "$WORK/kk_candidates.txt" | tr -d ' ')"
+log "[9] Candidates (compiler-unreachable): $(count "$WORK/kk_candidates.txt")"
 
 # ── Step 10: A = 候補 − (tests ∪ runtime_internal) ───────────────────────
 LC_ALL=C sort -u "$WORK/kk_tests.txt" "$WORK/kk_runtime_internal.txt" \
@@ -183,10 +190,10 @@ comm -23 "$WORK/kk_candidates_in_tests.txt" "$WORK/kk_runtime_internal.txt" \
     > "$WORK/dead_B.txt"
 
 # ── 出力 ──────────────────────────────────────────────────────────────────
-COUNT_CDECL="$(wc -l < "$WORK/runtime_cdecl.txt" | tr -d ' ')"
-COUNT_CAND="$(wc -l < "$WORK/kk_candidates.txt" | tr -d ' ')"
-COUNT_A="$(wc -l < "$WORK/dead_A.txt" | tr -d ' ')"
-COUNT_B="$(wc -l < "$WORK/dead_B.txt" | tr -d ' ')"
+COUNT_CDECL="$(count "$WORK/runtime_cdecl.txt")"
+COUNT_CAND="$(count "$WORK/kk_candidates.txt")"
+COUNT_A="$(count "$WORK/dead_A.txt")"
+COUNT_B="$(count "$WORK/dead_B.txt")"
 
 echo "=== Dead Code Audit ==="
 echo "Runtime @_cdecl total  : $COUNT_CDECL"
@@ -204,27 +211,28 @@ if [[ -n "$OUTPUT_DIR" ]]; then
 fi
 
 # ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
-# 過去に本スクリプトが取りこぼしていた 2 経路を固定する。回帰すると exit 1。
-#   fixture 1: kk_print_string_flat  — CompilerBackend でのみ emit。A に入れば誤り。
-#   fixture 2: kk_atomic_ref_array_loadAt — 2 段階 prefix 生成で到達。B に入れば誤り。
+# 過去に本スクリプトが取りこぼしていた経路を固定する。回帰すると exit 1。
+# fixture を追加するときはこの配列に1行足すだけでよい。
+#   symbol|classified-into-file|検出できないと誤分類される理由
+FIXTURES=(
+  "kk_print_string_flat|dead_A.txt|CompilerBackend でのみ emit（静的 emit 未検出なら A に入る）"
+  "kk_atomic_ref_array_loadAt|dead_B.txt|2 段階 prefix 生成で到達（未検出なら B に入る）"
+)
+
 if [[ $SELFTEST -eq 1 ]]; then
   echo ""
   echo "=== Self-test (regression fixtures) ==="
   selftest_failed=0
 
-  if grep -qx "kk_print_string_flat" "$WORK/dead_A.txt"; then
-    echo "FAIL: kk_print_string_flat misclassified as A (CompilerBackend emit not detected)" >&2
-    selftest_failed=1
-  else
-    echo "PASS: kk_print_string_flat not in A (CompilerBackend static emit detected)"
-  fi
-
-  if grep -qx "kk_atomic_ref_array_loadAt" "$WORK/dead_B.txt"; then
-    echo "FAIL: kk_atomic_ref_array_loadAt misclassified as B (two-stage prefix emit not detected)" >&2
-    selftest_failed=1
-  else
-    echo "PASS: kk_atomic_ref_array_loadAt not in B (two-stage prefix emit detected)"
-  fi
+  for fixture in "${FIXTURES[@]}"; do
+    IFS='|' read -r symbol file reason <<< "$fixture"
+    if grep -qx "$symbol" "$WORK/$file"; then
+      echo "FAIL: $symbol misclassified into $file ($reason)" >&2
+      selftest_failed=1
+    else
+      echo "PASS: $symbol not in $file ($reason)"
+    fi
+  done
 
   if [[ $selftest_failed -ne 0 ]]; then
     echo "Self-test FAILED" >&2
