@@ -6,6 +6,7 @@ import Testing
 extension BuildKIRRegressionTests {
     private static nonisolated(unsafe) var _sharedNativePlatformMemoryModelKIRCtx: CompilationContext?
     private static nonisolated(unsafe) var _sharedNativePlatformKIRCtx: CompilationContext?
+    private static nonisolated(unsafe) var _sharedNativePlatformAllAPIsKIRCtx: CompilationContext?
 
     private func sharedNativePlatformMemoryModelKIRCtx() throws -> CompilationContext {
         if let cached = Self._sharedNativePlatformMemoryModelKIRCtx {
@@ -18,9 +19,7 @@ extension BuildKIRRegressionTests {
 
         import kotlin.native.Platform
 
-        fun main() {
-            val memoryModel = Platform.memoryModel
-        }
+        fun main(): kotlin.native.MemoryModel = Platform.memoryModel
         """
 
         var result: CompilationContext?
@@ -55,7 +54,10 @@ extension BuildKIRRegressionTests {
 
             import kotlin.native.getStackTraceAddresses
 
-            fun probe2(): List<Long> = getStackTraceAddresses()
+            class TestThrowable : Throwable()
+
+            fun probe2(throwable: Throwable): List<Long> = throwable.getStackTraceAddresses()
+            fun probe2Subclass(): List<Long> = TestThrowable().getStackTraceAddresses()
             """,
             """
             @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -218,16 +220,53 @@ extension BuildKIRRegressionTests {
         return ctx
     }
 
-    @Test func testNativePlatformMemoryModelLowersToRuntimeCallee() throws {
+    private func sharedNativePlatformAllAPIsKIRCtx() throws -> CompilationContext {
+        if let cached = Self._sharedNativePlatformAllAPIsKIRCtx {
+            return cached
+        }
+
+        let source = """
+        @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+        @file:Suppress("DEPRECATION")
+
+        import kotlin.native.Platform
+
+        fun allPlatformAPIs(): Int {
+            val unaligned = Platform.canAccessUnaligned
+            val littleEndian = Platform.isLittleEndian
+            val osFamily = Platform.osFamily
+            val cpuArchitecture = Platform.cpuArchitecture
+            val memoryModel = Platform.memoryModel
+            val debugBinary = Platform.isDebugBinary
+            val programName = Platform.programName
+            val leakChecker = Platform.isMemoryLeakCheckerActive
+            Platform.isMemoryLeakCheckerActive = !leakChecker
+            val processors = Platform.getAvailableProcessors()
+            return processors +
+                if (unaligned || littleEndian || debugBinary || programName != null) 1 else 0 +
+                if (osFamily == osFamily && cpuArchitecture == cpuArchitecture && memoryModel == memoryModel) 1 else 0
+        }
+        """
+
+        var result: CompilationContext?
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            result = ctx
+        }
+
+        let ctx = try #require(result)
+        Self._sharedNativePlatformAllAPIsKIRCtx = ctx
+        return ctx
+    }
+
+    @Test func testNativePlatformMemoryModelUsesTheCurrentConstant() throws {
         let ctx = try sharedNativePlatformMemoryModelKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(
-            callees.contains("kk_platform_memoryModel"),
-            "Expected Platform.memoryModel runtime call"
-        )
+        #expect(!callees.contains("kk_platform_memoryModel"))
     }
     @Test func testABILoweringMarksNativePlatformMemoryModelAsNonThrowing() {
         let pass = ABILoweringPass()
@@ -238,6 +277,39 @@ extension BuildKIRRegressionTests {
             callees.contains(interner.intern("kk_platform_memoryModel")),
             "kk_platform_memoryModel should not receive an outThrown slot during ABI lowering"
         )
+    }
+
+    @Test func testNativePlatformAPIsLowerToBundledSourceLayer() throws {
+        let ctx = try sharedNativePlatformAllAPIsKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "allPlatformAPIs", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("getAvailableProcessors"))
+        #expect(callees.contains("set"), "Expected the source-backed Platform var setter call")
+        #expect(!callees.contains(where: { $0.hasPrefix("kk_platform_") }))
+    }
+
+    @Test func testABILoweringMarksNativePlatformRuntimeBridgesAsNonThrowing() {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+
+        for callee in [
+            "kk_platform_canAccessUnaligned",
+            "kk_platform_isLittleEndian",
+            "kk_platform_osFamily",
+            "kk_platform_cpuArchitecture",
+            "kk_platform_memoryModel",
+            "kk_platform_isDebugBinary",
+            "kk_platform_programName",
+            "kk_platform_isMemoryLeakCheckerActive_load",
+            "kk_platform_isMemoryLeakCheckerActive_store",
+            "kk_platform_getAvailableProcessorsEnv",
+            "kk_platform_getAvailableProcessors",
+        ] {
+            #expect(callees.contains(interner.intern(callee)), "Expected non-throwing ABI entry for \(callee)")
+        }
     }
 
     @Test func testNativeIdentityHashCodeLowersToRuntimeCallee() throws {
@@ -262,6 +334,15 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
+        #expect(callees.contains("kk_native_getStackTraceAddresses"))
+    }
+    @Test func testThrowableSubclassCaptureLowersBeforeStackTraceAddressLookup() throws {
+        let ctx = try sharedNativePlatformKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "probe2Subclass", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("__kk_throwable_captureStackTrace"))
         #expect(callees.contains("kk_native_getStackTraceAddresses"))
     }
     @Test func testABILoweringMarksNativeGetStackTraceAddressesAsNonThrowing() {
