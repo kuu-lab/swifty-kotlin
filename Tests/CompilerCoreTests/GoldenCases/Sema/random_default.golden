@@ -1,7 +1,6 @@
 symbol fq=__local_0.rng kind=local vis=private flags=_ type=kotlin.random.Random.Default
 symbol fq=__local_1.a kind=local vis=private flags=_ type=Int
 symbol fq=__local_2.b kind=local vis=private flags=_ type=Long
-symbol fq=kotlin.random.Random#0 kind=class vis=public flags=abstractType|openType
 symbol fq=useRandomDefault kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file frandom_default package=_
   decl useRandomDefault fun useRandomDefault sym=useRandomDefault
