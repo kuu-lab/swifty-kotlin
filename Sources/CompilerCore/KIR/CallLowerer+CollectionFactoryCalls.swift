@@ -237,7 +237,7 @@ extension CallLowerer {
         if args.contains(where: \.isSpread) {
             let count = arena.appendTemporary(type: intType)
             emitNonThrowingCall(
-                callee: interner.intern("kk_array_size"),
+                callee: interner.intern("__kk_array_size"),
                 arg: array,
                 result: count,
                 into: &instructions
