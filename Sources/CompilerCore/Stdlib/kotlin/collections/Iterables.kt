@@ -87,26 +87,46 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
     }
     return accumulator
 }
 
-public fun <T> Iterable<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduceIndexed(operation: (index: Int, acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceOrNull(operation: (acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: Int, acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
     }
     return accumulator
 }
