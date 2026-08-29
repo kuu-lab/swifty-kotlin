@@ -257,13 +257,20 @@ extension BuildASTPhase {
         let node = arena.node(nodeID)
         let modifiers = declarationModifiers(from: nodeID, in: arena)
         let annotations = declarationAnnotations(from: nodeID, in: arena, interner: interner)
+        let superTypeEntries = declarationSuperTypeEntries(
+            from: nodeID,
+            in: arena,
+            interner: interner,
+            astArena: astArena
+        )
         let members = declarationMemberDecls(from: nodeID, in: arena, interner: interner, astArena: astArena)
         return ObjectDecl(
             range: node.range,
             name: declarationName(from: nodeID, in: arena, interner: interner),
             modifiers: modifiers,
             annotations: annotations,
-            superTypes: declarationSuperTypes(from: nodeID, in: arena, interner: interner, astArena: astArena),
+            superTypes: superTypeEntries.map(\.typeRef),
+            superTypeConstructorArgs: superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? [],
             nestedTypeAliases: declarationNestedTypeAliases(from: nodeID, in: arena, interner: interner, astArena: astArena),
             initBlocks: declarationInitBlocks(from: nodeID, in: arena, interner: interner, astArena: astArena),
             classBodyInitOrder: declarationClassBodyInitOrder(from: nodeID, in: arena, interner: interner),
@@ -317,21 +324,19 @@ extension BuildASTPhase {
         let accessors = declarationPropertyAccessors(from: nodeID, in: arena, interner: interner, astArena: astArena)
         let delegateExpr = declarationDelegateExpression(from: nodeID, in: arena, interner: interner, astArena: astArena)
 
-        // When a delegate expression exists, the trailing lambda body (e.g. `lazy { body }`)
-        // is a block child of the property node that `propertyHeadTokens` excludes.
-        // Extract it here so KIR lowering can create the lambda function from it.
+        // When a delegate expression contains a trailing lambda, reuse its
+        // parsed body here so KIR lowering can create the lambda function from
+        // the same AST nodes as ordinary call-argument checking.
         var delegateBody: FunctionBody?
         var delegateBodyParams: [InternedString] = []
         if let delegateExpr,
-           let parsed = lazyDelegateLambda(
-               from: delegateExpr, interner: interner, astArena: astArena
+           let parsed = delegateLambda(
+               from: delegateExpr, astArena: astArena
            )
         {
-            // Source-backed `lazy` includes its initializer lambda in the
-            // delegate expression so overload resolution sees the required
-            // Function0 argument. Reuse that lambda's body for KIR lowering;
-            // reparsing the same block would create a second AST copy whose
-            // bindings are not visible to the lowering path.
+            // Reuse the lambda body already parsed as a call argument for KIR
+            // lowering; reparsing the same block would create a second AST
+            // copy whose bindings are not visible to the lowering path.
             delegateBodyParams = parsed.params
             delegateBody = parsed.body
         } else if delegateExpr != nil {
@@ -392,37 +397,39 @@ extension BuildASTPhase {
         )
     }
 
-    /// Extracts the initializer lambda already parsed into a source-backed
-    /// `lazy(...)` delegate call. Member and top-level lazy lowering consumes
-    /// `delegateBody`, so it must point at the same AST body that Sema checks
-    /// as the call argument rather than a separately parsed copy.
-    private func lazyDelegateLambda(
+    /// Extracts the trailing lambda already parsed into a delegate call.
+    /// Delegate lowering consumes `delegateBody`, so it must point at the same
+    /// AST body that Sema checks as the call argument rather than a separately
+    /// parsed copy.
+    private func delegateLambda(
         from delegateExpr: ExprID,
-        interner: StringInterner,
         astArena: ASTArena
     ) -> (params: [InternedString], body: FunctionBody)? {
-        guard case let .call(callee, _, args, _) = astArena.expr(delegateExpr),
-              case let .nameRef(name, _) = astArena.expr(callee),
-              name == interner.intern("lazy")
-        else {
+        let args: [CallArgument]
+        switch astArena.expr(delegateExpr) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
             return nil
         }
 
-        for argument in args.reversed() {
-            guard case let .lambdaLiteral(params, bodyExprID, _, _) = astArena.expr(argument.expr)
-            else { continue }
-            guard let bodyExpr = astArena.expr(bodyExprID) else { return nil }
-            if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
-                var expressions = statements
-                if let trailingExpr {
-                    expressions.append(trailingExpr)
-                }
-                return (params, .block(expressions, range))
-            }
-            guard let range = astArena.exprRange(bodyExprID) else { return nil }
-            return (params, .expr(bodyExprID, range))
+        guard let argument = args.last,
+              case let .lambdaLiteral(params, bodyExprID, _, _) = astArena.expr(argument.expr)
+        else {
+            return nil
         }
-        return nil
+        guard let bodyExpr = astArena.expr(bodyExprID) else { return nil }
+        if case let .blockExpr(statements, trailingExpr, range) = bodyExpr {
+            var expressions = statements
+            if let trailingExpr {
+                expressions.append(trailingExpr)
+            }
+            return (params, .block(expressions, range))
+        }
+        guard let range = astArena.exprRange(bodyExprID) else { return nil }
+        return (params, .expr(bodyExprID, range))
     }
 
     /// Re-parses a delegate property's trailing-lambda block from its tokens so

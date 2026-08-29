@@ -84,6 +84,19 @@ extension CompilerCoreTests {
             package sample9
             val topLevelLazyValue9 by lazy { val x = 42; x }
             """,
+
+            // 10: custom delegate constructor and generic factory retain the
+            // trailing lambda as the final call argument
+            """
+            package sample10
+            class Delegate10<T>(private val initializer: () -> T) {
+                operator fun getValue(thisRef: Any?, property: KProperty<*>): T = initializer()
+            }
+            fun <T> delegateFactory10(initializer: () -> T): Delegate10<T> = Delegate10(initializer)
+            val delegateCtor10: String by Delegate10 { val value = "ctor"; value }
+            val delegateFactory10Value: String by delegateFactory10 { val value = "factory"; value }
+            val delegateParenthesized10: String by Delegate10({ "parenthesized" })
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -360,6 +373,54 @@ extension CompilerCoreTests {
                 #expect(bodyStatements.count == 1)
                 #expect(trailingExpr != nil)
             }
+
+            // 10
+            for propertyName in ["delegateCtor10", "delegateFactory10Value", "delegateParenthesized10"] {
+                let property = try #require(topLevelProperty(named: propertyName, in: ast, interner: interner))
+                let delegateID = try #require(property.delegateExpression)
+                guard case let .call(_, _, args, _) = ast.arena.expr(delegateID),
+                      let lastArgument = args.last,
+                      case .lambdaLiteral = ast.arena.expr(lastArgument.expr)
+                else {
+                    Issue.record("Expected delegate \(propertyName) to retain a parsed trailing lambda call argument and body.")
+                    return
+                }
+
+                guard propertyName != "delegateParenthesized10" else { continue }
+                guard case let .lambdaLiteral(_, bodyID, _, _) = ast.arena.expr(lastArgument.expr),
+                      let bodyExpr = ast.arena.expr(bodyID),
+                      case let .blockExpr(statements, trailingExpr, _) = bodyExpr,
+                      case let .block(delegateBodyExpressions, _) = property.delegateBody
+                else {
+                    Issue.record("Expected delegate \(propertyName) to retain the call argument body for lowering.")
+                    return
+                }
+
+                var expectedBodyExpressions = statements
+                if let trailingExpr {
+                    expectedBodyExpressions.append(trailingExpr)
+                }
+                #expect(delegateBodyExpressions == expectedBodyExpressions)
+            }
+        }
+    }
+
+    @Test func testDelegateTrailingLambdaDoesNotDuplicateMissingOperatorDiagnostic() throws {
+        let source = """
+        class DelegateWithoutGetValue<T>(private val initializer: () -> T)
+        val broken: String by DelegateWithoutGetValue { "broken" }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let errors = diagnosticsForPath(path, in: ctx).filter { $0.severity == .error }
+            let missingGetValueErrors = errors.filter { $0.code == "KSWIFTK-SEMA-0103" }
+            #expect(
+                missingGetValueErrors.count == 1,
+                "Unexpected diagnostics: \(errors.map { "\($0.code): \($0.message)" })"
+            )
         }
     }
 }
