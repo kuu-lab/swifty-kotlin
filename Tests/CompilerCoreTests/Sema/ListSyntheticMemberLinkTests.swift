@@ -1486,7 +1486,28 @@ struct ListSyntheticMemberLinkTests {
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
-                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                if memberName == "lastOrNull" {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                        "Expected Collection.lastOrNull to bind to the Iterable source extension"
+                    )
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                    let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                    let receiverType = try #require(signature.receiverType)
+                    guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                        Issue.record("Expected Collection.lastOrNull to bind to an Iterable receiver")
+                        continue
+                    }
+                    let iterableSymbol = try #require(sema.symbols.lookup(fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("collections"),
+                        ctx.interner.intern("Iterable"),
+                    ]))
+                    #expect(receiverClassType.classSymbol == iterableSymbol)
+                } else {
+                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                }
             }
 
             #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for Collection indexed lookup fallbacks")

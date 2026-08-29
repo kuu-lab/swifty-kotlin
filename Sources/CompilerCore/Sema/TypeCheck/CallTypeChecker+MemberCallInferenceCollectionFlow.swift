@@ -1585,16 +1585,31 @@ extension CallTypeChecker {
             }
             switch calleeStr {
             case "indexOf", "lastIndexOf":
-                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
-                    return nil
+                if calleeStr == "lastIndexOf",
+                   isCollectionReceiver,
+                   !isSequenceReceiver,
+                   !receiverClassifier.isConcreteListLikeType(receiverType),
+                   !isListFactoryReceiver
+                {
+                    guard args.count == 1 else {
+                        sema.bindings.bindExprType(id, type: sema.types.intType)
+                        return sema.types.intType
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                    resultType = sema.types.intType
+                    _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                } else {
+                    guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                        return nil
+                    }
+                    guard args.count == 1 else {
+                        sema.bindings.bindExprType(id, type: sema.types.intType)
+                        return sema.types.intType
+                    }
+                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
+                    resultType = sema.types.intType
+                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                 }
-                guard args.count == 1 else {
-                    sema.bindings.bindExprType(id, type: sema.types.intType)
-                    return sema.types.intType
-                }
-                _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: collectionElementType)
-                resultType = sema.types.intType
-                _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
 
             case "contains":
                 guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
@@ -1621,30 +1636,60 @@ extension CallTypeChecker {
                 _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
 
             case "findLast", "firstOrNull", "lastOrNull", "singleOrNull":
-                guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
-                    return nil
-                }
-                if args.isEmpty {
-                    resultType = sema.types.makeNullable(collectionElementType)
-                    _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
-                } else if args.count == 1 {
-                    let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                        params: [collectionElementType],
-                        returnType: sema.types.booleanType
-                    )))
-                    if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                        sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
-                    }
-                    _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
-                    resultType = sema.types.makeNullable(collectionElementType)
-                    if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                if calleeStr == "lastOrNull",
+                   isCollectionReceiver,
+                   !isSequenceReceiver,
+                   !receiverClassifier.isConcreteListLikeType(receiverType),
+                   !isListFactoryReceiver
+                {
+                    if args.isEmpty {
+                        resultType = sema.types.makeNullable(collectionElementType)
+                        _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                    } else if args.count == 1 {
+                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                            params: [collectionElementType],
+                            returnType: sema.types.booleanType
+                        )))
                         if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
-                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                         }
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                        resultType = sema.types.makeNullable(collectionElementType)
+                        if bindBundledIterableSourceFunction(typeArguments: [collectionElementType]) {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
+                        }
+                    } else {
+                        sema.bindings.bindExprType(id, type: sema.types.makeNullable(collectionElementType))
+                        return sema.types.makeNullable(collectionElementType)
                     }
                 } else {
-                    sema.bindings.bindExprType(id, type: sema.types.makeNullable(collectionElementType))
-                    return sema.types.makeNullable(collectionElementType)
+                    guard receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver else {
+                        return nil
+                    }
+                    if args.isEmpty {
+                        resultType = sema.types.makeNullable(collectionElementType)
+                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                    } else if args.count == 1 {
+                        let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
+                            params: [collectionElementType],
+                            returnType: sema.types.booleanType
+                        )))
+                        if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                            sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                        }
+                        _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
+                        resultType = sema.types.makeNullable(collectionElementType)
+                        if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                            if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
+                                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                            }
+                        }
+                    } else {
+                        sema.bindings.bindExprType(id, type: sema.types.makeNullable(collectionElementType))
+                        return sema.types.makeNullable(collectionElementType)
+                    }
                 }
 
             case "map", "filter", "filterNot", "filterKeys", "filterValues", "mapNotNull", "firstNotNullOf", "firstNotNullOfOrNull", "forEach", "flatMap", "flatMapIndexed", "any", "none", "all",
