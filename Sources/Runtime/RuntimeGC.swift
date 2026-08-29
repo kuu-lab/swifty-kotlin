@@ -25,6 +25,8 @@ struct KClassCacheKey: Hashable {
 struct GCState {
     var heapObjects: [UInt: HeapObjectRecord] = [:]
     var objectPointers: Set<UInt> = []
+    /// Canonical boxed Unit pointer, retained in `objectPointers` across GC resets.
+    var unitBoxPointer: UInt? = nil
     var globalRootSlots: Set<UInt> = []
     var frameMaps: [UInt32: [Int32]] = [:]
     var activeFrames: [ActiveFrameRecord] = []
@@ -34,6 +36,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     var dataClassIDs: Set<Int64> = []

@@ -15,3 +15,12 @@ public inline fun UIntArray(size: Int, init: (Int) -> UInt): UIntArray {
     }
     return result
 }
+
+/**
+ * Internal storage constructor used by the unsigned/signed array view APIs.
+ *
+ * Kotlin exposes this constructor only to the stdlib implementation. The
+ * signed and unsigned arrays intentionally share the same backing storage.
+ */
+@PublishedApi
+internal fun UIntArray(storage: IntArray): UIntArray = storage.asUIntArray()
