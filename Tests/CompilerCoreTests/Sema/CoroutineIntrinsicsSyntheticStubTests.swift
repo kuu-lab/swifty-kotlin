@@ -238,6 +238,26 @@ struct CoroutineIntrinsicsSyntheticStubTests {
         #expect(symbol.visibility == .public)
         #expect(symbol.flags.contains(.synthetic))
 
+        let constructorFQName = fqName + [interner.intern("<init>")]
+        let constructors = sema.symbols.lookupAll(fqName: constructorFQName).filter {
+            sema.symbols.symbol($0)?.kind == .constructor
+        }
+        #expect(constructors.count == 1)
+        let constructor = try #require(
+            constructors.first,
+            "Expected kotlin.coroutines.RestrictsSuspension to expose its implicit no-arg constructor"
+        )
+        let constructorSymbol = try #require(sema.symbols.symbol(constructor))
+        #expect(constructorSymbol.visibility == .public)
+        #expect(constructorSymbol.flags.contains(.synthetic))
+        let constructorSignature = try #require(sema.symbols.functionSignature(for: constructor))
+        #expect(constructorSignature.parameterTypes.isEmpty)
+        #expect(constructorSignature.returnType == sema.types.make(.classType(ClassType(
+            classSymbol: symbolID,
+            args: [],
+            nullability: .nonNull
+        ))))
+
         let annotations = sema.symbols.annotations(for: symbolID)
         #expect(
             annotations.contains {
@@ -245,6 +265,20 @@ struct CoroutineIntrinsicsSyntheticStubTests {
                     && $0.arguments == ["AnnotationTarget.CLASS"]
             },
             "RestrictsSuspension should target class-like declarations, got: \(annotations)"
+        )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.BINARY"]
+            },
+            "RestrictsSuspension should use binary retention, got: \(annotations)"
+        )
+        #expect(
+            annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["1.3"]
+            },
+            "RestrictsSuspension should be available since Kotlin 1.3, got: \(annotations)"
         )
     }
 
