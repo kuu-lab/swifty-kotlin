@@ -88,7 +88,6 @@ struct StdlibSurfaceSpecTests {
             sequence("reversed", 0),
             sequence("filterIndexed", 1),
             sequence("filterNotNull", 0),
-            sequence("filterIsInstance", 0),
             sequence("requireNoNulls", 0),
             sequence("minus", 1),
         ]

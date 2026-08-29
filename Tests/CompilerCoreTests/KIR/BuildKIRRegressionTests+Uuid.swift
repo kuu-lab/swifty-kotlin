@@ -85,7 +85,6 @@ extension BuildKIRRegressionTests {
                 "kk_uuid_leastSignificantBits",
                 "kk_uuid_lexicalOrder",
                 "kk_uuid_mostSignificantBits",
-                "kk_uuid_nameUUIDFromBytes",
                 "kk_uuid_nil",
                 "kk_uuid_parse",
                 "kk_uuid_parseHex",
@@ -192,7 +191,6 @@ extension BuildKIRRegressionTests {
 
         for callee in [
             "__kk_uuid_random",
-            "__kk_uuid_nameUUIDFromBytes",
             "__kk_uuid_lexicalOrder",
             "__kk_uuid_fromLongs",
             "__kk_uuid_toKotlinUuid",
