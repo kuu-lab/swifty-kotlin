@@ -7,6 +7,7 @@
 | `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
@@ -219,6 +220,28 @@ Render a markdown summary from that report:
 bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary /tmp/step_summary.md
 ```
 
+## Diagnostic differential workflow
+
+`diff_diagnostics.sh` is the first-stage diagnostic oracle. It compares only
+whether `kotlinc` and `kswiftc` accept the source and, when both reject it, the
+normalized set of source line numbers containing an error diagnostic. Diagnostic
+wording and diagnostic codes are deliberately outside this contract.
+
+The dedicated `Scripts/diagnostic_cases/` directory keeps negative cases out of
+the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
+must be rejected by both compilers; acceptance is the default and can be stated
+explicitly with `// EXPECT-ACCEPT`.
+
+```bash
+bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases
+bash Scripts/diff_diagnostics.sh --report /tmp/diagnostics.tsv Scripts/diagnostic_cases
+bash Scripts/diff_diagnostics.sh --self-test
+```
+
+The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.3.10
+lane. For local toolchains that are intentionally different, set
+`DIFF_REQUIRE_JDK21=0` and record that limitation with the result.
+
 ## Precompiled stdlib artifact for diff runs
 
 `diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
@@ -257,7 +280,7 @@ bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackend
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\.' \
   --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/' \
   --target-prefix CompilerCoreTests \
-  --shard-index 0 --shard-count 3
+  --shard-index 0 --shard-count 6
 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```
