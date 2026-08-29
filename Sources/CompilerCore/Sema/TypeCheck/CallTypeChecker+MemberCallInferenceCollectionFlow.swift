@@ -728,8 +728,18 @@ extension CallTypeChecker {
             }
         }
 
-        /// KSP-1011: Bind the source-backed Map.iterator extension before the
-        /// receiver-less iterator builder fallback can claim the same short name.
+        /// KSP-1011: Bind `map.iterator()` straight to the bundled
+        /// `Map<out K, V>.__kspMapIterator()` source declaration. That
+        /// declaration is deliberately *not* named `iterator`: a second
+        /// source-backed function named `iterator` in `kotlin.collections`
+        /// widens the by-simple-name candidate pool that the generic
+        /// `Iterable<T>.iterator()` call inside bundled HOFs (`reduce`,
+        /// `reduceIndexed`, ...) resolves against, and that lookup does not
+        /// filter candidates by nominal receiver compatibility — it matched
+        /// this Map-only function for every Iterable receiver, including
+        /// ranges, and crashed at runtime. Keeping the call-site name
+        /// (`iterator`) but the target name mangled avoids widening that
+        /// pool while still binding the correct implementation here.
         func bindBundledMapIteratorSourceFunction() -> TypeID? {
             guard isMapReceiver, !isSequenceReceiver, calleeStr == "iterator", args.isEmpty else {
                 return nil
@@ -737,7 +747,7 @@ extension CallTypeChecker {
             let sourceFQName = [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
-                calleeName,
+                interner.intern("__kspMapIterator"),
             ]
             let receiverForLookup = sema.types.makeNonNullable(receiverType)
             guard let (actualReceiverClassType, _) = resolveClassTypeSymbol(receiverForLookup, sema: sema),
