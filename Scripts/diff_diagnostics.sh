@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
+source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
 JAVA_BIN="${JAVA_BIN:-java}"
@@ -143,12 +144,6 @@ if [[ $SELF_TEST -eq 1 && -n "$TARGET" ]]; then
   exit 1
 fi
 
-sanitize_case_name() {
-  local case_path="$1"
-  case_path="${case_path#$ROOT_DIR/}"
-  printf '%s' "$case_path" | tr '/[:space:]' '__' | tr -cd '[:alnum:]_.-'
-}
-
 should_skip_case() {
   local case_path="$1"
   if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
@@ -261,11 +256,12 @@ run_case() {
   local flags expectation result_reason result_status artifact_dir=""
   flags="$(kotlinc_flags "$case_path")"
   if ! expectation="$(expected_outcome "$case_path")"; then
+    local na='<empty>'
     result_reason="invalid expectation directives"
     result_status="FAIL"
-    artifact_dir="$(persist_failure "$case_path" "$tmp_dir" "$result_reason" 2 2 '' '')"
+    artifact_dir="$(persist_failure "$case_path" "$tmp_dir" "$result_reason" 2 2 "$na" "$na")"
     echo "FAIL $case_path (invalid expectation directives)"
-    report_case "$case_path" "$result_status" "$artifact_dir" 2 2 '<empty>' '<empty>'
+    report_case "$case_path" "$result_status" "$artifact_dir" 2 2 "$na" "$na"
     return 1
   fi
 
@@ -294,7 +290,7 @@ run_case() {
     result_reason="both compilers accepted an EXPECT-REJECT case"
   elif [[ ("$ref_exit" -eq 0 && "$candidate_exit" -ne 0) || ("$ref_exit" -ne 0 && "$candidate_exit" -eq 0) ]]; then
     result_reason="compile acceptance mismatch (reference=$([[ "$ref_exit" -eq 0 ]] && printf accepted || printf rejected), candidate=$([[ "$candidate_exit" -eq 0 ]] && printf accepted || printf rejected))"
-  elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && ( ! -s "$tmp_dir/reference.error_lines" || ! -s "$tmp_dir/candidate.error_lines" ) ]]; then
+  elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && ( "$ref_lines" == '<empty>' || "$candidate_lines" == '<empty>' ) ]]; then
     result_reason="a rejected compile produced no normalizable error line"
   elif [[ "$ref_exit" -ne 0 && "$candidate_exit" -ne 0 && "$ref_lines" != "$candidate_lines" ]]; then
     result_reason="error line set mismatch (reference=$ref_lines, candidate=$candidate_lines)"
