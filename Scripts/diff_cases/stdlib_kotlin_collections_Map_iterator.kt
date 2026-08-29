@@ -22,7 +22,8 @@ fun main() {
     val multiple = mapOf<String?, Int?>("a" to 1, "b" to null, null to 2)
     printEntries(multiple)
 
-    val projected: Map<Any?, Number?> = mapOf<Any?, Number?>("a" to 1, null to null)
+    @Suppress("UNCHECKED_CAST")
+    val projected = mapOf<String?, Int?>("a" to 1, "b" to null, null to 2) as Map<Any?, Number?>
     val projectedEntry = projected.iterator().next()
     println("${projectedEntry.key}:${projectedEntry.value}")
 
