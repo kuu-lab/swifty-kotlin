@@ -345,7 +345,7 @@ import Testing
         try assertKotlinOutput(source, moduleName: "NaNComparable", expected: "NaN\nNaN\n")
     }
 
-    @Test(.disabled("List indexing test temporarily disabled on Linux"))
+    @Test
     func testCodegenListOfIndexingUsesListRuntimeGet() throws {
         let source = """
         fun main() {
@@ -621,6 +621,35 @@ import Testing
     }
 
     @Test
+    func testCodegenSetFactorySingletonOverloadsPreserveReadOnlySetSemantics() throws {
+        let source = """
+        var evaluations = 0
+
+        fun nextValue(): String {
+            evaluations += 1
+            return "a"
+        }
+
+        fun main() {
+            val singleton = setOf(nextValue())
+            val nullable: Set<String?> = setOf(null)
+            val nonNull = setOfNotNull(nextValue())
+            val empty = setOfNotNull<String>(null)
+
+            println(singleton)
+            println(singleton.contains("a"))
+            println(singleton.size)
+            println(nullable.contains(null))
+            println(nonNull)
+            println(empty.isEmpty())
+            println(evaluations)
+        }
+        """
+
+        try assertKotlinOutput(source, moduleName: "SetFactorySingletonRuntime", expected: "[a]\ntrue\n1\ntrue\n[a]\ntrue\n2\n")
+    }
+
+    @Test
     func testCodegenLinkedSetOfFactoryUsesMutableRuntimeSet() throws {
         let source = """
         fun main() {
@@ -758,10 +787,14 @@ import Testing
             val empty = hashMapOf<String, Int>()
             empty["z"] = 9
             println(empty)
+
+            val pairs = arrayOf("c" to 4, "d" to 5)
+            val spread = hashMapOf<String, Int>(*pairs)
+            println(spread)
         }
         """
 
-        try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n")
+        try assertKotlinOutput(source, moduleName: "HashMapOfFactoryRuntime", expected: "{a=1, b=2}\n1\n{a=3, b=2}\n{z=9}\n{c=4, d=5}\n")
     }
 
     @Test

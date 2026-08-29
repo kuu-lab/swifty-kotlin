@@ -433,15 +433,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticConstructor(
-            ownerSymbol: classSymbol,
-            ownerType: rangeType,
-            parameterTypes: [types.ulongType, types.ulongType],
-            parameterNames: ["start", "endInclusive"],
-            externalLinkName: "kk_ulong_rangeTo",
-            symbols: symbols,
-            interner: interner
-        )
     }
 
 }
