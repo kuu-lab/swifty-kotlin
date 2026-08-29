@@ -6,9 +6,10 @@
 /// type-checking, and opt-in diagnostics work correctly without any runtime
 /// edits:
 ///
-/// - `kotlin.native.ref.WeakReference<T>` — generic weak-reference wrapper.
-/// - `kotlin.native.ref.createCleaner` — top-level factory function tagged
-///   with `@ExperimentalNativeApi`.
+/// - residual `WeakReference<T>` constructor and members, retained for
+///   KSP-1255/KSP-1256 runtime bridge ownership.
+/// - residual `createCleaner` bridge only when its bundled source declaration
+///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
 /// - `kotlin.native.runtime.GC` — object providing GC controls, tagged with
 ///   `@NativeRuntimeApi`.
@@ -219,6 +220,18 @@ extension DataFlowSemaPhase {
         let functionFQName = packageFQName + [functionName]
         let pkgSymbol = symbols.lookup(fqName: packageFQName)
 
+        // KSP-1254 supplies the exact generic source declaration. Keep the
+        // runtime bridge only for configurations that do not load bundled
+        // Kotlin source; do not leave an Any-based synthetic duplicate beside
+        // the source-backed function.
+        guard !BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: packageFQName,
+            name: functionName,
+            arity: 2
+        ) else {
+            return
+        }
+
         // Avoid double-registration.
         guard symbols.lookupAll(fqName: functionFQName).isEmpty else {
             return
@@ -248,8 +261,8 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // createCleaner<T>(value: T, block: (T) -> Unit): Cleaner
-        // We use `Any` as a simple approximation for T and the Cleaner return type.
+        // Legacy fallback only. The bundled source declaration carries the
+        // exact generic T and Cleaner signature whenever it is available.
         let anyType = types.anyType
         let blockType = types.make(.functionType(FunctionType(
             params: [anyType],
