@@ -1809,10 +1809,26 @@ extension CallTypeChecker {
                     }
                     if calleeStr == "sum", !isSequenceReceiver, !isRangeReceiver {
                         if receiverClassifier.isConcreteListLikeType(receiverType) {
-                            _ = bindBundledListSourceFunction(
+                            let bound = bindBundledListSourceFunction(
                                 typeArguments: [],
                                 receiverElementType: collectionElementType
                             )
+                            // KSP-994 regression: `Deferred<T>.await()` can't recover `T`
+                            // statically (Deferred has no class-level type parameter; see
+                            // CallTypeChecker+CoroutineBuilderReturnType.swift), so a
+                            // `List<Deferred<T>>` mapped through `.map { it.await() }`
+                            // erases its element type to `Any` here. None of the
+                            // monomorphic `sum()` overloads declare an `Any` element, so
+                            // the call above never binds and would otherwise reach
+                            // codegen as an unresolved `sum` callee (link failure).
+                            // Fall back to the pre-migration assumption that an unknown
+                            // element type is `Int`, matching historical behavior.
+                            if !bound, collectionElementType == sema.types.anyType {
+                                _ = bindBundledListSourceFunction(
+                                    typeArguments: [],
+                                    receiverElementType: sema.types.intType
+                                )
+                            }
                         } else {
                             _ = bindBundledIterableSumSource()
                         }

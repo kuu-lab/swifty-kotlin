@@ -219,6 +219,60 @@ struct IterableSumSourceMigrationTests {
         }
         #expect(receiverClass.classSymbol == listSymbol)
     }
+
+    /// KSP-994 regression: `Deferred<T>.await()` can't recover `T` statically
+    /// (Deferred has no class-level type parameter), so piping a
+    /// `List<Deferred<Int>>` through `.map { it.await() }` erases the mapped
+    /// list's element type to `Any`. A `List<Any>` receiver reaches the exact
+    /// same "concrete list, unknown element type" state without needing the
+    /// coroutine runtime, so exercise it directly here; the end-to-end
+    /// scenario is covered by `Scripts/diff_cases/coroutine_deferred.kt`.
+    /// Before the fix, `sum()` on this receiver never bound at all, leaking
+    /// an unresolved `sum` callee through to the linker (KSWIFTK-LINK-0001).
+    @Test
+    func erasedListElementTypeSumFallsBackToIntBinding() throws {
+        let source = """
+        fun main() {
+            val results: List<Any> = listOf(1, 2, 3, 4)
+            println(results.sum())
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let sumCallID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
+                  ctx.interner.resolve(callee) == "sum",
+                  let range = ast.arena.exprRange(id),
+                  range.start.file == userFileID
+            else {
+                return nil
+            }
+            return id
+        }.first)
+        let binding = try #require(
+            sema.bindings.callBinding(for: sumCallID),
+            "sum() on an erased List<Any> receiver must still bind to a real callee"
+        )
+        let chosen = try #require(sema.symbols.symbol(binding.chosenCallee))
+        #expect(ctx.interner.resolve(chosen.name) == "sum")
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.returnType == sema.types.intType)
+        let receiver = try #require(signature.receiverType)
+        let listFQName = ["kotlin", "collections", "List"].map(ctx.interner.intern)
+        let listSymbol = try #require(sema.symbols.lookup(fqName: listFQName))
+        guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+            Issue.record("Expected List receiver type for the fallback Int binding.")
+            return
+        }
+        #expect(receiverClass.classSymbol == listSymbol)
+    }
 }
 
 private func sourceFunctionName(at line: Int, source: String) -> String? {
