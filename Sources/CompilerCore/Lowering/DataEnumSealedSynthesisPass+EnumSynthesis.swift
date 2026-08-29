@@ -38,7 +38,7 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body: [KIRInstruction] = []
-        let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+        let (arrayExpr, countExpr, _) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: owner.id,
             entries: entries,
             intType: intType,
@@ -146,7 +146,7 @@ extension DataEnumSealedSynthesisPass {
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body: [KIRInstruction] = []
-        let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+        let (arrayExpr, countExpr, classIDExpr) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: enumSymbol.id,
             entries: entries,
             intType: intType,
@@ -156,13 +156,13 @@ extension DataEnumSealedSynthesisPass {
             interner: interner
         )
 
-        // kk_enum_make_entries_list(array, count) -- returns List for EnumEntries
+        // kk_enum_make_entries_list(array, count, classID) -- returns List for EnumEntries
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
             symbol: nil,
             callee: interner.intern("kk_enum_make_entries_list"),
-            arguments: [arrayExpr, countExpr],
+            arguments: [arrayExpr, countExpr, classIDExpr],
             result: listExpr,
             canThrow: false,
             thrownResult: nil
@@ -190,7 +190,7 @@ extension DataEnumSealedSynthesisPass {
         module: KIRModule,
         sema: SemaModule,
         interner: StringInterner
-    ) -> (array: KIRExprID, count: KIRExprID) {
+    ) -> (array: KIRExprID, count: KIRExprID, classID: KIRExprID) {
         let countExpr = module.arena.appendTemporary(type: intType
         )
         body.append(.constValue(result: countExpr, value: .intLiteral(Int64(entries.count))))
@@ -252,7 +252,7 @@ extension DataEnumSealedSynthesisPass {
             ))
         }
 
-        return (arrayExpr, countExpr)
+        return (arrayExpr, countExpr, classIDExpr)
     }
 
     /// Synthesizes `$enumOrdinalToName$<encodedFqName>(ordinal: Int): String` for (valueOf result).name.

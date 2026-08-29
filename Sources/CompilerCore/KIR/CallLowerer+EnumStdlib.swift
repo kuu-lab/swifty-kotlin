@@ -155,7 +155,9 @@ extension CallLowerer {
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeCalleeName),
-            arguments: [enumValuesArray, countExpr],
+            arguments: runtimeCalleeName == "kk_enum_make_entries_list"
+                ? [enumValuesArray, countExpr, classIDExpr]
+                : [enumValuesArray, countExpr],
             result: result,
             canThrow: false,
             thrownResult: nil

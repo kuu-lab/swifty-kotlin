@@ -74,7 +74,7 @@ public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int) -> Int {
 /// `entries` returns `EnumEntries<T>` in Kotlin, which extends `List<E>`.
 /// Returns `RuntimeListBox` to match the List-based API.
 @_cdecl("kk_enum_make_entries_list")
-public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
+public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
     guard let values = runtimeArrayBox(from: valuesRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
@@ -82,14 +82,11 @@ public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     let safeCount = max(0, min(count, values.elements.count))
     let elements = Array(values.elements.prefix(safeCount))
     // Kotlin's EnumEntries is a stable immutable collection for each enum
-    // class. Generated enum elements carry that class ID in their runtime
-    // metadata; use it to share the list across getter calls.
-    let cacheKey: Int64?
-    if safeCount == 0 {
-        cacheKey = Int64.min
-    } else {
-        cacheKey = runtimeObjectTypeID(rawValue: elements[0])
-    }
+    // class. The compiler passes the enum class ID so empty enums retain the
+    // same per-enum identity as non-empty enums.
+    let cacheKey = classID != 0
+        ? Int64(classID)
+        : (safeCount > 0 ? runtimeObjectTypeID(rawValue: elements[0]) : nil)
     guard let cacheKey else {
         return registerRuntimeObject(RuntimeListBox(elements: elements))
     }
