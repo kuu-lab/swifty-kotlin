@@ -58,10 +58,10 @@ struct ArrayLookupNames {
         booleanArrayOfName = interner.intern("booleanArrayOf")
         charArrayOfName = interner.intern("charArrayOf")
         kkEmptyArrayName = interner.intern("kk_empty_array")
-        kkArraySizeName = interner.intern("kk_array_size")
+        kkArraySizeName = interner.intern("__kk_array_size")
         kkArrayNewName = interner.intern("kk_array_new")
         kkArraySetName = interner.intern("kk_array_set")
-        kkArrayToListName = interner.intern("kk_array_toList")
+        kkArrayToListName = interner.intern("__kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
 
         kkArrayCopyOfName = interner.intern("kk_array_copyOf")

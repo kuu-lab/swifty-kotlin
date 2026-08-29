@@ -314,7 +314,7 @@ extension DataFlowSemaPhase {
             // Float conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
-                externalLinkName: "kk_float_to_int",
+                externalLinkName: "__kk_float_to_int",
                 receiverType: types.floatType,
                 parameters: [],
                 returnType: types.intType,
@@ -327,62 +327,10 @@ extension DataFlowSemaPhase {
 
             registerSyntheticCoercionFunction(
                 named: "toShort",
-                externalLinkName: "kk_float_to_int",
+                externalLinkName: "__kk_float_to_int",
                 receiverType: types.floatType,
                 parameters: [],
                 returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toInt",
-                externalLinkName: "kk_float_to_int",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toLong",
-                externalLinkName: "kk_float_to_long",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toDouble",
-                externalLinkName: "kk_float_to_double_bits",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toChar",
-                externalLinkName: "kk_float_to_char",
-                receiverType: types.floatType,
-                parameters: [],
-                returnType: types.charType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
@@ -393,7 +341,7 @@ extension DataFlowSemaPhase {
             // Double conversion functions
             registerSyntheticCoercionFunction(
                 named: "toByte",
-                externalLinkName: "kk_double_to_int",
+                externalLinkName: "__kk_double_to_int",
                 receiverType: types.doubleType,
                 parameters: [],
                 returnType: types.intType,
@@ -406,36 +354,10 @@ extension DataFlowSemaPhase {
 
             registerSyntheticCoercionFunction(
                 named: "toShort",
-                externalLinkName: "kk_double_to_int",
+                externalLinkName: "__kk_double_to_int",
                 receiverType: types.doubleType,
                 parameters: [],
                 returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toInt",
-                externalLinkName: "kk_double_to_int",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toLong",
-                externalLinkName: "kk_double_to_long",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.longType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,
@@ -449,19 +371,6 @@ extension DataFlowSemaPhase {
                 receiverType: types.doubleType,
                 parameters: [],
                 returnType: types.floatType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toChar",
-                externalLinkName: "kk_double_to_char",
-                receiverType: types.doubleType,
-                parameters: [],
-                returnType: types.charType,
                 packageFQName: kotlinPkg,
                 packageSymbol: kotlinPackageSymbol,
                 symbols: symbols,

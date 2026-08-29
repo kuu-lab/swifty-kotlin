@@ -7,8 +7,8 @@ import Testing
 /// `Exception` as a direct supertype and exposes the two stdlib constructors
 /// (`()` and `(message: String?)`). See
 /// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticExceptionStubs.swift`
-/// for the registration site and the constructors are routed to the runtime
-/// link `__kk_throwable_new`.
+/// for the registration site and the constructors are routed to the typed
+/// runtime links for CharacterCodingException.
 @Suite
 struct CharacterCodingExceptionTypeTests {
 
@@ -160,8 +160,8 @@ struct CharacterCodingExceptionTypeTests {
         )
 
         let expected: [([TypeID], String)] = [
-            ([], "__kk_throwable_new"),
-            ([nullableStringType], "__kk_throwable_new"),
+            ([], "__kk_character_coding_exception_new"),
+            ([nullableStringType], "__kk_character_coding_exception_new_message"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(
