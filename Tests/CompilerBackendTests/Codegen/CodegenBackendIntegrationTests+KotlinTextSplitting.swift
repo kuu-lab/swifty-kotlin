@@ -452,6 +452,63 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
         )
     }
 
+    @Test func testKotlinTextWindowedTransformDefaultArgsAndInvalidSize() throws {
+        let source = """
+        fun main() {
+            println("hello".windowed(2) { it.length })
+            println("hello".windowed(3, 2) { it.length })
+            println("hello".windowed(3, 2, true) { it.length })
+
+            val chars: CharSequence = "hello"
+            println(chars.windowed(2) { it.length })
+            println(chars.windowed(3, 2) { it.length })
+            println("hello".windowedSequence(2) { it.length }.toList())
+            println("hello".windowedSequence(3, 2) { it.length }.toList())
+
+            try {
+                "abc".chunked(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(2, 0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowed(0, 1, false) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextWindowedTransformDefaultArgsAndInvalidSize",
+            expected:
+                """
+                [2, 2, 2, 2]
+                [3, 3]
+                [3, 3, 1]
+                [2, 2, 2, 2]
+                [3, 3]
+                [2, 2, 2, 2]
+                [3, 3]
+                size must be positive, but was 0
+                size must be positive, but was 0
+                step must be positive, but was 0
+                size must be positive, but was 0
+                """
+                + "\n"
+        )
+    }
+
     @Test func testSourceIteratorCapturingStringPreservesIntElements() throws {
         let source = """
         class StringBackedIntSequence(private val source: String) : Sequence<Int> {
