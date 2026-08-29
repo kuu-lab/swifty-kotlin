@@ -82,6 +82,8 @@ public enum StdlibSpecialCallKind: Equatable {
     case minOfDouble
     case maxOfFloat
     case minOfFloat
+    case minOfByte
+    case minOfShort
     case maxOfInt3
     case minOfInt3
     case maxOfLong3
@@ -90,6 +92,8 @@ public enum StdlibSpecialCallKind: Equatable {
     case minOfDouble3
     case maxOfFloat3
     case minOfFloat3
+    case minOfByte3
+    case minOfShort3
     case arrayConstructor
     case atomicIntArrayFactory
     case atomicLongArrayFactory
