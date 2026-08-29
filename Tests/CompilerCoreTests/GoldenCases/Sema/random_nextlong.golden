@@ -1,7 +1,6 @@
 symbol fq=__local_0.a kind=local vis=private flags=_ type=Long
 symbol fq=__local_1.b kind=local vis=private flags=_ type=Long
 symbol fq=__local_2.c kind=local vis=private flags=_ type=Long
-symbol fq=kotlin.random.Random#0 kind=class vis=public flags=abstractType|openType
 symbol fq=useRandomLong kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file frandom_nextlong package=_
   decl useRandomLong fun useRandomLong sym=useRandomLong
