@@ -4,6 +4,15 @@
 public extension RuntimeABISpec {
     static let boxingFunctions: [RuntimeABIFunctionSpec] = [
         RuntimeABIFunctionSpec(
+            name: "kk_box_unit",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Boxing",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_box_int",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),
