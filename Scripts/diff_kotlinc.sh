@@ -525,24 +525,22 @@ if (( DIFF_SHARD_INDEX >= DIFF_SHARD_COUNT )); then
   exit 1
 fi
 
-if ! [[ "$COMPILE_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
-  echo "compile timeout must be a positive integer: $COMPILE_TIMEOUT" >&2
-  exit 1
-fi
+validate_positive_int() {
+  local label="$1" value="$2"
+  if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+    echo "$label timeout must be a positive integer: $value" >&2
+    exit 1
+  fi
+}
 
-if ! [[ "$RUN_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
-  echo "run timeout must be a positive integer: $RUN_TIMEOUT" >&2
-  exit 1
-fi
+validate_positive_int "compile" "$COMPILE_TIMEOUT"
+validate_positive_int "run" "$RUN_TIMEOUT"
 
 # Default to the (possibly --compile-timeout-overridden) COMPILE_TIMEOUT, since
 # script mode's dominant cost is JVM startup + compilation, not execution.
 SCRIPT_TIMEOUT="${SCRIPT_TIMEOUT:-$COMPILE_TIMEOUT}"
 
-if ! [[ "$SCRIPT_TIMEOUT" =~ ^[1-9][0-9]*$ ]]; then
-  echo "script timeout must be a positive integer: $SCRIPT_TIMEOUT" >&2
-  exit 1
-fi
+validate_positive_int "script" "$SCRIPT_TIMEOUT"
 
 if [[ -n "$REPORT_PATH" ]]; then
   : >"$REPORT_PATH"
@@ -773,10 +771,6 @@ build_stdlib_artifact() {
       fi
       return 1
     }
-
-  local stdlib_manifest_hash
-  stdlib_manifest_hash="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
-  echo "Stdlib artifact manifest hash: $stdlib_manifest_hash"
 }
 
 echo "=== diff_kotlinc Configuration ==="
@@ -812,8 +806,11 @@ warm_kotlinc
 # compile below will reference it with --stdlib-library instead of recompiling
 # bundled stdlib sources.
 build_stdlib_artifact || exit 1
+# Computed once here (rather than per failing case in persist_artifacts) since
+# STDLIB_ARTIFACT never changes for the rest of this run.
+STDLIB_MANIFEST_HASH="$(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
 echo "Stdlib artifact: $STDLIB_ARTIFACT"
-echo "Stdlib artifact manifest hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")"
+echo "Stdlib artifact manifest hash: $STDLIB_MANIFEST_HASH"
 
 # Emits this shard's cases (interleaved sharding via lib/common.sh;
 # DIFF_SHARD_COUNT == 1 emits everything).
@@ -930,7 +927,7 @@ candidate_compile_exit: $cand_compile_exit
 ref_run_exit: $ref_run_exit
 candidate_run_exit: $cand_run_exit
 stdlib_artifact: $STDLIB_ARTIFACT
-stdlib_manifest_hash: $(stdlib_manifest_hash "$STDLIB_ARTIFACT")
+stdlib_manifest_hash: $STDLIB_MANIFEST_HASH
 kswiftc: $KSWIFTC
 kotlinc: $KOTLINC
 java: $JAVA_BIN
@@ -959,6 +956,14 @@ should_skip_case() {
     return 1
   fi
   grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$kt_file"
+}
+
+report_skip_case() {
+  local test_case="$1"
+  echo "SKIP $test_case (// SKIP-DIFF)"
+  if [[ -n "$REPORT_PATH" ]]; then
+    printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
+  fi
 }
 
 # Cases that need stdin=EOF (e.g. readLine() returning null)
@@ -1050,6 +1055,11 @@ run_case() {
   local java_extra_flags
   java_extra_flags="$(get_java_extra_flags "$kt_file")"
 
+  local stdin_redirect="/dev/stdin"
+  if needs_stdin_eof "$kt_file"; then
+    stdin_redirect="/dev/null"
+  fi
+
   if [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
@@ -1103,33 +1113,19 @@ run_case() {
           ref_run_exit=1
           echo "Missing Main-Class in reference jar manifest." >"$ref_run_stderr"
         else
-          if needs_stdin_eof "$kt_file"; then
-            # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-          else
-            # shellcheck disable=SC2086
-            "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-          fi
+          # shellcheck disable=SC2086
+          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -cp "$ref_jar:$KOTLINC_CLASSPATH" "$main_class" <"$stdin_redirect" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
         fi
       else
-        if needs_stdin_eof "$kt_file"; then
-          # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" < /dev/null >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-        else
-          # shellcheck disable=SC2086
-          "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
-        fi
+        # shellcheck disable=SC2086
+        "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$JAVA_BIN" $DIFF_REFERENCE_JAVA_FLAGS $java_extra_flags -jar "$ref_jar" <"$stdin_redirect" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
       fi
     fi
   fi
 
   "$TIMEOUT_CMD" "$COMPILE_TIMEOUT" "$KSWIFTC" --no-stdlib --stdlib-library "$STDLIB_ARTIFACT" "$kt_file" -o "$cand_bin" >"$cand_compile_stdout" 2>"$cand_compile_stderr" || cand_compile_exit=$?
   if [[ $cand_compile_exit -eq 0 ]]; then
-    if needs_stdin_eof "$kt_file"; then
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" < /dev/null >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
-    else
-      "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
-    fi
+    "$TIMEOUT_CMD" "$RUN_TIMEOUT" "$cand_bin" <"$stdin_redirect" >"$cand_run_stdout" 2>"$cand_run_stderr" || cand_run_exit=$?
   fi
 
   normalize_text <"$ref_compile_stderr" >"$tmp_dir/ref_compile_stderr.norm"
@@ -1152,14 +1148,6 @@ run_case() {
   if [[ $cand_compile_exit -eq 124 ]]; then
     ok=0
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
-  fi
-
-  # Matching non-zero compile exits skip the run/stdout comparison below, then
-  # the matching-failure branch forces this case to FAIL. Compile stderr is
-  # retained in the failure output and artifacts; matching exit codes alone
-  # never count as verified parity.
-  if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
-    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not verify parity — compile stderr is reported below; this case will FAIL"
   fi
 
   if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
@@ -1195,11 +1183,13 @@ run_case() {
         diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
       fi
     fi
-  elif [[ $ref_compile_exit -ne 0 && $cand_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit ]]; then
-    # Matching non-zero exit codes do not imply the same failure reason: ref
-    # and candidate may be erroring out for entirely unrelated causes. Treat
-    # this as unverified rather than silently passing (compile stderr for
-    # both sides is included in the FAIL output/artifacts below).
+  elif [[ $ref_compile_exit -eq $cand_compile_exit ]]; then
+    # Reaching here (the preceding `if` already ruled out both-zero) means
+    # both sides failed to compile with the same exit code. That does not
+    # imply the same failure reason: ref and candidate may be erroring out
+    # for entirely unrelated causes. Treat this as unverified rather than
+    # silently passing (compile stderr for both sides is included in the
+    # FAIL output/artifacts below).
     ok=0
     echo "  both compile failed with exit=$ref_compile_exit (matching exit code alone does not verify parity; compile stderr not compared)"
   fi
@@ -1273,11 +1263,8 @@ if [[ "$DIFF_PARALLEL" -eq 0 || "$WORKER_COUNT" -le 1 ]]; then
   while IFS= read -r test_case; do
     [[ -z "$test_case" ]] && continue
     if should_skip_case "$test_case"; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
+      report_skip_case "$test_case"
       SKIPPED=$((SKIPPED + 1))
-      if [[ -n "$REPORT_PATH" ]]; then
-        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
-      fi
       continue
     fi
     TOTAL=$((TOTAL + 1))
@@ -1348,10 +1335,7 @@ else
   for i in "${!TEST_CASES[@]}"; do
     test_case="${TEST_CASES[$i]}"
     if [[ "${CASE_KIND[$i]:-}" == "SKIP" ]]; then
-      echo "SKIP $test_case (// SKIP-DIFF)"
-      if [[ -n "$REPORT_PATH" ]]; then
-        printf '%s\tSKIP\t\n' "$test_case" >>"$REPORT_PATH"
-      fi
+      report_skip_case "$test_case"
       continue
     fi
     case_number="${CASE_NUM[$i]:-0}"
