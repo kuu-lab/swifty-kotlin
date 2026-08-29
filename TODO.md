@@ -8181,7 +8181,7 @@
     - `kotlin.text.onEach` — fun onEach(Function1): #A  -- `final inline fun <#A: kotlin/CharSequence> (#A).kotlin.text/onEach(kotlin/Function1<kotlin/Char, kotlin/Unit>): #A`
     - `kotlin.text.onEachIndexed` — fun onEachIndexed(Function2): #A  -- `final inline fun <#A: kotlin/CharSequence> (#A).kotlin.text/onEachIndexed(kotlin/Function2<kotlin/Int, kotlin/Char, kotlin/Unit>): #A`
 
-- [ ] KSP-1363: kotlin.text.Appendable の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1363: kotlin.text.Appendable の未実装 stdlib API を実装する（3 件。Appendable.kt の source-backed 実装と専用 Sema/Golden/diff 回帰を追加）
   - 対象: `kotlin.text` / receiver `Appendable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Appendable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
