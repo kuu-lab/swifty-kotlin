@@ -20,6 +20,9 @@ public open class Throwable {
     @KsSymbolName("__kk_throwable_new")
     public constructor(message: String?)
 
+    @KsSymbolName("__kk_throwable_new_cause")
+    public constructor(cause: Throwable?)
+
     @KsSymbolName("__kk_throwable_new_with_cause")
     public constructor(message: String?, cause: Throwable?)
 
