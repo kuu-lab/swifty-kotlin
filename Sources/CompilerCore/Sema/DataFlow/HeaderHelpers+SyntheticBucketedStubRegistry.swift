@@ -51,9 +51,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 bundledIndex: context.bundledIndex
             )
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Random") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRandomStubs(symbols: symbols, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Collections") { phase, symbols, types, interner, context in
             phase.registerSyntheticCollectionStubs(
                 symbols: symbols,
@@ -104,19 +101,16 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "Exception") { phase, symbols, types, interner, context in
             phase.registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: context.kotlinPkg)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Regex") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Duration") { phase, symbols, types, interner, _ in
             phase.registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Instant") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "InstantRuntimeBridges") { phase, symbols, types, interner, _ in
             phase.registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Clock") { phase, symbols, types, interner, _ in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ClockRuntimeDispatch") { phase, symbols, types, interner, _ in
             phase.registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "ExperimentalTime") { phase, symbols, types, interner, context in
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalTimeAnchors") { phase, symbols, types, interner, context in
             phase.registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: context.bundledIndex)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "StringBuilder") { phase, symbols, types, interner, context in
@@ -163,9 +157,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
                 arity: 0
             ) else { return }
             phase.patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        },
-        SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Closeable") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
             phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
@@ -217,8 +208,8 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeConcurrent") { phase, symbols, types, interner in
             phase.registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, _, interner in
-            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
+        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, types, interner in
+            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, types: types, interner: interner)
         },
     ]
 }

@@ -285,14 +285,26 @@ extension DataFlowSemaPhase {
             }
             let memberFQName = ownerFQName + [propertyDecl.name]
             var propertyFlags = flags(from: propertyDecl.modifiers)
-            checkAndReportDuplicateDeclaration(
-                newKind: .property,
+            let reusableSyntheticProperty = reusableSyntheticMemberPropertySymbol(
                 fqName: memberFQName,
-                range: propertyDecl.range,
+                ownerSymbol: ownerSymbol,
+                ownerFQName: ownerFQName,
+                expectedVisibility: visibility(from: propertyDecl.modifiers),
+                sourceFileID: sourceFileID,
+                sourceManager: sourceManager,
                 symbols: symbols,
-                diagnostics: diagnostics,
-                newFlags: propertyFlags
+                interner: interner
             )
+            if reusableSyntheticProperty == nil {
+                checkAndReportDuplicateDeclaration(
+                    newKind: .property,
+                    fqName: memberFQName,
+                    range: propertyDecl.range,
+                    symbols: symbols,
+                    diagnostics: diagnostics,
+                    newFlags: propertyFlags
+                )
+            }
 
             // STDLIB-CLASS-010: Abstract properties cannot have initializers
             if propertyDecl.modifiers.contains(.abstract) && propertyDecl.initializer != nil {
@@ -375,14 +387,23 @@ extension DataFlowSemaPhase {
                     propertyFlags.insert(.abstractType)
                 }
             }
-            let memberSymbol = symbols.define(
-                kind: .property,
-                name: propertyDecl.name,
-                fqName: memberFQName,
-                declSite: propertyDecl.range,
-                visibility: visibility(from: propertyDecl.modifiers),
-                flags: propertyFlags
-            )
+            let memberSymbol: SymbolID
+            if let reusableSyntheticProperty {
+                memberSymbol = reusableSyntheticProperty
+                symbols.removeFlags(.synthetic, for: memberSymbol)
+                symbols.removeFlags([.abstractType, .static, .finalMember, .overrideMember, .mutable], for: memberSymbol)
+                symbols.insertFlags(propertyFlags, for: memberSymbol)
+                symbols.setDeclSite(propertyDecl.range, for: memberSymbol)
+            } else {
+                memberSymbol = symbols.define(
+                    kind: .property,
+                    name: propertyDecl.name,
+                    fqName: memberFQName,
+                    declSite: propertyDecl.range,
+                    visibility: visibility(from: propertyDecl.modifiers),
+                    flags: propertyFlags
+                )
+            }
             symbols.setSourceFileID(sourceFileID, for: memberSymbol)
             registerAnnotations(
                 for: decl,
@@ -557,10 +578,10 @@ extension DataFlowSemaPhase {
             return reusableSyntheticDeclarationSymbol(
                 kind: kind,
                 fqName: fqName,
+                declarationFlags: duplicateCheckFlags,
                 file: file,
                 sourceManager: sourceManager,
-                symbols: symbols,
-                interner: interner
+                symbols: symbols
             )
         }()
         if reusableSyntheticSymbol == nil {
@@ -1224,6 +1245,33 @@ extension DataFlowSemaPhase {
                 return false
             }
             return true
+        }
+    }
+
+    /// Returns a synthetic property placeholder with the same fully-qualified name
+    /// and parent, so bundled source declarations can claim runtime-backed properties.
+    private func reusableSyntheticMemberPropertySymbol(
+        fqName: [InternedString],
+        ownerSymbol: SymbolID,
+        ownerFQName: [InternedString],
+        expectedVisibility: Visibility,
+        sourceFileID: FileID,
+        sourceManager: SourceManager,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let isBundledSource = sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
+        let isAllowedOwner = ownerFQName == [interner.intern("kotlin"), interner.intern("Comparator")]
+        guard isBundledSource || isAllowedOwner else {
+            return nil
+        }
+
+        return symbols.lookupAll(fqName: fqName).first { symbolID in
+            guard let symbol = symbols.symbol(symbolID) else { return false }
+            return symbol.kind == .property
+                && symbol.flags.contains(.synthetic)
+                && symbol.visibility == expectedVisibility
+                && symbols.parentSymbol(for: symbolID) == ownerSymbol
         }
     }
 
