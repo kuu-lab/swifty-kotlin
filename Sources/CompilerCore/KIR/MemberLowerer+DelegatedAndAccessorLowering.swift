@@ -605,6 +605,74 @@ extension MemberLowerer {
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
     }
 
+    /// BUG-227: emits a setter accessor function (`(receiver, value) -> Unit`)
+    /// that writes a stored property to its instance field. The `var`
+    /// counterpart of `synthesizeStoredPropertyGetterAccessor` above — every
+    /// class whose stored property ever needs virtual dispatch (the
+    /// open/abstract root of an override chain, or a link further down it)
+    /// needs one so a write through a base-typed reference can dispatch to it
+    /// the same way a read dispatches to the getter.
+    func synthesizeStoredPropertySetterAccessor(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey] else {
+            return
+        }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
+        let params = [
+            KIRParameter(symbol: receiverSymbol, type: ownerType),
+            KIRParameter(symbol: valueParamSymbol, type: propType),
+        ]
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        let valueExpr = arena.appendExpr(.symbolRef(valueParamSymbol), type: propType)
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+        body.append(.constValue(result: valueExpr, value: .symbolRef(valueParamSymbol)))
+        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_set"),
+            arguments: [receiverExpr, offsetExpr, valueExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: setterSymbol,
+                    name: interner.intern("set"),
+                    params: params,
+                    returnType: sema.types.unitType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
+    }
+
     /// Emits a getter accessor stub (`(receiver) -> PropertyType`) for an
     /// abstract interface property. The stub is never executed — interface
     /// property reads dispatch through the itable — but it gives the dispatch
