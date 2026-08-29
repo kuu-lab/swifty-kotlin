@@ -98,35 +98,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    func registerSyntheticNativeStackTraceAddressStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let nativePkg = ensurePackage(
-            path: ["kotlin", "native"],
-            symbols: symbols,
-            interner: interner
-        )
-        let listLongType = syntheticListType(
-            elementType: types.longType,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticNativeTopLevelFunction(
-            named: "getStackTraceAddresses",
-            packageFQName: nativePkg,
-            receiverType: nil,
-            parameters: [],
-            returnType: listLongType,
-            annotations: experimentalNativeApiAnnotations(),
-            externalLinkName: "kk_native_getStackTraceAddresses",
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
     func registerSyntheticNativeUnhandledExceptionHookStubs(
         symbols: SymbolTable,
         types: TypeSystem,
