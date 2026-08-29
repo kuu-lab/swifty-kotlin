@@ -22,6 +22,12 @@ extension LambdaLowerer {
         guard let semanticSymbol = sema.symbols.symbol(symbol) else {
             return false
         }
+        if semanticSymbol.kind == .typeParameter,
+           semanticSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol)
+            return driver.ctx.localValue(for: tokenSymbol) != nil
+        }
         return semanticSymbol.kind == .valueParameter || semanticSymbol.kind == .local
     }
 
@@ -202,10 +208,32 @@ extension LambdaLowerer {
                 collectBoundIdentifierSymbols(in: finallyExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
             }
 
-        case let .unaryExpr(_, operandExpr, _),
-             let .isCheck(operandExpr, _, _, _),
-             let .asCast(operandExpr, _, _, _),
-             let .nullAssert(operandExpr, _),
+        case let .unaryExpr(_, operandExpr, _):
+            collectBoundIdentifierSymbols(in: operandExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+
+        case let .isCheck(operandExpr, _, _, _):
+            collectBoundIdentifierSymbols(in: operandExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            if let targetType = sema.bindings.isCheckTargetType(for: exprID),
+               case let .typeParam(typeParam) = sema.types.kind(of: targetType),
+               let symbol = sema.symbols.symbol(typeParam.symbol),
+               symbol.flags.contains(.reifiedTypeParameter),
+               seen.insert(typeParam.symbol).inserted
+            {
+                referenced.append(typeParam.symbol)
+            }
+
+        case let .asCast(operandExpr, _, _, _):
+            collectBoundIdentifierSymbols(in: operandExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            if let targetType = sema.bindings.castTargetType(for: exprID),
+               case let .typeParam(typeParam) = sema.types.kind(of: targetType),
+               let symbol = sema.symbols.symbol(typeParam.symbol),
+               symbol.flags.contains(.reifiedTypeParameter),
+               seen.insert(typeParam.symbol).inserted
+            {
+                referenced.append(typeParam.symbol)
+            }
+
+        case let .nullAssert(operandExpr, _),
              let .throwExpr(operandExpr, _):
             collectBoundIdentifierSymbols(in: operandExpr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
 
