@@ -5788,7 +5788,7 @@
     - `kotlin.math.hypot` — fun hypot(Double, Double): Double  -- `final fun kotlin.math/hypot(kotlin/Double, kotlin/Double): kotlin/Double`
     - `kotlin.math.hypot` — fun hypot(Float, Float): Float  -- `final fun kotlin.math/hypot(kotlin/Float, kotlin/Float): kotlin/Float`
 
-- [ ] KSP-1184: kotlin.math.ln-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1184: kotlin.math.ln-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.math` / top-level / family `ln`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/math/ln.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5800,6 +5800,7 @@
     - `kotlin.math.ln` — fun ln(Float): Float  -- `final fun kotlin.math/ln(kotlin/Float): kotlin/Float`
     - `kotlin.math.ln1p` — fun ln1p(Double): Double  -- `final fun kotlin.math/ln1p(kotlin/Double): kotlin/Double`
     - `kotlin.math.ln1p` — fun ln1p(Float): Float  -- `final fun kotlin.math/ln1p(kotlin/Float): kotlin/Float`
+  - 完了根拠（2026-08-25 再監査）: KSP-637（merged PR #5831、commit `dfc478e0fd9a29f5788ad21aaf952501c5bd1cc9`）で `Math.kt` に4件の public Double/Float wrapper と内部 `__kk_math_ln*` bridge が実装済みであり、現行の Sema overload/source-link、Backend lowering、Runtime/RuntimeABI、Golden fixture を確認した。Kotlin 2.3.10 の公式 source・stdlib artifact metadata・exact kotlinc・Kotlin/Native actual で package、public visibility、4 overload、戻り型、Native platform availability、NaN/負数/-1/±0/+Infinity、`ln1p` の1近傍精度を確認し、追加の source/compiler/runtime/ABI 変更は不要。`swift build --jobs 2`、Math focused tests（358 tests）、`math_transcendental_source.kt` の kotlinc 差分、`validate_runtime_abi_links.sh`、`check_todo_ids.sh` はすべて PASS。
 
 - [x] KSP-1185: kotlin.math.log-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.math` / top-level / family `log`
