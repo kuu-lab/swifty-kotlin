@@ -1,6 +1,5 @@
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.message kind=property vis=public flags=_ type=String
-symbol fq=kotlin.Lazy kind=interface vis=public flags=_
 file fdelegate_lazy package=golden.sema
   decl golden.sema.message property message var=0 sym=golden.sema.message
   decl golden.sema.main fun main sym=golden.sema.main

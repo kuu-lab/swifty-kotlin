@@ -2,7 +2,6 @@ symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[]
 symbol fq=golden.sema.noneProp kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.pubProp kind=property vis=public flags=_ type=String
 symbol fq=golden.sema.syncProp kind=property vis=public flags=_ type=String
-symbol fq=kotlin.Lazy kind=interface vis=public flags=_
 file fdelegate_lazy_mode package=golden.sema
   decl golden.sema.syncProp property syncProp var=0 sym=golden.sema.syncProp
   decl golden.sema.pubProp property pubProp var=0 sym=golden.sema.pubProp

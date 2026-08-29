@@ -50,4 +50,7 @@ public interface TimeSource {
                 timeMarkAddNanos(reading, timeMarkNegateNanos(other.reading)).nanoseconds
         }
     }
+
+    public companion object {
+    }
 }
