@@ -4015,14 +4015,15 @@
     - `kotlin.collections.ArrayList.toString` — fun ArrayList.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.collections.ArrayList.trimToSize` — fun ArrayList.trimToSize(): Unit  -- `final fun trimToSize()`
 
-- [ ] KSP-1047: kotlin.collections.BooleanIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1047: kotlin.collections.BooleanIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.BooleanIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/BooleanIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_BooleanIterator_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_BooleanIterator_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_BooleanIterator_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/PrimitiveIterators.kt` の `BooleanIterator` は KSP-664 / PR #5044 で source-backed 化済み。Kotlin 2.3.10 metadata の `public abstract`、`public <init>()`、`final next(): Boolean`、`abstract nextBoolean(): Boolean` と一致し、現行 `ListSyntheticMemberLinkTests` の surface/subclass 2件が PASS。BooleanIterator 固有の runtime / synthetic / compiler / lowering / ABI 残余はなく、旧TODO `STDLIB-COL-ITERATOR-001` も PR #1813 で完了済み。gap audit の constructor 行は source-backed declaration を未対応とみなした機械監査の残差。
+  - 監査時の機械検出シンボル（source-backed で充足）:
     - `kotlin.collections.BooleanIterator.<init>` — constructor ()  -- `constructor <init>()`
 
 - [ ] KSP-1048: kotlin.collections.ByteIterator top-level の未実装 stdlib API を実装する（1 件）
