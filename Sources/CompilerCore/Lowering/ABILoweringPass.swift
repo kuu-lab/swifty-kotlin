@@ -298,11 +298,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Synthetic property accessor symbols are always non-throwing.
-                // Preserve historical classification via SyntheticSymbolScheme.
+                // Most synthetic property accessors are field/property plumbing
+                // and historically have no throwing ABI. Delegated properties
+                // are different: their accessor invokes delegate getValue or
+                // setValue, which can throw (e.g. Delegates.notNull()).
                 let isSyntheticAccessor: Bool = {
                     guard let s = callSymbol else { return false }
                     return SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(s)
+                }()
+                let isDelegatedAccessor: Bool = {
+                    guard isSyntheticAccessor,
+                          let s = callSymbol,
+                          let syms = symbols
+                    else { return false }
+                    let propertySymbol = SyntheticSymbolScheme.originalPropertySymbolFromAccessor(s)
+                    return syms.delegateStorageSymbol(for: propertySymbol) != nil
                 }()
                 // ABI-001: For synthetic setter accessor calls whose callee is still
                 // "set", derive the actual runtime store function name from the getter
@@ -337,6 +347,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // This avoids brittle string-prefix coupling between passes.
                 let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(effectiveCallee)
                 let canThrow = isExplicitlyThrowing
+                    || isDelegatedAccessor
                     || (!isSyntheticAccessor
                         && !isClosureRelatedCallee
                         && !nonThrowingCalleeSet.contains(effectiveCallee))

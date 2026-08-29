@@ -144,7 +144,7 @@ struct CodegenBackendArrayForLoopIterationTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(callees.contains("kk_array_size"), "array for-loop should call kk_array_size, got: \(callees)")
+        #expect(callees.contains("__kk_array_size"), "array for-loop should call __kk_array_size, got: \(callees)")
         #expect(
             callees.contains("kk_array_get_inbounds"),
             "array for-loop should call kk_array_get_inbounds, got: \(callees)"
