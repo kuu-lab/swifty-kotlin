@@ -70,6 +70,61 @@ private func assertKotlinOutput(
 struct CodegenBackendPropertyDelegateEdgeCasesTests {
 
     @Test
+    func testCodegenTrailingLambdaDelegatesAcrossPropertyScopes() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class MyLazy<T>(private val initializer: () -> T) {
+            private var cached: Any? = null
+            private var done: Boolean = false
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+                if (!done) { cached = initializer(); done = true }
+                @Suppress("UNCHECKED_CAST")
+                return cached as T
+            }
+        }
+        fun <T> myLazy(initializer: () -> T): MyLazy<T> = MyLazy(initializer)
+        var evaluations = 0
+        val top: String by MyLazy { val value = "top"; value }
+        val evaluated: Int by myLazy { evaluations = evaluations + 1; evaluations }
+        val parenthesizedCtor: String by MyLazy({ "parenthesized-ctor" })
+        val parenthesizedFactory: String by myLazy({ "parenthesized-factory" })
+        class Box(val prefix: String) {
+            val member: String by myLazy { val value = prefix; value + "-member" }
+        }
+        fun local(prefix: String): String {
+            val value: String by myLazy { val localValue = prefix; localValue + "-local" }
+            return value
+        }
+        fun main() {
+            println(top)
+            println(evaluated)
+            println(evaluated)
+            println(evaluations)
+            println(Box("member").member)
+            println(local("capture"))
+            println(parenthesizedCtor)
+            println(parenthesizedFactory)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TrailingLambdaDelegatesAcrossScopes",
+            expected:
+                """
+                top
+                1
+                1
+                1
+                member-member
+                capture-local
+                parenthesized-ctor
+                parenthesized-factory
+                """ + "\n"
+        )
+    }
+
+    @Test
     func testCodegenCompilesLazyOfValueRead() throws {
         let source = """
         fun main() {

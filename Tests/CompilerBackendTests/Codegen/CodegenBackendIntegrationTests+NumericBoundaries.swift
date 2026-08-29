@@ -202,6 +202,36 @@ struct CodegenBackendNumericBoundariesTests {
     }
 
     @Test
+    func testNumericBoundaryFloatDoubleBundledConversions() throws {
+        let source = """
+        fun main() {
+            println(Double.NaN.toInt())
+            println(Double.POSITIVE_INFINITY.toLong())
+            println((-0.5).toInt())
+            println(Float.NaN.toInt())
+            println(Float.POSITIVE_INFINITY.toLong())
+            println(3.99f.toDouble())
+            println(65536.0.toChar().code)
+            println(65536.0f.toChar().code)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundaryFloatDoubleBundledConversions",
+            expected: """
+            0
+            9223372036854775807
+            0
+            0
+            9223372036854775807
+            3.990000009536743
+            0
+            0
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testNumericBoundaryUIntArithmeticWraps() throws {
         let source = """
         fun main() {

@@ -36,6 +36,7 @@ struct GCState {
 
 struct MetadataState {
     var kClassBoxCache: [KClassCacheKey: Int] = [:]
+    var enumEntriesCache: [Int64: Int] = [:]
     var objectTypeByPointer: [UInt: Int64] = [:]
     var typeParents: [Int64: Set<Int64>] = [:]
     var dataClassIDs: Set<Int64> = []
