@@ -5,7 +5,6 @@ symbol fq=golden.sema.MyAutoResource.<init> kind=constructor vis=public flags=_ 
 symbol fq=golden.sema.autoCloseableFactory kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.AutoCloseable
 symbol fq=golden.sema.useAutoCloseable kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=golden.sema.useFactory kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.AutoCloseable#0 kind=interface vis=public flags=_
 file fstdlib_kotlin_n_AutoCloseable package=golden.sema
   decl golden.sema.MyAutoResource class MyAutoResource sym=golden.sema.MyAutoResource
   decl golden.sema.autoCloseableFactory fun autoCloseableFactory sym=golden.sema.autoCloseableFactory

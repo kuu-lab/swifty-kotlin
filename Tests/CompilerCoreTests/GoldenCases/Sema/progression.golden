@@ -8,7 +8,7 @@ symbol fq=kotlin.ranges.LongProgression kind=class vis=public flags=synthetic
 symbol fq=kotlin.ranges.LongProgression.Companion kind=object vis=public flags=synthetic|static
 symbol fq=kotlin.ranges.UIntProgression kind=class vis=public flags=synthetic
 symbol fq=kotlin.ranges.UIntProgression.Companion kind=object vis=public flags=synthetic|static
-symbol fq=kotlin.ranges.ULongProgression kind=class vis=public flags=synthetic
+symbol fq=kotlin.ranges.ULongProgression kind=class vis=public flags=synthetic|openType
 symbol fq=kotlin.ranges.ULongProgression.Companion kind=object vis=public flags=synthetic|static
 symbol fq=testCharProgression kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
 symbol fq=testCharProgressionStep kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.List<Char>
