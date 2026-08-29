@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
@@ -149,14 +151,6 @@ sanitize_case_name() {
   printf '%s' "$case_path" | tr '/[:space:]' '__' | tr -cd '[:alnum:]_.-'
 }
 
-should_skip_case() {
-  local case_path="$1"
-  if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
-    return 1
-  fi
-  grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$case_path"
-}
-
 expected_outcome() {
   local case_path="$1"
   local reject_count accept_count
@@ -175,12 +169,6 @@ expected_outcome() {
   else
     printf 'accept\n'
   fi
-}
-
-kotlinc_flags() {
-  local case_path="$1"
-  { grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$case_path" 2>/dev/null || true; } \
-    | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
 normalize_error_lines() {
@@ -259,7 +247,7 @@ run_case() {
 
   local ref_exit=0 candidate_exit=0
   local flags expectation result_reason result_status artifact_dir=""
-  flags="$(kotlinc_flags "$case_path")"
+  flags="$(get_kotlinc_extra_flags "$case_path")"
   if ! expectation="$(expected_outcome "$case_path")"; then
     result_reason="invalid expectation directives"
     result_status="FAIL"
@@ -430,19 +418,9 @@ if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
   echo "java command not found: $JAVA_BIN" >&2
   exit 1
 fi
-if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
-  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
-  exit 1
-fi
+require_timeout_cmd_or_exit "$TIMEOUT_CMD"
 
-java_major="$("$JAVA_BIN" -version 2>&1 | awk -F'"' '/version/ { print $2; exit }' | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
-if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
-  if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
-    echo "java is too old for the diagnostic diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2
-    echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
-    exit 1
-  fi
-fi
+require_jdk21_or_exit "$JAVA_BIN" "diagnostic diff gate"
 
 TMP_ROOT="$(mktemp -d -t kswiftk-diagnostics-XXXXXX)"
 trap 'rm -rf "$TMP_ROOT"' EXIT

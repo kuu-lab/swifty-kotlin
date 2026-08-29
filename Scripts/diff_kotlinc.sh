@@ -567,27 +567,15 @@ fi
 # only emits the shortest round-trip form from JDK 19 onwards (JDK-4511638).
 # Older JDKs print extra digits (e.g. 1.23456792E8 instead of 1.2345679E8),
 # which produces spurious FAILs against kswiftc. CI pins java-version 21.
-java_major="$("$JAVA_BIN" -version 2>&1 \
-  | awk -F'"' '/version/ { print $2; exit }' \
-  | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
-if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
-  if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
-    echo "java is too old for the diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2
-    echo "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs." >&2
-    echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
-    exit 1
-  fi
-fi
+require_jdk21_or_exit "$JAVA_BIN" "diff gate" \
+  "CI uses JDK 21; older JDKs format Double/Float.toString() differently and cause false FAILs."
 
 if [[ -n "$KOTLINC_CLASSPATH" ]] && ! command -v unzip >/dev/null 2>&1; then
   echo "unzip command not found: unzip" >&2
   exit 1
 fi
 
-if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
-  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
-  exit 1
-fi
+require_timeout_cmd_or_exit "$TIMEOUT_CMD"
 
 warm_kotlinc() {
   local warm_timeout
@@ -953,14 +941,6 @@ EOF
   LAST_ARTIFACT_DIR="$destination"
 }
 
-should_skip_case() {
-  local kt_file="$1"
-  if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
-    return 1
-  fi
-  grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$kt_file"
-}
-
 # Cases that need stdin=EOF (e.g. readLine() returning null)
 needs_stdin_eof() {
   local kt_file="$1"
@@ -972,13 +952,6 @@ needs_stdin_eof() {
 get_diff_line_pattern() {
   local kt_file="$1"
   grep -E '^[[:space:]]*//[[:space:]]*DIFF_LINE_PATTERN:' "$kt_file" 2>/dev/null | head -1 | sed 's/.*DIFF_LINE_PATTERN:[[:space:]]*//'
-}
-
-# Extract extra kotlinc flags from // KOTLINC_FLAGS: directives in the test file
-# Format: // KOTLINC_FLAGS: <flags>
-get_kotlinc_extra_flags() {
-  local kt_file="$1"
-  grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
 # Extract extra JVM flags (e.g. -ea) from // JAVA_FLAGS: directives in the test

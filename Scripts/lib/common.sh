@@ -49,6 +49,76 @@ chunk_alternations() {
     '
 }
 
+# --- kotlinc-vs-kswiftc diff preflight/skip helpers --------------------
+# Shared by diff_kotlinc.sh and diff_diagnostics.sh so the skip-directive,
+# KOTLINC_FLAGS extraction, and JDK/timeout preflight checks can't drift
+# between the two diff runners.
+
+# True (grep match, so callers use it directly in an if) when $1 carries a
+# `// KSWIFTK_DIFF_IGNORE` or `// SKIP-DIFF` directive, unless the caller's
+# FORCE_RUN_SKIPPED=1 overrides skipping.
+should_skip_case() {
+    local kt_file="$1"
+    if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
+        return 1
+    fi
+    grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$kt_file"
+}
+
+# Extract extra kotlinc flags from `// KOTLINC_FLAGS: <flags>` directives in
+# the test file, joined onto one line.
+get_kotlinc_extra_flags() {
+    local kt_file="$1"
+    { grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$kt_file" 2>/dev/null || true; } \
+        | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
+}
+
+# Print the JDK major version reported by `$1 -version` (e.g. "17", "21");
+# pre-JDK9 "1.x" version strings map to their historical major number x.
+detect_java_major_version() {
+    local java_bin="$1"
+    "$java_bin" -version 2>&1 \
+        | awk -F'"' '/version/ { print $2; exit }' \
+        | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }'
+}
+
+# Exit 1 unless $1 (a java binary) reports JDK 21+, honoring the caller's
+# DIFF_REQUIRE_JDK21=0 to bypass the check entirely. The reference outputs
+# depend on the JDK version: Double/Float.toString() only emits the shortest
+# round-trip form from JDK 19 onwards (JDK-4511638); older JDKs print extra
+# digits (e.g. 1.23456792E8 instead of 1.2345679E8), producing spurious FAILs
+# against kswiftc. CI pins java-version 21.
+# $2 names the gate in the error message (e.g. "diff gate",
+# "diagnostic diff gate"); any further args print as extra hint lines above
+# the common "set JAVA_BIN/JAVA_HOME..." remediation line.
+require_jdk21_or_exit() {
+    local java_bin="$1" gate_label="$2"
+    shift 2
+    if [[ "${DIFF_REQUIRE_JDK21:-1}" == "0" ]]; then
+        return 0
+    fi
+    local java_major
+    java_major="$(detect_java_major_version "$java_bin")"
+    if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
+        echo "java is too old for the $gate_label: $java_bin reports major version '${java_major:-unknown}', need >= 21." >&2
+        local hint
+        for hint in "$@"; do
+            echo "$hint" >&2
+        done
+        echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
+        exit 1
+    fi
+}
+
+# Exit 1 if $1 (a `timeout` command name/path) is not resolvable on PATH.
+require_timeout_cmd_or_exit() {
+    local timeout_cmd="$1"
+    if ! command -v "$timeout_cmd" >/dev/null 2>&1; then
+        echo "timeout command not found: $timeout_cmd (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+        exit 1
+    fi
+}
+
 detect_workers() {
     local detected
 
