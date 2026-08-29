@@ -30,12 +30,24 @@ final class ControlFlowLowerer {
         fallback: String,
         receiverExpr: ExprID?,
         receiverID: KIRExprID,
+        runtimeCalleeOverride: String? = nil,
         result: KIRExprID,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) {
+        if let runtimeCalleeOverride {
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(runtimeCalleeOverride),
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         let calleeName = resolvedLoopCallee(for: callBinding, sema: sema, interner: interner, fallback: fallback)
         // Virtual dispatch is only possible when we have a source expression
         // whose static type can be used to resolve an itable/vtable slot.
@@ -159,7 +171,7 @@ final class ControlFlowLowerer {
         // silently misinterpret the array object as a range and never enter
         // the loop body (hasNext reads unrelated memory as the range bound).
         // Lower directly to an index-based loop instead, matching how arrays
-        // are already indexed everywhere else (kk_array_size / kk_array_get_inbounds).
+        // are already indexed everywhere else (__kk_array_size / kk_array_get_inbounds).
         if ReceiverClassifier(sema: sema, interner: interner)
             .isArrayLikeType(sema.types.makeNonNullable(iterableType))
         {
@@ -459,7 +471,7 @@ final class ControlFlowLowerer {
     }
 
     /// DEBT-KIR-005: Lowers `for (x in array)` to an index-based loop
-    /// (`i = 0; while (i < kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
+    /// (`i = 0; while (i < __kk_array_size(array)) { x = kk_array_get_inbounds(array, i); i += 1; ... }`)
     /// rather than the range-iterator intrinsics used by lowerForExpr's
     /// general path, since arrays have no real `iterator()` member for Sema
     /// to bind (see the DEBT-KIR-005 comment at the lowerForExpr call site).
@@ -494,7 +506,7 @@ final class ControlFlowLowerer {
 
         let sizeID = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_array_size"),
+            callee: interner.intern("__kk_array_size"),
             arg: arrayID,
             result: sizeID,
             into: &instructions
@@ -776,6 +788,12 @@ final class ControlFlowLowerer {
             // The iterable value is itself an Iterator; no iterator() call is needed.
             iteratorID = iterableID
         }
+        let listIteratorFastPath = concreteListIteratorFastPath(
+            loopBinding: loopBinding,
+            iterableType: sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType,
+            sema: sema,
+            interner: interner
+        )
 
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()
@@ -787,6 +805,7 @@ final class ControlFlowLowerer {
             fallback: "hasNext",
             receiverExpr: nil,
             receiverID: iteratorID,
+            runtimeCalleeOverride: listIteratorFastPath?.hasNext,
             result: hasNextID,
             sema: sema,
             arena: arena,
@@ -805,6 +824,7 @@ final class ControlFlowLowerer {
             fallback: "next",
             receiverExpr: nil,
             receiverID: iteratorID,
+            runtimeCalleeOverride: listIteratorFastPath?.next,
             result: nextValueID,
             sema: sema,
             arena: arena,
@@ -840,6 +860,35 @@ final class ControlFlowLowerer {
         let unit = arena.appendExpr(.unit, type: sema.types.unitType)
         instructions.append(.constValue(result: unit, value: .unit))
         return unit
+    }
+
+    /// Preserve the concrete List for-loop fast path after Collection.iterator
+    /// becomes source-backed. Collection/Iterable receivers must keep the
+    /// generic iterator ABI because their runtime box can be list- or set-backed.
+    private func concreteListIteratorFastPath(
+        loopBinding: LoopIterationBinding,
+        iterableType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> (hasNext: String, next: String)? {
+        guard let iteratorCall = loopBinding.iteratorCall,
+              interner.resolve(
+                  resolvedLoopCallee(
+                      for: iteratorCall,
+                      sema: sema,
+                      interner: interner,
+                      fallback: "iterator"
+                  )
+              ) == "kk_list_iterator",
+              MemberRuntimeDispatch.collectionReceiverKind(
+                  receiverType: iterableType,
+                  sema: sema,
+                  interner: interner
+              ) == .list
+        else {
+            return nil
+        }
+        return ("kk_list_iterator_hasNext", "kk_list_iterator_next")
     }
 
     // MARK: - Custom Iterator Resolution (STDLIB-OP-032)
@@ -2302,6 +2351,12 @@ final class ControlFlowLowerer {
             // The iterable value is itself an Iterator; no iterator() call is needed.
             iteratorID = iterableID
         }
+        let listIteratorFastPath = concreteListIteratorFastPath(
+            loopBinding: loopBinding,
+            iterableType: sema.bindings.exprTypes[iterableExpr] ?? sema.types.anyType,
+            sema: sema,
+            interner: interner
+        )
 
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()
@@ -2313,6 +2368,7 @@ final class ControlFlowLowerer {
             fallback: "hasNext",
             receiverExpr: nil,
             receiverID: iteratorID,
+            runtimeCalleeOverride: listIteratorFastPath?.hasNext,
             result: hasNextID,
             sema: sema,
             arena: arena,
@@ -2329,6 +2385,7 @@ final class ControlFlowLowerer {
             fallback: "next",
             receiverExpr: nil,
             receiverID: iteratorID,
+            runtimeCalleeOverride: listIteratorFastPath?.next,
             result: nextValueID,
             sema: sema,
             arena: arena,

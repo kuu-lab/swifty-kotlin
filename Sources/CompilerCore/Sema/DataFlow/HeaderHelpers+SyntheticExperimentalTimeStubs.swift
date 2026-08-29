@@ -1,6 +1,9 @@
-/// Synthetic stubs for kotlin.time experimental time APIs (STDLIB-TIME-180).
+/// Residual compiler/runtime anchors for kotlin.time experimental time APIs
+/// (STDLIB-TIME-180).
 ///
-/// Registers:
+/// The public operations are implemented in bundled Kotlin source. This file
+/// retains only the opt-in marker, nominal/bootstrap anchors, and hidden
+/// bridge declarations needed by compiler/runtime dispatch. It registers:
 /// - `@ExperimentalTime`
 /// - `TimeSource` with nested `WithComparableMarks`, `Monotonic`, `markNow()`, and `asClock()`
 /// - `TimeMark` / `ComparableTimeMark` nominal types (their operations are Kotlin source,
@@ -29,6 +32,17 @@ extension DataFlowSemaPhase {
             experimentalTimeSymbol,
             symbols: symbols
         )
+        let experimentalTimeType = types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerSyntheticExperimentalTimeConstructor(
+            ownerSymbol: experimentalTimeSymbol,
+            ownerType: experimentalTimeType,
+            symbols: symbols,
+            interner: interner
+        )
 
         let instantSymbol = ensureClassSymbol(
             named: "Instant",
@@ -41,7 +55,7 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        let clockSymbol = ensureClassSymbol(
+        let clockSymbol = ensureInterfaceSymbol(
             named: "Clock",
             in: kotlinTimePkg,
             symbols: symbols,
@@ -282,6 +296,51 @@ extension DataFlowSemaPhase {
         symbols.setAnnotations(annotations, for: annotationSymbol)
     }
 
+    private func registerSyntheticExperimentalTimeConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty && signature.returnType == ownerType
+        }) {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: ownerType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: constructorSymbol
+        )
+    }
+
     private func ensureExperimentalTimeNestedObject(
         named objectName: String,
         ownerSymbol: SymbolID,
@@ -457,103 +516,4 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func registerExperimentalTimeConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        externalLinkName: String? = nil,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let constructorFQName = ownerInfo.fqName + [initName]
-        let desiredParameterTypes = parameters.map { $0.type }
-        if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
-            guard symbols.symbol(symbolID)?.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == desiredParameterTypes
-        }) {
-            return
-        }
-
-        let constructorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: constructorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
-        if let externalLinkName {
-            symbols.setExternalLinkName(externalLinkName, for: constructorSymbol)
-        }
-
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: constructorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameter.type, for: parameterSymbol)
-            valueParameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: desiredParameterTypes,
-                returnType: ownerType,
-                isSuspend: false,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: constructorSymbol
-        )
-    }
-
-    private func registerExperimentalTimeMemberProperty(
-        named name: String,
-        ownerSymbol: SymbolID,
-        returnType: TypeID,
-        visibility: Visibility,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let propertyName = interner.intern(name)
-        let propertyFQName = ownerInfo.fqName + [propertyName]
-        if let existing = symbols.lookupAll(fqName: propertyFQName).first(where: { symbolID in
-            symbols.symbol(symbolID)?.kind == .property
-        }) {
-            symbols.setPropertyType(returnType, for: existing)
-            return
-        }
-
-        let propertySymbol = symbols.define(
-            kind: .property,
-            name: propertyName,
-            fqName: propertyFQName,
-            declSite: nil,
-            visibility: visibility,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: propertySymbol)
-        symbols.setPropertyType(returnType, for: propertySymbol)
-    }
 }
