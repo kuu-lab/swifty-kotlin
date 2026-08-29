@@ -83,6 +83,9 @@ extension ExprLowerer {
             if path.count == 1,
                let tokenSymbol = reifiedTypeTokenSymbol(for: last, sema: sema)
             {
+                if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                    return tokenValue
+                }
                 let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
                 instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
                 return tokenExpr
@@ -146,6 +149,9 @@ extension ExprLowerer {
            symbolInfo.flags.contains(.reifiedTypeParameter),
            let tokenSymbol = reifiedTypeTokenSymbol(for: symbolInfo.name, sema: sema)
         {
+            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                return tokenValue
+            }
             let tokenExpr = arena.appendExpr(.symbolRef(tokenSymbol), type: intType)
             instructions.append(.constValue(result: tokenExpr, value: .symbolRef(tokenSymbol)))
             return tokenExpr
@@ -160,21 +166,33 @@ extension ExprLowerer {
         for typeName: InternedString,
         sema: SemaModule
     ) -> SymbolID? {
-        guard let currentFunctionSymbol = driver.ctx.activeFunctionSymbol(),
-              let signature = sema.symbols.functionSignature(for: currentFunctionSymbol)
-        else {
-            return nil
-        }
-        for typeParameterSymbol in signature.typeParameterSymbols {
-            guard let symbol = sema.symbols.symbol(typeParameterSymbol),
-                  symbol.kind == .typeParameter,
-                  symbol.name == typeName,
-                  symbol.flags.contains(.reifiedTypeParameter)
-            else {
-                continue
+        if let currentFunctionSymbol = driver.ctx.activeFunctionSymbol(),
+           let signature = sema.symbols.functionSignature(for: currentFunctionSymbol)
+        {
+            for typeParameterSymbol in signature.typeParameterSymbols {
+                guard let symbol = sema.symbols.symbol(typeParameterSymbol),
+                      symbol.kind == .typeParameter,
+                      symbol.name == typeName,
+                      symbol.flags.contains(.reifiedTypeParameter)
+                else {
+                    continue
+                }
+                return SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
             }
-            return SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbol)
         }
-        return nil
+        // A lambda body can refer to a reified type parameter captured from an
+        // enclosing inline function. The lambda has no function signature for
+        // that outer parameter, so recover the token from its capture context.
+        return sema.symbols.allSymbols()
+            .filter { symbol in
+                symbol.kind == .typeParameter
+                    && symbol.name == typeName
+                    && symbol.flags.contains(.reifiedTypeParameter)
+            }
+            .compactMap { symbol -> SymbolID? in
+                let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol.id)
+                return driver.ctx.localValue(for: tokenSymbol) != nil ? tokenSymbol : nil
+            }
+            .first
     }
 }
