@@ -198,9 +198,50 @@ public final class DiagnosticEngine: @unchecked Sendable {
         if let range = diagnostic.primaryRange {
             let position = sourceManager.lineColumn(of: range.start)
             let path = sourceManager.path(of: range.start.file)
-            return "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+            let header = "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+            if let snippet = sourceSnippet(for: range.start, sourceManager: sourceManager) {
+                return "\(header)\n\(snippet)"
+            }
+            return header
         }
         return "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+    }
+
+    /// Returns the source line and a caret pointing at the diagnostic start.
+    private func sourceSnippet(for location: SourceLocation, sourceManager: SourceManager) -> String? {
+        guard !sourceManager.path(of: location.file).isEmpty else {
+            return nil
+        }
+
+        let contents = sourceManager.contents(of: location.file)
+        let offset = max(0, min(location.offset, contents.count))
+
+        var lineStart = offset
+        while lineStart > 0, contents[lineStart - 1] != 0x0A {
+            lineStart -= 1
+        }
+
+        var lineEnd = offset
+        while lineEnd < contents.count, contents[lineEnd] != 0x0A {
+            lineEnd += 1
+        }
+
+        let visibleLineEnd = lineEnd > lineStart && contents[lineEnd - 1] == 0x0D
+            ? lineEnd - 1
+            : lineEnd
+        let sourceLine = String(decoding: contents[lineStart ..< visibleLineEnd], as: UTF8.self)
+        let prefixEnd = min(offset, visibleLineEnd)
+        let prefix = String(decoding: contents[lineStart ..< prefixEnd], as: UTF8.self)
+        let caretIndentation = prefix.unicodeScalars.reduce(into: "") { result, scalar in
+            if scalar.value == 0x09 {
+                // Preserve tabs so the caret follows the source tab stops.
+                result.append("\t")
+            } else {
+                result.append(contentsOf: String(repeating: " ", count: scalar.utf16.count))
+            }
+        }
+
+        return "\(sourceLine)\n\(caretIndentation)^"
     }
 
     private func hasDiagnostic(where predicate: (Diagnostic) -> Bool) -> Bool {
