@@ -130,6 +130,31 @@ func runToLowering(_ ctx: CompilationContext) throws {
     try LoweringPhase().run(ctx)
 }
 
+/// Compiles `source` into a real ".kklib" library on disk and passes its
+/// directory path to `body`, cleaning up afterward.
+func withCompiledLibrary(
+    source: String,
+    moduleName: String,
+    body: (String) throws -> Void
+) throws {
+    let libraryBase = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+        .path
+    defer { try? FileManager.default.removeItem(atPath: libraryBase + ".kklib") }
+    try withTemporaryFile(contents: source) { path in
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            moduleName: moduleName,
+            emit: .library,
+            outputPath: libraryBase
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+    }
+    try body(libraryBase + ".kklib")
+}
+
 func makeContextFromSource(
     _ source: String,
     allowDefaultStdlibLibrary: Bool = true
