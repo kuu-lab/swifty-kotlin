@@ -193,7 +193,7 @@ extension CallLowerer {
             case "get":
                 return interner.intern("kk_array_get")
             case "toList":
-                return interner.intern("kk_array_toList")
+                return interner.intern("__kk_array_toList")
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
@@ -358,10 +358,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_elementAt")
             case interner.intern("elementAtOrNull"):
                 return interner.intern("kk_sequence_elementAtOrNull")
-            case interner.intern("findLast"):
-                return interner.intern("kk_sequence_findLast")
-            case interner.intern("find"):
-                return interner.intern("kk_sequence_find")
             case interner.intern("single"):
                 return interner.intern("kk_sequence_single")
             case interner.intern("singleOrNull"):
@@ -546,7 +542,7 @@ extension CallLowerer {
             case .set?:
                 return interner.intern("__kk_set_size")
             case .array?:
-                return interner.intern("kk_array_size")
+                return interner.intern("__kk_array_size")
             case .list?:
                 return interner.intern("__kk_list_size")
             case .collection?:

@@ -118,12 +118,14 @@ extension LoweringPassRegressionTests {
 
             let rangeYieldFunctions = functions.filter { function in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
-                // BUG-198: coroutine builders retain the dedicated range for-in
-                // fast path and must still receive CPS suspension handling.
+                // ARCH-012: the induction loop must retain CPS suspension
+                // handling without falling back to the range iterator ABI.
                 return callees.contains("__kk_sequence_builder_yield")
-                    && callees.contains("kk_range_for_in_iterator")
-                    && callees.contains("kk_range_for_in_hasNext")
-                    && callees.contains("kk_range_for_in_next")
+                    && callees.contains("__kk_int_range_induction_le")
+                    && callees.contains("__kk_int_range_induction_add")
+                    && !callees.contains("kk_range_for_in_iterator")
+                    && !callees.contains("kk_range_for_in_hasNext")
+                    && !callees.contains("kk_range_for_in_next")
             }
             #expect(!rangeYieldFunctions.isEmpty, "Expected a CPS-lowered range-loop builder, callees: \(allCallees)")
             #expect(rangeYieldFunctions.allSatisfy { function in
