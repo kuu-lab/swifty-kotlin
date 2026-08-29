@@ -25,6 +25,32 @@ extension BuildKIRRegressionTests {
             }
 
             #expect(dispatches.contains { dispatch in
+                if case .itableDynamic(_, 1) = dispatch { return true }
+                return false
+            })
+        }
+    }
+
+    // KSP-817: an interface operator member must remain a dynamic itable call.
+    @Test func testKsp817CharSequenceGetUsesDynamicItableDispatch() throws {
+        let source = """
+        fun getAt(value: CharSequence): Char = value[0]
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "getAt", in: module, interner: ctx.interner)
+            let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
+                    return nil
+                }
+                return dispatch
+            }
+
+            #expect(dispatches.contains { dispatch in
                 if case .itableDynamic(_, 0) = dispatch { return true }
                 return false
             })
