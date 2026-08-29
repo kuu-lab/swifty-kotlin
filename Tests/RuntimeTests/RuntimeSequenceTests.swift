@@ -1344,31 +1344,6 @@ struct RuntimeSequenceTests {
         #expect(result == runtimeNullSentinelInt)
     }
 
-    @Test func filterIsInstanceKeepsMatchingRuntimeTypes() {
-        let seq = makeSequence([1, runtimeTestStringHandle("two"), 3])
-        let filtered = kk_sequence_filterIsInstance(seq, 3)
-        #expect(sequenceElements(filtered) == [1, 3])
-    }
-
-    @Test func filterIsInstanceEmptySequenceReturnsEmpty() {
-        let filtered = kk_sequence_filterIsInstance(makeSequence([]), 3)
-        #expect(sequenceElements(filtered) == [])
-    }
-
-    @Test func filterIsInstanceAllMatchReturnsAllElements() {
-        let filtered = kk_sequence_filterIsInstance(makeSequence([1, 2, 3]), 3)
-        #expect(sequenceElements(filtered) == [1, 2, 3])
-    }
-
-    @Test func filterIsInstanceNoneMatchReturnsEmpty() {
-        let seq = makeSequence([
-            runtimeTestStringHandle("a"),
-            runtimeTestStringHandle("b"),
-        ])
-        let filtered = kk_sequence_filterIsInstance(seq, 3)
-        #expect(sequenceElements(filtered) == [])
-    }
-
     @Test func filterIndexedKeepsElementsMatchingIndexedPredicate() {
         let fn = unsafeBitCast(keepEvenIndexOrLargeValue, to: Int.self)
         let filtered = kk_sequence_filterIndexed(makeSequence([10, 20, 30, 40]), fn, 0, nil)

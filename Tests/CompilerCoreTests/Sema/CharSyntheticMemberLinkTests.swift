@@ -150,6 +150,26 @@ struct CharSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testCharCategoryCompanionObjectIsRegistered() throws {
+        let (sema, interner) = try sharedSema()
+
+        let charCategorySymbol = try #require(sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("CharCategory"),
+        ]))
+        let companionSymbol = try #require(
+            sema.symbols.companionObjectSymbol(for: charCategorySymbol)
+        )
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+
+        #expect(companionInfo.kind == .object)
+        #expect(companionInfo.visibility == .public)
+        #expect(companionInfo.flags.contains(.synthetic))
+        #expect(companionInfo.flags.contains(.static))
+        #expect(sema.symbols.parentSymbol(for: companionSymbol) == charCategorySymbol)
+    }
+
     @Test func testCharCategoryPropertyReturnsCharCategoryEnum() throws {
         let (sema, interner) = try sharedSema()
 
