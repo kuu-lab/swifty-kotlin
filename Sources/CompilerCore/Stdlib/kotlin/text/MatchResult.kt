@@ -12,6 +12,14 @@ import kotlin.internal.KsSymbolName
 // value, range, groupValues, groups, componentN, destructuring, named group
 // lookup, Regex.groupNames, Regex.options -- is expressed here in Kotlin.
 
+// -- nominal anchors --
+
+/** The opaque match handle exposed by the native regular-expression engine. */
+public interface MatchResult {
+    /** The component container used by destructuring declarations. */
+    public class Destructured internal constructor() {}
+}
+
 // -- bridges: raw match data --
 
 @KsSymbolName("__kk_match_result_group_count")
@@ -59,10 +67,10 @@ public val Regex.options: Set<RegexOption>
         val result = mutableSetOf<RegexOption>()
         if (mask and 1 != 0) result.add(RegexOption.IGNORE_CASE)
         if (mask and 2 != 0) result.add(RegexOption.MULTILINE)
-        if (mask and 4 != 0) result.add(RegexOption.DOT_MATCHES_ALL)
-        if (mask and 8 != 0) result.add(RegexOption.LITERAL)
-        if (mask and 16 != 0) result.add(RegexOption.UNIX_LINES)
-        if (mask and 32 != 0) result.add(RegexOption.COMMENTS)
+        if (mask and 4 != 0) result.add(RegexOption.LITERAL)
+        if (mask and 8 != 0) result.add(RegexOption.UNIX_LINES)
+        if (mask and 16 != 0) result.add(RegexOption.COMMENTS)
+        if (mask and 32 != 0) result.add(RegexOption.DOT_MATCHES_ALL)
         if (mask and 64 != 0) result.add(RegexOption.CANON_EQ)
         return result
     }
