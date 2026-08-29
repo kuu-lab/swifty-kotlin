@@ -65,6 +65,22 @@ extension DataFlowSemaPhase {
             to: restrictsSuspensionSymbol,
             symbols: symbols
         )
+        let restrictsSuspensionFQName = kotlinCoroutinesPkg + [interner.intern("RestrictsSuspension")]
+        registerSyntheticConstructorStubs(
+            [SyntheticConstructorStubSpec()],
+            ownerType: .classType(
+                fqName: ["kotlin", "coroutines", "RestrictsSuspension"],
+                args: [],
+                nullability: .nonNull
+            ),
+            context: SyntheticStubRegistrationContext(
+                ownerFQName: restrictsSuspensionFQName,
+                parentSymbol: restrictsSuspensionSymbol
+            ),
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
         let channelsPkg = ensureSyntheticCoroutinePackage(
             coroutinesPkg + [interner.intern("channels")],
             symbols: symbols,
@@ -3043,9 +3059,17 @@ extension DataFlowSemaPhase {
             annotationFQName: "kotlin.annotation.Target",
             arguments: ["AnnotationTarget.CLASS"]
         )
+        let retentionRecord = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.annotation.Retention",
+            arguments: ["AnnotationRetention.BINARY"]
+        )
+        let sinceKotlinRecord = MetadataAnnotationRecord(
+            annotationFQName: "kotlin.SinceKotlin",
+            arguments: ["1.3"]
+        )
         var annotations = symbols.annotations(for: symbol)
-        if !annotations.contains(targetRecord) {
-            annotations.append(targetRecord)
+        for record in [targetRecord, retentionRecord, sinceKotlinRecord] where !annotations.contains(record) {
+            annotations.append(record)
         }
         symbols.setAnnotations(annotations, for: symbol)
     }

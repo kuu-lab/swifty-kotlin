@@ -16,7 +16,8 @@ import kotlin.internal.KsSymbolName
 // else is expressible without touching the runtime.
 
 public val PI: Double get() = 3.141592653589793
-public val E: Double get() = 2.718281828459045
+@SinceKotlin("1.2")
+public const val E: Double = 2.718281828459045
 
 // `0.0 - x` (rather than `-x`) normalizes -0.0 to +0.0 while leaving NaN and
 // the infinities untouched. abs(Int.MIN_VALUE) / abs(Long.MIN_VALUE) overflow

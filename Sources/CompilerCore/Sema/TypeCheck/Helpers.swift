@@ -610,15 +610,60 @@ struct TypeCheckHelpers {
                 } else {
                     []
                 }
+                // A type imported by its outer declaration can be referenced by
+                // a qualified nested name (for example, `Base64.Default`). The
+                // full path is not globally qualified in that form, so walk the
+                // imported outer symbol before falling back to short-name lookup.
+                let qualifiedScopeCandidates: [SymbolID] = {
+                    guard path.count > 1, let scope else { return [] }
+                    var current = scope.lookup(path[0])
+                        .filter(isTypeLikeSymbol)
+                        .sorted(by: { $0.rawValue < $1.rawValue })
+                    for component in path.dropFirst() {
+                        current = current.flatMap { ownerID -> [SymbolID] in
+                            guard let owner = sema.symbols.symbol(ownerID) else { return [] }
+                            return sema.symbols.lookupAll(fqName: owner.fqName + [component])
+                                .filter(isTypeLikeSymbol)
+                        }
+                        .sorted(by: { $0.rawValue < $1.rawValue })
+                        if current.isEmpty {
+                            break
+                        }
+                    }
+                    return current
+                }()
                 let fqCandidates = sema.symbols.lookupAll(fqName: path).filter(isTypeLikeSymbol)
                     .sorted(by: { $0.rawValue < $1.rawValue })
+                // Resolve nested types through the imported or package-scoped
+                // nominal root before falling back to the short name. This is
+                // required when several nominal types expose the same nested
+                // name, such as kotlin.time.Clock.Companion.
+                let nestedCandidates: [SymbolID] = {
+                    guard path.count > 1, let scope else {
+                        return []
+                    }
+                    let rootCandidates = scope.lookup(path[0]).filter(isTypeLikeSymbol)
+                    return rootCandidates.flatMap { rootSymbol -> [SymbolID] in
+                        guard let rootInfo = sema.symbols.symbol(rootSymbol) else {
+                            return []
+                        }
+                        return sema.symbols.lookupAll(
+                            fqName: rootInfo.fqName + Array(path.dropFirst())
+                        ).filter(isTypeLikeSymbol)
+                    }
+                    .sorted(by: { $0.rawValue < $1.rawValue })
+                }()
                 // Fall back to short-name lookup so that packaged types
                 // (e.g. `package test; class Foo`) resolve when referenced
                 // by simple name (`Foo`) during type checking.
                 let candidates: [SymbolID] = if !scopeCandidates.isEmpty {
                     scopeCandidates
+                } else if !qualifiedScopeCandidates.isEmpty {
+                    qualifiedScopeCandidates
                 } else if !fqCandidates.isEmpty {
                     fqCandidates
+                } else if !nestedCandidates.isEmpty {
+                    nestedCandidates
                 } else {
                     sema.symbols.lookupByShortName(shortName).filter(isTypeLikeSymbol)
                         .sorted(by: { $0.rawValue < $1.rawValue })

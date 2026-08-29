@@ -99,23 +99,23 @@ private func runtimeConvertBoxedNumberDouble(_ value: Double, to targetKind: Run
     return switch targetKind {
     case .double: bits
     case .float: kk_double_to_float(bits)
-    case .long: kk_double_to_long(bits)
-    case .int: kk_double_to_int(bits)
+    case .long: __kk_double_to_long(bits)
+    case .int: __kk_double_to_int(bits)
     // Double.toShort()/toByte() are documented as toInt().toShort()/toByte().
-    case .short: kk_int_to_short(kk_double_to_int(bits))
-    case .byte: kk_int_to_byte(kk_double_to_int(bits))
+    case .short: kk_int_to_short(__kk_double_to_int(bits))
+    case .byte: kk_int_to_byte(__kk_double_to_int(bits))
     }
 }
 
 private func runtimeConvertBoxedNumberFloat(_ value: Float, to targetKind: RuntimeNumberConversionTargetKind) -> Int {
     let bits = kk_float_to_bits(value)
     return switch targetKind {
-    case .double: kk_float_to_double_bits(bits)
+    case .double: __kk_float_to_double_bits(bits)
     case .float: bits
-    case .long: kk_float_to_long(bits)
-    case .int: kk_float_to_int(bits)
+    case .long: __kk_float_to_long(bits)
+    case .int: __kk_float_to_int(bits)
     // Float.toShort()/toByte() are documented as toInt().toShort()/toByte().
-    case .short: kk_int_to_short(kk_float_to_int(bits))
-    case .byte: kk_int_to_byte(kk_float_to_int(bits))
+    case .short: kk_int_to_short(__kk_float_to_int(bits))
+    case .byte: kk_int_to_byte(__kk_float_to_int(bits))
     }
 }

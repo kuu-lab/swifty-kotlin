@@ -57,6 +57,17 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_entries_get",
+            parameters: [
+                RuntimeABIParameter(name: "listRaw", type: .intptr),
+                RuntimeABIParameter(name: "index", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: true
+        ),
     ]
     + [
         RuntimeABIFunctionSpec(
@@ -656,7 +667,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_array_size",
+            name: "__kk_array_size",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -706,7 +717,7 @@ public extension RuntimeABISpec {
         ),
         // Array conversion (STDLIB-087)
         RuntimeABIFunctionSpec(
-            name: "kk_array_toList",
+            name: "__kk_array_toList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -757,7 +768,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uIntArray_toList",
+            name: "__kk_uIntArray_toList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -765,7 +776,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uLongArray_toList",
+            name: "__kk_uLongArray_toList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -805,7 +816,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uByteArray_toList",
+            name: "__kk_uByteArray_toList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -813,7 +824,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uShortArray_toList",
+            name: "__kk_uShortArray_toList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -859,7 +870,7 @@ public extension RuntimeABISpec {
         ),
         // Primitive array asList view conversions
         RuntimeABIFunctionSpec(
-            name: "kk_uByteArray_asList",
+            name: "__kk_uByteArray_asList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -867,7 +878,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uShortArray_asList",
+            name: "__kk_uShortArray_asList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -875,7 +886,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uIntArray_asList",
+            name: "__kk_uIntArray_asList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -883,7 +894,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uLongArray_asList",
+            name: "__kk_uLongArray_asList",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -961,7 +972,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uIntArray_size",
+            name: "__kk_uIntArray_size",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -969,7 +980,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uLongArray_size",
+            name: "__kk_uLongArray_size",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1009,7 +1020,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uByteArray_size",
+            name: "__kk_uByteArray_size",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
@@ -1017,7 +1028,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uShortArray_size",
+            name: "__kk_uShortArray_size",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
