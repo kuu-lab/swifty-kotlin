@@ -249,7 +249,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
             return interner.intern("kk_int_to_float_bits")
         }
         if fromRank == 1 {
-            return interner.intern("kk_float_to_double_bits")
+            return interner.intern("__kk_float_to_double_bits")
         }
         return interner.intern("kk_int_to_double_bits")
     }

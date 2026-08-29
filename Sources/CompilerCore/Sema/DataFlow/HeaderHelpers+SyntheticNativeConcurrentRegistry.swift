@@ -7,7 +7,7 @@
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
+///   - `Future<T>` class with `result`, `consume`, `getState` members and the `FutureState` anchor
 ///   - `@ObsoleteWorkersApi` marker annotation
 ///   - `TransferMode` enum with `SAFE` and `UNSAFE` entries
 ///   - `@SharedImmutable` annotation (PROPERTY target)
@@ -56,10 +56,11 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // FutureState enum
+        // FutureState is source-backed. Keep only its early nominal anchor here
+        // because Future.getState is registered before bundled headers are collected.
         let futureStateSymbol = ensureNativeConcurrentEnum(
             named: "FutureState",
-            entries: ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"],
+            entries: [],
             in: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             symbols: symbols,
@@ -70,12 +71,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        setNativeConcurrentEnumEntryTypes(
-            enumSymbol: futureStateSymbol,
-            enumType: futureStateType,
-            symbols: symbols
-        )
-
         for step in NativeConcurrentRegistrationStep.allCases {
             registerNativeConcurrentStep(
                 step,
@@ -164,6 +159,7 @@ extension DataFlowSemaPhase {
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
                 symbols: symbols,
+                types: types,
                 interner: interner
             )
         }
@@ -173,6 +169,7 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let obsoleteWorkersApiSymbol = ensureAnnotationClassSymbol(
@@ -209,9 +206,32 @@ extension DataFlowSemaPhase {
                         "AnnotationTarget.TYPEALIAS",
                     ]
                 ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Retention",
+                    arguments: ["AnnotationRetention.BINARY"]
+                ),
+                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.SinceKotlin",
+                    arguments: ["version = \"1.9\""]
+                ),
             ],
             to: obsoleteWorkersApiSymbol,
             symbols: symbols
+        )
+
+        let obsoleteWorkersApiType = types.make(.classType(ClassType(
+            classSymbol: obsoleteWorkersApiSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerNativeConcurrentConstructor(
+            ownerSymbol: obsoleteWorkersApiSymbol,
+            ownerType: obsoleteWorkersApiType,
+            parameters: [],
+            defaultValues: [],
+            symbols: symbols,
+            interner: interner
         )
 
         let sharedImmutableSymbol = ensureAnnotationClassSymbol(
@@ -592,23 +612,8 @@ extension DataFlowSemaPhase {
         )
         symbols.setDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
         types.setNominalDirectSupertypes([runtimeExceptionSymbol], for: exceptionSymbol)
-        appendNativeConcurrentMetadataAnnotations(
-            [MetadataAnnotationRecord(annotationFQName: "kotlin.experimental.ExperimentalNativeApi")],
-            to: exceptionSymbol,
-            symbols: symbols
-        )
-
-        registerNativeConcurrentConstructor(
-            ownerSymbol: exceptionSymbol,
-            ownerType: exceptionType,
-            parameters: [
-                (name: "toFreeze", type: types.anyType),
-                (name: "blocker", type: types.anyType),
-            ],
-            defaultValues: [false, false],
-            symbols: symbols,
-            interner: interner
-        )
+        // The exact constructor is owned by the bundled Kotlin declaration and
+        // its runtime bridge. Keep only this nominal anchor for source reuse.
     }
 
     // MARK: - InvalidMutabilityException
@@ -663,6 +668,7 @@ extension DataFlowSemaPhase {
         registerNativeConcurrentConstructor(
             ownerSymbol: exceptionSymbol,
             ownerType: exceptionType,
+            externalLinkName: "__kk_invalid_mutability_exception_new_message",
             parameters: [(name: "message", type: types.stringType)],
             defaultValues: [false],
             symbols: symbols,
@@ -711,6 +717,20 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(workerType, for: workerSymbol)
+        symbols.insertFlags(.valueType, for: workerSymbol)
+        symbols.setValueClassUnderlyingType(types.intType, for: workerSymbol)
+        appendNativeConcurrentMetadataAnnotations(
+            [MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi")],
+            to: workerSymbol,
+            symbols: symbols
+        )
+        registerNativeConcurrentWorkerConstructor(
+            ownerSymbol: workerSymbol,
+            ownerType: workerType,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // Worker companion: start(name: String? = null): Worker
         let companionName = interner.intern("Companion")
@@ -729,6 +749,7 @@ extension DataFlowSemaPhase {
             )
         }
         symbols.setParentSymbol(workerSymbol, for: companionSymbol)
+        symbols.setCompanionObjectSymbol(companionSymbol, for: workerSymbol)
         let companionType = types.make(.classType(ClassType(
             classSymbol: companionSymbol,
             args: [],
@@ -838,6 +859,67 @@ extension DataFlowSemaPhase {
             getterLinkName: "kk_worker_name",
             symbols: symbols,
             interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentWorkerConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else { return }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        let parameterTypes = [types.intType]
+        guard symbols.lookupAll(fqName: constructorFQName).first(where: { id in
+            guard symbols.symbol(id)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: id)
+            else {
+                return false
+            }
+            return signature.parameterTypes == parameterTypes
+        }) == nil else {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .internal,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+
+        let idName = interner.intern("id")
+        let idSymbol = symbols.define(
+            kind: .valueParameter,
+            name: idName,
+            fqName: constructorFQName + [idName],
+            declSite: nil,
+            visibility: .private,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(constructorSymbol, for: idSymbol)
+        symbols.setPropertyType(types.intType, for: idSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: nil,
+                parameterTypes: parameterTypes,
+                returnType: ownerType,
+                valueParameterSymbols: [idSymbol],
+                valueParameterHasDefaultValues: [false],
+                valueParameterIsVararg: [false]
+            ),
+            for: constructorSymbol
+        )
+        appendNativeConcurrentMetadataAnnotations(
+            [MetadataAnnotationRecord(annotationFQName: "kotlin.PublishedApi")],
+            to: constructorSymbol,
+            symbols: symbols
         )
     }
 }
