@@ -6,6 +6,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
+run_quietly() { "$@" >/dev/null; }
 
 RUNS="${BENCH_RUNS:-7}"
 RELEASE="${BENCH_RELEASE:-0}"
@@ -52,19 +56,14 @@ for kt in "$CASES_DIR"/*.kt; do
 
     times=()
     for ((i = 1; i <= RUNS; i++)); do
-        start_ns=$(date +%s%N)
-        "$tmp_out" >/dev/null
-        end_ns=$(date +%s%N)
-        elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
+        elapsed_ms="$(time_command "%d" "" run_quietly "$tmp_out")"
         times+=("$elapsed_ms")
     done
 
     rm -f "$tmp_out"
     trap - EXIT
 
-    # Compute median
-    sorted="$(printf '%s\n' "${times[@]}" | sort -n)"
-    median="$(echo "$sorted" | awk '{ a[NR] = $1 } END { if (NR % 2) { print a[(NR + 1) / 2] } else { print (a[NR / 2] + a[NR / 2 + 1]) / 2 } }')"
+    median_ms="$(median "" "${times[@]}")"
 
-    printf "%-20s %10s\n" "$name" "$median"
+    printf "%-20s %10s\n" "$name" "$median_ms"
 done

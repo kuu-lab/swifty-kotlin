@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 KSWIFTC="$ROOT_DIR/.build/debug/kswiftc"
 HELLO_KT="$ROOT_DIR/Scripts/diff_cases/hello.kt"
 
@@ -35,28 +37,16 @@ extract_subphase() {
 measure_artifact_build() {
     local artifact_dir="$1"
     local stderr_file="$2"
-    local start end
-    start=$(date +%s%N)
-    "$KSWIFTC" --stdlib-only --emit library -o "$artifact_dir" 2>"$stderr_file" || {
-        cat "$stderr_file" >&2
-        exit 1
-    }
-    end=$(date +%s%N)
-    awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f", (e - s) / 1000000 }'
+    time_command "%.2f" "$stderr_file" \
+        "$KSWIFTC" --stdlib-only --emit library -o "$artifact_dir"
 }
 
 measure_shared_candidate_compile() {
     local artifact_dir="$1"
     local output="$2"
     local stderr_file="$3"
-    local start end
-    start=$(date +%s%N)
-    "$KSWIFTC" --no-stdlib --stdlib-library "$artifact_dir" "$HELLO_KT" -o "$output" 2>"$stderr_file" || {
-        cat "$stderr_file" >&2
-        exit 1
-    }
-    end=$(date +%s%N)
-    awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f", (e - s) / 1000000 }'
+    time_command "%.2f" "$stderr_file" \
+        "$KSWIFTC" --no-stdlib --stdlib-library "$artifact_dir" "$HELLO_KT" -o "$output"
 }
 
 lex_values=()
@@ -76,26 +66,8 @@ for ((run = 1; run <= RUNS; run++)); do
     printf 'run %d: Lex bundled-stdlib = %s ms, Parse bundled-stdlib = %s ms\n' "$run" "$lex_ms" "$parse_ms"
 done
 
-median() {
-    local arr=("$@")
-    local n=${#arr[@]}
-    if (( n == 0 )); then
-        echo 0
-        return
-    fi
-    local sorted
-    readarray -t sorted < <(printf '%s\n' "${arr[@]}" | sort -n)
-    if (( n % 2 == 1 )); then
-        echo "${sorted[$(( n / 2 ))]}"
-    else
-        local a="${sorted[$(( n / 2 - 1 ))]}"
-        local b="${sorted[$(( n / 2 ))]}"
-        awk -v a="$a" -v b="$b" 'BEGIN { printf "%.2f", (a + b) / 2 }'
-    fi
-}
-
-lex_median="$(median "${lex_values[@]}")"
-parse_median="$(median "${parse_values[@]}")"
+lex_median="$(median "%.2f" "${lex_values[@]}")"
+parse_median="$(median "%.2f" "${parse_values[@]}")"
 total_median="$(awk -v a="$lex_median" -v b="$parse_median" 'BEGIN { printf "%.2f", a + b }')"
 
 printf '\nMedian bundled stdlib injection cost over %d runs:\n' "$RUNS"
