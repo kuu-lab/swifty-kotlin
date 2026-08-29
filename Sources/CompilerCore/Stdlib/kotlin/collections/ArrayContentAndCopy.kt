@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package kotlin.collections
 
 import kotlin.internal.__arrayContentDeepEquals
