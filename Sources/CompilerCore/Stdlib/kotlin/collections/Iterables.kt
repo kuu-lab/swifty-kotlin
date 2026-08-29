@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.internal.__valuesEqual
+
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
 // bridges. Every implementation only relies on `iterator()` virtual dispatch,
@@ -77,6 +79,44 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+@Suppress("UNCHECKED_CAST")
+public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
+    var last: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            last = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    return last as T
+}
+
+public fun <T> Iterable<T>.lastIndexOf(element: T): Int {
+    var lastIndex = -1
+    var index = 0
+    for (item in this) {
+        if (__valuesEqual(element, item)) lastIndex = index
+        index++
+    }
+    return lastIndex
+}
+
+public fun <T> Iterable<T>.lastOrNull(): T? {
+    var last: T? = null
+    for (element in this) last = element
+    return last
+}
+
+public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
 // synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
@@ -87,26 +127,46 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
     }
     return accumulator
 }
 
-public fun <T> Iterable<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduceIndexed(operation: (index: Int, acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceOrNull(operation: (acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: Int, acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
     }
     return accumulator
 }

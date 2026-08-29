@@ -572,6 +572,15 @@ extension LambdaLowerer {
         if let delegateStorage = driver.ctx.localDelegateStorage(for: symbol) {
             return delegateStorage
         }
+        if let semanticSymbol = sema.symbols.symbol(symbol),
+           semanticSymbol.kind == .typeParameter,
+           semanticSymbol.flags.contains(.reifiedTypeParameter)
+        {
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: symbol)
+            if let tokenValue = driver.ctx.localValue(for: tokenSymbol) {
+                return tokenValue
+            }
+        }
         if symbol == driver.ctx.activeImplicitReceiverSymbol(),
            let receiverExprID = driver.ctx.activeImplicitReceiverExprID()
         {
