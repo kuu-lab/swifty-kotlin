@@ -21,6 +21,8 @@ RUNS="${1:-5}"
 TMPDIR="${TMPDIR:-/tmp}"
 OUT_DIR="$(mktemp -d "$TMPDIR/kswiftk-bundled-injection.XXXXXX")"
 ARTIFACT_DIR="$OUT_DIR/KSwiftKStdlib.kklib"
+# Baseline median 37.29ms + 100ms trigger (docs/refactoring-metrics.md)
+CACHE_TRIGGER_MS=137.29
 trap 'rm -rf "$OUT_DIR"' EXIT
 
 extract_subphase() {
@@ -32,26 +34,12 @@ extract_subphase() {
     ' "$file"
 }
 
-measure_artifact_build() {
-    local artifact_dir="$1"
-    local stderr_file="$2"
+timed_run() {
+    local stderr_file="$1"
+    shift
     local start end
     start=$(date +%s%N)
-    "$KSWIFTC" --stdlib-only --emit library -o "$artifact_dir" 2>"$stderr_file" || {
-        cat "$stderr_file" >&2
-        exit 1
-    }
-    end=$(date +%s%N)
-    awk -v s="$start" -v e="$end" 'BEGIN { printf "%.2f", (e - s) / 1000000 }'
-}
-
-measure_shared_candidate_compile() {
-    local artifact_dir="$1"
-    local output="$2"
-    local stderr_file="$3"
-    local start end
-    start=$(date +%s%N)
-    "$KSWIFTC" --no-stdlib --stdlib-library "$artifact_dir" "$HELLO_KT" -o "$output" 2>"$stderr_file" || {
+    "$@" 2>"$stderr_file" || {
         cat "$stderr_file" >&2
         exit 1
     }
@@ -77,21 +65,16 @@ for ((run = 1; run <= RUNS; run++)); do
 done
 
 median() {
-    local arr=("$@")
-    local n=${#arr[@]}
-    if (( n == 0 )); then
+    if (( $# == 0 )); then
         echo 0
         return
     fi
-    local sorted
-    readarray -t sorted < <(printf '%s\n' "${arr[@]}" | sort -n)
-    if (( n % 2 == 1 )); then
-        echo "${sorted[$(( n / 2 ))]}"
-    else
-        local a="${sorted[$(( n / 2 - 1 ))]}"
-        local b="${sorted[$(( n / 2 ))]}"
-        awk -v a="$a" -v b="$b" 'BEGIN { printf "%.2f", (a + b) / 2 }'
-    fi
+    printf '%s\n' "$@" | sort -n | awk '
+        { v[NR] = $1 }
+        END {
+            if (NR % 2) print v[(NR + 1) / 2]
+            else printf "%.2f", (v[NR / 2] + v[NR / 2 + 1]) / 2
+        }'
 }
 
 lex_median="$(median "${lex_values[@]}")"
@@ -103,15 +86,15 @@ printf '  Lex bundled-stdlib:  %s ms\n' "$lex_median"
 printf '  Parse bundled-stdlib: %s ms\n' "$parse_median"
 printf '  Total:               %s ms\n' "$total_median"
 
-if (( $(awk -v t="$total_median" 'BEGIN { print (t >= 137.29) ? 1 : 0 }') )); then
-    printf 'Trigger (>= 137.29 ms): CACHED\n' >&2
+if (( $(awk -v t="$total_median" -v th="$CACHE_TRIGGER_MS" 'BEGIN { print (t >= th) ? 1 : 0 }') )); then
+    printf 'Trigger (>= %s ms): CACHED\n' "$CACHE_TRIGGER_MS" >&2
 else
-    printf 'Trigger (>= 137.29 ms): not reached\n' >&2
+    printf 'Trigger (>= %s ms): not reached\n' "$CACHE_TRIGGER_MS" >&2
 fi
 
 printf '\nShared stdlib artifact measurement:\n'
-artifact_build_ms="$(measure_artifact_build "$ARTIFACT_DIR" "$OUT_DIR/artifact_build.stderr")"
+artifact_build_ms="$(timed_run "$OUT_DIR/artifact_build.stderr" "$KSWIFTC" --stdlib-only --emit library -o "$ARTIFACT_DIR")"
 printf '  Artifact build (stdlib-only .kklib): %s ms\n' "$artifact_build_ms"
 
-shared_compile_ms="$(measure_shared_candidate_compile "$ARTIFACT_DIR" "$OUT_DIR/shared.out" "$OUT_DIR/shared.stderr")"
+shared_compile_ms="$(timed_run "$OUT_DIR/shared.stderr" "$KSWIFTC" --no-stdlib --stdlib-library "$ARTIFACT_DIR" "$HELLO_KT" -o "$OUT_DIR/shared.out")"
 printf '  Shared candidate compile (hello.kt): %s ms\n' "$shared_compile_ms"
