@@ -206,9 +206,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
     }
     // Kotlin Set.hashCode() is the sum of the element hash codes, independent
     // of insertion order. Keep Any.hashCode() consistent with Set equality for

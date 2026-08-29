@@ -208,8 +208,8 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeConcurrent") { phase, symbols, types, interner in
             phase.registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, _, interner in
-            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
+        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, types, interner in
+            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, types: types, interner: interner)
         },
     ]
 }
