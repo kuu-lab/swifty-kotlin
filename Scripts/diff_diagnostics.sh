@@ -143,7 +143,13 @@ if [[ $SELF_TEST -eq 1 && -n "$TARGET" ]]; then
   exit 1
 fi
 
-sanitize_case_name() {
+# Deliberately distinct from Scripts/lib/common.sh's sanitize_case_name: this
+# one keeps the path relative to ROOT_DIR (so cases in future subdirectories
+# of Scripts/diagnostic_cases/ don't collide on basename alone) and keeps the
+# .kt extension. common.sh's version is a flat-basename, extension-stripping
+# contract shared only between diff_kotlinc.sh and diff_kotlinc_ci_summary.sh
+# — the two are not interchangeable despite the similar name.
+sanitize_diagnostics_case_name() {
   local case_path="$1"
   case_path="${case_path#$ROOT_DIR/}"
   printf '%s' "$case_path" | tr '/[:space:]' '__' | tr -cd '[:alnum:]_.-'
@@ -216,10 +222,10 @@ persist_failure() {
   local case_path="$1" tmp_dir="$2" result_reason="$3" ref_exit="$4" candidate_exit="$5" ref_lines="$6" candidate_lines="$7"
   mkdir -p "$ARTIFACT_ROOT"
 
-  local destination="$ARTIFACT_ROOT/$(sanitize_case_name "$case_path")"
+  local destination="$ARTIFACT_ROOT/$(sanitize_diagnostics_case_name "$case_path")"
   local suffix=1
   while [[ -e "$destination" ]]; do
-    destination="$ARTIFACT_ROOT/$(sanitize_case_name "$case_path")_$suffix"
+    destination="$ARTIFACT_ROOT/$(sanitize_diagnostics_case_name "$case_path")_$suffix"
     suffix=$((suffix + 1))
   done
   mv "$tmp_dir" "$destination"
@@ -254,7 +260,7 @@ EOF
 
 run_case() {
   local case_path="$1"
-  local tmp_dir="$TMP_ROOT/$(sanitize_case_name "$case_path")"
+  local tmp_dir="$TMP_ROOT/$(sanitize_diagnostics_case_name "$case_path")"
   mkdir -p "$tmp_dir"
 
   local ref_exit=0 candidate_exit=0

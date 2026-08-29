@@ -20,6 +20,9 @@ GOLDEN_UPDATE_CMD="UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGo
 # extension, replace anything outside [A-Za-z0-9._-]. diff_kotlinc.sh writes
 # failure artifacts under this name and diff_kotlinc_ci_summary.sh resolves
 # them back from case paths, so both sides must share this exact mapping.
+# Not the same contract as diff_diagnostics.sh's sanitize_diagnostics_case_name,
+# which keeps the ROOT_DIR-relative path and .kt extension by design — that
+# script intentionally doesn't source this file.
 sanitize_case_name() {
     local input="$1"
     input="${input##*/}"
