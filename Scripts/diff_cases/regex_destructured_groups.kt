@@ -27,6 +27,21 @@ fun main() {
         }
     }
 
+    // Observe every generated destructured component through the source-backed API.
+    val nineGroupMatch = Regex("(a)(b)(c)(d)(e)(f)(g)(h)(i)").find("abcdefghi")
+    if (nineGroupMatch != null) {
+        val (one, two, three, four, five, six, seven, eight, nine) = nineGroupMatch.destructured
+        println(one)
+        println(two)
+        println(three)
+        println(four)
+        println(five)
+        println(six)
+        println(seven)
+        println(eight)
+        println(nine)
+    }
+
     val optional = Regex("(a)(b)?(c)")
     val optionalMatch = optional.find("ac")
     if (optionalMatch != null) {

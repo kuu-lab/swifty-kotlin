@@ -83,6 +83,17 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         let nullableCharSequenceType = types.makeNullable(charSequenceType)
+        let charArraySymbol = ensureClassSymbol(
+            named: "CharArray",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        let charArrayType = types.make(.classType(ClassType(
+            classSymbol: charArraySymbol,
+            args: [],
+            nullability: .nonNull
+        )))
 
         registerStringBuilderMemberProperty(
             named: "length",
@@ -126,6 +137,10 @@ extension DataFlowSemaPhase {
             [("value", longType, false, false)],
             [("value", floatType, false, false)],
             [("value", doubleType, false, false)],
+            [("value", nullableAnyType, false, false)],
+            [("value", types.byteType, false, false)],
+            [("value", types.shortType, false, false)],
+            [("value", charArrayType, false, false)],
             [("value", nullableStringType, false, true)],
             [("value", nullableAnyType, false, true)],
         ]
@@ -169,6 +184,10 @@ extension DataFlowSemaPhase {
             [("index", intType, false, false), ("value", longType, false, false)],
             [("index", intType, false, false), ("value", floatType, false, false)],
             [("index", intType, false, false), ("value", doubleType, false, false)],
+            [("index", intType, false, false), ("value", types.byteType, false, false)],
+            [("index", intType, false, false), ("value", types.shortType, false, false)],
+            [("index", intType, false, false), ("value", charArrayType, false, false)],
+            [("index", intType, false, false), ("value", nullableCharSequenceType, false, false)],
         ]
         for overload in insertOverloads {
             registerStringBuilderMemberFunction(
@@ -232,6 +251,19 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerStringBuilderMemberFunction(
+            named: "appendRange",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("value", charArrayType, false, false),
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
             named: "insertRange",
             ownerSymbol: sbSymbol,
             ownerType: sbType,
@@ -242,6 +274,87 @@ extension DataFlowSemaPhase {
                 ("endIndex", intType, false, false),
             ],
             returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "insertRange",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("index", intType, false, false),
+                ("value", charArrayType, false, false),
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: sbType,
+            symbols: symbols,
+            interner: interner
+        )
+        for name in ["indexOf", "lastIndexOf"] {
+            registerStringBuilderMemberFunction(
+                named: name,
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: [("string", stringType, false, false)],
+                returnType: intType,
+                symbols: symbols,
+                interner: interner
+            )
+            registerStringBuilderMemberFunction(
+                named: name,
+                ownerSymbol: sbSymbol,
+                ownerType: sbType,
+                parameters: [
+                    ("string", stringType, false, false),
+                    ("startIndex", intType, false, false),
+                ],
+                returnType: intType,
+                symbols: symbols,
+                interner: interner
+            )
+        }
+        registerStringBuilderMemberFunction(
+            named: "setLength",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("newLength", intType, false, false)],
+            returnType: types.unitType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "substring",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [("startIndex", intType, false, false)],
+            returnType: stringType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "substring",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("startIndex", intType, false, false),
+                ("endIndex", intType, false, false),
+            ],
+            returnType: stringType,
+            symbols: symbols,
+            interner: interner
+        )
+        registerStringBuilderMemberFunction(
+            named: "toCharArray",
+            ownerSymbol: sbSymbol,
+            ownerType: sbType,
+            parameters: [
+                ("destination", charArrayType, false, false),
+                ("destinationOffset", intType, true, false),
+                ("startIndex", intType, true, false),
+                ("endIndex", intType, true, false),
+            ],
+            returnType: types.unitType,
             symbols: symbols,
             interner: interner
         )
