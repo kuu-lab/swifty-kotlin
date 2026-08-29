@@ -122,6 +122,10 @@ public fun <R : Any> CharSequence.firstNotNullOfOrNull(transform: (Char) -> R?):
     return null
 }
 
+public fun CharSequence.any(): Boolean {
+    return !isEmpty()
+}
+
 public fun CharSequence.any(predicate: (Char) -> Boolean): Boolean {
     var i = 0
     val sz = this.length

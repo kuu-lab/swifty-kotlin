@@ -1135,7 +1135,7 @@ struct StringSyntheticMemberLinkTests {
                     interner.intern("StringBuilder"),
                     interner.intern("appendRange"),
                 ])
-                #expect(appendRangeSymbols.count == 1)
+                #expect(appendRangeSymbols.count == 2)
                 #expect(appendRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
 
             }
@@ -1179,7 +1179,7 @@ struct StringSyntheticMemberLinkTests {
                     interner.intern("StringBuilder"),
                     interner.intern("insertRange"),
                 ])
-                #expect(insertRangeSymbols.count == 1)
+                #expect(insertRangeSymbols.count == 2)
                 #expect(insertRangeSymbols.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
 
             }
