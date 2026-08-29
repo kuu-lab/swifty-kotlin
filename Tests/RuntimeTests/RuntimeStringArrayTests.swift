@@ -940,6 +940,22 @@ struct RuntimeStringArrayTests {
         }
     }
 
+    @Test
+    func testStringGetOrNullUsesUTF16CodeUnits() {
+        let expectedCodeUnits = Array("🥦".utf16)
+        let stringRaw = registerRuntimeObject(RuntimeStringBox("🥦"))
+
+        #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 0)) == Int(expectedCodeUnits[0]))
+        #expect(kk_unbox_char(kk_string_getOrNull(stringRaw, 1)) == Int(expectedCodeUnits[1]))
+        #expect(kk_string_getOrNull(stringRaw, 2) == runtimeNullSentinelInt)
+
+        withFlatString("🥦") { data, length, byteCount, hash in
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 0) == Int(expectedCodeUnits[0]))
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 1) == Int(expectedCodeUnits[1]))
+            #expect(kk_string_getOrNull_flat(data, length, byteCount, hash, 2) == runtimeNullSentinelInt)
+        }
+    }
+
     // KSP-408: indexOfFirst/indexOfLast are bundled Kotlin source (StringIndexOf.kt).
     // KSP-410: count/any/all/none/find/findLast are bundled Kotlin source
     // (StringHOF.kt). None of these lower to a flat runtime cdecl anymore;
@@ -1036,6 +1052,18 @@ struct RuntimeStringArrayTests {
         // lowers `"$e"` and `"foo: " + e` to.
         let converted = kk_any_to_string(throwableRaw, 1)
         #expect(extractString(from: converted) ?? "" == expected)
+    }
+
+    @Test
+    func testInstantAssertionMessageUsesIsoRepresentation() {
+        let instantRaw = kk_instant_from_epoch_seconds(1, 500_000_000)
+        let expected = "1970-01-01T00:00:01.500Z"
+
+        #expect(runtimeRenderAnyForPrint(instantRaw) == expected)
+
+        let assertionRaw = kk_assertion_error_new_message(instantRaw)
+        let assertion = throwableBox(from: assertionRaw)
+        #expect(assertion?.message == expected)
     }
 
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);

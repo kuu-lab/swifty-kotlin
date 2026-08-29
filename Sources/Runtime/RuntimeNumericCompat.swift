@@ -241,9 +241,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
     }
     // List/Set/Map hash structurally, matching both runtimeValuesEqual's
     // List/Set/Map cases and kotlin.collections' List/Set/Map.hashCode()
@@ -461,8 +461,8 @@ public func kk_int_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
-@_cdecl("kk_float_to_double_bits")
-public func kk_float_to_double_bits(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_double_bits")
+public func __kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
 }
 
@@ -1152,8 +1152,8 @@ public func kk_op_ushr(_ lhs: Int, _ rhs: Int) -> Int {
     return Int(bitPattern: UInt(bitPattern: lhs) >> shift)
 }
 
-@_cdecl("kk_double_to_int")
-public func kk_double_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_int")
+public func __kk_double_to_int(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int32.max) { return Int(Int32.max) }
@@ -1161,8 +1161,8 @@ public func kk_double_to_int(_ value: Int) -> Int {
     return Int(Int32(d))
 }
 
-@_cdecl("kk_float_to_int")
-public func kk_float_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_int")
+public func __kk_float_to_int(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int32.max) { return Int(Int32.max) }
@@ -1170,8 +1170,8 @@ public func kk_float_to_int(_ value: Int) -> Int {
     return Int(Int32(f))
 }
 
-@_cdecl("kk_double_to_long")
-public func kk_double_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_long")
+public func __kk_double_to_long(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int64.max) { return Int(Int64.max) }
@@ -1179,8 +1179,8 @@ public func kk_double_to_long(_ value: Int) -> Int {
     return Int(Int64(d))
 }
 
-@_cdecl("kk_float_to_long")
-public func kk_float_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_long")
+public func __kk_float_to_long(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int64.max) { return Int(Int64.max) }

@@ -7,7 +7,7 @@
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` class with `result`, `consume`, `getState` members and `FutureState` enum
+///   - `Future<T>` class with `result`, `consume`, `getState` members and the `FutureState` anchor
 ///   - `@ObsoleteWorkersApi` marker annotation
 ///   - `TransferMode` enum with `SAFE` and `UNSAFE` entries
 ///   - `@SharedImmutable` annotation (PROPERTY target)
@@ -56,10 +56,11 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        // FutureState enum
+        // FutureState is source-backed. Keep only its early nominal anchor here
+        // because Future.getState is registered before bundled headers are collected.
         let futureStateSymbol = ensureNativeConcurrentEnum(
             named: "FutureState",
-            entries: ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"],
+            entries: [],
             in: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             symbols: symbols,
@@ -70,12 +71,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        setNativeConcurrentEnumEntryTypes(
-            enumSymbol: futureStateSymbol,
-            enumType: futureStateType,
-            symbols: symbols
-        )
-
         for step in NativeConcurrentRegistrationStep.allCases {
             registerNativeConcurrentStep(
                 step,

@@ -432,7 +432,8 @@ func kirFindOverrideMethod(
         guard let found = kirFindMatchingMethod(
             matching: interfaceMethod,
             on: interfaceSymbol,
-            sema: sema
+            sema: sema,
+            requireSourceBacked: true
         ) else {
             continue
         }
@@ -451,7 +452,8 @@ func kirFindOverrideMethod(
 private func kirFindMatchingMethod(
     matching interfaceMethod: SymbolID,
     on nominal: SymbolID,
-    sema: SemaModule
+    sema: SemaModule,
+    requireSourceBacked: Bool = false
 ) -> SymbolID? {
     guard let methodSym = sema.symbols.symbol(interfaceMethod),
           let ownerSym = sema.symbols.symbol(nominal)
@@ -470,6 +472,11 @@ private func kirFindMatchingMethod(
               candidateSym.name == methodSym.name,
               sema.symbols.parentSymbol(for: candidate) == nominal
         else {
+            continue
+        }
+        // Interface fallback must use a body-bearing source declaration;
+        // synthetic residual declarations are not executable defaults.
+        if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
             continue
         }
         if firstCandidate == nil {
