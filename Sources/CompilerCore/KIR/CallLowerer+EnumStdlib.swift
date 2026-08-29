@@ -32,7 +32,7 @@ extension CallLowerer {
             exprID,
             args: args,
             kind: .enumEntries,
-            runtimeCalleeName: "kk_enum_make_entries_list",
+            runtimeCalleeName: "kk_enum_make_entries_list_cached",
             sema: sema,
             arena: arena,
             interner: interner,
@@ -151,11 +151,14 @@ extension CallLowerer {
             countExpr = countLiteral
         }
 
+        let cachedClassIDExpr = arena.appendExpr(.intLiteral(classID), type: intType)
+        instructions.append(.constValue(result: cachedClassIDExpr, value: .intLiteral(classID)))
+
         let result = arena.appendTemporary(type: boundType)
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern(runtimeCalleeName),
-            arguments: [enumValuesArray, countExpr],
+            arguments: [enumValuesArray, countExpr, cachedClassIDExpr],
             result: result,
             canThrow: false,
             thrownResult: nil

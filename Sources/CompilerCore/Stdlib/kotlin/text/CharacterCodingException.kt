@@ -12,10 +12,11 @@ import kotlin.internal.KsSymbolName
 /**
  * The exception thrown when a character encoding or decoding error occurs.
  */
+@kotlin.SinceKotlin("1.3")
 public open class CharacterCodingException : Exception {
-    @KsSymbolName("__kk_throwable_new")
+    @KsSymbolName("__kk_character_coding_exception_new")
     public constructor()
 
-    @KsSymbolName("__kk_throwable_new")
+    @KsSymbolName("__kk_character_coding_exception_new_message")
     public constructor(message: String?)
 }
