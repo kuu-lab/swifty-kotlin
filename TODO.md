@@ -1418,7 +1418,7 @@
   - 未実装シンボル一覧:
     - `kotlin.DeepRecursiveScope.callRecursive` — fun DeepRecursiveScope.callRecursive(): #B  -- `abstract suspend fun callRecursive(#A): #B`
 
-- [ ] KSP-828: kotlin.Deprecated top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-828: kotlin.Deprecated top-level の未実装 stdlib API を実装する（1 件。KSP-728 / PR #5869（merge commit a3e5f94e0c）で `Sources/CompilerCore/Stdlib/kotlin/Deprecated.kt` に source-backed constructor（String, ReplaceWith, DeprecationLevel）と両 default を実装済み。`AnnotationSemanticTests` の必須 message、両 default、named replaceWith/level、診断利用、`stdlib_kotlin_n_Deprecated` Golden/diff 回帰で確認済み）
   - 対象: `kotlin.Deprecated` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Deprecated/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
