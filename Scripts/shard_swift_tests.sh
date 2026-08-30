@@ -163,9 +163,7 @@ kswiftk_setup_compile_cache_env
 
 # Select the same build system used by build_swift_tests.sh.
 build_system_arg=()
-if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
-    build_system_arg=(--build-system "${SWIFT_BUILD_SYSTEM}")
-fi
+kswiftk_append_build_system_flag build_system_arg
 
 # swiftbuild creates per-test-target products, so both `swift test list` and
 # `swift test` need to be told which product to load.
