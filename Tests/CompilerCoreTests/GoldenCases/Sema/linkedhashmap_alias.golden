@@ -187,8 +187,8 @@ expr e@68:17 stringTemplate[expr(e@68:19),lit(=),expr(e@68:24)] type=String
 expr e@68:9 call callee=e@68:9#1 args=[_:e@68:17] type=Unit call=kotlin.io.println#1
 expr e@67:35 blockExpr stmts=[] trailing=e@68:9 type=Unit
 expr e@67:5 forDestructuring names=[key,value] iterable=e@67:26 body=e@67:35 type=Unit
-expr e@71:22 name(lhm2) type=kotlin.collections.MutableMap<String, String> ref=__local_1.lhm2
-expr e@71:5 call callee=e@71:5#1 args=[_:e@71:22] type=<error>
+expr e@71:22 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
+expr e@71:5 call callee=e@71:5#1 args=[_:e@71:22] type=Unit call=processLinkedMap
 expr e@73:19 call callee=e@73:19#1 args=[] type=kotlin.collections.MutableMap<Int, String> call=createLinkedMap
 expr e@73:5 localDecl created mutable=0 type=_ init=e@73:19 type=Unit ref=__local_5.created
 expr e@74:5 name(created) type=kotlin.collections.MutableMap<Int, String> ref=__local_5.created

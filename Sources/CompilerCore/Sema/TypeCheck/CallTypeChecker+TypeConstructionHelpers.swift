@@ -346,13 +346,29 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
-        guard let effect = sema.symbols.contractNonNullEffect(for: chosen),
-              effect.appliesOnAnyReturn,
-              let signature = sema.symbols.functionSignature(for: chosen),
-              let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
-              parameterIndex < args.count,
-              parameterIndex < signature.parameterTypes.count
-        else {
+        guard let signature = sema.symbols.functionSignature(for: chosen) else {
+            return
+        }
+        let parameterIndex: Int
+        if let effect = sema.symbols.contractNonNullEffect(for: chosen),
+           effect.appliesOnAnyReturn,
+           let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+           index < args.count,
+           index < signature.parameterTypes.count
+        {
+            parameterIndex = index
+        } else if let effect = sema.symbols.contractConditionEffect(for: chosen),
+                  // STDLIB-591: only `returns() implies (condition)` (any normal
+                  // return) is handled here; `returns(true/false) implies (...)`
+                  // would need to correlate with how the call's own result is
+                  // branched on at the use site, which this post-call helper
+                  // doesn't have visibility into.
+                  effect.returnsValue == nil,
+                  effect.conditionParameterIndex < args.count,
+                  effect.conditionParameterIndex < signature.parameterTypes.count
+        {
+            parameterIndex = effect.conditionParameterIndex
+        } else {
             return
         }
         let conditionExpr = args[parameterIndex].expr

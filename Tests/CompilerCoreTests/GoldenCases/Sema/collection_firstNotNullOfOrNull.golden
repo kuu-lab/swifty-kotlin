@@ -33,3 +33,4 @@ expr e@6:17#1 memberCall recv=e@6:17 callee=firstNotNullOfOrNull args=[_:e@6:45]
 expr e@6:5 localDecl found mutable=0 type=_ init=e@6:17#1 type=Unit ref=__local_0.found
 expr e@7:12 name(found) type=Any? ref=__local_0.found
 expr e@7:5 return value=e@7:12 type=Nothing
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=7:5 msg=Type constraint could not be satisfied.

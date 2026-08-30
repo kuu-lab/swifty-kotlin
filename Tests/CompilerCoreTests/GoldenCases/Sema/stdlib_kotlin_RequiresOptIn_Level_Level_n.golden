@@ -17,3 +17,6 @@ expr e@7:5#3 memberCall recv=e@7:5#2 callee=valueOf args=[_:e@7:40] type=kotlin.
 expr e@10:5 memberCall recv=e@10:5#1 callee=RequiresOptIn args=[] type=kotlin.RequiresOptIn call=kotlin.RequiresOptIn.<init>
 expr e@10:5#2 memberCall recv=e@10:5 callee=Level args=[] type=<error>
 expr e@10:5#3 memberCall recv=e@10:5#2 callee=values args=[] type=kotlin.Array<kotlin.RequiresOptIn.Level> call=kotlin.values
+diagnostic severity=error code=KSWIFTK-SEMA-0024 at=4:5 msg=Unresolved member function 'Level'.
+diagnostic severity=error code=KSWIFTK-SEMA-0024 at=7:5 msg=Unresolved member function 'Level'.
+diagnostic severity=error code=KSWIFTK-SEMA-0024 at=10:5 msg=Unresolved member function 'Level'.

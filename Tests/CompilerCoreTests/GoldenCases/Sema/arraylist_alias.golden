@@ -148,3 +148,6 @@ expr e@72:5 call callee=e@72:5#1 args=[_:e@72:13#1] type=Unit call=kotlin.io.pri
 expr e@74:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@74:13#1 memberCall recv=e@74:13 callee=customExtension args=[] type=String call=customExtension
 expr e@74:5 call callee=e@74:5#1 args=[_:e@74:13#1] type=Unit call=kotlin.io.println#1
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=22:1 msg=Class 'MyList' must override abstract member 'contains' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=22:1 msg=Class 'MyList' must override abstract member 'containsAll' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=22:1 msg=Class 'MyList' must override abstract member 'size' or be declared abstract.
