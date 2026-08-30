@@ -134,6 +134,25 @@ extension CallTypeChecker {
             default:
                 return nil
             }
+            // `Owner.AnnotationClass` and `Owner.AnnotationClass()` parse to the
+            // identical zero-arg `.memberCall` node (see the analogous nested-owner
+            // comment in CallTypeChecker+MemberCallInferenceRegularResolution.swift).
+            // An annotation class constructor call with explicit arguments is
+            // unambiguous, but a zero-arg reference is far more likely to be a bare
+            // type qualifier for further nested access (e.g. `RequiresOptIn.Level`,
+            // where `Level` is a nested enum) than an implicit all-defaults
+            // construction, which real Kotlin code essentially never writes without
+            // parens. Prefer the qualifier reading in that case.
+            if args.isEmpty, classSymbol.kind == .annotationClass {
+                let classifierType = sema.types.make(.classType(ClassType(
+                    classSymbol: classSymbolID,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: classSymbolID)
+                sema.bindings.bindExprType(id, type: classifierType)
+                return classifierType
+            }
             if classSymbol.flags.contains(.abstractType) {
                 let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 ctx.semaCtx.diagnostics.error(
