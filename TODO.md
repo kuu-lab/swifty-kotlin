@@ -1314,7 +1314,7 @@
     - `kotlin.CharSequence.get` — fun CharSequence.get(Int): Char  -- `abstract fun get(kotlin/Int): kotlin/Char`
     - `kotlin.CharSequence.length` — val CharSequence.length: Int  -- `abstract val length`
 
-- [ ] KSP-818: kotlin.ClassCastException top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-818: kotlin.ClassCastException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ClassCastException` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ClassCastException/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1324,6 +1324,9 @@
   - 未実装シンボル一覧:
     - `kotlin.ClassCastException.<init>` — constructor ()  -- `constructor <init>()`
     - `kotlin.ClassCastException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
+  - 完了根拠: PR #5790「KSP-656: migrate common exception hierarchy to Kotlin」、merge commit `a16552084688bf85d55e444744ec84af9d41d592`（全CI成功）で共通例外階層を source-backed Kotlin 化済み。
+  - 現行 `Sources/CompilerCore/Stdlib/kotlin/Exceptions.kt` の `ClassCastException` は `RuntimeException` を継承し、空コンストラクタと nullable `String` コンストラクタを `__kk_class_cast_exception_new` / `__kk_class_cast_exception_new_message` に接続済み。
+  - focused 回帰: `ExceptionSyntheticStubTests` 11件、`RuntimeExceptionTypeDiscriminationTests` 5件、`Scripts/diff_cases/exception_hierarchy.kt`、`RuntimeABIExternalLinkValidationTests` 4件、TODO ID重複検査、`git diff --check` が pass。Golden は PR #5790 の全CI成功で確認済み。
 
 - [ ] KSP-819: kotlin.Comparable.Comparable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Comparable` / receiver `Comparable`
