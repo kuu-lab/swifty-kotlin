@@ -1,5 +1,12 @@
 
 extension BuildASTPhase {
+    private func blockChildren(of nodeID: NodeID, in arena: SyntaxArena) -> [NodeID] {
+        arena.children(of: nodeID).compactMap { child in
+            guard case let .node(id) = child, arena.node(id).kind == .block else { return nil }
+            return id
+        }
+    }
+
     func declarationInitBlocks(
         from nodeID: NodeID,
         in arena: SyntaxArena,
@@ -7,12 +14,7 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> [FunctionBody] {
         var result: [FunctionBody] = []
-        for child in arena.children(of: nodeID) {
-            guard case let .node(bodyBlockID) = child,
-                  arena.node(bodyBlockID).kind == .block
-            else {
-                continue
-            }
+        for bodyBlockID in blockChildren(of: nodeID, in: arena) {
             for bodyChild in arena.children(of: bodyBlockID) {
                 guard case let .node(statementID) = bodyChild,
                       isStatementLikeKind(arena.node(statementID).kind)
@@ -28,14 +30,7 @@ extension BuildASTPhase {
                     continue
                 }
 
-                if let nestedBlockID = arena.children(of: statementID).compactMap({ inner -> NodeID? in
-                    guard case let .node(nodeID) = inner,
-                          arena.node(nodeID).kind == .block
-                    else {
-                        return nil
-                    }
-                    return nodeID
-                }).first {
+                if let nestedBlockID = blockChildren(of: statementID, in: arena).first {
                     let exprs = blockExpressions(
                         from: nestedBlockID,
                         in: arena,
@@ -72,12 +67,7 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> [ConstructorDecl] {
         var result: [ConstructorDecl] = []
-        for child in arena.children(of: nodeID) {
-            guard case let .node(bodyBlockID) = child,
-                  arena.node(bodyBlockID).kind == .block
-            else {
-                continue
-            }
+        for bodyBlockID in blockChildren(of: nodeID, in: arena) {
             // Annotations may appear as a preceding sibling statement node
             // before the constructorDecl node in the body block CST.
             // Accumulate tokens from sibling children so annotations are captured.
@@ -111,10 +101,7 @@ extension BuildASTPhase {
                 let params = declarationValueParameters(from: ctorNodeID, in: arena, interner: interner, astArena: astArena)
                 let delegationCall = extractDelegationCall(from: ctorNodeID, in: arena, interner: interner, astArena: astArena)
                 let body: FunctionBody
-                if let blockID = arena.children(of: ctorNodeID).compactMap({ child -> NodeID? in
-                    guard case let .node(id) = child, arena.node(id).kind == .block else { return nil }
-                    return id
-                }).first {
+                if let blockID = blockChildren(of: ctorNodeID, in: arena).first {
                     let exprs = blockExpressions(from: blockID, in: arena, interner: interner, astArena: astArena)
                     body = .block(exprs, arena.node(blockID).range)
                 } else {
@@ -145,26 +132,10 @@ extension BuildASTPhase {
         astArena: ASTArena
     ) -> ConstructorDelegationCall? {
         let tokens = collectTokens(from: nodeID, in: arena)
-        var index = 0
-        var parenDepth = 0
-        var foundFirstParens = false
-        while index < tokens.count {
-            let token = tokens[index]
-            if token.kind == .symbol(.lParen) {
-                parenDepth += 1
-                if !foundFirstParens {
-                    foundFirstParens = true
-                }
-            }
-            if token.kind == .symbol(.rParen) {
-                parenDepth -= 1
-                if parenDepth == 0, foundFirstParens {
-                    index += 1
-                    break
-                }
-            }
-            index += 1
+        guard let parenIndex = tokens.firstIndex(where: { $0.kind == .symbol(.lParen) }) else {
+            return nil
         }
+        var index = skipBalancedBracket(in: tokens, from: parenIndex, open: .symbol(.lParen), close: .symbol(.rParen))
 
         guard index < tokens.count else { return nil }
 
@@ -189,35 +160,10 @@ extension BuildASTPhase {
 
         var args: [CallArgument] = []
         if index < tokens.count, tokens[index].kind == .symbol(.lParen) {
-            index += 1
-            var argTokens: [Token] = []
-            var depth = 0
-            while index < tokens.count {
-                let t = tokens[index]
-                if t.kind == .symbol(.lParen) { depth += 1 }
-                if t.kind == .symbol(.rParen) {
-                    if depth == 0 { index += 1; break }
-                    depth -= 1
-                }
-                if t.kind == .symbol(.comma), depth == 0 {
-                    if !argTokens.isEmpty {
-                        let parser = ExpressionParser(tokens: argTokens, interner: interner, astArena: astArena)
-                        if let exprID = parser.parse() {
-                            args.append(CallArgument(expr: exprID))
-                        }
-                        argTokens.removeAll(keepingCapacity: true)
-                    }
-                } else {
-                    argTokens.append(t)
-                }
-                index += 1
-            }
-            if !argTokens.isEmpty {
-                let parser = ExpressionParser(tokens: argTokens, interner: interner, astArena: astArena)
-                if let exprID = parser.parse() {
-                    args.append(CallArgument(expr: exprID))
-                }
-            }
+            let afterParen = skipBalancedBracket(in: tokens, from: index, open: .symbol(.lParen), close: .symbol(.rParen))
+            let argTokens = Array(tokens[(index + 1)..<afterParen])
+            let parser = ExpressionParser(tokens: argTokens, interner: interner, astArena: astArena)
+            args = parser.parseCallArguments()
         }
 
         return ConstructorDelegationCall(kind: kind, args: args, range: range)
