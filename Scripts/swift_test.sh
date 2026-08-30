@@ -148,20 +148,25 @@ fi
 # ---------------------------------------------------------------------------
 # Run swift test, capturing output while streaming it to the terminal.
 # Parse failure lines to build a grouped summary.
+#
+# swift-corelibs-foundation's Process.run() is not fully race-free on Linux
+# even with CommandRunner's launch-window lock (Sources/CompilerCore/Driver/
+# CommandRunner.swift): that lock only serializes CommandRunner's own spawns
+# against each other, but unrelated threads in the same test process (pipe
+# drain threads, other tests' file I/O) can still mutate the fd table while a
+# spawn's /proc/self/fd scan is in flight, occasionally SIGSEGV-ing the whole
+# xctest process. SwiftPM reports that as a generic "exited with unexpected
+# signal code" error with exit code 1 - indistinguishable from a real failure
+# by exit code alone, but no per-test failure line is ever printed for it. So
+# retry only when a crash signature is present AND no test failure was
+# parsed, to avoid ever masking a genuine regression.
 # ---------------------------------------------------------------------------
-tmpout="$(mktemp "${TMPDIR:-/tmp}/swift_test_out.XXXXXX")"
-trap 'rm -f "$tmpout"' EXIT
 
-test_exit=0
-"${command[@]}" 2>&1 | tee "$tmpout" || test_exit=$?
-
-# ---------------------------------------------------------------------------
 # Parse failed test names out of swift test's output, deduplicated in order.
 # XCTest lines:        "Test Case '-[Suite.Class method]' failed"
 # Swift Testing lines:  "FAILED: Suite/test"  or  "✗ Suite.test"
 # A cheap substring check gates each regex so the (vast majority of) lines
 # that can't match skip the more expensive pattern match entirely.
-# ---------------------------------------------------------------------------
 parse_failed_tests() {
     local -n __out="$1"
     local line match
@@ -182,8 +187,36 @@ parse_failed_tests() {
     done < "$tmpout"
 }
 
-declare -a unique_failures=()
-parse_failed_tests unique_failures
+max_attempts=3
+attempt=0
+
+while true; do
+    attempt=$(( attempt + 1 ))
+    tmpout="$(mktemp "${TMPDIR:-/tmp}/swift_test_out.XXXXXX")"
+    trap 'rm -f "$tmpout"' EXIT
+
+    test_exit=0
+    "${command[@]}" 2>&1 | tee "$tmpout" || test_exit=$?
+
+    declare -a unique_failures=()
+    parse_failed_tests unique_failures
+
+    if (( test_exit != 0 )) && (( ${#unique_failures[@]} == 0 )) \
+        && grep -qE '\*\*\* Signal [0-9]+:|Program crashed:|exited with unexpected signal code' "$tmpout"; then
+        # Surface an annotation (not just a stderr line) so recurrence of this
+        # infra flake is countable from the Actions UI across runs/jobs.
+        if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+            printf '::warning title=Test process crash (retried)::attempt %d/%d crashed with a signal; no test failure was reported\n' "$attempt" "$max_attempts"
+        fi
+        if (( attempt < max_attempts )); then
+            echo "swift_test.sh: test process crashed with a signal (attempt $attempt/$max_attempts, no test failure was reported); retrying..." >&2
+            rm -f "$tmpout"
+            continue
+        fi
+        echo "swift_test.sh: test process crashed with a signal on all $attempt attempts; giving up." >&2
+    fi
+    break
+done
 
 # ---------------------------------------------------------------------------
 # Emit grouped failure summary

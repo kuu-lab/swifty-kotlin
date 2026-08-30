@@ -9,7 +9,7 @@
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
 ///   - `Future<T>` class with `result`, `consume`, `getState` members and the `FutureState` anchor
 ///   - `@ObsoleteWorkersApi` marker annotation
-///   - `TransferMode` enum with `SAFE` and `UNSAFE` entries
+///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
 ///   - `@SharedImmutable` annotation (PROPERTY target)
 ///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
 
@@ -36,10 +36,11 @@ extension DataFlowSemaPhase {
         )
         let nativeConcurrentPkgSymbol = symbols.lookup(fqName: nativeConcurrentPkg)
 
-        // TransferMode enum
+        // TransferMode is source-backed. Keep only the early nominal anchor
+        // because Worker.execute is registered before bundled headers are collected.
         let transferModeSymbol = ensureNativeConcurrentEnum(
             named: "TransferMode",
-            entries: ["SAFE", "UNSAFE"],
+            entries: [],
             in: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             symbols: symbols,
@@ -50,12 +51,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        setNativeConcurrentEnumEntryTypes(
-            enumSymbol: transferModeSymbol,
-            enumType: transferModeType,
-            symbols: symbols
-        )
-
         // FutureState is source-backed. Keep only its early nominal anchor here
         // because Future.getState is registered before bundled headers are collected.
         let futureStateSymbol = ensureNativeConcurrentEnum(

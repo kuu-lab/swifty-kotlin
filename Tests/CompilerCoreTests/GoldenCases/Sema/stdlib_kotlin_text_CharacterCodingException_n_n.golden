@@ -16,16 +16,16 @@ expr e@11:13 call callee=e@11:13#1 args=[] type=kotlin.text.CharacterCodingExcep
 expr e@11:13#2 memberCall recv=e@11:13 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@11:36 string(null) type=String
 expr e@11:13#3 binary(elvis) lhs=e@11:13#2 rhs=e@11:36 type=String
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#3] type=Unit call=kotlin.io.println#1
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#3] type=Unit call=kotlin.io.println#2
 expr e@12:25 name(message) type=String? ref=__local_0.message
 expr e@12:13 call callee=e@12:13#1 args=[_:e@12:25] type=kotlin.text.CharacterCodingException call=golden.sema.fromMessage
 expr e@12:13#2 memberCall recv=e@12:13 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@12:45 string(null) type=String
 expr e@12:13#3 binary(elvis) lhs=e@12:13#2 rhs=e@12:45 type=String
-expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#3] type=Unit call=kotlin.io.println#1
+expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#3] type=Unit call=kotlin.io.println#2
 expr e@13:25 name(null) type=Nothing?
 expr e@13:13 call callee=e@13:13#1 args=[_:e@13:25] type=kotlin.text.CharacterCodingException call=golden.sema.fromMessage
 expr e@13:13#2 memberCall recv=e@13:13 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@13:42 string(null) type=String
 expr e@13:13#3 binary(elvis) lhs=e@13:13#2 rhs=e@13:42 type=String
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#3] type=Unit call=kotlin.io.println#1
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#3] type=Unit call=kotlin.io.println#2
