@@ -589,10 +589,6 @@ extension BuildASTPhase {
                 appendValueParameter(from: paramTokens, into: &arguments, interner: interner, astArena: astArena)
                 paramTokens.removeAll(keepingCapacity: true)
             } else {
-                if token.kind == .symbol(.lBrace) {
-                    // Stop at block start for simple tail-recognition in function declarations.
-                    break
-                }
                 paramTokens.append(token)
             }
             index += 1
