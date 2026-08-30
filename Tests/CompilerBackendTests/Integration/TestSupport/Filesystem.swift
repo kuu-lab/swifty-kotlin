@@ -7,14 +7,9 @@ func withTemporaryFile(
     fileExtension: String = "kt",
     body: (String) throws -> Void
 ) throws {
-    let fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .appendingPathExtension(fileExtension)
-    try contents.write(to: fileURL, atomically: true, encoding: .utf8)
-    defer {
-        try? FileManager.default.removeItem(at: fileURL)
+    try withTemporaryFiles(contents: [contents], fileExtension: fileExtension) { paths in
+        try body(paths[0])
     }
-    try body(fileURL.path)
 }
 
 func withTemporaryFiles(
