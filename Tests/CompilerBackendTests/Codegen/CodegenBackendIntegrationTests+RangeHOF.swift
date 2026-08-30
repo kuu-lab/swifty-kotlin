@@ -179,6 +179,28 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenIntRangeReduce() throws {
+        // KSP-1011 regression: a second source-backed `iterator()` declared
+        // on Map (kotlin.collections.Map<out K, V>.iterator()) once widened
+        // the by-simple-name candidate pool that this bundled `reduce`
+        // body's implicit-receiver `iterator()` call resolves against,
+        // binding it to the Map-only implementation for every Iterable
+        // receiver — including this IntRange — and crashing at runtime
+        // instead of computing the sum.
+        let source = """
+        fun main() {
+            println((1..4).reduce { acc, v -> acc + v })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeReduce",
+            expected: "10\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexedOnDescendingProgression() throws {
         // (5 downTo 3) = [5,4,3]; mapIndexed {index+value} = [0+5,1+4,2+3] = [5,5,5]
         let source = """

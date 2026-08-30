@@ -213,6 +213,18 @@ public inline fun <K, V, R> Map<K, V>.mapValuesTo(
 }
 
 /**
+ * Returns an iterator over the entries in this map.
+ *
+ * KSP-1011: named `__kspMapIterator` rather than `iterator` so this
+ * declaration never enters the global by-simple-name candidate pool that
+ * the generic `Iterable<T>.iterator()` call inside bundled source HOFs
+ * (e.g. `reduce`, `reduceIndexed`) resolves against — a second source-backed
+ * `iterator` there caused that call to bind here for every receiver,
+ * including ranges. Sema binds `map.iterator()` straight to this symbol.
+ */
+public inline fun <K, V> Map<out K, V>.__kspMapIterator(): Iterator<Map.Entry<K, V>> = this.entries.iterator()
+
+/**
  * Returns the first entry yielding the smallest value of the given [selector].
  */
 @SinceKotlin("1.7")

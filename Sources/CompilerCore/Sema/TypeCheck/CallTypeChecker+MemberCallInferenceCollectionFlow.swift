@@ -805,6 +805,83 @@ extension CallTypeChecker {
             }
         }
 
+        /// KSP-1011: Bind `map.iterator()` straight to the bundled
+        /// `Map<out K, V>.__kspMapIterator()` source declaration. That
+        /// declaration is deliberately *not* named `iterator`: a second
+        /// source-backed function named `iterator` in `kotlin.collections`
+        /// widens the by-simple-name candidate pool that the generic
+        /// `Iterable<T>.iterator()` call inside bundled HOFs (`reduce`,
+        /// `reduceIndexed`, ...) resolves against, and that lookup does not
+        /// filter candidates by nominal receiver compatibility — it matched
+        /// this Map-only function for every Iterable receiver, including
+        /// ranges, and crashed at runtime. Keeping the call-site name
+        /// (`iterator`) but the target name mangled avoids widening that
+        /// pool while still binding the correct implementation here.
+        func bindBundledMapIteratorSourceFunction() -> TypeID? {
+            guard isMapReceiver, !isSequenceReceiver, calleeStr == "iterator", args.isEmpty else {
+                return nil
+            }
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("__kspMapIterator"),
+            ]
+            let receiverForLookup = sema.types.makeNonNullable(receiverType)
+            guard let (actualReceiverClassType, _) = resolveClassTypeSymbol(receiverForLookup, sema: sema),
+                  actualReceiverClassType.args.count >= 2
+            else {
+                return nil
+            }
+            let actualClassSymbol = actualReceiverClassType.classSymbol
+            guard let chosenCallee = sema.symbols.lookupAll(fqName: sourceFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.isEmpty,
+                      let signatureReceiver = signature.receiverType,
+                      let (sigClassType, sigSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema)
+                else {
+                    return false
+                }
+                return knownNames.isMapLikeSymbol(sigSymbol)
+                    && sema.types.isNominalSubtypeSymbol(actualClassSymbol, of: sigClassType.classSymbol)
+            }),
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                return nil
+            }
+
+            let typeArguments = actualReceiverClassType.args.prefix(2).map(typeIDFromTypeArg)
+            guard typeArguments.count == signature.typeParameterSymbols.count else {
+                return nil
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosenCallee,
+                substitutedTypeArguments: typeArguments,
+                parameterMapping: [:]
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
+
+            let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+            var substitution: [TypeVarID: TypeID] = [:]
+            for (symbol, type) in zip(signature.typeParameterSymbols, typeArguments) {
+                if let typeVar = typeVarBySymbol[symbol] {
+                    substitution[typeVar] = type
+                }
+            }
+            return sema.types.substituteTypeParameters(
+                in: signature.returnType,
+                substitution: substitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+
+        if let mapIteratorType = bindBundledMapIteratorSourceFunction() {
+            sema.bindings.bindExprType(id, type: mapIteratorType)
+            return mapIteratorType
+        }
+
         // KSP-432: Set members are source-backed in Stdlib/kotlin/collections/SetHOF.kt.
         @discardableResult
         func bindBundledSetSourceFunction() -> Bool {
