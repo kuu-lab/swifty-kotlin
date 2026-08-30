@@ -65,7 +65,7 @@ struct BraceInDefaultValueParameterTests {
         let funDecl = try #require(firstFunDecl(named: "h", in: ast, interner: ctx.interner))
 
         #expect(funDecl.valueParams.map { ctx.interner.resolve($0.name) } == ["x", "y"])
-        #expect(funDecl.valueParams.allSatisfy(\.hasDefaultValue))
+        #expect(funDecl.valueParams.allSatisfy { $0.hasDefaultValue })
     }
 }
 #endif
