@@ -91,9 +91,19 @@ extension BuildASTPhase {
                         if let tok = resolveToken(tokenID, in: arena) {
                             precedingTokens.append(tok)
                         }
-                    case let .node(siblingID):
-                        // Collect tokens from sibling nodes (e.g. statement wrapping @Annotation)
+                    case let .node(siblingID) where arena.node(siblingID).kind == .statement:
+                        // Collect tokens from sibling statement nodes (e.g. an
+                        // annotation run that never got embedded in the
+                        // following constructorDecl node).
                         precedingTokens.append(contentsOf: collectTokens(from: siblingID, in: arena))
+                    case .node:
+                        // Any other resolved sibling declaration (a property,
+                        // function, nested class, ...) is unrelated to the
+                        // constructor that follows it and must not have its
+                        // tokens folded into the next constructor's
+                        // annotation scan (annotationsFromTokens stops at the
+                        // first declaration-introducer keyword it sees).
+                        precedingTokens.removeAll(keepingCapacity: true)
                     }
                     continue
                 }
