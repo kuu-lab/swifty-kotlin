@@ -218,7 +218,11 @@ extension BuildASTPhase {
 
     /// Parse a single (possibly merged) statement token group, trying local
     /// fun-decl, local-decl, local-assign, then generic expression.
-    private func parseStatementGroup(
+    ///
+    /// Shared by the CST-driven top-level path (blockExpressions) and the
+    /// token-driven local-function-body path (parseBraceBody in
+    /// BuildASTPhase+LocalFunParsing.swift) so both dispatch identically.
+    func parseStatementGroup(
         raw: [Token],
         filtered: [Token],
         interner: StringInterner,
