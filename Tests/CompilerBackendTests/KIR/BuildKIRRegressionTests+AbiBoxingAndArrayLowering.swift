@@ -104,6 +104,28 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testBuildKIRKeepsIterableUnzipSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Pair<Int, String>>) {
+            values.unzip()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(containsKotlinCallee("unzip", in: callNames))
+            #expect(!(callNames.contains("kk_sequence_unzip")))
+            #expect(!(callNames.contains("kk_list_unzip")))
+        }
+    }
+
+    @Test
     func testBuildKIRKeepsSequenceAssociateToSourceBacked() throws {
         let source = """
         fun main() {

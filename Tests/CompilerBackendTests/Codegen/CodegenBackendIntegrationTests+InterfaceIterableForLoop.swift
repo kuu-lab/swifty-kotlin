@@ -161,6 +161,50 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
+    func testIterableUnzipUsesOneIteratorAndPreservesOrder() throws {
+        let source = """
+        class CountingPairs : Iterable<Pair<Int, String>> {
+            var iteratorCalls = 0
+            var nextCalls = 0
+
+            override fun iterator(): Iterator<Pair<Int, String>> {
+                iteratorCalls += 1
+                return CountingPairsIterator(this)
+            }
+        }
+
+        class CountingPairsIterator(private val owner: CountingPairs) : Iterator<Pair<Int, String>> {
+            private var index = 0
+
+            override fun hasNext(): Boolean = index < 3
+            override fun next(): Pair<Int, String> {
+                owner.nextCalls += 1
+                val pair = when (index) {
+                    0 -> Pair(2, "x")
+                    1 -> Pair(2, "x")
+                    else -> Pair(1, "y")
+                }
+                index += 1
+                return pair
+            }
+        }
+
+        fun main() {
+            val source = CountingPairs()
+            val result = source.unzip()
+            println(result)
+            println("iterators=" + source.iteratorCalls + ", next=" + source.nextCalls)
+            println("independent=" + (result.first !== result.second))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableUnzipOneIterator",
+            expected: "([2, 2, 1], [x, x, y])\niterators=1, next=3\nindependent=true\n"
+        )
+    }
+
+    @Test
     func testIterableInterfaceForLoopLowersToIteratorNotRangeIntrinsics() throws {
         let source = """
         fun f(xs: Iterable<Int>) {
