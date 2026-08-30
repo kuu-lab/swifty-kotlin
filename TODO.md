@@ -1376,7 +1376,7 @@
     - `kotlin.ContextFunctionTypeParams.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
   - 完了根拠: merged PR #5849（merge commit `b0338828c57d967b4b4e46c59b0647cd7dcfa067`）で `Sources/CompilerCore/Stdlib/kotlin/ContextFunctionTypeParams.kt` の source-backed `annotation class ContextFunctionTypeParams(val count: Int)` を導入済み。既存 `AnnotationSemanticTests` の source-backed 登録・`constructor(Int)`・positional/named annotation 回帰と `stdlib_kotlin_n_ContextFunctionTypeParams` Golden/diff が確認済み（KSP-824 の `count` property は別TODO）。
 
-- [ ] KSP-824: kotlin.ContextFunctionTypeParams.ContextFunctionTypeParams の未実装 stdlib API を実装する（1 件）
+- [x] KSP-824: kotlin.ContextFunctionTypeParams.ContextFunctionTypeParams の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ContextFunctionTypeParams` / receiver `ContextFunctionTypeParams`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ContextFunctionTypeParams/ContextFunctionTypeParams.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1385,6 +1385,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ContextFunctionTypeParams.count` — val ContextFunctionTypeParams.count: Int  -- `final val count`
+  - 完了根拠: merged PR #5849（commit `b0338828c57d967b4b4e46c59b0647cd7dcfa067`）で `Sources/CompilerCore/Stdlib/kotlin/ContextFunctionTypeParams.kt` を source-backed 宣言（`val count: Int`）として追加し、既存の `AnnotationSemanticTests`、Sema Golden、diff case `stdlib_kotlin_n_ContextFunctionTypeParams` で count property・named count 引数・`constructor(Int)` を確認済み。
 
 - [x] KSP-825: kotlin.DeepRecursiveFunction top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.DeepRecursiveFunction` / top-level
