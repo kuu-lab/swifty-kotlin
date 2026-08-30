@@ -11,7 +11,7 @@ Usage: $(basename "$0") [TODO-file]
 Detect duplicate task IDs in TODO.md.
 
 The check only considers task-definition lines of the form
-`- [ ] ID:` or `- [x] ID:`, so cross-references in prose are ignored.
+\`- [ ] ID:\` or \`- [x] ID:\`, so cross-references in prose are ignored.
 USAGE
 }
 
