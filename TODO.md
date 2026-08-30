@@ -4448,7 +4448,7 @@
     - `kotlin.collections.Set.iterator` — fun Set.iterator(): Iterator  -- `abstract fun iterator(): kotlin.collections/Iterator<#A>`
     - `kotlin.collections.Set.size` — val Set.size: Int  -- `abstract val size`
 
-- [ ] KSP-1079: kotlin.collections.ShortIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1079: kotlin.collections.ShortIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.ShortIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ShortIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4457,6 +4457,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.ShortIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: 対象クラスと `next()` bridge / `nextShort()` は KSP-664 / PR #5044（merge commit `0cb86890054c2b175cded80d1064a0e31647102b`）で `PrimitiveIterators.kt` に source-backed 実装済み。括弧なし・secondary constructor なしの Kotlin class には `HeaderCollection.swift` の既存規則で public implicit `constructor <init>()` が登録される。PR #1711 の Sema 回帰（`ListSyntheticMemberLinkTests` の全 primitive iterator surface・`Iterator<Short>` supertype・subclass 解決）が現行 master に残っており、2026-08-24 に focused 2 tests と `ProbeShortIterator : ShortIterator()` の kswiftc LLVM emit を再確認して PASS。専用の ShortIterator synthetic/runtime/RuntimeABI 残余、KSP-1079 専用 Golden/diff fixture、exact KSP-1079 の別 task/PR/branch/history は存在しない。旧 TODO 同期の同型根拠は PR #1820（merge commit `bcd222e1fd3963bbd789107f1a2ec5eebdc039b2`）。
 
 - [ ] KSP-1080: kotlin.comparisons.max-family の未実装 stdlib API を実装する（20 件）
   - 対象: `kotlin.comparisons` / top-level / family `max`
