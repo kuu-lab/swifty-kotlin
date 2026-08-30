@@ -78,6 +78,12 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        registerNativeThreadLocalAnnotationConstructor(
+            packageFQName: nativeConcurrentPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }
 
