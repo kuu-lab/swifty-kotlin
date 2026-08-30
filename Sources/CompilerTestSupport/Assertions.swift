@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-@testable import CompilerTestSupport
 import Testing
 
 func assertHasDiagnostic(
@@ -9,7 +8,8 @@ func assertHasDiagnostic(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    CompilerTestSupport.assertHasDiagnostic(code, in: ctx, file: file, line: line)
+    let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
+    #expect(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
 
 func assertNoDiagnostic(
@@ -18,6 +18,7 @@ func assertNoDiagnostic(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    CompilerTestSupport.assertNoDiagnostic(code, in: ctx, file: file, line: line)
+    let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
+    #expect(!found, "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
 }
 #endif
