@@ -1777,7 +1777,7 @@
     - `kotlin.NotImplementedError.<init>` — constructor (String)  -- `constructor <init>(kotlin/String = ...)`
   - 完了根拠: merged PR #5465（merge `9a4996ea`）で `Preconditions.kt` を source-backed 化し、merged PR #5966（merge `c03f8664`）で専用 Golden/diff 証跡を追加済み。現行コード、Kotlin 2.3.10 契約、focused Golden/diff、Runtime 5 tests、aggregate Golden（27 tests / 10 suites）、Runtime ABI（4 tests）、full diff（`total=1031 failed=0 passed=1031 skipped=31`）を確認した。SKIP 31 件は既存かつ KSP-864 非起因として別計上する。
 
-- [ ] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
+- [x] KSP-867: kotlin.Number.Number の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.Number` / receiver `Number`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Number/Number.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1792,6 +1792,7 @@
     - `kotlin.Number.toInt` — fun Number.toInt(): Int  -- `abstract fun toInt(): kotlin/Int`
     - `kotlin.Number.toLong` — fun Number.toLong(): Long  -- `abstract fun toLong(): kotlin/Long`
     - `kotlin.Number.toShort` — fun Number.toShort(): Short  -- `abstract fun toShort(): kotlin/Short`
+  - 完了根拠 (2026-08-23): #5872 で Number を source-backed 化し、#5969 で `Sources/CompilerCore/Stdlib/kotlin/Number/Stdlib.kt` と専用 Golden/diff を統合、#5992 で erased primitive receiver の `Number.to*` dispatch を修正済み。現行 master に7 APIと `stdlib_kotlin_Number_Number_n` の Golden/diff があり、focused 検証も確認できたため、KSP-867のTODOのみ同期する。
 
 - [x] KSP-868: kotlin.NumberFormatException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.NumberFormatException` / top-level
