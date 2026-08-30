@@ -231,6 +231,18 @@ extension CallLowerer {
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
 
+        if ownerInfo.kind == .interface {
+            return tryLowerInterfaceItablePropertyGetterRead(
+                propertySymbol: propertySymbol,
+                loweredReceiverID: loweredReceiverID,
+                resultType: resultType,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+        }
+
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
@@ -244,18 +256,6 @@ extension CallLowerer {
                 thrownResult: nil
             ))
             return result
-        }
-
-        if ownerInfo.kind == .interface {
-            return tryLowerInterfaceItablePropertyGetterRead(
-                propertySymbol: propertySymbol,
-                loweredReceiverID: loweredReceiverID,
-                resultType: resultType,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
         }
 
         if ownerInfo.kind == .enumClass,
