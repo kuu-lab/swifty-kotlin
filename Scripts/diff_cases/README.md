@@ -23,6 +23,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
+- `when_statement_no_else.kt`: subject-less `when` used as a statement (value discarded) without an `else` branch — exhaustiveness is not required in statement position
 - `if_expr.kt`: expression-body `if` function
 - `named_default.kt`: named argument + default parameter補完
 - `extension_receiver.kt`: extension receiver 呼び出しと `this` 束縛
