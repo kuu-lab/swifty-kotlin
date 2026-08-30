@@ -14,32 +14,27 @@ build_jobs_override="${SWIFT_TEST_BUILD_JOBS:-}"
 # confusing ways: the auto-added --num-workers below is rejected up front with
 # "'--num-workers' is only supported when testing with XCTest" (regardless of
 # what --filter selects), and even without that flag any test file importing
-# XCTest cannot build. Probe the active toolchain here so we can fail fast
-# with an actionable message instead, and skip --num-workers if the repo ever
-# becomes XCTest-free (the flag stays unsupported without XCTest).
-xctest_available=true
-if [[ "$(uname -s)" == "Darwin" ]] && ! xcrun --find xctest >/dev/null 2>&1; then
-    xctest_available=false
-    if grep -rq --include='*.swift' "import XCTest" "$SCRIPT_DIR/../Tests"; then
-        {
-            echo "error: the active Swift toolchain has no XCTest (xcrun --find xctest failed),"
-            echo "but Tests/ still contains XCTest-based tests, so 'swift test' cannot build or run them."
-            echo "On macOS this usually means xcode-select points at the Command Line Tools."
-            echo "Select a full Xcode:"
-            echo "  sudo xcode-select -s /Applications/Xcode.app"
-            echo "or prefix the command with:"
-            echo "  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer"
-        } >&2
-        exit 1
-    fi
+# XCTest cannot build. Probe the repo (not just the toolchain) here so we can
+# fail fast with an actionable message instead, and skip --num-workers once
+# the repo is fully migrated to Swift Testing (the flag stays unsupported
+# without XCTest).
+tests_use_xctest=false
+grep -rq --include='*.swift' "import XCTest" "$SCRIPT_DIR/../Tests" && tests_use_xctest=true
+
+if [[ "$tests_use_xctest" == true ]] && [[ "$(uname -s)" == "Darwin" ]] && ! xcrun --find xctest >/dev/null 2>&1; then
+    {
+        echo "error: the active Swift toolchain has no XCTest (xcrun --find xctest failed),"
+        echo "but Tests/ still contains XCTest-based tests, so 'swift test' cannot build or run them."
+        echo "On macOS this usually means xcode-select points at the Command Line Tools."
+        echo "Select a full Xcode:"
+        echo "  sudo xcode-select -s /Applications/Xcode.app"
+        echo "or prefix the command with:"
+        echo "  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer"
+    } >&2
+    exit 1
 fi
 
-# When the repository is fully migrated to Swift Testing, `--num-workers` is
-# unsupported by `swift test`. Treat XCTest as unavailable so the flag is not
-# auto-appended below.
-if [[ "$xctest_available" == true ]] && ! grep -rq --include='*.swift' "import XCTest" "$SCRIPT_DIR/../Tests"; then
-    xctest_available=false
-fi
+xctest_available="$tests_use_xctest"
 
 has_parallel_flag=false
 has_workers_flag=false
@@ -88,11 +83,29 @@ kswiftk_setup_compile_cache_env
 # rebuild from scratch.
 kswiftk_append_compile_cache_flags command
 
-if [[ "$has_jobs_flag" == false ]]; then
-    build_jobs="$build_jobs_override"
-    if [[ -z "$build_jobs" ]]; then
-        build_jobs="$(detect_workers)"
+# -j and --num-workers both fall back to the same autodetected core count;
+# detect_workers forks nproc/sysctl, so cache its result across both callers
+# instead of probing twice. Assigns through a nameref (not a command
+# substitution) so the cache actually persists across calls: `$(...)` runs in
+# a subshell and would discard the "already detected" flag on return.
+default_workers=""
+default_workers_detected=false
+resolve_worker_count() {
+    local -n __out="$1"
+    local override="$2"
+    if [[ -n "$override" ]]; then
+        __out="$override"
+        return
     fi
+    if [[ "$default_workers_detected" == false ]]; then
+        default_workers="$(detect_workers)"
+        default_workers_detected=true
+    fi
+    __out="$default_workers"
+}
+
+if [[ "$has_jobs_flag" == false ]]; then
+    resolve_worker_count build_jobs "$build_jobs_override"
     if [[ -n "$build_jobs" ]]; then
         command+=(-j "$build_jobs")
     fi
@@ -109,10 +122,7 @@ if [[ "$supports_parallel_flags" == true ]]; then
         fi
 
         if [[ "$has_workers_flag" == false && "$xctest_available" == true ]]; then
-            workers="$workers_override"
-            if [[ -z "$workers" ]]; then
-                workers="$(detect_workers)"
-            fi
+            resolve_worker_count workers "$workers_override"
             if [[ -n "$workers" ]]; then
                 command+=(--num-workers "$workers")
             fi
@@ -151,6 +161,32 @@ fi
 # retry only when a crash signature is present AND no test failure was
 # parsed, to avoid ever masking a genuine regression.
 # ---------------------------------------------------------------------------
+
+# Parse failed test names out of swift test's output, deduplicated in order.
+# XCTest lines:        "Test Case '-[Suite.Class method]' failed"
+# Swift Testing lines:  "FAILED: Suite/test"  or  "✗ Suite.test"
+# A cheap substring check gates each regex so the (vast majority of) lines
+# that can't match skip the more expensive pattern match entirely.
+parse_failed_tests() {
+    local -n __out="$1"
+    local line match
+    local -A seen=()
+    while IFS= read -r line; do
+        match=""
+        if [[ "$line" == *"Test Case '-["* ]] && [[ "$line" =~ "Test Case '-["([^]]+)"]' failed" ]]; then
+            match="${BASH_REMATCH[1]}"
+        elif [[ "$line" == *FAILED:* ]] && [[ "$line" =~ ^[[:space:]]*FAILED:[[:space:]]*(.+)$ ]]; then
+            match="${BASH_REMATCH[1]}"
+        elif [[ "$line" == *[✗✖]* ]] && [[ "$line" =~ [✗✖][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
+            match="${BASH_REMATCH[1]}"
+        fi
+        if [[ -n "$match" && -z "${seen[$match]:-}" ]]; then
+            seen[$match]=1
+            __out+=("$match")
+        fi
+    done < "$tmpout"
+}
+
 max_attempts=3
 attempt=0
 
@@ -162,41 +198,8 @@ while true; do
     test_exit=0
     "${command[@]}" 2>&1 | tee "$tmpout" || test_exit=$?
 
-    # -------------------------------------------------------------------
-    # Parse failures from swift test output.
-    # XCTest lines: "Test Case '-[Suite.Class method]' failed"
-    # Swift Testing lines: "FAILED: Suite/test"  or  "✗ Suite.test"
-    # -------------------------------------------------------------------
-    declare -a failed_tests=()
-
-    while IFS= read -r line; do
-        # XCTest: "Test Case '-[CompilerCoreTests.LexerTests testFoo]' failed (0.123 seconds)"
-        if [[ "$line" =~ "Test Case '-["([^]]+)"]' failed" ]]; then
-            failed_tests+=("${BASH_REMATCH[1]}")
-            continue
-        fi
-        # Swift Testing: lines starting with "FAILED:" (uppercase)
-        if [[ "$line" =~ ^[[:space:]]*FAILED:[[:space:]]*(.+)$ ]]; then
-            failed_tests+=("${BASH_REMATCH[1]}")
-            continue
-        fi
-        # Swift Testing: "✗ Suite.test" or "◇ ... ✗"
-        if [[ "$line" =~ [✗✖][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
-            failed_tests+=("${BASH_REMATCH[1]}")
-            continue
-        fi
-    done < "$tmpout"
-
-    # Deduplicate while preserving order
     declare -a unique_failures=()
-    declare -A _dedup_seen=()
-    for t in "${failed_tests[@]+"${failed_tests[@]}"}"; do
-        if [[ -z "${_dedup_seen[$t]:-}" ]]; then
-            _dedup_seen[$t]=1
-            unique_failures+=("$t")
-        fi
-    done
-    unset _dedup_seen
+    parse_failed_tests unique_failures
 
     if (( test_exit != 0 )) && (( ${#unique_failures[@]} == 0 )) \
         && grep -qE '\*\*\* Signal [0-9]+:|Program crashed:|exited with unexpected signal code' "$tmpout"; then
@@ -229,12 +232,15 @@ emit_failure_summary() {
 
     printf >&2 "\n${RED}${BOLD}── Test Failures (%d) ──────────────────────────────────────────${RESET}\n" "$count"
 
-    # Group by suite prefix (first component before '.' or '/').
+    # Group by suite prefix (first component before '.' or '/'); suite_of_test
+    # keeps each test's suite in unique_failures order for reuse below.
     local suite
     local -a suite_order=()
     local -A suite_entries=()
+    local -a suite_of_test=()
     for t in "${unique_failures[@]}"; do
         suite="${t%%[./]*}"
+        suite_of_test+=("$suite")
         if [[ -z "${suite_entries[$suite]:-}" ]]; then
             suite_order+=("$suite")
         fi
@@ -257,7 +263,7 @@ emit_failure_summary() {
 
     # Hint for golden test failures
     for t in "${unique_failures[@]}"; do
-        if [[ "$t" == *Golden* || "$t" == *golden* || "$t" == *matchesGolden* ]]; then
+        if [[ "$t" == *Golden* || "$t" == *golden* ]]; then
             printf >&2 "\n${YELLOW}Hint: golden mismatch detected — regenerate with:${RESET}\n"
             printf >&2 "  %s\n" "$GOLDEN_UPDATE_CMD"
             break
@@ -270,9 +276,8 @@ emit_failure_summary() {
             printf '## Swift Test Failures (%d)\n\n' "$count"
             printf '| Suite | Test |\n'
             printf '|-------|------|\n'
-            for t in "${unique_failures[@]}"; do
-                local suite="${t%%[./]*}"
-                printf '| `%s` | `%s` |\n' "$suite" "$t"
+            for i in "${!unique_failures[@]}"; do
+                printf '| `%s` | `%s` |\n' "${suite_of_test[$i]}" "${unique_failures[$i]}"
             done
             printf '\n'
         } >> "$GITHUB_STEP_SUMMARY"
