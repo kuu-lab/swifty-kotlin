@@ -5089,7 +5089,7 @@
   - 完了根拠: Kotlin 2.3.10 公式 source/stdlib metadata の annotation contract を source-backed declaration として移行し、既存 synthetic marker 登録を削除した。HeaderCollection の implicit primary constructor により、対象は public・引数なし・戻り型 `ExperimentalAtomicApi` の単一 constructor になっている。
   - 完了検証: 専用 Sema 回帰テスト、対象 Golden worker と fixture の一致、対象 diff_kotlinc（PASS）、`check_todo_ids.sh`（PASS）、`validate_runtime_abi_links.sh`（4 tests PASS）。runtime/ABI の対象変更はない。
 
-- [ ] KSP-1125: kotlin.contracts top-level の未実装 stdlib API を実装する（12 件）
+- [x] KSP-1125: kotlin.contracts top-level の未実装 stdlib API を実装する（12 件）
   - 対象: `kotlin.contracts` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/contracts/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5109,6 +5109,7 @@
     - `kotlin.contracts.ReturnsNotNull` — interface kotlin.contracts.ReturnsNotNull  -- `abstract interface kotlin.contracts/ReturnsNotNull : kotlin.contracts/SimpleEffect`
     - `kotlin.contracts.SimpleEffect` — interface kotlin.contracts.SimpleEffect  -- `abstract interface kotlin.contracts/SimpleEffect : kotlin.contracts/Effect {`
     - `kotlin.contracts.contract` — fun contract(Function1): Unit  -- `final inline fun kotlin.contracts/contract(kotlin/Function1<kotlin.contracts/ContractBuilder, kotlin/Unit>)`
+  - 完了根拠（2026-08-24、master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: PR #5917（merge commit `37480d2835fb73c60b9732b4d9f8b046d84b095a`）で source-backed 宣言へ移行済み。現行 `Sources/CompilerCore/Stdlib/kotlin/contracts/{Contracts.kt,ContractBuilder.kt,Effect.kt}` に上記12シンボルが存在し、`HeaderHelpers.swift` の `registerSyntheticContractStubs`、対象 Runtime `kk_*`/`__kk_*`、Runtime ABI 登録は残っていない。既存の `KotlinContractsEffectModelTests`、`contract_returns`/`contract_smartcast` Golden、`contracts_basic.kt`/`contract_returns.kt` diff が source 解決と contract effect を検証する。
 
 - [ ] KSP-1126: kotlin.contracts.ContractBuilder.ContractBuilder の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.contracts.ContractBuilder` / receiver `ContractBuilder`
