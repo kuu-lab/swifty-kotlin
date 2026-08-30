@@ -1838,10 +1838,10 @@
     - `kotlin.ReplaceWith.imports` — val ReplaceWith.imports: Array  -- `final val imports`
   - 備考: 既存の `ReplaceWith.kt` の primary-constructor properties を重複実装せず、vararg property の `Array<out String>` 型保持と annotation class member-property lowering を修正し、専用 Golden/diff 証跡を追加。
 
-- [ ] KSP-882: kotlin.RequiresOptIn.RequiresOptIn の未実装 stdlib API を実装する（2 件。KSP-755 で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加。集約 Golden ゲートは worker timeout のため未達）
+- [x] KSP-882: kotlin.RequiresOptIn.RequiresOptIn の未実装 stdlib API を実装する（2 件。KSP-755 (#5889) で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.RequiresOptIn` / receiver `RequiresOptIn`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/RequiresOptIn/RequiresOptIn.kt`（該当ファイルが無ければ新規作成）
-  - 実装状況: `message` / `level` は KSP-755 の `Sources/CompilerCore/Stdlib/kotlin/RequiresOptIn.kt` に source-backed なメンバーとして実装済み。重複宣言は追加せず、named argument の回帰 fixture を追加した。
+  - 実装状況: `message` / `level` は KSP-755 の `Sources/CompilerCore/Stdlib/kotlin/RequiresOptIn.kt` に source-backed なメンバーとして実装済み。#5972 で named argument の専用 Golden/diff 回帰を追加済み。重複宣言は追加しない。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_RequiresOptIn_RequiresOptIn_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_RequiresOptIn_RequiresOptIn_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_RequiresOptIn_RequiresOptIn_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
