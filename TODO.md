@@ -3004,7 +3004,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.flatten` — fun Iterable.flatten(): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<kotlin.collections/Iterable<#A>>).kotlin.collections/flatten(): kotlin.collections/List<#A>`
 
-- [ ] KSP-976: kotlin.collections.Iterable.fold-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-976: kotlin.collections.Iterable.fold-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `fold`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3014,6 +3014,10 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.fold` — fun Iterable.fold(, Function2): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/fold(#B, kotlin/Function2<#B, #A, #B>): #B`
     - `kotlin.collections.foldIndexed` — fun Iterable.foldIndexed(, Function3): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/foldIndexed(#B, kotlin/Function3<kotlin/Int, #B, #A, #B>): #B`
+  - 完了根拠: `Iterables.kt` に public inline の generic accumulator source body を追加し、`fold` は左から1回ずつ走査、`foldIndexed` は 0 始まりの index と overflow 契約を固定した。対象の `kk_*` / `__kk_*` Runtime、synthetic stub、RuntimeABI entry は存在しないため追加・削除していない。
+  - receiver 隔離回帰: `IterableFoldSourceMigrationTests.swift` で Iterable は `Iterables.kt`、List/Set/Sequence/Array/IntArray は各専用 source に bind されることを確認した。
+  - 実行回帰: `stdlib_kotlin_collections_Iterable_fold.kt` で empty/nullable/generic accumulator/one-shot/order/index/exception short-circuit を kotlinc reference と比較した。
+  - 検証: focused Sema pass、対象 Golden shard の update/recheck pass、diff 4 shard aggregate `total=1023 failed=0 passed=1023 skipped=31`、`check_todo_ids.sh` pass、`validate_runtime_abi_links.sh` pass、`git diff --check` pass。
 
 - [ ] KSP-977: kotlin.collections.Iterable.for-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `for`
