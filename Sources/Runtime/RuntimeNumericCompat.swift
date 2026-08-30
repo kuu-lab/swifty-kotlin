@@ -210,13 +210,34 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         let nanoHash = Int32(instantBox.nanoOfSecond)
         return Int(epochHash &+ (51 &* nanoHash))
     }
+    // Kotlin List.hashCode() is order-sensitive and Kotlin Map.hashCode() is
+    // order-independent. These branches keep collection keys consistent with
+    // runtimeValuesEqual when a collection is itself used as a runtime key.
+    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+        var hash: Int32 = 1
+        for element in listBox.elements {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
+        }
+        return Int(hash)
+    }
     // Kotlin Set.hashCode() is the sum of the element hash codes, independent
     // of insertion order. Keep Any.hashCode() consistent with Set equality for
     // runtime-backed sets, including sets reached through an erased Any value.
     if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
-        return setBox.elements.reduce(0) { partial, element in
-            partial &+ kk_any_hashCode(element, 0)
+        var hash: Int32 = 0
+        for element in setBox.elements {
+            hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
         }
+        return Int(hash)
+    }
+    if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
+        var hash: Int32 = 0
+        for (key, value) in zip(mapBox.keys, mapBox.values) {
+            let entryHash = Int32(truncatingIfNeeded: runtimeValueHash(key))
+                ^ Int32(truncatingIfNeeded: runtimeValueHash(value))
+            hash = hash &+ entryHash
+        }
+        return Int(hash)
     }
     // Tagged Pair/Triple boxes hash structurally, matching both
     // runtimeValuesEqual and kotlin/Tuples.kt's hashCode(); an untagged
@@ -314,6 +335,27 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
     runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))
+}
+
+/// Hashes an opaque runtime value with the same value-level semantics used by
+/// RuntimeElementKey. The collection index must not hash object identity when
+/// runtimeValuesEqual considers two handles equal by content.
+func runtimeValueHash(_ value: Int) -> Int {
+    var hash = kk_any_hashCode(value, 0)
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer {
+            if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self), floatBox.value == 0 {
+                hash = kk_float_to_bits(Float(0))
+            } else if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self), doubleBox.value == 0 {
+                let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(Double(0)))))
+                hash = Int(truncatingIfNeeded: bits ^ (bits >> 32))
+            }
+        }
+    }
+    return hash
 }
 
 /// Any.equals(other) — uses runtime-aware equality for boxed values and tagged primitives.

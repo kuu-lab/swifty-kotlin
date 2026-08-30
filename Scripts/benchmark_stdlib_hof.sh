@@ -9,6 +9,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 RUNS="${BENCH_RUNS:-7}"
 RELEASE="${BENCH_RELEASE:-0}"
+BENCH_CASE="${BENCH_CASE:-}"
 
 if [[ "$RELEASE" == "1" ]]; then
     BUILD_CONFIG="release"
@@ -45,6 +46,9 @@ printf "%-20s %10s\n" "----" "-----------"
 
 for kt in "$CASES_DIR"/*.kt; do
     name="$(basename "$kt" .kt)"
+    if [[ -n "$BENCH_CASE" && "$name" != "$BENCH_CASE" ]]; then
+        continue
+    fi
     tmp_out="$(mktemp "${TMPDIR:-/tmp}/kswiftk_bench_${name}.XXXXXX")"
     trap 'rm -f "$tmp_out"' EXIT
 
