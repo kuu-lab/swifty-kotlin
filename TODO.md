@@ -1839,7 +1839,7 @@
     - `kotlin.PublishedApi.<init>` — constructor ()  -- `constructor <init>()`
   - 完了根拠: #5890（merge `5efaf668787fe3cc27eb9bb0850e7ca83ac7bad6`）で source 化、#5981（merge `1b022d1d7f74faf65c08cff9a50ffbe529d70451`）で `()` constructor と専用 Golden/diff を追加済み。現行 `PublishedApi.kt` と専用 fixture を確認済み。
 
-- [ ] KSP-880: kotlin.ReplaceWith.ReplaceWith の未実装 stdlib API を実装する（2 件）
+- [x] KSP-880: kotlin.ReplaceWith.ReplaceWith の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ReplaceWith` / receiver `ReplaceWith`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ReplaceWith/ReplaceWith.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1849,7 +1849,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ReplaceWith.expression` — val ReplaceWith.expression: String  -- `final val expression`
     - `kotlin.ReplaceWith.imports` — val ReplaceWith.imports: Array  -- `final val imports`
-  - 備考: 既存の `ReplaceWith.kt` の primary-constructor properties を重複実装せず、vararg property の `Array<out String>` 型保持と annotation class member-property lowering を修正し、専用 Golden/diff 証跡を追加。
+  - 備考: #5881 (`9f1dfb4e`) で `ReplaceWith` を bundled source 化し、#5982 (`4b0c45b1`) で `expression`/`imports` の property lowering と専用 Golden/diff を実装済み。現行 `ReplaceWith.kt` と専用 fixture を確認済み。
 
 - [x] KSP-882: kotlin.RequiresOptIn.RequiresOptIn の未実装 stdlib API を実装する（2 件。KSP-755 (#5889) で実装済みだったため重複実装はせず、専用 golden/diff 証跡を追加）
   - 対象: `kotlin.RequiresOptIn` / receiver `RequiresOptIn`
