@@ -72,6 +72,34 @@ public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean
 }
 
 /**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or throws [NoSuchElementException] if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOf(
+    transform: (Map.Entry<K, V>) -> R?
+): R {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    throw NoSuchElementException("No element of the map was transformed to a non-null value.")
+}
+
+/**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or `null` if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOfOrNull(
+    transform: (Map.Entry<K, V>) -> R?
+): R? {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    return null
+}
+
+/**
  * Returns a list containing the results of applying the given [transform] function
  * to each entry in the original map.
  */
