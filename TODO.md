@@ -960,7 +960,7 @@
   - 未実装シンボル一覧:
     - `kotlin.let` — fun let(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (#A).kotlin/let(kotlin/Function1<#A, #B>): #B`
 
-- [ ] KSP-786: kotlin.short-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-786: kotlin.short-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `short`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/short.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -969,6 +969,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.shortArrayOf` — fun shortArrayOf(Array): ShortArray  -- `final inline fun kotlin/shortArrayOf(kotlin/ShortArray...): kotlin/ShortArray`
+  - 完了確認（2026-08-23、PR #5941、merge commit `a8953e87d`）：現行masterの `Sources/CompilerCore/Stdlib/kotlin/short.kt` と対象Golden/diff回帰を確認し、Sema Golden focused（49ケース）pass。PRのTODO-ID、CompilerCore/Smoke、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc diff、Devin Reviewも全成功。
 
 - [x] KSP-789: kotlin.ubyte-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / top-level / family `ubyte`
