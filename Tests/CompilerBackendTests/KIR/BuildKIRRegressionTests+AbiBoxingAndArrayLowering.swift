@@ -199,6 +199,29 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testBuildKIRKeepsIterableZipArrayOverloadsSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Int>, other: Array<String>) {
+            values.zip(other)
+            values.zip(other) { left, right -> "$left$right" }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.filter { isKotlinCallee($0, named: "zip") }.count == 2)
+            #expect(!(callNames.contains("__kk_list_zip")))
+            #expect(!(callNames.contains("__kk_list_zip_transform")))
+        }
+    }
+
+    @Test
     func testBuildKIRLowersStringZipOverloadsToBundledKotlinCalls() throws {
         let source = """
         fun main(left: String, right: CharSequence) {

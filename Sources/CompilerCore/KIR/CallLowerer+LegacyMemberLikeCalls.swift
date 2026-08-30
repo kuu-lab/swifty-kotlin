@@ -143,6 +143,23 @@ extension CallLowerer {
             if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
                 return true
             }
+            if interner.resolve(calleeName) == "zip" {
+                guard let firstArgument = args.first,
+                      let firstArgumentType = sema.bindings.exprTypes[firstArgument.expr]
+                else {
+                    return false
+                }
+                // KSP-999: only the Array overload is fully source-backed. The
+                // existing Iterable overload intentionally keeps its shared runtime
+                // bridge for now. Inspect the bound argument rather than the
+                // generic declaration signature so Array<out R> remains visible
+                // after overload substitution.
+                return isGenericKotlinArrayType(
+                    sema.types.makeNonNullable(firstArgumentType),
+                    sema: sema,
+                    interner: interner
+                )
+            }
             let sourceBackedListSearchNames: Set<String> = [
                 "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast",
                 "lastIndexOf", "contains", "containsAll", "any", "all", "none",

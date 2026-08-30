@@ -3323,7 +3323,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.withIndex` — fun Iterable.withIndex(): Iterable  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/withIndex(): kotlin.collections/Iterable<kotlin.collections/IndexedValue<#A>>`
 
-- [ ] KSP-999: kotlin.collections.Iterable.zip-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-999: kotlin.collections.Iterable.zip-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `zip`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ListWindowChunk.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3333,6 +3333,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.zip` — fun Iterable.zip(Array): List  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/zip(kotlin/Array<out #B>): kotlin.collections/List<kotlin/Pair<#A, #B>>`
     - `kotlin.collections.zip` — fun Iterable.zip(Array, Function2): List  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/zip(kotlin/Array<out #B>, kotlin/Function2<#A, #B, #C>): kotlin.collections/List<#C>`
+  - 完了根拠: Array 引数 2 overload を source-backed 化し、既存 Iterable bridge を維持。focused Sema/KIR/Backend、Kotlin 2.3.10 diff、TODO ID、Runtime ABI link 検証を pass。
 
 - [ ] KSP-1000: kotlin.collections.Iterator の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterator`
