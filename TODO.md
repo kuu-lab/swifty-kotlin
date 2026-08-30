@@ -4199,7 +4199,7 @@
     - `kotlin.collections.IndexedValue.toString` — fun IndexedValue.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.collections.IndexedValue.value` — val IndexedValue.value: #A  -- `final val value`
 
-- [ ] KSP-1060: kotlin.collections.IntIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1060: kotlin.collections.IntIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.IntIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IntIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4208,6 +4208,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.IntIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠（2026-08-24、origin/master `83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: KSP-664 / PR #5044（commit `0cb86890054c2b175cded80d1064a0e31647102b`）で `PrimitiveIterators.kt` に `public abstract class IntIterator : Iterator<Int>`、final `next()` bridge、abstract `nextInt()` がsource-backed実装済み。Semaの暗黙primary constructor規則によりpublic zero-arg `<init>()`が解決され、既存の `ListSyntheticMemberLinkTests` が非synthetic/source-backed属性、`Iterator<Int>` supertype、`nextInt`/`next`署名、`IntIterator()` subclass super callを検証する。旧synthetic iterator登録、対象runtime `kk_*`/`__kk_*`、RuntimeABI、IntIterator固有lowering残余は確認できず、追加source/Golden/diffは不要。
 
 - [ ] KSP-1061: kotlin.collections.Iterable.Iterable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.Iterable` / receiver `Iterable`
