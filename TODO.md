@@ -4053,7 +4053,7 @@
   - 監査時の機械検出シンボル（source-backed で充足）:
     - `kotlin.collections.BooleanIterator.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-1048: kotlin.collections.ByteIterator top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1048: kotlin.collections.ByteIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.ByteIterator` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ByteIterator/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4062,6 +4062,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.ByteIterator.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #5044 / commit `0cb868900` で `PrimitiveIterators.kt` の `public abstract class ByteIterator : Iterator<Byte>`、final `next()`、abstract `nextByte()` が source-backed 化済み。`HeaderCollection.swift` の implicit no-arg constructor 規則により、secondary constructor のない public abstract class に `public <init>()` が生成される。旧 primitive iterator synthetic stub、対象 `kk_*` / `__kk_*` Runtime・ABI・lowering 特例は現行 master に残っていない。`ListSyntheticMemberLinkTests` の primitive iterator surface/subclass Sema 2 tests と、ByteIterator の subclass → `Iterator<Byte>` KIR probe が pass したため、新規実装・Golden・diff は不要。
 
 - [x] KSP-1049: kotlin.collections.CharIterator top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections.CharIterator` / top-level
