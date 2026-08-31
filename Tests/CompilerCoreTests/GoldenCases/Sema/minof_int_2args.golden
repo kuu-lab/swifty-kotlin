@@ -5,4 +5,4 @@ file fminof_int_2args package=golden.sema
   decl golden.sema.minOfIntTwoArg fun minOfIntTwoArg sym=golden.sema.minOfIntTwoArg
 expr e@3:49 name(a) type=Int ref=golden.sema.minOfIntTwoArg.$0.a
 expr e@3:52 name(b) type=Int ref=golden.sema.minOfIntTwoArg.$0.b
-expr e@3:43 call callee=e@3:43#1 args=[_:e@3:49,_:e@3:52] type=Int call=kotlin.comparisons.minOf#6
+expr e@3:43 call callee=e@3:43#1 args=[_:e@3:49,_:e@3:52] type=Int call=kotlin.comparisons.minOf#9

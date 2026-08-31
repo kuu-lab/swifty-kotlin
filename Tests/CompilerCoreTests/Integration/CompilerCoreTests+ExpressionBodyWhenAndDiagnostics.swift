@@ -18,13 +18,20 @@ extension CompilerCoreTests {
 
             """,
 
-            // testSubjectLessWhenWithoutElseIsNonExhaustive
+            // testSubjectLessWhenStatementWithoutElseIsNotFlaggedNonExhaustive
+            //
+            // A subject-less `when` used as a *statement* (its value discarded)
+            // does not require exhaustiveness in Kotlin - only `when` used as an
+            // expression does. Verified against real kotlinc: this snippet compiles
+            // (with an "expression is unused" warning on the branch bodies, not an
+            // exhaustiveness error).
             """
             package sample1
                     fun classify(x: Int): Int {
                         when {
                             x > 0 -> 1
                         }
+                        return 0
                     }
 
             """,
@@ -58,6 +65,20 @@ extension CompilerCoreTests {
             package sample5
                     fun test(x: UnknownType) = x
 
+            """,
+
+            // testSubjectLessWhenExpressionWithoutElseIsNonExhaustive
+            //
+            // Same branches as sample1, but the `when` is in expression position
+            // (its value is returned) - exhaustiveness is still required here.
+            """
+            package sample6
+                    fun classify(x: Int): Int {
+                        return when {
+                            x > 0 -> 1
+                        }
+                    }
+
             """
         ]
 
@@ -75,14 +96,14 @@ extension CompilerCoreTests {
                         assertNoDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
 
             }
-            // testSubjectLessWhenWithoutElseIsNonExhaustive
+            // testSubjectLessWhenStatementWithoutElseIsNotFlaggedNonExhaustive
 
             do {
                 let sample1Path = paths[1]
                 let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
 
 
-                        assertHasDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
+                        assertNoDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
 
             }
             // testSubjectLessWhenWithNonBooleanConditionEmitsDiagnostic
@@ -123,6 +144,16 @@ extension CompilerCoreTests {
 
 
                         assertHasDiagnostic("KSWIFTK-SEMA-0025", in: sampleDiags)
+
+            }
+            // testSubjectLessWhenExpressionWithoutElseIsNonExhaustive
+
+            do {
+                let sample6Path = paths[6]
+                let sampleDiags = diagnosticsForPath(sample6Path, in: ctx)
+
+
+                        assertHasDiagnostic("KSWIFTK-SEMA-0004", in: sampleDiags)
 
             }
 

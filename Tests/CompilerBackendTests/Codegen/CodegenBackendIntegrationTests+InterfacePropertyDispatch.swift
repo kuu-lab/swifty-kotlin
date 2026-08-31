@@ -150,16 +150,7 @@ struct CodegenBackendInterfacePropertyDispatchTests {
 
     @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/interface_stored_property_dispatch.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("interface_stored_property_dispatch.kt")
 
         try assertKotlinOutput(
             source,
@@ -206,6 +197,35 @@ struct CodegenBackendInterfacePropertyDispatchTests {
             source,
             moduleName: "Bug211CharSequenceLengthDispatch",
             expected: "5\n5\n3\n6\n6\n"
+        )
+    }
+
+    // KSP-817: CharSequence.get must dispatch through the interface itable for
+    // flat Strings, runtime-backed StringBuilders, and user implementations.
+    @Test
+    func testKsp817CharSequenceGetDispatchAcrossImplementations() throws {
+        let source = """
+        fun getAt(value: CharSequence, index: Int): Char = value[index]
+
+        class CustomSequence(private val content: String) : CharSequence {
+            override val length: Int
+                get() = content.length
+            override fun get(index: Int): Char = content[index]
+            override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+                content.substring(startIndex, endIndex)
+        }
+
+        fun main() {
+            println(getAt("hello", 1))
+            println(getAt(StringBuilder("xyz"), 2))
+            println(getAt(CustomSequence("custom"), 3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Ksp817CharSequenceGetDispatch",
+            expected: "e\nz\nt\n"
         )
     }
 }

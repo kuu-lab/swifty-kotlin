@@ -2,6 +2,25 @@ import RuntimeABI
 
 /// Destination, association, zip, and indexed higher-order collection rewrites.
 extension CollectionLiteralLoweringSupport {
+    private func isGenericKotlinArrayExpr(
+        _ expr: KIRExprID,
+        module: KIRModule,
+        sema: SemaModule?,
+        interner: StringInterner
+    ) -> Bool {
+        guard let sema,
+              let typeID = module.arena.exprType(expr),
+              let (_, symbol) = resolveClassTypeSymbol(
+                  sema.types.makeNonNullable(typeID),
+                  sema: sema
+              )
+        else {
+            return false
+        }
+        let kotlinArrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        return symbol.fqName == kotlinArrayFQName
+    }
+
     func makeWindowedTransformBridgeArguments(
         receiver: KIRExprID,
         windowedArguments: [KIRExprID],
@@ -368,7 +387,9 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    if callee == lookup.zipName, arguments.count == 2 {
+    if callee == lookup.zipName, arguments.count == 2,
+       !isGenericKotlinArrayExpr(arguments[1], module: module, sema: ctx.sema, interner: ctx.interner)
+    {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
             let hofResult = module.arena.appendTemporary(type: nil
@@ -390,7 +411,9 @@ extension CollectionLiteralLoweringSupport {
         }
     }
 
-    if callee == lookup.zipName, arguments.count == 3 || arguments.count == 4 {
+    if callee == lookup.zipName, (arguments.count == 3 || arguments.count == 4),
+       !isGenericKotlinArrayExpr(arguments[1], module: module, sema: ctx.sema, interner: ctx.interner)
+    {
         let receiverID = arguments[0]
         if state.listExprIDs.contains(receiverID.rawValue) {
             let otherID = arguments[1]
