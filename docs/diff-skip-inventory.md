@@ -40,6 +40,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 14 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
+| DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -349,6 +350,18 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | --- | --- |
 | `stdlib_kotlin_n_Number_primitive.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
 | `stdlib_kotlin_n_Number_primitive_generic.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
+
+## DEBT-DIFF-009: script mode 失敗系 exit code 規約差異
+
+`Scripts/diff_kotlinc.sh` の `run_case()` は、`script_*.kt` ケースの reference 側を `kotlinc -script` 一発実行（compile+run が単一 JVM プロセス）にしていたため、そのプロセスの単一 exit code を `ref_compile_exit` / `ref_run_exit` のどちらに振るか「exit != 0 かつ stdout が空なら compile 失敗」というヒューリスティックで推測していた。しかし「出力前に例外を投げるスクリプト」（stdout 空 + exit != 0）は compile 失敗ではなく実行時失敗であり、この場合 candidate（kswiftc）側の compile は正しく成功する（`cand_compile_exit=0`）ため、`ref_compile_exit(推測値) != cand_compile_exit(0)` として「compile exit mismatch」という誤った診断になり、実際の失敗理由（reference 側の stderr にある実行時例外スタックトレース）が `ref_compile_exit -eq 0 && cand_compile_exit -eq 0` を前提にしたレポート出力条件から漏れて一切表示されなかった。
+
+修正: `is_script` の場合は compile/run を分割推測せず、reference 側の単一 exit を丸ごと `ref_run_exit` に格納し、比較ロジックも script 専用の分岐（`ref_run_exit` 対 candidate の合成 exit — 実際に compile が失敗していればその exit、そうでなければ run の exit）に分離した。メッセージも「script exit mismatch」に変更し、`ref script stderr:` として reference 側の実際の stderr を常に表示するようにした。
+
+この修正を診断する過程で、上記ヒューリスティックとは別の、構造的な差異が判明した: `kotlinc -script` は実行時失敗を**常に** exit=3（`SCRIPT_EXECUTION_ERROR`、Kotlin コンパイラの `ExitCode` enum が定義する script runner 固有の規約）として報告するが、kswiftc がコンパイルするネイティブバイナリの未捕捉例外（panic）は exit=1（`KSWIFTK-LINK-0003`）で終了する。これは kswiftc のバグではない — `kotlinc -script` の exit=3 は JVM script エンジン特有の実装詳細であり、同じコードを通常の（非 script）Kotlin プログラムとして実行した場合、JVM の `main()` 内未捕捉例外は exit=1 になる（つまり非 script 経路であれば ref/candidate 両方 exit=1 で一致するはずの状況）。したがって、reference 側が実行時に失敗する `script_*.kt` ケースは、上記の分類修正後であっても exit code 自体が構造的に一致しない。
+
+| case | 結果 |
+| --- | --- |
+| `script_runtime_exception_before_output.kt` | `SKIP-DIFF` — 分類修正の診断に使った最小 repro として保持。`--force-run-skipped` で `script exit mismatch: ref=3 candidate=1` と正しく報告されることを確認済み（旧実装では `compile exit mismatch: ref=3 candidate=0` と誤診断し、stderr も両側空で表示されていた） |
 
 ## 解除手順
 

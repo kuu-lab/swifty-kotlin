@@ -24,36 +24,67 @@ from typing import Iterable, Sequence
 
 
 ICE_PATTERN = re.compile(r"\bKSWIFTK-ICE-[A-Z0-9-]+\b")
+# Must equal the `Keyword` enum in Sources/CompilerCore/Lexer/TokenModel.swift; see Scripts/check_mutation_fuzzer_keywords.sh.
 IDENTIFIER_KEYWORDS = {
+    "abstract",
+    "actual",
+    "annotation",
     "as",
     "break",
+    "catch",
     "class",
+    "companion",
+    "const",
+    "constructor",
     "continue",
+    "crossinline",
     "data",
     "do",
+    "dynamic",
     "else",
     "enum",
+    "expect",
+    "external",
     "false",
+    "final",
+    "finally",
     "for",
     "fun",
     "if",
+    "import",
     "in",
+    "infix",
+    "inline",
+    "inner",
     "interface",
+    "internal",
     "is",
+    "lateinit",
+    "noinline",
+    "null",
     "object",
     "open",
+    "operator",
+    "override",
+    "package",
     "private",
+    "protected",
     "public",
+    "reified",
     "return",
     "sealed",
     "super",
+    "suspend",
+    "tailrec",
     "this",
     "throw",
     "true",
     "try",
     "typealias",
     "val",
+    "value",
     "var",
+    "vararg",
     "when",
     "while",
 }
@@ -314,6 +345,10 @@ def sanitize_name(value: str) -> str:
     return sanitized.strip("._") or "case"
 
 
+def case_seed_stem(case: GeneratedCase) -> str:
+    return sanitize_name(Path(case.seed_file).stem)
+
+
 def discover_seed_files(seed_dir: Path, max_source_bytes: int) -> list[Path]:
     if not seed_dir.is_dir():
         raise ValueError(f"Seed directory does not exist: {seed_dir}")
@@ -334,12 +369,14 @@ def generate_cases(
     rng = random.Random(seed)
     generation_deadline = deadline if deadline is not None else time.monotonic() + duration_seconds
     generated: list[GeneratedCase] = []
+    source_cache: dict[Path, str] = {}
     for ordinal in range(1, cases + 1):
         if time.monotonic() >= generation_deadline:
             break
         seed_file = rng.choice(seed_files)
-        source = seed_file.read_text(encoding="utf-8")
-        mutated, mutation = mutate_source(source, rng)
+        if seed_file not in source_cache:
+            source_cache[seed_file] = seed_file.read_text(encoding="utf-8")
+        mutated, mutation = mutate_source(source_cache[seed_file], rng)
         generated.append(GeneratedCase(ordinal, seed, str(seed_file), mutation, mutated))
     return generated
 
@@ -348,7 +385,7 @@ def write_generated_cases(output_dir: Path, generated: Iterable[GeneratedCase]) 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest: list[dict[str, object]] = []
     for case in generated:
-        filename = f"case-{case.ordinal:06d}-{sanitize_name(Path(case.seed_file).stem)}.kt"
+        filename = f"case-{case.ordinal:06d}-{case_seed_stem(case)}.kt"
         path = output_dir / filename
         path.write_text(case.source, encoding="utf-8")
         manifest.append(
@@ -402,30 +439,26 @@ def run_compiler(
     decoded = output.decode("utf-8", errors="replace")
     codes = tuple(sorted(set(ICE_PATTERN.findall(decoded))))
     returncode = process.returncode
+    signal_name = None
     if timed_out:
         kind = "timeout"
-        signal_name = None
     elif returncode is not None and returncode < 0:
         signal_name = signal.Signals(-returncode).name
         kind = "signal"
     elif codes:
-        signal_name = None
         kind = "ice"
     elif returncode == 0:
-        signal_name = None
         kind = "clean"
     elif decoded.strip():
-        signal_name = None
         kind = "diagnostic"
     else:
-        signal_name = None
         kind = "silent"
     return RunResult(kind, returncode, elapsed, signal_name, codes, decoded)
 
 
 def save_finding(corpus_dir: Path, case_path: Path, case: GeneratedCase, result: RunResult) -> Path:
     corpus_dir.mkdir(parents=True, exist_ok=True)
-    name = f"{case.ordinal:06d}-{sanitize_name(Path(case.seed_file).stem)}-{result.kind}"
+    name = f"{case.ordinal:06d}-{case_seed_stem(case)}-{result.kind}"
     target = corpus_dir / f"{name}.kt"
     target.write_text(case.source, encoding="utf-8")
     target.with_suffix(".expect").write_text("no-crash\n", encoding="utf-8")

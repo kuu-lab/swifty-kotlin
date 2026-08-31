@@ -9,4 +9,4 @@ expr e@2:49 lambda params=[] body=e@2:51#1 label=takeLastWhile type=(Char) -> Bo
 expr e@2:26#1 memberCall recv=e@2:26 callee=takeLastWhile args=[_:e@2:49] type=String call=kotlin.text.takeLastWhile
 expr e@2:5 localDecl suffix mutable=0 type=String init=e@2:26#1 type=Unit ref=__local_0.suffix
 expr e@3:13 name(suffix) type=String ref=__local_0.suffix
-expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13] type=Unit call=kotlin.io.println#1
+expr e@3:5 call callee=e@3:5#1 args=[_:e@3:13] type=Unit call=kotlin.io.println#2

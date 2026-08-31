@@ -4,35 +4,6 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = [],
-    allowDefaultStdlibLibrary: Bool = true
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    try CodegenPhase().run(ctx)
-    return ctx
-}
-
 /// BUG-155: a primary constructor must run the superclass constructor before
 /// its own initializers, so inherited property initializers, `init` blocks and
 /// superclass constructor arguments are visible on subclass instances.

@@ -19,6 +19,9 @@ if [[ ! -f "$HELLO_KT" ]]; then
     exit 1
 fi
 
+# Baseline median (36.05ms) + 100ms, per "Bundled Stdlib Injection Cost" in docs/refactoring-metrics.md.
+CACHE_TRIGGER_MS=136.05
+
 RUNS="${1:-5}"
 TMPDIR="${TMPDIR:-/tmp}"
 OUT_DIR="$(mktemp -d "$TMPDIR/kswiftk-bundled-injection.XXXXXX")"
@@ -75,10 +78,10 @@ printf '  Lex bundled-stdlib:  %s ms\n' "$lex_median"
 printf '  Parse bundled-stdlib: %s ms\n' "$parse_median"
 printf '  Total:               %s ms\n' "$total_median"
 
-if (( $(awk -v t="$total_median" 'BEGIN { print (t >= 137.29) ? 1 : 0 }') )); then
-    printf 'Trigger (>= 137.29 ms): CACHED\n' >&2
+if (( $(awk -v t="$total_median" -v trig="$CACHE_TRIGGER_MS" 'BEGIN { print (t >= trig) ? 1 : 0 }') )); then
+    printf 'Trigger (>= %s ms): CACHED\n' "$CACHE_TRIGGER_MS" >&2
 else
-    printf 'Trigger (>= 137.29 ms): not reached\n' >&2
+    printf 'Trigger (>= %s ms): not reached\n' "$CACHE_TRIGGER_MS" >&2
 fi
 
 printf '\nShared stdlib artifact measurement:\n'
