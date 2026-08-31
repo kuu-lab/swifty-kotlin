@@ -134,6 +134,25 @@ extension CallTypeChecker {
             default:
                 return nil
             }
+            // `Owner.AnnotationClass` and `Owner.AnnotationClass()` share the
+            // same zero-arg `.memberCall` shape, but the AST arena records whether
+            // parentheses were written. Only the parenthesis-less form can be a
+            // bare type qualifier for further nested access (for example,
+            // `RequiresOptIn.Level`); an explicit call must continue through
+            // constructor resolution.
+            if args.isEmpty,
+               !ast.arena.isExplicitCall(id),
+               classSymbol.kind == .annotationClass
+            {
+                let classifierType = sema.types.make(.classType(ClassType(
+                    classSymbol: classSymbolID,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: classSymbolID)
+                sema.bindings.bindExprType(id, type: classifierType)
+                return classifierType
+            }
             if classSymbol.flags.contains(.abstractType) {
                 let className = classSymbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
                 ctx.semaCtx.diagnostics.error(

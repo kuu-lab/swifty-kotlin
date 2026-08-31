@@ -11,6 +11,25 @@
 // exception-type prefix). The `renderedMessage` property adds the type prefix
 // for stack-trace / toString() output, matching Kotlin JVM behaviour.
 
+final class RuntimeFreezingExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.native.concurrent.FreezingException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.native.concurrent.FreezingException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("FreezingException", message)
+    }
+}
+
 final class RuntimeAssertionErrorBox: RuntimeThrowableBox {
     override var exceptionFQName: String {
         "kotlin.AssertionError"
@@ -102,6 +121,25 @@ final class RuntimeConcurrentModificationExceptionBox: RuntimeThrowableBox {
 
     override var renderedMessage: String {
         runtimeRenderedExceptionMessage("ConcurrentModificationException", message)
+    }
+}
+
+final class RuntimeInvalidMutabilityExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.native.concurrent.InvalidMutabilityException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.native.concurrent.InvalidMutabilityException",
+            "kotlin.RuntimeException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("InvalidMutabilityException", message)
     }
 }
 
@@ -225,6 +263,24 @@ final class RuntimeExceptionBox: RuntimeThrowableBox {
 
     override var renderedMessage: String {
         runtimeRenderedExceptionMessage("Exception", message)
+    }
+}
+
+final class RuntimeCharacterCodingExceptionBox: RuntimeThrowableBox {
+    override var exceptionFQName: String {
+        "kotlin.text.CharacterCodingException"
+    }
+
+    override var exceptionHierarchyFQNames: [String] {
+        [
+            "kotlin.text.CharacterCodingException",
+            "kotlin.Exception",
+            "kotlin.Throwable",
+        ]
+    }
+
+    override var renderedMessage: String {
+        runtimeRenderedExceptionMessage("CharacterCodingException", message)
     }
 }
 
@@ -417,6 +473,17 @@ final class RuntimeNullPointerExceptionBox: RuntimeThrowableBox {
 
 // MARK: - Typed Allocators
 
+/// Allocates a `FreezingException` with Kotlin/Native's exact constructor message.
+func runtimeAllocateFreezingException(toFreezeRaw: Int, blockerRaw: Int) -> Int {
+    let message = "freezing of \(runtimeRenderAnyForPrint(toFreezeRaw)) has failed, first blocker is \(runtimeRenderAnyForPrint(blockerRaw))"
+    let throwable = RuntimeFreezingExceptionBox(message: message)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
 /// Allocates an `AssertionError` with the given message.
 func runtimeAllocateAssertionError(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeAssertionErrorBox(message: message, cause: cause)
@@ -458,6 +525,15 @@ func runtimeAllocateNoWhenBranchMatchedException(message: String?, cause: Int = 
 
 func runtimeAllocateConcurrentModificationException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeConcurrentModificationExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+func runtimeAllocateInvalidMutabilityException(message: String?) -> Int {
+    let throwable = RuntimeInvalidMutabilityExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -514,6 +590,16 @@ func runtimeAllocateNegativeArraySizeException(message: String?) -> Int {
 /// Allocates an `Exception` with the given message.
 func runtimeAllocateException(message: String?, cause: Int = 0) -> Int {
     let throwable = RuntimeExceptionBox(message: message, cause: cause)
+    let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
+    runtimeStorage.withGCLock { state in
+        state.objectPointers.insert(UInt(bitPattern: ptr))
+    }
+    return Int(bitPattern: ptr)
+}
+
+/// Allocates a `CharacterCodingException` with the given message.
+func runtimeAllocateCharacterCodingException(message: String?) -> Int {
+    let throwable = RuntimeCharacterCodingExceptionBox(message: message)
     let ptr = UnsafeMutableRawPointer(Unmanaged.passRetained(throwable).toOpaque())
     runtimeStorage.withGCLock { state in
         state.objectPointers.insert(UInt(bitPattern: ptr))
@@ -679,7 +765,9 @@ private func runtimeJVMExceptionFQName(from kotlinFQName: String) -> String {
     }
 }
 
-private func runtimeCauseToString(from raw: Int) -> String? {
+// Shared by typed exception bridges and the source-backed Throwable(cause)
+// constructor. The JVM constructor derives its message from cause.toString().
+func runtimeCauseToString(from raw: Int) -> String? {
     guard raw != 0,
           raw != runtimeNullSentinelInt,
           let ptr = UnsafeMutableRawPointer(bitPattern: raw)
@@ -762,6 +850,13 @@ public func kk_concurrent_modification_exception_new_message(_ messageRaw: Int) 
     )
 }
 
+@_cdecl("__kk_invalid_mutability_exception_new_message")
+public func kk_invalid_mutability_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateInvalidMutabilityException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
+    )
+}
+
 @_cdecl("__kk_concurrent_modification_exception_new_message_cause")
 public func kk_concurrent_modification_exception_new_message_cause(_ messageRaw: Int, _ causeRaw: Int) -> Int {
     runtimeAllocateConcurrentModificationException(
@@ -810,6 +905,11 @@ public func kk_negative_array_size_exception_new_message(_ messageRaw: Int) -> I
 // `exceptionHierarchyFQNames` and `kk_op_is`/catch-clause dispatch can tell sibling
 // exception types apart. See the source-backed constructor declarations in
 // Stdlib/kotlin/Exceptions.kt and Stdlib/kotlin/IllegalStateException/Stdlib.kt.
+
+@_cdecl("__kk_freezing_exception_new")
+public func kk_freezing_exception_new(_ toFreezeRaw: Int, _ blockerRaw: Int) -> Int {
+    runtimeAllocateFreezingException(toFreezeRaw: toFreezeRaw, blockerRaw: blockerRaw)
+}
 
 @_cdecl("__kk_illegal_state_exception_new")
 public func kk_illegal_state_exception_new() -> Int {
@@ -943,6 +1043,18 @@ public func kk_exception_new_cause(_ causeRaw: Int) -> Int {
     runtimeAllocateException(
         message: runtimeCauseToString(from: causeRaw),
         cause: (causeRaw == 0 || causeRaw == runtimeNullSentinelInt) ? 0 : causeRaw
+    )
+}
+
+@_cdecl("__kk_character_coding_exception_new")
+public func kk_character_coding_exception_new() -> Int {
+    runtimeAllocateCharacterCodingException(message: nil)
+}
+
+@_cdecl("__kk_character_coding_exception_new_message")
+public func kk_character_coding_exception_new_message(_ messageRaw: Int) -> Int {
+    runtimeAllocateCharacterCodingException(
+        message: runtimeExceptionMessage(from: messageRaw, defaultMessage: nil)
     )
 }
 

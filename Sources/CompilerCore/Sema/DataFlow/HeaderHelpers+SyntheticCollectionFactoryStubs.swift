@@ -83,7 +83,6 @@ extension DataFlowSemaPhase {
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_set_of")
         register(name: "mutableSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
         register(name: "hashSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
-        register(name: "linkedSetOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_set_of")
 
         register(name: "emptyMap", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_emptyMap")
         register(name: "mapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_emptyMap")
@@ -91,6 +90,5 @@ extension DataFlowSemaPhase {
         register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: false, externalLinkName: "__kk_map_of")
         register(name: "mutableMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
         register(name: "hashMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
-        register(name: "linkedMapOf", typeParameterNames: ["K", "V"], isVararg: true, externalLinkName: "__kk_map_of")
     }
 }

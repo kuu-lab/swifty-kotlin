@@ -1,0 +1,13 @@
+zero=0
+zero-is=true
+zero-boxed=0
+max=32767
+max-is=true
+max-boxed=32767
+minusOne=65535
+minusOne-is=true
+minusOne-boxed=65535
+min=32768
+min-is=true
+min-boxed=32768
+inferred=0 typed=65535
