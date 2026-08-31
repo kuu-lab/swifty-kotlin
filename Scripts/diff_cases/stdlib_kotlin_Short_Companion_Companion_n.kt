@@ -7,6 +7,8 @@ fun main() {
     println(Short.Companion.MIN_VALUE)
     println(Short.Companion.SIZE_BITS)
     println(Short.Companion.SIZE_BYTES)
+    println(Short.MAX_VALUE.toShort())
+    println(Short.MIN_VALUE.toShort())
     val boxedMax: Any = Short.MAX_VALUE
     val boxedMin: Any = Short.MIN_VALUE
     println(boxedMax)
