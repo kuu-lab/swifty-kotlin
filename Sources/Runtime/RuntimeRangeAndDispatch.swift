@@ -654,11 +654,12 @@ func runtimeSourceIterableIterator(
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        guard let outThrown else {
-            runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
-        }
-        runtimeSetThrown(outThrown, thrown)
-        return 0
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterable.iterator() dispatch"
+        )
+        return nil
     }
     return iterRaw
 }
@@ -790,10 +791,8 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_iterator_hasNext")
-public func kk_iterator_hasNext(
-    _ iterRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
+public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
@@ -809,21 +808,15 @@ public func kk_iterator_hasNext(
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(
-        iterRaw,
-        methodSlot: 0,
-        outThrown: outThrown
-    ) {
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: outThrown) {
         return objectResult
     }
     return 0
 }
 
 @_cdecl("kk_iterator_next")
-public func kk_iterator_next(
-    _ iterRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
+public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }
@@ -839,11 +832,7 @@ public func kk_iterator_next(
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(
-        iterRaw,
-        methodSlot: 1,
-        outThrown: outThrown
-    ) {
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
         return objectResult
     }
     return 0
@@ -867,10 +856,11 @@ private func runtimeObjectIteratorMethodCall(
     var thrown = 0
     let result = method(iterRaw, &thrown)
     if thrown != 0 {
-        guard let outThrown else {
-            runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
-        }
-        runtimeSetThrown(outThrown, thrown)
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterator object dispatch"
+        )
         return 0
     }
     return result
