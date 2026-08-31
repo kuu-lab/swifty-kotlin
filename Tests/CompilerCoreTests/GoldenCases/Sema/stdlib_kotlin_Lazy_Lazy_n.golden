@@ -1,8 +1,6 @@
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=golden.sema.readLazy kind=function vis=public flags=_ sig=recv=_ params=[kotlin.Lazy<Int>] ret=Int
 symbol fq=golden.sema.readLazy.$0.lazy kind=valueParameter vis=private flags=_
-symbol fq=kotlin.Lazy kind=interface vis=public flags=_
-symbol fq=kotlin.Lazy.T kind=typeParameter vis=private flags=_
 file fstdlib_kotlin_Lazy_Lazy_n package=golden.sema
   decl golden.sema.readLazy fun readLazy sym=golden.sema.readLazy
   decl golden.sema.main fun main sym=golden.sema.main

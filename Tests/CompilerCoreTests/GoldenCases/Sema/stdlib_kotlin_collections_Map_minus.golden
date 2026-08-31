@@ -8,10 +8,7 @@ symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.linkedMapOf kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.linkedMapOf.K kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.linkedMapOf.V kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.linkedMapOf.elements kind=valueParameter vis=private flags=synthetic
+symbol fq=kotlin.collections.MutableMap kind=interface vis=public flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=removeFromArray kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<out removeFromArray.$0.K, removeFromArray.$0.V>,kotlin.Array<out removeFromArray.$0.K>] ret=kotlin.collections.Map<removeFromArray.$0.K, removeFromArray.$0.V>
@@ -43,7 +40,7 @@ expr e@6:57#1 memberCall recv=e@6:57 callee=to args=[_:e@6:65] type=kotlin.Pair<
 expr e@6:71 string(b) type=String
 expr e@6:78 int(2) type=Int
 expr e@6:71#1 memberCall recv=e@6:71 callee=to args=[_:e@6:78] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@6:35 call callee=e@6:35#1 args=[_:e@6:47#1,_:e@6:57#1,_:e@6:71#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.linkedMapOf targs=[String?,Int?]
+expr e@6:35 call callee=e@6:35#1 args=[_:e@6:47#1,_:e@6:57#1,_:e@6:71#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.linkedMapOf#1 targs=[String?,Int?]
 expr e@6:5 localDecl map mutable=0 type=Map<String?,Int?> init=e@6:35 type=Unit ref=__local_0.map
 expr e@7:45 name(map) type=kotlin.collections.Map<String?, Int?> ref=__local_0.map
 expr e@7:61 string(b) type=String

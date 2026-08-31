@@ -1,5 +1,10 @@
 package kotlin.native
 
+@kotlin.SinceKotlin("1.7")
+@kotlin.RequiresOptIn(
+    message = "Freezing API is deprecated since 1.7.20. See https://kotlinlang.org/docs/native-migration-guide.html for details",
+    level = RequiresOptIn.Level.WARNING
+)
 @kotlin.annotation.Target(
     AnnotationTarget.CLASS,
     AnnotationTarget.ANNOTATION_CLASS,
@@ -14,10 +19,9 @@ package kotlin.native
     AnnotationTarget.TYPEALIAS
 )
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
-@kotlin.RequiresOptIn(
-    message = "Freezing API is deprecated since 1.7.20. See https://kotlinlang.org/docs/native-migration-guide.html for details",
-    level = RequiresOptIn.Level.WARNING
-)
+@kotlin.annotation.MustBeDocumented
+@kotlin.Deprecated("Opting in for the freezing API is no longer supported.")
+@kotlin.DeprecatedSinceKotlin(warningSince = "2.1")
 public annotation class FreezingIsDeprecated
 
 @kotlin.annotation.Target(

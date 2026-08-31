@@ -375,6 +375,28 @@ struct SemaDelegateTypeCheckTests {
         )
     }
 
+    private func topLevelSymbol(
+        named name: String,
+        kind: SymbolKind,
+        package: String,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        let packageParts = package.split(separator: ".").map { interner.intern(String($0)) }
+        guard let symbol = sema.symbols.lookup(fqName: packageParts + [interner.intern(name)]) else { return nil }
+        return sema.symbols.symbol(symbol)?.kind == kind ? symbol : nil
+    }
+
+    private func allKIRFunctions(in module: KIRModule) -> [KIRFunction] {
+        module.files.flatMap { file in
+            file.decls.compactMap { declID in
+                guard case let .function(function) = module.arena.decl(declID)
+                else { return nil }
+                return function
+            }
+        }
+    }
+
     @Test func testDelegateTypeChecks() throws {
         let sources: [String] = [
             """
@@ -593,6 +615,209 @@ struct SemaDelegateTypeCheckTests {
                 let delegateType = sema.symbols.propertyType(for: syntheticID)
                 #expect(delegateType != nil, "Delegate type should be recorded on synthetic symbol")
             }
+        }
+    }
+
+    @Test func testExtensionPropertyDelegateResolutionAndKIR() throws {
+        let source = """
+        package cap020
+
+        import kotlin.reflect.KProperty
+
+        class Holder(val value: String)
+        operator fun Holder.getValue(thisRef: Any?, property: KProperty<*>): String = value
+
+        class MutableHolder(var value: String)
+        operator fun MutableHolder.getValue(thisRef: Any?, property: KProperty<*>): String = value
+        operator fun MutableHolder.setValue(thisRef: Any?, property: KProperty<*>, value: String) {
+            this.value = value
+        }
+
+        class GenericHolder<T>(val value: T)
+        operator fun <T> GenericHolder<T>.getValue(thisRef: Any?, property: KProperty<*>): T = value
+
+        class MemberPriorityHolder {
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): String = "member"
+        }
+        operator fun MemberPriorityHolder.getValue(thisRef: Any?, property: KProperty<*>): String = "extension"
+
+        class NullableHolder
+        class NullableOwner {
+            val value: String by NullableHolder()
+        }
+        operator fun NullableHolder.getValue(thisRef: NullableOwner?, property: KProperty<*>): String = "nullable"
+
+        class EffectiveDelegate
+        operator fun EffectiveDelegate.getValue(thisRef: Any?, property: KProperty<*>): String = "effective"
+        operator fun EffectiveDelegate.setValue(thisRef: Any?, property: KProperty<*>, value: String) { }
+
+        class DelegateFactory {
+            operator fun provideDelegate(thisRef: Any?, property: KProperty<*>): EffectiveDelegate = EffectiveDelegate()
+        }
+
+        val readOnly: String by Holder("extension")
+        var mutable: String by MutableHolder("before")
+        val generic by GenericHolder("generic")
+        val memberPriority: String by MemberPriorityHolder()
+        var provided: String by DelegateFactory()
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
+            try runToKIR(ctx)
+
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            #expect(
+                !diagnostics.contains { $0.severity == .error },
+                "Extension delegates should be clean, got: \(diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+            )
+
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let readOnly = try #require(
+                topLevelSymbol(named: "readOnly", kind: .property, package: "cap020", sema: sema, interner: interner)
+            )
+            let mutable = try #require(
+                topLevelSymbol(named: "mutable", kind: .property, package: "cap020", sema: sema, interner: interner)
+            )
+            let generic = try #require(
+                topLevelSymbol(named: "generic", kind: .property, package: "cap020", sema: sema, interner: interner)
+            )
+            let memberPriority = try #require(
+                topLevelSymbol(named: "memberPriority", kind: .property, package: "cap020", sema: sema, interner: interner)
+            )
+            let provided = try #require(
+                topLevelSymbol(named: "provided", kind: .property, package: "cap020", sema: sema, interner: interner)
+            )
+
+            let readOnlyGet = try #require(sema.symbols.delegateGetValueSymbol(for: readOnly))
+            let mutableGet = try #require(sema.symbols.delegateGetValueSymbol(for: mutable))
+            let mutableSet = try #require(sema.symbols.delegateSetValueSymbol(for: mutable))
+            let genericGet = try #require(sema.symbols.delegateGetValueSymbol(for: generic))
+            let memberPriorityGet = try #require(sema.symbols.delegateGetValueSymbol(for: memberPriority))
+            let providedGet = try #require(sema.symbols.delegateGetValueSymbol(for: provided))
+            let providedSet = try #require(sema.symbols.delegateSetValueSymbol(for: provided))
+            let memberPriorityHolder = try #require(
+                sema.symbols.lookup(fqName: [interner.intern("cap020"), interner.intern("MemberPriorityHolder")])
+            )
+            let nullableOwner = try #require(
+                sema.symbols.lookup(fqName: [interner.intern("cap020"), interner.intern("NullableOwner")])
+            )
+            let nullableValue = try #require(
+                childSymbol(
+                    named: "value",
+                    kind: .property,
+                    package: "cap020",
+                    className: "NullableOwner",
+                    sema: sema,
+                    interner: interner
+                )
+            )
+            let nullableGet = try #require(sema.symbols.delegateGetValueSymbol(for: nullableValue))
+
+            // Extension convention functions carry a receiver type; the member-priority
+            // property must instead resolve to the declaration inside MemberPriorityHolder.
+            #expect(sema.symbols.functionSignature(for: readOnlyGet)?.receiverType != nil)
+            #expect(sema.symbols.functionSignature(for: mutableGet)?.receiverType != nil)
+            #expect(sema.symbols.functionSignature(for: mutableSet)?.receiverType != nil)
+            #expect(sema.symbols.functionSignature(for: genericGet)?.receiverType != nil)
+            #expect(sema.symbols.parentSymbol(for: memberPriorityGet) == memberPriorityHolder)
+            #expect(sema.symbols.functionSignature(for: providedGet)?.receiverType != nil)
+            #expect(sema.symbols.functionSignature(for: providedSet)?.receiverType != nil)
+            let nullableOwnerType = sema.types.make(.classType(ClassType(
+                classSymbol: nullableOwner,
+                args: [],
+                nullability: .nullable
+            )))
+            #expect(sema.symbols.functionSignature(for: nullableGet)?.parameterTypes.first == nullableOwnerType)
+            #expect(sema.symbols.propertyType(for: generic) == sema.types.stringType)
+
+            let module = try #require(ctx.kir)
+            let getValueCalls = allKIRFunctions(in: module).flatMap { function in
+                function.body.compactMap { instruction -> (SymbolID?, String, Int)? in
+                    guard case let .call(symbol, callee, arguments, _, _, _, _, _) = instruction
+                    else { return nil }
+                    return (symbol, interner.resolve(callee), arguments.count)
+                }
+            }
+            #expect(getValueCalls.contains { $0.0 == readOnlyGet && $0.1 == "getValue" && $0.2 >= 3 })
+            #expect(getValueCalls.contains { $0.0 == mutableGet && $0.1 == "getValue" && $0.2 >= 3 })
+            #expect(getValueCalls.contains { $0.0 == mutableSet && $0.1 == "setValue" && $0.2 >= 4 })
+            #expect(getValueCalls.contains { $0.0 == providedGet && $0.1 == "getValue" && $0.2 >= 3 })
+            #expect(getValueCalls.contains { $0.0 == providedSet && $0.1 == "setValue" && $0.2 >= 4 })
+        }
+    }
+
+    @Test func testImportedAndNegativeExtensionPropertyDelegateResolution() throws {
+        let importedLibrary = """
+        package cap020.lib
+
+        import kotlin.reflect.KProperty
+
+        class ImportedHolder(var value: String)
+        operator fun ImportedHolder.getValue(thisRef: Any?, property: KProperty<*>): String = value
+        operator fun ImportedHolder.setValue(thisRef: Any?, property: KProperty<*>, value: String) {
+            this.value = value
+        }
+        """
+        let importedUse = """
+        package cap020.app
+
+        import cap020.lib.ImportedHolder
+        import cap020.lib.getValue
+        import cap020.lib.setValue
+
+        var imported: String by ImportedHolder("imported")
+        """
+
+        try withTemporaryFiles(contents: [importedLibrary, importedUse]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+
+            let appDiagnostics = diagnosticsForPath(paths[1], in: ctx)
+            #expect(
+                !appDiagnostics.contains { $0.severity == .error },
+                "Imported extension delegates should be clean, got: \(appDiagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | "))"
+            )
+            let sema = try #require(ctx.sema)
+            let imported = try #require(
+                topLevelSymbol(named: "imported", kind: .property, package: "cap020.app", sema: sema, interner: ctx.interner)
+            )
+            #expect(sema.symbols.delegateGetValueSymbol(for: imported) != nil)
+            #expect(sema.symbols.delegateSetValueSymbol(for: imported) != nil)
+        }
+
+        let negativeSource = """
+        package cap020.negative
+
+        import kotlin.reflect.KProperty
+
+        class NonOperator
+        fun NonOperator.getValue(thisRef: Any?, property: KProperty<*>): String = "bad"
+        val nonOperator: String by NonOperator()
+
+        class Incompatible
+        class Other
+        operator fun Other.getValue(thisRef: Any?, property: KProperty<*>): String = "bad"
+        val incompatible: String by Incompatible()
+
+        interface First
+        interface Second
+        class AmbiguousHolder
+        class AmbiguousOwner : First, Second {
+            val value: String by AmbiguousHolder()
+        }
+        operator fun AmbiguousHolder.getValue(thisRef: First?, property: KProperty<*>): String = "first"
+        operator fun AmbiguousHolder.getValue(thisRef: Second?, property: KProperty<*>): String = "second"
+        """
+
+        try withTemporaryFiles(contents: [negativeSource]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let diagnostics = diagnosticsForPath(paths[0], in: ctx)
+            let missingOperatorDiagnostics = diagnostics.filter { $0.code == "KSWIFTK-SEMA-0103" }
+            #expect(missingOperatorDiagnostics.count == 2)
+            #expect(diagnostics.contains { $0.code == "KSWIFTK-SEMA-0003" })
         }
     }
 }
