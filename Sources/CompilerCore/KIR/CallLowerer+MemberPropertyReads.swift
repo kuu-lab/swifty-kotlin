@@ -298,16 +298,23 @@ extension CallLowerer {
             }
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
-            let result = arena.appendTemporary(type: resultType)
-            instructions.append(.call(
-                symbol: getterSymbol,
-                callee: interner.intern("get"),
-                arguments: [loweredReceiverID],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
+            // Native interface getters are runtime bridges whose runtime boxes
+            // do not provide an itable property slot. Keep those accessors direct;
+            // imported Kotlin getters with kk_fn_* links remain on the dynamic
+            // itable path below.
+            let getterUsesRuntimeBridge = kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
+            if ownerInfo.kind != .interface || getterUsesRuntimeBridge {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.call(
+                    symbol: getterSymbol,
+                    callee: interner.intern("get"),
+                    arguments: [loweredReceiverID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return result
+            }
         }
 
         if ownerInfo.kind == .interface {
