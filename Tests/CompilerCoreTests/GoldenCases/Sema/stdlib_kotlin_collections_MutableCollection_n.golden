@@ -22,10 +22,9 @@ symbol fq=__local_16.emptyRetain kind=local vis=private flags=_ type=kotlin.coll
 symbol fq=__local_17.nullable kind=local vis=private flags=_ type=kotlin.collections.MutableCollection<Int?>
 symbol fq=__local_18.set kind=local vis=private flags=_ type=kotlin.collections.MutableCollection<Int>
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
-symbol fq=kotlin.collections.Collection kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
+symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Iterable.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Iterable.iterator kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Iterable<out kotlin.collections.Iterable.E> params=[] ret=kotlin.collections.Iterator<out kotlin.collections.Iterable.E> type=() -> kotlin.collections.Iterator<out kotlin.collections.Iterable.E>
 symbol fq=kotlin.collections.Iterator kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableCollection kind=interface vis=public flags=synthetic
@@ -37,16 +36,13 @@ symbol fq=kotlin.collections.MutableCollection.removeAll.elements kind=valuePara
 symbol fq=kotlin.collections.MutableCollection.retainAll kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableCollection<kotlin.collections.MutableCollection.E> params=[kotlin.collections.Collection<out kotlin.collections.MutableCollection.E>] ret=Boolean
 symbol fq=kotlin.collections.MutableCollection.retainAll.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.linkedSetOf kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
-symbol fq=kotlin.collections.linkedSetOf.T kind=typeParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.linkedSetOf.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_MutableCollection_n package=_
   decl StableIterable class StableIterable sym=StableIterable
   decl main fun main sym=main
 expr e@2:46 name(values) type=kotlin.collections.List<Int> ref=StableIterable.values
-expr e@2:46#1 memberCall recv=e@2:46 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Iterable.iterator
+expr e@2:46#1 memberCall recv=e@2:46 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Collection.iterator
 expr e@6:61 int(1) type=Int
 expr e@6:47 call callee=e@6:47#1 args=[_:e@6:61] type=kotlin.collections.MutableCollection<Int> call=kotlin.collections.mutableListOf#1 targs=[Int]
 expr e@6:5 localDecl addIterable mutable=0 type=MutableCollection<Int> init=e@6:47 type=Unit ref=__local_0.addIterable
@@ -262,7 +258,7 @@ expr e@76:5 call callee=e@76:5#1 args=[_:e@76:13] type=Unit call=kotlin.io.print
 expr e@78:51 int(1) type=Int
 expr e@78:54 int(2) type=Int
 expr e@78:57 int(3) type=Int
-expr e@78:39 call callee=e@78:39#1 args=[_:e@78:51,_:e@78:54,_:e@78:57] type=kotlin.collections.MutableCollection<Int> call=kotlin.collections.linkedSetOf targs=[Int]
+expr e@78:39 call callee=e@78:39#1 args=[_:e@78:51,_:e@78:54,_:e@78:57] type=kotlin.collections.MutableCollection<Int> call=kotlin.collections.linkedSetOf#1 targs=[Int]
 expr e@78:5 localDecl set mutable=0 type=MutableCollection<Int> init=e@78:39 type=Unit ref=__local_18.set
 expr e@79:13 name(set) type=kotlin.collections.MutableCollection<Int> ref=__local_18.set
 expr e@79:35 int(2) type=Int
