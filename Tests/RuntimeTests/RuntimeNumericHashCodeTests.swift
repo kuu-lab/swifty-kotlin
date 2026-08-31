@@ -3,7 +3,7 @@
 import Testing
 
 // Expected values below are cross-checked against real kotlinc/JVM output
-// (BUG-223): Long/ULong.hashCode() is `(this xor (this ushr 32)).toInt()`,
+// (BUG-230): Long/ULong.hashCode() is `(this xor (this ushr 32)).toInt()`,
 // Double.hashCode() folds the same way over its IEEE 754 bit pattern, and
 // Float.hashCode() is the sign-extended IEEE 754 bit pattern.
 @Suite
