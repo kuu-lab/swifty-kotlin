@@ -365,6 +365,8 @@ extension NativeEmitter {
             }
         case "kk_op_add":
             lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "add_\(instructionIndex)")
+        case "__kk_int_range_induction_add":
+            lowered = bindings.buildAdd(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_add_\(instructionIndex)")
         case "kk_op_sub":
             lowered = bindings.buildSub(state.builder, lhs: lhs, rhs: rhs, name: "sub_\(instructionIndex)")
         case "kk_op_mul":
@@ -436,6 +438,12 @@ extension NativeEmitter {
         case "kk_op_le":
             if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "le_\(instructionIndex)") {
                 lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "le64_\(instructionIndex)")
+            } else {
+                lowered = nil
+            }
+        case "__kk_int_range_induction_le":
+            if let compared = bindings.buildICmpSignedLessOrEqual(state.builder, lhs: lhs, rhs: rhs, name: "range_induction_le_\(instructionIndex)") {
+                lowered = bindings.buildZExt(state.builder, value: compared, type: state.int64Type, name: "range_induction_le64_\(instructionIndex)")
             } else {
                 lowered = nil
             }
@@ -797,10 +805,9 @@ extension NativeEmitter {
                let typeSystem,
                case .stringStruct = typeSystem.kind(of: expectedType)
             {
-                // BUG-168: `length` is the Unicode scalar count (matching the scalar-indexed
-                // space `indexOf`/`substring`/etc. use), not the UTF-8 byte count — those only
-                // coincide for ASCII text. `byteCount` is genuinely the UTF-8 byte count.
-                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.unicodeScalars.count)) ?? state.zeroValue
+                // KSP-817: Kotlin String/CharSequence length is measured in UTF-16 code
+                // units; `byteCount` remains the UTF-8 byte count used by the flat ABI.
+                let lengthValue = bindings.constInt(state.int64Type, value: UInt64(text.utf16.count)) ?? state.zeroValue
                 let byteCountValue = bindings.constInt(state.int64Type, value: UInt64(text.utf8.count)) ?? state.zeroValue
                 let hashValue = bindings.constInt(state.int64Type, value: 0) ?? state.zeroValue
                 return buildStringAggregate(

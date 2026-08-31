@@ -6,18 +6,17 @@ import Testing
 
 // Tests for virtual dispatch (vtable/itable) lowering, codegen, and backend emission (P5-25).
 
+private enum LLVMBackendProbe {
+    nonisolated(unsafe) static let shared: LLVMBackend? = try? LLVMBackend(
+        target: defaultTargetTriple(),
+        optLevel: .O0,
+        debugInfo: false,
+        diagnostics: DiagnosticEngine()
+    )
+}
+
 private func isLLVMBackendAvailable() -> Bool {
-    do {
-        _ = try LLVMBackend(
-            target: defaultTargetTriple(),
-            optLevel: .O0,
-            debugInfo: false,
-            diagnostics: DiagnosticEngine()
-        )
-        return true
-    } catch {
-        return false
-    }
+    LLVMBackendProbe.shared != nil
 }
 
 @Suite
@@ -26,14 +25,8 @@ struct VirtualDispatchCodegenTests {
 
     private func makeVtableFixture() -> (
         interner: StringInterner,
-        arena: KIRArena,
         types: TypeSystem,
         symbols: SymbolTable,
-        classSym: SymbolID,
-        subclassSym: SymbolID,
-        methodSym: SymbolID,
-        receiverParamSym: SymbolID,
-        callerSym: SymbolID,
         module: KIRModule
     ) {
         let interner = StringInterner()
@@ -152,17 +145,13 @@ struct VirtualDispatchCodegenTests {
         _ = arena.appendDecl(.function(methodFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        return (interner, arena, types, symbols, classSym, subclassSym, methodSym, receiverParamSym, callerSym, module)
+        return (interner, types, symbols, module)
     }
 
     private func makeItableFixture() -> (
         interner: StringInterner,
-        arena: KIRArena,
         types: TypeSystem,
         symbols: SymbolTable,
-        interfaceSym: SymbolID,
-        methodSym: SymbolID,
-        callerSym: SymbolID,
         module: KIRModule
     ) {
         let interner = StringInterner()
@@ -273,7 +262,26 @@ struct VirtualDispatchCodegenTests {
         _ = arena.appendDecl(.function(methodFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        return (interner, arena, types, symbols, interfaceSym, methodSym, callerSym, module)
+        return (interner, types, symbols, module)
+    }
+
+    private func makeLoweringContext(
+        moduleName: String,
+        interner: StringInterner,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        module: KIRModule
+    ) -> CompilationContext {
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let ctx = makeCompilationContext(inputs: [], moduleName: moduleName, interner: interner)
+        ctx.kir = module
+        ctx.sema = sema
+        return ctx
+    }
+
+    private func isVirtualCall(_ instruction: KIRInstruction) -> Bool {
+        if case .virtualCall = instruction { return true }
+        return false
     }
 
     // MARK: - Tests
@@ -331,21 +339,7 @@ struct VirtualDispatchCodegenTests {
         let callerID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "ABIUnboxVirtual",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "ABIUnboxVirtual", interner: interner, symbols: symbols, types: types, module: module)
 
         try LoweringPhase().run(ctx)
 
@@ -366,29 +360,12 @@ struct VirtualDispatchCodegenTests {
     @Test
     func testVirtualCallSurvivesLoweringPhase() throws {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "VCallSurvival",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: fixture.interner
-        )
-        ctx.kir = fixture.module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "VCallSurvival", interner: fixture.interner, symbols: fixture.symbols, types: fixture.types, module: fixture.module)
 
         try LoweringPhase().run(ctx)
 
         let lowered = try findKIRFunction(named: "callSpeak", in: fixture.module, interner: fixture.interner)
-        let hasVirtualCall = lowered.body.contains { instruction in
-            if case .virtualCall = instruction { return true }
-            return false
-        }
+        let hasVirtualCall = lowered.body.contains(where: isVirtualCall)
         #expect(hasVirtualCall, "virtualCall should survive all lowering passes and not be downgraded to .call")
     }
 
@@ -397,29 +374,12 @@ struct VirtualDispatchCodegenTests {
     @Test
     func testVirtualCallPreservesVtableDispatchKind() throws {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "VtableKind",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: fixture.interner
-        )
-        ctx.kir = fixture.module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "VtableKind", interner: fixture.interner, symbols: fixture.symbols, types: fixture.types, module: fixture.module)
 
         try LoweringPhase().run(ctx)
 
         let lowered = try findKIRFunction(named: "callSpeak", in: fixture.module, interner: fixture.interner)
-        let vcInstruction = lowered.body.first { instruction in
-            if case .virtualCall = instruction { return true }
-            return false
-        }
+        let vcInstruction = lowered.body.first(where: isVirtualCall)
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
             Issue.record("Expected virtualCall instruction after lowering")
             return
@@ -430,29 +390,12 @@ struct VirtualDispatchCodegenTests {
     @Test
     func testVirtualCallPreservesItableDispatchKind() throws {
         let fixture = makeItableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "ItableKind",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: fixture.interner
-        )
-        ctx.kir = fixture.module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "ItableKind", interner: fixture.interner, symbols: fixture.symbols, types: fixture.types, module: fixture.module)
 
         try LoweringPhase().run(ctx)
 
         let lowered = try findKIRFunction(named: "callDraw", in: fixture.module, interner: fixture.interner)
-        let vcInstruction = lowered.body.first { instruction in
-            if case .virtualCall = instruction { return true }
-            return false
-        }
+        let vcInstruction = lowered.body.first(where: isVirtualCall)
         guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = vcInstruction else {
             Issue.record("Expected virtualCall instruction after lowering")
             return
@@ -465,29 +408,12 @@ struct VirtualDispatchCodegenTests {
     @Test
     func testVirtualCallReceiverNotInArgumentsAfterLowering() throws {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "ReceiverDedup",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: fixture.interner
-        )
-        ctx.kir = fixture.module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "ReceiverDedup", interner: fixture.interner, symbols: fixture.symbols, types: fixture.types, module: fixture.module)
 
         try LoweringPhase().run(ctx)
 
         let lowered = try findKIRFunction(named: "callSpeak", in: fixture.module, interner: fixture.interner)
-        let vcInstruction = lowered.body.first { instruction in
-            if case .virtualCall = instruction { return true }
-            return false
-        }
+        let vcInstruction = lowered.body.first(where: isVirtualCall)
         guard case let .virtualCall(_, _, receiver, arguments, _, _, _, _) = vcInstruction else {
             Issue.record("Expected virtualCall instruction after lowering")
             return
@@ -587,30 +513,11 @@ struct VirtualDispatchCodegenTests {
     @Test(.enabled(if: isLLVMBackendAvailable()))
     func testLLVMBackendCompilesVirtualCallWithoutError() throws {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "LLVMBackendVtable",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".o").path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: fixture.interner
-        )
-        ctx.kir = fixture.module
-        ctx.sema = sema
+        let ctx = makeLoweringContext(moduleName: "LLVMBackendVtable", interner: fixture.interner, symbols: fixture.symbols, types: fixture.types, module: fixture.module)
 
         try LoweringPhase().run(ctx)
 
-        let backend = try LLVMBackend(
-            target: defaultTargetTriple(),
-            optLevel: .O0,
-            debugInfo: false,
-            diagnostics: DiagnosticEngine()
-        )
+        let backend = try #require(LLVMBackendProbe.shared)
         let irPath = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".ll").path
         try backend.emitLLVMIR(module: fixture.module, outputIRPath: irPath, interner: fixture.interner)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
