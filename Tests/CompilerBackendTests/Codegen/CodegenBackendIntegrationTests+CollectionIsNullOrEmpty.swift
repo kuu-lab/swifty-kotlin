@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct CodegenBackendCollectionIsNullOrEmptyTests {
     @Test
-    func testCodegenNullableCollectionsIsNullOrEmptyUsesIsEmptyHelpers() throws {
+    func testCodegenNullableCollectionsIsNullOrEmptyUsesExpectedRouting() throws {
         let source = """
         fun main() {
             val nullableList: List<Int>? = null
@@ -31,7 +31,9 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
             #expect(throwFlags["kk_list_is_empty"]?.allSatisfy { $0 == false } == true)
             #expect(throwFlags["__kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
-            #expect(throwFlags["kk_map_is_empty"]?.allSatisfy { $0 == false } == true)
+            // Map.isNullOrEmpty is source-backed; its private helper belongs to
+            // the stdlib artifact and must not bypass the Kotlin declaration here.
+            #expect(throwFlags["kk_map_is_empty"] == nil)
             #expect(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false } == true)
         }
     }
