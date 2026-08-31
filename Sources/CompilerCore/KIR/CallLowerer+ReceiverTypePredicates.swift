@@ -211,6 +211,17 @@ extension CallLowerer {
         return knownNames.isArrayLikeName(symbol.name)
     }
 
+    func isGenericKotlinArrayType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return false
+        }
+        return symbol.fqName == [interner.intern("kotlin"), interner.intern("Array")]
+    }
+
     func isSetLikeType(
         _ receiverType: TypeID,
         sema: SemaModule,

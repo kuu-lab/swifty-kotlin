@@ -496,9 +496,11 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_iterator_hasNext", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_iterator_next", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("__kk_kclass_is_final", parameters: [
             p("kclassRaw", .intptr),

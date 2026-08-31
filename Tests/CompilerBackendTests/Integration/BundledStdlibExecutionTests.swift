@@ -8,57 +8,6 @@ import Testing
 /// kotlinc を使わない第二 oracle として機能する。
 @Suite
 struct BundledStdlibExecutionTests {
-    private struct ExecutionFailure: Error, CustomStringConvertible {
-        let description: String
-    }
-
-    /// Compile `source` to an executable, run it, and assert stdout equals `expectedOutput`.
-    /// Not `private`: reused by other `BundledStdlibExecutionTests+*.swift` extension files.
-    func compileAndRunKotlin(
-        _ source: String,
-        expectedOutput: String,
-        moduleName: String = "ExecTest"
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let fm = FileManager.default
-            let outputBase = fm.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            defer { try? fm.removeItem(atPath: outputBase) }
-
-            let options = CompilerOptions(
-                moduleName: moduleName,
-                inputs: [path],
-                outputPath: outputBase,
-                emit: .executable,
-                target: defaultTargetTriple()
-            )
-            let result = makeTestDriver().runForTesting(options: options)
-
-            guard result.exitCode == 0 else {
-                let diagnostics = result.diagnostics
-                    .map { "\($0.code): \($0.message)" }
-                    .joined(separator: ", ")
-                throw ExecutionFailure(
-                    description: "Compilation failed. Diagnostics: \(diagnostics)"
-                )
-            }
-            guard !result.diagnostics.contains(where: { $0.severity == .error }) else {
-                let errors = result.diagnostics
-                    .filter { $0.severity == .error }
-                    .map { "\($0.code): \($0.message)" }
-                    .joined(separator: ", ")
-                throw ExecutionFailure(description: "Unexpected errors: \(errors)")
-            }
-
-            let runResult = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalized = runResult.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(
-                normalized == expectedOutput,
-                "Expected stdout '\(expectedOutput)' but got '\(normalized)'"
-            )
-        }
-    }
-
     @Test
     func testHelloWorldPrintsExpectedOutput() throws {
         try compileAndRunKotlin(

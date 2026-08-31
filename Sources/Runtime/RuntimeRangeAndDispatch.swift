@@ -654,11 +654,12 @@ func runtimeSourceIterableIterator(
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        if let outThrown {
-            outThrown.pointee = thrown
-            return nil
-        }
-        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterable.iterator() dispatch"
+        )
+        return nil
     }
     return iterRaw
 }
@@ -698,7 +699,7 @@ public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer
     if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
         return sourceIterator
     }
-    if outThrown?.pointee != 0 {
+    if let outThrown, outThrown.pointee != 0 {
         return 0
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
@@ -856,11 +857,12 @@ private func runtimeObjectIteratorMethodCall(
     var thrown = 0
     let result = method(iterRaw, &thrown)
     if thrown != 0 {
-        if let outThrown {
-            outThrown.pointee = thrown
-            return 0
-        }
-        runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterator object dispatch"
+        )
+        return 0
     }
     return result
 }
