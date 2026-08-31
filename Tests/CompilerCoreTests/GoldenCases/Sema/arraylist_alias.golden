@@ -74,7 +74,7 @@ expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13#1] type=Unit call=kotlin.io.pri
 expr e@35:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@35:18 int(0) type=Int
 expr e@35:13#1 indexedAccess receiver=e@35:13 indices=[e@35:18] type=String call=kotlin.collections.List.get targs=[String]
-expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println#1
+expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println#2
 expr e@37:35 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@37:5 localDecl ml mutable=0 type=MutableList<String> init=e@37:35 type=Unit ref=__local_3.ml
 expr e@38:5 name(ml) type=kotlin.collections.MutableList<String> ref=__local_3.ml
@@ -133,4 +133,4 @@ expr e@64:13#1 memberCall recv=e@64:13 callee=size args=[] type=Int ref=kotlin.c
 expr e@64:5 call callee=e@64:5#1 args=[_:e@64:13#1] type=Unit call=kotlin.io.println#1
 expr e@66:13 name(list) type=kotlin.collections.MutableList<String> ref=__local_2.list
 expr e@66:13#1 memberCall recv=e@66:13 callee=customExtension args=[] type=String call=customExtension
-expr e@66:5 call callee=e@66:5#1 args=[_:e@66:13#1] type=Unit call=kotlin.io.println#1
+expr e@66:5 call callee=e@66:5#1 args=[_:e@66:13#1] type=Unit call=kotlin.io.println#2
