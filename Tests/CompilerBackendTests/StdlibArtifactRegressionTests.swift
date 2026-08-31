@@ -782,6 +782,67 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// Imported runtime-backed interface getters retain a direct external link
+    /// in the shared artifact. They must not be redirected to an itable property
+    /// slot that the runtime collection boxes do not register.
+    @Test
+    func testImportedCollectionSizeGetterUsesDirectBridge() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun collectionSize(values: Collection<Int>): Int = values.size
+
+        fun main() {
+            println(collectionSize(listOf(1, 2, 3)))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ImportedCollectionSizeGetter",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let body = try findKIRFunctionBody(
+                named: "collectionSize",
+                in: module,
+                interner: ctx.interner
+            )
+            let directGetterLinks = body.compactMap { instruction -> String? in
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                      let symbol
+                else {
+                    return nil
+                }
+                return sema.symbols.externalLinkName(for: symbol)
+            }
+            #expect(directGetterLinks.contains("__kk_collection_size"))
+            #expect(!body.contains { instruction in
+                guard case .virtualCall = instruction else { return false }
+                return true
+            })
+
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "3\n")
+        }
+    }
+
     /// STDLIB-ARTIFACT-022: direct construction must use RuntimeResultBox rather
     /// than the ordinary Kotlin object allocation path.
     @Test
