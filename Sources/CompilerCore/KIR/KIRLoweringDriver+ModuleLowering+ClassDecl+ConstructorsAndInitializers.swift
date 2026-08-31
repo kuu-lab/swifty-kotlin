@@ -138,7 +138,10 @@ extension KIRLoweringDriver {
             .lookupAll(fqName: superclassInfo.fqName + [compilationCtx.interner.intern("<init>")])
             .first { $0 != ctorSymbol }
         guard let superCtorSymbol,
-              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true
+              sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true,
+              // Synthetic nominal shells may expose a constructor for Sema
+              // compatibility without providing a linkable implementation.
+              !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
         else {
             return
         }
@@ -628,42 +631,41 @@ extension KIRLoweringDriver {
                 delegateBodyParams: propertyDecl.delegateBodyParams, propertySymbol: propSymbol,
                 paramCount: 0, shared: shared, emit: &body
             )
-            let lockExpression = LazyThreadSafetyModeLowering.lockExpression(
+            let lockValue = LazyThreadSafetyModeLowering.lockExpression(
                 from: propertyDecl.delegateExpression,
                 ast: shared.ast,
                 sema: shared.sema,
                 interner: interner
+            ).map { lowerExpr($0, shared: shared, emit: &body) }
+            let modeExpr = lowerLazyModeExpr(
+                delegateExpression: propertyDecl.delegateExpression,
+                shared: shared, compilationCtx: compilationCtx, emit: &body
             )
-            let lockValue = lockExpression.map { lowerExpr($0, shared: shared, emit: &body) }
-            let constantModeValue = LazyThreadSafetyModeLowering.constantRawValue(
-                from: propertyDecl.delegateExpression,
-                ast: shared.ast,
-                sema: shared.sema,
-                interner: interner
-            )
-            let modeExpr: KIRExprID
-            if lockValue != nil {
-                let modeValue = Int64(LazyDelegateThreadSafetyMode.synchronized.rawValue)
-                modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
-                body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
+            let lockArgument: KIRExprID
+            if let lockValue {
+                lockArgument = lockValue
             } else {
-                // The runtime bridge consumes a raw mode ordinal, while a
-                // non-constant enum expression lowers to an object handle.
-                // Keep the documented delegate fallback instead of passing
-                // that handle through the integer ABI.
-                let modeValue = constantModeValue ?? Int64(compilationCtx.options.lazyThreadSafetyMode.rawValue)
-                modeExpr = arena.appendExpr(.intLiteral(modeValue), type: sema.types.anyType)
-                body.append(.constValue(result: modeExpr, value: .intLiteral(modeValue)))
+                lockArgument = arena.appendExpr(.null, type: sema.types.nullableAnyType)
+                body.append(.constValue(result: lockArgument, value: .null))
             }
+            let initialValueExpr = arena.appendExpr(.unit, type: sema.types.anyType)
+            body.append(.constValue(result: initialValueExpr, value: .null))
+            let initialComputedExpr = arena.appendExpr(.boolLiteral(false), type: sema.types.booleanType)
+            body.append(.constValue(result: initialComputedExpr, value: .boolLiteral(false)))
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [interner.intern("kotlin"), interner.intern("LazyImpl"), interner.intern("<init>")],
+                parameterCount: 5, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.LazyImpl constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
-            let runtimeCallee = lockValue == nil
-                ? interner.intern("kk_lazy_create")
-                : interner.intern("kk_lazy_create_with_lock")
-            let runtimeArguments = lockValue.map { [lambdaFnPtr, modeExpr, $0] }
-                ?? [lambdaFnPtr, modeExpr]
             body.append(.call(
-                symbol: nil, callee: runtimeCallee,
-                arguments: runtimeArguments,
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj, lambdaFnPtr, modeExpr, lockArgument, initialValueExpr, initialComputedExpr],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .observable, .vetoable:
@@ -676,18 +678,44 @@ extension KIRLoweringDriver {
                 valueType: sema.symbols.propertyType(for: propSymbol), propertySymbol: propSymbol,
                 paramCount: 3, shared: shared, emit: &body
             )
-            let runtimeFnName = delegateKind == .observable ? "kk_observable_create" : "kk_vetoable_create"
+            let className = delegateKind == .observable ? "SimpleObservableProperty" : "SimpleVetoableProperty"
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [
+                    interner.intern("kotlin"), interner.intern("properties"),
+                    interner.intern(className), interner.intern("<init>"),
+                ],
+                parameterCount: 2, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.properties.\(className) constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil, callee: interner.intern(runtimeFnName),
-                arguments: [initialValueExpr, callbackFnPtr],
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj, initialValueExpr, callbackFnPtr],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .notNull:
+            guard let ctorSymbol = stdlibDelegateSymbol(
+                fqName: [
+                    interner.intern("kotlin"), interner.intern("properties"),
+                    interner.intern("NotNullVar"), interner.intern("<init>"),
+                ],
+                parameterCount: 0, sema: sema
+            ), let ownerSymbol = sema.symbols.parentSymbol(for: ctorSymbol) else {
+                preconditionFailure("KSP-491: missing kotlin.properties.NotNullVar constructor")
+            }
+            let allocatedObj = allocateStdlibDelegateInstance(
+                ownerSymbol: ownerSymbol, resultType: delegateType,
+                sema: sema, arena: arena, interner: interner, emit: &body
+            )
             createResult = arena.appendTemporary(type: delegateType)
             body.append(.call(
-                symbol: nil, callee: interner.intern("kk_notNull_create"),
-                arguments: [],
+                symbol: ctorSymbol, callee: interner.intern("<init>"),
+                arguments: [allocatedObj],
                 result: createResult, canThrow: false, thrownResult: nil
             ))
         case .custom:

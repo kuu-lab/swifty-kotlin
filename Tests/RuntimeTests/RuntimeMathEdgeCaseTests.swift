@@ -1517,52 +1517,52 @@ struct RuntimeMathEdgeCaseTests {
     @Test
     func testDoubleToIntExactBoundary() {
         // Exactly Int32.max as double
-        #expect(kk_double_to_int(doubleToBits(Double(Int32.max))) == Int(Int32.max))
+        #expect(__kk_double_to_int(doubleToBits(Double(Int32.max))) == Int(Int32.max))
     }
 
     @Test
     func testDoubleToIntNaN() {
-        #expect(kk_double_to_int(doubleToBits(Double.nan)) == 0)
+        #expect(__kk_double_to_int(doubleToBits(Double.nan)) == 0)
     }
 
     @Test
     func testDoubleToIntPositiveInfinity() {
-        #expect(kk_double_to_int(doubleToBits(Double.infinity)) == Int(Int32.max))
+        #expect(__kk_double_to_int(doubleToBits(Double.infinity)) == Int(Int32.max))
     }
 
     @Test
     func testDoubleToIntNegativeInfinity() {
-        #expect(kk_double_to_int(doubleToBits(-Double.infinity)) == Int(Int32.min))
+        #expect(__kk_double_to_int(doubleToBits(-Double.infinity)) == Int(Int32.min))
     }
 
     @Test
     func testFloatToIntNaN() {
-        #expect(kk_float_to_int(floatToBits(Float.nan)) == 0)
+        #expect(__kk_float_to_int(floatToBits(Float.nan)) == 0)
     }
 
     @Test
     func testFloatToIntPositiveInfinity() {
-        #expect(kk_float_to_int(floatToBits(Float.infinity)) == Int(Int32.max))
+        #expect(__kk_float_to_int(floatToBits(Float.infinity)) == Int(Int32.max))
     }
 
     @Test
     func testFloatToIntNegativeInfinity() {
-        #expect(kk_float_to_int(floatToBits(-Float.infinity)) == Int(Int32.min))
+        #expect(__kk_float_to_int(floatToBits(-Float.infinity)) == Int(Int32.min))
     }
 
     @Test
     func testDoubleToLongNaN() {
-        #expect(kk_double_to_long(doubleToBits(Double.nan)) == 0)
+        #expect(__kk_double_to_long(doubleToBits(Double.nan)) == 0)
     }
 
     @Test
     func testDoubleToLongPositiveInfinity() {
-        #expect(kk_double_to_long(doubleToBits(Double.infinity)) == Int(Int64.max))
+        #expect(__kk_double_to_long(doubleToBits(Double.infinity)) == Int(Int64.max))
     }
 
     @Test
     func testDoubleToLongNegativeInfinity() {
-        #expect(kk_double_to_long(doubleToBits(-Double.infinity)) == Int(Int64.min))
+        #expect(__kk_double_to_long(doubleToBits(-Double.infinity)) == Int(Int64.min))
     }
 }
 #endif

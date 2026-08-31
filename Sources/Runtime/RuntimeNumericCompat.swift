@@ -8,6 +8,9 @@
 @_cdecl("kk_any_to_string")
 public func kk_any_to_string(_ value: Int, _ tag: Int) -> UnsafeMutableRawPointer {
     let tag = Int32(truncatingIfNeeded: tag)
+    if runtimeIsUnitBox(value) {
+        return runtimeMakeStringPointer("kotlin.Unit")
+    }
     // Float/Double/ULong MUST be decoded before the null-sentinel check:
     // -0.0 (Double) has bit pattern 0x8000000000000000 == Int.min == runtimeNullSentinelInt,
     // and a ULong of exactly 2^63 has the identical raw bit pattern. Elevating
@@ -144,18 +147,58 @@ private func runtimeStringHashCode(_ value: String) -> Int {
     }
 }
 
+/// `(this xor (this ushr 32)).toInt()` — the formula behind Long/ULong/Double
+/// `.hashCode()`, applied to the value's full 64-bit bit pattern. A Swift
+/// arithmetic `>>` sign-extends instead of Kotlin's logical `ushr`, but the
+/// extra high bits it introduces only ever land in the upper 32 bits of the
+/// XOR — which `Int32(truncatingIfNeeded:)` below discards — so the two
+/// shifts agree on the low 32 bits for every input (verified against
+/// kotlinc for Long.MIN_VALUE/MAX_VALUE, -1, -5, and -2.5's Double bits).
+private func runtimeXorFoldHashCode(_ bits: Int64) -> Int {
+    Int(Int32(truncatingIfNeeded: bits ^ (bits >> 32)))
+}
+
+/// Float.hashCode(): the sign-extended IEEE 754 bit pattern, canonicalizing
+/// NaN the way `floatToIntBits`/`__kk_float_toBits` do. `kk_float_to_bits` is
+/// the wrong helper for this: it's a zero-extending bit-transport encoding
+/// for the ABI boundary, not the sign-extended `Int` that Kotlin's
+/// Float.hashCode()/toBits() expose.
+private func runtimeFloatHashCode(_ value: Float) -> Int {
+    if value.isNaN {
+        return Int(Int32(bitPattern: 0x7FC0_0000 as UInt32))
+    }
+    return Int(Int32(bitPattern: value.bitPattern))
+}
+
+/// Unboxed (raw, non-pointer) `Any.hashCode()` fallback. Tags 5/6/7/8
+/// (Float/Double/ULong/Long) need their raw slot value reinterpreted per
+/// Kotlin's formula; every other tag's raw slot value already equals its
+/// hashCode as-is (Int, Char), or is handled here directly (Boolean).
+private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
+    switch tag {
+    case 2:
+        return value != 0 ? 1231 : 1237
+    case 5:
+        return runtimeFloatHashCode(kk_bits_to_float(value))
+    case 6, 7, 8:
+        return runtimeXorFoldHashCode(Int64(value))
+    default:
+        return value
+    }
+}
+
 private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if value == runtimeNullSentinelInt {
         return 0
     }
     guard let pointer = UnsafeMutableRawPointer(bitPattern: value) else {
-        return tag == 2 ? (value != 0 ? 1231 : 1237) : value
+        return runtimeUnboxedAnyHashCode(value, tag)
     }
     let isObjectPointer = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: pointer))
     }
     guard isObjectPointer else {
-        return tag == 2 ? (value != 0 ? 1231 : 1237) : value
+        return runtimeUnboxedAnyHashCode(value, tag)
     }
     if let stringBox = tryCast(pointer, to: RuntimeStringBox.self) {
         return runtimeStringHashCode(stringBox.value)
@@ -167,27 +210,25 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return intBox.value
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
-        let longValue = Int64(longBox.value)
-        return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
+        return runtimeXorFoldHashCode(Int64(longBox.value))
     }
     if let ulongBox = tryCast(pointer, to: RuntimeULongBox.self) {
         // ULong.hashCode() uses the same (this xor (this ushr 32)) formula as
-        // Long; the low-32-bit result of the XOR is identical whether the
-        // shift is arithmetic or logical (the sign/zero-extended high bits
-        // are discarded by truncatingIfNeeded below), so this reuses the
-        // signed-shift form above bit-for-bit.
-        let longValue = Int64(ulongBox.value)
-        return Int(truncatingIfNeeded: longValue ^ (longValue >> 32))
+        // Long, and the bit pattern is identical either way, so this shares
+        // runtimeXorFoldHashCode bit-for-bit with the Long branch above.
+        return runtimeXorFoldHashCode(Int64(ulongBox.value))
     }
     if let floatBox = tryCast(pointer, to: RuntimeFloatBox.self) {
-        return kk_float_to_bits(floatBox.value)
+        return runtimeFloatHashCode(floatBox.value)
     }
     if let doubleBox = tryCast(pointer, to: RuntimeDoubleBox.self) {
-        let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(doubleBox.value))))
-        return Int(truncatingIfNeeded: bits ^ (bits >> 32))
+        return runtimeXorFoldHashCode(Int64(kk_double_to_bits(doubleBox.value)))
     }
     if let charBox = tryCast(pointer, to: RuntimeCharBox.self) {
         return charBox.value
+    }
+    if runtimeIsUnitBox(value) {
+        return 0
     }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
@@ -200,9 +241,47 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(truncatingIfNeeded: nanoseconds ^ (nanoseconds >> 32))
     }
     if let instantBox = tryCast(pointer, to: RuntimeInstantBox.self) {
-        var hash = instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32)
-        hash ^= Int64(instantBox.nanoOfSecond)
-        return Int(truncatingIfNeeded: hash ^ (hash >> 32))
+        let epochHash = Int32(truncatingIfNeeded: instantBox.epochSeconds ^ (instantBox.epochSeconds >> 32))
+        let nanoHash = Int32(instantBox.nanoOfSecond)
+        return Int(epochHash &+ (51 &* nanoHash))
+    }
+    // List/Set/Map hash structurally, matching both runtimeValuesEqual's
+    // List/Set/Map cases and kotlin.collections' List/Set/Map.hashCode()
+    // contracts. Without this, these boxes fell through to the final
+    // pointer-hash fallback below, which also broke `kk_any_to_string`
+    // downstream (the pointer value round-tripped through kk_unbox_int/
+    // kk_box_int as if it were still a live object, printing the
+    // collection's toString() where an Int hashCode was expected).
+    //
+    // The accumulator is `Int32`, not `Int`: Kotlin's fold/sum runs in
+    // 32-bit wrapping Int arithmetic at every step, so accumulating in a
+    // 64-bit `Int` (even with `&+`/`&*`) only happens to agree while the
+    // running total stays inside Int32 range and silently diverges once a
+    // longer collection or a large-hashCode element pushes it past that.
+    if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
+        var hash: Int32 = 1
+        for element in listBox.elements {
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
+        }
+        return Int(hash)
+    }
+    if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
+        var hash: Int32 = 0
+        for element in setBox.elements {
+            hash = hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
+        }
+        return Int(hash)
+    }
+    if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
+        var hash: Int32 = 0
+        let keys = mapBox.keys
+        let values = mapBox.values
+        for i in keys.indices {
+            let entryHash = Int32(truncatingIfNeeded: kk_any_hashCode(keys[i], 0))
+                ^ Int32(truncatingIfNeeded: kk_any_hashCode(values[i], 0))
+            hash = hash &+ entryHash
+        }
+        return Int(hash)
     }
     // Kotlin Set.hashCode() is the order-independent sum of element hashes.
     // RuntimeSetBox is shared by Set, MutableSet, LinkedHashSet, and HashSet,
@@ -298,6 +377,9 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
     if tryCast(pointer, to: RuntimeULongBox.self) != nil {
         return 10
     }
+    if runtimeIsUnitBox(value) {
+        return 11
+    }
     return 100
 }
 
@@ -387,8 +469,8 @@ public func kk_int_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_unbox_int(value)))
 }
 
-@_cdecl("kk_float_to_double_bits")
-public func kk_float_to_double_bits(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_double_bits")
+public func __kk_float_to_double_bits(_ value: Int) -> Int {
     kk_double_to_bits(Double(kk_bits_to_float(value)))
 }
 
@@ -1078,8 +1160,8 @@ public func kk_op_ushr(_ lhs: Int, _ rhs: Int) -> Int {
     return Int(bitPattern: UInt(bitPattern: lhs) >> shift)
 }
 
-@_cdecl("kk_double_to_int")
-public func kk_double_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_int")
+public func __kk_double_to_int(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int32.max) { return Int(Int32.max) }
@@ -1087,8 +1169,8 @@ public func kk_double_to_int(_ value: Int) -> Int {
     return Int(Int32(d))
 }
 
-@_cdecl("kk_float_to_int")
-public func kk_float_to_int(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_int")
+public func __kk_float_to_int(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int32.max) { return Int(Int32.max) }
@@ -1096,8 +1178,8 @@ public func kk_float_to_int(_ value: Int) -> Int {
     return Int(Int32(f))
 }
 
-@_cdecl("kk_double_to_long")
-public func kk_double_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_double_to_long")
+public func __kk_double_to_long(_ value: Int) -> Int {
     let d = kk_bits_to_double(value)
     if d.isNaN { return 0 }
     if d >= Double(Int64.max) { return Int(Int64.max) }
@@ -1105,8 +1187,8 @@ public func kk_double_to_long(_ value: Int) -> Int {
     return Int(Int64(d))
 }
 
-@_cdecl("kk_float_to_long")
-public func kk_float_to_long(_ value: Int) -> Int {
+@_cdecl("__kk_float_to_long")
+public func __kk_float_to_long(_ value: Int) -> Int {
     let f = kk_bits_to_float(value)
     if f.isNaN { return 0 }
     if f >= Float(Int64.max) { return Int(Int64.max) }

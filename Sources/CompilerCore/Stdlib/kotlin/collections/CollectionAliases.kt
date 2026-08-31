@@ -45,6 +45,15 @@ public typealias LinkedHashMap<K, V> = MutableMap<K, V>
 @KsSymbolName("__kk_linked_hash_set_init")
 private external fun <E> __kkLinkedHashSetInit(set: LinkedHashSet<E>)
 
+@KsSymbolName("__kk_collection_size")
+private external fun <E> __kkLinkedHashSetSize(set: LinkedHashSet<E>): Int
+
+@KsSymbolName("__kk_collection_containsAll")
+private external fun <E> __kkLinkedHashSetContainsAll(
+    set: LinkedHashSet<E>,
+    elements: Collection<@UnsafeVariance E>
+): Boolean
+
 public open class LinkedHashSet<E> : MutableSet<E> {
     init {
         __kkLinkedHashSetInit(this)
@@ -53,4 +62,10 @@ public open class LinkedHashSet<E> : MutableSet<E> {
     constructor()
     constructor(initialCapacity: Int)
     constructor(elements: Collection<E>)
+
+    override val size: Int
+        get() = __kkLinkedHashSetSize(this)
+
+    override fun containsAll(elements: Collection<@UnsafeVariance E>): Boolean =
+        __kkLinkedHashSetContainsAll(this, elements)
 }

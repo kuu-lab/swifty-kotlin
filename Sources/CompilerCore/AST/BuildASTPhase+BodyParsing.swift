@@ -64,7 +64,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         interner: StringInterner,
         astArena: ASTArena,
-        excludingTopLevelFunDecls: Bool = false
+        excludingNodeIDs: Set<NodeID> = []
     ) -> [ExprID] {
         // Phase 1 – gather per-CST-statement token arrays, merging
         // dot-continuation lines into the previous group.
@@ -75,7 +75,7 @@ extension BuildASTPhase {
         var filteredGroups: [[Token]] = []
         collectBlockStatementGroups(from: blockNodeID, in: arena,
                                     rawGroups: &rawGroups, filteredGroups: &filteredGroups,
-                                    excludingTopLevelFunDecls: excludingTopLevelFunDecls)
+                                    excludingNodeIDs: excludingNodeIDs)
 
         // Phase 2 – parse each (potentially merged) token group.
         var result: [ExprID] = []
@@ -97,7 +97,7 @@ extension BuildASTPhase {
         in arena: SyntaxArena,
         rawGroups: inout [[Token]],
         filteredGroups: inout [[Token]],
-        excludingTopLevelFunDecls: Bool = false
+        excludingNodeIDs: Set<NodeID> = []
     ) {
         for child in arena.children(of: blockNodeID) {
             guard case let .node(nodeID) = child else { continue }
@@ -108,7 +108,7 @@ extension BuildASTPhase {
             // FrontendPhases.buildFileAST); re-parsing them here too would
             // additionally nest them as shadowing local functions inside the
             // synthesized `main()` body.
-            if excludingTopLevelFunDecls, node.kind == .funDecl { continue }
+            if excludingNodeIDs.contains(nodeID) { continue }
 
             let rawTokens = collectTokens(from: nodeID, in: arena)
             // Strip only top-level semicolons; keep semicolons inside braces so
@@ -117,30 +117,11 @@ extension BuildASTPhase {
             let filtered = filterTopLevelSemicolons(rawTokens[...])
             guard !filtered.isEmpty else { continue }
 
-            // If the first token is `.` or `?.`, merge into the previous group.
-            let isDotContinuation = filtered.first.map {
-                $0.kind == .symbol(.dot) || $0.kind == .symbol(.questionDot)
-            } ?? false
             let shouldMergeWithPrevious: Bool
-            if !rawGroups.isEmpty {
-                let previousFiltered = filteredGroups[filteredGroups.count - 1]
-                let previousEndsWithContinuation = previousFiltered.last.map {
-                    Self.isStatementContinuationAtLineEnd($0.kind)
-                        || $0.kind == .symbol(.lParen)
-                        || $0.kind == .symbol(.comma)
-                } ?? false
-                let currentStartsWithContinuation = filtered.first.map {
-                    Self.isBinaryOperatorToken($0.kind)
-                        || $0.kind == .symbol(.comma)
-                        || $0.kind == .symbol(.rParen)
-                        || $0.kind == .symbol(.rBracket)
-                } ?? false
-                shouldMergeWithPrevious = isDotContinuation
-                    || previousEndsWithContinuation
-                    || currentStartsWithContinuation
-                    || startsWithTrailingLambdaGroup(filtered)
-                        && Self.canAcceptTrailingLambda(on: previousFiltered)
-                    || hasUnclosedStatementDelimiter(previousFiltered)
+            if let previousFiltered = filteredGroups.last {
+                shouldMergeWithPrevious = Self.isContinuationBoundary(
+                    previousTail: previousFiltered, nextHead: filtered[...]
+                )
             } else {
                 shouldMergeWithPrevious = false
             }
@@ -153,6 +134,52 @@ extension BuildASTPhase {
             rawGroups.append(rawTokens)
             filteredGroups.append(filtered)
         }
+    }
+
+    /// Decides whether `nextHead` (the start of a candidate new statement)
+    /// is actually a continuation of `previousTail` (the tokens accumulated
+    /// so far for the previous statement) rather than the start of a new one.
+    /// Shared by all three statement-splitting loops in this file and in
+    /// `BuildASTPhase+ExpressionParserBlocks.swift`; each loop differs only in
+    /// how it iterates (per CST-statement-group, per-token-with-newline, or
+    /// per-token-with-explicit-depth-tracking) and in how it gates *when* to
+    /// consult this predicate — the merge decision itself lives here once.
+    ///
+    /// The unclosed-delimiter check only ever fires for the CST-group caller:
+    /// the two flat-token callers already gate on bracket-depth zero before
+    /// calling this, which makes `previousTail` provably balanced there.
+    static func isContinuationBoundary<Prev: BidirectionalCollection, Next: Collection>(
+        previousTail: Prev,
+        nextHead: Next
+    ) -> Bool where Prev.Element == Token, Next.Element == Token {
+        guard let last = previousTail.last else {
+            return false
+        }
+        if isStatementContinuationAtLineEnd(last.kind)
+            || last.kind == .symbol(.lParen)
+            || last.kind == .symbol(.comma)
+        {
+            return true
+        }
+        if hasUnclosedStatementDelimiter(previousTail) {
+            return true
+        }
+        guard let first = nextHead.first else {
+            return false
+        }
+        // `isBinaryOperatorToken` already covers `.`/`?.`, so a dot-continuation
+        // line (`.member()`) is a continuation via this check too.
+        if isBinaryOperatorToken(first.kind)
+            || first.kind == .symbol(.comma)
+            || first.kind == .symbol(.rParen)
+            || first.kind == .symbol(.rBracket)
+        {
+            return true
+        }
+        if first.kind == .symbol(.lBrace), canAcceptTrailingLambda(on: previousTail) {
+            return true
+        }
+        return false
     }
 
     /// Filter out semicolons that are at the outermost brace level,
@@ -174,7 +201,7 @@ extension BuildASTPhase {
         return result
     }
 
-    private func hasUnclosedStatementDelimiter(_ tokens: [Token]) -> Bool {
+    private static func hasUnclosedStatementDelimiter<C: Collection>(_ tokens: C) -> Bool where C.Element == Token {
         var parenDepth = 0
         var bracketDepth = 0
         var braceDepth = 0
@@ -190,10 +217,6 @@ extension BuildASTPhase {
             }
         }
         return parenDepth > 0 || bracketDepth > 0 || braceDepth > 0
-    }
-
-    private func startsWithTrailingLambdaGroup(_ tokens: [Token]) -> Bool {
-        tokens.first?.kind == .symbol(.lBrace)
     }
 
     static func canAcceptTrailingLambda<C: BidirectionalCollection>(on tokens: C) -> Bool where C.Element == Token {
@@ -218,7 +241,11 @@ extension BuildASTPhase {
 
     /// Parse a single (possibly merged) statement token group, trying local
     /// fun-decl, local-decl, local-assign, then generic expression.
-    private func parseStatementGroup(
+    ///
+    /// Shared by the CST-driven top-level path (blockExpressions) and the
+    /// token-driven local-function-body path (parseBraceBody in
+    /// BuildASTPhase+LocalFunParsing.swift) so both dispatch identically.
+    func parseStatementGroup(
         raw: [Token],
         filtered: [Token],
         interner: StringInterner,
@@ -243,7 +270,7 @@ extension BuildASTPhase {
         var groups: [[Token]] = []
         var current: [Token] = []
         var depth = BracketDepth()
-        for token in tokens {
+        for (idx, token) in tokens.enumerated() {
             if depth.isAtTopLevel {
                 if token.kind == .symbol(.semicolon) {
                     if !current.isEmpty {
@@ -256,16 +283,11 @@ extension BuildASTPhase {
                     if case .newline = piece { return true }
                     return false
                 }
-                if hasNewline, !current.isEmpty {
-                    let lastIsContinuation = current.last.map {
-                        Self.isStatementContinuationAtLineEnd($0.kind)
-                    } ?? false
-                    let nextIsContinuation = Self.isBinaryOperatorToken(token.kind)
-                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace) && Self.canAcceptTrailingLambda(on: current)
-                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
-                        groups.append(current)
-                        current = []
-                    }
+                if hasNewline, !current.isEmpty,
+                   !Self.isContinuationBoundary(previousTail: current, nextHead: tokens[idx...])
+                {
+                    groups.append(current)
+                    current = []
                 }
             }
             depth.track(token.kind)

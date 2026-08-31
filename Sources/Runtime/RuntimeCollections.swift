@@ -136,6 +136,26 @@ public func kk_list_get(_ listRaw: Int, _ index: Int) -> Int {
     return list.elements[index]
 }
 
+/// `EnumEntries.get` checks bounds and reports Kotlin's
+/// `IndexOutOfBoundsException` instead of using the forgiving generic List
+/// bridge, whose zero fallback is reserved for unchecked collection paths.
+@_cdecl("__kk_enum_entries_get")
+public func kk_enum_entries_get(
+    _ listRaw: Int,
+    _ index: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw), list.elements.indices.contains(index) else {
+        let size = runtimeListBox(from: listRaw)?.elements.count ?? 0
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "Index: \(index), size: \(size)"
+        )
+        return 0
+    }
+    return list.elements[index]
+}
+
 @_cdecl("kk_list_is_empty")
 public func kk_list_is_empty(_ listRaw: Int) -> Int {
     guard let list = runtimeListBox(from: listRaw) else {
