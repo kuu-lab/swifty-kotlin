@@ -641,7 +641,7 @@ private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
 /// to the runtime box representations.
 func runtimeSourceIterableIterator(
     _ iterableRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
+    outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int? {
     outThrown?.pointee = 0
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
@@ -655,20 +655,14 @@ func runtimeSourceIterableIterator(
     var thrown = 0
     let iterRaw = fn(iterableRaw, &thrown)
     if thrown != 0 {
-        runtimeSetThrown(outThrown, thrown)
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterable.iterator() dispatch"
+        )
         return nil
     }
     return iterRaw
-}
-
-/// Preserve the legacy non-throwing range bridge behavior for for-in loops.
-func runtimeSourceIterableIterator(_ iterableRaw: Int) -> Int? {
-    var thrown = 0
-    let result = runtimeSourceIterableIterator(iterableRaw, outThrown: &thrown)
-    if thrown != 0 {
-        runtimeStructuredPanic("Iterable.iterator() dispatch threw exception handle \(thrown)")
-    }
-    return result
 }
 
 /// KSP-998: Explicit `Iterable.iterator()` calls use a throwing bridge so a
@@ -826,7 +820,8 @@ public func kk_range_for_in_next(_ iterRaw: Int) -> Int {
 }
 
 @_cdecl("kk_iterator_hasNext")
-public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
+public func kk_iterator_hasNext(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
@@ -842,14 +837,15 @@ public func kk_iterator_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_hasNext(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0) {
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 0, outThrown: outThrown) {
         return objectResult
     }
     return 0
 }
 
 @_cdecl("kk_iterator_next")
-public func kk_iterator_next(_ iterRaw: Int) -> Int {
+public func kk_iterator_next(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }
@@ -865,13 +861,17 @@ public func kk_iterator_next(_ iterRaw: Int) -> Int {
     if runtimeIndexingIteratorBox(from: iterRaw) != nil {
         return kk_indexing_iterable_next(iterRaw)
     }
-    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1) {
+    if let objectResult = runtimeObjectIteratorMethodCall(iterRaw, methodSlot: 1, outThrown: outThrown) {
         return objectResult
     }
     return 0
 }
 
-private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) -> Int? {
+private func runtimeObjectIteratorMethodCall(
+    _ iterRaw: Int,
+    methodSlot: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int? {
     let iteratorInterfaceSlot = 0
     let functionRaw = kk_itable_lookup(iterRaw, iteratorInterfaceSlot, methodSlot)
     guard functionRaw != 0 else {
@@ -885,7 +885,12 @@ private func runtimeObjectIteratorMethodCall(_ iterRaw: Int, methodSlot: Int) ->
     var thrown = 0
     let result = method(iterRaw, &thrown)
     if thrown != 0 {
-        runtimeStructuredPanic("Iterator object dispatch threw exception handle \(thrown)")
+        runtimePropagateThrownOrTrap(
+            thrown,
+            outThrown: outThrown,
+            context: "Iterator object dispatch"
+        )
+        return 0
     }
     return result
 }

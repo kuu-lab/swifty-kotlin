@@ -1086,7 +1086,7 @@ extension ListSyntheticMemberLinkTests {
             })
 
             let chosenCallee = try #require(sema.bindings.callBinding(for: iteratorCall)?.chosenCallee)
-            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_iterable_iterator")
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == "kk_list_iterator")
         }
     }
 
