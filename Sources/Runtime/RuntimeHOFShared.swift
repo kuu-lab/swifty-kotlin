@@ -135,10 +135,6 @@ func applyFilterNotNullStep(_ elements: [Int]) -> [Int] {
     elements.filter { runtimeNormalizeNullableCollectionValue($0) != nil }
 }
 
-func applyFilterIsInstanceStep(_ elements: [Int], typeToken: Int) -> [Int] {
-    elements.filter { kk_op_is($0, typeToken) != 0 }
-}
-
 func applyMapIndexedStep(
     _ elements: [Int],
     fnPtr: Int,

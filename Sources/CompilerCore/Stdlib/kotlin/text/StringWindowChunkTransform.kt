@@ -5,9 +5,9 @@ package kotlin.text
 // windowedSequence — had no registered overload at all, so the trailing transform lambda's
 // implicit `it` never bound (KSWIFTK-SEMA-0022 "Unresolved reference 'it'"). Implemented here
 // directly rather than via a new native ABI bridge, mirroring this codebase's existing
-// Iterable<T> migration (Stdlib/kotlin/collections/ListWindowChunk.kt). Indices go through
-// toString().toList() like subSequence/substring in StringSubstringSlice.kt, since a flat
-// CharSequence's raw `length` observes UTF-8 byte length rather than character count.
+// Iterable<T> migration (Stdlib/kotlin/collections/ListWindowChunk.kt). Indices use the
+// CharSequence.length interface property so that String and other CharSequence
+// implementations observe their character count without materializing the receiver.
 //
 // Unlike ListWindowChunk.kt, `chunked` does NOT delegate to `windowed` here (real kotlinc's
 // own stdlib does: `chunked(size, transform) = windowed(size, size, true, transform)`) — a
@@ -23,17 +23,17 @@ package kotlin.text
 
 internal fun <R> CharSequence.kswiftkWindowedTransform(
     size: Int,
-    step: Int,
-    partialWindows: Boolean,
+    step: Int = 1,
+    partialWindows: Boolean = false,
     transform: (CharSequence) -> R
 ): List<R> {
-    val length = this.toString().toList().size
-    val safeSize = if (size > 0) size else 1
-    val safeStep = if (step > 0) step else 1
+    require(size > 0) { "size must be positive, but was $size" }
+    require(step > 0) { "step must be positive, but was $step" }
+    val length = this.length
     val result = ArrayList<R>()
     var index = 0
     while (index < length) {
-        val end = index + safeSize
+        val end = index + size
         if (end > length) {
             if (partialWindows) {
                 result.add(transform(this.subSequence(index, length)))
@@ -41,46 +41,43 @@ internal fun <R> CharSequence.kswiftkWindowedTransform(
         } else {
             result.add(transform(this.subSequence(index, end)))
         }
-        index += safeStep
+        index += step
     }
     return result
 }
 
 internal fun <R> CharSequence.kswiftkChunkedTransform(size: Int, transform: (CharSequence) -> R): List<R> {
-    val length = this.toString().toList().size
-    val safeSize = if (size > 0) size else 1
+    require(size > 0) { "size must be positive, but was $size" }
+    val length = this.length
     val result = ArrayList<R>()
     var index = 0
     while (index < length) {
-        val end = index + safeSize
+        val end = index + size
         if (end > length) {
             result.add(transform(this.subSequence(index, length)))
         } else {
             result.add(transform(this.subSequence(index, end)))
         }
-        index += safeSize
+        index += size
     }
     return result
 }
 
-// KSP-411: CharSequence chunked/windowed/zip APIs are implemented in bundled
-// Kotlin source. Character indices use the same materialized character view as
-// StringSubstringSlice.kt so that UTF-8 storage details do not leak into the
-// public Kotlin behavior.
+// CharSequence chunked/windowed/zip APIs are implemented in bundled Kotlin
+// source. Character indices use the receiver's length and indexed access so
+// that UTF-8 storage details do not leak into the public Kotlin behavior.
 
-private fun ksp411Characters(source: CharSequence): List<Char> = source.toString().toList()
-
-private fun ksp411Window(source: CharSequence, start: Int, end: Int): String =
+private fun charSequenceWindow(source: CharSequence, start: Int, end: Int): String =
     source.subSequence(start, end).toString()
 
 public fun CharSequence.chunked(size: Int): List<String> {
     require(size > 0) { "size must be positive, but was $size" }
-    val length = ksp411Characters(this).size
+    val length = this.length
     val result = mutableListOf<String>()
     var index = 0
     while (index < length) {
         val end = if (index + size < length) index + size else length
-        result.add(ksp411Window(this, index, end))
+        result.add(charSequenceWindow(this, index, end))
         index += size
     }
     return result
@@ -89,7 +86,7 @@ public fun CharSequence.chunked(size: Int): List<String> {
 public fun CharSequence.chunkedSequence(size: Int): Sequence<String> {
     require(size > 0) { "size must be positive, but was $size" }
     val source = this
-    val length = ksp411Characters(source).size
+    val length = source.length
     return object : Sequence<String> {
         override fun iterator(): Iterator<String> = object : Iterator<String> {
             var index = 0
@@ -99,7 +96,7 @@ public fun CharSequence.chunkedSequence(size: Int): Sequence<String> {
             override fun next(): String {
                 if (!hasNext()) throw NoSuchElementException()
                 val end = if (index + size < length) index + size else length
-                val result = ksp411Window(source, index, end)
+                val result = charSequenceWindow(source, index, end)
                 index += size
                 return result
             }
@@ -113,7 +110,7 @@ public fun <R> CharSequence.chunkedSequence(
 ): Sequence<R> {
     require(size > 0) { "size must be positive, but was $size" }
     val source = this
-    val length = ksp411Characters(source).size
+    val length = source.length
     return object : Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {
             var index = 0
@@ -123,7 +120,7 @@ public fun <R> CharSequence.chunkedSequence(
             override fun next(): R {
                 if (!hasNext()) throw NoSuchElementException()
                 val end = if (index + size < length) index + size else length
-                val result = transform(ksp411Window(source, index, end))
+                val result = transform(charSequenceWindow(source, index, end))
                 index += size
                 return result
             }
@@ -138,13 +135,13 @@ public fun CharSequence.windowed(
 ): List<String> {
     require(size > 0) { "size must be positive, but was $size" }
     require(step > 0) { "step must be positive, but was $step" }
-    val length = ksp411Characters(this).size
+    val length = this.length
     val result = mutableListOf<String>()
     var index = 0
     while (index < length) {
         val end = if (index + size < length) index + size else length
         if (end - index == size || partialWindows) {
-            result.add(ksp411Window(this, index, end))
+            result.add(charSequenceWindow(this, index, end))
         }
         index += step
     }
@@ -155,32 +152,8 @@ public fun CharSequence.windowedSequence(
     size: Int,
     step: Int = 1,
     partialWindows: Boolean = false
-): Sequence<String> {
-    require(size > 0) { "size must be positive, but was $size" }
-    require(step > 0) { "step must be positive, but was $step" }
-    val source = this
-    val length = ksp411Characters(source).size
-    return object : Sequence<String> {
-        override fun iterator(): Iterator<String> = object : Iterator<String> {
-            var index = 0
-
-            private fun hasWindow(): Boolean {
-                if (index >= length) return false
-                return partialWindows || index + size <= length
-            }
-
-            override fun hasNext(): Boolean = hasWindow()
-
-            override fun next(): String {
-                if (!hasWindow()) throw NoSuchElementException()
-                val end = if (index + size < length) index + size else length
-                val result = ksp411Window(source, index, end)
-                index += step
-                return result
-            }
-        }
-    }
-}
+): Sequence<String> =
+    this.windowedSequence(size, step, partialWindows) { it.toString() }
 
 public fun <R> CharSequence.windowedSequence(
     size: Int,
@@ -191,7 +164,7 @@ public fun <R> CharSequence.windowedSequence(
     require(size > 0) { "size must be positive, but was $size" }
     require(step > 0) { "step must be positive, but was $step" }
     val source = this
-    val length = ksp411Characters(source).size
+    val length = source.length
     return object : Sequence<R> {
         override fun iterator(): Iterator<R> = object : Iterator<R> {
             var index = 0
@@ -206,7 +179,7 @@ public fun <R> CharSequence.windowedSequence(
             override fun next(): R {
                 if (!hasWindow()) throw NoSuchElementException()
                 val end = if (index + size < length) index + size else length
-                val result = transform(ksp411Window(source, index, end))
+                val result = transform(charSequenceWindow(source, index, end))
                 index += step
                 return result
             }
@@ -215,8 +188,8 @@ public fun <R> CharSequence.windowedSequence(
 }
 
 public fun CharSequence.zip(other: CharSequence): List<Pair<Char, Char>> {
-    val sourceLength = ksp411Characters(this).size
-    val otherLength = ksp411Characters(other).size
+    val sourceLength = this.length
+    val otherLength = other.length
     val result = mutableListOf<Pair<Char, Char>>()
     var index = 0
     while (index < sourceLength && index < otherLength) {
@@ -230,8 +203,8 @@ public fun <R> CharSequence.zip(
     other: CharSequence,
     transform: (Char, Char) -> R
 ): List<R> {
-    val sourceLength = ksp411Characters(this).size
-    val otherLength = ksp411Characters(other).size
+    val sourceLength = this.length
+    val otherLength = other.length
     val result = mutableListOf<R>()
     var index = 0
     while (index < sourceLength && index < otherLength) {
@@ -242,7 +215,7 @@ public fun <R> CharSequence.zip(
 }
 
 public fun CharSequence.zipWithNext(): List<Pair<Char, Char>> {
-    val length = ksp411Characters(this).size
+    val length = this.length
     val result = mutableListOf<Pair<Char, Char>>()
     var index = 0
     while (index + 1 < length) {
@@ -253,7 +226,7 @@ public fun CharSequence.zipWithNext(): List<Pair<Char, Char>> {
 }
 
 public fun <R> CharSequence.zipWithNext(transform: (Char, Char) -> R): List<R> {
-    val length = ksp411Characters(this).size
+    val length = this.length
     val result = mutableListOf<R>()
     var index = 0
     while (index + 1 < length) {

@@ -129,6 +129,17 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     return 1
 }
 
+@_cdecl("__kk_collection_containsAll")
+public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
+    let iteratorRaw = kk_list_iterator(elementsRaw)
+    while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+        if kk_op_contains(collRaw, kk_list_iterator_next(iteratorRaw)) == 0 {
+            return 0
+        }
+    }
+    return 1
+}
+
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
@@ -229,6 +240,27 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         if effectiveCount > 0 {
             keys = Array(arrays.keys.prefix(effectiveCount))
             values = Array(arrays.values.prefix(effectiveCount))
+        }
+    }
+    (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
+}
+
+/// Builds a mutable map from a vararg Pair array, including a spread argument.
+/// The compiler packs spread varargs before calling this bridge.
+@_cdecl("__kk_map_of_pairs")
+public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
+    var keys: [Int] = []
+    var values: [Int] = []
+    if count > 0, let pairs = runtimeArrayBox(from: pairsArrayRaw) {
+        for pairRaw in pairs.elements.prefix(count) {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: pairRaw),
+                  let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+            else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_map_of_pairs")
+            }
+            keys.append(pairBox.first)
+            values.append(pairBox.second)
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
@@ -369,6 +401,14 @@ public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: Unsa
         return runtimeNullSentinelInt
     }
     return defaultValue
+}
+
+@_cdecl("__kk_map_has_default")
+public func kk_map_has_default(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return 0
+    }
+    return map.defaultValueFnPtr == 0 ? 0 : 1
 }
 
 @_cdecl("__kk_map_withDefault")

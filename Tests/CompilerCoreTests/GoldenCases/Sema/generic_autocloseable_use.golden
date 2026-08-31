@@ -4,7 +4,6 @@ symbol fq=golden.sema.callSite kind=function vis=public flags=_ sig=recv=_ param
 symbol fq=golden.sema.useIt kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.useIt.$0.T] ret=Unit bounds=[kotlin.AutoCloseable]
 symbol fq=golden.sema.useIt.$0.T kind=typeParameter vis=private flags=_
 symbol fq=golden.sema.useIt.$0.t kind=valueParameter vis=private flags=_
-symbol fq=kotlin.AutoCloseable#0 kind=interface vis=public flags=_
 file fgeneric_autocloseable_use package=golden.sema
   decl golden.sema.MyAutoResource class MyAutoResource sym=golden.sema.MyAutoResource
   decl golden.sema.useIt fun useIt sym=golden.sema.useIt

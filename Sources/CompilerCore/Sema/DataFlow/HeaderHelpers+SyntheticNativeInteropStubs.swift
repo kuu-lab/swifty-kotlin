@@ -16,11 +16,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticNativeStackTraceAddressStub(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerSyntheticNativeUnhandledExceptionHookStubs(
             symbols: symbols,
             types: types,
