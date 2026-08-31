@@ -64,6 +64,109 @@ func appendObjectVtableMethodRegistrations(
     instructions: inout [KIRInstruction]
 ) {
     let implementations = kirVtableImplementations(for: nominalSymbol, sema: sema)
+    if !implementations.isEmpty {
+        let intType = sema.types.intType
+        let registerCallee = interner.intern("kk_object_register_vtable_method")
+        for implementation in implementations {
+            let slotExpr = arena.appendExpr(.intLiteral(Int64(implementation.slot)), type: intType)
+            instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(implementation.slot))))
+            let methodFnExpr = arena.appendExpr(.symbolRef(implementation.implementation), type: intType)
+            instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation.implementation)))
+            let registerResult = arena.appendTemporary(type: intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [objectValue, slotExpr, methodFnExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+
+    // BUG-227: also register property getter/setter accessor implementations
+    // into the vtable, mirroring how BUG-141 registers interface property
+    // getters alongside interface methods below.
+    appendObjectVtablePropertyAccessorRegistrations(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+}
+
+/// BUG-227: analog of `kirVtableImplementations` for property accessors.
+/// Property-accessor keys in `layout.vtableSlots` are synthetic IDs (an
+/// arithmetic transform of the underlying property's own symbol — see
+/// `SyntheticSymbolScheme` — not real, symbol-table-registered entries), so
+/// they cannot reuse `kirVtableImplementations`'s
+/// `sema.symbols.symbol(methodSymbol)?.kind == .function` filter or its
+/// `parentSymbol`-based ownership/distance lookup directly: both would treat
+/// every property-accessor slot as "no owner found" and silently drop it.
+/// This walks the same slot set, decoding each accessor entry back to its
+/// original property to answer the identical question: for this concrete
+/// class, which override in the chain is the closest (most specific)
+/// implementation of the accessor occupying this slot?
+func kirVtablePropertyAccessorImplementations(
+    for nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> [(slot: Int, implementation: SymbolID)] {
+    guard let layout = sema.symbols.nominalLayout(for: nominalSymbol) else {
+        return []
+    }
+
+    let virtualSlots = Set(layout.vtableSlots.compactMap { accessorSymbol, slot -> Int? in
+        guard let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol),
+              let owner = sema.symbols.parentSymbol(for: decoded.property),
+              !sema.symbols.directSubtypes(of: owner).isEmpty
+        else {
+            return nil
+        }
+        return slot
+    })
+    guard !virtualSlots.isEmpty else {
+        return []
+    }
+
+    var bestBySlot: [Int: (distance: Int, implementation: SymbolID)] = [:]
+    for (accessorSymbol, slot) in layout.vtableSlots where virtualSlots.contains(slot) {
+        guard let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(accessorSymbol),
+              let owner = sema.symbols.parentSymbol(for: decoded.property),
+              let distance = kirNominalDistance(from: nominalSymbol, to: owner, sema: sema)
+        else {
+            continue
+        }
+        if let current = bestBySlot[slot] {
+            let isMoreSpecific = distance < current.distance
+            let isStableTieBreak = distance == current.distance
+                && accessorSymbol.rawValue > current.implementation.rawValue
+            if isMoreSpecific || isStableTieBreak {
+                bestBySlot[slot] = (distance, accessorSymbol)
+            }
+        } else {
+            bestBySlot[slot] = (distance, accessorSymbol)
+        }
+    }
+
+    return bestBySlot
+        .map { (slot: $0.key, implementation: $0.value.implementation) }
+        .sorted { lhs, rhs in
+            if lhs.slot != rhs.slot { return lhs.slot < rhs.slot }
+            return lhs.implementation.rawValue < rhs.implementation.rawValue
+        }
+}
+
+func appendObjectVtablePropertyAccessorRegistrations(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    let implementations = kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema)
     guard !implementations.isEmpty else {
         return
     }
@@ -73,13 +176,13 @@ func appendObjectVtableMethodRegistrations(
     for implementation in implementations {
         let slotExpr = arena.appendExpr(.intLiteral(Int64(implementation.slot)), type: intType)
         instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(implementation.slot))))
-        let methodFnExpr = arena.appendExpr(.symbolRef(implementation.implementation), type: intType)
-        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation.implementation)))
+        let accessorFnExpr = arena.appendExpr(.symbolRef(implementation.implementation), type: intType)
+        instructions.append(.constValue(result: accessorFnExpr, value: .symbolRef(implementation.implementation)))
         let registerResult = arena.appendTemporary(type: intType)
         instructions.append(.call(
             symbol: nil,
             callee: registerCallee,
-            arguments: [objectValue, slotExpr, methodFnExpr],
+            arguments: [objectValue, slotExpr, accessorFnExpr],
             result: registerResult,
             canThrow: false,
             thrownResult: nil
@@ -217,6 +320,73 @@ func itableBridgeSymbolForMethod(
     return bridgeSymbol
 }
 
+/// Registers every direct supertype edge in the ancestor graph of `childSymbol`.
+/// Constructor sites used to emit only `child → direct parent`, so a never-
+/// instantiated intermediate interface (`Ranked : Comparable<Ranked>`) never
+/// contributed `Ranked → Comparable`. Erased `kk_compare_any` then could not
+/// prove the operands were Comparable and fell back to pointer comparison.
+func appendNominalSupertypeEdgeRegistrations(
+    childSymbol: SymbolID,
+    extraDirectSupertypes: [SymbolID] = [],
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    let intType = sema.types.intType
+    var pending: [SymbolID] = [childSymbol]
+    var visited: Set<SymbolID> = []
+
+    while let current = pending.popLast() {
+        guard visited.insert(current).inserted else { continue }
+        var parents = sema.symbols.directSupertypes(for: current)
+        if current == childSymbol {
+            for extra in extraDirectSupertypes where !parents.contains(extra) {
+                parents.append(extra)
+            }
+        }
+        pending.append(contentsOf: parents)
+        guard !parents.isEmpty else { continue }
+
+        let currentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+            symbol: current,
+            sema: sema,
+            interner: interner
+        )
+        guard currentTypeID != 0 else { continue }
+        let currentExpr = arena.appendExpr(.intLiteral(currentTypeID), type: intType)
+        instructions.append(.constValue(result: currentExpr, value: .intLiteral(currentTypeID)))
+
+        var registeredParents: Set<SymbolID> = []
+        for parent in parents {
+            guard registeredParents.insert(parent).inserted else { continue }
+            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: parent,
+                sema: sema,
+                interner: interner
+            )
+            guard parentTypeID != 0 else { continue }
+            let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
+            instructions.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
+            let registerResult = arena.appendTemporary(type: intType)
+            let superKind = sema.symbols.symbol(parent)?.kind
+            let registerCallee: InternedString = if superKind == .interface {
+                interner.intern("kk_type_register_iface")
+            } else {
+                interner.intern("kk_type_register_super")
+            }
+            instructions.append(.call(
+                symbol: nil,
+                callee: registerCallee,
+                arguments: [currentExpr, parentExpr],
+                result: registerResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+        }
+    }
+}
+
 func appendObjectItableMethodRegistrations(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
@@ -351,65 +521,102 @@ func kirFindOverrideMethod(
     for interfaceMethod: SymbolID,
     in nominalSymbol: SymbolID,
     sema: SemaModule,
-    interner: StringInterner
+    interner _: StringInterner
 ) -> SymbolID? {
-    guard let methodSym = sema.symbols.symbol(interfaceMethod) else {
+    var visited: Set<SymbolID> = []
+    var current: SymbolID? = nominalSymbol
+    while let nominal = current, visited.insert(nominal).inserted {
+        if let found = kirFindMatchingMethod(
+            matching: interfaceMethod,
+            on: nominal,
+            sema: sema
+        ) {
+            return found
+        }
+        current = kirSuperclass(of: nominal, sema: sema)
+    }
+
+    // Interface default implementations live on the interface itself
+    // (`Ranked.compareTo` for `Comparable.compareTo`). Prefer the closest
+    // owner so a residual `Comparable.compareTo` does not win over Ranked.
+    var bestDefault: (distance: Int, symbol: SymbolID)?
+    for interfaceSymbol in kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema) {
+        guard let found = kirFindMatchingMethod(
+            matching: interfaceMethod,
+            on: interfaceSymbol,
+            sema: sema,
+            requireSourceBacked: true
+        ) else {
+            continue
+        }
+        let distance = kirNominalDistance(from: nominalSymbol, to: interfaceSymbol, sema: sema) ?? Int.max
+        if let currentBest = bestDefault {
+            if distance < currentBest.distance {
+                bestDefault = (distance, found)
+            }
+        } else {
+            bestDefault = (distance, found)
+        }
+    }
+    return bestDefault?.symbol
+}
+
+private func kirFindMatchingMethod(
+    matching interfaceMethod: SymbolID,
+    on nominal: SymbolID,
+    sema: SemaModule,
+    requireSourceBacked: Bool = false
+) -> SymbolID? {
+    guard let methodSym = sema.symbols.symbol(interfaceMethod),
+          let ownerSym = sema.symbols.symbol(nominal)
+    else {
         return nil
     }
 
     let interfaceParameterTypes = sema.symbols.functionSignature(for: interfaceMethod)?.parameterTypes
     let interfaceParamCount = interfaceParameterTypes?.count
-
-    var visited: Set<SymbolID> = []
-    var current: SymbolID? = nominalSymbol
-    while let nominal = current, visited.insert(nominal).inserted {
-        if let ownerSym = sema.symbols.symbol(nominal) {
-            let children = sema.symbols.children(ofFQName: ownerSym.fqName)
-            var firstCandidate: SymbolID?
-            var arityMatch: SymbolID?
-            for candidate in children {
-                guard let candidateSym = sema.symbols.symbol(candidate),
-                      candidateSym.kind == .function,
-                      candidateSym.name == methodSym.name,
-                      sema.symbols.parentSymbol(for: candidate) == nominal
-                else {
-                    continue
-                }
-                if firstCandidate == nil {
-                    firstCandidate = candidate
-                }
-                let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
-                // Prefer a full parameter-type match so same-arity overloads
-                // (e.g. StringBuilder.append(Char) vs append(String)) land in
-                // the correct itable slot. Type parameters are wildcards.
-                if let interfaceParameterTypes,
-                   kirOverrideParameterTypesMatch(
-                       candidateParameterTypes: candidateParams,
-                       interfaceParameterTypes: interfaceParameterTypes,
-                       types: sema.types
-                   )
-                {
-                    return candidate
-                }
-                // BUG-166: fall back to arity matching when type IDs don't
-                // line up (e.g. untracked signatures), then to first name match.
-                if arityMatch == nil,
-                   let interfaceParamCount,
-                   candidateParams.count == interfaceParamCount
-                {
-                    arityMatch = candidate
-                }
-            }
-            if let arityMatch {
-                return arityMatch
-            }
-            if let firstCandidate {
-                return firstCandidate
-            }
+    let children = sema.symbols.children(ofFQName: ownerSym.fqName)
+    var firstCandidate: SymbolID?
+    var arityMatch: SymbolID?
+    for candidate in children {
+        guard let candidateSym = sema.symbols.symbol(candidate),
+              candidateSym.kind == .function,
+              candidateSym.name == methodSym.name,
+              sema.symbols.parentSymbol(for: candidate) == nominal
+        else {
+            continue
         }
-        current = kirSuperclass(of: nominal, sema: sema)
+        // Interface fallback must use a body-bearing source declaration;
+        // synthetic residual declarations are not executable defaults.
+        if requireSourceBacked, !sema.symbols.isSourceBackedSymbol(candidate) {
+            continue
+        }
+        if firstCandidate == nil {
+            firstCandidate = candidate
+        }
+        let candidateParams = sema.symbols.functionSignature(for: candidate)?.parameterTypes ?? []
+        // Prefer a full parameter-type match so same-arity overloads
+        // (e.g. StringBuilder.append(Char) vs append(String)) land in
+        // the correct itable slot. Type parameters are wildcards.
+        if let interfaceParameterTypes,
+           kirOverrideParameterTypesMatch(
+               candidateParameterTypes: candidateParams,
+               interfaceParameterTypes: interfaceParameterTypes,
+               types: sema.types
+           )
+        {
+            return candidate
+        }
+        // BUG-166: fall back to arity matching when type IDs don't
+        // line up (e.g. untracked signatures), then to first name match.
+        if arityMatch == nil,
+           let interfaceParamCount,
+           candidateParams.count == interfaceParamCount
+        {
+            arityMatch = candidate
+        }
     }
-    return nil
+    return arityMatch ?? firstCandidate
 }
 
 /// A class implementing an interface can declare several overloads sharing

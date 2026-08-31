@@ -2660,6 +2660,27 @@ extension NativeEmitter {
                         argumentCount: argumentValues.count
                     )
                     : nil
+                let virtualSourceCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
+                    guard !isInternalCall,
+                          let effectiveSymbol,
+                          let symbols,
+                          let signature = symbols.functionSignature(for: effectiveSymbol),
+                          let linkName = symbols.externalLinkName(for: effectiveSymbol),
+                          linkName.hasPrefix("kk_fn_"),
+                          (
+                              isStringAggregateType(signature.returnType)
+                                  || [signature.receiverType].compactMap { $0 }.contains(where: isStringAggregateType)
+                                  || signature.parameterTypes.contains(where: isStringAggregateType)
+                          )
+                    else {
+                        return nil
+                    }
+                    let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+                    guard parameters.count == argumentValues.count else {
+                        return nil
+                    }
+                    return (parameters: parameters, returnType: signature.returnType)
+                }()
                 // An interface declaration imported from a library is not in the
                 // consumer's internal function table, but its itable entries point
                 // at generated Kotlin functions, which always carry the hidden
@@ -2668,9 +2689,12 @@ extension NativeEmitter {
                 let shouldAppendThrownChannel = usesThrownChannel
                     || isInternalCall
                     || sourceExternalCallSignature != nil
-                let sourceExternalFunction: LLVMFunction? = if let sourceExternalCallSignature {
+                    || virtualSourceCallSignature != nil
+                let sourceExternalFunction: LLVMFunction? = if let sourceCallSignature =
+                    virtualSourceCallSignature ?? sourceExternalCallSignature
+                {
                     {
-                        var parameterTypes = loweredLLVMTypes(for: sourceExternalCallSignature.parameters)
+                        var parameterTypes = loweredLLVMTypes(for: sourceCallSignature.parameters)
                         if shouldAppendThrownChannel {
                             parameterTypes.append(outThrownPointerType)
                         }
@@ -2678,7 +2702,7 @@ extension NativeEmitter {
                             named: effectiveExternalName,
                             parameterTypes: parameterTypes,
                             returnType: loweredLLVMType(
-                                for: sourceExternalCallSignature.returnType,
+                                for: sourceCallSignature.returnType,
                                 lowering: typeLowering,
                                 defaultType: int64Type
                             )
@@ -2687,34 +2711,25 @@ extension NativeEmitter {
                 } else {
                     nil
                 }
-                let virtualSourceExternalCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
-                    guard let signature = sourceExternalCallSignature,
-                          isStringAggregateType(signature.returnType)
-                    else {
-                        return nil
-                    }
-                    return signature
-                }()
 
-                var calleeFunction: LLVMFunction?
-                if let effectiveSymbol,
-                   let internalFunction = internalFunctions[effectiveSymbol]
+                let calleeFunction: LLVMFunction? = if let effectiveSymbol,
+                                                       let internalFunction = internalFunctions[effectiveSymbol]
                 {
-                    calleeFunction = internalFunction
+                    internalFunction
                 } else if let fallbackInternal {
-                    calleeFunction = fallbackInternal.function
+                    fallbackInternal.function
                 } else if calleeName.isEmpty {
-                    calleeFunction = nil
+                    nil
                 } else if Self.isStringLengthAggregateAccessorName(calleeName), argumentValues.count == 1 {
-                    calleeFunction = declareExternalFunction(
+                    declareExternalFunction(
                         named: "__kk_string_struct_get_length",
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
-                } else if let sourceExternalFunction {
-                    calleeFunction = sourceExternalFunction
+                } else if sourceExternalFunction != nil {
+                    sourceExternalFunction
                 } else {
-                    calleeFunction = declareExternalFunction(
+                    declareExternalFunction(
                         named: externalCalleeName,
                         argumentCount: argumentValues.count,
                         appendThrownChannel: shouldAppendThrownChannel
@@ -2730,8 +2745,8 @@ extension NativeEmitter {
                 let isRuntimeCallbackRawABIVirtualCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall
-                    && virtualSourceExternalCallSignature == nil
                     && typeLowering != nil
+                    && virtualSourceCallSignature == nil
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in

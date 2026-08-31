@@ -164,9 +164,25 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: 通常のユーザーコンパイルは都度コンパイルを維持する。一方、
+方針: 通常の executable ユーザーコンパイルは事前コンパイル済み `.kklib` を既定経路にし、
+`--stdlib-from-source` を明示したデバッグ実行だけが bundled Kotlin source を注入する。
 `diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
 移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
+
+`kswiftc` の既定artifact解決は次の順序で行う。
+
+1. `KSWIFTK_STDLIB_LIBRARY`、実行ファイル相対の `KSwiftKStdlib.kklib`、SwiftPM resource bundle
+   (`KSwiftK_CompilerCore.bundle/Contents/Resources` または `KSwiftK_CompilerCore.resources`)、または
+   `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
+2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
+   ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
+   `stdlib-only` build を一度だけ生成する。生成中はcross-process lockを保持し、完成後にatomic moveする。
+3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
+   暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
+
+既定artifactは `emit == executable` に限定する。`object`、`llvm`、`kir` は source/introspection
+境界を保持し、LSPのartifact配線は ARCH-006 で扱う。`--stdlib-from-source` は既定artifactの
+発見・生成を無効化し、従来の bundled source 経路を明示的に選択する。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
@@ -177,7 +193,7 @@ case あたりの stdlib 再コンパイルを回避する。
    「bundled stdlib 由来の Lex/Parse/Sema 時間」を分離計測できるようにする（RF-STDLIB-006）
 2. 計測ゲート: stdlib 注入によるコンパイル時間の増分が **hello.kt 相当の小入力で +100ms** を超えたら
    キャッシュ着手のトリガーとする（[`docs/refactoring-metrics.md`](refactoring-metrics.md) で正式化済み:
-   ベースライン中央値 37.29ms、トリガー = 中央値 ≥ 137.29ms）
+   ベースライン中央値 36.05ms、トリガー = 中央値 ≥ 136.05ms）
 3. `diff_kotlinc.sh` では `.kklib` 共有を使い、PoC ケースの candidate compile 合計/中央値を baseline 比 50% 以上、
    full shard wall time を baseline 比 20% 以上削減できない場合は CI 切り替えを完了扱いにしない。
 4. キャッシュの段階案（トリガー後に選択）:
@@ -731,3 +747,5 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 |---|---|---|---|
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
+| `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |
+| `uuid/Uuid.kt`（KSP-1502） | `generateV7()`/`generateV7NonMonotonicAt()` の乱数を専用 CSPRNG バイト列でなく既存 `random()`（`__kk_uuid_random` ブリッジ）の出力から抽出して転用 | `ByteArray(10)` を `secureRandomBytes()` で都度生成 | 新規ブリッジ追加が§13-2の入場審査コストに見合うと判断された場合（現状は不要と判断） |

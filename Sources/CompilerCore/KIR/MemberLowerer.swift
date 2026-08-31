@@ -115,14 +115,27 @@ final class MemberLowerer {
                 )
             }
 
-            // BUG-141/KSP-928: give abstract/interface properties and concrete
-            // virtual properties getter accessors for itable/vtable dispatch. A
-            // plain interface or abstract class property gets a stub whose
-            // signature the dispatch site targets; a stored open base property
-            // or concrete override gets a field-reading getter that is
-            // registered into the corresponding runtime dispatch table.
+            // BUG-141: give properties that participate in interface itable
+            // dispatch a getter accessor function. A plain interface property
+            // (no custom getter, no delegate) gets a stub whose signature the
+            // dispatch site targets; a concrete `override` stored property gets
+            // a field-reading getter that is registered into the itable so an
+            // interface-typed receiver can dispatch to it. Custom-getter and
+            // delegated properties already emit their own accessor above.
+            //
+            // BUG-227: the same field-reading getter is also exactly what a
+            // *class* vtable slot needs behind it, so every property that
+            // ever needs virtual dispatch — not just `override` members, but
+            // also the open/abstract root of the chain — gets one here too.
+            // A `final` property never needs one: LayoutSynthesis never gives
+            // it a vtable slot, so no call site ever looks for this accessor.
             let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
+            let hasCustomSetterBody = (propertyDecl.setter?.body).map { $0 != .unit } ?? false
             let hasDelegate = propertyDecl.delegateExpression != nil
+            let propFlags = sema.symbols.symbol(symbol)?.flags
+            let needsVirtualAccessor = propFlags.map {
+                $0.contains(.overrideMember) || $0.contains(.openType) || $0.contains(.abstractType)
+            } ?? false
             if !hasCustomGetterBody, !hasDelegate,
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
@@ -136,11 +149,7 @@ final class MemberLowerer {
                         interner: interner,
                         allDecls: &allDecls
                     )
-                } else if !isInterfaceContext,
-                          let propertyInfo = sema.symbols.symbol(symbol),
-                          propertyInfo.flags.contains(.overrideMember)
-                              || propertyInfo.flags.contains(.openType)
-                {
+                } else if !isInterfaceContext, needsVirtualAccessor {
                     synthesizeStoredPropertyGetterAccessor(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
@@ -150,6 +159,23 @@ final class MemberLowerer {
                         allDecls: &allDecls
                     )
                 }
+            }
+            // BUG-227: symmetric default setter accessor for a `var` in the
+            // same situation — a write through a base-typed reference must
+            // dispatch to the actual runtime type's setter the same way a
+            // read dispatches to the getter above.
+            if !hasCustomSetterBody, !hasDelegate, !isInterfaceContext, needsVirtualAccessor,
+               propFlags?.contains(.mutable) == true,
+               let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
+            {
+                synthesizeStoredPropertySetterAccessor(
+                    propertySymbol: symbol,
+                    ownerSymbol: ownerSymbol,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    allDecls: &allDecls
+                )
             }
 
             // Lower delegated property: emit delegate storage global and

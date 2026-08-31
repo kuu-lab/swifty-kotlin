@@ -646,6 +646,20 @@ package final class MetadataEncoder {
             return superFQNames.isEmpty ? nil : superFQNames.joined(separator: ",")
         }()
 
+        let valueClassUnderlyingTypeSig: String?
+        if symbol.flags.contains(.valueType),
+           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
+        {
+            valueClassUnderlyingTypeSig = mangler.encodeType(
+                underlyingType,
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+        } else {
+            valueClassUnderlyingTypeSig = nil
+        }
+
         if metadataAnchorOnly {
             // Synthetic nominal anchors need their declared layout sizes as
             // consumer-side synthesis hints. Do not serialize partial slot maps:
@@ -671,6 +685,7 @@ package final class MetadataEncoder {
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
+                    valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                     isExpect: symbol.flags.contains(.expectDeclaration),
                     isActual: symbol.flags.contains(.actualDeclaration)
                 )
@@ -688,6 +703,7 @@ package final class MetadataEncoder {
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
+                valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                 isExpect: symbol.flags.contains(.expectDeclaration),
                 isActual: symbol.flags.contains(.actualDeclaration)
             )
@@ -817,6 +833,18 @@ package final class MetadataEncoder {
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
                 || enumEntriesGetterSymbol != nil
+            // Runtime-backed properties can be declared in bundled source
+            // without a Kotlin getter body (for example Collection.size). The
+            // property symbol's external link must still cross the library
+            // boundary as a synthetic getter link; otherwise consumers restore
+            // the property as an itable getter and runtime collection boxes
+            // cannot satisfy the dispatch.
+            if !hasCustomGetter,
+               let propertyLink = symbols.externalLinkName(for: symbol.id),
+               !propertyLink.isEmpty
+            {
+                propertyGetterExternalLinkName = propertyLink
+            }
             if hasCustomGetter,
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
@@ -933,24 +961,10 @@ package final class MetadataEncoder {
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
-        let rawIsValueClass = symbol.flags.contains(.valueType)
-
-        var valueClassUnderlyingTypeSig: String?
-        if rawIsValueClass,
-           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
-        {
-            valueClassUnderlyingTypeSig = mangler.encodeType(
-                underlyingType,
-                symbols: symbols,
-                types: types,
-                nameResolver: { interner.resolve($0) }
-            )
-        }
-
         // Serialize isValueClass independently of whether the underlying type was found.
         // Even if underlying type extraction fails, mark it as a value class so importers
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
-        let isValueClass = rawIsValueClass
+        let isValueClass = symbol.flags.contains(.valueType)
 
         let annotationEntries = symbols.annotations(for: symbol.id)
 
@@ -1360,18 +1374,28 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
-            guard let symbol = symbols.symbol(symbolID),
+            // BUG-227 stores class property accessor slots under synthetic
+            // getter/setter IDs, while the metadata format names the owning
+            // property. Only the getter has a representation in this format;
+            // setter slots are intentionally skipped until the format carries
+            // an accessor-kind discriminator.
+            let decodedAccessor = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID)
+            if let decodedAccessor, decodedAccessor.kind != .getter {
+                return nil
+            }
+            let serializedSymbolID = decodedAccessor?.property ?? symbolID
+            guard let symbol = symbols.symbol(serializedSymbolID),
                   symbol.kind == .function || symbol.kind == .property
             else {
                 return nil
             }
-            let isProperty = symbol.kind == .property
+            let isProperty = decodedAccessor != nil || symbol.kind == .property
             // Vtable layout must survive the round-trip even for methods that are
             // private or synthetic (e.g. Any.toString/hashCode/equals, internal
             // helpers like Random.stepXorWow).  The consumer resolves each entry
             // by FQ name/arity/type-signature so that overloaded methods with the
             // same arity map to the correct slot.
-            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
+            if isNonPublicEnumStaticHelper(symbolID: serializedSymbolID, symbols: symbols, interner: interner) {
                 return nil
             }
             // Property getter slots may be owned by protected abstract
@@ -1379,18 +1403,18 @@ package final class MetadataEncoder {
             // source declaration recreates that property in the consumer, so
             // retain its layout entry even when the property record itself is
             // not part of the public metadata export.
-            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID), !isProperty {
+            if let includedSymbolIDs, !includedSymbolIDs.contains(serializedSymbolID), !isProperty {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
             }
-            let signature = symbols.functionSignature(for: symbolID)
+            let signature = symbols.functionSignature(for: serializedSymbolID)
             let arity = signature?.parameterTypes.count ?? 0
             let isSuspend = signature?.isSuspend ?? false
             let typeSignature: String? = if let mangler, let types {
-                if isProperty, let propertyType = symbols.propertyType(for: symbolID) {
+                if isProperty, let propertyType = symbols.propertyType(for: serializedSymbolID) {
                     mangler.encodeType(
                         propertyType,
                         symbols: symbols,

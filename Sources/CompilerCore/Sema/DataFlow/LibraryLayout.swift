@@ -221,7 +221,15 @@ extension DataFlowSemaPhase {
                 )
                 continue
             }
-            resolvedVTableSlots[resolvedSymbol] = entry.slot
+            // Property accessor slots are keyed by synthetic getter IDs in the
+            // in-memory layout. The metadata token names the owning property,
+            // so restore it to the same getter key used by LayoutSynthesis and
+            // property-call lowering.
+            if entry.isProperty {
+                resolvedVTableSlots[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: resolvedSymbol)] = entry.slot
+            } else {
+                resolvedVTableSlots[resolvedSymbol] = entry.slot
+            }
         }
 
         var resolvedITableSlots: [SymbolID: Int] = [:]

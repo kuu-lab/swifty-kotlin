@@ -108,35 +108,47 @@ extension DataFlowSemaPhase {
             nextVtableSlot += 1
         }
 
-        // Abstract/open class properties need a getter slot just like member
-        // functions. Without one, a base-class method reads the base property
-        // storage directly and bypasses a concrete subclass getter.
-        let inheritedPropertySlots: [InternedString: Int] = inheritedVtable.reduce(into: [:]) { result, entry in
-            let (symbolID, slot) = entry
-            guard symbols.symbol(symbolID)?.kind == .property else { return }
-            result[symbols.symbol(symbolID)!.name] = slot
-        }
-        let ownVirtualProperties = symbols.children(ofFQName: nominalSymbol.fqName)
-            .compactMap { symbols.symbol($0) }
-            .filter { property in
-                guard nominalSymbol.kind == .class, property.kind == .property else { return false }
-                return property.flags.contains(.abstractType)
-                    || property.flags.contains(.openType)
-                    || property.flags.contains(.overrideMember)
-            }
-            .sorted { lhs, rhs in
-                if lhs.name != rhs.name {
-                    return interner.resolve(lhs.name) < interner.resolve(rhs.name)
-                }
-                return lhs.id.rawValue < rhs.id.rawValue
-            }
-        for property in ownVirtualProperties {
-            if property.flags.contains(.overrideMember),
-               let inheritedSlot = inheritedPropertySlots[property.name]
+        // BUG-227: give open/abstract/override properties a vtable slot for
+        // their getter (and setter, for `var`) accessor, exactly like methods
+        // above, so a property read/write through a base-typed reference
+        // dispatches to the actual runtime type's implementation instead of
+        // always reading the statically-resolved declaration's own storage.
+        // Interfaces are excluded: they have no per-instance field storage of
+        // their own and already dispatch stored/abstract properties through
+        // the separate itable-relative slot space BUG-141 introduced
+        // (kirInterfacePropertyGetterSlots) — this loop must not create a
+        // second, inconsistent slot space for the same property there.
+        let ownAccessorProperties = Self.orderedOwnAccessorProperties(
+            for: nominalSymbol,
+            symbols: symbols
+        )
+        for property in ownAccessorProperties {
+            // Properties cannot be overloaded, so — unlike methods above,
+            // which must disambiguate same-(name, arity) siblings — a name
+            // match against the class's own inheritance chain is always
+            // unambiguous.
+            let inheritedProperty = property.flags.contains(.overrideMember)
+                ? Self.findInheritedClassProperty(named: property.name, startingAt: nominalID, symbols: symbols)
+                : nil
+
+            let getterAccessor = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: inheritedProperty)]
             {
-                vtableSlots[property.id] = inheritedSlot
-            } else if vtableSlots[property.id] == nil {
-                vtableSlots[property.id] = nextVtableSlot
+                vtableSlots[getterAccessor] = matchedSlot
+            } else {
+                vtableSlots[getterAccessor] = nextVtableSlot
+                nextVtableSlot += 1
+            }
+
+            guard property.flags.contains(.mutable) else { continue }
+            let setterAccessor = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: property.id)
+            if let inheritedProperty,
+               let matchedSlot = inheritedVtable[SyntheticSymbolScheme.propertySetterAccessorSymbol(for: inheritedProperty)]
+            {
+                vtableSlots[setterAccessor] = matchedSlot
+            } else {
+                vtableSlots[setterAccessor] = nextVtableSlot
                 nextVtableSlot += 1
             }
         }
@@ -319,5 +331,59 @@ extension DataFlowSemaPhase {
             }
             return lhs.id.rawValue < rhs.id.rawValue
         }
+    }
+
+    /// This nominal's own properties that ever need virtual dispatch: the
+    /// open/abstract root of an override chain, or a link further down it.
+    /// A plain `final` property is never overridden in either direction, so
+    /// it keeps the existing direct field-offset/accessor-call fast path
+    /// untouched and never needs a slot here.
+    private static func orderedOwnAccessorProperties(
+        for nominalSymbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> [SemanticSymbol] {
+        guard nominalSymbol.kind != .interface else {
+            return []
+        }
+        return symbols.children(ofFQName: nominalSymbol.fqName)
+            .compactMap { symbols.symbol($0) }
+            .filter { $0.kind == .property }
+            .filter {
+                $0.flags.contains(.openType)
+                    || $0.flags.contains(.abstractType)
+                    || $0.flags.contains(.overrideMember)
+            }
+            .sorted(by: { $0.id.rawValue < $1.id.rawValue })
+    }
+
+    /// Walks `nominalID`'s superclass chain (never interfaces — those are
+    /// BUG-141's separate itable-relative slot space) for the nearest
+    /// ancestor that directly declares a property named `name`. Properties
+    /// cannot be overloaded, so a name match is always the property being
+    /// overridden — no arity/type disambiguation is needed the way method
+    /// overrides require.
+    private static func findInheritedClassProperty(
+        named name: InternedString,
+        startingAt nominalID: SymbolID,
+        symbols: SymbolTable
+    ) -> SymbolID? {
+        func superclass(of symbolID: SymbolID) -> SymbolID? {
+            symbols.directSupertypes(for: symbolID).first { symbols.symbol($0)?.kind == .class }
+        }
+
+        var visited: Set<SymbolID> = []
+        var current = superclass(of: nominalID)
+        while let ancestorID = current, visited.insert(ancestorID).inserted {
+            guard let ancestorSym = symbols.symbol(ancestorID) else { return nil }
+            let match = symbols.children(ofFQName: ancestorSym.fqName).first { childID in
+                guard let child = symbols.symbol(childID) else { return false }
+                return child.kind == .property && child.name == name
+            }
+            if let match {
+                return match
+            }
+            current = superclass(of: ancestorID)
+        }
+        return nil
     }
 }
