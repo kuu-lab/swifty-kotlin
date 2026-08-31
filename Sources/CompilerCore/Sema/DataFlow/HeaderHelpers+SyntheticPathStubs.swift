@@ -22,8 +22,8 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(pathType, for: pathSymbol)
 
-        let nullablePathType = types.makeNullable(pathType)
-        let pathActionType = types.make(.functionType(FunctionType(
+        _ = types.makeNullable(pathType)
+        _ = types.make(.functionType(FunctionType(
             params: [pathType],
             returnType: types.unitType,
             isSuspend: false,
@@ -88,13 +88,13 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(charsetType, for: charsetSymbol)
-        let stringActionType = types.make(.functionType(FunctionType(
+        _ = types.make(.functionType(FunctionType(
             params: [types.stringType],
             returnType: types.unitType,
             isSuspend: false,
             nullability: .nonNull
         )))
-        let nullableStringType = types.makeNullable(types.stringType)
+        _ = types.makeNullable(types.stringType)
 
         let copyOptionPkg = ensurePackage(path: ["java", "nio", "file"], symbols: symbols, interner: interner)
         let copyOptionPkgSymbol = symbols.lookup(fqName: copyOptionPkg)
@@ -239,7 +239,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         symbols.setPropertyType(fileVisitorBuilderType, for: fileVisitorBuilderSymbol)
-        let fileVisitorBuilderActionType = types.make(.functionType(FunctionType(
+        _ = types.make(.functionType(FunctionType(
             receiver: fileVisitorBuilderType,
             params: [],
             returnType: types.unitType,
@@ -334,7 +334,7 @@ extension DataFlowSemaPhase {
         if listSymbol == nil {
             assertionFailure("kotlin.collections.List symbol not found; Path stubs will use Any as fallback")
         }
-        let listOfPathType: TypeID = if let listSym = listSymbol {
+        _ = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
                 args: [.out(pathType)],
@@ -351,7 +351,7 @@ extension DataFlowSemaPhase {
             interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         )
-        let iterableOfCharSequenceType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: iterableSymbol,
             args: [.invariant(charSequenceType)],
             nullability: .nonNull
@@ -365,13 +365,13 @@ extension DataFlowSemaPhase {
             interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg
         ).mapSymbol
-        let mapOfStringToNullableAnyType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: mapSymbol,
             args: [.invariant(types.stringType), .out(types.nullableAnyType)],
             nullability: .nonNull
         )))
 
-        let listOfStringType: TypeID = if let listSym = listSymbol {
+        _ = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
                 args: [.out(types.stringType)],
@@ -383,7 +383,7 @@ extension DataFlowSemaPhase {
         let javaIOPkg = ensurePackage(path: ["java", "io"], symbols: symbols, interner: interner)
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
         let fileSymbol = symbols.lookup(fqName: javaIOPkg + [interner.intern("File")])
-        let fileType: TypeID = if let fileSym = fileSymbol {
+        _ = if let fileSym = fileSymbol {
             types.make(.classType(ClassType(
                 classSymbol: fileSym, args: [], nullability: .nonNull
             )))
@@ -482,7 +482,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let fileVisitorOfPathType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: fileVisitorSymbol,
             args: [.invariant(pathType)],
             nullability: .nonNull
@@ -531,7 +531,7 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let fileAttributeStarType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: fileAttributeSymbol,
             args: [.star],
             nullability: .nonNull
@@ -585,7 +585,7 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(posixFilePermissionType, for: posixFilePermissionSymbol)
 
-        let setOfPosixFilePermissionType: TypeID = if let setSymbol = symbols.lookup(
+        _ = if let setSymbol = symbols.lookup(
             fqName: [interner.intern("kotlin"), interner.intern("collections"), interner.intern("Set")]
         ) {
             types.make(.classType(ClassType(
