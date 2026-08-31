@@ -109,7 +109,9 @@ extension BuildASTPhase {
                 while index < statementTokens.endIndex {
                     let token = statementTokens[index]
                     if typeDepth.isAtTopLevel,
-                       token.kind == .symbol(.assign) || token.kind == .symbol(.semicolon)
+                       token.kind == .symbol(.assign)
+                        || token.kind == .symbol(.semicolon)
+                        || token.kind == .softKeyword(.by)
                     {
                         break
                     }

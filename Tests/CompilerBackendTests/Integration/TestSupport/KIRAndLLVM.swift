@@ -44,6 +44,18 @@ func extractCallees(
     }
 }
 
+/// Like `extractCallees`, but also reports each call's argument count for
+/// tests that need to distinguish overloads by arity.
+func extractCalleesWithArgumentCounts(
+    from body: [KIRInstruction],
+    interner: StringInterner
+) -> [(String, Int)] {
+    body.compactMap { instruction -> (String, Int)? in
+        guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else { return nil }
+        return (interner.resolve(callee), arguments.count)
+    }
+}
+
 /// Imported stdlib functions are mangled in a precompiled artifact, while
 /// source-injected declarations retain their short Kotlin name in KIR.
 func isKotlinCallee(_ actual: String, named expected: String) -> Bool {

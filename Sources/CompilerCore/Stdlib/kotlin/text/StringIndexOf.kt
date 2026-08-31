@@ -23,35 +23,19 @@ package kotlin.text
 // private impl, so the only default-parameter values needed anywhere in this file are
 // plain literals (0, false).
 
-private fun ksp408CharsEqual(a: Char, b: Char, ignoreCase: Boolean): Boolean {
-    if (a == b) return true
-    if (!ignoreCase) return false
-    return a.lowercaseChar() == b.lowercaseChar()
-}
-
 private fun charEqualsAt(selfChars: List<Char>, pos: Int, target: Char, ignoreCase: Boolean): Boolean {
     if (pos < 0 || pos >= selfChars.size) return false
-    return ksp408CharsEqual(selfChars[pos], target, ignoreCase)
+    return __kkCharsEqual(selfChars[pos], target, ignoreCase)
 }
 
 private fun charArrayMatchesAt(selfChars: List<Char>, pos: Int, chars: CharArray, ignoreCase: Boolean): Boolean {
     if (pos < 0 || pos >= selfChars.size) return false
     var i = 0
     while (i < chars.size) {
-        if (ksp408CharsEqual(selfChars[pos], chars[i], ignoreCase)) return true
+        if (__kkCharsEqual(selfChars[pos], chars[i], ignoreCase)) return true
         i++
     }
     return false
-}
-
-private fun regionMatchesAt(selfChars: List<Char>, pos: Int, needle: List<Char>, ignoreCase: Boolean): Boolean {
-    if (pos < 0 || pos + needle.size > selfChars.size) return false
-    var i = 0
-    while (i < needle.size) {
-        if (!ksp408CharsEqual(selfChars[pos + i], needle[i], ignoreCase)) return false
-        i++
-    }
-    return true
 }
 
 // Returns the index of the first (in iteration order) of `needles` that matches at `pos`,
@@ -67,7 +51,8 @@ private fun stringCollectionMatchIndexAt(
 ): Int {
     var i = 0
     while (i < needles.size) {
-        if (regionMatchesAt(selfChars, pos, needles[i].toList(), ignoreCase)) return i
+        val needleChars = needles[i].toList()
+        if (__kkRegionMatches(selfChars, pos, needleChars, 0, needleChars.size, ignoreCase)) return i
         i++
     }
     return -1
@@ -115,7 +100,7 @@ public fun CharSequence.indexOf(string: String, startIndex: Int = 0, ignoreCase:
     val needleChars = string.toList()
     var pos = forwardSearchStart(startIndex, ignoreCase, selfChars.size)
     while (pos <= selfChars.size) {
-        if (regionMatchesAt(selfChars, pos, needleChars, ignoreCase)) return pos
+        if (__kkRegionMatches(selfChars, pos, needleChars, 0, needleChars.size, ignoreCase)) return pos
         pos++
     }
     return -1
@@ -137,7 +122,7 @@ public fun CharSequence.indexOf(char: Char, startIndex: Int = 0, ignoreCase: Boo
 private fun lastIndexOfStringImpl(selfChars: List<Char>, needleChars: List<Char>, startIndex: Int?, ignoreCase: Boolean): Int {
     var pos = backwardSearchStart(startIndex, ignoreCase, selfChars.size)
     while (pos >= 0) {
-        if (regionMatchesAt(selfChars, pos, needleChars, ignoreCase)) return pos
+        if (__kkRegionMatches(selfChars, pos, needleChars, 0, needleChars.size, ignoreCase)) return pos
         pos--
     }
     return -1
