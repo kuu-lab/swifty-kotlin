@@ -577,7 +577,7 @@ extension CallLowerer {
             case ("size", .set?):
                 return interner.intern("__kk_set_size")
             case ("size", .array?):
-                return interner.intern("kk_array_size")
+                return interner.intern("__kk_array_size")
             case ("size", .list?):
                 return interner.intern("__kk_list_size")
             case ("size", .collection?):

@@ -22,6 +22,12 @@ extension DataFlowSemaPhase {
         importedInlineFunctions: inout [SymbolID: KIRFunction],
         cache: LibraryMetadataCache? = nil
     ) -> LibraryImportDeferredWork {
+        // Imported function bounds may refer to java.io.Closeable before the
+        // synthetic FileIO registration phase creates its compatibility anchor.
+        _ = ensureJavaIOCloseableCompatibilityAnchor(
+            symbols: symbols,
+            interner: interner
+        )
         let libraryDirs = discoverLibraryDirectories(searchPaths: options.effectiveLibrarySearchPaths)
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []

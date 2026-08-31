@@ -245,21 +245,20 @@ extension OverloadResolver {
             guard index < signature.typeParameterUpperBoundsList.count else {
                 continue
             }
-            let typeParamType = ctx.types.make(.typeParam(TypeParamType(symbol: typeParamSymbol)))
             let signatureBounds = signature.typeParameterUpperBoundsList[index]
             let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
             let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
             for upperBound in upperBounds {
                 guard case let .typeParam(boundTypeParam) = ctx.types.kind(of: upperBound),
-                      typeVarBySymbol[boundTypeParam.symbol] != nil
+                      let typeParamVariable = typeVarBySymbol[typeParamSymbol],
+                      let boundTypeParamVariable = typeVarBySymbol[boundTypeParam.symbol]
                 else {
                     continue
                 }
-                constraints.append(contentsOf: decomposeSubtypeConstraint(
-                    subtype: typeParamType,
-                    supertype: upperBound,
-                    typeVarBySymbol: typeVarBySymbol,
-                    typeSystem: ctx.types,
+                constraints.append(VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(typeParamVariable),
+                    right: .variable(boundTypeParamVariable),
                     blameRange: call.range
                 ))
             }

@@ -344,8 +344,9 @@ extension DataFlowSemaPhase {
     }
 
     /// Collects the type parameter symbols referenced by a decoded function type
-    /// in declaration order (first occurrence), so imported generic signatures
-    /// can be solved during overload resolution.
+    /// in declaration order, so imported generic signatures can be solved during
+    /// overload resolution. Metadata type parameters are encoded by their
+    /// declaration index, while a receiver can mention a later parameter first.
     private func collectTypeParameterSymbols(
         from functionType: FunctionType,
         types: TypeSystem
@@ -384,7 +385,13 @@ extension DataFlowSemaPhase {
         if let receiver = functionType.receiver { visit(receiver) }
         for param in functionType.params { visit(param) }
         visit(functionType.returnType)
-        return result
+        let declarationOrderedSyntheticParameters = result
+            .filter { $0.rawValue <= DataFlowSemaPhase.syntheticTypeParameterBase }
+            .sorted { $0.rawValue > $1.rawValue }
+        let ownerParameters = result.filter {
+            $0.rawValue > DataFlowSemaPhase.syntheticTypeParameterBase
+        }
+        return ownerParameters + declarationOrderedSyntheticParameters
     }
 
     func importedPropertyType(
