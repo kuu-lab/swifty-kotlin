@@ -52,6 +52,39 @@ struct FeatureTests {
     }
 
     @Test
+    func hoverSurvivesParseErrorBeforeRecoveredExpression() {
+        let source = """
+        package demo
+
+        }
+        fun recovered(): Int = 42
+        """
+        let analysis = Analyzer().analyze(uri: uri, text: source)
+
+        #expect(
+            analysis.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0006" },
+            "The fixture should retain the syntax error diagnostic: \(analysis.diagnostics.map(\.code))"
+        )
+        #expect(analysis.context.ast != nil, "LSP analysis should build AST after a parse error")
+        #expect(analysis.context.sema != nil, "LSP analysis should run Sema after a parse error")
+
+        guard let position = LSPTestSupport.position(of: "42", in: source) else {
+            Issue.record("Could not locate recovered expression")
+            return
+        }
+        let hover = HoverFeature.hover(
+            for: analysis,
+            line: position.line,
+            character: position.character
+        )
+        #expect(hover != nil, "Hover should survive a syntax error before a valid expression")
+        #expect(
+            hover?.contents.value.contains("Int") ?? false,
+            "Recovered expression hover should mention Int, got: \(hover?.contents.value ?? "nil")"
+        )
+    }
+
+    @Test
     func definitionResolvesTopLevelReference() {
         let source = """
         fun helper(): Int {
