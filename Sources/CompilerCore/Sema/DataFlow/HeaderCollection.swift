@@ -176,10 +176,10 @@ extension DataFlowSemaPhase {
         let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
             fqName: fqName,
+            declarationFlags: declaration.flags,
             file: file,
             sourceManager: sourceManager,
-            symbols: symbols,
-            interner: interner
+            symbols: symbols
         )
         if reusableSyntheticSymbol == nil {
             checkAndReportDuplicateDeclaration(
@@ -323,6 +323,87 @@ extension DataFlowSemaPhase {
                     flags: [.synthetic]
                 )
             }
+        }
+    }
+
+    /// KSP-1522: forward-declares the source-backed `kotlin.random.Random` and
+    /// `java.util.Random` nominal types before synthetic collection and Sequence
+    /// members resolve their parameter types. `JavaRandomInterop.kt` can also be
+    /// collected before `JavaUtilRandom.kt`, so both owners must be available in
+    /// the same early pass.
+    func predeclareBundledRandomHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let targets: [([InternedString], InternedString)] = [
+            (
+                [interner.intern("kotlin"), interner.intern("random")],
+                interner.intern("Random")
+            ),
+            (
+                [interner.intern("java"), interner.intern("util")],
+                interner.intern("Random")
+            ),
+        ]
+        for (packageFQName, targetName) in targets {
+            for file in ast.sortedFiles where file.packageFQName == packageFQName {
+                let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                    guard let decl = ast.arena.decl(declID) else { return false }
+                    switch decl {
+                    case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                        return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                    case .funDecl, .propertyDecl, .enumEntryDecl:
+                        return false
+                    }
+                }
+                guard declaresTargetNominal,
+                      let fileScope = fileScopes[file.fileID.rawValue]
+                else { continue }
+                predeclareNominalTypeHeaders(
+                    file: file, ast: ast, symbols: symbols, scope: fileScope,
+                    sourceManager: sourceManager, diagnostics: diagnostics,
+                    interner: interner, into: &predeclared
+                )
+            }
+        }
+    }
+
+    /// KSP-1334: forward-declares the source-backed KTypeProjection nominal
+    /// before reflection synthetic stubs resolve its property owner.
+    func predeclareBundledKTypeProjectionHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
+        let targetName = interner.intern("KTypeProjection")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
         }
     }
 
@@ -834,7 +915,20 @@ extension DataFlowSemaPhase {
             }
 
         case let .objectDecl(objectDecl):
-            let objectType = types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+            // Unit keeps its builtin value representation, but its source-backed
+            // object symbol must remain available for ordinary member dispatch.
+            let builtinNames = BuiltinTypeNames(interner: interner)
+            let isUnitObject = package == [interner.intern("kotlin")] && declaration.name == builtinNames.unit
+            if isUnitObject {
+                types.unitClassSymbol = symbol
+            }
+            // Unit's value representation is a builtin type, but its member
+            // declarations are source-backed. Use the builtin type as the
+            // member receiver so normal overload resolution accepts Unit
+            // values without a name-based dispatch exception.
+            let objectType = isUnitObject
+                ? unitType
+                : types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
             let objectScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
@@ -1213,23 +1307,29 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Returns the predeclared synthetic nominal that a bundled source
+    /// declaration takes over, if one exists. Early synthetic stub passes
+    /// register nominal placeholders (e.g. `kotlin.Comparator`) so other stubs
+    /// can reference the type before bundled header collection runs; the
+    /// bundled declaration then claims that placeholder instead of defining a
+    /// duplicate symbol. User sources never claim placeholders — a same-name
+    /// collision there must still surface as KSWIFTK-SEMA-0001.
     func reusableSyntheticDeclarationSymbol(
         kind: SymbolKind,
         fqName: [InternedString],
+        declarationFlags: SymbolFlags,
         file: ASTFile,
         sourceManager: SourceManager,
-        symbols: SymbolTable,
-        interner: StringInterner
+        symbols: SymbolTable
     ) -> SymbolID? {
         guard kind == .class || kind == .interface || kind == .object || kind == .enumClass else { return nil }
-        let reusableKeys = reusableSyntheticSourceDeclarationKeys(
-            for: file,
-            sourceManager: sourceManager,
-            interner: interner
-        )
-        guard reusableKeys.contains(fqName) else {
-            return nil
-        }
+        guard sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else { return nil }
+        // expect/actual declarations keep the coexistence path that
+        // checkAndReportDuplicateDeclaration already grants them over
+        // synthetic-only collisions, instead of claiming the placeholder.
+        guard !declarationFlags.contains(.expectDeclaration),
+              !declarationFlags.contains(.actualDeclaration)
+        else { return nil }
         return symbols.lookupAll(fqName: fqName).first { symbolID in
             guard let symbol = symbols.symbol(symbolID) else { return false }
             return symbol.kind == kind && symbol.flags.contains(.synthetic)
@@ -1245,116 +1345,10 @@ extension DataFlowSemaPhase {
         // KSP-683 needs the migrated Duration nominals to remain source-backed
         // for their value-class and enum metadata.
         let resolvedFQName = fqName.map(interner.resolve)
-        return resolvedFQName == ["kotlin", "time", "Duration"]
+        return resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+            || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
-    }
-
-    /// The fully-qualified names a bundled source file is allowed to claim from
-    /// an earlier synthetic registration. A file may declare more than one such
-    /// nominal (`Exceptions.kt` declares the whole common exception hierarchy).
-    private func reusableSyntheticSourceDeclarationKeys(
-        for file: ASTFile,
-        sourceManager: SourceManager,
-        interner: StringInterner
-    ) -> [[InternedString]] {
-        let names: [[String]] = switch sourceManager.path(of: file.fileID) {
-        case "__bundled_kotlin/Lazy.kt":
-            [["kotlin", "Lazy"]]
-        case "__bundled_kotlin/Annotation.kt":
-            [["kotlin", "Annotation"]]
-        case "__bundled_kotlin/Comparable.kt":
-            [["kotlin", "Comparable"]]
-        case "__bundled_kotlin/CharSequence.kt":
-            [["kotlin", "CharSequence"]]
-        case "__bundled_kotlin/AutoCloseable.kt":
-            [["kotlin", "AutoCloseable"]]
-        case "__bundled_kotlin/Comparator.kt":
-            [["kotlin", "Comparator"]]
-        case "__bundled_kotlin/Enum.kt":
-            [["kotlin", "Enum"]]
-        case "__bundled_kotlin/io/Closeable.kt":
-            [["kotlin", "io", "Closeable"]]
-        case "__bundled_kotlin/collections/RandomAccess.kt":
-            [["kotlin", "collections", "RandomAccess"]]
-        case "__bundled_kotlin/collections/MutableIterable.kt":
-            [["kotlin", "collections", "MutableIterable"]]
-        case "__bundled_kotlin/collections/AbstractCollection.kt":
-            [["kotlin", "collections", "AbstractCollection"]]
-        case "__bundled_kotlin/collections/AbstractMutableCollection.kt":
-            [["kotlin", "collections", "AbstractMutableCollection"]]
-        case "__bundled_kotlin/collections/AbstractMutableSet.kt":
-            [["kotlin", "collections", "AbstractMutableSet"]]
-        case "__bundled_kotlin/Result/Stdlib.kt":
-            [["kotlin", "Result"]]
-        case "__bundled_kotlin/text/StringBuilder.kt":
-            [["kotlin", "text", "StringBuilder"]]
-        case "__bundled_kotlin/uuid/Uuid.kt":
-            [["kotlin", "uuid", "Uuid"]]
-        case "__bundled_java/math/BigDecimal.kt":
-            [["java", "math", "BigDecimal"]]
-        case "__bundled_kotlin/random/Random.kt":
-            [["kotlin", "random", "Random"]]
-        case "__bundled_kotlin/random/JavaUtilRandom.kt":
-            [["java", "util", "Random"]]
-        case "__bundled_kotlin/text/StringEncoding.kt":
-            [["kotlin", "text", "Charset"]]
-        case "__bundled_kotlin/Throwable.kt":
-            [["kotlin", "Throwable"]]
-        case "__bundled_kotlin/text/CharacterCodingException.kt":
-            [["kotlin", "text", "CharacterCodingException"]]
-        case "__bundled_kotlin/RuntimeException/Stdlib.kt":
-            [["kotlin", "RuntimeException"]]
-        case "__bundled_kotlin/NumberFormatException/Stdlib.kt":
-            [["kotlin", "NumberFormatException"]]
-        case "__bundled_kotlin/IndexOutOfBoundsException/Stdlib.kt":
-            [["kotlin", "IndexOutOfBoundsException"]]
-        case "__bundled_kotlin/NullPointerException/Stdlib.kt":
-            [["kotlin", "NullPointerException"]]
-        case "__bundled_kotlin/Exceptions.kt":
-            [
-                ["kotlin", "Error"],
-                ["kotlin", "Exception"],
-                ["kotlin", "IllegalArgumentException"],
-                ["kotlin", "IllegalStateException"],
-                ["kotlin", "ConcurrentModificationException"],
-                ["kotlin", "UnsupportedOperationException"],
-                ["kotlin", "ClassCastException"],
-                ["kotlin", "AssertionError"],
-                ["kotlin", "NoSuchElementException"],
-                ["kotlin", "ArithmeticException"],
-                ["kotlin", "NoWhenBranchMatchedException"],
-                ["kotlin", "UninitializedPropertyAccessException"],
-            ]
-        case "__bundled_kotlin/properties/Interfaces.kt":
-            [["kotlin", "properties", "ReadWriteProperty"]]
-        case "__bundled_kotlin/time/TimeSource.kt":
-            [
-                ["kotlin", "time", "TimeSource"],
-                ["kotlin", "time", "TimeSource", "WithComparableMarks"],
-                ["kotlin", "time", "TimeSource", "Monotonic"],
-            ]
-        case "__bundled_kotlin/time/TimeSources.kt":
-            [
-                ["kotlin", "time", "AbstractLongTimeSource"],
-                ["kotlin", "time", "AbstractDoubleTimeSource"],
-                ["kotlin", "time", "TestTimeSource"],
-            ]
-        case "__bundled_kotlin/time/Duration.kt":
-            [["kotlin", "time", "Duration"]]
-        case "__bundled_kotlin/time/DurationUnit.kt":
-            [["kotlin", "time", "DurationUnit"]]
-        case "__bundled_kotlin/sequences/Sequence.kt":
-            [["kotlin", "sequences", "Sequence"]]
-        case "__bundled_kotlin/ranges/Ranges.kt":
-            [
-                ["kotlin", "ranges", "ClosedRange"],
-                ["kotlin", "ranges", "ClosedFloatingPointRange"],
-                ["kotlin", "ranges", "OpenEndRange"],
-            ]
-        default:
-            []
-        }
-        return names.map { $0.map { interner.intern($0) } }
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
     }
 
     /// Registers type parameters for a nominal type (class or interface) as symbols,

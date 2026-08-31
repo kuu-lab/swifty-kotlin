@@ -143,6 +143,13 @@ struct BundledDeclarationIndex: Sendable {
             if Self.isSyntheticJoinToTransformOverload(symbol.id, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
+            // A Kotlin property and an extension function may share the same
+            // owner, name, and arity. Do not report the retained synthetic
+            // property when the bundled declaration is the source-backed
+            // function being migrated (for example CharProgression.first).
+            if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
+                continue
+            }
             guard contains(key), reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
@@ -213,6 +220,39 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
+    private static func hasSourceBackedFunctionOverlap(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let charProgressionFQName = ["kotlin", "ranges", "CharProgression"].map { interner.intern($0) }
+        let migratedNames = Set(["first", "firstOrNull", "last", "lastOrNull"].map { interner.intern($0) })
+        guard symbol.kind == .property,
+              key.ownerFQName == charProgressionFQName,
+              migratedNames.contains(key.name)
+        else {
+            return false
+        }
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.kind == .function,
+                  !candidate.flags.contains(.synthetic),
+                  candidate.declSite != nil,
+                  let candidateKey = memberKey(
+                      for: candidate,
+                      symbolID: candidate.id,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return candidateKey == key
+        }
+    }
+
     static func isRuntimeBackedSyntheticRetainedOverlap(
         _ key: BundledMemberKey,
         interner: StringInterner
@@ -230,26 +270,13 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
-        if ownerFQName == ["kotlin", "comparisons"] {
-            return isRuntimeBackedComparatorSyntheticRetainedOverlap(key, interner: interner)
+        if ownerFQName == ["kotlin", "collections", "Map"] {
+            // Map.get has two intentional surfaces: the source-backed variance
+            // extension and the synthetic interface member that lowers to the
+            // runtime lookup bridge. They must not be collapsed into one symbol.
+            return interner.resolve(key.name) == "get" && key.arity == 1
         }
         return false
-    }
-
-    private static func isRuntimeBackedComparatorSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        interner: StringInterner
-    ) -> Bool {
-        // KSP-309 bundles compareBy(selector) and compareBy(comparator, selector) in
-        // Kotlin source, while the multi-selector vararg/2/3-selector overloads are
-        // still synthetic. The arity-1/2 collisions are intentional overload pairs
-        // (different parameter types), not accidental duplicates.
-        switch interner.resolve(key.name) {
-        case "compareBy":
-            return key.arity == 1 || key.arity == 2
-        default:
-            return false
-        }
     }
 
     private static func isRuntimeBackedListSyntheticRetainedOverlap(
@@ -301,12 +328,12 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // Bundled Comparators.kt provides compareBy(selector) and
-        // compareBy(comparator, selector), while the synthetic multi-selector
-        // overloads (2/3 selectors and vararg) remain runtime-backed bridges.
-        // The bundled index only tracks arity, so the multi-selector and vararg
-        // overloads collide with the source arities; mark them as intentional
-        // retained overloads.
+        // KSP-461 fully migrated compareBy to bundled Comparators.kt: selector(1),
+        // comparator+selector(2), 2-selector(2), and 3-selector(3) all resolve to
+        // source with no runtime bridge left (kk_comparator_from_multi_selectors*
+        // are gone). The bundled index only tracks arity, so the two distinct
+        // arity-2 overloads collapse onto one key; mark 1/2/3 as intentional
+        // overload collisions rather than accidental duplicates.
         switch interner.resolve(key.name) {
         case "compareBy":
             return key.arity == 1 || key.arity == 2 || key.arity == 3
@@ -546,9 +573,9 @@ struct BundledDeclarationIndex: Sendable {
         // source implementation instead of the generic Iterable declaration.
         // Iterable reduce/reduceIndexed/reduceRight* declarations are now
         // source-backed in Iterables.kt; no synthetic member is needed for the
-        // plain Iterable receiver. The remaining names here (fold and friends,
-        // scan/runningFold/...) use the bundled Sequence source body when the
-        // collection-flow fallback explicitly permits an Iterable receiver.
+        // plain Iterable receiver. The remaining names here (foldRight and
+        // friends, scan/runningFold/...) use the bundled Sequence source body
+        // when the collection-flow fallback explicitly permits an Iterable receiver.
         let nonAliasedIndexedAccessNames = Set([
             interner.intern("fold"),
             interner.intern("foldIndexed"),
