@@ -599,7 +599,29 @@ jar_main_class() {
   local jar_path="$1"
   unzip -p "$jar_path" META-INF/MANIFEST.MF 2>/dev/null \
     | tr -d '\r' \
-    | awk -F': ' '/^Main-Class:/ { print $2; exit }'
+    | awk '
+      function emit_main_class() {
+        if (reading_main_class && !emitted_main_class) {
+          print main_class
+          emitted_main_class = 1
+        }
+      }
+      /^Main-Class: / {
+        emit_main_class()
+        main_class = substr($0, 13)
+        reading_main_class = 1
+        next
+      }
+      reading_main_class && /^ / {
+        main_class = main_class substr($0, 2)
+        next
+      }
+      reading_main_class {
+        emit_main_class()
+        reading_main_class = 0
+      }
+      END { emit_main_class() }
+    '
 }
 
 fingerprint_kotlinc_classpath() {
@@ -1006,6 +1028,30 @@ normalize_stdout_for_diff() {
   fi
 }
 
+# Compare normalized ref/candidate run stdout for one case, honoring an
+# optional // DIFF_LINE_PATTERN: directive. On mismatch, prints a diff and
+# returns 1; the caller is responsible for setting ok=0 in that case.
+compare_run_stdout() {
+  local tmp_dir="$1"
+  local kt_file="$2"
+  local line_pattern
+  line_pattern="$(get_diff_line_pattern "$kt_file")"
+  if [[ -n "$line_pattern" ]]; then
+    normalize_stdout_for_diff "$tmp_dir/ref_run_stdout.norm" "$line_pattern" > "$tmp_dir/ref_run_stdout.pat"
+    normalize_stdout_for_diff "$tmp_dir/cand_run_stdout.norm" "$line_pattern" > "$tmp_dir/cand_run_stdout.pat"
+    if diff -u "$tmp_dir/ref_run_stdout.pat" "$tmp_dir/cand_run_stdout.pat" >/dev/null; then
+      return 0
+    fi
+  else
+    if diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" >/dev/null; then
+      return 0
+    fi
+  fi
+  echo "  stdout mismatch:"
+  diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
+  return 1
+}
+
 run_case() {
   local kt_file="$1"
   local artifact_file="${2:-}"
@@ -1053,21 +1099,21 @@ run_case() {
   if [[ $is_script -eq 1 ]]; then
     local kts_tmp="$tmp_dir/${basename%.kt}.kts"
     cp "$kt_file" "$kts_tmp"
-    local script_exit=0
+    # kotlinc -script bundles compile+run into a single JVM process, so there
+    # is no independently observable compile-phase exit to split out here —
+    # ref_compile_exit stays 0 and the whole outcome (success, a compile
+    # error, a runtime exception, or a timeout) lands in ref_run_exit as one
+    # value. Splitting it via a "nonzero exit + empty stdout" heuristic used
+    # to misclassify a runtime exception thrown before any output as a
+    # compile failure; the comparison below (the is_script branch) instead
+    # treats script cases as their own category rather than retrofitting a
+    # compile/run split onto a process that never had one.
     if [[ -n "$KOTLINC_CLASSPATH" ]]; then
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -classpath "$KOTLINC_CLASSPATH" -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
     else
       # shellcheck disable=SC2086
-      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || script_exit=$?
-    fi
-    if [[ $script_exit -eq 124 ]]; then
-      # Timeout in script mode is a runtime timeout, not a compile timeout
-      ref_run_exit=124
-    elif [[ $script_exit -ne 0 ]] && [[ ! -s "$ref_run_stdout" ]]; then
-      ref_compile_exit=$script_exit
-    else
-      ref_run_exit=$script_exit
+      "$TIMEOUT_CMD" "$SCRIPT_TIMEOUT" "$KOTLINC" -Xcontext-parameters $kotlinc_extra_flags -script "$kts_tmp" >"$ref_run_stdout" 2>"$ref_run_stderr" || ref_run_exit=$?
     fi
   else
     local cached_ref_jar=""
@@ -1141,68 +1187,92 @@ run_case() {
 
   local ok=1
 
-  if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
-    ok=0
-    echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
-  fi
-  if [[ $ref_compile_exit -eq 124 ]]; then
-    ok=0
-    echo "  ref compile timed out after ${COMPILE_TIMEOUT}s"
-  fi
   if [[ $cand_compile_exit -eq 124 ]]; then
     ok=0
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  # Matching non-zero compile exits short-circuit the run/stdout comparison
-  # below, so this "passes" without either side ever executing. The match is
-  # necessary but not sufficient evidence of equivalent behavior — both
-  # compilers reject their own input for possibly unrelated reasons (stderr is
-  # not diffed). Flag it so a green run isn't mistaken for verified parity.
-  if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
-    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not imply matching failure reasons (stderr is not diffed) — this PASS is inconclusive, not verified parity"
-  fi
+  if [[ $is_script -eq 1 ]]; then
+    # kotlinc -script never had a separate compile phase to compare (see the
+    # is_script branch above), so this is not "ref compile exit vs candidate
+    # compile exit" — it's ref's single combined exit vs whichever candidate
+    # phase actually produced a result (compile failed, or compile succeeded
+    # and run finished/failed). Reusing the compile/run mismatch wording here
+    # would misreport a ref runtime failure as a "compile exit mismatch"
+    # whenever the candidate's real (and separate) compile step succeeds.
+    local cand_script_exit=$cand_compile_exit
+    if [[ $cand_compile_exit -eq 0 ]]; then
+      cand_script_exit=$cand_run_exit
+    fi
 
-  if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
-    if [[ $ref_run_exit -ne $cand_run_exit ]]; then
+    if [[ $ref_run_exit -ne $cand_script_exit ]]; then
       ok=0
-      echo "  run exit mismatch: ref=$ref_run_exit candidate=$cand_run_exit"
+      echo "  script exit mismatch: ref=$ref_run_exit candidate=$cand_script_exit"
     fi
     if [[ $ref_run_exit -eq 124 ]]; then
       ok=0
-      if [[ $is_script -eq 1 ]]; then
-        echo "  ref script (compile+run) timed out after ${SCRIPT_TIMEOUT}s"
-      else
-        echo "  ref run timed out after ${RUN_TIMEOUT}s"
-      fi
+      echo "  ref script (compile+run) timed out after ${SCRIPT_TIMEOUT}s"
     fi
-    if [[ $cand_run_exit -eq 124 ]]; then
+    if [[ $cand_compile_exit -ne 124 && $cand_run_exit -eq 124 ]]; then
       ok=0
       echo "  candidate run timed out after ${RUN_TIMEOUT}s"
     fi
-    line_pattern=$(get_diff_line_pattern "$kt_file")
-    if [[ -n "$line_pattern" ]]; then
-      normalize_stdout_for_diff "$tmp_dir/ref_run_stdout.norm" "$line_pattern" > "$tmp_dir/ref_run_stdout.pat"
-      normalize_stdout_for_diff "$tmp_dir/cand_run_stdout.norm" "$line_pattern" > "$tmp_dir/cand_run_stdout.pat"
-      if ! diff -u "$tmp_dir/ref_run_stdout.pat" "$tmp_dir/cand_run_stdout.pat" >/dev/null; then
+
+    if [[ $ref_run_exit -eq 0 && $cand_script_exit -eq 0 ]]; then
+      if ! compare_run_stdout "$tmp_dir" "$kt_file"; then
         ok=0
-        echo "  stdout mismatch:"
-        diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
       fi
-    else
-      if ! diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" >/dev/null; then
-        ok=0
-        echo "  stdout mismatch:"
-        diff -u "$tmp_dir/ref_run_stdout.norm" "$tmp_dir/cand_run_stdout.norm" || true
-      fi
+    elif [[ $ref_run_exit -ne 0 && $cand_script_exit -ne 0 && $ref_run_exit -eq $cand_script_exit && $ref_run_exit -ne 124 ]]; then
+      # Matching non-zero exit codes do not imply the same failure reason —
+      # ref's script may have failed to compile while the candidate's run
+      # phase failed for an unrelated reason, or vice versa. Treat this as
+      # unverified rather than silently passing (stderr for both sides is
+      # included in the FAIL output/artifacts below).
+      ok=0
+      echo "  note: both ref script and candidate failed with exit=$ref_run_exit; matching exit codes do not verify parity — stderr is reported below; this case will FAIL"
     fi
-  elif [[ $ref_compile_exit -ne 0 && $cand_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit ]]; then
-    # Matching non-zero exit codes do not imply the same failure reason: ref
-    # and candidate may be erroring out for entirely unrelated causes. Treat
-    # this as unverified rather than silently passing (compile stderr for
-    # both sides is included in the FAIL output/artifacts below).
-    ok=0
-    echo "  both compile failed with exit=$ref_compile_exit (matching exit code alone does not verify parity; compile stderr not compared)"
+  else
+    if [[ $ref_compile_exit -ne $cand_compile_exit ]]; then
+      ok=0
+      echo "  compile exit mismatch: ref=$ref_compile_exit candidate=$cand_compile_exit"
+    fi
+    if [[ $ref_compile_exit -eq 124 ]]; then
+      ok=0
+      echo "  ref compile timed out after ${COMPILE_TIMEOUT}s"
+    fi
+
+    # Matching non-zero compile exits skip the run/stdout comparison below, then
+    # the matching-failure branch forces this case to FAIL. Compile stderr is
+    # retained in the failure output and artifacts; matching exit codes alone
+    # never count as verified parity.
+    if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
+      echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not verify parity — compile stderr is reported below; this case will FAIL"
+    fi
+
+    if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
+      if [[ $ref_run_exit -ne $cand_run_exit ]]; then
+        ok=0
+        echo "  run exit mismatch: ref=$ref_run_exit candidate=$cand_run_exit"
+      fi
+      if [[ $ref_run_exit -eq 124 ]]; then
+        ok=0
+        echo "  ref run timed out after ${RUN_TIMEOUT}s"
+      fi
+      if [[ $cand_run_exit -eq 124 ]]; then
+        ok=0
+        echo "  candidate run timed out after ${RUN_TIMEOUT}s"
+      fi
+      if ! compare_run_stdout "$tmp_dir" "$kt_file"; then
+        ok=0
+      fi
+    elif [[ $ref_compile_exit -ne 0 && $cand_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit ]]; then
+      # Matching non-zero exit codes do not imply the same failure reason: ref
+      # and candidate may be erroring out for entirely unrelated causes. Treat
+      # this as unverified rather than silently passing (compile stderr for
+      # both sides is included in the FAIL output/artifacts below).
+      ok=0
+      echo "  both compile failed with exit=$ref_compile_exit (matching exit code alone does not verify parity; compile stderr not compared)"
+    fi
   fi
 
   if [[ $ok -eq 1 ]]; then
@@ -1211,11 +1281,25 @@ run_case() {
     fi
   else
     echo "FAIL $kt_file"
-    echo "  ref compile stderr:"
-    sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
+    if [[ $is_script -eq 1 ]]; then
+      # There is no separate ref compile phase for script mode (see the
+      # is_script branch above) — kotlinc -script's only stderr output,
+      # whether from a compile diagnostic or an uncaught runtime exception,
+      # lands in ref_run_stderr.
+      echo "  ref script stderr:"
+      sed -n '1,120p' "$ref_run_stderr"
+    else
+      echo "  ref compile stderr:"
+      sed -n '1,120p' "$tmp_dir/ref_compile_stderr.norm"
+    fi
     echo "  candidate compile stderr:"
     sed -n '1,120p' "$tmp_dir/cand_compile_stderr.norm"
-    if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
+    if [[ $is_script -eq 1 ]]; then
+      if [[ $cand_compile_exit -eq 0 ]]; then
+        echo "  candidate run stderr:"
+        sed -n '1,120p' "$cand_run_stderr"
+      fi
+    elif [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then
       echo "  ref run stderr:"
       sed -n '1,120p' "$ref_run_stderr"
       echo "  candidate run stderr:"

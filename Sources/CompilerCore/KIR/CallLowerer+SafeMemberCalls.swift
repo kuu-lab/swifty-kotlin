@@ -282,7 +282,7 @@ extension CallLowerer {
                     if nonNullReceiverType == floatType {
                         let converted = arena.appendTemporary(type: doubleType)
                         emitNonThrowingCall(
-                            callee: interner.intern("kk_float_to_double_bits"),
+                            callee: interner.intern("__kk_float_to_double_bits"),
                             arg: lhs,
                             result: converted,
                             into: &instructions.instructions
@@ -292,7 +292,7 @@ extension CallLowerer {
                     if nonNullRhsType == floatType {
                         let converted = arena.appendTemporary(type: doubleType)
                         emitNonThrowingCall(
-                            callee: interner.intern("kk_float_to_double_bits"),
+                            callee: interner.intern("__kk_float_to_double_bits"),
                             arg: rhs,
                             result: converted,
                             into: &instructions.instructions
@@ -579,8 +579,8 @@ extension CallLowerer {
             case ("toInt", ulongType, intType): interner.intern("kk_ulong_to_int")
             case ("toInt", ubyteType, intType): interner.intern("kk_ubyte_to_int")
             case ("toInt", ushortType, intType): interner.intern("kk_ushort_to_int")
-            case ("toInt", doubleType, intType): interner.intern("kk_double_to_int")
-            case ("toInt", floatType, intType): interner.intern("kk_float_to_int")
+            case ("toInt", doubleType, intType): interner.intern("__kk_double_to_int")
+            case ("toInt", floatType, intType): interner.intern("__kk_float_to_int")
             case ("toInt", longType, intType): interner.intern("kk_long_to_int")
             case ("toInt", byteType, intType): nil // identity
             case ("toInt", shortType, intType): nil // identity
@@ -596,8 +596,8 @@ extension CallLowerer {
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
             case ("toLong", ubyteType, longType): interner.intern("kk_ubyte_to_long")
             case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
-            case ("toLong", doubleType, longType): interner.intern("kk_double_to_long")
-            case ("toLong", floatType, longType): interner.intern("kk_float_to_long")
+            case ("toLong", doubleType, longType): interner.intern("__kk_double_to_long")
+            case ("toLong", floatType, longType): interner.intern("__kk_float_to_long")
             case ("toLong", byteType, longType): nil // identity
             case ("toLong", shortType, longType): nil // identity
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
@@ -621,7 +621,7 @@ extension CallLowerer {
             case ("toFloat", ushortType, floatType): interner.intern("kk_ushort_to_float")
             case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
-            case ("toDouble", floatType, doubleType): interner.intern("kk_float_to_double_bits")
+            case ("toDouble", floatType, doubleType): interner.intern("__kk_float_to_double_bits")
             case ("toDouble", doubleType, doubleType): nil // identity
             case ("toDouble", uintType, doubleType): interner.intern("kk_uint_to_double")
             case ("toDouble", ulongType, doubleType): interner.intern("kk_ulong_to_double")

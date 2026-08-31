@@ -30,42 +30,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_double_to_int",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_float_to_int",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_double_to_long",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_float_to_long",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_long_to_int",
             parameters: [
                 RuntimeABIParameter(name: "value", type: .intptr),

@@ -13,7 +13,12 @@ package kotlin
 // synthetic self-registration. The actual `name` / `ordinal` accessors and
 // `compareTo` are compiler residuals handled elsewhere; this source shell
 // provides the public type declaration for `is` checks and generic bounds.
-public abstract class Enum<T : Enum<T>> : Comparable<T>
+public abstract class Enum<T : Enum<T>> protected constructor(
+    name: String,
+    ordinal: Int
+) : Comparable<T> {
+    public companion object {}
+}
 
 // KSP-776: These declarations are the source-backed public surface for the
 // reified enum intrinsics. Their fallback bodies are never executed for a

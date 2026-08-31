@@ -74,3 +74,36 @@ public fun Double.toRawBits(): Long = __doubleToRawBits(this)
 public fun Float.toBits(): Int = __floatToBits(this)
 
 public fun Float.toRawBits(): Int = __floatToRawBits(this)
+
+// KSP-1538: keep floating-point conversion policy in the bundled Kotlin API.
+// The hidden bridges only carry the IEEE payload across the raw KIR ABI; the
+// public conversion members below own Kotlin's saturation and truncation
+// contract. Float/Double.toChar intentionally compose through toInt().
+@KsSymbolName("__kk_double_to_int")
+private external fun __doubleToInt(value: Double): Int
+
+@KsSymbolName("__kk_double_to_long")
+private external fun __doubleToLong(value: Double): Long
+
+@KsSymbolName("__kk_float_to_int")
+private external fun __floatToInt(value: Float): Int
+
+@KsSymbolName("__kk_float_to_long")
+private external fun __floatToLong(value: Float): Long
+
+@KsSymbolName("__kk_float_to_double_bits")
+private external fun __floatToDouble(value: Float): Double
+
+public fun Double.toInt(): Int = __doubleToInt(this)
+
+public fun Double.toLong(): Long = __doubleToLong(this)
+
+public fun Double.toChar(): Char = toInt().toChar()
+
+public fun Float.toInt(): Int = __floatToInt(this)
+
+public fun Float.toLong(): Long = __floatToLong(this)
+
+public fun Float.toDouble(): Double = __floatToDouble(this)
+
+public fun Float.toChar(): Char = toInt().toChar()

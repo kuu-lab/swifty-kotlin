@@ -308,24 +308,6 @@ public func kk_short_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
 }
 
-@_cdecl("kk_float_to_char")
-public func kk_float_to_char(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f.isNaN || f.isSignalingNaN { return 0 }
-    if f <= 0 { return 0 }
-    if f >= Float(UInt16.max) { return Int(UInt16.max) }
-    return Int(UInt16(f))
-}
-
-@_cdecl("kk_double_to_char")
-public func kk_double_to_char(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN || d.isSignalingNaN { return 0 }
-    if d <= 0 { return 0 }
-    if d >= Double(UInt16.max) { return Int(UInt16.max) }
-    return Int(UInt16(d))
-}
-
 func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {
     value.withCString { cString in
         cString.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
