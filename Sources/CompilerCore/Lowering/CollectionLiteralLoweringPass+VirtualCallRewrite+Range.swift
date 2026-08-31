@@ -190,12 +190,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         // map — HOF returning List (STDLIB-091)
-        if callee == lookup.mapName, arguments.count == 1 {
+        if callee == lookup.mapName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_map")
-                    : (isUIntRange ? interner.intern("kk_uint_range_map") : lookup.kkRangeMapName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_map") : lookup.kkRangeMapName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -208,12 +207,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
 
         // Additional range HOFs.
-        if callee == lookup.mapIndexedName, arguments.count == 1 {
+        if callee == lookup.mapIndexedName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_mapIndexed")
-                    : (isUIntRange ? interner.intern("kk_uint_range_mapIndexed") : lookup.kkRangeMapIndexedName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_mapIndexed") : lookup.kkRangeMapIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -224,12 +222,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
-        if callee == lookup.mapNotNullName, arguments.count == 1 {
+        if callee == lookup.mapNotNullName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_mapNotNull")
-                    : (isUIntRange ? interner.intern("kk_uint_range_mapNotNull") : lookup.kkRangeMapNotNullName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_mapNotNull") : lookup.kkRangeMapNotNullName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -240,12 +237,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
-        if callee == lookup.filterName, arguments.count == 1 {
+        if callee == lookup.filterName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filter")
-                    : (isUIntRange ? interner.intern("kk_uint_range_filter") : lookup.kkRangeFilterName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_filter") : lookup.kkRangeFilterName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -256,12 +252,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
-        if callee == lookup.filterIndexedName, arguments.count == 1 {
+        if callee == lookup.filterIndexedName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filterIndexed")
-                    : (isUIntRange ? interner.intern("kk_uint_range_filterIndexed") : lookup.kkRangeFilterIndexedName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_filterIndexed") : lookup.kkRangeFilterIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -272,12 +267,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             if let result { listExprIDs.insert(result.rawValue) }
             return true
         }
-        if callee == lookup.filterNotName, arguments.count == 1 {
+        if callee == lookup.filterNotName, arguments.count == 1, !isUIntRange {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let hofResult = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_filterNot")
-                    : (isUIntRange ? interner.intern("kk_uint_range_filterNot") : lookup.kkRangeFilterNotName),
+                kkName: isULongRange ? interner.intern("kk_ulong_range_filterNot") : lookup.kkRangeFilterNotName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,

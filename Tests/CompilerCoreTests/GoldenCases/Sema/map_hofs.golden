@@ -17,7 +17,7 @@ file fmap_hofs package=_
   decl render fun render sym=render
 expr e@2:5 name(values) type=kotlin.collections.Map<String, Int> ref=render.$0.values
 expr e@3:17 name(key) type=String ref=__destructuring_0.key
-expr e@3:9 call callee=e@3:9#1 args=[_:e@3:17] type=Unit call=kotlin.io.println#1
+expr e@3:9 call callee=e@3:9#1 args=[_:e@3:17] type=Unit call=kotlin.io.println#2
 expr e@4:17 name(value) type=Int ref=__destructuring_0.value
 expr e@4:9 call callee=e@4:9#1 args=[_:e@4:17] type=Unit call=kotlin.io.println#1
 expr e@3:9#2 blockExpr stmts=[e@3:9] trailing=e@4:9 type=Unit

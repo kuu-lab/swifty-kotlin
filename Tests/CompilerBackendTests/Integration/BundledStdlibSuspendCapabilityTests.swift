@@ -9,10 +9,6 @@ import Testing
 /// 固定されていなかったため追加する。ジェネリック型引数 + suspend 関数型パラメータ + 実際の suspension
 /// point（`delay`）を含み、bundled 側の関数からユーザー側の suspend ラムダを呼び出す形（KSP-674/KSP-679
 /// が実際に必要とする形）を再現する。
-private struct UnexpectedDiagnostics: Error, CustomStringConvertible {
-    let description: String
-}
-
 @Suite
 struct BundledStdlibSuspendCapabilityTests {
     // suspension point (`delay`) はジェネリック suspend fun 自体の本体に置く。ラムダ本体は
@@ -59,12 +55,11 @@ struct BundledStdlibSuspendCapabilityTests {
         try withTemporaryFile(contents: combinedSource) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
-            let options = CompilerOptions(
+            let options = makeTestOptions(
                 moduleName: "KspCap012UserSuspend",
                 inputs: [path],
                 outputPath: outputBase,
-                emit: .executable,
-                target: defaultTargetTriple()
+                emit: .executable
             )
             let ctx = CompilationContext(
                 options: options,
@@ -93,12 +88,11 @@ struct BundledStdlibSuspendCapabilityTests {
             let sourceManager = SourceManager()
             _ = sourceManager.addFile(path: bundledPath, contents: Data(probeSource.utf8), origin: .bundledStdlib)
 
-            let options = CompilerOptions(
+            let options = makeTestOptions(
                 moduleName: "KspCap012BundledSuspend",
                 inputs: [userPath],
                 outputPath: outputBase,
-                emit: .executable,
-                target: defaultTargetTriple()
+                emit: .executable
             )
             let ctx = CompilationContext(
                 options: options,
@@ -120,13 +114,5 @@ struct BundledStdlibSuspendCapabilityTests {
             let result = try CommandRunner.run(executable: outputBase, arguments: [])
             #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "44\n")
         }
-    }
-
-    private func assertNoDiagnosticErrors(_ ctx: CompilationContext) throws {
-        guard ctx.diagnostics.hasError else { return }
-        let messages = ctx.diagnostics.diagnostics
-            .map { "\($0.code): \($0.message)" }
-            .joined(separator: ", ")
-        throw UnexpectedDiagnostics(description: "Unexpected diagnostics: \(messages)")
     }
 }

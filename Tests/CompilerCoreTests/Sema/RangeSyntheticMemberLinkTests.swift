@@ -193,6 +193,88 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testUIntRangeMapFilterFamilyIsSourceBacked() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun mapValue(range: UIntRange): List<UInt> = range.map { it }
+            fun mapIndexedValue(range: UIntRange): List<UInt> = range.mapIndexed { index, value -> index.toUInt() + value }
+            fun mapNotNullValue(range: UIntRange): List<UInt> = range.mapNotNull { if (it % 2u == 0u) null else it }
+            fun filterValue(range: UIntRange): List<UInt> = range.filter { it % 2u == 1u }
+            fun filterIndexedValue(range: UIntRange): List<UInt> = range.filterIndexed { index, _ -> index % 2 == 0 }
+            fun filterNotValue(range: UIntRange): List<UInt> = range.filterNot { it % 2u == 0u }
+            """
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            Comment(rawValue: "Expected UIntRange map/filter HOFs to type-check, got: \(errors)")
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let expectedMembers = ["map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot"]
+        let uintRangeFQName = ["kotlin", "ranges", "UIntRange"].map { ctx.interner.intern($0) }
+        for member in expectedMembers {
+            let callExpr = try #require(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == member
+                },
+                "Expected UIntRange.\(member) member call"
+            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(signature.parameterTypes.count == 1)
+            let receiver = try #require(signature.receiverType)
+            let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiver, sema: sema))
+            #expect(receiverSymbol.fqName == uintRangeFQName)
+        }
+    }
+
+    @Test func testUIntProgressionMapFilterFamilyIsSourceBacked() throws {
+        let ctx = makeContextFromSource(
+            """
+            fun mapValue(range: UIntProgression): List<UInt> = range.map { it }
+            fun mapIndexedValue(range: UIntProgression): List<UInt> = range.mapIndexed { index, value -> index.toUInt() + value }
+            fun mapNotNullValue(range: UIntProgression): List<UInt> = range.mapNotNull { if (it % 2u == 0u) null else it }
+            fun filterValue(range: UIntProgression): List<UInt> = range.filter { it % 2u == 1u }
+            fun filterIndexedValue(range: UIntProgression): List<UInt> = range.filterIndexed { index, _ -> index % 2 == 0 }
+            fun filterNotValue(range: UIntProgression): List<UInt> = range.filterNot { it % 2u == 0u }
+            """
+        )
+        try runSema(ctx)
+        let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
+        #expect(
+            errors.isEmpty,
+            Comment(rawValue: "Expected UIntProgression map/filter HOFs to type-check, got: \(errors)")
+        )
+
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let expectedMembers = ["map", "mapIndexed", "mapNotNull", "filter", "filterIndexed", "filterNot"]
+        let uintProgressionFQName = ["kotlin", "ranges", "UIntProgression"].map { ctx.interner.intern($0) }
+        for member in expectedMembers {
+            let callExpr = try #require(
+                firstExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == member
+                },
+                "Expected UIntProgression.\(member) member call"
+            )
+            let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+            let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+            #expect(signature.parameterTypes.count == 1)
+            let receiver = try #require(signature.receiverType)
+            let (_, receiverSymbol) = try #require(resolveClassTypeSymbol(receiver, sema: sema))
+            #expect(receiverSymbol.fqName == uintProgressionFQName)
+        }
+    }
+
     @Test func testRangeRandomStubsHaveCorrectExternalLinks() throws {
         let (sema, interner) = try sharedSema()
 

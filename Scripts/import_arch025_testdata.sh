@@ -7,8 +7,7 @@ MANIFEST="$ROOT_DIR/Tests/ARCH-025/manifest.tsv"
 UPSTREAM_URL="${ARCH025_UPSTREAM_URL:-https://github.com/JetBrains/kotlin.git}"
 UPSTREAM_REF="v2.3.10"
 UPSTREAM_REVISION="679366a83f99851b42f64795f10ed803ff011c73"
-DRY_RUN=0
-VERIFY_ONLY=0
+MODE=import # import | dry-run | verify
 
 usage() {
   cat <<USAGE
@@ -23,29 +22,25 @@ Options:
 USAGE
 }
 
-hash_file() {
+hash_stdin() {
   if command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 "$1" | awk '{print $1}'
+    shasum -a 256 | awk '{print $1}'
   else
-    sha256sum "$1" | awk '{print $1}'
+    sha256sum | awk '{print $1}'
   fi
 }
 
-hash_upstream_file() {
-  if command -v shasum >/dev/null 2>&1; then
-    git -C "$1" show "${UPSTREAM_REVISION}:$2" | shasum -a 256 | awk '{print $1}'
-  else
-    git -C "$1" show "${UPSTREAM_REVISION}:$2" | sha256sum | awk '{print $1}'
-  fi
+hash_file() {
+  hash_stdin <"$1"
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run)
-      DRY_RUN=1
+      MODE=dry-run
       ;;
     --verify)
-      VERIFY_ONLY=1
+      MODE=verify
       ;;
     -h|--help)
       usage
@@ -59,10 +54,6 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-
-if [[ $VERIFY_ONLY -eq 1 ]]; then
-  DRY_RUN=1
-fi
 
 [[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
@@ -93,7 +84,9 @@ while IFS=$'\t' read -r record_id kind upstream_path fixture_path expected avail
     continue
   fi
 
-  upstream_sha256="$(hash_upstream_file "$UPSTREAM_DIR" "$upstream_path")"
+  blob_file="$TEMP_ROOT/blob-$record_id"
+  git -C "$UPSTREAM_DIR" show "${UPSTREAM_REVISION}:${upstream_path}" >"$blob_file"
+  upstream_sha256="$(hash_file "$blob_file")"
   if [[ "$upstream_sha256" != "$sha256" ]]; then
     echo "Manifest hash mismatch for $record_id: expected $sha256, got $upstream_sha256" >&2
     failures=$((failures + 1))
@@ -101,45 +94,39 @@ while IFS=$'\t' read -r record_id kind upstream_path fixture_path expected avail
   fi
 
   destination="$ROOT_DIR/$fixture_path"
-  if [[ $DRY_RUN -eq 1 ]]; then
-    if [[ -f "$destination" ]]; then
-      actual_sha256="$(hash_file "$destination")"
-      if [[ "$actual_sha256" != "$sha256" ]]; then
-        echo "Fixture hash mismatch for $record_id: $destination" >&2
-        failures=$((failures + 1))
-        continue
-      fi
-      echo "VERIFY $record_id $fixture_path sha256=$sha256"
-    else
-      if [[ $VERIFY_ONLY -eq 1 ]]; then
-        echo "Missing fixture for $record_id: $destination" >&2
-        failures=$((failures + 1))
+  if [[ -f "$destination" ]]; then
+    actual_sha256="$(hash_file "$destination")"
+    if [[ "$actual_sha256" != "$sha256" ]]; then
+      if [[ "$MODE" == import ]]; then
+        echo "Refusing to overwrite non-matching fixture: $destination" >&2
       else
-        echo "DRY-RUN $record_id $fixture_path sha256=$sha256"
+        echo "Fixture hash mismatch for $record_id: $destination" >&2
       fi
+      failures=$((failures + 1))
+      continue
+    fi
+    if [[ "$MODE" == import ]]; then
+      echo "UNCHANGED $record_id $fixture_path"
+    else
+      echo "VERIFY $record_id $fixture_path sha256=$sha256"
     fi
     continue
   fi
 
-  if [[ -f "$destination" ]]; then
-    actual_sha256="$(hash_file "$destination")"
-    if [[ "$actual_sha256" != "$sha256" ]]; then
-      echo "Refusing to overwrite non-matching fixture: $destination" >&2
-      failures=$((failures + 1))
-    else
-      echo "UNCHANGED $record_id $fixture_path"
-    fi
+  if [[ "$MODE" == verify ]]; then
+    echo "Missing fixture for $record_id: $destination" >&2
+    failures=$((failures + 1))
+    continue
+  fi
+
+  if [[ "$MODE" == dry-run ]]; then
+    echo "DRY-RUN $record_id $fixture_path sha256=$sha256"
     continue
   fi
 
   mkdir -p "$(dirname "$destination")"
-  git -C "$UPSTREAM_DIR" show "${UPSTREAM_REVISION}:${upstream_path}" >"$destination"
-  if [[ "$(hash_file "$destination")" != "$sha256" ]]; then
-    echo "Imported fixture hash verification failed: $destination" >&2
-    failures=$((failures + 1))
-  else
-    echo "IMPORTED $record_id $fixture_path"
-  fi
+  mv "$blob_file" "$destination"
+  echo "IMPORTED $record_id $fixture_path"
 done < "$MANIFEST"
 
 if [[ $failures -ne 0 ]]; then
