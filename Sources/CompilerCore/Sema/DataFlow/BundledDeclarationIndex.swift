@@ -276,26 +276,7 @@ struct BundledDeclarationIndex: Sendable {
             // runtime lookup bridge. They must not be collapsed into one symbol.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
-        if ownerFQName == ["kotlin", "comparisons"] {
-            return isRuntimeBackedComparatorSyntheticRetainedOverlap(key, interner: interner)
-        }
         return false
-    }
-
-    private static func isRuntimeBackedComparatorSyntheticRetainedOverlap(
-        _ key: BundledMemberKey,
-        interner: StringInterner
-    ) -> Bool {
-        // KSP-309 bundles compareBy(selector) and compareBy(comparator, selector) in
-        // Kotlin source, while the multi-selector vararg/2/3-selector overloads are
-        // still synthetic. The arity-1/2 collisions are intentional overload pairs
-        // (different parameter types), not accidental duplicates.
-        switch interner.resolve(key.name) {
-        case "compareBy":
-            return key.arity == 1 || key.arity == 2
-        default:
-            return false
-        }
     }
 
     private static func isRuntimeBackedListSyntheticRetainedOverlap(
@@ -347,12 +328,12 @@ struct BundledDeclarationIndex: Sendable {
         _ key: BundledMemberKey,
         interner: StringInterner
     ) -> Bool {
-        // Bundled Comparators.kt provides compareBy(selector) and
-        // compareBy(comparator, selector), while the synthetic multi-selector
-        // overloads (2/3 selectors and vararg) remain runtime-backed bridges.
-        // The bundled index only tracks arity, so the multi-selector and vararg
-        // overloads collide with the source arities; mark them as intentional
-        // retained overloads.
+        // KSP-461 fully migrated compareBy to bundled Comparators.kt: selector(1),
+        // comparator+selector(2), 2-selector(2), and 3-selector(3) all resolve to
+        // source with no runtime bridge left (kk_comparator_from_multi_selectors*
+        // are gone). The bundled index only tracks arity, so the two distinct
+        // arity-2 overloads collapse onto one key; mark 1/2/3 as intentional
+        // overload collisions rather than accidental duplicates.
         switch interner.resolve(key.name) {
         case "compareBy":
             return key.arity == 1 || key.arity == 2 || key.arity == 3
