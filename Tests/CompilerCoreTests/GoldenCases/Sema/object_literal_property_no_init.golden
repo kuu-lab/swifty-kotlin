@@ -14,4 +14,4 @@ expr e@8:13#1 memberCall recv=e@8:13 callee=x args=[] type=Int ref=__ObjectLiter
 expr e@8:5 call callee=e@8:5#1 args=[_:e@8:13#1] type=Unit call=kotlin.io.println#1
 expr e@9:13 name(obj) type=__ObjectLiteral_0_48_113 ref=__local_0.obj
 expr e@9:13#1 memberCall recv=e@9:13 callee=y args=[] type=String ref=__ObjectLiteral_0_48_113.y
-expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
+expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#2

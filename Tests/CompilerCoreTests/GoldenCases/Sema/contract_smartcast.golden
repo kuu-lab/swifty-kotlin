@@ -73,4 +73,4 @@ expr e@40:15#1 binary(notEqual) lhs=e@40:15 rhs=e@40:20 type=Boolean
 expr e@40:5 call callee=e@40:5#1 args=[_:e@40:15#1] type=Unit call=myRequire
 expr e@41:13 name(d) type=String? ref=__local_5.d
 expr e@41:13#1 memberCall recv=e@41:13 callee=length args=[] type=<error>
-expr e@41:5 call callee=e@41:5#1 args=[_:e@41:13#1] type=Unit call=kotlin.io.println#1
+expr e@41:5 call callee=e@41:5#1 args=[_:e@41:13#1] type=Unit call=kotlin.io.println#2

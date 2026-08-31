@@ -64,6 +64,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1334: make the source-backed KTypeProjection nominal available
+        // before reflection synthetic stubs attach its residual properties.
+        predeclareBundledKTypeProjectionHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
@@ -283,6 +290,11 @@ final class DataFlowSemaPhase: CompilerPhase {
         // name (BuiltinTypeNames.number), so signatures that mention `Number`
         // need types.numberClassSymbol set before they are resolved.
         resolveNumberClassSymbol(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+        resolveUnitClassSymbol(
             symbols: symbols,
             types: types,
             interner: ctx.interner

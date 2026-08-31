@@ -29,6 +29,9 @@ private external fun __kkDoubleArrayToList(array: DoubleArray): List<Double>
 @KsSymbolName("__kk_floatArray_toList")
 private external fun __kkFloatArrayToList(array: FloatArray): List<Float>
 
+@KsSymbolName("__kk_array_toList")
+private external fun <T> __kkArrayToList(array: Array<out T>): List<T>
+
 // KSP-1512: public signed primitive-array members are source-backed. `size`
 // uses the intrinsic declarations in kotlin.ArrayIntrinsics.kt, while
 // `toList` delegates to the typed runtime bridge for correct primitive boxing.
@@ -40,6 +43,13 @@ public val CharArray.size: Int get() = __kkCharArraySize(this)
 public val BooleanArray.size: Int get() = __kkBooleanArraySize(this)
 public val DoubleArray.size: Int get() = __kkDoubleArraySize(this)
 public val FloatArray.size: Int get() = __kkFloatArraySize(this)
+
+// KSP-1513: generic Array<T> members are source-backed. `toList` delegates to
+// a runtime copy bridge, while `size` keeps the generic element type intact.
+// The parser does not accept a type-parameter list on an extension property;
+// a star-projected receiver preserves the generic Array<T> surface.
+public val Array<*>.size: Int get() = __kkArraySize(this)
+public fun <T> Array<out T>.toList(): List<T> = __kkArrayToList(this)
 
 public fun IntArray.toList(): List<Int> = __kkIntArrayToList(this)
 public fun LongArray.toList(): List<Long> = __kkLongArrayToList(this)

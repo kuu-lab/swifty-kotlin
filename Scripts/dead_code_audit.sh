@@ -30,6 +30,7 @@ Exclusion pipeline (reproduces docs/dead-code-audit.md):
                         (list / set / map / sequence HOF; array is separate)
   4. Test references  — Tests/ direct calls (word-boundary match)
   5. Runtime-internal — non-@_cdecl kk_* appearances inside Sources/Runtime
+                        (excluding fatalError(...) diagnostic-message text)
 
 Output categories:
   A: Completely unreachable — no path from compiler, tests, or runtime internals
@@ -144,9 +145,13 @@ log "[5] Test references: $(wc -l < "$WORK/kk_tests.txt" | tr -d ' ')"
 
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
 # @_cdecl 行と func 定義行を除外することで、他の Runtime 関数からの実際の呼び出しを取得する
+# fatalError(...) 行も除外する: 行内の kk_* はほぼ全て "kk_xxx received invalid ... handle" /
+# "invalid ... handle in kk_xxx" のように自分自身の関数名を診断文字列として繰り返す自己言及であり、
+# 実際の呼び出しではない。除外しないと真に到達不能な cdecl が「内部参照あり」と誤判定され A から漏れる。
 (grep -rh '_*kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
     | grep -v '@_cdecl' \
     | grep -vE '\bfunc _*kk_' \
+    | grep -v 'fatalError(' \
     | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
 log "[6] Runtime-internal refs: $(wc -l < "$WORK/kk_runtime_internal.txt" | tr -d ' ')"
@@ -204,9 +209,14 @@ if [[ -n "$OUTPUT_DIR" ]]; then
 fi
 
 # ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
-# 過去に本スクリプトが取りこぼしていた 2 経路を固定する。回帰すると exit 1。
+# 過去に本スクリプトが取りこぼしていた 3 経路を固定する。回帰すると exit 1。
 #   fixture 1: kk_print_string_flat  — CompilerBackend でのみ emit。A に入れば誤り。
 #   fixture 2: kk_atomic_ref_array_loadAt — 2 段階 prefix 生成で到達。B に入れば誤り。
+#   fixture 3: kk_path_isAbsolute — Runtime 内での唯一の言及が自分自身の fatalError 診断
+#              メッセージ。真に到達不能（spec-only orphan）なので A に入らなければ誤り。
+#              注意: このシンボル自体が将来削除されるか実装が入って参照が増えたら、この
+#              fixture は "FAIL" になるが、それは fatalError フィルタの回帰ではなく fixture
+#              の陳腐化。その場合は他の fatalError-self-mention-only な orphan に差し替える。
 if [[ $SELFTEST -eq 1 ]]; then
   echo ""
   echo "=== Self-test (regression fixtures) ==="
@@ -224,6 +234,13 @@ if [[ $SELFTEST -eq 1 ]]; then
     selftest_failed=1
   else
     echo "PASS: kk_atomic_ref_array_loadAt not in B (two-stage prefix emit detected)"
+  fi
+
+  if grep -qx "kk_path_isAbsolute" "$WORK/dead_A.txt"; then
+    echo "PASS: kk_path_isAbsolute correctly classified as A (fatalError self-mention filtered)"
+  else
+    echo "FAIL: kk_path_isAbsolute missing from A (fatalError self-mention masking dead symbol)" >&2
+    selftest_failed=1
   fi
 
   if [[ $selftest_failed -ne 0 ]]; then

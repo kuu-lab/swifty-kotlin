@@ -32,6 +32,17 @@ extension DataFlowSemaPhase {
             experimentalTimeSymbol,
             symbols: symbols
         )
+        let experimentalTimeType = types.make(.classType(ClassType(
+            classSymbol: experimentalTimeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerSyntheticExperimentalTimeConstructor(
+            ownerSymbol: experimentalTimeSymbol,
+            ownerType: experimentalTimeType,
+            symbols: symbols,
+            interner: interner
+        )
 
         let instantSymbol = ensureClassSymbol(
             named: "Instant",
@@ -283,6 +294,51 @@ extension DataFlowSemaPhase {
             annotations.append(retention)
         }
         symbols.setAnnotations(annotations, for: annotationSymbol)
+    }
+
+    private func registerSyntheticExperimentalTimeConstructor(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        let initName = interner.intern("<init>")
+        let constructorFQName = ownerInfo.fqName + [initName]
+        if symbols.lookupAll(fqName: constructorFQName).contains(where: { symbolID in
+            guard symbols.symbol(symbolID)?.kind == .constructor,
+                  let signature = symbols.functionSignature(for: symbolID)
+            else {
+                return false
+            }
+            return signature.parameterTypes.isEmpty && signature.returnType == ownerType
+        }) {
+            return
+        }
+
+        let constructorSymbol = symbols.define(
+            kind: .constructor,
+            name: initName,
+            fqName: constructorFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: ownerType,
+                parameterTypes: [],
+                returnType: ownerType,
+                isSuspend: false,
+                valueParameterSymbols: [],
+                valueParameterHasDefaultValues: [],
+                valueParameterIsVararg: []
+            ),
+            for: constructorSymbol
+        )
     }
 
     private func ensureExperimentalTimeNestedObject(

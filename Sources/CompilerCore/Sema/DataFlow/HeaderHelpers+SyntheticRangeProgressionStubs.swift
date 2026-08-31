@@ -557,7 +557,7 @@ extension DataFlowSemaPhase {
                 fqName: classFQName,
                 declSite: nil,
                 visibility: .public,
-                flags: [.synthetic]
+                flags: name == "ULongProgression" ? [.synthetic, .openType] : [.synthetic]
             )
             symbols.setParentSymbol(rangesPackageSymbol, for: created)
             classSymbol = created

@@ -1310,6 +1310,25 @@ extension AnnotationSemanticTests {
                 "Expected ExperimentalContracts to carry @Retention(AnnotationRetention.BINARY), got: \(annotations)"
             )
 
+            let constructorFQName = fqName + [ctx.interner.intern("<init>")]
+            let constructorID = try #require(
+                sema.symbols.lookupAll(fqName: constructorFQName).first(where: { id in
+                    guard let constructor = sema.symbols.symbol(id) else {
+                        return false
+                    }
+                    return constructor.kind == .constructor
+                        && constructor.visibility == .public
+                        && !constructor.flags.contains(.synthetic)
+                        && constructor.declSite != nil
+                        && sema.symbols.functionSignature(for: id)?.parameterTypes.isEmpty == true
+                }),
+                "Expected ExperimentalContracts to expose a source-backed public implicit no-arg constructor"
+            )
+            #expect(
+                sema.symbols.functionSignature(for: constructorID)?.parameterTypes.isEmpty == true,
+                "Expected ExperimentalContracts.<init> to have no value parameters"
+            )
+
             }
             // testExperimentalExtendedContractsAnnotationIsSourceBackedOptInMarker
             do {
