@@ -54,7 +54,10 @@ extension BuildKIRRegressionTests {
 
             import kotlin.native.getStackTraceAddresses
 
-            fun probe2(): List<Long> = getStackTraceAddresses()
+            class TestThrowable : Throwable()
+
+            fun probe2(throwable: Throwable): List<Long> = throwable.getStackTraceAddresses()
+            fun probe2Subclass(): List<Long> = TestThrowable().getStackTraceAddresses()
             """,
             """
             @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -331,6 +334,15 @@ extension BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "probe2", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
+        #expect(callees.contains("kk_native_getStackTraceAddresses"))
+    }
+    @Test func testThrowableSubclassCaptureLowersBeforeStackTraceAddressLookup() throws {
+        let ctx = try sharedNativePlatformKIRCtx()
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "probe2Subclass", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+
+        #expect(callees.contains("__kk_throwable_captureStackTrace"))
         #expect(callees.contains("kk_native_getStackTraceAddresses"))
     }
     @Test func testABILoweringMarksNativeGetStackTraceAddressesAsNonThrowing() {

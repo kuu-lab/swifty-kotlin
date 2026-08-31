@@ -43,11 +43,36 @@ public interface TimeSource {
             public operator fun minus(duration: Duration): ValueTimeMark =
                 plus(-duration)
 
+            public override fun hasPassedNow(): Boolean = !elapsedNow().isNegative()
+
+            public override fun hasNotPassedNow(): Boolean = elapsedNow().isNegative()
+
+            public override operator fun minus(other: ComparableTimeMark): Duration {
+                if (other !is ValueTimeMark) {
+                    throw IllegalArgumentException(
+                        "Subtracting or comparing time marks from different time sources is not possible: $this and $other"
+                    )
+                }
+                val valueTimeMark = other as ValueTimeMark
+                return this.minus(valueTimeMark)
+            }
+
             public operator fun compareTo(other: ValueTimeMark): Int =
                 reading.compareTo(other.reading)
 
             public operator fun minus(other: ValueTimeMark): Duration =
                 timeMarkAddNanos(reading, timeMarkNegateNanos(other.reading)).nanoseconds
+
+            public override fun equals(other: Any?): Boolean {
+                if (other !is ValueTimeMark) return false
+                val that = other as ValueTimeMark
+                return reading == that.reading
+            }
+
+            public override fun hashCode(): Int =
+                reading.toInt() xor (reading ushr 32).toInt()
+
+            public override fun toString(): String = "ValueTimeMark(reading=$reading)"
         }
     }
 

@@ -2787,12 +2787,19 @@ extension CallTypeChecker {
         }
 
         if memberName == interner.intern("sortedWith"), argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [receiverElementType, receiverElementType],
-                returnType: sema.types.intType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
+            let comparatorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("Comparator"),
+            ]
+            let expectedType: TypeID = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: comparatorSymbol,
+                    args: [.in(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
             return (argumentIndex: 0, expectedType: expectedType)
         }
 

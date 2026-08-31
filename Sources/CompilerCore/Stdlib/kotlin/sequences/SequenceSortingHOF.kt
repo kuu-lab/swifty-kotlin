@@ -67,18 +67,23 @@ public fun <T, R : Comparable<R>> Sequence<T>.sortedByDescending(selector: (T) -
 public fun <T : Comparable<T>> Sequence<T>.sortedDescending(): Sequence<T> =
     sorted().reversed().asSequence()
 
-public fun <T> Sequence<T>.sortedWith(comparator: (T, T) -> Int): Sequence<T> {
-    val elements = this.toList()
-    val result = mutableListOf<T>()
-    var i = 0
-    while (i < elements.size) {
-        val element = elements[i]
-        var insertAt = result.size
-        while (insertAt > 0 && comparator(result[insertAt - 1], element) > 0) {
-            insertAt--
+public fun <T> Sequence<T>.sortedWith(comparator: Comparator<in T>): Sequence<T> {
+    val source = this
+    return object : Sequence<T> {
+        override fun iterator(): Iterator<T> {
+            val elements = source.toList()
+            val result = mutableListOf<T>()
+            var i = 0
+            while (i < elements.size) {
+                val element = elements[i]
+                var insertAt = result.size
+                while (insertAt > 0 && comparator.compare(result[insertAt - 1], element) > 0) {
+                    insertAt--
+                }
+                result.add(insertAt, element)
+                i++
+            }
+            return result.iterator()
         }
-        result.add(insertAt, element)
-        i++
     }
-    return result.asSequence()
 }
