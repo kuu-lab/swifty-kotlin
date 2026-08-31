@@ -567,13 +567,32 @@ extension CallLowerer {
         // so itable dispatch must be attempted there as well;
         // tryEmitVirtualDispatch falls back to the link name when the receiver
         // has no resolvable itable entry.
+        // Source-backed ListIterator inherits hasNext/next from Iterator, but
+        // loweredMemberCalleeName intentionally retains those names so the
+        // implementation can be selected through its dynamic itable.
+        let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
+            receiverType: sema.bindings.exprTypes[receiver.expr],
+            calleeName: loweredCallee,
+            sema: sema,
+            interner: interner
+        ) != nil
         let isImportedLibraryLink = chosenCallee.map { symbol in
-            (!kirIsRuntimeBridgedCallee(symbol, sema: sema)
-                || isImportedInterfaceMember(symbol, sema: sema))
-                && sema.symbols.externalLinkName(for: symbol)
-                    .map { interner.intern($0) == loweredCallee } == true
+            // Imported source-backed interface members (kk_fn_* links) still
+            // need itable dispatch, but runtime-bridged interface members must
+            // call their ABI entry point directly. The latter can now be
+            // source-declared and serialized into a stdlib artifact (for
+            // example Collection.isEmpty), so treating every imported
+            // interface link as virtual dispatch breaks runtime collection
+            // boxes that intentionally have no Kotlin itable entry.
+            let linkMatches = sema.symbols.externalLinkName(for: symbol)
+                .map { interner.intern($0) == loweredCallee } == true
+            return linkMatches && !kirIsRuntimeBridgedCallee(symbol, sema: sema)
         } ?? false
-        if loweredCallee == calleeName
+        let isRuntimeBridgedCallee = chosenCallee.map {
+            kirIsRuntimeBridgedCallee($0, sema: sema)
+        } ?? false
+        if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || listIteratorInheritedDispatch
             || isImportedLibraryLink
             || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
@@ -603,6 +622,7 @@ extension CallLowerer {
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
+            sourceArgExprs: sourceArgExprs,
             sema: sema,
             interner: interner
         ) {
@@ -698,7 +718,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFold"),
             interner.intern("kk_sequence_runningReduceIndexed"),
             interner.intern("kk_sequence_sortedBy"),
-            interner.intern("kk_sequence_sortedWith"),
             interner.intern("kk_sequence_sortedByDescending"),
             interner.intern("kk_sequence_takeLastWhile"),
             interner.intern("kk_sequence_firstNotNullOf"),
@@ -713,7 +732,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_mapIndexed"),
             interner.intern("kk_sequence_filterIndexed"),
-            interner.intern("kk_sequence_findLast"),
             interner.intern("kk_sequence_elementAt"),
             interner.intern("kk_sequence_min"),
             interner.intern("kk_sequence_ifEmpty"),
@@ -737,6 +755,7 @@ extension CallLowerer {
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
+        sourceArgExprs: [ExprID],
         sema: SemaModule,
         interner: StringInterner
     ) -> (callee: InternedString, canThrow: Bool)? {
@@ -746,6 +765,20 @@ extension CallLowerer {
             || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if interner.resolve(calleeName) == "zip",
+           let firstArgument = sourceArgExprs.first,
+           let firstArgumentType = sema.bindings.exprTypes[firstArgument],
+           isGenericKotlinArrayType(
+               sema.types.makeNonNullable(firstArgumentType),
+               sema: sema,
+               interner: interner
+           )
+        {
+            // KSP-999: Array overloads execute the bundled Kotlin source body;
+            // the materializing Iterable bridge is retained for Iterable inputs.
             return nil
         }
 

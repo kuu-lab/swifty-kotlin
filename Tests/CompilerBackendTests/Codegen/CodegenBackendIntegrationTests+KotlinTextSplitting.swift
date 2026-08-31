@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite(.serialized)
 struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test func testKotlinTextSplitEdgeCases() throws {
         let source = """
@@ -340,6 +282,170 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 [3, 3, 2]
                 [2, 1]
                 [he!, el!, ll!, lo!]
+                """
+                + "\n"
+        )
+    }
+
+    @Test func testKotlinTextChunkWindowZipAcrossCharSequences() throws {
+        let source = """
+        fun main() {
+            val string = "abcde"
+            val chars: CharSequence = StringBuilder("abcde")
+
+            println(string.chunked(2))
+            println(chars.chunked(2))
+            println(string.chunked(2) { it.toString().uppercase() })
+            println(chars.chunked(2) { it.toString().uppercase() })
+
+            println(string.windowed(3, 2, true))
+            println(chars.windowed(3, 2, true))
+            println(string.windowed(3, 2, true) { it.length })
+            println(chars.windowed(3, 2, true) { it.length })
+
+            println(string.chunkedSequence(2).toList())
+            println(chars.chunkedSequence(2).toList())
+            println(string.chunkedSequence(2) { it.toString().uppercase() }.toList())
+            println(chars.chunkedSequence(2) { it.toString().uppercase() }.toList())
+            println(string.windowedSequence(3, 2, false).toList())
+            println(chars.windowedSequence(3, 2, false).toList())
+            println(string.windowedSequence(3, 2, true) { it.length }.toList())
+            println(chars.windowedSequence(3, 2, true) { it.length }.toList())
+
+            println(string.zip("XYZ"))
+            println(chars.zip("XYZ"))
+            println(string.zip("XYZ") { left, right -> "$left$right" })
+            println(chars.zip("XYZ") { left, right -> "$left$right" })
+            println(string.zipWithNext())
+            println(chars.zipWithNext())
+            println(string.zipWithNext { left, right -> "$left$right" })
+            println(chars.zipWithNext { left, right -> "$left$right" })
+
+            var transformCalls = 0
+            val lazy: Sequence<String> = chars.windowedSequence(2) { window: CharSequence ->
+                transformCalls++
+                window.toString()
+            }
+            println(transformCalls)
+            println(lazy.iterator().next())
+            println(transformCalls)
+
+            try {
+                chars.chunked(0)
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowed(2, 0)
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowedSequence(0).toList()
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowedSequence(2, 0).toList()
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextChunkWindowZipAcrossCharSequences",
+            expected:
+                """
+                [ab, cd, e]
+                [ab, cd, e]
+                [AB, CD, E]
+                [AB, CD, E]
+                [abc, cde, e]
+                [abc, cde, e]
+                [3, 3, 1]
+                [3, 3, 1]
+                [ab, cd, e]
+                [ab, cd, e]
+                [AB, CD, E]
+                [AB, CD, E]
+                [abc, cde]
+                [abc, cde]
+                [3, 3, 1]
+                [3, 3, 1]
+                [(a, X), (b, Y), (c, Z)]
+                [(a, X), (b, Y), (c, Z)]
+                [aX, bY, cZ]
+                [aX, bY, cZ]
+                [(a, b), (b, c), (c, d), (d, e)]
+                [(a, b), (b, c), (c, d), (d, e)]
+                [ab, bc, cd, de]
+                [ab, bc, cd, de]
+                0
+                ab
+                1
+                size must be positive, but was 0
+                step must be positive, but was 0
+                size must be positive, but was 0
+                step must be positive, but was 0
+                """
+                + "\n"
+        )
+    }
+
+    @Test func testKotlinTextWindowedTransformDefaultArgsAndInvalidSize() throws {
+        let source = """
+        fun main() {
+            println("hello".windowed(2) { it.length })
+            println("hello".windowed(3, 2) { it.length })
+            println("hello".windowed(3, 2, true) { it.length })
+
+            val chars: CharSequence = "hello"
+            println(chars.windowed(2) { it.length })
+            println(chars.windowed(3, 2) { it.length })
+            println("hello".windowedSequence(2) { it.length }.toList())
+            println("hello".windowedSequence(3, 2) { it.length }.toList())
+
+            try {
+                "abc".chunked(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(2, 0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowed(0, 1, false) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextWindowedTransformDefaultArgsAndInvalidSize",
+            expected:
+                """
+                [2, 2, 2, 2]
+                [3, 3]
+                [3, 3, 1]
+                [2, 2, 2, 2]
+                [3, 3]
+                [2, 2, 2, 2]
+                [3, 3]
+                size must be positive, but was 0
+                size must be positive, but was 0
+                step must be positive, but was 0
+                size must be positive, but was 0
                 """
                 + "\n"
         )

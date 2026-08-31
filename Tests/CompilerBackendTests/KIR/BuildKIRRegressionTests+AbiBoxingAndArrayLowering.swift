@@ -5,6 +5,24 @@ import Testing
 
 @Suite(.serialized)
 struct BuildKIRCodegenRegressionTests {
+    private func expectNonThrowingCallees(_ names: [String]) {
+        let pass = ABILoweringPass()
+        let interner = StringInterner()
+        let callees = pass.nonThrowingCallees(interner: interner)
+        for name in names {
+            #expect(callees.contains(interner.intern(name)), "Missing \(name)")
+        }
+    }
+
+    private func expectArrayRuntimeCallsThrow(body: [KIRInstruction], interner: StringInterner) {
+        let callNames = extractCallees(from: body, interner: interner)
+        let throwFlags = extractThrowFlags(from: body, interner: interner)
+        for name in ["kk_array_new_checked", "kk_array_set", "kk_array_get"] {
+            #expect(callNames.contains(name))
+            #expect(throwFlags[name]?.allSatisfy { $0 == true } == true)
+        }
+    }
+
     @Test
     func testBuildKIRLowersListFirstAndOrNullTerminalsToCollectionRuntimeCalls() throws {
         let source = """
@@ -34,12 +52,7 @@ struct BuildKIRCodegenRegressionTests {
 
     @Test
     func testABILoweringMarksSetCollectionHelpersAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        #expect(callees.contains(interner.intern("__kk_set_contains")))
-        #expect(callees.contains(interner.intern("__kk_set_size")))
+        expectNonThrowingCallees(["__kk_set_contains", "__kk_set_size"])
     }
 
     @Test
@@ -86,6 +99,28 @@ struct BuildKIRCodegenRegressionTests {
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
             #expect(containsKotlinCallee("unzip", in: callNames))
+            #expect(!(callNames.contains("kk_list_unzip")))
+        }
+    }
+
+    @Test
+    func testBuildKIRKeepsIterableUnzipSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Pair<Int, String>>) {
+            values.unzip()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(containsKotlinCallee("unzip", in: callNames))
+            #expect(!(callNames.contains("kk_sequence_unzip")))
             #expect(!(callNames.contains("kk_list_unzip")))
         }
     }
@@ -186,6 +221,29 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testBuildKIRKeepsIterableZipArrayOverloadsSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Int>, other: Array<String>) {
+            values.zip(other)
+            values.zip(other) { left, right -> "$left$right" }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.filter { isKotlinCallee($0, named: "zip") }.count == 2)
+            #expect(!(callNames.contains("__kk_list_zip")))
+            #expect(!(callNames.contains("__kk_list_zip_transform")))
+        }
+    }
+
+    @Test
     func testBuildKIRLowersStringZipOverloadsToBundledKotlinCalls() throws {
         let source = """
         fun main(left: String, right: CharSequence) {
@@ -202,14 +260,14 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            for removedName in [
+            let removedNames = [
                 "kk_string_zip",
                 "kk_string_zipTransform",
                 "kk_string_zip_flat",
                 "kk_string_zipTransform_flat",
-            ] {
-                #expect(!(callNames.contains(removedName)))
-            }
+            ]
+            let overlap = removedNames.filter(callNames.contains)
+            #expect(overlap.isEmpty, "Unexpected String runtime calls: \(overlap)")
         }
     }
 
@@ -252,9 +310,8 @@ struct BuildKIRCodegenRegressionTests {
                 "kk_string_windowedSequence_partial", "kk_string_windowedSequence_partial_flat",
                 "kk_string_windowedSequence_transform", "kk_string_windowedSequence_transform_flat",
             ]
-            for removedName in removedNames {
-                #expect(!(callNames.contains(removedName)), "Unexpected String runtime call \(removedName)")
-            }
+            let overlap = removedNames.filter(callNames.contains)
+            #expect(overlap.isEmpty, "Unexpected String runtime calls: \(overlap)")
         }
     }
 
@@ -316,15 +373,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            let flatNames = [
-                "__kk_string_byteInputStream_flat",
-                "__kk_string_byteInputStream_charset_flat",
+            let namePairs = [
+                ("__kk_string_byteInputStream_flat", "__kk_string_byteInputStream"),
+                ("__kk_string_byteInputStream_charset_flat", "__kk_string_byteInputStream_charset"),
             ]
-            for flatName in flatNames {
+            for (flatName, rawName) in namePairs {
                 #expect(callNames.contains(flatName), "Missing \(flatName)")
-            }
-            let rawNames = flatNames.map { String($0.dropLast("_flat".count)) }
-            for rawName in rawNames {
                 #expect(!(callNames.contains(rawName)), "Unexpected raw String stream call \(rawName)")
             }
         }
@@ -332,16 +386,10 @@ struct BuildKIRCodegenRegressionTests {
 
     @Test
     func testABILoweringMarksStringByteInputStreamFlatHelpersAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        for flatName in [
+        expectNonThrowingCallees([
             "__kk_string_byteInputStream_flat",
             "__kk_string_byteInputStream_charset_flat",
-        ] {
-            #expect(callees.contains(interner.intern(flatName)), "Missing \(flatName)")
-        }
+        ])
     }
 
     @Test
@@ -424,36 +472,32 @@ struct BuildKIRCodegenRegressionTests {
 
     @Test
     func testABILoweringMarksAtomicRuntimeHelpersAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        #expect(callees.contains(interner.intern("kk_atomic_int_load")))
-        #expect(callees.contains(interner.intern("kk_atomic_int_store")))
-        #expect(callees.contains(interner.intern("kk_atomic_long_compareAndExchange")))
-        #expect(callees.contains(interner.intern("kk_atomic_ref_exchange")))
+        expectNonThrowingCallees([
+            "kk_atomic_int_load",
+            "kk_atomic_int_store",
+            "kk_atomic_long_compareAndExchange",
+            "kk_atomic_ref_exchange",
+        ])
     }
 
     @Test
     func testABILoweringMarksNativeRefRuntimeHelpersAsNonThrowing() {
-        let pass = ABILoweringPass()
-        let interner = StringInterner()
-        let callees = pass.nonThrowingCallees(interner: interner)
-
-        #expect(callees.contains(interner.intern("kk_weak_ref_create")))
-        #expect(callees.contains(interner.intern("kk_weak_ref_get")))
-        #expect(callees.contains(interner.intern("kk_weak_ref_clear")))
-        #expect(callees.contains(interner.intern("kk_cleaner_create")))
-        #expect(callees.contains(interner.intern("kk_cleaner_dispose")))
-        #expect(callees.contains(interner.intern("kk_gc_collect")))
-        #expect(callees.contains(interner.intern("kk_gc_schedule")))
-        #expect(callees.contains(interner.intern("kk_gc_target_heap_bytes")))
-        #expect(callees.contains(interner.intern("kk_gc_target_heap_utilization")))
-        #expect(callees.contains(interner.intern("kk_gc_max_heap_bytes")))
-        #expect(callees.contains(interner.intern("kk_debugging_is_thread_state_runnable")))
-        #expect(callees.contains(interner.intern("kk_debugging_gc_suspend_count")))
-        #expect(callees.contains(interner.intern("kk_debugging_thread_count")))
-        #expect(callees.contains(interner.intern("kk_debugging_global_object_count")))
+        expectNonThrowingCallees([
+            "kk_weak_ref_create",
+            "kk_weak_ref_get",
+            "kk_weak_ref_clear",
+            "kk_cleaner_create",
+            "kk_cleaner_dispose",
+            "kk_gc_collect",
+            "kk_gc_schedule",
+            "kk_gc_target_heap_bytes",
+            "kk_gc_target_heap_utilization",
+            "kk_gc_max_heap_bytes",
+            "kk_debugging_is_thread_state_runnable",
+            "kk_debugging_gc_suspend_count",
+            "kk_debugging_thread_count",
+            "kk_debugging_global_object_count",
+        ])
     }
 
     @Test
@@ -533,18 +577,9 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            let boxingThrowFlags = body.compactMap { instruction -> Bool? in
-                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else {
-                    return nil
-                }
-                let name = ctx.interner.resolve(callee)
-                guard name == "kk_box_int" || name == "kk_box_bool" ||
-                    name == "kk_unbox_int" || name == "kk_unbox_bool"
-                else {
-                    return nil
-                }
-                return canThrow
-            }
+            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
+            let boxingThrowFlags = ["kk_box_int", "kk_box_bool", "kk_unbox_int", "kk_unbox_bool"]
+                .flatMap { throwFlags[$0] ?? [] }
             #expect(!(boxingThrowFlags.isEmpty))
             #expect(boxingThrowFlags.allSatisfy { $0 == false })
         }
@@ -617,17 +652,9 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
             // Size-only IntArray(n) lowers to kk_array_new_checked (throws on
             // negative size), not bare kk_array_new.
-            #expect(callNames.contains("kk_array_new_checked"))
-            #expect(callNames.contains("kk_array_set"))
-            #expect(callNames.contains("kk_array_get"))
-
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_array_set"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_array_get"]?.allSatisfy { $0 == true } == true)
+            expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
         }
     }
 
@@ -684,15 +711,7 @@ struct BuildKIRCodegenRegressionTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callNames = extractCallees(from: body, interner: ctx.interner)
-            #expect(callNames.contains("kk_array_new_checked"))
-            #expect(callNames.contains("kk_array_set"))
-            #expect(callNames.contains("kk_array_get"))
-
-            let throwFlags = extractThrowFlags(from: body, interner: ctx.interner)
-            #expect(throwFlags["kk_array_new_checked"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_array_set"]?.allSatisfy { $0 == true } == true)
-            #expect(throwFlags["kk_array_get"]?.allSatisfy { $0 == true } == true)
+            expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
         }
     }
 
@@ -774,6 +793,7 @@ struct BuildKIRCodegenRegressionTests {
             let outputPath = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
                 .path
+            defer { try? FileManager.default.removeItem(atPath: outputPath) }
             let ctx = makeCompilationContext(
                 inputs: [path],
                 moduleName: "ArrayThrownChannel",

@@ -29,11 +29,7 @@ enum AnnotationParsingSupport {
         if index + 1 < tokens.count, tokens[index + 1].kind == .symbol(.colon) {
             let candidate = tokens[index]
             if let candidateName = tokenText(candidate, interner: interner) {
-                let knownTargets: Set<String> = [
-                    "get", "set", "field", "param", "setparam",
-                    "delegate", "property", "receiver", "file",
-                ]
-                if knownTargets.contains(candidateName) {
+                if SoftKeyword.useSiteTargetNames.contains(candidateName) {
                     if allowUseSiteTarget {
                         useSiteTarget = candidateName
                     } else {
