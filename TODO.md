@@ -9153,7 +9153,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.MatchResult.Destructured` — class kotlin.text.MatchResult.Destructured  -- `final class Destructured {`
 
-- [ ] KSP-1434: kotlin.text.MatchResult.Destructured.Destructured の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1434: kotlin.text.MatchResult.Destructured.Destructured の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.MatchResult.Destructured` / receiver `Destructured`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchResult/Destructured/Destructured.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -9163,6 +9163,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.MatchResult.Destructured.component10` — fun Destructured.component10(): String  -- `final inline fun component10(): kotlin/String`
     - `kotlin.text.MatchResult.Destructured.toList` — fun Destructured.toList(): List  -- `final fun toList(): kotlin.collections/List<kotlin/String>`
+  - 完了根拠: Kotlin 2.3.10公式source/metadataとkotlincでcomponent10のindex 10、inline/public receiver、toListのgroup 1以降の順序と欠落captureの空文字を確認し、既存group bridgeを再利用して実装。Sema Golden、exact Kotlin 2.3.10 diff、CompilerBackend回帰をPASS。
 
 - [x] KSP-1435: kotlin.text.Regex top-level の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.Regex` / top-level
