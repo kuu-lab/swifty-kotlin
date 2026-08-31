@@ -75,9 +75,11 @@ extension DataFlowSemaPhase {
 
         let overriddenKeys = collectDiamondOverrideKeys(
             for: decl,
+            ownerSymbol: symbol,
             ast: ast,
             symbols: symbols,
-            bindings: bindings
+            bindings: bindings,
+            interner: interner
         )
 
         emitDiamondDiagnostics(
@@ -242,9 +244,11 @@ extension DataFlowSemaPhase {
 
     private func collectDiamondOverrideKeys(
         for decl: Decl,
+        ownerSymbol: SymbolID,
         ast: ASTModule,
         symbols: SymbolTable,
-        bindings: BindingTable
+        bindings: BindingTable,
+        interner: StringInterner
     ) -> Set<DiamondDispatchKey> {
         var overriddenKeys: Set<DiamondDispatchKey> = []
 
@@ -267,6 +271,30 @@ extension DataFlowSemaPhase {
                 continue
             }
             overriddenKeys.insert(makeDiamondDispatchKey(for: memberSymbol, symbols: symbols))
+        }
+
+        // `ULongRange.isEmpty` is already source-backed as the residual
+        // extension in RangeMembership.kt. The built-in declaration also
+        // implements both ClosedRange and OpenEndRange, so that extension is
+        // the compiler's existing concrete implementation for their shared
+        // member while the nominal owner moves to bundled source.
+        let ulongRangeFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+            interner.intern("ULongRange"),
+        ]
+        if symbols.symbol(ownerSymbol)?.fqName == ulongRangeFQName {
+            let isEmptyName = interner.intern("isEmpty")
+            for extensionSymbol in symbols.allSymbols() {
+                guard extensionSymbol.kind == .function,
+                      !extensionSymbol.flags.contains(.synthetic),
+                      extensionSymbol.name == isEmptyName,
+                      symbols.parentSymbol(for: extensionSymbol.id) == ownerSymbol
+                else {
+                    continue
+                }
+                overriddenKeys.insert(makeDiamondDispatchKey(for: extensionSymbol.id, symbols: symbols))
+            }
         }
 
         return overriddenKeys

@@ -164,9 +164,25 @@ public fun ByteArray.decodeToString(): String = __stringFromUtf8(this, 0, size)
 
 ## 7. コンパイル時間戦略とキャッシュ
 
-方針: 通常のユーザーコンパイルは都度コンパイルを維持する。一方、
+方針: 通常の executable ユーザーコンパイルは事前コンパイル済み `.kklib` を既定経路にし、
+`--stdlib-from-source` を明示したデバッグ実行だけが bundled Kotlin source を注入する。
 `diff_kotlinc.sh` は shard ごとに stdlib を事前ビルドし、全 candidate compile から共有する。
 移行効果は計測で確認し、基準を満たさない場合は CI の切り替えを完了扱いにしない。
+
+`kswiftc` の既定artifact解決は次の順序で行う。
+
+1. `KSWIFTK_STDLIB_LIBRARY`、実行ファイル相対の `KSwiftKStdlib.kklib`、SwiftPM resource bundle
+   (`KSwiftK_CompilerCore.bundle/Contents/Resources` または `KSwiftK_CompilerCore.resources`)、または
+   `<prefix>/lib/kswiftk/stdlib/KSwiftKStdlib.kklib` を検証する。
+2. packaged artifact が見つからない場合は、target・compiler version・bundled source hash
+   ごとに標準ユーザーcache（macOS は `~/Library/Caches`、Linux は `~/.cache`）へ
+   `stdlib-only` build を一度だけ生成する。生成中はcross-process lockを保持し、完成後にatomic moveする。
+3. manifest、metadata、object、inline-KIR、target、stdlib hash の不一致は source injection へ
+   暗黙に落とさず、明確な診断で停止する。互換性のある packaged artifact がない場合は cache を再生成する。
+
+既定artifactは `emit == executable` に限定する。`object`、`llvm`、`kir` は source/introspection
+境界を保持し、LSPのartifact配線は ARCH-006 で扱う。`--stdlib-from-source` は既定artifactの
+発見・生成を無効化し、従来の bundled source 経路を明示的に選択する。
 
 `diff_kotlinc.sh` では、shard 内で `kswiftc --stdlib-only --emit library` によって1 回だけ stdlib を `.kklib` 化し、
 各ケースを `--no-stdlib --stdlib-library <artifact>` で共有する。artifact は実行時に `DIFF_ARTIFACT_ROOT`
@@ -177,7 +193,7 @@ case あたりの stdlib 再コンパイルを回避する。
    「bundled stdlib 由来の Lex/Parse/Sema 時間」を分離計測できるようにする（RF-STDLIB-006）
 2. 計測ゲート: stdlib 注入によるコンパイル時間の増分が **hello.kt 相当の小入力で +100ms** を超えたら
    キャッシュ着手のトリガーとする（[`docs/refactoring-metrics.md`](refactoring-metrics.md) で正式化済み:
-   ベースライン中央値 37.29ms、トリガー = 中央値 ≥ 137.29ms）
+   ベースライン中央値 36.05ms、トリガー = 中央値 ≥ 136.05ms）
 3. `diff_kotlinc.sh` では `.kklib` 共有を使い、PoC ケースの candidate compile 合計/中央値を baseline 比 50% 以上、
    full shard wall time を baseline 比 20% 以上削減できない場合は CI 切り替えを完了扱いにしない。
 4. キャッシュの段階案（トリガー後に選択）:
@@ -241,9 +257,9 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticBuilderDSLStubs.swift` | 414 | (b) | M3 collection builder source migration. |
 | `HeaderHelpers+SyntheticCInteropStubs.swift` | 3065 | (c) | Kotlin/Native interop compiler/runtime surface; table-driven residual candidate. |
 | `HeaderHelpers+SyntheticCharStubs.swift` | 889 | (c) | Primitive `Char` shell plus helpers; RF-STUB-003 declarative residual registration started here. |
-| `HeaderHelpers+SyntheticClockStubs.swift` | 451 | (b) | M8 time source migration. |
+| `HeaderHelpers+SyntheticClockStubs.swift` | 174 | (c) | KSP-712 reclassified: `Clock.now()` remains a hidden runtime dispatch bridge and `Clock.System` bootstrap anchor; public `Clock.System.now()` is bundled Kotlin source. |
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
-| `HeaderHelpers+SyntheticCoercionStubs.swift` | 1349 | (b) | M6 range/coercion source migration; many overloads already source-backed. |
+| `HeaderHelpers+SyntheticCoercionStubs.swift` | 654 | (b)+(c) | KSP-1531 numeric conversion classification; range/coercion source migration is tracked separately. |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
 | `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 845 | (c) | KSP-701/KSP-665 の分離先（`HeaderHelpers+SyntheticIterableRegistry.swift` 削除時と `+SyntheticStringTypeHelpers.swift` 削除時の残存 fallback shell が合流）。呼び出し元は `+SyntheticComparableAndCollectionStubs.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ。`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable` の型登録は bundled Kotlin source を再利用する fallback 専用で対応不要。`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の型シェルと `isEmpty`/`contains`/`add`系/`iterator`/`hasNext`/`next` メンバは、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的の bridge（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）で (c) 残置。`random`/`randomOrNull` は KSP-1509 が降格予定の `kk_list_random`/`kk_list_randomOrNull` と同一ブリッジを共有。次アクション: KSP-1542。 |
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
@@ -258,14 +274,14 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticExceptionStubs.swift` | 787 | (c) | Core exception shells required by diagnostics/lowering; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticExperimentalBitwiseStubs.swift` | 99 | (b) | Experimental bitwise stdlib helpers; source migration owner. |
 | `HeaderHelpers+SyntheticExperimentalMarkerStubs.swift` | 367 | (c) | Common opt-in markers stay; split JS/Wasm markers into (a) cleanup first. |
-| `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 828 | (b) | M8 experimental time source migration. |
+| `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 463 | (c) | KSP-712 reclassified: `ExperimentalTime` metadata plus TimeSource/TimeMark nominal anchors and fallback dispatch remain compiler/runtime surfaces; public operations are bundled Kotlin source. |
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
 | `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
 | `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | 520 | (a) | `java.nio.file` / files utility surface; target-out cleanup. |
 | `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
-| `HeaderHelpers+SyntheticInstantStubs.swift` | 441 | (b) | M8 time source migration. |
+| `HeaderHelpers+SyntheticInstantStubs.swift` | 272 | (c) | KSP-712 reclassified: Instant.Companion bootstrap and hidden source bridges remain; Instant public properties, arithmetic, comparison, and factories are bundled Kotlin source, while handle/OS-clock core remains runtime-owned. |
 | `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` に分離。 |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
@@ -312,7 +328,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticRangeProgressionStubs.swift` | 1116 | (b) | M6 range/progression source migration. |
 | `HeaderHelpers+SyntheticRangeUntilStubs.swift` | 142 | (b) | M6 `..<`/`rangeUntil` source migration. |
 | `HeaderHelpers+SyntheticReadWriteLockStubs.swift` | 216 | (a) | JVM-style lock compatibility; cleanup or move behind explicit platform bridge. |
-| `HeaderHelpers+SyntheticRegexStubs.swift` | 974 | (b) | Regex public stdlib source migration candidate. |
+| `HeaderHelpers+SyntheticRegexStubs.swift` | deleted | (b) | ~~Regex public stdlib source migration candidate.~~ **完了・ファイル削除済み**（KSP-1521, 2026-08-23）。`MatchResult` / `Destructured` の nominal anchor は bundled Kotlin source に統合し、engine bridge は保持。 |
 | `HeaderHelpers+SyntheticResultStubs.swift` | 584 | (b) | ~~M13 `Result` source migration~~ **完了・ファイル削除済み**（KSP-304, PR #4566, 2026-07-08）。 |
 | `HeaderHelpers+SyntheticScopeFunctionStubs.swift` | deleted | (b) | `run`/`with`/`apply`/`let`/`also`/`takeIf`/`takeUnless` は bundled `kotlin/Standard.kt` へ移行済み。`use`/`usePinned`/`useContents` は compiler residual として別経路に残る。`context`/`contextOf` は KSP-603 で `Stdlib/kotlin/ContextParameters.kt` へ移行済み。 |
 | `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` | 1463 | (b) | M4 sequence registration helper surface. |
@@ -335,9 +351,111 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticUuidStubs.swift` | 888 | (b) | M12 UUID source migration; source exists. |
 | `HeaderHelpers+SyntheticW3CDomStubs.swift` | 78 | (a) | Kotlin/JS DOM surface; cleanup candidate. |
 
+KSP-712 time-surface audit confirms that these three files no longer own public
+stdlib logic: their remaining registrations are (c) nominal/bootstrap fallback
+or hidden runtime/interface-dispatch support. In particular, removing the
+`kk_instant_*`/`kk_clock_*`/`kk_time_source_*` names by string match would break
+Instant handle access, OS monotonic time, `TimeSource.asClock()` boxes, or
+user-implementable `Clock` itables. The public source-backed declarations and
+these retained bridges are covered by the KSP-712 focused regressions.
+
 Mixed files are assigned to the bucket that owns most of the file today. The
 notes column calls out sub-blocks that should be split before the final delete or
 table migration.
+
+#### KSP-1531: primitive numeric conversion classification (2026-08-23)
+
+KSP-1531 fixes the classification boundary only; it does not change compiler,
+runtime, or ABI code. The current public numeric-member bridge surface is 70
+symbols: 68 ordinary numeric `@_cdecl` symbols plus the two member conversion
+bit bridges `kk_int_to_double_bits` and `kk_float_to_double_bits`. The Runtime
+and RuntimeABI sets are equal for this 70-symbol surface. The synthetic file has
+39 registrations, which collapse to 32 of those public symbols plus the
+synthetic-only identity `kk_int_to_int` (also present only as an ABI-parity
+entry). Unsigned receiver registrations are reached through the primitive
+conversion lowerer and the corresponding Runtime/ABI entries, not through that
+synthetic file.
+
+The reason codes are:
+
+- `C-WIDTH`: compiler-owned fixed-width sign/zero extension, truncation, or
+  representation-preserving integer conversion. The current KIR has no typed
+  numeric-cast instruction, so these cases still appear as runtime calls or
+  copies; `(c)` records the future single-instruction compiler owner rather
+  than claiming that migration has already happened.
+- `C-FP`: compiler-owned ordinary integer-to-Float/Double or Float-to-Double
+  numeric conversion. The current Runtime implementation encodes the result
+  for the raw-bit KIR/ABI representation, but it does not add Kotlin-specific
+  saturation, NaN handling, or rounding policy.
+- `B-CHAR`: Kotlin `Char` code-unit semantics, including the UInt16 narrowing
+  and code-value conversions.
+- `B-FP-SAT`: Kotlin Float/Double NaN, infinity, range clamp, and truncation
+  semantics for integral targets.
+- `B-FP-ABI`: IEEE payload/bit transport or Float/Double representation and
+  boxing boundary for an explicit bit-representation bridge. Ordinary numeric
+  FP conversion remains `C-FP`; a short runtime body is not sufficient to make
+  a representation bridge `(c)`.
+
+<!-- KSP-1531-SYMBOLS-BEGIN -->
+| Receiver | (c) compiler-residual symbols | (b) stdlib-semantics symbols | Reason | Follow-up owner |
+|---|---|---|---|---|
+| `Int` | `kk_int_to_byte`, `kk_int_to_float`, `kk_int_to_long`, `kk_int_to_short`, `kk_int_to_ubyte`, `kk_int_to_uint`, `kk_int_to_ulong`, `kk_int_to_ushort` | `kk_int_to_char`, `kk_int_to_double_bits` | `C-WIDTH`; `C-FP`; `B-CHAR`; `B-FP-ABI` | KSP-1536 |
+| `Long` | `kk_long_to_byte`, `kk_long_to_double`, `kk_long_to_float`, `kk_long_to_int`, `kk_long_to_short`, `kk_long_to_ubyte`, `kk_long_to_uint`, `kk_long_to_ulong`, `kk_long_to_ushort` | `kk_long_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1537 |
+| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | `kk_uint_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1532 |
+| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | `kk_ulong_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1533 |
+| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | `kk_ubyte_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1534 |
+| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | `kk_ushort_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1535 |
+| `Float` | — | `kk_float_to_char`, `kk_float_to_int`, `kk_float_to_long`, `kk_float_to_double_bits` | `B-CHAR`; `B-FP-SAT`; `B-FP-ABI` | KSP-1538 |
+| `Double` | `kk_double_to_float` | `kk_double_to_char`, `kk_double_to_int`, `kk_double_to_long` | `C-FP`; `B-CHAR`; `B-FP-SAT` | KSP-1538 |
+| `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
+<!-- KSP-1531-SYMBOLS-END -->
+
+The table is grounded in the current implementations. `RuntimeNumericCoercion`
+uses fixed-width truncating or representation-preserving operations for the
+integer `(c)` group, while its Char and floating-to-Char paths implement code
+unit narrowing, NaN/negative handling, upper clamping, and truncation.
+`RuntimeNumericCompat` implements floating-to-integral NaN/infinity clamping
+and truncation, and its ordinary Float/Double paths encode and decode IEEE
+payloads only for the current raw-bit ABI representation. The explicit
+`*_to_double_bits` member bridges are classified separately as `B-FP-ABI`.
+The bundled `float.kt` and `double.kt` implementations already own
+Float/Double-to-UInt/ULong saturation semantics, so those two source-backed API
+pairs have no current `kk_float_to_uint`/`kk_float_to_ulong` or
+`kk_double_to_uint`/`kk_double_to_ulong` symbol and are not residual bridge
+rows.
+
+`CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift` recognizes
+the ordinary primitive conversion targets, with `toChar` fast-path coverage
+limited to signed integer receivers. `CallLowerer+LegacyMemberLikeCalls.swift`
+`CallLowerer+SafeMemberCalls.swift`, and the top-level route in `CallLowerer.swift`
+contain 68 explicit conversion-symbol cases; `kk_float_to_char` and
+`kk_double_to_char` are resolved through the registered normal member-call path.
+These lowerers otherwise emit KIR `.call`
+or representation-preserving `.copy`; `KIRInstruction` currently has no typed
+numeric-cast case. Existing `CoercionRuntimeTests` and
+`RuntimeMathEdgeCaseTests` cover the wrap, truncation, Char, NaN, infinity, and
+precision boundaries used by this classification.
+
+The following adjacent surfaces are intentionally excluded from the 70-symbol
+set: the six Byte/Short receiver-only runtime bridges in
+`RuntimeABISpec+RuntimeOnlyBridge.swift`, `kk_float_to_bits`/
+`kk_double_to_bits`, operator-promotion helper `kk_int_to_float_bits`, and the
+erased `Number` conversion route owned by KSP-1540. `ULong.toUInt()` and
+`ULong.toLong()` are representation-preserving lowerer copies and have no
+dedicated `kk_ulong_to_uint`/`kk_ulong_to_long` symbol. The synthetic-only
+`kk_int_to_int` is an identity registration and is not a migration target.
+
+Enforcing evidence was collected mechanically from the current tree: the
+classification marker contains 70 unique symbols; Runtime `@_cdecl` ordinary
+conversion symbols plus the two member bit bridges contain the same 70; the
+RuntimeABI NumericConversion/BridgeCoverage union contains the same 70; and
+the lowerer inventory contains 68 explicit names plus the two normal-call
+Char fallbacks. The synthetic inventory contains 39 registrations / 33 unique
+external names, with 32 public symbols plus `kk_int_to_int`. TODO ID
+uniqueness, `Scripts/check_todo_ids.sh`, `git diff --check`, and docs marker
+set checks are part of this PR. Build, full test, Golden, kotlinc diff, and
+runtime ABI execution are intentionally not run because this task changes only
+`TODO.md` and this documentation table.
 
 ### RF-STUB-002 reference cleanup recipe
 
@@ -629,3 +747,5 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
 |---|---|---|---|
 | `random/Random.kt` | 解消済み（`abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` へ復元、PRNG ビット精度を KSP-685 で固定） | `abstract class Random` + `internal class XorWowRandom` + トップレベル `fun Random(seed)` | KSP-CAP-006（クラスと同名トップレベル関数の共存、解消済み）— KSP-685 完了 |
 | `kotlin/Throws.kt` | 解消済み（`public annotation class Throws(public vararg val exceptionClasses: KClass<out Throwable>)` へ復元、合成登録を撤廃） | `annotation class Throws(vararg val exceptionClasses: KClass<out Throwable>)` | KSP-CAP-014（bundled source での `vararg val` プロパティと `KClass` 型参照の生成・検証、解消済み）|
+| `uuid/Uuid.kt`（KSP-1502） | `generateV7()` の単調性カウンタを `AtomicLong` + CAS ループでなく plain `var`（`UuidV7MonotonicState`）で実装（スレッド安全性なし） | `private object UuidV7Generator` が `kotlin.concurrent.atomics.AtomicLong`（`@OptIn(ExperimentalAtomicApi::class)`）を CAS ループで使用 | `kotlin.concurrent.atomics.AtomicLong` の `load()`/`compareAndSet()` が実運用で動作検証され次第、本家形へ復元 |
+| `uuid/Uuid.kt`（KSP-1502） | `generateV7()`/`generateV7NonMonotonicAt()` の乱数を専用 CSPRNG バイト列でなく既存 `random()`（`__kk_uuid_random` ブリッジ）の出力から抽出して転用 | `ByteArray(10)` を `secureRandomBytes()` で都度生成 | 新規ブリッジ追加が§13-2の入場審査コストに見合うと判断された場合（現状は不要と判断） |

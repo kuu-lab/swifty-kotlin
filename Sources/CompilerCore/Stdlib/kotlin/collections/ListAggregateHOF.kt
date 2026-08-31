@@ -236,3 +236,16 @@ public fun <T> List<T>.sumOf(selector: (T) -> Int): Int {
     while (i < size) { sum += selector(this[i]); i += 1 }
     return sum
 }
+
+public fun <T> List<T>.sumOf(selector: (T) -> Long): Long {
+    var sum = 0L
+    var i = 0
+    while (i < size) { sum += selector(this[i]); i += 1 }
+    return sum
+}
+
+public fun <T> List<T>.sumOf(selector: (T) -> Double): Double {
+    var sum = 0.0
+    for (element in this) sum += selector(element)
+    return sum
+}
