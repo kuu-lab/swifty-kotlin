@@ -75,6 +75,10 @@ extension CallLowerer {
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte, .minOfShort:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
@@ -99,6 +103,10 @@ extension CallLowerer {
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte3, .minOfShort3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         default:
             return nil
         }
@@ -180,7 +188,7 @@ extension CallLowerer {
         })
         let isPrimitiveOverload = !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
-            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
+            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema, isMin: isMin) })
         let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
             && !isComparatorOverload
             && isUniformTypeParameterOverload(signature, sema: sema)
@@ -397,15 +405,18 @@ extension CallLowerer {
         }
     }
 
-    /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
-    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
-    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// True for numeric primitive types whose ordering can be lowered to a
+    /// direct `<` / `>` comparison. Byte/Short are admitted only for exact
+    /// `minOf` overloads; `maxOf` keeps its existing widening guard. Used by
+    /// the vararg `minOf` / `maxOf` lowering to fold the arguments inline.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
-        sema: SemaModule
+        sema: SemaModule,
+        isMin: Bool
     ) -> Bool {
         switch sema.types.kind(of: type) {
+        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
+            return isMin
         case .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),

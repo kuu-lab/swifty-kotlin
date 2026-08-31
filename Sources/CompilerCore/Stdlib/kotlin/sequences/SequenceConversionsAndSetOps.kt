@@ -4,6 +4,25 @@ import kotlin.internal.KsSymbolName
 
 // KSP-443: Sequence 変換・集合演算を Kotlin 化
 
+public inline fun <T> Sequence<T>.find(predicate: (T) -> Boolean): T? {
+    val iterator = this.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+public inline fun <T> Sequence<T>.findLast(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    val iterator = this.iterator()
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 @KsSymbolName("kk_sequence_to_list")
 public fun <T> Sequence<T>.toList(): List<T> {
     val result = mutableListOf<T>()
@@ -44,12 +63,6 @@ public fun <T : Comparable<T>> Sequence<T>.toSortedSet(): MutableSet<T> {
     val sorted = toMutableList().sorted()
     val result = mutableSetOf<T>()
     for (element in sorted) result.add(element)
-    return result
-}
-
-public fun <K, V> Sequence<Pair<K, V>>.toMap(): MutableMap<K, V> {
-    val result = mutableMapOf<K, V>()
-    for (pair in this) result[pair.first] = pair.second
     return result
 }
 
@@ -438,3 +451,14 @@ public fun <T> Sequence<T>.constrainOnce(): Sequence<T> {
 }
 
 public fun <T> Sequence<T>?.orEmpty(): Sequence<T> = this ?: emptySequence()
+
+/**
+ * Creates a grouping source from this sequence for later group-and-fold operations.
+ */
+public inline fun <T, K> Sequence<T>.groupingBy(crossinline keySelector: (T) -> K): Grouping<T, K> {
+    val source = this
+    return object : Grouping<T, K> {
+        override fun sourceIterator(): Iterator<T> = source.iterator()
+        override fun keyOf(element: T): K = keySelector(element)
+    }
+}

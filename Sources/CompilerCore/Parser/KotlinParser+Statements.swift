@@ -28,7 +28,14 @@ extension KotlinParser {
                 atBlockStart = false
                 continue
             }
-            if isDeclarationStart(token.kind), !isObjectExpressionStart(token), hasLeadingNewline(token) || atBlockStart {
+            // A `;` is an explicit statement separator, so a declaration-start
+            // token right after one is always a fresh declaration — even when
+            // it shares a physical line with the statement that preceded the
+            // `;` (e.g. `val y = 1; @Anno constructor() : this(0)`).
+            let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
+            if isDeclarationStart(token.kind), !isObjectExpressionStart(token),
+               hasLeadingNewline(token) || atBlockStart || precededBySemicolon
+            {
                 children.append(.node(parseDeclaration()))
                 atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {
@@ -71,6 +78,7 @@ extension KotlinParser {
         var range = RangeAccumulator()
         var parenDepth = 0
         var bracketDepth = 0
+        var braceDepth = 0
 
         while !stream.atEOF() {
             let token = stream.peek()
@@ -83,7 +91,12 @@ extension KotlinParser {
             {
                 break
             }
-            if shouldStopStatementBefore(token, inBlock: inBlock) {
+            let closesTopLevelExpressionBrace: Bool = if case .symbol(.rBrace) = token.kind {
+                !inBlock && braceDepth > 0
+            } else {
+                false
+            }
+            if shouldStopStatementBefore(token, inBlock: inBlock), !closesTopLevelExpressionBrace {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock {
@@ -101,6 +114,10 @@ extension KotlinParser {
                 bracketDepth += 1
             case .symbol(.rBracket):
                 bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
             default:
                 break
             }

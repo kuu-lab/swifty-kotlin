@@ -496,6 +496,7 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_iterator_hasNext", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_iterator_hasNext_throwing", parameters: [
             p("iterRaw", .intptr),
@@ -503,6 +504,7 @@ public extension RuntimeABISpec {
         ]),
         abiParitySpec("kk_iterator_next", parameters: [
             p("iterRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
         ]),
         abiParitySpec("kk_iterator_next_throwing", parameters: [
             p("iterRaw", .intptr),

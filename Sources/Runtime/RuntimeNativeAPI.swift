@@ -3,6 +3,10 @@ import Foundation
 
 // MARK: - Kotlin/Native specific APIs (STDLIB-NATIVE-168)
 
+func runtimeCurrentStackTraceAddresses() -> [Int] {
+    Thread.callStackReturnAddresses.map { Int(truncating: $0) }
+}
+
 // MARK: - CPointer / COpaquePointer
 
 /// Runtime backing for `kotlinx.cinterop.CPointer<T>`.
@@ -134,9 +138,40 @@ public func kk_native_identityHashCode(_ objectRaw: Int) -> Int {
 }
 
 @_cdecl("kk_native_getStackTraceAddresses")
-public func kk_native_getStackTraceAddresses() -> Int {
-    let addresses = Thread.callStackReturnAddresses.map { Int(truncating: $0) }
+public func kk_native_getStackTraceAddresses(_ throwableRaw: Int) -> Int {
+    let addresses: [Int]
+    if let pointer = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+       runtimeStorage.withGCLock({ state in
+           state.objectPointers.contains(UInt(bitPattern: pointer))
+       })
+    {
+        if let throwable = tryCast(pointer, to: RuntimeThrowableBox.self) {
+            addresses = throwable.stackTraceAddresses
+        } else if let throwable = tryCast(pointer, to: RuntimeObjectBox.self) {
+            addresses = throwable.throwableStackTraceAddresses ?? []
+        } else {
+            addresses = []
+        }
+    } else {
+        addresses = []
+    }
     return registerRuntimeObject(RuntimeListBox(elements: addresses))
+}
+
+@_cdecl("__kk_throwable_captureStackTrace")
+public func __kk_throwable_captureStackTrace(_ throwableRaw: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: throwableRaw),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: pointer))
+          }),
+          let object = tryCast(pointer, to: RuntimeObjectBox.self)
+    else {
+        return throwableRaw
+    }
+    if object.throwableStackTraceAddresses == nil {
+        object.throwableStackTraceAddresses = runtimeCurrentStackTraceAddresses()
+    }
+    return throwableRaw
 }
 
 private final class RuntimeUnhandledExceptionHookRegistry: @unchecked Sendable {
