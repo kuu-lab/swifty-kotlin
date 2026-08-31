@@ -474,28 +474,25 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
-            // `Owner.Nested` and `Owner.Nested()` parse to the identical
-            // zero-arg `.memberCall` node — there is no AST signal for
-            // whether call syntax was written. This is mostly unambiguous when
+            // `Owner.Nested` and `Owner.Nested()` share the same zero-arg
+            // `.memberCall` shape, but the AST arena records whether parentheses
+            // were written. This is mostly unambiguous when
             // no valid constructor-call reading could exist in the first
             // place: enum class constructors are always implicitly private
             // (never callable from outside the enum body) and `object`
             // declarations have no constructor at all, so a nested enum/object
             // reference must be the bare type/nested-owner (needed e.g. for
             // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
-            // further static member access). A nested annotation class *can*
-            // have a genuine public zero-arg (or all-defaults) constructor,
-            // but real code essentially never constructs one via a bare,
-            // parenthesis-less reference — the far more common zero-arg shape
-            // is a qualifier for further nested access (e.g.
-            // `RequiresOptIn.Level.entries`, where `Level` is a nested enum),
-            // so it is grouped with enum/object here. A nested `class`, in
+            // further static member access). A parenthesis-less nested annotation
+            // class is likewise a qualifier, while an explicit call must continue
+            // through constructor resolution. A nested `class`, in
             // contrast, may have a genuine public zero-arg constructor (e.g.
             // `Outer.Builder()`), so it falls through to constructor
             // resolution below, preserving the pre-existing behavior.
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
-               nestedOwnerKind == .enumClass || nestedOwnerKind == .object || nestedOwnerKind == .annotationClass
+               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+                   || (nestedOwnerKind == .annotationClass && !ast.arena.isExplicitCall(id))
             {
                 let nestedType = sema.types.make(.classType(ClassType(
                     classSymbol: nestedOwner,
