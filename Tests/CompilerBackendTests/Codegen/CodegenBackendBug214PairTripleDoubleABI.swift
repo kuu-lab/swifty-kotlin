@@ -10,16 +10,7 @@ import Testing
 struct CodegenBackendBug214PairTripleDoubleABITests {
     @Test
     func testPairAndTripleDoubleElementsSurviveSourceBackedAccessors() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/bug_214_pair_double.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("bug_214_pair_double.kt")
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
