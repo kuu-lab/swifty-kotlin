@@ -261,6 +261,51 @@ public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return last
 }
 
+// KSP-970: generic Iterable element access keeps the List fast path while
+// using one iterator traversal for non-List receivers.
+public fun <T> Iterable<T>.elementAt(index: Int): T {
+    if (this is List) {
+        val list = this
+        if (index < 0 || index >= list.size) {
+            throw IndexOutOfBoundsException("Index $index out of bounds for length ${list.size}")
+        }
+        return list[index]
+    }
+    return elementAtOrElse(index) { throw IndexOutOfBoundsException("Collection doesn't contain element at index $index.") }
+}
+
+public fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    if (this is List) {
+        val list = this
+        if (index >= 0 && index < list.size) return list[index]
+        return defaultValue(index)
+    }
+    if (index < 0) return defaultValue(index)
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
+    if (this is List) {
+        val list = this
+        if (index >= 0 && index < list.size) return list[index]
+        return null
+    }
+    if (index < 0) return null
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return null
+}
+
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
 // synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {

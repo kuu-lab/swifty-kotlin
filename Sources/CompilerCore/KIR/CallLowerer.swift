@@ -1252,6 +1252,7 @@ final class CallLowerer {
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
             "__kk_enum_entries_get",
+            "kk_iterable_iterator",
         ].contains(name)
     }
 

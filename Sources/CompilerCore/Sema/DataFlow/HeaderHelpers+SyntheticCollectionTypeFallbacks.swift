@@ -632,7 +632,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iterableInterfaceSymbol, for: iterFnSymbol)
-            symbols.setExternalLinkName("kk_range_iterator", for: iterFnSymbol)
+            symbols.setExternalLinkName("kk_iterable_iterator", for: iterFnSymbol)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [],
                 returnType: iteratorReturnType,
@@ -644,6 +644,7 @@ extension DataFlowSemaPhase {
                     receiverType: iterableReceiverType,
                     parameterTypes: [],
                     returnType: iteratorReturnType,
+                    canThrow: true,
                     typeParameterSymbols: [typeParamSymbol],
                     classTypeParameterCount: 1
                 ),

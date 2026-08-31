@@ -706,6 +706,38 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     )
 }
 
+/// Throwing counterpart used by direct `Iterable.iterator()` calls. Generic
+/// for-loop lowering retains `kk_range_iterator`, whose legacy ABI is
+/// non-throwing; source-backed collection operations need the original
+/// exception handle to remain catchable instead of becoming a runtime panic.
+@_cdecl("kk_iterable_iterator")
+public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
+        return iterableRaw
+    }
+    if runtimeSequenceBox(from: iterableRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
+    if runtimeListBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if runtimeSetBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
+        return sourceIterator
+    }
+    if outThrown?.pointee != 0 {
+        return 0
+    }
+    return kk_range_iterator(iterableRaw)
+}
+
 @_cdecl("kk_range_hasNext")
 public func kk_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {

@@ -2928,7 +2928,7 @@
   - 完了根拠: `Iterables.kt` に本家準拠の public / public inline source-backed 実装を追加し、Sema は静的 `Iterable` で対象2件を source-backed `kotlin.collections.drop#0` / `dropWhile#0` に解決する。具体的な `List` は `#1` のList overloadを維持し、Sequence/Range/共有runtime・ABI経路は変更していない。
   - 回帰: `stdlib_kotlin_collections_Iterable_drop.golden`（List/Iterableのcallee・`List<T>`結果型）、`stdlib_kotlin_collections_Iterable_drop.kt`（one-shot iterator、境界値、負数メッセージ、dropWhileの評価停止・例外・nullable要素）、kotlinc差分PASS。
 
-- [ ] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `element`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2939,6 +2939,8 @@
     - `kotlin.collections.elementAt` — fun Iterable.elementAt(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAt(kotlin/Int): #A`
     - `kotlin.collections.elementAtOrElse` — fun Iterable.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.collections.elementAtOrNull` — fun Iterable.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrNull(kotlin/Int): #A?`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` に source-backed 実装を追加し、List fast path / 非 List iterator path、負 index、過大 index、defaultValue の元 index・単一評価、nullable/empty/custom Iterable/例外伝播を固定。
+  - Sema Golden (`stdlib_kotlin_collections_Iterable_element`) と Kotlin 2.3.10 `diff_kotlinc` の focused 回帰を通過。既存 List/Sequence の source・共有 lowering/runtime/ABI は変更せず、汎用 Iterable の throwing iterator bridge のみ追加。
 
 - [ ] KSP-971: kotlin.collections.Iterable.filter-family の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `filter`
