@@ -8,7 +8,7 @@ symbol fq=kotlin.Array kind=class vis=public flags=synthetic
 symbol fq=kotlin.Pair kind=class vis=public flags=_
 symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.MutableMap kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=_
 symbol fq=probe kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_n_hash package=_
   decl probe fun probe sym=probe
