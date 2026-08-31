@@ -791,6 +791,14 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func printlnRawSignature() throws {
+        let spec = try requireSpec("__kk_println_raw")
+        #expect(spec.returnType == .void)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
     func stringLengthHasNoRuntimeABISignature() {
         #expect(
             RuntimeABISpec.allFunctions.first(where: { $0.name == "kk_string_struct_get_length" }) == nil,

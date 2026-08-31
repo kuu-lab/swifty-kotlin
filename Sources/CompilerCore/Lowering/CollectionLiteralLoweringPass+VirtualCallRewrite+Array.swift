@@ -25,7 +25,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // classifyReceiverByStaticType (LOWERING-001) before reaching here.
         guard arrayExprIDs.contains(receiver.rawValue) else { return false }
 
-        // toList on array → kk_array_toList (result is List)
+        // toList on array → __kk_array_toList (result is List)
         if callee == lookup.toListName, arguments.isEmpty {
             let toListResult = module.arena.appendTemporary(type: nil
             )

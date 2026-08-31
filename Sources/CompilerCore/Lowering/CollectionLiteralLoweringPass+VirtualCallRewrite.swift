@@ -18,9 +18,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         receiver: KIRExprID,
         context: VirtualCallRewriteContext
     ) -> Bool {
-        // KSP-1512: primitive-array `size` is a bundled Kotlin extension, so
-        // do not replace it with the generic Array<T> runtime bridge when the
-        // receiver is one of the signed primitive arrays.
+        // KSP-1513: array `size` is a bundled Kotlin declaration, so do not
+        // replace it with the generic runtime bridge when the receiver is an
+        // Array<T> or primitive array.
         if callee == lookup.sizeName,
            let symbol,
            let sema = context.sema,
@@ -31,11 +31,12 @@ extension CollectionVirtualCallRewriteLoweringPass {
                sema: sema
            )
         {
-            let signedPrimitiveArrayNames: Set<String> = [
+            let sourceBackedArrayNames: Set<String> = [
                 "IntArray", "LongArray", "ShortArray", "ByteArray",
                 "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
             ]
-            return signedPrimitiveArrayNames.contains(context.interner.resolve(receiverSymbol.name))
+            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
         }
 
         guard callee == lookup.foldName

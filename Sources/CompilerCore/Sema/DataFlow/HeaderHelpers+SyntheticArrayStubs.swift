@@ -41,72 +41,6 @@ extension DataFlowSemaPhase {
         )
         types.setNominalTypeParameterSymbols([tParamSymbol], for: arraySymbol)
         types.setNominalTypeParameterVariances([.invariant], for: arraySymbol)
-        let sizeReturnType = types.intType
-        let sizeName = interner.intern("size")
-        let sizeFQName = arrayFQName + [sizeName]
-        if symbols.lookup(fqName: sizeFQName) == nil {
-            let sizeSym = symbols.define(
-                kind: .property,
-                name: sizeName,
-                fqName: sizeFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: sizeSym)
-            symbols.setPropertyType(sizeReturnType, for: sizeSym)
-            symbols.setExternalLinkName("kk_array_size", for: sizeSym)
-        }
-
-        let toListName = interner.intern("toList")
-        let toListFQName = arrayFQName + [toListName]
-        if symbols.lookup(fqName: toListFQName) == nil {
-            let toListSym = symbols.define(
-                kind: .function,
-                name: toListName,
-                fqName: toListFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(arraySymbol, for: toListSym)
-            symbols.setExternalLinkName("kk_array_toList", for: toListSym)
-
-            // Get List<T> type for return type
-            let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
-            if let listSymbol = symbols.lookup(fqName: listFQName) {
-                let listElementType = types.make(.typeParam(TypeParamType(
-                    symbol: tParamSymbol,
-                    nullability: .nonNull
-                )))
-                let listReturnType = types.make(.classType(ClassType(
-                    classSymbol: listSymbol,
-                    args: [.invariant(listElementType)],
-                    nullability: .nonNull
-                )))
-
-                let arrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [.invariant(listElementType)],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: [],
-                        returnType: listReturnType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: [tParamSymbol]
-                    ),
-                    for: toListSym
-                )
-            }
-        }
-
         // KSP-657: arrayOf / emptyArray / arrayOfNulls factories are now declared
         // as bundled Kotlin intrinsics in Stdlib/kotlin/ArrayIntrinsics.kt.
 
@@ -253,10 +187,8 @@ extension DataFlowSemaPhase {
             "UByteArray",
             "UShortArray",
         ]
-        // KSP-1513 owns the residual primitive-array `size` / `toList`
-        // synthetic members for unsigned arrays. Signed arrays are backed by
-        // bundled Kotlin source in ArrayConversions.kt (KSP-1512), while their
-        // class shells remain synthetic here for the primitive type system.
+        // Keep primitive array class shells synthetic for the primitive type
+        // system. Their `size` / conversion members are bundled Kotlin source.
         let unsignedPrimitiveArrayNames = [
             "UByteArray",
             "UShortArray",
@@ -266,174 +198,14 @@ extension DataFlowSemaPhase {
         for name in primitiveArrayNames {
             let primName = interner.intern(name)
             let fqName = kotlinPkg + [primName]
-            let sym: SymbolID = if let existing = symbols.lookup(fqName: fqName) {
-                existing
-            } else {
-                symbols.define(
+            if symbols.lookup(fqName: fqName) == nil {
+                _ = symbols.define(
                     kind: .class,
                     name: primName,
                     fqName: fqName,
                     declSite: nil,
                     visibility: .public,
                     flags: [.synthetic]
-                )
-            }
-            guard unsignedPrimitiveArrayNames.contains(name) else {
-                continue
-            }
-            // Register size property independently of class existence,
-            // so that even if the class was defined elsewhere without size,
-            // we still add the property.
-            let primSizeFQName = fqName + [sizeName]
-            if symbols.lookup(fqName: primSizeFQName) == nil {
-                let primSizeSym = symbols.define(
-                    kind: .property,
-                    name: sizeName,
-                    fqName: primSizeFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(sym, for: primSizeSym)
-                symbols.setPropertyType(sizeReturnType, for: primSizeSym)
-
-                // Set external link name for size property
-                let sizeLinkName: String = switch name {
-                case "UIntArray": "kk_uIntArray_size"
-                case "ULongArray": "kk_uLongArray_size"
-                case "UByteArray": "kk_uByteArray_size"
-                case "UShortArray": "kk_uShortArray_size"
-                default: "kk_array_size"
-                }
-                symbols.setExternalLinkName(sizeLinkName, for: primSizeSym)
-            }
-        }
-
-        let listFQName = [interner.intern("kotlin"), interner.intern("collections"), interner.intern("List")]
-        let listInterfaceSym = symbols.lookup(fqName: listFQName)
-
-        for name in unsignedPrimitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName) else {
-                continue
-            }
-
-            let toListName = interner.intern("toList")
-            let toListFQName = fqName + [toListName]
-            if symbols.lookup(fqName: toListFQName) == nil, let listInterfaceSym = listInterfaceSym {
-                let toListSym = symbols.define(
-                    kind: .function,
-                    name: toListName,
-                    fqName: toListFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: toListSym)
-
-                let externalLinkName: String = switch name {
-                case "UIntArray": "kk_uIntArray_toList"
-                case "ULongArray": "kk_uLongArray_toList"
-                case "UByteArray": "kk_uByteArray_toList"
-                case "UShortArray": "kk_uShortArray_toList"
-                default: "kk_array_toList"
-                }
-                symbols.setExternalLinkName(externalLinkName, for: toListSym)
-
-                let elementType: TypeID = switch name {
-                case "UIntArray": types.uintType
-                case "ULongArray": types.ulongType
-                case "UByteArray": types.ubyteType
-                case "UShortArray": types.ushortType
-                default: types.intType
-                }
-
-                let listReturnType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSym,
-                    args: [.invariant(elementType)],
-                    nullability: .nonNull
-                )))
-
-                let arrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: [],
-                        returnType: listReturnType,
-                        isSuspend: false
-                    ),
-                    for: toListSym
-                )
-            }
-        }
-
-        for name in unsignedPrimitiveArrayNames {
-            let primName = interner.intern(name)
-            let fqName = kotlinPkg + [primName]
-            guard let arraySymbol = symbols.lookup(fqName: fqName), let listInterfaceSym = listInterfaceSym else {
-                continue
-            }
-
-            let asListName = interner.intern("asList")
-            let asListFQName = fqName + [asListName]
-            if symbols.lookup(fqName: asListFQName) == nil {
-                let asListSym = symbols.define(
-                    kind: .function,
-                    name: asListName,
-                    fqName: asListFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(arraySymbol, for: asListSym)
-
-                let externalLinkName: String = switch name {
-                case "UByteArray": "kk_uByteArray_asList"
-                case "UShortArray": "kk_uShortArray_asList"
-                case "UIntArray": "kk_uIntArray_asList"
-                case "ULongArray": "kk_uLongArray_asList"
-                default: "kk_array_toList"
-                }
-                symbols.setExternalLinkName(externalLinkName, for: asListSym)
-
-                let elementType: TypeID = switch name {
-                case "UByteArray": types.ubyteType
-                case "UShortArray": types.ushortType
-                case "UIntArray": types.uintType
-                case "ULongArray": types.ulongType
-                default: types.intType
-                }
-
-                let listReturnType = types.make(.classType(ClassType(
-                    classSymbol: listInterfaceSym,
-                    args: [.invariant(elementType)],
-                    nullability: .nonNull
-                )))
-
-                let arrayReceiverType = types.make(.classType(ClassType(
-                    classSymbol: arraySymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: arrayReceiverType,
-                        parameterTypes: [],
-                        returnType: listReturnType,
-                        isSuspend: false,
-                        valueParameterSymbols: [],
-                        valueParameterHasDefaultValues: [],
-                        valueParameterIsVararg: [],
-                        typeParameterSymbols: []
-                    ),
-                    for: asListSym
                 )
             }
         }

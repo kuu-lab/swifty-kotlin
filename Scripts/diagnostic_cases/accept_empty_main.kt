@@ -1,0 +1,2 @@
+// EXPECT-ACCEPT
+fun main() {}

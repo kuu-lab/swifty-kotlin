@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testPrimitiveArrayZeroInit() throws {
@@ -157,6 +99,73 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "UIntArrayFactoryAndAccess", expected: "3\n1\n3\n")
+    }
+
+    @Test
+    func testUnsignedArraySizeToListCopyAndAsListView() throws {
+        let source = """
+        fun main() {
+            val ubytes = ubyteArrayOf(1.toUByte(), 2.toUByte())
+            val ubyteCopy = ubytes.toList()
+            val ubyteView = ubytes.asList()
+            ubytes[0] = 9.toUByte()
+            println(ubytes.size)
+            println(ubyteCopy)
+            println(ubyteView)
+
+            val ushorts = ushortArrayOf(3.toUShort(), 4.toUShort())
+            val ushortCopy = ushorts.toList()
+            val ushortView = ushorts.asList()
+            ushorts[0] = 8.toUShort()
+            println(ushorts.size)
+            println(ushortCopy)
+            println(ushortView)
+
+            val uints = uintArrayOf(5u, 6u)
+            val uintCopy = uints.toList()
+            val uintView = uints.asList()
+            uints[0] = 7u
+            println(uints.size)
+            println(uintCopy)
+            println(uintView)
+
+            val ulongs = ulongArrayOf(10uL, 11uL)
+            val ulongCopy = ulongs.toList()
+            val ulongView = ulongs.asList()
+            ulongs[0] = 12uL
+            println(ulongs.size)
+            println(ulongCopy)
+            println(ulongView)
+
+            val objects = arrayOf("a", "b")
+            val objectCopy: List<String> = objects.toList()
+            objects[0] = "z"
+            println(objects.size)
+            println(objectCopy)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedArraySizeToListCopyAndAsListView",
+            expected:
+                """
+                2
+                [1, 2]
+                [9, 2]
+                2
+                [3, 4]
+                [8, 4]
+                2
+                [5, 6]
+                [7, 6]
+                2
+                [10, 11]
+                [12, 11]
+                2
+                [a, b]
+                """
+                + "\n"
+        )
     }
 
     @Test

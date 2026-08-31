@@ -683,7 +683,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFold"),
             interner.intern("kk_sequence_runningReduceIndexed"),
             interner.intern("kk_sequence_sortedBy"),
-            interner.intern("kk_sequence_sortedWith"),
             interner.intern("kk_sequence_sortedByDescending"),
             interner.intern("kk_sequence_takeLastWhile"),
             interner.intern("kk_sequence_firstNotNullOf"),
