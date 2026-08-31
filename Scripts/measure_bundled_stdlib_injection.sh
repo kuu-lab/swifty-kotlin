@@ -21,8 +21,8 @@ RUNS="${1:-5}"
 TMPDIR="${TMPDIR:-/tmp}"
 OUT_DIR="$(mktemp -d "$TMPDIR/kswiftk-bundled-injection.XXXXXX")"
 ARTIFACT_DIR="$OUT_DIR/KSwiftKStdlib.kklib"
-# Baseline median 37.29ms + 100ms trigger (docs/refactoring-metrics.md)
-CACHE_TRIGGER_MS=137.29
+# Baseline median (36.05ms) + 100ms, per "Bundled Stdlib Injection Cost" in docs/refactoring-metrics.md.
+CACHE_TRIGGER_MS=136.05
 trap 'rm -rf "$OUT_DIR"' EXIT
 
 extract_subphase() {
@@ -86,7 +86,7 @@ printf '  Lex bundled-stdlib:  %s ms\n' "$lex_median"
 printf '  Parse bundled-stdlib: %s ms\n' "$parse_median"
 printf '  Total:               %s ms\n' "$total_median"
 
-if (( $(awk -v t="$total_median" -v th="$CACHE_TRIGGER_MS" 'BEGIN { print (t >= th) ? 1 : 0 }') )); then
+if (( $(awk -v t="$total_median" -v trig="$CACHE_TRIGGER_MS" 'BEGIN { print (t >= trig) ? 1 : 0 }') )); then
     printf 'Trigger (>= %s ms): CACHED\n' "$CACHE_TRIGGER_MS" >&2
 else
     printf 'Trigger (>= %s ms): not reached\n' "$CACHE_TRIGGER_MS" >&2
