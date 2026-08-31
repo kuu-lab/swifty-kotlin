@@ -19,9 +19,27 @@ public external fun AutoCloseable(closeAction: () -> Unit): AutoCloseable
 public inline fun <T : AutoCloseable?, R> T.use(block: (T) -> R): R {
     val resource = this
     val closeable: AutoCloseable? = resource
+    var exception: Throwable? = null
     try {
         return block(resource)
+    } catch (e: Throwable) {
+        exception = e
+        throw e
     } finally {
-        closeable?.close()
+        closeable.closeFinally(exception)
     }
+}
+
+@PublishedApi
+internal fun AutoCloseable?.closeFinally(cause: Throwable?) {
+    if (this == null) return
+    if (cause != null) {
+        try {
+            close()
+        } catch (closeException: Throwable) {
+            cause.addSuppressed(closeException)
+        }
+        return
+    }
+    close()
 }
