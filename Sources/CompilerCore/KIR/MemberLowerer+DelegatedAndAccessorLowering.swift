@@ -524,6 +524,27 @@ extension MemberLowerer {
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
         }
 
+        // Keep the synthetic accessor's signature available to ABI lowering in
+        // the same compilation. Imported library metadata already restores this
+        // signature, but source-backed properties otherwise leave their accessor
+        // symbol unregistered even though the KIR call carries it.
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: extensionReceiverType ?? ownerSymbol.flatMap { owner in
+                    sema.symbols.symbol(owner).map { ownerInfo in
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: ownerInfo.id,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                    }
+                },
+                parameterTypes: accessorKind == .setter ? [propertyType] : [],
+                returnType: returnType
+            ),
+            for: syntheticAccessorSymbol
+        )
+
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(

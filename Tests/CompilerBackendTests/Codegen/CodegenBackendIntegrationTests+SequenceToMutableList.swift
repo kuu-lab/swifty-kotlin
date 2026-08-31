@@ -56,16 +56,7 @@ struct CodegenBackendSequenceToMutableListTests {
 
     @Test
     func testCodegenSequenceToMutableListUsesCanonicalDiffCase() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sourceURL = repoRoot
-            .appendingPathComponent("Scripts")
-            .appendingPathComponent("diff_cases")
-            .appendingPathComponent("sequence_tomutablelist.kt")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_tomutablelist.kt")
 
         try assertKotlinOutput(source, moduleName: "SequenceToMutableListRuntime", expected: "[3, 1, 2, 1, 3, 99]\n[7]\n")
     }
