@@ -197,18 +197,7 @@ extension CallLowerer {
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
-                return interner.intern("kk_array_copyOf")
-            case "copyOf":
-                switch argumentCount {
-                case 0:
-                    return interner.intern("kk_array_copyOf")
-                case 1:
-                    return interner.intern("kk_array_copyOf_newSize")
-                case 2:
-                    return interner.intern("kk_array_copyOf_newSize_init")
-                default:
-                    break
-                }
+                return interner.intern("__kk_array_copyOf")
             case "fill":
                 return interner.intern("kk_array_fill")
             case "asSequence":

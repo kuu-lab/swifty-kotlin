@@ -474,13 +474,14 @@
   - 前提: KSP-657
   - 完了根拠: `ArrayContentAndCopy.kt` に generic/primitive/unsigned の全6 APIをsource-backed実装し、deep 3種のcycle-aware `__kk_*` bridgeだけを保持。対象synthetic/旧public `kk_*`/RuntimeABI登録を除去し、Semaリンク・PrimitiveArrayEdgeCases・Golden/diff/direct実行・ABI/TODO検証を通過。
 
-- [ ] KSP-1515: Array の copy 系（`copyOf`/`copyOf(newSize)`/`copyOf(newSize, init)`/`copyOfRange`/`copyInto`）を Kotlin 化する
+- [x] KSP-1515: Array の copy 系（`copyOf`/`copyOf(newSize)`/`copyOf(newSize, init)`/`copyOfRange`/`copyInto`）を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（copy 系）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayContentAndCopy.kt` 追記
-  - 削除/降格 kk_*: `kk_array_copyOf`, `kk_array_copyOf_newSize`, `kk_array_copyOf_newSize_init`, `kk_array_copyOfRange`, `kk_array_copyInto`（未初期化領域の boxing/GC は `__kk_array_*` bridge のまま）
+  - 削除/降格 kk_*: `kk_array_copyOf` は `__kk_array_copyOf`（`toTypedArray` の残余 bridge）へ降格し、`kk_array_copyOf_newSize`, `kk_array_copyOf_newSize_init`, `kk_array_copyOfRange`, `kk_array_copyInto` は Runtime/RuntimeABI から削除（未初期化領域の boxing/GC は `__kk_array_*` bridge のまま）
   - 手順: T
   - diff: `array_copy*.kt` 既存 + `copyOf(newSize)` の拡張/縮小、`copyInto` の overlapping 範囲、`copyOfRange` 境界例外ケース
   - 前提: KSP-657, KSP-1514
+  - 完了根拠: `ArrayContentAndCopy.kt` に generic/primitive/unsigned の全 copy APIを source-backed 実装し、copyOf の負数サイズ、copyOfRange/copyInto の境界検査、copyInto の overlapping snapshot を追加。対象 synthetic 登録と旧 copy runtime/ABI を除去し、残余 `__kk_array_copyOf` の `toTypedArray` 経路だけを保持。Sema 契約テスト、PrimitiveArrayEdgeCases、Runtime bridge、`array_copy*.kt` の Kotlin 2.3.10 diff、ABI 検証を通過。
 
 - [ ] KSP-1516: Array の `sliceArray`/`reversedArray`/`asList`/`toTypedArray` を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（slice/reverse/view 系）
