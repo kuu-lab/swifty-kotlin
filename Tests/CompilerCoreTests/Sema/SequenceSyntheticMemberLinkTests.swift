@@ -549,13 +549,14 @@ struct SequenceSyntheticMemberLinkTests {
 
         do {
             // testSequenceFilterIsInstanceResolvesInCallExpressions -> Sequence.filterIsInstance
-            let memberFQNameFilterIsInstance = ["kotlin", "sequences", "Sequence", "filterIsInstance"].map { ctx.interner.intern($0) }
-            let linksFilterIsInstance = Set(
-                sema.symbols.lookupAll(fqName: memberFQNameFilterIsInstance).compactMap { sema.symbols.externalLinkName(for: $0) }
-            )
+            let memberFQNameFilterIsInstance = ["kotlin", "sequences", "filterIsInstance"].map { ctx.interner.intern($0) }
+            let filterIsInstanceSymbols = sema.symbols.lookupAll(fqName: memberFQNameFilterIsInstance)
             #expect(
-                linksFilterIsInstance.contains("kk_sequence_filterIsInstance"),
-                "Expected Sequence.filterIsInstance to link to kk_sequence_filterIsInstance, got \(linksFilterIsInstance.sorted())"
+                filterIsInstanceSymbols.contains {
+                    sema.symbols.isSourceBackedSymbol($0)
+                        && sema.symbols.externalLinkName(for: $0) == nil
+                },
+                "Expected Sequence.filterIsInstance to be backed by bundled Kotlin source"
             )
         }
 

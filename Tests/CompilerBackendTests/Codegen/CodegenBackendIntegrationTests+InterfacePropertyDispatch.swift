@@ -150,16 +150,7 @@ struct CodegenBackendInterfacePropertyDispatchTests {
 
     @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/interface_stored_property_dispatch.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("interface_stored_property_dispatch.kt")
 
         try assertKotlinOutput(
             source,
@@ -206,6 +197,103 @@ struct CodegenBackendInterfacePropertyDispatchTests {
             source,
             moduleName: "Bug211CharSequenceLengthDispatch",
             expected: "5\n5\n3\n6\n6\n"
+        )
+    }
+
+    // KSP-817: CharSequence.get must dispatch through the interface itable for
+    // flat Strings, runtime-backed StringBuilders, and user implementations.
+    @Test
+    func testKsp817CharSequenceGetDispatchAcrossImplementations() throws {
+        let source = """
+        fun getAt(value: CharSequence, index: Int): Char = value[index]
+
+        class CustomSequence(private val content: String) : CharSequence {
+            override val length: Int
+                get() = content.length
+            override fun get(index: Int): Char = content[index]
+            override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+                content.substring(startIndex, endIndex)
+        }
+
+        fun main() {
+            println(getAt("hello", 1))
+            println(getAt(StringBuilder("xyz"), 2))
+            println(getAt(CustomSequence("custom"), 3))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "Ksp817CharSequenceGetDispatch",
+            expected: "e\nz\nt\n"
+        )
+    }
+
+    @Test
+    func testInterfaceDefaultPropertyGetterItableDispatchAcrossImplementations() throws {
+        let source = """
+        interface Greeter {
+            val greeting: String
+                get() = "Hello"
+            fun greet(name: String): String = "$greeting, $name!"
+        }
+
+        class CustomGreeter : Greeter {
+            override val greeting: String = "Hi"
+        }
+
+        class DefaultGreeter : Greeter
+
+        interface BaseInterface {
+            val baseProp: String
+                get() = "baseDefault"
+            val overriddenInChild: String
+                get() = "baseOverridden"
+        }
+
+        interface ChildInterface : BaseInterface {
+            val childProp: String
+                get() = "childDefault"
+            override val overriddenInChild: String
+                get() = "childOverridden"
+        }
+
+        open class BaseClass : ChildInterface {
+            override val baseProp: String
+                get() = "classBaseProp"
+        }
+
+        class ConcreteClass : BaseClass()
+
+        fun readBase(b: BaseInterface): String = "${b.baseProp};${b.overriddenInChild}"
+        fun readChild(c: ChildInterface): String = c.childProp
+
+        fun main() {
+            val g1 = CustomGreeter()
+            val g2 = DefaultGreeter()
+            println(g1.greet("Alice"))
+            println(g2.greet("Bob"))
+            println(g1.greeting)
+            println(g2.greeting)
+
+            val obj = ConcreteClass()
+            println(readBase(obj))
+            println(readChild(obj))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "InterfaceDefaultPropertyGetterDispatch",
+            expected:
+                """
+                Hi, Alice!
+                Hello, Bob!
+                Hi
+                Hello
+                classBaseProp;childOverridden
+                childDefault
+                """ + "\n"
         )
     }
 }

@@ -307,17 +307,6 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_sortedWith",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_sequence_sortedByDescending",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
@@ -410,16 +399,6 @@ public extension RuntimeABISpec {
             name: "kk_sequence_filterNotNull",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: stdlibSequenceHOFName("filterIsInstance", arity: 0, fallback: "kk_sequence_filterIsInstance"),
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "typeToken", type: .intptr),
             ],
             returnType: .intptr,
             section: "Sequence",
@@ -594,17 +573,6 @@ public extension RuntimeABISpec {
             name: "kk_sequence_count",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_findLast",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -833,10 +801,10 @@ public extension RuntimeABISpec {
             name: "kk_sequence_toMap",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
+            section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("groupBy", arity: 1, fallback: "kk_sequence_groupBy"),
@@ -1108,17 +1076,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_sequence_none",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_sequence_find",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
