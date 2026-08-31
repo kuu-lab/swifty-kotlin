@@ -139,7 +139,7 @@ expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.pri
 expr e@20:49 call callee=e@20:49#1 args=[] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.mutableMapOf#0 targs=[String,Int]
 expr e@20:5 localDecl delegatedMap mutable=0 type=MutableMap<String,Int> init=e@20:49 type=Unit ref=__local_1.delegatedMap
 expr e@21:27 name(delegatedMap) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.delegatedMap
-expr e@21:5 localDecl delegated mutable=1 type=_ init=e@21:27 delegated=1 type=Unit ref=__local_2.delegated
+expr e@21:5 localDecl delegated mutable=1 type=Int init=e@21:27 delegated=1 type=Unit ref=__local_2.delegated
 expr e@22:17 int(31) type=Int
 expr e@22:5 localAssign delegated value=e@22:17 type=Unit ref=__local_2.delegated
 expr e@23:13 name(delegated) type=Int ref=__local_2.delegated
@@ -157,7 +157,7 @@ expr e@24:21#1 memberCall recv=e@24:21 callee=withDefault args=[_:e@24:37] type=
 expr e@24:5 localDecl defaulted mutable=0 type=_ init=e@24:21#1 type=Unit ref=__local_3.defaulted
 expr e@25:13 name(defaulted) type=kotlin.collections.MutableMap<String, Int?> ref=__local_3.defaulted
 expr e@25:32 string(null) type=String
-expr e@25:13#1 memberCall recv=e@25:13 callee=getValue args=[_:e@25:32] type=Int? call=kotlin.collections.getValue#0
+expr e@25:13#1 memberCall recv=e@25:13 callee=getValue args=[_:e@25:32] type=Int? call=kotlin.collections.getValue#1
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.println#1
 expr e@26:5 name(defaulted) type=kotlin.collections.MutableMap<String, Int?> ref=__local_3.defaulted
 expr e@26:15 string(wrapper) type=String
@@ -177,7 +177,7 @@ expr e@30:21#1 memberCall recv=e@30:21 callee=next args=[] type=kotlin.collectio
 expr e@30:9 localDecl entry mutable=0 type=_ init=e@30:21#1 type=Unit ref=__local_5.entry
 expr e@31:17 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int?> ref=__local_5.entry
 expr e@31:17#1 memberCall recv=e@31:17 callee=key args=[] type=String call=kotlin.collections.Map.Entry.key targs=[String,Int?]
-expr e@31:9 call callee=e@31:9#1 args=[_:e@31:17#1] type=Unit call=kotlin.io.println#1
+expr e@31:9 call callee=e@31:9#1 args=[_:e@31:17#1] type=Unit call=kotlin.io.println#2
 expr e@32:9 name(entry) type=kotlin.collections.MutableMap.MutableEntry<String, Int?> ref=__local_5.entry
 expr e@32:24 int(999) type=Int
 expr e@32:9#1 memberCall recv=e@32:9 callee=setValue args=[_:e@32:24] type=Int? call=kotlin.collections.MutableMap.MutableEntry.setValue targs=[String,Int?]

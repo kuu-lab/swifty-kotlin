@@ -818,7 +818,16 @@ extension CallTypeChecker {
         /// (`iterator`) but the target name mangled avoids widening that
         /// pool while still binding the correct implementation here.
         func bindBundledMapIteratorSourceFunction() -> TypeID? {
-            guard isMapReceiver, !isSequenceReceiver, calleeStr == "iterator", args.isEmpty else {
+            // MutableMap.iterator() has a more specific source-backed overload
+            // whose mutable entry type and runtime bridge must win. Let the
+            // regular member resolver select that overload instead of binding
+            // the read-only Map iterator first.
+            guard isMapReceiver,
+                  !isSequenceReceiver,
+                  !receiverClassifier.isMutableMapType(receiverType),
+                  calleeStr == "iterator",
+                  args.isEmpty
+            else {
                 return nil
             }
             let sourceFQName = [

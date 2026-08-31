@@ -454,7 +454,35 @@ extension DeclTypeChecker {
         for candidate in scopeCandidates + bundledCandidates where seen.insert(candidate).inserted {
             extensionCandidates.append(candidate)
         }
-        if let extensionResolution = resolve(extensionCandidates) {
+        // A MutableMap delegate has both the Map and MutableMap getValue
+        // extensions in an imported stdlib artifact. Prefer the more specific
+        // MutableMap receiver before overload resolution, otherwise the two
+        // projected signatures are reported as ambiguous.
+        var preferredExtensionCandidates = extensionCandidates
+        if name == interner.intern("getValue"),
+           argumentTypes.count == 2,
+           isMutableMapDelegateType(receiverType, sema: sema, interner: interner)
+        {
+            let mutableMapFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("MutableMap"),
+            ]
+            let mutableMapCandidates = extensionCandidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      let declaredReceiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: declaredReceiver, types: sema.types),
+                      let receiverInfo = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return receiverInfo.fqName == mutableMapFQName
+            }
+            if !mutableMapCandidates.isEmpty {
+                preferredExtensionCandidates = mutableMapCandidates
+            }
+        }
+        if let extensionResolution = resolve(preferredExtensionCandidates) {
             if let diagnostic = extensionResolution.diagnostic {
                 ctx.semaCtx.diagnostics.emit(diagnostic)
             }
