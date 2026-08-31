@@ -630,32 +630,43 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
-        // A source-backed top-level function with the same name and arity owns
-        // the public overload. Keep the compiler primitive only for allocation
-        // forms that do not have a source implementation (KSP-763).
-        let hasSourceBackedArrayConstructor: Bool = if let calleeName {
-            ctx.cachedScopeLookup(calleeName).contains { candidate in
+        // A visible source-backed top-level function with the same name and applicable
+        // arity owns the overload. For one-argument primitive arrays, compare
+        // the inferred argument type as well: UByteArray(ByteArray) must not
+        // hide the compiler-provided UByteArray(Int) allocation form.
+        let sourceBackedArrayConstructors: [(symbol: SymbolID, signature: FunctionSignature)] = if let calleeName {
+            ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.compactMap { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
-                      // Internal storage constructors are implementation
-                      // details and must not shadow the public primitive
-                      // array size constructor.
-                      symbol.visibility == .public,
-                      !sema.symbols.annotations(for: candidate).contains(
-                          where: { $0.annotationFQName == "kotlin.PublishedApi" }
-                      ),
                       sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
-                      signature.parameterTypes.count == args.count
+                      signature.parameterTypes.count == args.count,
+                      !signature.valueParameterIsVararg.contains(true)
                 else {
-                    return false
+                    return nil
                 }
-                return !signature.valueParameterIsVararg.contains(true)
+                return (candidate, signature)
             }
         } else {
-            false
+            []
         }
+        let hasSourceBackedArrayConstructor: Bool = {
+            if args.count == 1,
+               let calleeName,
+               knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+               !sourceBackedArrayConstructors.isEmpty
+            {
+                let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                return sourceBackedArrayConstructors.contains { _, signature in
+                    guard let parameterType = signature.parameterTypes.first else {
+                        return false
+                    }
+                    return sema.types.isSubtype(argumentType, parameterType)
+                }
+            }
+            return !sourceBackedArrayConstructors.isEmpty
+        }()
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
