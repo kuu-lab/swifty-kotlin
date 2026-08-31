@@ -3574,7 +3574,7 @@
     - `kotlin.collections.minWithOrNull` — fun Map.minWithOrNull(Comparator): Entry  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minWithOrNull(kotlin/Comparator<in kotlin.collections/Map.Entry<#A, #B>>): kotlin.collections/Map.Entry<#A, #B>?`
   - 完了確認（2026-08-24、Kotlin 2.3.10）：`MapHOF.kt` に対象11 APIを追加し、Map receiverのvariance、Comparable/Double/Float overload、Comparator variance、空Map・tie・評価回数・nullable key/value・例外・NaN/±0/infinityをkotlincと照合。Sema Golden shard（1 test / 8 cases）、`diff_kotlinc`（1/1）、source注入実行、ABI external-link（4 tests）、TODO-ID検査をpass。対象専用のsynthetic/runtime/ABI bridgeは無く、共有imported-inline loweringの型復元だけを追加し、隣接 `minByOrNull` と共有bridgeは保持した。
 
-- [ ] KSP-1015: kotlin.collections.Map.minus-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1015: kotlin.collections.Map.minus-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `minus`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3584,6 +3584,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.minus` — fun Map.minus(Sequence): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minus(kotlin.sequences/Sequence<#A>): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.minus` — fun Map.minus(Array): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Map<out #A, #B>).kotlin.collections/minus(kotlin/Array<out #A>): kotlin.collections/Map<#A, #B>`
+  - 完了根拠（2026-08-24）: `MapHOF.kt` に `Map<out K, V>.minus(Sequence<K>)` / `minus(Array<out K>)` を source-backed 実装し、既存の key / `Iterable<K>` overload と `kk_map_minus` 共有経路を保持。KIR 回帰、対象 Golden、Kotlin 2.3.10 との diff、fresh map / 元 map 不変 / 順序 / 重複・不存在 key / nullable key-value / empty input を確認済み。Sequence builder の例外伝播は現行 non-throwing `kk_iterator_*` ABI の既存制約により kotlinc と同じ `try/catch` 結果にならず、別 scope の課題として記録する。
 
 - [ ] KSP-1016: kotlin.collections.Map.none-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `none`

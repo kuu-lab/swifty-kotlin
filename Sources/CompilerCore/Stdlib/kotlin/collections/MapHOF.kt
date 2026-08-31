@@ -685,3 +685,23 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     }
     return result as Map<K, V>
 }
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Sequence<K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
+    return result as Map<K, V>
+}
