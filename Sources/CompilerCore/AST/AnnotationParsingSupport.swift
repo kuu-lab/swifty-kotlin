@@ -7,11 +7,6 @@ enum AnnotationParsingSupport {
         let invalidUseSiteTargetRange: SourceRange?
     }
 
-    private static let knownUseSiteTargets: Set<String> = [
-        "get", "set", "field", "param", "setparam",
-        "delegate", "property", "receiver", "file",
-    ]
-
     static func parseAnnotation(
         from tokens: [Token],
         start: Int,
@@ -31,7 +26,7 @@ enum AnnotationParsingSupport {
         var invalidUseSiteTargetRange: SourceRange?
         if index + 1 < tokens.count, tokens[index + 1].kind == .symbol(.colon),
            let candidateName = tokenText(tokens[index], interner: interner),
-           knownUseSiteTargets.contains(candidateName)
+           SoftKeyword.useSiteTargetNames.contains(candidateName)
         {
             if allowUseSiteTarget {
                 useSiteTarget = candidateName
