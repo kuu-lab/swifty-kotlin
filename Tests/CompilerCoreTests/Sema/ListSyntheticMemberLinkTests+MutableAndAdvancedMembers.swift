@@ -918,6 +918,7 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
             let expectedExternalLinks = [
                 "addAll": "__kk_mutable_list_addAll",
@@ -926,7 +927,10 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
+                        return false
+                    }
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })

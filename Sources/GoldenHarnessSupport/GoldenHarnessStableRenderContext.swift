@@ -43,7 +43,14 @@ final class StableRenderContext {
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
             let sorted = symbols.sorted { a, b in
-                Self.overloadSortKey(a, sema: sema, fqMap: fqMap) < Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
+                let lhsKey = Self.overloadSortKey(a, sema: sema, fqMap: fqMap)
+                let rhsKey = Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
+                return Self.overloadSortKeyPrecedes(
+                    lhsKey,
+                    lhsSymbolID: a.id.rawValue,
+                    rhsKey,
+                    rhsSymbolID: b.id.rawValue
+                )
             }
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"
@@ -287,6 +294,27 @@ final class StableRenderContext {
         let recv = sig.receiverType.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) } ?? "_"
         let params = sig.parameterTypes.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) }
         return "\(recv)|\(params.joined(separator: ","))"
+    }
+
+    /// Orders overload keys numerically because generated generic-owner names
+    /// contain unpadded symbol IDs such as `$9999` and `$10001`.
+    static func overloadSortKeyPrecedes(
+        _ lhsKey: String,
+        lhsSymbolID: Int32,
+        _ rhsKey: String,
+        rhsSymbolID: Int32
+    ) -> Bool {
+        switch lhsKey.compare(rhsKey, options: .numeric) {
+        case .orderedAscending:
+            return true
+        case .orderedDescending:
+            return false
+        case .orderedSame:
+            if lhsKey != rhsKey {
+                return lhsKey < rhsKey
+            }
+            return lhsSymbolID < rhsSymbolID
+        }
     }
 
     private static func stabilizeTypeRefsStatic(_ text: String, fqMap: [Int32: String]) -> String {
