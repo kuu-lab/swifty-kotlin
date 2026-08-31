@@ -125,6 +125,7 @@ struct RuntimeValue {
 class RuntimeThrowableBox {
     let message: String?
     var cause: Int
+    let stackTraceAddresses: [Int]
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
     /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
@@ -144,6 +145,7 @@ class RuntimeThrowableBox {
     init(message: String?, cause: Int = 0) {
         self.message = message
         self.cause = cause
+        self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
     }
 }
 
@@ -243,6 +245,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?
     var throwableCause: Int
+    var throwableStackTraceAddresses: [Int]?
     var throwableSuppressed: [Int]
 
     init(length: Int, classID: Int64) {
@@ -250,6 +253,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.backingSetBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0
+        self.throwableStackTraceAddresses = nil
         self.throwableSuppressed = []
         super.init(length: length)
     }
@@ -710,7 +714,6 @@ enum SequenceStepKind {
     /// STDLIB-HOF-022: Additional lazy transformation steps
     case mapNotNullStep(fnPtr: Int, closureRaw: Int)
     case filterNotNullStep
-    case filterIsInstanceStep(typeToken: Int)
     case requireNoNullsStep
     case mapIndexedStep(fnPtr: Int, closureRaw: Int)
     case mapIndexedNotNullStep(fnPtr: Int, closureRaw: Int)

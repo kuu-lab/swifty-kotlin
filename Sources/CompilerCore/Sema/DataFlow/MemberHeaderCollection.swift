@@ -578,10 +578,10 @@ extension DataFlowSemaPhase {
             return reusableSyntheticDeclarationSymbol(
                 kind: kind,
                 fqName: fqName,
+                declarationFlags: duplicateCheckFlags,
                 file: file,
                 sourceManager: sourceManager,
-                symbols: symbols,
-                interner: interner
+                symbols: symbols
             )
         }()
         if reusableSyntheticSymbol == nil {

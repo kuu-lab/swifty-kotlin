@@ -6,7 +6,6 @@ symbol fq=__local_4.spreadValues kind=local vis=private flags=_ type=kotlin.USho
 symbol fq=__local_5.spread kind=local vis=private flags=_ type=kotlin.UShortArray
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
-symbol fq=kotlin.UShortArray.size kind=property vis=public flags=synthetic type=Int
 file fstdlib_kotlin_n_ushort package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:17 call callee=e@4:17#1 args=[] type=kotlin.UShortArray call=kotlin.ushortArrayOf
@@ -33,10 +32,10 @@ expr e@9:53 name(maximum) type=UShort ref=__local_2.maximum
 expr e@9:18 call callee=e@9:18#1 args=[_:e@9:32,_:e@9:39,_:e@9:53] type=kotlin.UShortArray call=kotlin.ushortArrayOf
 expr e@9:5 localDecl spread mutable=0 type=_ init=e@9:18 type=Unit ref=__local_5.spread
 expr e@10:13 name(empty) type=kotlin.UShortArray ref=__local_0.empty
-expr e@10:13#1 memberCall recv=e@10:13 callee=size args=[] type=Int ref=kotlin.UShortArray.size
+expr e@10:13#1 memberCall recv=e@10:13 callee=size args=[] type=Int call=kotlin.collections.size.$get#12
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
 expr e@11:13 name(values) type=kotlin.UShortArray ref=__local_3.values
-expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int ref=kotlin.UShortArray.size
+expr e@11:13#1 memberCall recv=e@11:13 callee=size args=[] type=Int call=kotlin.collections.size.$get#12
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#1
 expr e@12:13 name(values) type=kotlin.UShortArray ref=__local_3.values
 expr e@12:20 int(0) type=Int
@@ -47,7 +46,7 @@ expr e@13:20 int(1) type=Int
 expr e@13:13#1 indexedAccess receiver=e@13:13 indices=[e@13:20] type=UShort
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
 expr e@14:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread
-expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int ref=kotlin.UShortArray.size
+expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int call=kotlin.collections.size.$get#12
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println#1
 expr e@15:13 name(spread) type=kotlin.UShortArray ref=__local_5.spread
 expr e@15:20 int(1) type=Int

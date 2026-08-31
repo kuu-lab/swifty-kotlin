@@ -7,9 +7,9 @@
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` value class with `result`, `consume`, `getState` members and `FutureState` enum
+///   - `Future<T>` value class with `result`, `consume`, `getState` members and the `FutureState` anchor
 ///   - `@ObsoleteWorkersApi` marker annotation
-///   - `TransferMode` enum with `SAFE` and `UNSAFE` entries
+///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
 ///   - `@SharedImmutable` annotation (PROPERTY target)
 ///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
 
@@ -36,10 +36,11 @@ extension DataFlowSemaPhase {
         )
         let nativeConcurrentPkgSymbol = symbols.lookup(fqName: nativeConcurrentPkg)
 
-        // TransferMode enum
+        // TransferMode is source-backed. Keep only the early nominal anchor
+        // because Worker.execute is registered before bundled headers are collected.
         let transferModeSymbol = ensureNativeConcurrentEnum(
             named: "TransferMode",
-            entries: ["SAFE", "UNSAFE"],
+            entries: [],
             in: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             symbols: symbols,
@@ -50,16 +51,11 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        setNativeConcurrentEnumEntryTypes(
-            enumSymbol: transferModeSymbol,
-            enumType: transferModeType,
-            symbols: symbols
-        )
-
-        // FutureState enum
+        // FutureState is source-backed. Keep only its early nominal anchor here
+        // because Future.getState is registered before bundled headers are collected.
         let futureStateSymbol = ensureNativeConcurrentEnum(
             named: "FutureState",
-            entries: ["SCHEDULED", "COMPUTED", "THROWN", "CANCELLED"],
+            entries: [],
             in: nativeConcurrentPkg,
             pkgSymbol: nativeConcurrentPkgSymbol,
             symbols: symbols,
@@ -70,12 +66,6 @@ extension DataFlowSemaPhase {
             args: [],
             nullability: .nonNull
         )))
-        setNativeConcurrentEnumEntryTypes(
-            enumSymbol: futureStateSymbol,
-            enumType: futureStateType,
-            symbols: symbols
-        )
-
         for step in NativeConcurrentRegistrationStep.allCases {
             registerNativeConcurrentStep(
                 step,
@@ -88,6 +78,12 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+        registerNativeThreadLocalAnnotationConstructor(
+            packageFQName: nativeConcurrentPkg,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }
 
@@ -158,6 +154,7 @@ extension DataFlowSemaPhase {
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
                 symbols: symbols,
+                types: types,
                 interner: interner
             )
         }
@@ -167,6 +164,7 @@ extension DataFlowSemaPhase {
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let obsoleteWorkersApiSymbol = ensureAnnotationClassSymbol(
@@ -203,9 +201,32 @@ extension DataFlowSemaPhase {
                         "AnnotationTarget.TYPEALIAS",
                     ]
                 ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Retention",
+                    arguments: ["AnnotationRetention.BINARY"]
+                ),
+                MetadataAnnotationRecord(annotationFQName: "kotlin.annotation.MustBeDocumented"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.SinceKotlin",
+                    arguments: ["version = \"1.9\""]
+                ),
             ],
             to: obsoleteWorkersApiSymbol,
             symbols: symbols
+        )
+
+        let obsoleteWorkersApiType = types.make(.classType(ClassType(
+            classSymbol: obsoleteWorkersApiSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        registerNativeConcurrentConstructor(
+            ownerSymbol: obsoleteWorkersApiSymbol,
+            ownerType: obsoleteWorkersApiType,
+            parameters: [],
+            defaultValues: [],
+            symbols: symbols,
+            interner: interner
         )
 
         let sharedImmutableSymbol = ensureAnnotationClassSymbol(
@@ -642,6 +663,7 @@ extension DataFlowSemaPhase {
         registerNativeConcurrentConstructor(
             ownerSymbol: exceptionSymbol,
             ownerType: exceptionType,
+            externalLinkName: "__kk_invalid_mutability_exception_new_message",
             parameters: [(name: "message", type: types.stringType)],
             defaultValues: [false],
             symbols: symbols,
