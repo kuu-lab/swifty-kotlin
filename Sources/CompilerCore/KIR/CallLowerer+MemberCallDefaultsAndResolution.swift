@@ -353,6 +353,14 @@ extension CallLowerer {
                 {
                     return collectionSize
                 }
+                if let collectionProperty = unresolvedCollectionMemberCallee(
+                    memberName: fallbackName,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return collectionProperty
+                }
                 return interner.intern(externalLinkName)
             }
             if sema.symbols.isSourceBackedSymbol(chosenCallee) {
