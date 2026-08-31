@@ -10,64 +10,6 @@ import Testing
 // through to the range-iterator intrinsics and reinterpreted the collection
 // object as a range, yielding garbage elements.
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
-private func assertKotlinOutput(
-    _ source: String,
-    moduleName: String,
-    expected: String
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let outputBase = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let ctx = try runCodegenPipeline(
-            inputPath: path,
-            moduleName: moduleName,
-            emit: .executable,
-            outputPath: outputBase
-        )
-        try LinkPhase().run(ctx)
-        let result = try CommandRunner.run(executable: outputBase, arguments: [])
-        let normalizedStdout = result.stdout
-            .replacingOccurrences(of: "\r\n", with: "\n")
-        #expect(normalizedStdout == expected)
-    }
-}
-
 @Suite
 struct CodegenBackendInterfaceIterableForLoopTests {
 
@@ -276,7 +218,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
-    func testIntRangeForLoopUsesFastPath() throws {
+    func testIntRangeForLoopUsesInductionVariablePath() throws {
         let source = """
         fun main() {
             for (i in 0..2) {
@@ -289,10 +231,12 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(
-            callees.contains("kk_range_for_in_hasNext") && callees.contains("kk_range_for_in_next"),
-            "built-in range for-in should use the BUG-198 fast path, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_range_for_in_iterator"), "IntRange induction loop must not allocate a runtime iterator, got: \(callees)")
+        #expect(!callees.contains("kk_range_for_in_hasNext"), "IntRange induction loop must not call hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_range_for_in_next"), "IntRange induction loop must not call next, got: \(callees)")
+        #expect(!callees.contains("__kk_range_first"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(!callees.contains("__kk_range_last"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(callees.contains("__kk_int_range_induction_le"), "IntRange induction loop should compare bounds, got: \(callees)")
     }
 }
 #endif
