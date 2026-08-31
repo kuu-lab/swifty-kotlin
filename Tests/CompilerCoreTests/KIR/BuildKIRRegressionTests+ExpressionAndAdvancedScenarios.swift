@@ -215,7 +215,7 @@ extension BuildKIRRegressionTests {
             #expect(!callees.contains("kk_range_iterator"), "Array for-loop should not use kk_range_iterator, got: \(callees)")
             #expect(!callees.contains("kk_range_hasNext"), "Array for-loop should not use kk_range_hasNext, got: \(callees)")
             #expect(!callees.contains("kk_range_next"), "Array for-loop should not use kk_range_next, got: \(callees)")
-            #expect(callees.contains("kk_array_size"), "Array for-loop should call kk_array_size, got: \(callees)")
+            #expect(callees.contains("__kk_array_size"), "Array for-loop should call __kk_array_size, got: \(callees)")
             #expect(callees.contains("kk_array_get_inbounds"), "Array for-loop should call kk_array_get_inbounds, got: \(callees)")
         }
     }

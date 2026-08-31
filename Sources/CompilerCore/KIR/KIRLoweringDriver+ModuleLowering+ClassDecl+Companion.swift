@@ -30,10 +30,80 @@ extension KIRLoweringDriver {
             nullability: .nonNull
         )))
         let companionReceiverExpr = arena.appendExpr(.symbolRef(companionSymbol), type: companionType)
-        ctx.setImplicitReceiver(symbol: companionSymbol, exprID: companionReceiverExpr)
 
         var body: KIRLoweringEmitContext = [.beginBlock]
-        body.append(.constValue(result: companionReceiverExpr, value: .symbolRef(companionSymbol)))
+        let needsDispatchObject = sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
+        let companionObjectValue: KIRExprID
+        if needsDispatchObject {
+            let layout = sema.symbols.nominalLayout(for: companionSymbol)
+            let slotCount = Int64(max(layout?.instanceSizeWords ?? 1, 1))
+            let slotCountExpr = arena.appendExpr(.intLiteral(slotCount), type: sema.types.intType)
+            body.append(.constValue(result: slotCountExpr, value: .intLiteral(slotCount)))
+
+            let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: companionSymbol,
+                sema: sema,
+                interner: interner
+            )
+            let classIDExpr = arena.appendExpr(.intLiteral(classIDValue), type: sema.types.intType)
+            body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
+
+            let allocatedObject = arena.appendTemporary(type: companionType)
+            body.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_object_new"),
+                arguments: [slotCountExpr, classIDExpr],
+                result: allocatedObject,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            body.append(.storeGlobal(value: allocatedObject, symbol: companionSymbol))
+
+            for superSymbol in sema.symbols.directSupertypes(for: companionSymbol) {
+                let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                    symbol: superSymbol,
+                    sema: sema,
+                    interner: interner
+                )
+                let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: sema.types.intType)
+                body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
+                let registerResult = arena.appendTemporary(type: sema.types.intType)
+                let superKind = sema.symbols.symbol(superSymbol)?.kind
+                let registerCallee: InternedString = if superKind == .interface {
+                    interner.intern("kk_type_register_iface")
+                } else {
+                    interner.intern("kk_type_register_super")
+                }
+                body.append(.call(
+                    symbol: nil,
+                    callee: registerCallee,
+                    arguments: [classIDExpr, parentExpr],
+                    result: registerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+            }
+            appendObjectVtableMethodRegistrations(
+                objectValue: allocatedObject,
+                nominalSymbol: companionSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &body.instructions
+            )
+            companionObjectValue = allocatedObject
+        } else {
+            body.append(.constValue(result: companionReceiverExpr, value: .symbolRef(companionSymbol)))
+            companionObjectValue = companionReceiverExpr
+        }
+        ctx.setImplicitReceiver(symbol: companionSymbol, exprID: companionObjectValue)
+
+        emitCompanionSuperConstructorDelegation(
+            objectDecl: companionDecl,
+            ownerSymbol: companionSymbol,
+            shared: shared,
+            body: &body
+        )
 
         // Emit property initializers and init blocks in declaration order.
         for member in companionDecl.classBodyInitOrder {
@@ -110,5 +180,52 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
         return declIDs
+    }
+
+    /// Emits the superclass constructor call for a named companion object.
+    /// The companion is a real object declaration when it has a named type, so
+    /// its superclass state must be initialized before its own members run.
+    private func emitCompanionSuperConstructorDelegation(
+        objectDecl: ObjectDecl,
+        ownerSymbol: SymbolID,
+        shared: KIRLoweringSharedContext,
+        body: inout KIRLoweringEmitContext
+    ) {
+        let sema = shared.sema
+        let arena = shared.arena
+        let interner = shared.interner
+        guard let receiverID = ctx.activeImplicitReceiverExprID(),
+              let superclassSymbol = sema.symbols.directSupertypes(for: ownerSymbol).first(where: {
+                  let kind = sema.symbols.symbol($0)?.kind
+                  return kind == .class || kind == .enumClass
+              }),
+              let superclassInfo = sema.symbols.symbol(superclassSymbol)
+        else {
+            return
+        }
+
+        let constructorCandidates = sema.symbols.lookupAll(
+            fqName: superclassInfo.fqName + [interner.intern("<init>")]
+        )
+        guard let superConstructor = constructorCandidates.first(where: {
+            sema.symbols.externalLinkName(for: $0)?.isEmpty ?? true
+        }) else {
+            return
+        }
+
+        var argumentIDs: [KIRExprID] = [receiverID]
+        for argument in objectDecl.superTypeConstructorArgs {
+            argumentIDs.append(lowerExpr(argument.expr, shared: shared, emit: &body))
+        }
+        let resultID = arena.appendTemporary(type: sema.types.unitType)
+        body.append(.call(
+            symbol: superConstructor,
+            callee: interner.intern("<init>"),
+            arguments: argumentIDs,
+            result: resultID,
+            canThrow: false,
+            thrownResult: nil,
+            isSuperCall: false
+        ))
     }
 }

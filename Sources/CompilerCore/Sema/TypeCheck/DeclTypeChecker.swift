@@ -108,7 +108,7 @@ final class DeclTypeChecker {
                             range: stmtRange
                         )
                     }
-                    _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: nil)
+                    _ = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: nil, isStatementContext: true)
                     continue
                 }
                 // Pass expectedType to return expressions (so the return value is
@@ -121,7 +121,7 @@ final class DeclTypeChecker {
                 } else {
                     nil
                 }
-                last = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType)
+                last = driver.inferExpr(exprID, ctx: ctx, locals: &locals, expectedType: exprExpectedType, isStatementContext: true)
                 if last == ctx.sema.types.nothingType {
                     reachedNothing = true
                 }

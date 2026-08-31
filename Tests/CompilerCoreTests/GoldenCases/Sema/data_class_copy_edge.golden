@@ -61,4 +61,4 @@ expr e@20:14#1 memberCall recv=e@20:14 callee=copy args=[value:e@20:29] type=Nam
 expr e@20:5 localDecl n2 mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_5.n2
 expr e@21:13 name(n2) type=Name ref=__local_5.n2
 expr e@21:13#1 memberCall recv=e@21:13 callee=value args=[] type=String ref=Name.value
-expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println#1
+expr e@21:5 call callee=e@21:5#1 args=[_:e@21:13#1] type=Unit call=kotlin.io.println#2

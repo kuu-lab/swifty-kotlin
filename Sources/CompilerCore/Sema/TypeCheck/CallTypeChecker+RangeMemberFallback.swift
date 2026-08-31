@@ -2,7 +2,7 @@
 import Foundation
 
 extension CallTypeChecker {
-    // MARK: - IntRange member fallback (STDLIB-090/091/092/093)
+    // MARK: - Range member fallback (STDLIB-090/091/092/093)
 
     func tryRangeMemberFallback(
         _ id: ExprID,
@@ -230,6 +230,14 @@ extension CallTypeChecker {
         return sourceBacked.contains(memberName)
     }
 
+    private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 0 else { return false }
+        return memberName == "first"
+            || memberName == "firstOrNull"
+            || memberName == "last"
+            || memberName == "lastOrNull"
+    }
+
     private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
         if memberName == "first" || memberName == "last"
             || memberName == "firstOrNull" || memberName == "lastOrNull"
@@ -237,6 +245,8 @@ extension CallTypeChecker {
             return argCount > 0
         }
         let sourceBacked: Set<String> = [
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
             "forEach",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
             "find", "findLast",
@@ -246,12 +256,12 @@ extension CallTypeChecker {
         return sourceBacked.contains(memberName)
     }
 
-    private func isCharProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        guard argCount == 0 else { return false }
-        return memberName == "first"
-            || memberName == "firstOrNull"
-            || memberName == "last"
-            || memberName == "lastOrNull"
+    private func isUIntProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        guard argCount == 1 else { return false }
+        return [
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+        ].contains(memberName)
     }
 
     private func bindSourceRangeHOFCall(
@@ -282,6 +292,8 @@ extension CallTypeChecker {
                 && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .uintRange
                 && isUIntRangeSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .uintProgression
+                && isUIntProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || ((memberName == "random" || memberName == "randomOrNull")
@@ -472,6 +484,8 @@ extension CallTypeChecker {
             return [kotlin, ranges, interner.intern("CharRange")]
         case .uintRange:
             return [kotlin, ranges, interner.intern("UIntRange")]
+        case .uintProgression:
+            return [kotlin, ranges, interner.intern("UIntProgression")]
         case .ulongRange:
             return [kotlin, ranges, interner.intern("ULongRange")]
         default:
