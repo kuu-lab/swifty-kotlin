@@ -1924,7 +1924,7 @@
     - `kotlin.RuntimeException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.RuntimeException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-887: kotlin.Short.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-887: kotlin.Short.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Short.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Short/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1936,6 +1936,7 @@
     - `kotlin.Short.Companion.MIN_VALUE` — val Companion.MIN_VALUE: Short  -- `final const val MIN_VALUE`
     - `kotlin.Short.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.Short.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了根拠: `Companion.kt` をsource-backedで追加し、Short/Intの戻り型、直接参照、明示Companion receiver、boxingをGoldenで固定。全Goldenは27 tests/10 suites pass、全diffは1023 pass/31既存skip、対象実行値は32767/-32768/16/2、TODO-IDとRuntime ABI link検証もpass。
 
 - [x] KSP-888: kotlin.ShortArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ShortArray` / top-level
