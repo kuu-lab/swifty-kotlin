@@ -306,11 +306,14 @@ extension DeclTypeChecker {
             )
         }
 
-        if result == nil {
-            result = sema.types.nullableAnyType
+        // An explicitly declared delegated-property type is authoritative for
+        // the local/property binding. This matters for generic extension
+        // operators such as Map<in String, V>.getValue(...): V1, whose V1
+        // return type is intentionally inferred from that declaration.
+        if let inferredPropertyType {
+            return inferredPropertyType
         }
-
-        return result
+        return result ?? sema.types.nullableAnyType
     }
 
     private func delegateExpressionContainsLambdaArgument(

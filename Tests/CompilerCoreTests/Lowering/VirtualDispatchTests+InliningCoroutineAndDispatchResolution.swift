@@ -205,6 +205,117 @@ extension VirtualDispatchTests {
         #expect(!hasVirtualCall, "Regular .call should not become virtualCall")
     }
 
+    // MARK: - 12b. Regression: KSP-1011 byName fallback must not fire for a known-but-unmatched symbol
+
+    /// A call whose callee `symbol` is *known* (Sema resolved it to a real
+    /// declaration -- e.g. a synthetic/runtime-dispatched interface member
+    /// such as the generic `Iterable<T>.iterator()` used inside `reduce`),
+    /// but that symbol has no compiled KIR function body anywhere in this
+    /// module, must not be redirected -- purely because its literal source
+    /// name happens to be the sole match -- to an unrelated same-named
+    /// bundled inline function (e.g. `Map<K, V>.iterator()`). Before the
+    /// fix, `InlineLoweringPass`'s "byName" fallback ignored a known-but-
+    /// unmatched symbol and spliced in the unrelated function's body,
+    /// crashing `(1..4).reduce { ... }` at runtime (KSWIFTK-LINK-0003).
+    @Test func testInlineLoweringDoesNotRedirectKnownUnmatchedSymbolByName() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+        let symbols = SymbolTable()
+
+        let anyType = types.anyType
+        let calleeName = interner.intern("iterator")
+
+        // The symbol Sema bound the unqualified `iterator()` call to: it has
+        // a real function signature (so KIR building emits a genuine, known
+        // `symbol`), but -- like a synthetic/runtime-dispatched interface
+        // member -- no compiled KIR function body of its own in this module.
+        let unresolvedIteratorSym = SymbolID(rawValue: 8000)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [], returnType: anyType, valueParameterSymbols: []),
+            for: unresolvedIteratorSym
+        )
+
+        let callResult = arena.appendExpr(.temporary(0), type: anyType)
+        let callerFn = KIRFunction(
+            symbol: SymbolID(rawValue: 8001),
+            name: interner.intern("caller"),
+            params: [],
+            returnType: anyType,
+            body: [
+                .call(
+                    symbol: unresolvedIteratorSym,
+                    callee: calleeName,
+                    arguments: [],
+                    result: callResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        // An UNRELATED bundled inline function that happens to share the
+        // exact same literal name "iterator" -- analogous to a bundled
+        // `Map<K, V>.iterator()` living alongside the generic Iterable one.
+        // Its body contains a marker call that must never leak into `caller`.
+        let markerResult = arena.appendExpr(.temporary(1), type: anyType)
+        let unrelatedIteratorFn = KIRFunction(
+            symbol: SymbolID(rawValue: 8002),
+            name: calleeName,
+            params: [],
+            returnType: anyType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("kk_unrelated_map_iterator_marker"),
+                    arguments: [],
+                    result: markerResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnValue(markerResult),
+            ],
+            isSuspend: false,
+            isInline: true
+        )
+
+        let callerID = arena.appendDecl(.function(callerFn))
+        _ = arena.appendDecl(.function(unrelatedIteratorFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
+
+        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let ctx = CompilationContext(
+            options: CompilerOptions(
+                moduleName: "ByNameFallbackRegression",
+                inputs: [],
+                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
+                emit: .kirDump,
+                target: defaultTargetTriple()
+            ),
+            sourceManager: SourceManager(),
+            diagnostics: DiagnosticEngine(),
+            interner: interner
+        )
+        ctx.kir = module
+        ctx.sema = sema
+
+        try LoweringPhase().run(ctx)
+
+        let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
+        let callees = extractCallees(from: lowered.body, interner: interner)
+        #expect(
+            !callees.contains("kk_unrelated_map_iterator_marker"),
+            "A call with a known-but-unmatched symbol must not be spliced with an unrelated same-named bundled inline function's body. Body: \(lowered.body)"
+        )
+        #expect(
+            callees.contains("iterator"),
+            "The original call should be left untouched for its own resolution mechanism to handle. Body: \(lowered.body)"
+        )
+    }
+
     // MARK: - 13. Coroutine lowering: extractCallInfo for virtualCall
 
     @Test func testCoroutineLoweringExtractCallInfoForVirtualCall() {
