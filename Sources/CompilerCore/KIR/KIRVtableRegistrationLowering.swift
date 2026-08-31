@@ -632,7 +632,7 @@ private func kirOverrideParameterTypesMatch(
     return true
 }
 
-private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
     sema.symbols.directSupertypes(for: nominalSymbol).first { superSymbol in
         switch sema.symbols.symbol(superSymbol)?.kind {
         case .class, .enumClass, .object:

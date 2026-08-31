@@ -311,6 +311,34 @@ struct CodegenBackendNumericBoundariesTests {
     }
 
     @Test
+    func testNumericBoundaryIntSourceBackedConversions() throws {
+        let source = """
+        fun main() {
+            val value: Int = 16777217
+            println(value.toDouble() == 16777217.0)
+            println(value.toChar().code)
+            println((-1).toUInt())
+            println(Int.MIN_VALUE.toShort())
+            val nullable: Int? = value
+            println(nullable?.toDouble())
+            println(nullable?.toChar()?.code)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundaryIntSourceBackedConversions",
+            expected: """
+            true
+            1
+            4294967295
+            0
+            1.6777217E7
+            1
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testNumericBoundaryCharArithmeticBasics() throws {
         let source = """
         fun main() {
