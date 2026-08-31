@@ -1040,6 +1040,7 @@ extension CallTypeChecker {
         var candidates = preferMostSpecificMemberReceiverCandidates(
             visible,
             receiverType: lookupReceiverType,
+            argumentTypes: argTypes,
             sema: sema,
             interner: interner
         )

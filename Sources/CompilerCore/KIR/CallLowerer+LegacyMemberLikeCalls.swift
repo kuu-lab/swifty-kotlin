@@ -988,8 +988,26 @@ extension CallLowerer {
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
-            if sema.bindings.callBindings[exprID] == nil,
-               calleeStr == "isNullOrEmpty"
+            // A source-backed Collection<T>?.isNullOrEmpty() declaration may
+            // be selected once the Collection surface is bundled from Kotlin
+            // source, but concrete collection receivers still need their
+            // type-specific non-throwing isEmpty bridge here.
+            let isSourceBackedCollectionIsNullOrEmpty: Bool = {
+                guard calleeStr == "isNullOrEmpty",
+                      let chosenCallee = chosenCalleeForArgumentAdaptation,
+                      let symbol = sema.symbols.symbol(chosenCallee),
+                      sema.symbols.isSourceBackedSymbol(chosenCallee)
+                else {
+                    return false
+                }
+                return symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    calleeName,
+                ]
+            }()
+            if calleeStr == "isNullOrEmpty",
+               (sema.bindings.callBindings[exprID] == nil || isSourceBackedCollectionIsNullOrEmpty)
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
