@@ -1348,6 +1348,7 @@ extension DataFlowSemaPhase {
         return resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
     }
 
     /// Registers type parameters for a nominal type (class or interface) as symbols,

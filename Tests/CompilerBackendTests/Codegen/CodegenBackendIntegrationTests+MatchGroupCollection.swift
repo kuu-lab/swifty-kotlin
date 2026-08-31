@@ -4,65 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendMatchGroupCollectionTests {
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     // STDLIB-TEXT-TYPE-008: MatchGroupCollection interface — index access, named access, size
     @Test func testMatchGroupCollectionIndexAccess() throws {
@@ -175,6 +118,30 @@ struct CodegenBackendMatchGroupCollectionTests {
                 """
                 42
                 null
+                """ + "\n"
+        )
+    }
+
+    // KSP-1430: direct construction must preserve both primary-constructor
+    // properties without involving a Regex runtime bridge.
+    @Test func testMatchGroupConstructorStoresValueAndRange() throws {
+        let source = """
+        fun main() {
+            val group = MatchGroup("capture", 2..5)
+            println(group.value)
+            println(group.range.first)
+            println(group.range.last)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "MatchGroupConstructor",
+            expected:
+                """
+                capture
+                2
+                5
                 """ + "\n"
         )
     }

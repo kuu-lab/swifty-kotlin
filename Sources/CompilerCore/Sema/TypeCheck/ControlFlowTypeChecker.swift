@@ -615,6 +615,13 @@ final class ControlFlowTypeChecker {
             }
         } else {
             resolvedType = sema.types.unitType
+            if thenType == sema.types.nothingType {
+                // The then-branch never completes normally (return/throw/break/continue),
+                // so control only reaches the code after this `if` via the implicit else
+                // path, i.e. the negated condition. Apply that narrowed state so it survives
+                // the fallthrough (P5-66-style narrowing, but for the no-else if statement).
+                driver.exprChecker.applyFlowStateToLocals(branch.falseState, locals: &locals, sema: sema)
+            }
         }
         sema.bindings.bindExprType(id, type: resolvedType)
         return resolvedType

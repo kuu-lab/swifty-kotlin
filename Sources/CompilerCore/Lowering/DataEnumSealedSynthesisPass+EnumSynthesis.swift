@@ -15,6 +15,20 @@ extension DataEnumSealedSynthesisPass {
         existingFunctionSymbols: Set<SymbolID>,
         interner: StringInterner
     ) {
+        // Mirrors the skip guard in `collectSyntheticEnumValuesMember` (Sema
+        // header collection): when a source-backed extension such as
+        // `RequiresOptIn.Level.values()` owns the class-name API, Sema never
+        // registers a synthetic `values` symbol at `owner.fqName + [name]`, so
+        // the `existingValues` lookup below finds nothing and would otherwise
+        // fall through to minting a brand-new, disconnected SymbolID here —
+        // one that outlives this pass and can later be picked up by unrelated
+        // call sites (e.g. a fully-qualified `kotlin.RequiresOptIn.Level.values()`
+        // resolved against a prebuilt `.kklib`, where this Lowering pass runs
+        // again over the imported enum). Skip synthesis entirely in that case;
+        // the source-backed extension already has its own KIR body.
+        guard !sema.bundledIndex.contains(ownerFQName: owner.fqName, name: name, arity: 0) else {
+            return
+        }
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
         // values() returns Array<T>, represented as anyType at the erased level

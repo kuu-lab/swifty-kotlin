@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendRangeHOFTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCodegenIntRangeMapIndexed() throws {
@@ -175,6 +117,28 @@ struct CodegenBackendRangeHOFTests {
                 16
                 5
                 """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenIntRangeReduce() throws {
+        // KSP-1011 regression: a second source-backed `iterator()` declared
+        // on Map (kotlin.collections.Map<out K, V>.iterator()) once widened
+        // the by-simple-name candidate pool that this bundled `reduce`
+        // body's implicit-receiver `iterator()` call resolves against,
+        // binding it to the Map-only implementation for every Iterable
+        // receiver — including this IntRange — and crashing at runtime
+        // instead of computing the sum.
+        let source = """
+        fun main() {
+            println((1..4).reduce { acc, v -> acc + v })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeReduce",
+            expected: "10\n"
         )
     }
 
