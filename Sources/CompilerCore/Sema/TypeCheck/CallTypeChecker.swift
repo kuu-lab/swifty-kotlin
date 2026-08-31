@@ -630,21 +630,14 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
-        // A source-backed top-level function with the same name and applicable
+        // A visible source-backed top-level function with the same name and applicable
         // arity owns the overload. For one-argument primitive arrays, compare
         // the inferred argument type as well: UByteArray(ByteArray) must not
         // hide the compiler-provided UByteArray(Int) allocation form.
         let sourceBackedArrayConstructors: [(symbol: SymbolID, signature: FunctionSignature)] = if let calleeName {
-            ctx.cachedScopeLookup(calleeName).compactMap { candidate in
+            ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.compactMap { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
-                      // Internal storage constructors are implementation
-                      // details and must not shadow the public primitive
-                      // array size constructor.
-                      symbol.visibility == .public,
-                      !sema.symbols.annotations(for: candidate).contains(
-                          where: { $0.annotationFQName == "kotlin.PublishedApi" }
-                      ),
                       sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
