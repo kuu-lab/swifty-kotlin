@@ -23,17 +23,17 @@ package kotlin.text
 
 internal fun <R> CharSequence.kswiftkWindowedTransform(
     size: Int,
-    step: Int,
-    partialWindows: Boolean,
+    step: Int = 1,
+    partialWindows: Boolean = false,
     transform: (CharSequence) -> R
 ): List<R> {
+    require(size > 0) { "size must be positive, but was $size" }
+    require(step > 0) { "step must be positive, but was $step" }
     val length = this.length
-    val safeSize = if (size > 0) size else 1
-    val safeStep = if (step > 0) step else 1
     val result = ArrayList<R>()
     var index = 0
     while (index < length) {
-        val end = index + safeSize
+        val end = index + size
         if (end > length) {
             if (partialWindows) {
                 result.add(transform(this.subSequence(index, length)))
@@ -41,24 +41,24 @@ internal fun <R> CharSequence.kswiftkWindowedTransform(
         } else {
             result.add(transform(this.subSequence(index, end)))
         }
-        index += safeStep
+        index += step
     }
     return result
 }
 
 internal fun <R> CharSequence.kswiftkChunkedTransform(size: Int, transform: (CharSequence) -> R): List<R> {
+    require(size > 0) { "size must be positive, but was $size" }
     val length = this.length
-    val safeSize = if (size > 0) size else 1
     val result = ArrayList<R>()
     var index = 0
     while (index < length) {
-        val end = index + safeSize
+        val end = index + size
         if (end > length) {
             result.add(transform(this.subSequence(index, length)))
         } else {
             result.add(transform(this.subSequence(index, end)))
         }
-        index += safeSize
+        index += size
     }
     return result
 }

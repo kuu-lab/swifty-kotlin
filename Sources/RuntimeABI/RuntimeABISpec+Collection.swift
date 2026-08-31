@@ -434,6 +434,15 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_map_has_default",
+            parameters: [
+                RuntimeABIParameter(name: "mapRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: stdlibMapHOFName("filterKeys", arity: 1, fallback: "kk_map_filterKeys"),
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),

@@ -150,16 +150,7 @@ struct CodegenBackendInterfacePropertyDispatchTests {
 
     @Test
     func testCanonicalDiffCaseInterfaceStoredPropertyDispatch() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerBackendTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/interface_stored_property_dispatch.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("interface_stored_property_dispatch.kt")
 
         try assertKotlinOutput(
             source,
