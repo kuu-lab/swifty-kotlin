@@ -361,6 +361,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             types: types,
             interner: ctx.interner
         )
+        // KSP-944: MutableList's source declaration owns its official
+        // List/MutableCollection edges, while the retained compiler shell
+        // still supplies the MutableIterable residual compatibility edge.
+        patchSourceBackedMutableListSupertypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         validateTypeParameterUpperBounds(
             symbols: symbols, types: types, interner: ctx.interner, diagnostics: ctx.diagnostics
         )
