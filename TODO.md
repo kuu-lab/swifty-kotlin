@@ -4506,7 +4506,7 @@
     - `kotlin.collections.ShortIterator.<init>` — constructor ()  -- `constructor <init>()`
   - 完了根拠: 対象クラスと `next()` bridge / `nextShort()` は KSP-664 / PR #5044（merge commit `0cb86890054c2b175cded80d1064a0e31647102b`）で `PrimitiveIterators.kt` に source-backed 実装済み。括弧なし・secondary constructor なしの Kotlin class には `HeaderCollection.swift` の既存規則で public implicit `constructor <init>()` が登録される。PR #1711 の Sema 回帰（`ListSyntheticMemberLinkTests` の全 primitive iterator surface・`Iterator<Short>` supertype・subclass 解決）が現行 master に残っており、2026-08-24 に focused 2 tests と `ProbeShortIterator : ShortIterator()` の kswiftc LLVM emit を再確認して PASS。専用の ShortIterator synthetic/runtime/RuntimeABI 残余、KSP-1079 専用 Golden/diff fixture、exact KSP-1079 の別 task/PR/branch/history は存在しない。旧 TODO 同期の同型根拠は PR #1820（merge commit `bcd222e1fd3963bbd789107f1a2ec5eebdc039b2`）。
 
-- [ ] KSP-1080: kotlin.comparisons.max-family の未実装 stdlib API を実装する（20 件）
+- [x] KSP-1080: kotlin.comparisons.max-family の未実装 stdlib API を実装する（20 件）
   - 対象: `kotlin.comparisons` / top-level / family `max`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparisons.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4534,6 +4534,7 @@
     - `kotlin.comparisons.maxOf` — fun maxOf(Byte, Byte, Byte): Byte  -- `final inline fun kotlin.comparisons/maxOf(kotlin/Byte, kotlin/Byte, kotlin/Byte): kotlin/Byte`
     - `kotlin.comparisons.maxOf` — fun maxOf(Short, Short, Short): Short  -- `final inline fun kotlin.comparisons/maxOf(kotlin/Short, kotlin/Short, kotlin/Short): kotlin/Short`
     - `kotlin.comparisons.maxOf` — fun maxOf(, , , Comparator): #A  -- `final fun <#A: kotlin/Any?> kotlin.comparisons/maxOf(#A, #A, #A, kotlin/Comparator<in #A>): #A`
+  - 完了根拠（2026-08-24、KSP-1080専用）: `Comparisons.kt` に対象20件をsource-backedで揃え、generic bound、`Comparator<in T>`、必須先頭引数付きvararg、Byte/Shortのexact型、固定幅overloadのinline属性、primitive/comparator/generic varargの非inline属性をKotlin 2.3.10のsource・metadata・kotlincで照合した。Byte/Shortはwidenせずcompiler loweringへ追加し、既存Float/Double runtime helperのNaN・signed-zero処理は維持。対象の新規runtime bridge/ABI登録はなく、既存のsynthetic comparison loweringを利用。新規Golden/diffケース、既存max関連Golden、focused Sema 28 tests、公式Kotlin 2.3.10との`diff_kotlinc`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`がgreen。aggregate Golden/diffは未実行。
 
 - [x] KSP-1081: kotlin.comparisons.min-family の未実装 stdlib API を実装する（20 件）
   - 対象: `kotlin.comparisons` / top-level / family `min`
