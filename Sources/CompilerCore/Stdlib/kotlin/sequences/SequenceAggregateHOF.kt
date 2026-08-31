@@ -217,8 +217,8 @@ public fun <K, V> Sequence<Pair<K, V>>.toMap(): Map<K, V> {
 }
 
 @IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
 public fun <K, V, M : MutableMap<in K, in V>> Sequence<Pair<K, V>>.toMap(destination: M): M {
-    @Suppress("UNCHECKED_CAST")
     val mutableDestination = destination as MutableMap<K, V>
     for (pair in this) mutableDestination[pair.first] = pair.second
     return destination
