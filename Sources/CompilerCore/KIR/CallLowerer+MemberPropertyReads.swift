@@ -735,7 +735,8 @@ extension CallLowerer {
               let receiverSymbolID = sema.bindings.identifierSymbol(for: receiverExpr)
                   ?? bareNameRefClassLikeSymbol(receiverExpr, ast: ast, sema: sema),
               let receiverSymbol = sema.symbols.symbol(receiverSymbolID),
-              receiverSymbol.kind == .class || receiverSymbol.kind == .interface || receiverSymbol.kind == .enumClass
+              receiverSymbol.kind == .class || receiverSymbol.kind == .interface
+                  || receiverSymbol.kind == .enumClass || receiverSymbol.kind == .annotationClass
         else {
             return nil
         }
@@ -782,7 +783,7 @@ extension CallLowerer {
             instructions.append(.constValue(result: valueID, value: .symbolRef(valueSymbolID)))
             return valueID
 
-        case .object, .class, .interface, .enumClass:
+        case .object, .class, .interface, .enumClass, .annotationClass:
             // The "member" is itself a further nominal-type qualifier, e.g. the
             // `Color` in `Outer.Color.values()`. Unlike `.object`, it isn't a
             // singleton with an instance accessor, but it must short-circuit
@@ -822,7 +823,7 @@ extension CallLowerer {
                 return false
             }
             switch sema.symbols.symbol(candidate)?.kind {
-            case .class, .interface, .enumClass, .object:
+            case .class, .interface, .enumClass, .object, .annotationClass:
                 return true
             default:
                 return false
@@ -846,7 +847,7 @@ extension CallLowerer {
         }
         return sema.symbols.lookupByShortName(name).first { candidate in
             switch sema.symbols.symbol(candidate)?.kind {
-            case .class, .interface, .enumClass:
+            case .class, .interface, .enumClass, .annotationClass:
                 true
             default:
                 false
