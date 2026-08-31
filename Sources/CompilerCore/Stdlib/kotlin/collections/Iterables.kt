@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.internal.__valuesEqual
 import kotlin.random.Random
 
 // KSP-435
@@ -48,6 +49,19 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     return result
 }
 
+// KSP-997: Split each pair from a generic Iterable in encounter order.
+public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
+    val first = mutableListOf<T>()
+    val second = mutableListOf<R>()
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        val pair = iterator.next()
+        first.add(pair.first)
+        second.add(pair.second)
+    }
+    return Pair(first, second)
+}
+
 public fun <T> Iterable<T>.shuffled(): List<T> {
     val result = this.toMutableList()
     var i = result.size - 1
@@ -91,6 +105,137 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+// KSP-974: Iterable flat-map transformations are source-backed. Keep the
+// Iterable and Sequence inner-result overloads distinct so lambda-return-type
+// overload resolution selects the same public API as the Kotlin stdlib.
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequence")
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterable")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequence")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterableTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Iterable<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequenceTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Sequence<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Iterable<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequenceTo")
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Sequence<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
 @Suppress("UNCHECKED_CAST")
@@ -105,6 +250,44 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+@Suppress("UNCHECKED_CAST")
+public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
+    var last: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            last = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    return last as T
+}
+
+public fun <T> Iterable<T>.lastIndexOf(element: T): Int {
+    var lastIndex = -1
+    var index = 0
+    for (item in this) {
+        if (__valuesEqual(element, item)) lastIndex = index
+        index++
+    }
+    return lastIndex
+}
+
+public fun <T> Iterable<T>.lastOrNull(): T? {
+    var last: T? = null
+    for (element in this) last = element
+    return last
+}
+
+public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
 // synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
@@ -115,26 +298,46 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
-public fun <T> Iterable<T>.reduce(operation: (T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
     }
     return accumulator
 }
 
-public fun <T> Iterable<T>.reduceIndexed(operation: (Int, T, T) -> T): T {
-    val elements = this.toMutableList()
-    if (elements.isEmpty()) throw UnsupportedOperationException("Empty collection can't be reduced.")
-    var accumulator = elements[0]
-    var i = 1
-    while (i < elements.size) {
-        accumulator = operation(i, accumulator, elements[i])
-        i += 1
+public inline fun <S, T : S> Iterable<T>.reduceIndexed(operation: (index: Int, acc: S, T) -> S): S {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceOrNull(operation: (acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: Int, acc: S, T) -> S): S? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var accumulator: S = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index += 1
     }
     return accumulator
 }
@@ -416,4 +619,23 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
+// type while traversing every receiver through its iterator exactly once.
+public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: Int, acc: R, T) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
 }
