@@ -639,7 +639,7 @@
   - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
   - 前提: KSP-1531, KSP-1532
 
-- [ ] KSP-1536: `Int` の数値変換メンバを Kotlin 化する
+- [x] KSP-1536: `Int` の数値変換メンバを Kotlin 化する
   - 対象: KSP-1531 で (b) と判定した Int 受け手2件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
   - 削除/降格 kk_*: `kk_int_to_char`, `kk_int_to_double_bits`（`kk_int_to_double_bits` は IEEE payload bridge として (b)。 (c) の8件と synthetic-only identity `kk_int_to_int` は compiler intrinsic/identity owner として残す）
@@ -1056,9 +1056,10 @@
     - `kotlin.with` — fun with(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin/with(#A, kotlin/Function1<#A, #B>): #B`
   - 完了確認（2026-08-23、PR #5794 / merge commit `e61cff64521cd8d5a1ca5bea74ca9031d9b8f6c5`）：現行 `Sources/CompilerCore/Stdlib/kotlin/Standard.kt` の `public inline fun <T, R> with(receiver: T, block: T.() -> R): R`、`ScopeFunctionSourceMigrationTests`、`scope_functions` Golden/Backend/diff、およびPR #5794の全CI greenを確認。
 
-- [ ] KSP-795: kotlin.AutoCloseable の未実装 stdlib API を実装する（1 件）
+- [x] KSP-795: kotlin.AutoCloseable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `AutoCloseable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/AutoCloseable.kt`（該当ファイルが無ければ新規作成）
+  - 完了根拠: `AutoCloseable?.closeFinally(Throwable?)` をsource-backed化し、`use` のprimary/suppressed例外規則とnullable receiverを回帰固定。専用KIR loweringもsource-backed `closeFinally`を呼び出す。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_AutoCloseable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_AutoCloseable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_AutoCloseable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -1923,7 +1924,7 @@
     - `kotlin.RuntimeException.<init>` — constructor (Throwable)  -- `constructor <init>(kotlin/Throwable?)`
     - `kotlin.RuntimeException.<init>` — constructor (String, Throwable)  -- `constructor <init>(kotlin/String?, kotlin/Throwable?)`
 
-- [ ] KSP-887: kotlin.Short.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-887: kotlin.Short.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.Short.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Short/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1935,6 +1936,7 @@
     - `kotlin.Short.Companion.MIN_VALUE` — val Companion.MIN_VALUE: Short  -- `final const val MIN_VALUE`
     - `kotlin.Short.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.Short.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了根拠: `Companion.kt` をsource-backedで追加し、Short/Intの戻り型、直接参照、明示Companion receiver、boxingをGoldenで固定。全Goldenは27 tests/10 suites pass、全diffは1023 pass/31既存skip、対象実行値は32767/-32768/16/2、TODO-IDとRuntime ABI link検証もpass。
 
 - [x] KSP-888: kotlin.ShortArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ShortArray` / top-level
@@ -3697,7 +3699,7 @@
     - `kotlin.collections.setValue` — fun MutableMap.setValue(Any, KProperty, ): Unit  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/MutableMap<in kotlin/String, in #A>).kotlin.collections/setValue(kotlin/Any?, kotlin.reflect/KProperty<*>, #A)`
     - `kotlin.collections.withDefault` — fun MutableMap.withDefault(Function1): MutableMap  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/MutableMap<#A, #B>).kotlin.collections/withDefault(kotlin/Function1<#A, #B>): kotlin.collections/MutableMap<#A, #B>`
 
-- [ ] KSP-1023: kotlin.collections.Sequence の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1023: kotlin.collections.Sequence の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Sequence`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

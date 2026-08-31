@@ -102,31 +102,8 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            registerSyntheticCoercionFunction(
-                named: "toDouble",
-                externalLinkName: "kk_int_to_double_bits",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toChar",
-                externalLinkName: "kk_int_to_char",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.charType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1536: Int.toDouble() and Int.toChar() are declared in bundled
+            // Kotlin source (`Stdlib/kotlin/Numbers.kt`).
 
             registerSyntheticCoercionFunction(
                 named: "toUByte",

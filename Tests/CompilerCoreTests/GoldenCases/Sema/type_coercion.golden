@@ -13,7 +13,7 @@ expr e@3:19 name(i) type=Int ref=__local_0.i
 expr e@3:19#1 memberCall recv=e@3:19 callee=toLong args=[] type=Long
 expr e@3:5 localDecl l mutable=0 type=Long init=e@3:19#1 type=Unit ref=__local_1.l
 expr e@4:21 name(i) type=Int ref=__local_0.i
-expr e@4:21#1 memberCall recv=e@4:21 callee=toDouble args=[] type=Double
+expr e@4:21#1 memberCall recv=e@4:21 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
 expr e@4:5 localDecl d mutable=0 type=Double init=e@4:21#1 type=Unit ref=__local_2.d
 expr e@5:20 name(i) type=Int ref=__local_0.i
 expr e@5:20#1 memberCall recv=e@5:20 callee=toFloat args=[] type=Float
