@@ -1,11 +1,16 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
+
+// Reuse the existing Map size ABI until Map.isEmpty is source-backed.
+@KsSymbolName("kk_map_size")
+private external fun <K, V> __kk_map_size_for_any(map: Map<K, V>): Int
 
 /**
  * Performs the given [action] on each entry.
@@ -14,6 +19,15 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
     for (entry in this.entries) {
         action(entry)
     }
+}
+
+
+/**
+ * Returns `true` if map has at least one entry.
+ */
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Map<out K, V>.any(): Boolean {
+    return __kk_map_size_for_any(this as Map<K, V>) > 0
 }
 
 /**
@@ -197,6 +211,18 @@ public inline fun <K, V, R> Map<K, V>.mapValuesTo(
     }
     return destination
 }
+
+/**
+ * Returns an iterator over the entries in this map.
+ *
+ * KSP-1011: named `__kspMapIterator` rather than `iterator` so this
+ * declaration never enters the global by-simple-name candidate pool that
+ * the generic `Iterable<T>.iterator()` call inside bundled source HOFs
+ * (e.g. `reduce`, `reduceIndexed`) resolves against — a second source-backed
+ * `iterator` there caused that call to bind here for every receiver,
+ * including ranges. Sema binds `map.iterator()` straight to this symbol.
+ */
+public inline fun <K, V> Map<out K, V>.__kspMapIterator(): Iterator<Map.Entry<K, V>> = this.entries.iterator()
 
 /**
  * Returns the first entry yielding the smallest value of the given [selector].

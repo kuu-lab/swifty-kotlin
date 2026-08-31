@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Run mutation-generator smoke test
         run: bash Scripts/test_mutation_fuzzer.sh
+      - name: Run diff_kotlinc.sh script-mode classification regression test
+        run: bash Scripts/test_diff_kotlinc_script_classification.sh
       - name: Prepare Linux runner
         uses: ./.github/actions/setup-self-hosted
       - name: Setup Swift

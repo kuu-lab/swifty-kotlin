@@ -65,6 +65,137 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+// KSP-974: Iterable flat-map transformations are source-backed. Keep the
+// Iterable and Sequence inner-result overloads distinct so lambda-return-type
+// overload resolution selects the same public API as the Kotlin stdlib.
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequence")
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterable")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequence")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterableTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Iterable<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequenceTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Sequence<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Iterable<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequenceTo")
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Sequence<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
 @Suppress("UNCHECKED_CAST")

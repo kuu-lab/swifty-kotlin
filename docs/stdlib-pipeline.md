@@ -193,7 +193,7 @@ case あたりの stdlib 再コンパイルを回避する。
    「bundled stdlib 由来の Lex/Parse/Sema 時間」を分離計測できるようにする（RF-STDLIB-006）
 2. 計測ゲート: stdlib 注入によるコンパイル時間の増分が **hello.kt 相当の小入力で +100ms** を超えたら
    キャッシュ着手のトリガーとする（[`docs/refactoring-metrics.md`](refactoring-metrics.md) で正式化済み:
-   ベースライン中央値 37.29ms、トリガー = 中央値 ≥ 137.29ms）
+   ベースライン中央値 36.05ms、トリガー = 中央値 ≥ 136.05ms）
 3. `diff_kotlinc.sh` では `.kklib` 共有を使い、PoC ケースの candidate compile 合計/中央値を baseline 比 50% 以上、
    full shard wall time を baseline 比 20% 以上削減できない場合は CI 切り替えを完了扱いにしない。
 4. キャッシュの段階案（トリガー後に選択）:
