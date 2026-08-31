@@ -261,21 +261,13 @@ extension DeclTypeChecker {
             }
         }
 
-        // A stdlib delegate factory's trailing lambda (`lazy { ... }`,
-        // `Delegates.observable(init) { property, old, new -> ... }`) is parsed
-        // into `delegateBody` separately from `delegateExpr` -- see
-        // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
-        // repackage it into a standalone synthetic function
-        // (`lowerDelegateLambdaBody`). Because it's never part of `delegateExpr`,
-        // the ordinary call-argument inference above never visits it, so without
-        // this, none of its identifiers -- not even a reference to an unrelated
-        // outer instance field like `initCount` in `lazy { initCount += 1; ... }`
-        // -- get bound by Sema at all (BUG-170). Bind the lambda's own synthetic
-        // parameters (empty for `lazy`) using the same symbol scheme KIR lowering
-        // allocates them with, then type-check the body in the same `ctx` used
-        // for this property's getter/initializer above so implicit-`this` member
-        // references resolve the same way theirs already do.
-        if let delegateBody {
+        // Delegate trailing lambdas are now ordinary call arguments and have
+        // already been type-checked by `inferExpr`. Keep the fallback body
+        // check only for legacy ASTs whose body is not present in the call;
+        // checking an included lambda again would duplicate diagnostics.
+        let delegateBodyIsCallArgument = delegateBody != nil
+            && delegateExpressionContainsLambdaArgument(delegateExpr, ast: ctx.ast)
+        if !delegateBodyIsCallArgument, let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
                 let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
@@ -314,11 +306,37 @@ extension DeclTypeChecker {
             )
         }
 
-        if result == nil {
-            result = sema.types.nullableAnyType
+        // An explicitly declared delegated-property type is authoritative for
+        // the local/property binding. This matters for generic extension
+        // operators such as Map<in String, V>.getValue(...): V1, whose V1
+        // return type is intentionally inferred from that declaration.
+        if let inferredPropertyType {
+            return inferredPropertyType
         }
+        return result ?? sema.types.nullableAnyType
+    }
 
-        return result
+    private func delegateExpressionContainsLambdaArgument(
+        _ delegateExpr: ExprID,
+        ast: ASTModule
+    ) -> Bool {
+        let args: [CallArgument]
+        switch ast.arena.expr(delegateExpr) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
+            return false
+        }
+        guard let lastArgument = args.last else { return false }
+        guard let expression = ast.arena.expr(lastArgument.expr) else {
+            return false
+        }
+        if case .lambdaLiteral = expression {
+            return true
+        }
+        return false
     }
 
     /// Resolve one property-delegate convention function with the same

@@ -1,11 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#endif
 import Testing
 
 /// KSP-491 unified `lazy`/`Delegates.observable/vetoable/notNull` onto the
@@ -76,50 +71,21 @@ struct DelegatePropertyKIRTests {
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
-            let process = Process()
-            let stdoutPipe = Pipe()
-            let stderrPipe = Pipe()
-            process.executableURL = URL(fileURLWithPath: outputPath)
-            process.standardOutput = stdoutPipe
-            process.standardError = stderrPipe
-
-            try process.run()
-            let deadline = Date().addingTimeInterval(5)
-            while process.isRunning, Date() < deadline {
-                Thread.sleep(forTimeInterval: 0.05)
-            }
-            if process.isRunning {
-                process.terminate()
-                let terminateDeadline = Date().addingTimeInterval(1.0)
-                while process.isRunning, Date() < terminateDeadline {
-                    Thread.sleep(forTimeInterval: 0.05)
-                }
-                if process.isRunning {
-                    kill(process.processIdentifier, SIGKILL)
-                    let killDeadline = Date().addingTimeInterval(1.0)
-                    while process.isRunning, Date() < killDeadline {
-                        Thread.sleep(forTimeInterval: 0.05)
-                    }
-                }
-                Issue.record("Timed out waiting for delegated property test executable to exit")
+            do {
+                _ = try CommandRunner.run(executable: outputPath, arguments: [])
+                Issue.record("Reading notNull before assignment should fail")
                 return
-            }
-
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
-            let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
-
-            #expect(process.terminationStatus != 0, "Reading notNull before assignment should fail")
-            if !stderr.isEmpty || !stdout.isEmpty {
-                let combined = stderr + stdout
-                #expect(
-                    combined.contains("IllegalStateException")
-                        || combined.contains("fatalError")
-                        || combined.contains("initialized before get")
-                        || combined.contains("KSWIFTK-LINK-0003"),
-                    "Unexpected process output: stderr=\(stderr) stdout=\(stdout)"
-                )
+            } catch let CommandRunnerError.nonZeroExit(result) {
+                let combined = result.stdout + result.stderr
+                if !combined.isEmpty {
+                    #expect(
+                        combined.contains("IllegalStateException")
+                            || combined.contains("fatalError")
+                            || combined.contains("initialized before get")
+                            || combined.contains("KSWIFTK-LINK-0003"),
+                        "Unexpected process output: \(combined)"
+                    )
+                }
             }
         }
     }

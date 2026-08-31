@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendRangeHOFTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCodegenIntRangeMapIndexed() throws {
@@ -179,6 +121,28 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenIntRangeReduce() throws {
+        // KSP-1011 regression: a second source-backed `iterator()` declared
+        // on Map (kotlin.collections.Map<out K, V>.iterator()) once widened
+        // the by-simple-name candidate pool that this bundled `reduce`
+        // body's implicit-receiver `iterator()` call resolves against,
+        // binding it to the Map-only implementation for every Iterable
+        // receiver — including this IntRange — and crashing at runtime
+        // instead of computing the sum.
+        let source = """
+        fun main() {
+            println((1..4).reduce { acc, v -> acc + v })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IntRangeReduce",
+            expected: "10\n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapIndexedOnDescendingProgression() throws {
         // (5 downTo 3) = [5,4,3]; mapIndexed {index+value} = [0+5,1+4,2+3] = [5,5,5]
         let source = """
@@ -249,6 +213,42 @@ struct CodegenBackendRangeHOFTests {
                 2
                 [5, 5, 5]
                 2.5
+                """ + "\n"
+        )
+    }
+
+    @Test
+    func testCodegenUIntRangeMapFilterHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1u..5u).map { it * 2u })
+            println((1u..5u).mapIndexed { index, value -> index.toUInt() + value })
+            println((1u..5u).mapNotNull { if (it % 2u == 0u) null else it })
+            println((1u..5u).filter { it % 2u == 1u })
+            println((1u..5u).filterIndexed { index, _ -> index % 2 == 0 })
+            println((1u..5u).filterNot { it % 2u == 0u })
+            println((5u..1u).mapNotNull { it })
+            println((5u..1u).filterIndexed { index, _ -> index == 0 })
+            println((5u downTo 1u).mapIndexed { index, value -> index.toUInt() + value })
+            println((5u downTo 1u).filterNot { it % 2u == 0u })
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UIntRangeMapFilterHOFExecution",
+            expected:
+                """
+                [2, 4, 6, 8, 10]
+                [1, 3, 5, 7, 9]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                [1, 3, 5]
+                []
+                []
+                [5, 5, 5, 5, 5]
+                [5, 3, 1]
                 """ + "\n"
         )
     }

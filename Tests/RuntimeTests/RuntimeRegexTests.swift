@@ -203,7 +203,8 @@ struct RuntimeRegexTests {
         #expect(runtimeString(__kk_regex_pattern(fromToRegex)) == "\\d+")
 
         let literalRegex = withFlatString("a.b") { data, length, byteCount, hash in
-            kk_regex_create_with_option_flat(data, length, byteCount, hash, kk_box_int(3), nil)
+            // ordinal 2 = LITERAL
+            kk_regex_create_with_option_flat(data, length, byteCount, hash, kk_box_int(2), nil)
         }
         withFlatString("a.b") { data, length, byteCount, hash in
             #expect(kk_unbox_bool(kk_string_matches_regex_flat(data, length, byteCount, hash, literalRegex)) == 1)

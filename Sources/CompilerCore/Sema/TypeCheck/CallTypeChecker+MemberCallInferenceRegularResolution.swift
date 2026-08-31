@@ -1092,6 +1092,14 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
+        if interner.resolve(calleeName) == "unzip" {
+            candidates = preferListUnzipCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
         if isNullLiteralReceiver,
            args.isEmpty,
            interner.resolve(calleeName) == "isNullOrEmpty",
