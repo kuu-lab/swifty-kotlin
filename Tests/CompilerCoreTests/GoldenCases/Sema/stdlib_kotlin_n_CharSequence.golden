@@ -17,7 +17,7 @@ expr e@3:49 name(cs) type=kotlin.CharSequence ref=golden.sema.charSequenceLength
 expr e@3:49#1 memberCall recv=e@3:49 callee=length args=[] type=Int ref=kotlin.CharSequence.length
 expr e@5:47 name(cs) type=kotlin.CharSequence ref=golden.sema.charSequenceGet.$0.cs
 expr e@5:54 int(0) type=Int
-expr e@5:47#1 memberCall recv=e@5:47 callee=get args=[_:e@5:54] type=Char call=kotlin.text.get#1
+expr e@5:47#1 memberCall recv=e@5:47 callee=get args=[_:e@5:54] type=Char call=kotlin.CharSequence.get
 expr e@7:63 name(cs) type=kotlin.CharSequence ref=golden.sema.charSequenceSubSequence.$2.cs
 expr e@7:78 int(0) type=Int
 expr e@7:81 int(1) type=Int

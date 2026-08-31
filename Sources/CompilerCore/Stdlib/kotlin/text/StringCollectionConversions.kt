@@ -12,12 +12,11 @@ import kotlin.collections.mutableListOf
 import kotlin.collections.mutableSetOf
 import kotlin.sequences.Sequence
 
-// KSP-409
 // Collection conversions and iterator helpers migrated from the string runtime
 // bridges. String is covered by these CharSequence extensions through the
 // CharSequence implementation supplied by the compiler.
 
-public class Ksp409CharSequenceIterator(
+private class CharSequenceCharIterator(
     private val source: CharSequence
 ) : CharIterator() {
     private var index = 0
@@ -108,7 +107,7 @@ public fun CharSequence.toSortedSet(): MutableSet<Char> {
     return result
 }
 
-public operator fun CharSequence.iterator(): CharIterator = Ksp409CharSequenceIterator(this)
+public operator fun CharSequence.iterator(): CharIterator = CharSequenceCharIterator(this)
 
 public fun CharSequence.asIterable(): Iterable<Char> {
     val source = this

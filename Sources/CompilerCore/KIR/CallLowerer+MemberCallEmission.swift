@@ -568,12 +568,23 @@ extension CallLowerer {
         // tryEmitVirtualDispatch falls back to the link name when the receiver
         // has no resolvable itable entry.
         let isImportedLibraryLink = chosenCallee.map { symbol in
-            (!kirIsRuntimeBridgedCallee(symbol, sema: sema)
-                || isImportedInterfaceMember(symbol, sema: sema))
-                && sema.symbols.externalLinkName(for: symbol)
-                    .map { interner.intern($0) == loweredCallee } == true
+            // Imported source-backed interface members (kk_fn_* links) still
+            // need itable dispatch, but runtime-bridged interface members must
+            // call their ABI entry point directly. The latter can now be
+            // source-declared and serialized into a stdlib artifact (for
+            // example Collection.isEmpty), so treating every imported
+            // interface link as virtual dispatch breaks runtime collection
+            // boxes that intentionally have no Kotlin itable entry.
+            let linkMatches = sema.symbols.externalLinkName(for: symbol)
+                .map { interner.intern($0) == loweredCallee } == true
+            return linkMatches && !kirIsRuntimeBridgedCallee(symbol, sema: sema)
         } ?? false
-        if loweredCallee == calleeName || isImportedLibraryLink,
+        let isRuntimeBridgedCallee = chosenCallee.map {
+            kirIsRuntimeBridgedCallee($0, sema: sema)
+        } ?? false
+        if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || isImportedLibraryLink
+            || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,
@@ -696,7 +707,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_runningFold"),
             interner.intern("kk_sequence_runningReduceIndexed"),
             interner.intern("kk_sequence_sortedBy"),
-            interner.intern("kk_sequence_sortedWith"),
             interner.intern("kk_sequence_sortedByDescending"),
             interner.intern("kk_sequence_takeLastWhile"),
             interner.intern("kk_sequence_firstNotNullOf"),
@@ -711,7 +721,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_firstNotNullOfOrNull"),
             interner.intern("kk_sequence_mapIndexed"),
             interner.intern("kk_sequence_filterIndexed"),
-            interner.intern("kk_sequence_findLast"),
             interner.intern("kk_sequence_elementAt"),
             interner.intern("kk_sequence_min"),
             interner.intern("kk_sequence_ifEmpty"),

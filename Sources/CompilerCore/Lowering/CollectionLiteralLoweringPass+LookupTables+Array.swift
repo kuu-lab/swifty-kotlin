@@ -11,6 +11,7 @@ struct ArrayLookupNames {
     let shortArrayOfName: InternedString
     let byteArrayOfName: InternedString
     let ubyteArrayOfName: InternedString
+    let ushortArrayOfName: InternedString
     let uintArrayOfName: InternedString
     let doubleArrayOfName: InternedString
     let floatArrayOfName: InternedString
@@ -48,16 +49,17 @@ struct ArrayLookupNames {
         shortArrayOfName = interner.intern("shortArrayOf")
         byteArrayOfName = interner.intern("byteArrayOf")
         ubyteArrayOfName = interner.intern("ubyteArrayOf")
+        ushortArrayOfName = interner.intern("ushortArrayOf")
         uintArrayOfName = interner.intern("uintArrayOf")
         doubleArrayOfName = interner.intern("doubleArrayOf")
         floatArrayOfName = interner.intern("floatArrayOf")
         booleanArrayOfName = interner.intern("booleanArrayOf")
         charArrayOfName = interner.intern("charArrayOf")
         kkEmptyArrayName = interner.intern("kk_empty_array")
-        kkArraySizeName = interner.intern("kk_array_size")
+        kkArraySizeName = interner.intern("__kk_array_size")
         kkArrayNewName = interner.intern("kk_array_new")
         kkArraySetName = interner.intern("kk_array_set")
-        kkArrayToListName = interner.intern("kk_array_toList")
+        kkArrayToListName = interner.intern("__kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
 
         kkArrayCopyOfName = interner.intern("kk_array_copyOf")
@@ -73,6 +75,6 @@ struct ArrayLookupNames {
         copyOfName = interner.intern("copyOf")
         copyOfRangeName = interner.intern("copyOfRange")
         fillName = interner.intern("fill")
-        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, ubyteArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
+        arrayOfFactoryNames = [arrayOfName, emptyArrayName, intArrayOfName, longArrayOfName, shortArrayOfName, byteArrayOfName, ubyteArrayOfName, ushortArrayOfName, uintArrayOfName, doubleArrayOfName, floatArrayOfName, booleanArrayOfName, charArrayOfName]
     }
 }
