@@ -79,7 +79,10 @@ extension BuildASTPhase {
         let body: FunctionBody
         if index < funTokens.count, funTokens[index].kind == .symbol(.assign) {
             index += 1
-            let exprTokens = Array(funTokens[index...]).filter { $0.kind != .symbol(.semicolon) }
+            // Only strip top-level semicolons (matching filterTopLevelSemicolons'
+            // caller convention) so a nested block in the expression body — e.g.
+            // `= if (c) { a; b } else d` — keeps its own statement separator.
+            let exprTokens = filterTopLevelSemicolons(funTokens[index...])
             let parser = ExpressionParser(tokens: exprTokens, interner: interner, astArena: astArena)
             if let exprID = parser.parse(), let exprRange = astArena.exprRange(exprID) {
                 body = .expr(exprID, exprRange)
@@ -168,20 +171,16 @@ extension BuildASTPhase {
             let stmtGroups = splitTokensIntoStatements(bodyTokens)
             var blockExprs: [ExprID] = []
             for rawStmtTokens in stmtGroups {
-                let stmtTokens = skipLeadingLocalAnnotations(rawStmtTokens, interner: interner)
-                let filtered = stmtTokens.filter { $0.kind != .symbol(.semicolon) }
+                // Only strip top-level semicolons here (matching the CST-driven
+                // path in blockExpressions/collectBlockStatementGroups) so a
+                // nested block's own semicolon-separated statements — e.g.
+                // `if (c) { a; b }` — survive to be split by ExpressionParser.
+                let filtered = filterTopLevelSemicolons(rawStmtTokens[...])
                 guard !filtered.isEmpty else { continue }
-                if let localFun = parseLocalFunDeclExpr(from: stmtTokens, interner: interner, astArena: astArena) {
-                    blockExprs.append(localFun)
-                } else if let localDecl = parseLocalDeclarationExpr(from: filtered, interner: interner, astArena: astArena) {
-                    blockExprs.append(localDecl)
-                } else if let localAssign = parseLocalAssignmentExpr(from: filtered, interner: interner, astArena: astArena) {
-                    blockExprs.append(localAssign)
-                } else {
-                    let parser = ExpressionParser(tokens: filtered, interner: interner, astArena: astArena)
-                    if let exprID = parser.parse() {
-                        blockExprs.append(exprID)
-                    }
+                if let exprID = parseStatementGroup(
+                    raw: rawStmtTokens, filtered: filtered, interner: interner, astArena: astArena
+                ) {
+                    blockExprs.append(exprID)
                 }
             }
             if !blockExprs.isEmpty,

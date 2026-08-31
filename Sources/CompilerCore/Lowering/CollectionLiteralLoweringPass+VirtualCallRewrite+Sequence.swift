@@ -37,7 +37,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
             return sema.symbols.isSourceBackedSymbol(symbol)
         }
-        if isSourceBackedSequenceCall() {
+        // Runtime-backed Sequence expressions need the toMap bridge so iterator
+        // exceptions can flow through the ABI outThrown channel.
+        if isSourceBackedSequenceCall(),
+           !(callee == lookup.toMapName && sequenceExprIDs.contains(receiver.rawValue))
+        {
             return false
         }
 
@@ -382,13 +386,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.toMapName, arguments.isEmpty, sequenceExprIDs.contains(receiver.rawValue) {
             let toMapResult = module.arena.appendTemporary(type: nil
             )
+            let thrownExpr = origThrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceToMapName,
                 arguments: [receiver],
                 result: toMapResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: thrownExpr
             ))
             if let result {
                 mapExprIDs.insert(result.rawValue)

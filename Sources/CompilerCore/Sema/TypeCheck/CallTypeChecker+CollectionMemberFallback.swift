@@ -2564,6 +2564,25 @@ extension CallTypeChecker {
            ) {
             return surfaceExpectation
         }
+
+        // Map.firstNotNullOf and Map.firstNotNullOfOrNull are source-backed
+        // members, so they intentionally have no runtime surface entry. Keep
+        // their transform contextualized as Map.Entry<K, V> while the fallback
+        // binds the source declaration.
+        if isMapReceiver,
+           argCount == 1,
+           memberName == interner.intern("firstNotNullOf")
+               || memberName == interner.intern("firstNotNullOfOrNull")
+        {
+            let expectedType = sema.types.make(.functionType(FunctionType(
+                params: [receiverElementType],
+                returnType: sema.types.nullableAnyType,
+                isSuspend: false,
+                nullability: .nonNull
+            )))
+            return (argumentIndex: 0, expectedType: expectedType)
+        }
+
         let boolOneParamMembers: Set = [
             interner.intern("filter"),
             interner.intern("count"),
@@ -2886,12 +2905,19 @@ extension CallTypeChecker {
         }
 
         if memberName == interner.intern("sortedWith"), argCount == 1 {
-            let expectedType = sema.types.make(.functionType(FunctionType(
-                params: [receiverElementType, receiverElementType],
-                returnType: sema.types.intType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
+            let comparatorFQName: [InternedString] = [
+                interner.intern("kotlin"),
+                interner.intern("Comparator"),
+            ]
+            let expectedType: TypeID = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
+                sema.types.make(.classType(ClassType(
+                    classSymbol: comparatorSymbol,
+                    args: [.in(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            } else {
+                sema.types.anyType
+            }
             return (argumentIndex: 0, expectedType: expectedType)
         }
 

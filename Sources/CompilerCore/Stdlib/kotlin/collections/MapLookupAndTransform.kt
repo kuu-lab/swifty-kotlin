@@ -1,6 +1,7 @@
 package kotlin.collections
 
 import kotlin.internal.KsSymbolName
+import kotlin.reflect.KProperty
 
 // KSP-431
 // Map lookup and conversion members migrated to Kotlin source.
@@ -14,7 +15,7 @@ import kotlin.internal.KsSymbolName
 // `Map.get` operator), entry materialization (`__kk_map_entries`, which tags
 // each entry with the runtime map-entry type so `toString` prints `k=v`) and
 // the `withDefault` state stored on the runtime map box
-// (`__kk_map_withDefault` / `__kk_map_implicit_default`).
+// (`__kk_map_withDefault` / `__kk_map_has_default` / `__kk_map_implicit_default`).
 //
 // `keys` / `values` / `entries` are declared as zero-argument functions rather
 // than extension properties because this compiler's parser rejects a type
@@ -30,8 +31,12 @@ private external fun <K, V> __kk_map_withDefault(map: Map<K, V>, defaultValue: (
 @KsSymbolName("__kk_map_implicit_default")
 private external fun <K, V> __kk_map_implicit_default(map: Map<K, V>, key: K): V?
 
-@KsSymbolName("__kk_map_has_implicit_default")
-private external fun <K, V> __kk_map_has_implicit_default(map: Map<K, V>): Boolean
+@KsSymbolName("__kk_map_has_default")
+private external fun <K, V> __kk_map_has_default(map: Map<K, V>): Boolean
+
+@Suppress("UNCHECKED_CAST")
+public inline operator fun <K, V> Map<out K, V>.get(key: K): V? =
+    (this as Map<K, V>).get(key)
 
 @KsSymbolName("__kk_mutable_map_iterator")
 private external fun <K, V> __kk_mutable_map_iterator(
@@ -79,13 +84,26 @@ public fun <K, V> Map<K, V>.containsValue(value: V): Boolean {
     return false
 }
 
-public fun <K, V> Map<K, V>.getValue(key: K): V {
+@PublishedApi
+internal fun <K, V> Map<K, V>.getOrImplicitDefault(key: K): V {
     for (entry in this.entries) {
         if (entry.key == key) return entry.value
     }
-    val defaultValue = __kk_map_implicit_default(this, key)
-    if (__kk_map_has_implicit_default(this)) return defaultValue as V
+    if (__kk_map_has_default(this)) {
+        @Suppress("UNCHECKED_CAST")
+        return __kk_map_implicit_default(this, key) as V
+    }
     throw NoSuchElementException("Key $key is missing in the map.")
+}
+
+public fun <K, V> Map<K, V>.getValue(key: K): V = getOrImplicitDefault(key)
+
+public inline operator fun <V, V1 : V> Map<in String, V>.getValue(
+    thisRef: Any?,
+    property: KProperty<*>
+): V1 {
+    @Suppress("UNCHECKED_CAST")
+    return getOrImplicitDefault(property.name) as V1
 }
 
 public fun <K, V> Map<K, V>.getOrDefault(key: K, defaultValue: V): V {

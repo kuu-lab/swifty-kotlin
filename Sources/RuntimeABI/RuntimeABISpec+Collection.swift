@@ -434,7 +434,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_map_has_implicit_default",
+            name: "__kk_map_has_default",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
