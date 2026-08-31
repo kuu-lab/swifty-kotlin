@@ -2665,7 +2665,64 @@ extension NativeEmitter {
                 }
                 let effectiveSymbol = normalizedSymbol ?? fallbackInternal?.symbol
                 let isInternalCall = effectiveSymbol.flatMap { internalFunctions[$0] } != nil
-                let shouldAppendThrownChannel = usesThrownChannel || isInternalCall
+                let effectiveExternalName = effectiveSymbol.flatMap { symbols?.externalLinkName(for: $0) } ?? externalCalleeName
+                let sourceExternalCallSignature = !isInternalCall
+                    ? sourceExternalSignature(
+                        for: effectiveSymbol,
+                        argumentCount: argumentValues.count
+                    )
+                    : nil
+                let virtualSourceCallSignature: (parameters: [TypeID], returnType: TypeID)? = {
+                    guard !isInternalCall,
+                          let effectiveSymbol,
+                          let symbols,
+                          let signature = symbols.functionSignature(for: effectiveSymbol),
+                          let linkName = symbols.externalLinkName(for: effectiveSymbol),
+                          linkName.hasPrefix("kk_fn_"),
+                          (
+                              isStringAggregateType(signature.returnType)
+                                  || [signature.receiverType].compactMap { $0 }.contains(where: isStringAggregateType)
+                                  || signature.parameterTypes.contains(where: isStringAggregateType)
+                          )
+                    else {
+                        return nil
+                    }
+                    let parameters = [signature.receiverType].compactMap { $0 } + signature.parameterTypes
+                    guard parameters.count == argumentValues.count else {
+                        return nil
+                    }
+                    return (parameters: parameters, returnType: signature.returnType)
+                }()
+                // An interface declaration imported from a library is not in the
+                // consumer's internal function table, but its itable entries point
+                // at generated Kotlin functions, which always carry the hidden
+                // thrown channel. Keep the indirect function type consistent with
+                // that source-backed ABI (KSP-712).
+                let shouldAppendThrownChannel = usesThrownChannel
+                    || isInternalCall
+                    || sourceExternalCallSignature != nil
+                    || virtualSourceCallSignature != nil
+                let sourceExternalFunction: LLVMFunction? = if let sourceCallSignature =
+                    virtualSourceCallSignature ?? sourceExternalCallSignature
+                {
+                    {
+                        var parameterTypes = loweredLLVMTypes(for: sourceCallSignature.parameters)
+                        if shouldAppendThrownChannel {
+                            parameterTypes.append(outThrownPointerType)
+                        }
+                        return declareExternalFunction(
+                            named: effectiveExternalName,
+                            parameterTypes: parameterTypes,
+                            returnType: loweredLLVMType(
+                                for: sourceCallSignature.returnType,
+                                lowering: typeLowering,
+                                defaultType: int64Type
+                            )
+                        )
+                    }()
+                } else {
+                    nil
+                }
 
                 let calleeFunction: LLVMFunction? = if let effectiveSymbol,
                                                        let internalFunction = internalFunctions[effectiveSymbol]
@@ -2681,6 +2738,8 @@ extension NativeEmitter {
                         argumentCount: 1,
                         appendThrownChannel: false
                     )
+                } else if sourceExternalFunction != nil {
+                    sourceExternalFunction
                 } else {
                     declareExternalFunction(
                         named: externalCalleeName,
@@ -2697,7 +2756,9 @@ extension NativeEmitter {
                 let calleeKIRFunction = effectiveSymbol.flatMap { module.arena.function(for: $0) }
                 let isRuntimeCallbackRawABIVirtualCall = isInternalCall
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
-                let shouldBridgeVirtualExternalStringABI = !isInternalCall && typeLowering != nil
+                let shouldBridgeVirtualExternalStringABI = !isInternalCall
+                    && typeLowering != nil
+                    && virtualSourceCallSignature == nil
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in

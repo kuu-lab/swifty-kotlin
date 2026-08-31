@@ -201,9 +201,8 @@ extension CallLowerer {
             instructions.append(.endFinallyGuard)
             instructions.append(.jump(finallyLabel))
 
-            // finally: call close() on the receiver via virtual dispatch.
-            // close() is an interface method on Closeable and requires dynamic dispatch
-            // through the itable so that concrete implementations are invoked correctly.
+            // finally: call the source-backed closeFinally() helper. It preserves the
+            // block exception as primary and records a close exception as suppressed.
             instructions.append(.label(finallyLabel))
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
             let shouldGuardNullableClose = receiverTypeForDispatch.map {
@@ -216,11 +215,28 @@ extension CallLowerer {
                 instructions.append(.jump(closeEndLabel))
                 instructions.append(.label(closeCallLabel))
             }
+            let closeFinallyName = interner.intern("closeFinally")
+            let closeFinallyFQName = [interner.intern("kotlin"), closeFinallyName]
+            let closeFinallySymbol = sema.symbols.lookupAll(fqName: closeFinallyFQName).first { symbolID in
+                guard sema.symbols.symbol(symbolID)?.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.receiverType != nil && signature.parameterTypes.count == 1
+            }
+            let closeResult = arena.appendTemporary(type: sema.types.unitType)
+            let closeWithCauseLabel = driver.ctx.makeLoopLabel()
+            let closeAfterLabel = driver.ctx.makeLoopLabel()
+
+            // A successful block has no primary exception, so call close()
+            // directly. This preserves close-only exception propagation through
+            // the enclosing try/catch. The source-backed helper is used only
+            // when a primary exception needs suppression handling.
+            instructions.append(.jumpIfNotNull(value: exceptionSlot, target: closeWithCauseLabel))
+
+            var directCloseInstructions: [KIRInstruction] = []
             let closeName = interner.intern("close")
-            let closeResult = arena.appendTemporary(type: sema.types.unitType
-            )
-            // Resolve the close() symbol from the AutoCloseable interface and use
-            // virtualCall with interface dispatch instead of a static .call.
             let closeSymbol: SymbolID? = sema.types.closeableInterfaceSymbol.flatMap { closeableSymbol in
                 let closeableFQName = sema.symbols.symbol(closeableSymbol)?.fqName ?? []
                 return sema.symbols.lookup(fqName: closeableFQName + [closeName])
@@ -229,7 +245,7 @@ extension CallLowerer {
                 resolveVirtualDispatch(callee: sym, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             }
             if let closeDispatch, let closeSymbol {
-                instructions.append(.virtualCall(
+                directCloseInstructions.append(.virtualCall(
                     symbol: closeSymbol,
                     callee: closeName,
                     receiver: loweredReceiverID,
@@ -240,9 +256,8 @@ extension CallLowerer {
                     dispatch: closeDispatch
                 ))
             } else {
-                // Fallback: if virtual dispatch is not needed (e.g. final class with
-                // no subtypes), resolve the concrete close() method on the receiver type
-                // so that the static call targets the correct mangled name.
+                // If virtual dispatch is unavailable, resolve the concrete close()
+                // method so the fallback still targets the correct symbol.
                 var concreteCloseSymbol: SymbolID?
                 var concreteCloseName = closeName
                 if let recvTypeID = receiverTypeForDispatch,
@@ -253,9 +268,6 @@ extension CallLowerer {
                         let closeCandidateFQ = recvInfo.fqName + [closeName]
                         if let concreteSym = sema.symbols.lookup(fqName: closeCandidateFQ) {
                             concreteCloseSymbol = concreteSym
-                            // Prefer the externalLinkName (e.g. __kk_buffered_writer_close) over
-                            // the Kotlin symbol name (which would just be "close") so that the
-                            // generated .call instruction targets the correct runtime C function.
                             if let extLink = sema.symbols.externalLinkName(for: concreteSym),
                                !extLink.isEmpty
                             {
@@ -267,7 +279,7 @@ extension CallLowerer {
                     }
                 }
                 let callSymbol = concreteCloseSymbol ?? closeSymbol
-                instructions.append(.call(
+                directCloseInstructions.append(.call(
                     symbol: callSymbol,
                     callee: concreteCloseName,
                     arguments: [loweredReceiverID],
@@ -276,6 +288,25 @@ extension CallLowerer {
                     thrownResult: nil
                 ))
             }
+            instructions.append(contentsOf: directCloseInstructions)
+            instructions.append(.jump(closeAfterLabel))
+
+            instructions.append(.label(closeWithCauseLabel))
+            if let closeFinallySymbol {
+                instructions.append(.call(
+                    symbol: closeFinallySymbol,
+                    callee: closeFinallyName,
+                    arguments: [loweredReceiverID, exceptionSlot],
+                    result: closeResult,
+                    canThrow: true,
+                    thrownResult: nil
+                ))
+            } else {
+                // Keep the legacy direct-close fallback for pre-source-backed stdlib
+                // artifacts that do not contain the closeFinally helper.
+                instructions.append(contentsOf: directCloseInstructions)
+            }
+            instructions.append(.label(closeAfterLabel))
             if let closeEndLabel {
                 instructions.append(.label(closeEndLabel))
             }
