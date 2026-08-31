@@ -83,6 +83,18 @@ struct ReceiverClassifier {
         isIterableLikeType(receiverType(for: receiverID))
     }
 
+    func isExactIterableType(_ type: TypeID) -> Bool {
+        guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let iterableFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        return symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName
+    }
+
     func isIterableLikeType(_ type: TypeID) -> Bool {
         guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
