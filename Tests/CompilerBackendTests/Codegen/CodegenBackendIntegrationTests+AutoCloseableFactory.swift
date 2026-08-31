@@ -55,5 +55,50 @@ struct CodegenBackendAutoCloseableFactoryTests {
 
         try assertKotlinOutput(source, moduleName: "NullableAutoCloseableUse", expected: "missing\nclosed:0\nclosed:1\npresent\nafter:1\n")
     }
+
+    @Test
+    func testCodegenPreservesPrimaryAndSuppressedCloseExceptions() throws {
+        let source = """
+        class ThrowingResource(private val throwOnClose: Boolean) : AutoCloseable {
+            override fun close() {
+                if (throwOnClose) throw IllegalStateException("close")
+            }
+        }
+
+        fun main() {
+            try {
+                ThrowingResource(false).use {
+                    throw IllegalStateException("primary-only")
+                }
+            } catch (e: Throwable) {
+                println(e.message)
+                println(e.suppressedExceptions.size)
+            }
+
+            try {
+                ThrowingResource(true).use {
+                    throw IllegalStateException("primary")
+                }
+            } catch (e: Throwable) {
+                println(e.message)
+                println(e.suppressedExceptions.size)
+                println(e.suppressedExceptions[0].message)
+            }
+
+            try {
+                ThrowingResource(true).use { "body" }
+            } catch (e: Throwable) {
+                println(e.message)
+                println(e.suppressedExceptions.size)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "AutoCloseableCloseFinallyExceptions",
+            expected: "primary-only\n0\nprimary\n1\nclose\nclose\n0\n"
+        )
+    }
 }
 #endif

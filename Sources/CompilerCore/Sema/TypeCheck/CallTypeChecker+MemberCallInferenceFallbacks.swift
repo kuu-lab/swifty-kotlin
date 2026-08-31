@@ -487,9 +487,6 @@ extension CallTypeChecker {
     ) -> (TypeID, KIRExprKind)? {
         let types = sema.types
         switch (typeName, memberName) {
-        // Short
-        case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
-        case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))
         // Byte
         case ("Byte", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int8.max)))
         case ("Byte", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int8.min)))
