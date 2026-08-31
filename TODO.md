@@ -6576,14 +6576,17 @@
     - `kotlin.native.concurrent.FreezingException.<init>` — constructor (Any, Any)  -- `constructor <init>(kotlin/Any, kotlin/Any)`
   - 完了根拠: Kotlin 2.3.10 の source-backed constructor、`__kk_freezing_exception_new` typed runtime/ABI bridge、message と `catch (FreezingException)` の回帰を同一PRで固定。
 
-- [ ] KSP-1239: kotlin.native.concurrent.Future top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1239: kotlin.native.concurrent.Future top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.Future` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Future/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Future_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Future_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Future_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-08-25）: Kotlin 2.3.10公式 `Future.kt`、公式macOS arm64 KLIB metadata/ABIを照合し、`Future<T>` が invariant `T` の `final value class`、`@PublishedApi internal constructor(id: Int)` であることを確認した。現行の `kk_future_new()` は引数なしで新規runtime handleを生成する別経路のため、constructorへのruntime link追加やInt無視は行っていない。synthetic registryでFutureのunderlying typeをIntに固定し、指定Intをそのまま包むinternal synthetic constructorと`kotlin.PublishedApi` annotationを登録した。
+  - 回帰根拠: `FutureConstructorSyntheticSurfaceTests`（value class / underlying Int / invariant generic return / internal PublishedApi constructor）1件、`NativeConcurrentSyntheticStubTests` 40件、Worker.execute KIR lowering 1件、Runtime ABI link validation 4件がPASS。対象Sema GoldenはGolden workerの直接描画結果とgolden fileを一致確認し、Native専用diff caseは`SKIP-DIFF`を確認した。`check_todo_ids.sh`もPASS。
+  - 重複・依存監査: exact KSP-1239を所有する既存open/merged PR・remote branchはなく、#6269はFutureState enumだけを所有するため変更していない。Future members（KSP-1240）、waitForMultipleFutures（KSP-1218）、Worker、FutureState（KSP-1241）は本PRの対象外。
+  - 完了対象シンボル:
     - `kotlin.native.concurrent.Future.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
 
 - [ ] KSP-1240: kotlin.native.concurrent.Future.Future の未実装 stdlib API を実装する（7 件）
