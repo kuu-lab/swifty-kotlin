@@ -943,7 +943,7 @@
     - `kotlin.contextOf` — fun contextOf(): #A  -- `final inline fun <#A: kotlin/Any?> (context(#A)).kotlin/contextOf(): #A`
   - 完了根拠: PR #5926（merge commit `f110b493318cb3c77b69a3c240723bb691aebfaa`）で `ContextParameters.kt` の source-backed context/contextOf（arity 1〜22）と既存回帰を実装・検証済み。#5926 の CI と Devin Review は green。
 
-- [ ] KSP-775: kotlin.double-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-775: kotlin.double-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin` / top-level / family `double`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/double.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -954,6 +954,7 @@
     - `kotlin.doubleArrayOf` — fun doubleArrayOf(Array): DoubleArray  -- `final inline fun kotlin/doubleArrayOf(kotlin/DoubleArray...): kotlin/DoubleArray`
     - `kotlin.doubleToUInt` — fun doubleToUInt(Double): UInt  -- `final fun kotlin/doubleToUInt(kotlin/Double): kotlin/UInt`
     - `kotlin.doubleToULong` — fun doubleToULong(Double): ULong  -- `final fun kotlin/doubleToULong(kotlin/Double): kotlin/ULong`
+  - 完了根拠: PR #5938（merge commit `cac2dc33cbba56c60670e6faa10527b5eb7c0174`）で `Sources/CompilerCore/Stdlib/kotlin/double.kt` をsource-backed化し、`stdlib_kotlin_n_double` Golden/diff・Backend/KIR回帰とTODO ID、CompilerCore 3 shards、Backend/Runtime/CLI/LSP 2 shards、Repository Checks、kotlinc diff 2 shards、Devin Reviewを全成功。
 
 - [x] KSP-776: kotlin.enum-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin` / top-level / family `enum`
