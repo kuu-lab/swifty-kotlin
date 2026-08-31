@@ -10,7 +10,6 @@ symbol fq=golden.sema.divideULong kind=function vis=public flags=_ sig=recv=_ pa
 symbol fq=golden.sema.makeULongArray kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.ULongArray
 symbol fq=golden.sema.remainderULong kind=function vis=public flags=_ sig=recv=_ params=[] ret=ULong
 symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
-symbol fq=kotlin.ULongArray.size kind=property vis=public flags=synthetic type=Int
 file fstdlib_kotlin_n_ulong package=golden.sema
   decl golden.sema.makeULongArray fun makeULongArray sym=golden.sema.makeULongArray
   decl golden.sema.compareULong fun compareULong sym=golden.sema.compareULong
@@ -28,7 +27,7 @@ expr e@5:5 localDecl values mutable=0 type=_ init=e@5:18 type=Unit ref=__local_1
 expr e@6:25 ulong(1) type=ULong
 expr e@6:31 name(values) type=kotlin.ULongArray ref=__local_1.values
 expr e@6:39 name(empty) type=kotlin.ULongArray ref=__local_0.empty
-expr e@6:39#1 memberCall recv=e@6:39 callee=size args=[] type=Int ref=kotlin.ULongArray.size
+expr e@6:39#1 memberCall recv=e@6:39 callee=size args=[] type=Int call=kotlin.collections.size.$get#11
 expr e@6:39#2 memberCall recv=e@6:39#1 callee=toULong args=[] type=ULong
 expr e@6:12 call callee=e@6:12#1 args=[_:e@6:25,_:e@6:31,_:e@6:39#2] type=kotlin.ULongArray call=kotlin.ulongArrayOf
 expr e@6:5 return value=e@6:12 type=Nothing
