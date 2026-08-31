@@ -156,6 +156,25 @@ extension CallTypeChecker {
         } else {
             false
         }
+
+        // KSP-1019: MutableCollection's Iterable/Sequence/Array overloads are
+        // top-level Kotlin extensions, not interface members. Bind the exact
+        // source declaration before the generic collection fallback can select
+        // the unrelated Collection member or a runtime bridge. This is limited
+        // to a nominal MutableCollection receiver so MutableList/MutableSet
+        // member and synthetic paths retain their own dispatch.
+        if let sourceType = bindMutableCollectionSourceExtension(
+            exprID: id,
+            memberName: calleeName,
+            receiverID: receiverID,
+            args: args,
+            safeCall: safeCall,
+            ctx: ctx,
+            locals: &locals
+        ) {
+            return sourceType
+        }
+
         guard isSupportedCollectionFallbackMember(
             calleeName,
             isIterableReceiver: isIterableReceiver,
@@ -431,6 +450,158 @@ extension CallTypeChecker {
         }
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
+        return finalType
+    }
+
+    private func bindMutableCollectionSourceExtension(
+        exprID: ExprID,
+        memberName: InternedString,
+        receiverID: ExprID,
+        args: [CallArgument],
+        safeCall: Bool,
+        ctx: TypeInferenceContext,
+        locals: inout LocalBindings
+    ) -> TypeID? {
+        guard args.count == 1 else { return nil }
+        let sema = ctx.sema
+        let interner = ctx.interner
+        let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
+        guard let (_, receiverSymbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(receiverType),
+            sema: sema
+        ),
+        receiverSymbol.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableCollection"),
+        ]
+        else {
+            return nil
+        }
+
+        let name = interner.resolve(memberName)
+        guard name == "addAll" || name == "removeAll" || name == "retainAll" else {
+            return nil
+        }
+
+        let argument = args[0].expr
+        if sema.bindings.exprTypes[argument] == nil {
+            _ = driver.inferExpr(argument, ctx: ctx, locals: &locals)
+        }
+        let argumentType = sema.bindings.exprTypes[argument] ?? sema.types.anyType
+        let classifier = ReceiverClassifier(sema: sema, interner: interner)
+        var argumentNominalSymbols = driver.helpers.allNominalSymbols(
+            of: sema.types.makeNonNullable(argumentType),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        var visitedArgumentSymbols = Set<SymbolID>(argumentNominalSymbols)
+        var argumentSymbolIndex = 0
+        while argumentSymbolIndex < argumentNominalSymbols.count {
+            let symbol = argumentNominalSymbols[argumentSymbolIndex]
+            argumentNominalSymbols.append(contentsOf: sema.symbols.directSupertypes(for: symbol).filter {
+                visitedArgumentSymbols.insert($0).inserted
+            })
+            argumentSymbolIndex += 1
+        }
+        func hasNominalType(_ fqName: [String]) -> Bool {
+            argumentNominalSymbols.contains { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.fqName == fqName.map(interner.intern)
+            }
+        }
+        let kotlinCollections = ["kotlin", "collections"]
+        let parameterName: String?
+        if classifier.isArrayLikeType(argumentType)
+            || hasNominalType(["kotlin", "Array"])
+        {
+            parameterName = "Array"
+        } else if classifier.isSequenceLikeType(argumentType)
+                    || hasNominalType(["kotlin", "sequences", "Sequence"])
+        {
+            parameterName = "Sequence"
+        } else if classifier.isCollectionLikeType(argumentType)
+                    || hasNominalType(kotlinCollections + ["Collection"])
+                    || hasNominalType(kotlinCollections + ["MutableCollection"])
+        {
+            // Kotlin gives the MutableCollection member overload priority for
+            // Collection arguments; the extension must not replace that call.
+            parameterName = nil
+        } else if classifier.isIterableLikeType(argumentType)
+                    || hasNominalType(kotlinCollections + ["Iterable"])
+                    || hasNominalType(kotlinCollections + ["MutableIterable"])
+        {
+            parameterName = "Iterable"
+        } else {
+            parameterName = nil
+        }
+        guard let parameterName else {
+            return nil
+        }
+
+        let sourceFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            memberName,
+        ]
+        let candidate = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  // Bundled source functions are non-synthetic; imported
+                  // stdlib metadata carries the same declarations as
+                  // synthetic + importedLibrary symbols.
+                  (!symbol.flags.contains(.synthetic) || symbol.flags.contains(.importedLibrary)),
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1,
+                  let signatureReceiver = signature.receiverType,
+                  let (_, signatureReceiverSymbol) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(signatureReceiver),
+                      sema: sema
+                  ),
+                  signatureReceiverSymbol.fqName == receiverSymbol.fqName,
+                  let parameterType = signature.parameterTypes.first,
+                  let (_, parameterSymbol) = resolveClassTypeSymbol(
+                      sema.types.makeNonNullable(parameterType),
+                      sema: sema
+                  )
+            else {
+                return false
+            }
+            return interner.resolve(parameterSymbol.name) == parameterName
+        }
+        guard let candidate else {
+            return nil
+        }
+        guard let signature = sema.symbols.functionSignature(for: candidate) else {
+            return nil
+        }
+        // The source declaration is generic in the receiver element type. The
+        // regular resolver cannot unify that type parameter reliably when the
+        // declaration came from imported stdlib metadata, so bind the exact
+        // source overload after the nominal receiver/argument classification
+        // above has selected it.
+        let receiverElementType = collectionFallbackElementType(
+            receiverID: receiverID,
+            sema: sema,
+            interner: interner
+        )
+        let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+        let substitutions = Dictionary(uniqueKeysWithValues: typeVarBySymbol.values.map {
+            ($0, receiverElementType)
+        })
+        let returnType = driver.callChecker.bindCallAndResolveReturnType(
+            exprID,
+            chosen: candidate,
+            resolved: ResolvedCall(
+                chosenCallee: candidate,
+                substitutedTypeArguments: substitutions,
+                parameterMapping: [0: 0],
+                diagnostic: nil
+            ),
+            sema: sema
+        )
+        let finalType = safeCall ? sema.types.makeNullable(returnType) : returnType
+        sema.bindings.bindExprType(exprID, type: finalType)
         return finalType
     }
 
