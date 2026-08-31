@@ -6,6 +6,13 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    private func syntheticDataClassMemberTypeParameterSymbols(
+        ownerSymbol: SymbolID,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        types.nominalTypeParameterSymbols(for: ownerSymbol)
+    }
+
     func hasImportedLibrarySymbol(
         fqName: [InternedString],
         kind: SymbolKind,
@@ -659,6 +666,10 @@ extension DataFlowSemaPhase {
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
         let stringType = types.stringType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,
@@ -686,7 +697,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -713,6 +725,10 @@ extension DataFlowSemaPhase {
         let equalsFQName = ownerFQName + [equalsName]
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: equalsFQName,
             receiverType: ownerType,
@@ -749,7 +765,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [otherParamSymbol],
                 valueParameterHasDefaultValues: [false],
                 valueParameterIsVararg: [false],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -775,6 +792,10 @@ extension DataFlowSemaPhase {
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = ownerFQName + [hashCodeName]
         let intType = types.make(.primitive(.int, .nonNull))
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: hashCodeFQName,
             receiverType: ownerType,
@@ -802,7 +823,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -849,6 +871,10 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: classDecl.range
             ) ?? types.anyType
+            let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+                ownerSymbol: ownerSymbol,
+                types: types
+            )
 
             let funcSymbol = symbols.define(
                 kind: .function,
@@ -869,7 +895,8 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: [],
                     valueParameterHasDefaultValues: [],
                     valueParameterIsVararg: [],
-                    typeParameterSymbols: []
+                    typeParameterSymbols: classTypeParameterSymbols,
+                    classTypeParameterCount: classTypeParameterSymbols.count
                 ),
                 for: funcSymbol
             )
@@ -924,6 +951,10 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             fallbackType: types.anyType
         )
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
 
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -933,7 +964,9 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: copyParams.paramSymbols,
                 valueParameterHasDefaultValues: Array(repeating: true, count: copyParams.paramSymbols.count),
                 valueParameterIsVararg: copyParams.paramIsVararg,
-                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn
+                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn,
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: copySymbol
         )

@@ -193,6 +193,20 @@ extension DeclTypeChecker {
             range: objectDecl.range
         )
 
+        // Superclass constructor arguments are evaluated in the enclosing
+        // declaration scope, so visit them before lowering can emit the
+        // constructor call. This also records constant-property bindings for
+        // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
+        var superclassArgumentLocals: LocalBindings = [:]
+        for argument in objectDecl.superTypeConstructorArgs {
+            _ = driver.inferExpr(
+                argument.expr,
+                ctx: ctx,
+                locals: &superclassArgumentLocals,
+                expectedType: nil
+            )
+        }
+
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
         typeCheckClassLikeMembers(
             memberFunctions: objectDecl.memberFunctions,

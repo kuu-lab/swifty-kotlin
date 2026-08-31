@@ -405,6 +405,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_create_checked",
+            parameters: [
+                RuntimeABIParameter(name: "varianceOrdinal", type: .intptr),
+                RuntimeABIParameter(name: "typeRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_typeof",
             parameters: [
                 RuntimeABIParameter(name: "typeToken", type: .intptr),

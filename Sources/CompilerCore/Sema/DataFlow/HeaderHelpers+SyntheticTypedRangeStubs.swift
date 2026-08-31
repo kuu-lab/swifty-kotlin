@@ -770,6 +770,22 @@ extension DataFlowSemaPhase {
             classSymbol = created
         }
 
+        // KSP-1297: Preserve the nominal Companion anchor for source-backed EMPTY.
+        if symbols.companionObjectSymbol(for: classSymbol) == nil {
+            let companionName = interner.intern("Companion")
+            let companionFQName = classFQName + [companionName]
+            let companionSymbol = symbols.define(
+                kind: .object,
+                name: companionName,
+                fqName: companionFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic, .static]
+            )
+            symbols.setParentSymbol(classSymbol, for: companionSymbol)
+            symbols.setCompanionObjectSymbol(companionSymbol, for: classSymbol)
+        }
+
         let charRangeType = types.make(.classType(ClassType(
             classSymbol: classSymbol,
             args: [],

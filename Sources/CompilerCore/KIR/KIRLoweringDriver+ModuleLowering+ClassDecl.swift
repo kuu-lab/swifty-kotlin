@@ -34,6 +34,19 @@ extension KIRLoweringDriver {
         declIDs.append(kirID)
         declIDs.append(contentsOf: allDecls)
         declIDs.append(contentsOf: forwardingDeclIDs)
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: symbol),
+           sema.symbols.nominalLayout(for: companionSymbol)?.vtableSize ?? 0 > 0
+        {
+            let companionType = sema.types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            declIDs.append(arena.appendDecl(.global(KIRGlobal(
+                symbol: companionSymbol,
+                type: companionType
+            ))))
+        }
         declIDs.append(contentsOf: synthesizeCompanionInitializerIfNeeded(
             companionDeclID: classDecl.companionObject,
             ownerSymbol: symbol,

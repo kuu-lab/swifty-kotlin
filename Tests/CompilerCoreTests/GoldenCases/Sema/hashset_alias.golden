@@ -128,4 +128,4 @@ expr e@61:13#1 memberCall recv=e@61:13 callee=size args=[] type=Int ref=kotlin.c
 expr e@61:5 call callee=e@61:5#1 args=[_:e@61:13#1] type=Unit call=kotlin.io.println#1
 expr e@63:13 name(set) type=kotlin.collections.MutableSet<String> ref=__local_2.set
 expr e@63:13#1 memberCall recv=e@63:13 callee=customExtension args=[] type=String call=customExtension
-expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13#1] type=Unit call=kotlin.io.println#1
+expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13#1] type=Unit call=kotlin.io.println#2

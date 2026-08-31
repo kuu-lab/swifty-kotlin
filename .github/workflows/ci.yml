@@ -30,6 +30,8 @@ jobs:
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
+      - name: Check mutation fuzzer keyword set matches lexer
+        run: bash Scripts/check_mutation_fuzzer_keywords.sh
 
   build-debug-tests:
     name: Build debug Swift test bundle once
@@ -590,6 +592,19 @@ jobs:
           java -version
           kotlinc -version
           "$KSWIFTC" --version || true
+      - name: Run diagnostic harness self-test
+        if: matrix.shard_index == 0
+        run: DIFF_REQUIRE_JDK21=0 bash Scripts/diff_diagnostics.sh --self-test
+      - name: Run diagnostic differential cases
+        id: diff_diagnostics
+        if: matrix.shard_index == 0
+        continue-on-error: true
+        env:
+          DIFF_REPORT: ${{ runner.temp }}/diff_diagnostics_report.tsv
+          DIFF_ARTIFACT_ROOT: ${{ runner.temp }}/diff_diagnostics_artifacts
+          DIFF_COMPILE_TIMEOUT: "180"
+          DIFF_LOG_PASS: "0"
+        run: bash Scripts/diff_diagnostics.sh --report "$DIFF_REPORT" Scripts/diagnostic_cases
       - name: Run kotlinc diff regression cases
         id: diff_kotlinc
         continue-on-error: true
@@ -616,6 +631,11 @@ jobs:
         run: |
           echo "kotlinc diff regression cases failed." >&2
           exit 1
+      - name: Fail when diagnostic differential mismatches exist
+        if: steps.diff_diagnostics.outcome == 'failure'
+        run: |
+          echo "Diagnostic differential cases failed." >&2
+          exit 1
       - name: Upload kotlinc diff failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
@@ -624,5 +644,7 @@ jobs:
           path: |
             ${{ runner.temp }}/diff_kotlinc_report.tsv
             ${{ runner.temp }}/diff_kotlinc_artifacts
+            ${{ runner.temp }}/diff_diagnostics_report.tsv
+            ${{ runner.temp }}/diff_diagnostics_artifacts
           if-no-files-found: ignore
           retention-days: 30

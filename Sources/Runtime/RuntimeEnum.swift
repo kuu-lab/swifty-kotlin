@@ -62,3 +62,50 @@ public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     let safeCount = max(0, min(count, values.elements.count))
     return registerRuntimeObject(RuntimeListBox(elements: Array(values.elements.prefix(safeCount))))
 }
+
+/// Creates the per-enum cached `EnumEntries` list used by both `T.entries` and
+/// the reified `enumEntries<T>()` intrinsic. The generated array is retained as
+/// the list's backing view, so the source-backed Array overload remains
+/// no-copy while the reified API preserves stable identity.
+@_cdecl("kk_enum_make_entries_list_cached")
+public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
+    guard classID != 0 else {
+        return kk_enum_make_entries_list(valuesRaw, count)
+    }
+    if let cached = runtimeStorage.withMetadataLock({ state in state.enumEntriesCache[Int64(classID)] }) {
+        return cached
+    }
+
+    let list: RuntimeListBox
+    if let values = runtimeArrayBox(from: valuesRaw) {
+        let safeCount = max(0, min(count, values.elements.count))
+        if safeCount == values.elements.count {
+            list = RuntimeListBox(arrayViewOf: values)
+        } else {
+            let boundedValues = RuntimeArrayBox(length: safeCount)
+            for index in 0..<safeCount {
+                boundedValues.elements[index] = values.elements[index]
+            }
+            list = RuntimeListBox(arrayViewOf: boundedValues)
+        }
+    } else {
+        list = RuntimeListBox(elements: [])
+    }
+    let raw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+    return runtimeStorage.withMetadataLock { state in
+        if let cached = state.enumEntriesCache[Int64(classID)] {
+            return cached
+        }
+        state.enumEntriesCache[Int64(classID)] = raw
+        return raw
+    }
+}
+
+/// Creates a non-cached entries view over the supplied Array backing store.
+@_cdecl("__kk_enum_entries_from_array")
+public func kk_enum_entries_from_array(_ valuesRaw: Int) -> Int {
+    guard let values = runtimeArrayBox(from: valuesRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
+    }
+    return registerRuntimeObject(RuntimeListBox(arrayViewOf: values), typeID: listRuntimeTypeID)
+}
