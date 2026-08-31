@@ -11,6 +11,19 @@ fun main() {
     val uintList = uints.asList()
     val ulongList = ulongs.asList()
 
+    val ubyteSize: Int = ubytes.size
+    val ubyteCopy: List<UByte> = ubytes.toList()
+    val ushortSize: Int = ushorts.size
+    val ushortCopy: List<UShort> = ushorts.toList()
+    val uintSize: Int = uints.size
+    val uintCopy: List<UInt> = uints.toList()
+    val ulongSize: Int = ulongs.size
+    val ulongCopy: List<ULong> = ulongs.toList()
+
+    val objects = arrayOf(1, 2)
+    val objectSize: Int = objects.size
+    val objectCopy: List<Int> = objects.toList()
+
     println(ubyteList)
     println(ushortList)
     println(uintList)

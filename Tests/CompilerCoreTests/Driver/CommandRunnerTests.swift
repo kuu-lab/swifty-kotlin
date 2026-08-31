@@ -1,7 +1,36 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Dispatch
 import Foundation
 import Testing
+
+private final class CommandRunnerConcurrentResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var successes = 0
+    private var failures: [String] = []
+
+    func record(_ result: CommandResult, token: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        if result.exitCode == 0 && result.stdout.contains(token) {
+            successes += 1
+        } else {
+            failures.append("unexpected result for \(token): exit=\(result.exitCode) stdout=\(result.stdout)")
+        }
+    }
+
+    func recordFailure(_ message: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        failures.append(message)
+    }
+
+    func snapshot() -> (successes: Int, failures: [String]) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (successes, failures)
+    }
+}
 
 @Suite
 struct CommandRunnerTests {
@@ -204,6 +233,34 @@ struct CommandRunnerTests {
         )
         #expect(result.exitCode == 0)
         #expect(result.stderr.count == 131_072)
+    }
+
+    @Test
+    func testRunConcurrentCommandsCaptureDistinctStdout() throws {
+        let group = DispatchGroup()
+        let results = CommandRunnerConcurrentResults()
+        let launchCount = 8
+        for index in 0..<launchCount {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                defer { group.leave() }
+                let token = "concurrent-\(index)"
+                do {
+                    let result = try CommandRunner.run(
+                        executable: "/bin/echo",
+                        arguments: [token]
+                    )
+                    results.record(result, token: token)
+                } catch {
+                    results.recordFailure("\(token): \(error)")
+                }
+            }
+        }
+        let finished = group.wait(timeout: .now() + 30) == .success
+        let snapshot = results.snapshot()
+        #expect(finished, "Concurrent CommandRunner.run timed out")
+        #expect(snapshot.failures.isEmpty, "Concurrent Process launches failed: \(snapshot.failures)")
+        #expect(snapshot.successes == launchCount)
     }
 
     @Test

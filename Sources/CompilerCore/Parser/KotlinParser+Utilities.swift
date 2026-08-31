@@ -67,19 +67,12 @@ extension KotlinParser {
 
     func isAnnotationUseSiteTarget(_ token: Token) -> Bool {
         switch token.kind {
-        case .softKeyword(.get), .softKeyword(.set), .softKeyword(.field), .softKeyword(.property),
-             .softKeyword(.receiver), .softKeyword(.param), .softKeyword(.setparam),
-             .softKeyword(.delegate), .softKeyword(.file):
-            return true
+        case let .softKeyword(soft):
+            return SoftKeyword.useSiteTargets.contains(soft)
         case let .identifier(id), let .backtickedIdentifier(id):
-            let name = interner.resolve(id)
-            return [
-                "get", "set", "field", "property", "receiver", "param", "setparam", "delegate", "file",
-            ].contains(name)
+            return SoftKeyword.useSiteTargetNames.contains(interner.resolve(id))
         case let .keyword(keyword):
-            return [
-                "get", "set", "field", "property", "receiver", "param", "setparam", "delegate", "file",
-            ].contains(keyword.rawValue)
+            return SoftKeyword.useSiteTargetNames.contains(keyword.rawValue)
         default:
             return false
         }
@@ -300,6 +293,18 @@ extension KotlinParser {
         range: inout RangeAccumulator
     ) {
         let skippedStart = stream.peek().range
+        if !inBlock, case .symbol(.rBrace) = stream.peek().kind {
+            // Consume an unmatched file-scope brace without skipping the valid
+            // top-level declarations or statements that follow it.
+            _ = consumeToken(into: &children, range: &range)
+            diagnostics.error(
+                "KSWIFTK-PARSE-0006",
+                "Skipped 1 unexpected token(s).",
+                range: skippedStart
+            )
+            return
+        }
+
         var skippedCount = 0
         while !stream.atEOF() {
             let token = stream.peek()
@@ -402,7 +407,10 @@ enum ParserBoundaryPolicy {
         case .eof:
             return true
         case .symbol(.rBrace):
-            return true
+            // A closing brace is a synchronization point only inside a block.
+            // At file scope it is unexpected input that the top-level recovery
+            // node must consume and diagnose before parsing the next declaration.
+            return inBlock
         case let .keyword(kw) where synchronizationKeywords.contains(kw):
             return true
         default:
