@@ -1,13 +1,10 @@
 #if canImport(Testing)
 @testable import CompilerCore
-@testable import CompilerBackend
+@testable import CompilerTestSupport
 import Testing
 
 func findAllKIRFunctions(in module: KIRModule) -> [KIRFunction] {
-    module.arena.declarations.compactMap { decl -> KIRFunction? in
-        guard case let .function(function) = decl else { return nil }
-        return function
-    }
+    CompilerTestSupport.findAllKIRFunctions(in: module)
 }
 
 func findKIRFunction(
@@ -17,10 +14,7 @@ func findKIRFunction(
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> KIRFunction {
-    let function = findAllKIRFunctions(in: module).first { function in
-        interner.resolve(function.name) == name
-    }
-    return try #require(function, "KIR function '\(name)' not found in module")
+    try CompilerTestSupport.findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
 }
 
 func findKIRFunctionBody(
@@ -30,18 +24,14 @@ func findKIRFunctionBody(
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> [KIRInstruction] {
-    let function = try findKIRFunction(named: name, in: module, interner: interner, file: file, line: line)
-    return function.body
+    try CompilerTestSupport.findKIRFunctionBody(named: name, in: module, interner: interner, file: file, line: line)
 }
 
 func extractCallees(
     from body: [KIRInstruction],
     interner: StringInterner
 ) -> [String] {
-    body.compactMap { instruction -> String? in
-        guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-        return interner.resolve(callee)
-    }
+    CompilerTestSupport.extractCallees(from: body, interner: interner)
 }
 
 /// Like `extractCallees`, but also reports each call's argument count for
@@ -70,9 +60,6 @@ func extractThrowFlags(
     from body: [KIRInstruction],
     interner: StringInterner
 ) -> [String: [Bool]] {
-    body.reduce(into: [:]) { partial, instruction in
-        guard case let .call(_, callee, _, _, canThrow, _, _, _) = instruction else { return }
-        partial[interner.resolve(callee), default: []].append(canThrow)
-    }
+    CompilerTestSupport.extractThrowFlags(from: body, interner: interner)
 }
 #endif
