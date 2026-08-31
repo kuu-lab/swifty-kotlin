@@ -48,7 +48,7 @@ expr e@16:39#1 memberCall recv=e@16:39 callee=isEmpty args=[] type=Boolean call=
 expr e@18:46 name(values) type=kotlin.collections.List<Int> ref=golden.sema.ProbeSet.values
 expr e@18:46#1 memberCall recv=e@18:46 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Iterable.iterator
 expr e@22:20 name(values) type=kotlin.collections.Set<Int> ref=golden.sema.inspect.$2.values
-expr e@22:20#1 memberCall recv=e@22:20 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Iterable.iterator
+expr e@22:20#1 memberCall recv=e@22:20 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Collection.iterator
 expr e@22:5 localDecl iterator mutable=0 type=_ init=e@22:20#1 type=Unit ref=__local_0.iterator
 expr e@23:12 name(values) type=kotlin.collections.Set<Int> ref=golden.sema.inspect.$2.values
 expr e@23:28 int(1) type=Int
