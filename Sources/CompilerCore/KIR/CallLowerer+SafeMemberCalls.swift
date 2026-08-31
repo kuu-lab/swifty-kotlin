@@ -623,7 +623,6 @@ extension CallLowerer {
             case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", ubyteType, floatType): interner.intern("kk_ubyte_to_float")
             case ("toFloat", ushortType, floatType): interner.intern("kk_ushort_to_float")
-            case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
             case ("toDouble", floatType, doubleType): interner.intern("__kk_float_to_double_bits")
             case ("toDouble", doubleType, doubleType): nil // identity
@@ -661,7 +660,6 @@ extension CallLowerer {
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
             case ("toUShort", ubyteType, ushortType): interner.intern("kk_ubyte_to_ushort")
             case ("toUShort", ushortType, ushortType): nil // identity
-            case ("toChar", intType, charType): interner.intern("kk_int_to_char")
             case ("toChar", longType, charType): interner.intern("kk_long_to_char")
             case ("toChar", uintType, charType): interner.intern("kk_uint_to_char")
             case ("toChar", ulongType, charType): interner.intern("kk_ulong_to_char")
