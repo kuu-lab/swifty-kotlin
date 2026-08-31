@@ -359,10 +359,12 @@ struct NativeEmitter {
             return true
         case .object:
             // Top-level object singletons have a global instance.
-            // Companion objects (parent is a class/interface/enum) do not.
+            // Companion objects only need one when their virtual methods
+            // require a runtime receiver and vtable.
             if let parentID = symbols?.parentSymbol(for: symbol),
                let parent = symbols?.symbol(parentID),
-               parent.kind != .package {
+               parent.kind != .package,
+               symbols?.nominalLayout(for: symbol)?.vtableSize ?? 0 == 0 {
                 return false
             }
             // Synthetic singleton stubs (e.g. kotlin.system.System) have no
@@ -389,10 +391,26 @@ struct NativeEmitter {
     /// weak root slot instead of requiring a definition that the artifact
     /// intentionally does not export.
     private func shouldUseWeakImportedGlobalReference(for symbol: SymbolID) -> Bool {
-        guard let sym = symbols?.symbol(symbol), sym.kind == .object else {
+        guard let symbols else { return false }
+        return Self.shouldUseWeakImportedObjectGlobalReference(for: symbol, symbols: symbols)
+    }
+
+    /// Returns the weak-linkage decision for an imported object global.
+    /// A non-package parent is not sufficient to identify a companion object:
+    /// regular nested objects must use their own initializer metadata.
+    static func shouldUseWeakImportedObjectGlobalReference(
+        for symbol: SymbolID,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let sym = symbols.symbol(symbol), sym.kind == .object else {
             return false
         }
-        return symbols?.objectInitializerSymbol(for: symbol) == nil
+        if let parentID = symbols.parentSymbol(for: symbol),
+           symbols.companionObjectSymbol(for: parentID) == symbol
+        {
+            return symbols.companionObjectInitializerSymbol(for: parentID) == nil
+        }
+        return symbols.objectInitializerSymbol(for: symbol) == nil
     }
 
     /// Ensures that any imported-library global referenced by `loadGlobal`,

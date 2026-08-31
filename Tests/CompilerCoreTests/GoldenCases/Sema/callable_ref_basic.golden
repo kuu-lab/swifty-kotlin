@@ -12,4 +12,4 @@ expr e@6:5 localDecl ref mutable=0 type=_ init=e@6:15 type=Unit ref=__local_0.re
 expr e@7:13 name(ref) type=(String) -> String ref=__local_0.ref
 expr e@7:17 string(World) type=String
 expr e@7:13#1 call callee=e@7:13 args=[_:e@7:17] type=String
-expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println#1
+expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#1] type=Unit call=kotlin.io.println#2

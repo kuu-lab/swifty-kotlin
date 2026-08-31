@@ -599,7 +599,29 @@ jar_main_class() {
   local jar_path="$1"
   unzip -p "$jar_path" META-INF/MANIFEST.MF 2>/dev/null \
     | tr -d '\r' \
-    | awk -F': ' '/^Main-Class:/ { print $2; exit }'
+    | awk '
+      function emit_main_class() {
+        if (reading_main_class && !emitted_main_class) {
+          print main_class
+          emitted_main_class = 1
+        }
+      }
+      /^Main-Class: / {
+        emit_main_class()
+        main_class = substr($0, 13)
+        reading_main_class = 1
+        next
+      }
+      reading_main_class && /^ / {
+        main_class = main_class substr($0, 2)
+        next
+      }
+      reading_main_class {
+        emit_main_class()
+        reading_main_class = 0
+      }
+      END { emit_main_class() }
+    '
 }
 
 fingerprint_kotlinc_classpath() {
@@ -1154,13 +1176,12 @@ run_case() {
     echo "  candidate compile timed out after ${COMPILE_TIMEOUT}s"
   fi
 
-  # Matching non-zero compile exits short-circuit the run/stdout comparison
-  # below, so this "passes" without either side ever executing. The match is
-  # necessary but not sufficient evidence of equivalent behavior — both
-  # compilers reject their own input for possibly unrelated reasons (stderr is
-  # not diffed). Flag it so a green run isn't mistaken for verified parity.
+  # Matching non-zero compile exits skip the run/stdout comparison below, then
+  # the matching-failure branch forces this case to FAIL. Compile stderr is
+  # retained in the failure output and artifacts; matching exit codes alone
+  # never count as verified parity.
   if [[ $ref_compile_exit -ne 0 && $ref_compile_exit -eq $cand_compile_exit && $ref_compile_exit -ne 124 ]]; then
-    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not imply matching failure reasons (stderr is not diffed) — this PASS is inconclusive, not verified parity"
+    echo "  note: both sides failed to compile with exit=$ref_compile_exit; matching exit codes do not verify parity — compile stderr is reported below; this case will FAIL"
   fi
 
   if [[ $ref_compile_exit -eq 0 && $cand_compile_exit -eq 0 ]]; then

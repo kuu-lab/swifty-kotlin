@@ -138,48 +138,82 @@ fi
 # ---------------------------------------------------------------------------
 # Run swift test, capturing output while streaming it to the terminal.
 # Parse failure lines to build a grouped summary.
+#
+# swift-corelibs-foundation's Process.run() is not fully race-free on Linux
+# even with CommandRunner's launch-window lock (Sources/CompilerCore/Driver/
+# CommandRunner.swift): that lock only serializes CommandRunner's own spawns
+# against each other, but unrelated threads in the same test process (pipe
+# drain threads, other tests' file I/O) can still mutate the fd table while a
+# spawn's /proc/self/fd scan is in flight, occasionally SIGSEGV-ing the whole
+# xctest process. SwiftPM reports that as a generic "exited with unexpected
+# signal code" error with exit code 1 - indistinguishable from a real failure
+# by exit code alone, but no per-test failure line is ever printed for it. So
+# retry only when a crash signature is present AND no test failure was
+# parsed, to avoid ever masking a genuine regression.
 # ---------------------------------------------------------------------------
-tmpout="$(mktemp "${TMPDIR:-/tmp}/swift_test_out.XXXXXX")"
-trap 'rm -f "$tmpout"' EXIT
+max_attempts=3
+attempt=0
 
-test_exit=0
-"${command[@]}" 2>&1 | tee "$tmpout" || test_exit=$?
+while true; do
+    attempt=$(( attempt + 1 ))
+    tmpout="$(mktemp "${TMPDIR:-/tmp}/swift_test_out.XXXXXX")"
+    trap 'rm -f "$tmpout"' EXIT
 
-# ---------------------------------------------------------------------------
-# Parse failures from swift test output.
-# XCTest lines: "Test Case '-[Suite.Class method]' failed"
-# Swift Testing lines: "FAILED: Suite/test"  or  "✗ Suite.test"
-# ---------------------------------------------------------------------------
-declare -a failed_tests=()
+    test_exit=0
+    "${command[@]}" 2>&1 | tee "$tmpout" || test_exit=$?
 
-while IFS= read -r line; do
-    # XCTest: "Test Case '-[CompilerCoreTests.LexerTests testFoo]' failed (0.123 seconds)"
-    if [[ "$line" =~ "Test Case '-["([^]]+)"]' failed" ]]; then
-        failed_tests+=("${BASH_REMATCH[1]}")
-        continue
-    fi
-    # Swift Testing: lines starting with "FAILED:" (uppercase)
-    if [[ "$line" =~ ^[[:space:]]*FAILED:[[:space:]]*(.+)$ ]]; then
-        failed_tests+=("${BASH_REMATCH[1]}")
-        continue
-    fi
-    # Swift Testing: "✗ Suite.test" or "◇ ... ✗"
-    if [[ "$line" =~ [✗✖][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
-        failed_tests+=("${BASH_REMATCH[1]}")
-        continue
-    fi
-done < "$tmpout"
+    # -------------------------------------------------------------------
+    # Parse failures from swift test output.
+    # XCTest lines: "Test Case '-[Suite.Class method]' failed"
+    # Swift Testing lines: "FAILED: Suite/test"  or  "✗ Suite.test"
+    # -------------------------------------------------------------------
+    declare -a failed_tests=()
 
-# Deduplicate while preserving order
-declare -a unique_failures=()
-declare -A _dedup_seen=()
-for t in "${failed_tests[@]+"${failed_tests[@]}"}"; do
-    if [[ -z "${_dedup_seen[$t]:-}" ]]; then
-        _dedup_seen[$t]=1
-        unique_failures+=("$t")
+    while IFS= read -r line; do
+        # XCTest: "Test Case '-[CompilerCoreTests.LexerTests testFoo]' failed (0.123 seconds)"
+        if [[ "$line" =~ "Test Case '-["([^]]+)"]' failed" ]]; then
+            failed_tests+=("${BASH_REMATCH[1]}")
+            continue
+        fi
+        # Swift Testing: lines starting with "FAILED:" (uppercase)
+        if [[ "$line" =~ ^[[:space:]]*FAILED:[[:space:]]*(.+)$ ]]; then
+            failed_tests+=("${BASH_REMATCH[1]}")
+            continue
+        fi
+        # Swift Testing: "✗ Suite.test" or "◇ ... ✗"
+        if [[ "$line" =~ [✗✖][[:space:]]+([A-Za-z0-9_.]+[A-Za-z0-9_/.:]+) ]]; then
+            failed_tests+=("${BASH_REMATCH[1]}")
+            continue
+        fi
+    done < "$tmpout"
+
+    # Deduplicate while preserving order
+    declare -a unique_failures=()
+    declare -A _dedup_seen=()
+    for t in "${failed_tests[@]+"${failed_tests[@]}"}"; do
+        if [[ -z "${_dedup_seen[$t]:-}" ]]; then
+            _dedup_seen[$t]=1
+            unique_failures+=("$t")
+        fi
+    done
+    unset _dedup_seen
+
+    if (( test_exit != 0 )) && (( ${#unique_failures[@]} == 0 )) \
+        && grep -qE '\*\*\* Signal [0-9]+:|Program crashed:|exited with unexpected signal code' "$tmpout"; then
+        # Surface an annotation (not just a stderr line) so recurrence of this
+        # infra flake is countable from the Actions UI across runs/jobs.
+        if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+            printf '::warning title=Test process crash (retried)::attempt %d/%d crashed with a signal; no test failure was reported\n' "$attempt" "$max_attempts"
+        fi
+        if (( attempt < max_attempts )); then
+            echo "swift_test.sh: test process crashed with a signal (attempt $attempt/$max_attempts, no test failure was reported); retrying..." >&2
+            rm -f "$tmpout"
+            continue
+        fi
+        echo "swift_test.sh: test process crashed with a signal on all $attempt attempts; giving up." >&2
     fi
+    break
 done
-unset _dedup_seen
 
 # ---------------------------------------------------------------------------
 # Emit grouped failure summary

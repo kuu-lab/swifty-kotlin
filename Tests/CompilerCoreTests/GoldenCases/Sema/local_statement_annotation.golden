@@ -39,6 +39,6 @@ expr e@21:5 localAssign counter value=e@21:15 type=Unit ref=__local_1.counter
 expr e@22:12 name(counter) type=Int ref=__local_1.counter
 expr e@22:5 return value=e@22:12 type=Nothing
 expr e@27:13 string(first) type=String
-expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println#1
+expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13] type=Unit call=kotlin.io.println#2
 expr e@28:13 string(second) type=String
-expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println#1
+expr e@28:5 call callee=e@28:5#1 args=[_:e@28:13] type=Unit call=kotlin.io.println#2

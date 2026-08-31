@@ -1,8 +1,10 @@
 /// Binding for `String.chunked(size, transform)` and
-/// `String.windowed(size, step, partialWindows, transform)` overloads: the
-/// `List<R>`-returning counterparts of `chunkedSequence`/`windowedSequence`
-/// source overloads. The sequence overloads are resolved directly from the
-/// bundled declarations in `StringWindowChunkTransform.kt`.
+/// `String.windowed` / `windowedSequence`(size, step = 1, partialWindows = false, transform)
+/// overloads: the `List<R>` / `Sequence<R>` counterparts. Sequence overloads
+/// that already match by arity are resolved from the bundled declarations in
+/// `StringWindowChunkTransform.kt`; skipped-default trailing-lambda forms
+/// (`windowed(2) { }` / `windowedSequence(2) { }`) go through this binder so
+/// `it` is typed as `CharSequence` before overload resolution.
 ///
 /// The list transform overloads use uniquely named bundled functions rather
 /// than declarations literally named `chunked`/`windowed`, because the KIR
@@ -103,8 +105,15 @@ extension CallTypeChecker {
     ) -> TypeID? {
         let sema = ctx.sema
         let interner = ctx.interner
-        guard args.count == 4,
-              interner.resolve(calleeName) == "windowed",
+        let callee = interner.resolve(calleeName)
+        // kotlinc: windowed/windowedSequence(size, step = 1, partialWindows = false, transform).
+        // A trailing lambda binds to `transform` while skipped defaults are
+        // filled from the source signature — same shape as List/Sequence
+        // `canMatchViaTrailingLambda`. Requiring args.count == 4 made
+        // `windowed(2) { ... }` / `windowedSequence(2) { ... }` miss this
+        // overload entirely (`it` never bound).
+        guard (2...4).contains(args.count),
+              callee == "windowed" || callee == "windowedSequence",
               isSyntheticStringLikeType(receiverType, sema: sema)
         else {
             return nil
@@ -115,25 +124,37 @@ extension CallTypeChecker {
             return nil
         }
         let scalarArgIndices = args.indices.filter { $0 != lambdaArgIndex }
-        guard scalarArgIndices.count == 3 else {
+        guard (1...3).contains(scalarArgIndices.count) else {
             return nil
         }
-        func scalarArgIndex(named name: String, fallbackPosition: Int) -> Int? {
-            if let labeled = scalarArgIndices.first(where: { index in
+        func labeledScalar(_ name: String) -> Int? {
+            scalarArgIndices.first { index in
                 guard let label = args[index].label else { return false }
                 return interner.resolve(label) == name
-            }) {
-                return labeled
             }
-            guard fallbackPosition < scalarArgIndices.count else {
-                return nil
-            }
-            return scalarArgIndices[fallbackPosition]
         }
-        guard let sizeArgIndex = scalarArgIndex(named: "size", fallbackPosition: 0),
-              let stepArgIndex = scalarArgIndex(named: "step", fallbackPosition: 1),
-              let partialArgIndex = scalarArgIndex(named: "partialWindows", fallbackPosition: 2)
-        else {
+        var sizeArgIndex = labeledScalar("size")
+        var stepArgIndex = labeledScalar("step")
+        var partialArgIndex = labeledScalar("partialWindows")
+        var assigned = Set<Int>()
+        if let sizeArgIndex { assigned.insert(sizeArgIndex) }
+        if let stepArgIndex { assigned.insert(stepArgIndex) }
+        if let partialArgIndex { assigned.insert(partialArgIndex) }
+        var unlabeled = scalarArgIndices.filter { !assigned.contains($0) }
+        func takeUnlabeled() -> Int? {
+            guard !unlabeled.isEmpty else { return nil }
+            return unlabeled.removeFirst()
+        }
+        if sizeArgIndex == nil {
+            sizeArgIndex = takeUnlabeled()
+        }
+        if stepArgIndex == nil {
+            stepArgIndex = takeUnlabeled()
+        }
+        if partialArgIndex == nil {
+            partialArgIndex = takeUnlabeled()
+        }
+        guard let sizeArgIndex, unlabeled.isEmpty else {
             return nil
         }
         guard explicitTypeArgs.count <= 1 else {
@@ -148,8 +169,12 @@ extension CallTypeChecker {
             nullability: .nonNull
         )))
         _ = driver.inferExpr(args[sizeArgIndex].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-        _ = driver.inferExpr(args[stepArgIndex].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
-        _ = driver.inferExpr(args[partialArgIndex].expr, ctx: ctx, locals: &locals, expectedType: sema.types.booleanType)
+        if let stepArgIndex {
+            _ = driver.inferExpr(args[stepArgIndex].expr, ctx: ctx, locals: &locals, expectedType: sema.types.intType)
+        }
+        if let partialArgIndex {
+            _ = driver.inferExpr(args[partialArgIndex].expr, ctx: ctx, locals: &locals, expectedType: sema.types.booleanType)
+        }
         sema.bindings.markCollectionHOFLambdaExpr(args[lambdaArgIndex].expr)
         _ = driver.inferExpr(args[lambdaArgIndex].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
         let bodyType = explicitTypeArgs.first
@@ -157,7 +182,7 @@ extension CallTypeChecker {
         guard let chosen = sema.symbols.lookupAll(fqName: [
             interner.intern("kotlin"),
             interner.intern("text"),
-            interner.intern("kswiftkWindowedTransform"),
+            interner.intern(callee == "windowed" ? "kswiftkWindowedTransform" : "windowedSequence"),
         ]).first(where: { candidate in
             isSourceBackedStringWindowChunkTransformCandidate(
                 candidate,
@@ -167,26 +192,38 @@ extension CallTypeChecker {
         }) else {
             return nil
         }
+        var parameterMapping: [Int: Int] = [
+            sizeArgIndex: 0,
+            lambdaArgIndex: 3,
+        ]
+        if let stepArgIndex {
+            parameterMapping[stepArgIndex] = 1
+        }
+        if let partialArgIndex {
+            parameterMapping[partialArgIndex] = 2
+        }
         sema.bindings.bindCall(
             id,
             binding: CallBinding(
                 chosenCallee: chosen,
                 substitutedTypeArguments: [bodyType],
-                parameterMapping: [
-                    sizeArgIndex: 0,
-                    stepArgIndex: 1,
-                    partialArgIndex: 2,
-                    lambdaArgIndex: 3,
-                ]
+                parameterMapping: parameterMapping
             )
         )
         sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
-        let resultType = makeSyntheticListType(
-            symbols: sema.symbols,
-            types: sema.types,
-            interner: interner,
-            elementType: bodyType
-        )
+        let resultType = callee == "windowed"
+            ? makeSyntheticListType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: bodyType
+            )
+            : makeSyntheticSequenceType(
+                symbols: sema.symbols,
+                types: sema.types,
+                interner: interner,
+                elementType: bodyType
+            )
         let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
         sema.bindings.bindExprType(id, type: finalType)
         return finalType

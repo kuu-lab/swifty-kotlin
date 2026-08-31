@@ -276,7 +276,7 @@ struct CodegenBackendInterfaceIterableForLoopTests {
     }
 
     @Test
-    func testIntRangeForLoopUsesFastPath() throws {
+    func testIntRangeForLoopUsesInductionVariablePath() throws {
         let source = """
         fun main() {
             for (i in 0..2) {
@@ -289,10 +289,12 @@ struct CodegenBackendInterfaceIterableForLoopTests {
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
-        #expect(
-            callees.contains("kk_range_for_in_hasNext") && callees.contains("kk_range_for_in_next"),
-            "built-in range for-in should use the BUG-198 fast path, got: \(callees)"
-        )
+        #expect(!callees.contains("kk_range_for_in_iterator"), "IntRange induction loop must not allocate a runtime iterator, got: \(callees)")
+        #expect(!callees.contains("kk_range_for_in_hasNext"), "IntRange induction loop must not call hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_range_for_in_next"), "IntRange induction loop must not call next, got: \(callees)")
+        #expect(!callees.contains("__kk_range_first"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(!callees.contains("__kk_range_last"), "direct IntRange induction loop should not load a range object bound, got: \(callees)")
+        #expect(callees.contains("__kk_int_range_induction_le"), "IntRange induction loop should compare bounds, got: \(callees)")
     }
 }
 #endif
