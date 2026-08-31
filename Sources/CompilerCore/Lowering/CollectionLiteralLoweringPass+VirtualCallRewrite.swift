@@ -15,8 +15,30 @@ extension CollectionVirtualCallRewriteLoweringPass {
         symbol: SymbolID?,
         callee: InternedString,
         lookup: CollectionLiteralLookupTables,
+        receiver: KIRExprID,
         context: VirtualCallRewriteContext
     ) -> Bool {
+        // KSP-1513: array `size` is a bundled Kotlin declaration, so do not
+        // replace it with the generic runtime bridge when the receiver is an
+        // Array<T> or primitive array.
+        if callee == lookup.sizeName,
+           let symbol,
+           let sema = context.sema,
+           sema.symbols.isSourceBackedSymbol(symbol),
+           let receiverType = context.module.arena.exprType(receiver),
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               receiverType,
+               sema: sema
+           )
+        {
+            let sourceBackedArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
+            ]
+            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
+        }
+
         guard callee == lookup.foldName
             || callee == lookup.foldRightName
             || callee == lookup.reduceName
@@ -203,6 +225,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             symbol: symbol,
             callee: callee,
             lookup: lookup,
+            receiver: receiver,
             context: context
         ) {
             return false

@@ -14,15 +14,13 @@ import kotlin.random.Random
 //   kk_range_map, kk_range_filter, kk_range_toList; kk_long_range_* / kk_char_range_*
 //   equivalents)
 //
-// NOTE: `forEach`/`map`/`filter`/`toList`/`count` on Range/Progression receivers are
-// currently resolved and dispatched entirely through the hardcoded allow-list in
-// CallTypeChecker+RangeMemberFallback.swift (Sema) and the CollectionLiteralLoweringPass
-// virtual-call rewrite (codegen) -- neither consults user- or stdlib-declared extension
-// functions for range-like receivers. These bodies establish the canonical Kotlin-source
-// definition ahead of that dispatch being wired directly to it, matching the pattern
-// used by MIGRATION-RANGE-003 (RangeCoercion.kt) and MIGRATION-COL-002 (ListHOF.kt).
+// NOTE: Range/Progression members that still use the hardcoded range dispatch remain
+// separate from these canonical source definitions. Source-backed range HOFs are selected
+// by CallTypeChecker+RangeMemberFallback.swift and preserved by the collection lowering
+// pass, matching the migration pattern used by MIGRATION-RANGE-003 (RangeCoercion.kt)
+// and MIGRATION-COL-002 (ListHOF.kt).
 //
-// `first`, `last`, `step` are intentionally NOT included here: they are
+// The `first`, `last`, and `step` properties are intentionally NOT included here: they are
 // constant-time field reads with no pure-Kotlin expression available (would
 // require introducing new native bridge plumbing for zero behavioral change).
 // `count()`, `sum()`, and `reversed()` are now included and wired to the shared
@@ -925,6 +923,33 @@ public external fun CharRange.reversed(): CharRange
 
 // MARK: - CharProgression
 
+private fun charProgressionDescription(progression: CharProgression): String {
+    val step = progression.step
+    return if (step > 0) {
+        "${progression.first}..${progression.last} step $step"
+    } else {
+        "${progression.first} downTo ${progression.last} step ${-step}"
+    }
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.first(): Char {
+    if (isEmpty()) throw NoSuchElementException("Progression ${charProgressionDescription(this)} is empty.")
+    return this.first
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.firstOrNull(): Char? = if (isEmpty()) null else this.first
+
+@SinceKotlin("1.7")
+public fun CharProgression.last(): Char {
+    if (isEmpty()) throw NoSuchElementException("Progression ${charProgressionDescription(this)} is empty.")
+    return this.last
+}
+
+@SinceKotlin("1.7")
+public fun CharProgression.lastOrNull(): Char? = if (isEmpty()) null else this.last
+
 public fun CharProgression.forEach(action: (Char) -> Unit) {
     for (element in this) { action(element) }
 }
@@ -1032,6 +1057,41 @@ public fun UIntRange.filter(predicate: (UInt) -> Boolean): List<UInt> {
     return result
 }
 
+public fun UIntRange.filterNot(predicate: (UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
+public fun UIntRange.filterIndexed(predicate: (Int, UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> UIntRange.mapIndexed(transform: (Int, UInt) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> UIntRange.mapNotNull(transform: (UInt) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
+    }
+    return result
+}
+
 public fun UIntRange.toList(): List<UInt> {
     val result = mutableListOf<UInt>()
     if (step > 0) {
@@ -1091,6 +1151,41 @@ public fun <R> UIntProgression.map(transform: (UInt) -> R): List<R> {
 public fun UIntProgression.filter(predicate: (UInt) -> Boolean): List<UInt> {
     val result = mutableListOf<UInt>()
     for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun UIntProgression.filterNot(predicate: (UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    for (element in this) { if (!predicate(element)) result.add(element) }
+    return result
+}
+
+public fun UIntProgression.filterIndexed(predicate: (Int, UInt) -> Boolean): List<UInt> {
+    val result = mutableListOf<UInt>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public fun <R> UIntProgression.mapIndexed(transform: (Int, UInt) -> R): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        result.add(transform(index, element))
+        index++
+    }
+    return result
+}
+
+public fun <R : Any> UIntProgression.mapNotNull(transform: (UInt) -> R?): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val value = transform(element)
+        if (value != null) result.add(value)
+    }
     return result
 }
 

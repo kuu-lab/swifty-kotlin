@@ -6,10 +6,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
-        // Primitive types are represented directly by TypeSystem, so Long has
-        // no source declaration from which the Companion nominal can be
-        // collected. Keep only the nominal anchor needed by bundled
-        // Long.Companion extensions; the constants themselves are Kotlin
+        // Primitive types are represented directly by TypeSystem, so Long and
+        // Short have no source declaration from which the Companion nominal
+        // can be collected. Keep only the nominal anchors needed by bundled
+        // Companion extensions; the constants themselves are Kotlin
         // source-backed declarations.
         let kotlinPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
         let longSymbol = ensureClassSymbol(
@@ -21,8 +21,23 @@ extension DataFlowSemaPhase {
         if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
             symbols.setParentSymbol(kotlinPkgSymbol, for: longSymbol)
         }
-        ensureSyntheticLongCompanionSymbol(
+        ensureSyntheticPrimitiveCompanionSymbol(
             ownerSymbol: longSymbol,
+            symbols: symbols,
+            interner: interner
+        )
+
+        let shortSymbol = ensureClassSymbol(
+            named: "Short",
+            in: kotlinPkg,
+            symbols: symbols,
+            interner: interner
+        )
+        if let kotlinPkgSymbol = symbols.lookup(fqName: kotlinPkg) {
+            symbols.setParentSymbol(kotlinPkgSymbol, for: shortSymbol)
+        }
+        ensureSyntheticPrimitiveCompanionSymbol(
+            ownerSymbol: shortSymbol,
             symbols: symbols,
             interner: interner
         )
@@ -33,7 +48,7 @@ extension DataFlowSemaPhase {
         )
     }
 
-    private func ensureSyntheticLongCompanionSymbol(
+    private func ensureSyntheticPrimitiveCompanionSymbol(
         ownerSymbol: SymbolID,
         symbols: SymbolTable,
         interner: StringInterner

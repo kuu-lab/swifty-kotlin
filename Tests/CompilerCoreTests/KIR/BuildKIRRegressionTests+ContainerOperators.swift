@@ -259,13 +259,19 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // BUG-198: a built-in signed range keeps KSP-452's source iterator semantics,
-    // but the hot `for-in` loop uses the dedicated runtime fast path.
-    @Test func testBuildKIRLowersBuiltInRangeForLoopThroughFastRuntimePath() throws {
+    // ARCH-012: IntRange uses an induction variable, while other signed range
+    // shapes retain the BUG-198 runtime iterator path.
+    @Test func testBuildKIRLowersIntRangeForLoopThroughInductionVariablePath() throws {
         let source = """
         fun sumInts(): Int {
             var sum = 0
             for (i in 1..10) { sum += i }
+            return sum
+        }
+
+        fun sumTyped(range: IntRange): Int {
+            var sum = 0
+            for (i in range) { sum += i }
             return sum
         }
 
@@ -293,13 +299,29 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            for functionName in ["sumInts", "sumProgression", "sumLongs", "sumChars"] {
+            for functionName in ["sumInts", "sumTyped", "sumProgression", "sumLongs", "sumChars"] {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
 
-                #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                if functionName == "sumInts" {
+                    #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
+                    #expect(!callees.contains("__kk_range_first"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                    #expect(!callees.contains("__kk_range_last"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                    #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                } else if functionName == "sumTyped" {
+                    #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
+                    #expect(callees.contains("__kk_range_first"), "\(functionName): expected one-time first-bound load, got: \(callees)")
+                    #expect(callees.contains("__kk_range_last"), "\(functionName): expected one-time last-bound load, got: \(callees)")
+                    #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                } else {
+                    #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
+                    #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
+                    #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                }
                 #expect(!callees.contains("iterator"), "\(functionName): for-in must not allocate the generic source iterator, got: \(callees)")
                 #expect(!callees.contains("kk_iterator_hasNext"), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
                 #expect(!callees.contains("kk_iterator_next"), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
