@@ -4,7 +4,7 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
+private func runCodegenPipelineWithStdlibArtifact(
     inputPath: String,
     moduleName: String,
     emit: EmitMode,
@@ -51,7 +51,7 @@ private func assertKotlinOutput(
     try withTemporaryFile(contents: source) { path in
         let outputBase = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString).path
-        let ctx = try runCodegenPipeline(
+        let ctx = try runCodegenPipelineWithStdlibArtifact(
             inputPath: path,
             moduleName: moduleName,
             emit: .executable,
@@ -102,7 +102,7 @@ struct CodegenBackendSequenceMapIndexedNotNullTests {
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try runCodegenPipelineWithStdlibArtifact(
                 inputPath: path,
                 moduleName: "SequenceMapIndexedNotNullKIR",
                 emit: .kirDump,

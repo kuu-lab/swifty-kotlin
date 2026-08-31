@@ -64,6 +64,60 @@ extension CallTypeChecker {
         }
     }
 
+    /// Prefer a source-backed List.unzip() over the generic Iterable.unzip()
+    /// when the concrete receiver is a List. Both extensions have the same
+    /// callable name and type shape after inference, so receiver nominality
+    /// must decide the overload before the regular resolver sees them.
+    func preferListUnzipCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard let listSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]),
+        let iterableSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]),
+        let receiverNominal = driver.helpers.nominalSymbol(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types
+        ),
+        sema.types.isNominalSubtypeSymbol(receiverNominal, of: listSymbol),
+        candidates.contains(where: { candidate in
+            guard sema.symbols.isSourceBackedSymbol(candidate),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            return candidateNominal == listSymbol
+        })
+        else {
+            return candidates
+        }
+
+        return candidates.filter { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return true
+            }
+            return candidateNominal != iterableSymbol
+        }
+    }
+
     /// Prefer the source-backed List.take overload when a concrete List receiver
     /// also exposes the generic Iterable.take extension.
     ///

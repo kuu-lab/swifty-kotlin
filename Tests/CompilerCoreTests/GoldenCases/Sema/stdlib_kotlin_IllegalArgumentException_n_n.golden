@@ -34,20 +34,20 @@ expr e@15:13 call callee=e@15:13#1 args=[] type=kotlin.IllegalArgumentException 
 expr e@15:13#2 memberCall recv=e@15:13 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@15:36 string(null) type=String
 expr e@15:13#3 binary(elvis) lhs=e@15:13#2 rhs=e@15:36 type=String
-expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#3] type=Unit call=kotlin.io.println#1
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13#3] type=Unit call=kotlin.io.println#2
 expr e@16:25 name(message) type=String? ref=__local_0.message
 expr e@16:13 call callee=e@16:13#1 args=[_:e@16:25] type=kotlin.IllegalArgumentException call=golden.sema.fromMessage
 expr e@16:13#2 memberCall recv=e@16:13 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@16:45 string(null) type=String
 expr e@16:13#3 binary(elvis) lhs=e@16:13#2 rhs=e@16:45 type=String
-expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#3] type=Unit call=kotlin.io.println#1
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#3] type=Unit call=kotlin.io.println#2
 expr e@17:23 name(exceptionCause) type=kotlin.Throwable? ref=__local_1.exceptionCause
 expr e@17:13 call callee=e@17:13#1 args=[_:e@17:23] type=kotlin.IllegalArgumentException call=golden.sema.fromCause
 expr e@17:13#2 memberCall recv=e@17:13 callee=cause args=[] type=kotlin.Throwable? ref=kotlin.Throwable.cause
 expr e@17:13#3 safeMemberCall recv=e@17:13#2 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@17:57 string(null) type=String
 expr e@17:13#4 binary(elvis) lhs=e@17:13#3 rhs=e@17:57 type=String
-expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#1
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#4] type=Unit call=kotlin.io.println#2
 expr e@18:30 name(message) type=String? ref=__local_0.message
 expr e@18:39 name(exceptionCause) type=kotlin.Throwable? ref=__local_1.exceptionCause
 expr e@18:13 call callee=e@18:13#1 args=[_:e@18:30,_:e@18:39] type=kotlin.IllegalArgumentException call=golden.sema.fromMessageCause
@@ -55,4 +55,4 @@ expr e@18:13#2 memberCall recv=e@18:13 callee=cause args=[] type=kotlin.Throwabl
 expr e@18:13#3 safeMemberCall recv=e@18:13#2 callee=message args=[] type=String? ref=kotlin.Throwable.message
 expr e@18:73 string(null) type=String
 expr e@18:13#4 binary(elvis) lhs=e@18:13#3 rhs=e@18:73 type=String
-expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#4] type=Unit call=kotlin.io.println#1
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#4] type=Unit call=kotlin.io.println#2
