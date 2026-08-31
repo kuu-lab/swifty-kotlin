@@ -4,42 +4,6 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 /// RF-TEST-001: fixture 駆動の Codegen 実行テストハーネス。
 ///
 /// `Tests/CompilerBackendTests/Fixtures/` 以下を実行時に走査し、`expected.txt` を
@@ -52,6 +16,7 @@ private func runCodegenPipeline(
 /// 詳細は `Tests/CompilerBackendTests/Fixtures/README.md` を参照。
 @Suite
 struct CodegenBackendFixtureTests {
+    private let pipelineHelper = CodegenBackendTestSupport()
 
     /// 全 fixture を検出して実行する単一エントリポイント。
     /// 各 fixture の失敗はケースの相対パス付きで報告され、1 件の失敗が他の
@@ -141,7 +106,7 @@ struct CodegenBackendFixtureTests {
         do {
             let outputBase = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
+            let ctx = try pipelineHelper.runCodegenPipeline(
                 inputPath: fixture.sourcePath,
                 moduleName: Self.moduleName(for: fixture.relativePath),
                 emit: .executable,

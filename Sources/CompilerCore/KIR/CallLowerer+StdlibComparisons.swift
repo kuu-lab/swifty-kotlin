@@ -75,6 +75,10 @@ extension CallLowerer {
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte, .minOfShort:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
@@ -99,6 +103,10 @@ extension CallLowerer {
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte3, .minOfShort3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         default:
             return nil
         }
