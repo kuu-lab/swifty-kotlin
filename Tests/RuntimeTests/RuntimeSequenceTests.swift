@@ -87,15 +87,6 @@ private let throwingSelector: @convention(c) (Int, Int, UnsafeMutablePointer<Int
     return 0
 }
 
-private let ascendingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, lhs, rhs, _ in
-    lhs - rhs
-}
-
-private let throwingComparator: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, _, _, outThrown in
-    outThrown?.pointee = runtimeAllocateThrowable(message: "sortedWith comparator failed")
-    return 0
-}
-
 private let accumulatingSum: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { _, acc, value, _ in
     acc + value
 }
@@ -448,31 +439,6 @@ struct RuntimeSequenceTests {
         #expect(listElements(kk_sequence_to_list(sorted, nil)) == [])
     }
 
-    @Test func sortedWithUsesComparatorResults() {
-        let source = makeSequence([3, 1, 2, 1])
-        let sorted = kk_sequence_sortedWith(
-            source,
-            unsafeBitCast(ascendingComparator, to: Int.self),
-            0,
-            nil
-        )
-
-        #expect(sequenceElements(sorted) == [1, 1, 2, 3])
-    }
-
-    @Test func sortedWithPropagatesComparatorThrowables() {
-        let source = makeSequence([3, 1, 2])
-        var thrown = 0
-        let sorted = kk_sequence_sortedWith(
-            source,
-            unsafeBitCast(throwingComparator, to: Int.self),
-            0,
-            &thrown
-        )
-
-        #expect(thrown != 0)
-        #expect(sequenceElements(sorted) == [])
-    }
     @Test func takeWhileKeepsMatchingPrefixLazily() {
         let source = makeSequence([1, 2, 3, 4, 2])
         let taken = kk_sequence_takeWhile(

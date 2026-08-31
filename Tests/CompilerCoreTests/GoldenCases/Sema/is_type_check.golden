@@ -64,6 +64,5 @@ expr e@31:16 string() type=String
 expr e@31:9 return value=e@31:16 type=Nothing
 expr e@30:40 blockExpr stmts=[] trailing=e@31:9 type=Nothing
 expr e@30:5 if cond=e@30:9#2 then=e@30:40 else=_ type=Unit
-expr e@33:12 name(v) type=Any ref=golden.sema.combinedOrCondition.$2.v
+expr e@33:12 name(v) type=String ref=golden.sema.combinedOrCondition.$2.v
 expr e@33:5 return value=e@33:12 type=Nothing
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=33:5 msg=Type constraint could not be satisfied.

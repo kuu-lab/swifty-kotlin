@@ -35,7 +35,7 @@ expr e@8:9#1 binary(equal) lhs=e@8:9 rhs=e@8:18 type=Boolean
 expr e@8:30 call callee=e@8:30#1 args=[] type=kotlin.IllegalArgumentException call=kotlin.IllegalArgumentException.<init>#0
 expr e@8:24 throw value=e@8:30 type=Nothing
 expr e@8:5 if cond=e@8:9#1 then=e@8:24 else=_ type=Unit
-expr e@9:12 name(value) type=Any? ref=requireNonNull.$2.value
+expr e@9:12 name(value) type=Any ref=requireNonNull.$2.value
 expr e@9:5 return value=e@9:12 type=Nothing
 expr e@14:9 call callee=e@14:9#1 args=[] type=kotlin.contracts.Returns call=kotlin.contracts.ContractBuilder.returns#0
 expr e@13:14 lambda params=[] body=e@14:9 label=contract type=kotlin.contracts.ContractBuilder.() -> Unit
@@ -117,4 +117,3 @@ expr e@62:18 call callee=e@62:18#1 args=[_:e@62:30,_:e@62:33] type=Boolean call=
 expr e@62:5 localDecl result mutable=0 type=_ init=e@62:18 type=Unit ref=__local_4.result
 expr e@63:13 name(result) type=Boolean ref=__local_4.result
 expr e@63:5 call callee=e@63:5#1 args=[_:e@63:13] type=Unit call=kotlin.io.println#1
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=9:5 msg=Type constraint could not be satisfied.

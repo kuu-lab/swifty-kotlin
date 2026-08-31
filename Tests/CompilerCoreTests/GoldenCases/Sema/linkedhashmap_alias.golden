@@ -184,7 +184,7 @@ expr e@67:26 name(mutable) type=kotlin.collections.MutableMap<Int, String> ref=_
 expr e@68:19 name(key) type=Int ref=__for_destructuring_0.key
 expr e@68:24 name(value) type=String ref=__for_destructuring_0.value
 expr e@68:17 stringTemplate[expr(e@68:19),lit(=),expr(e@68:24)] type=String
-expr e@68:9 call callee=e@68:9#1 args=[_:e@68:17] type=Unit call=kotlin.io.println#1
+expr e@68:9 call callee=e@68:9#1 args=[_:e@68:17] type=Unit call=kotlin.io.println#2
 expr e@67:35 blockExpr stmts=[] trailing=e@68:9 type=Unit
 expr e@67:5 forDestructuring names=[key,value] iterable=e@67:26 body=e@67:35 type=Unit
 expr e@71:22 name(lhm) type=kotlin.collections.MutableMap<String, Int> ref=__local_0.lhm
