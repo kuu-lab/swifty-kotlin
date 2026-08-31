@@ -72,6 +72,28 @@ struct ArraySyntheticMemberLinkTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
 
+        func sourceArrayExtension(named name: String, receiverName: String) -> SymbolID? {
+            sema.symbols.lookupAll(
+                fqName: [
+                    ctx.interner.intern("kotlin"),
+                    ctx.interner.intern("collections"),
+                    ctx.interner.intern(name),
+                ]
+            ).first { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      symbol.declSite != nil,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let receiverType = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      case let .classType(receiverClass) = sema.types.kind(of: receiverType),
+                      let receiverSymbol = sema.symbols.symbol(receiverClass.classSymbol)
+                else {
+                    return false
+                }
+                return ctx.interner.resolve(receiverSymbol.name) == receiverName
+            }
+        }
+
 
             // === testArrayOfNullsTopLevelFactoryUsesRuntimeExternalLink ===
             do {
@@ -130,19 +152,23 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(signature.typeParameterSymbols.count == 1)
             }
 
-            // === testArrayContentDeepToStringUsesRuntimeExternalLink ===
+            // === testArrayContentDeepToStringIsBundledSourceBacked ===
             do {
-                let symbolID = try #require(
+                #expect(
                     sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("Array"),
                             ctx.interner.intern("contentDeepToString"),
                         ]
-                    ),
-                    "Expected synthetic Array.contentDeepToString to be registered"
+                    ) == nil,
+                    "Generic Array.contentDeepToString synthetic stub should be removed"
                 )
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepToString")
+                let symbolID = try #require(
+                    sourceArrayExtension(named: "contentDeepToString", receiverName: "Array"),
+                    "Expected bundled source Array.contentDeepToString extension"
+                )
+                #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes == [])
                 #expect(signature.returnType == sema.types.stringType)
@@ -158,19 +184,23 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(receiverClass.args.count == 1)
             }
 
-            // === testArrayContentDeepHashCodeUsesRuntimeExternalLink ===
+            // === testArrayContentDeepHashCodeIsBundledSourceBacked ===
             do {
-                let symbolID = try #require(
+                #expect(
                     sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("Array"),
                             ctx.interner.intern("contentDeepHashCode"),
                         ]
-                    ),
-                    "Expected synthetic Array.contentDeepHashCode to be registered"
+                    ) == nil,
+                    "Generic Array.contentDeepHashCode synthetic stub should be removed"
                 )
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepHashCode")
+                let symbolID = try #require(
+                    sourceArrayExtension(named: "contentDeepHashCode", receiverName: "Array"),
+                    "Expected bundled source Array.contentDeepHashCode extension"
+                )
+                #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes == [])
                 #expect(signature.returnType == sema.types.intType)
@@ -235,19 +265,23 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(receiverClass.args.count == 1)
             }
 
-            // === testArrayContentDeepEqualsUsesRuntimeExternalLink ===
+            // === testArrayContentDeepEqualsIsBundledSourceBacked ===
             do {
-                let symbolID = try #require(
+                #expect(
                     sema.symbols.lookup(
                         fqName: [
                             ctx.interner.intern("kotlin"),
                             ctx.interner.intern("Array"),
                             ctx.interner.intern("contentDeepEquals"),
                         ]
-                    ),
-                    "Expected synthetic Array.contentDeepEquals to be registered"
+                    ) == nil,
+                    "Generic Array.contentDeepEquals synthetic stub should be removed"
                 )
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_contentDeepEquals")
+                let symbolID = try #require(
+                    sourceArrayExtension(named: "contentDeepEquals", receiverName: "Array"),
+                    "Expected bundled source Array.contentDeepEquals extension"
+                )
+                #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes.count == 1)
                 #expect(signature.returnType == sema.types.booleanType)
@@ -265,6 +299,27 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(ctx.interner.resolve(parameterSymbol.name) == "Array")
                 #expect(receiverClass.args.count == 1)
                 #expect(parameterClass.args.count == 1)
+            }
+
+            // === testArrayContentComparisonAndHashAreBundledSourceBacked ===
+            do {
+                for functionName in ["contentEquals", "contentHashCode"] {
+                    #expect(
+                        sema.symbols.lookup(
+                            fqName: [
+                                ctx.interner.intern("kotlin"),
+                                ctx.interner.intern("Array"),
+                                ctx.interner.intern(functionName),
+                            ]
+                        ) == nil,
+                        "Generic Array.\(functionName) synthetic stub should be removed"
+                    )
+                    let symbolID = try #require(
+                        sourceArrayExtension(named: functionName, receiverName: "Array"),
+                        "Expected bundled source Array.\(functionName) extension"
+                    )
+                    #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
+                }
             }
 
             // === testArrayCopyIntoUsesRuntimeExternalLink ===
@@ -293,34 +348,29 @@ struct ArraySyntheticMemberLinkTests {
                 #expect(parameterNames == ["destination", "destinationOffset", "startIndex", "endIndex"])
             }
 
-            // === testPrimitiveArrayContentToStringOverloadsUseRuntimeExternalLinks ===
+            // === testPrimitiveArrayContentToStringOverloadsAreSourceBacked ===
             do {
-                let expectedLinks = [
-                    "IntArray": "kk_intArray_contentToString",
-                    "LongArray": "kk_longArray_contentToString",
-                    "ByteArray": "kk_byteArray_contentToString",
-                    "ShortArray": "kk_shortArray_contentToString",
-                    "UIntArray": "kk_uIntArray_contentToString",
-                    "ULongArray": "kk_uLongArray_contentToString",
-                    "DoubleArray": "kk_doubleArray_contentToString",
-                    "FloatArray": "kk_floatArray_contentToString",
-                    "BooleanArray": "kk_booleanArray_contentToString",
-                    "CharArray": "kk_charArray_contentToString",
-                    "UByteArray": "kk_uByteArray_contentToString",
-                    "UShortArray": "kk_uShortArray_contentToString",
+                let primitiveArrayNames = [
+                    "IntArray", "LongArray", "ByteArray", "ShortArray",
+                    "UIntArray", "ULongArray", "DoubleArray", "FloatArray",
+                    "BooleanArray", "CharArray", "UByteArray", "UShortArray",
                 ]
-                for (arrayName, externalLink) in expectedLinks {
-                    let symbolID = try #require(
+                for arrayName in primitiveArrayNames {
+                    #expect(
                         sema.symbols.lookup(
                             fqName: [
                                 ctx.interner.intern("kotlin"),
                                 ctx.interner.intern(arrayName),
                                 ctx.interner.intern("contentToString"),
                             ]
-                        ),
-                        "Expected \(arrayName).contentToString to be registered"
+                        ) == nil,
+                        "Synthetic \(arrayName).contentToString stub should be removed"
                     )
-                    #expect(sema.symbols.externalLinkName(for: symbolID) == externalLink)
+                    let symbolID = try #require(
+                        sourceArrayExtension(named: "contentToString", receiverName: arrayName),
+                        "Expected bundled source \(arrayName).contentToString extension"
+                    )
+                    #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
                     let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                     #expect(signature.parameterTypes == [], "\(arrayName).contentToString should not take parameters")
                     #expect(signature.returnType == sema.types.stringType)
@@ -333,6 +383,34 @@ struct ArraySyntheticMemberLinkTests {
                     }
                     #expect(ctx.interner.resolve(receiverSymbol.name) == arrayName)
                     #expect(receiverClass.args.count == 0)
+                }
+            }
+
+            // === testPrimitiveArrayContentComparisonOverloadsAreSourceBacked ===
+            do {
+                let primitiveArrayNames = [
+                    "IntArray", "LongArray", "ByteArray", "ShortArray",
+                    "UIntArray", "ULongArray", "DoubleArray", "FloatArray",
+                    "BooleanArray", "CharArray", "UByteArray", "UShortArray",
+                ]
+                for functionName in ["contentEquals", "contentHashCode"] {
+                    for arrayName in primitiveArrayNames {
+                        #expect(
+                            sema.symbols.lookup(
+                                fqName: [
+                                    ctx.interner.intern("kotlin"),
+                                    ctx.interner.intern(arrayName),
+                                    ctx.interner.intern(functionName),
+                                ]
+                            ) == nil,
+                            "Synthetic \(arrayName).\(functionName) stub should be removed"
+                        )
+                        let symbolID = try #require(
+                            sourceArrayExtension(named: functionName, receiverName: arrayName),
+                            "Expected bundled source \(arrayName).\(functionName) extension"
+                        )
+                        #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
+                    }
                 }
             }
 
