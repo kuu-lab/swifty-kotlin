@@ -7,14 +7,9 @@ func withTemporaryFile(
     fileExtension: String = "kt",
     body: (String) throws -> Void
 ) throws {
-    let fileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .appendingPathExtension(fileExtension)
-    try contents.write(to: fileURL, atomically: true, encoding: .utf8)
-    defer {
-        try? FileManager.default.removeItem(at: fileURL)
+    try withTemporaryFiles(contents: [contents], fileExtension: fileExtension) { paths in
+        try body(paths[0])
     }
-    try body(fileURL.path)
 }
 
 func withTemporaryFiles(
@@ -36,6 +31,21 @@ func withTemporaryFiles(
         }
     }
     try body(urls.map(\.path))
+}
+
+/// Load a fixture from `Scripts/diff_cases/<name>`, used by tests that pin
+/// codegen output to the canonical kotlinc-diff regression case.
+func diffCaseSource(_ name: String, file: StaticString = #filePath) throws -> String {
+    let root = URL(fileURLWithPath: "\(file)")
+        .deletingLastPathComponent() // Codegen/
+        .deletingLastPathComponent() // CompilerBackendTests/
+        .deletingLastPathComponent() // Tests/
+        .deletingLastPathComponent() // repo root
+    let caseURL = root.appendingPathComponent(
+        "Scripts/diff_cases/\(name)",
+        isDirectory: false
+    )
+    return try String(contentsOf: caseURL, encoding: .utf8)
 }
 
 /// Writes a minimal manifest.json plus a hand-authored metadata.bin to a
@@ -62,4 +72,16 @@ func withKklibFixture(
     try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
     try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
     try body(libDir.path)
+}
+
+func withKklibFixture(
+    moduleName: String,
+    records: [MetadataRecord],
+    body: (String) throws -> Void
+) throws {
+    try withKklibFixture(
+        moduleName: moduleName,
+        metadata: MetadataEncoder().serialize(records),
+        body: body
+    )
 }

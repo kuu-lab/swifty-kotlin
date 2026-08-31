@@ -174,6 +174,8 @@ struct NativeConcurrentSyntheticStubTests {
     @Test
     func testTransferModeResolvesInSource() {
         let source = """
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
         import kotlin.native.concurrent.TransferMode
 
         fun probe(): TransferMode = TransferMode.SAFE
@@ -183,6 +185,39 @@ struct NativeConcurrentSyntheticStubTests {
         #expect(!(
             ctx.diagnostics.hasError
         ), "Expected TransferMode.SAFE to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+    }
+
+    @Test
+    func testTransferModeIsBackedByBundledSource() throws {
+        let (sema, interner) = try sharedSema()
+
+        let transferMode = try symbol(
+            ["kotlin", "native", "concurrent", "TransferMode"],
+            sema: sema,
+            interner: interner
+        )
+        #expect(sema.symbols.sourceFileID(for: transferMode) != nil)
+        #expect(!sema.symbols.symbol(transferMode)!.flags.contains(.synthetic))
+        #expect(sema.symbols.isSourceBackedSymbol(transferMode))
+    }
+
+    @Test
+    func testTransferModeFourAPIsResolveWithExactTypes() {
+        let source = """
+        @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
+        import kotlin.native.concurrent.TransferMode
+
+        fun entries(): kotlin.enums.EnumEntries<TransferMode> = TransferMode.entries
+        fun value(): Int = TransferMode.SAFE.value
+        fun valueOf(): TransferMode = TransferMode.valueOf("UNSAFE")
+        fun values(): Array<TransferMode> = TransferMode.values()
+        """
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected TransferMode APIs to resolve cleanly, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
     }
 
     // MARK: - FutureState enum
@@ -954,6 +989,44 @@ struct NativeConcurrentSyntheticStubTests {
         #expect(
             Set(targetArguments) == ["AnnotationTarget.PROPERTY", "AnnotationTarget.CLASS"],
             "Expected PROPERTY and CLASS targets for native @ThreadLocal"
+        )
+    }
+
+    @Test
+    func testNativeThreadLocalAnnotationHasNoArgConstructor() throws {
+        let (sema, interner) = try sharedSema()
+
+        let fqName = ["kotlin", "native", "concurrent", "ThreadLocal"].map { interner.intern($0) }
+        let annotationSymbol = try #require(sema.symbols.lookup(fqName: fqName))
+        let annotationType = sema.types.make(.classType(ClassType(
+            classSymbol: annotationSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructorSymbol = try #require(
+            sema.symbols.lookup(fqName: fqName + [interner.intern("<init>")]),
+            "Expected kotlin.native.concurrent.ThreadLocal.<init> to be registered"
+        )
+        let signature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
+        #expect(sema.symbols.symbol(constructorSymbol)?.kind == .constructor)
+        #expect(signature.receiverType == nil)
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType == annotationType)
+        #expect(sema.symbols.externalLinkName(for: constructorSymbol) == nil)
+    }
+
+    @Test
+    func testNativeThreadLocalAnnotationConstructorResolvesInSource() throws {
+        let source = """
+        import kotlin.native.concurrent.ThreadLocal
+
+        fun construct(): Any? = ThreadLocal()
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        #expect(
+            ctx.diagnostics.diagnostics.isEmpty,
+            "ThreadLocal() should resolve cleanly, got: \(ctx.diagnostics.diagnostics)"
         )
     }
 

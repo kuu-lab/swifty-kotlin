@@ -504,12 +504,20 @@ final class InlineLoweringPass: LoweringPass {
             }
 
             // The name fallback only applies to calls whose callee symbol is
-            // unknown here. A call that resolves to a known non-inline function
-            // must not be redirected to a same-named inline overload from an
-            // unrelated receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`).
+            // unknown here. A call with a *known* callee symbol that isn't a
+            // compiled inline/regular function in this module must not be
+            // redirected to a same-named inline overload from an unrelated
+            // receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`, or a
+            // synthetic/runtime-dispatched member such as the generic
+            // `Iterable<T>.iterator()` used inside `reduce` vs an unrelated
+            // bundled `Map<K, V>.iterator()` -- see KSP-1011). A known symbol
+            // that resolves to neither table is exactly as "not ours to
+            // rename" as one resolving to a known non-inline function: its
+            // own resolution (external link / virtual dispatch) still
+            // applies once this pass is done with it.
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
                 target
-            } else if let symbol, allFunctionsBySymbol[symbol] != nil {
+            } else if symbol != nil {
                 nil
             } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
                 byName[0]

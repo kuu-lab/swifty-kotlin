@@ -165,22 +165,23 @@ struct LibraryMetadataImportIntegrationTests {
         }
 
         try withCompiledLibrary(source: source, moduleName: "LayoutLib") { libraryPath in
-            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
-            #expect(metadata.contains("layoutWords="))
-            #expect(metadata.contains("vtable="))
-            #expect(metadata.contains("itable="))
-            #expect(metadata.contains("superFq=layoutdemo.Base"))
+            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let records = MetadataDecoder().decode(metadataText)
+            let derivedRecord = try #require(records.first { $0.fqName == "layoutdemo.Derived" })
+            #expect(derivedRecord.declaredInstanceSizeWords != nil)
+            #expect(derivedRecord.declaredVtableSize != nil)
+            #expect(derivedRecord.declaredItableSize != nil)
+            #expect(derivedRecord.superFQName == "layoutdemo.Base")
         }
     }
 
     @Test
     func testSemaAllocatesVtableSlotsFromImportedNominalMetadata() throws {
-        let metadata = """
-        symbols=2
-        class _ fq=ext.C schema=v1
-        function _ fq=ext.C.m schema=v1 arity=0 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtMeta", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(kind: .class, mangledName: "_", fqName: "ext.C"),
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.C.m"),
+        ]
+        try withKklibFixture(moduleName: "ExtMeta", records: records) { libDirPath in
             let source = "fun main() = 0"
             try withTemporaryFile(contents: source) { path in
                 let ctx = makeCompilationContext(
@@ -207,14 +208,30 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testSemaReusesVtableSlotForImportedOverrideMethods() throws {
-        let metadata = """
-        symbols=4
-        class _ fq=ext.Base schema=v1 fields=0 layoutWords=3 vtable=1 itable=0
-        function _ fq=ext.Base.m schema=v1 arity=0 suspend=0
-        class _ fq=ext.Derived schema=v1 superFq=ext.Base fields=0 layoutWords=3 vtable=1 itable=0
-        function _ fq=ext.Derived.m schema=v1 arity=0 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtMetaOverride", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_",
+                fqName: "ext.Base",
+                declaredFieldCount: 0,
+                declaredInstanceSizeWords: 3,
+                declaredVtableSize: 1,
+                declaredItableSize: 0
+            ),
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.Base.m"),
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_",
+                fqName: "ext.Derived",
+                declaredFieldCount: 0,
+                declaredInstanceSizeWords: 3,
+                declaredVtableSize: 1,
+                declaredItableSize: 0,
+                superFQName: "ext.Base"
+            ),
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.Derived.m"),
+        ]
+        try withKklibFixture(moduleName: "ExtMetaOverride", records: records) { libDirPath in
             try withTemporaryFile(contents: "fun main() = 0") { path in
                 let ctx = makeCompilationContext(
                     inputs: [path],
@@ -242,11 +259,18 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testSemaInheritsImportedFieldLayoutFromMetadataHints() throws {
-        let metadata = """
-        symbols=1
-        class _ fq=ext.Base schema=v1 fields=1 layoutWords=4 vtable=0 itable=0
-        """
-        try withKklibFixture(moduleName: "ExtLayoutHint", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_",
+                fqName: "ext.Base",
+                declaredFieldCount: 1,
+                declaredInstanceSizeWords: 4,
+                declaredVtableSize: 0,
+                declaredItableSize: 0
+            ),
+        ]
+        try withKklibFixture(moduleName: "ExtLayoutHint", records: records) { libDirPath in
             let source = """
             class Derived: ext.Base
             fun main() = 0
@@ -283,11 +307,14 @@ struct LibraryMetadataImportIntegrationTests {
         val answer: Int = 42
         """
         try withCompiledLibrary(source: source, moduleName: "MetaExport") { libraryPath in
-            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
-            #expect(metadata.contains("function "))
-            #expect(metadata.contains("property "))
-            #expect(metadata.contains("sig=F1<I,I>"))
-            #expect(metadata.contains("sig=I"))
+            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let records = MetadataDecoder().decode(metadataText)
+            let idRecord = try #require(records.first { $0.fqName == "metaexport.id" })
+            let answerRecord = try #require(records.first { $0.fqName == "metaexport.answer" })
+            #expect(idRecord.kind == .function)
+            #expect(idRecord.typeSignature == "F1<I,I>")
+            #expect(answerRecord.kind == .property)
+            #expect(answerRecord.typeSignature == "I")
         }
     }
 
@@ -300,8 +327,10 @@ struct LibraryMetadataImportIntegrationTests {
         }
         """
         try withCompiledLibrary(source: source, moduleName: "GenericLib") { libraryPath in
-            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
-            #expect(metadata.contains("typeParams="))
+            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let records = MetadataDecoder().decode(metadataText)
+            let holderRecord = try #require(records.first { $0.fqName == "genericlib.Holder" })
+            #expect(holderRecord.nominalTypeParameters != nil)
 
             let appSource = """
             import genericlib.Holder
@@ -345,11 +374,12 @@ struct LibraryMetadataImportIntegrationTests {
         val handler: Handler? = null
         """
         try withCompiledLibrary(source: source, moduleName: "MetaExportContext") { libraryPath in
-            let metadata = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
-            #expect(metadata.contains("typeAlias "))
-            #expect(metadata.contains("fq=metaexport.Handler"))
-            #expect(metadata.contains("sig=Q<Lmetaexport.Handler;>"))
-            #expect(metadata.contains("fq=metaexport.handler"))
+            let metadataText = try String(contentsOfFile: libraryPath + "/metadata.bin", encoding: .utf8)
+            let records = MetadataDecoder().decode(metadataText)
+            let handlerTypeAlias = try #require(records.first { $0.fqName == "metaexport.Handler" })
+            let handlerProperty = try #require(records.first { $0.fqName == "metaexport.handler" })
+            #expect(handlerTypeAlias.kind == .typeAlias)
+            #expect(handlerProperty.typeSignature == "Q<Lmetaexport.Handler;>")
 
             let appSource = """
             import metaexport.handler
@@ -387,11 +417,10 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testPlatformWarningEmittedForImportedMissingSignatureInExplicitNonNullContext() throws {
-        let metadata = """
-        symbols=1
-        function _ fq=ext.platformValue schema=v1 arity=0 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtPlatformWarn", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.platformValue"),
+        ]
+        try withKklibFixture(moduleName: "ExtPlatformWarn", records: records) { libDirPath in
             let source = """
             import ext.platformValue
 
@@ -421,11 +450,10 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testPlatformWarningSuppressedForInferredReturnTypeFromImportedMissingSignature() throws {
-        let metadata = """
-        symbols=1
-        function _ fq=ext.platformValue schema=v1 arity=0 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtPlatformSuppressed", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.platformValue"),
+        ]
+        try withKklibFixture(moduleName: "ExtPlatformSuppressed", records: records) { libDirPath in
             let source = """
             import ext.platformValue
 
@@ -447,11 +475,10 @@ struct LibraryMetadataImportIntegrationTests {
 
     @Test
     func testPlatformValueAssignsToExplicitNullableContextWithoutWarning() throws {
-        let metadata = """
-        symbols=1
-        function _ fq=ext.platformValue schema=v1 arity=0 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtPlatformNullable", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "ext.platformValue"),
+        ]
+        try withKklibFixture(moduleName: "ExtPlatformNullable", records: records) { libDirPath in
             let source = """
             import ext.platformValue
 
@@ -479,12 +506,11 @@ struct LibraryMetadataImportIntegrationTests {
     /// Verifies metadata import and synthetic stub interaction for variance relaxation.
     @Test
     func testMetadataCollectionContainsDoesNotCauseVarOutWithListOf() throws {
-        let metadata = """
-        symbols=2
-        interface _ fq=kotlin.collections.Collection schema=v1
-        function _ fq=kotlin.collections.Collection.contains schema=v1 arity=1 suspend=0
-        """
-        try withKklibFixture(moduleName: "ExtCollectionMeta", metadata: metadata) { libDirPath in
+        let records = [
+            MetadataRecord(kind: .interface, mangledName: "_", fqName: "kotlin.collections.Collection"),
+            MetadataRecord(kind: .function, mangledName: "_", fqName: "kotlin.collections.Collection.contains", arity: 1),
+        ]
+        try withKklibFixture(moduleName: "ExtCollectionMeta", records: records) { libDirPath in
             let source = """
             fun main() {
                 val list = listOf(1, 2, 3)
