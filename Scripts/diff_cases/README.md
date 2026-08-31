@@ -23,6 +23,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `hello.kt`: minimal executable smoke case
 - `control_when.kt`: `when` with value subject (`Int`)
 - `boolean_when.kt`: `when` with `Boolean` subject
+- `when_statement_no_else.kt`: subject-less `when` used as a statement (value discarded) without an `else` branch — exhaustiveness is not required in statement position
 - `if_expr.kt`: expression-body `if` function
 - `named_default.kt`: named argument + default parameter補完
 - `extension_receiver.kt`: extension receiver 呼び出しと `this` 束縛
@@ -86,5 +87,7 @@ all `*.kt` files under `Scripts/diff_cases` automatically.
 - `class_and_function_same_name.kt`: クラスと同名のトップレベル関数の共存（`class Point` + `fun Point(value: Int)` / `fun Point(pair: Pair<Int, Int>)`、kotlin-stdlib の `Random(seed)` ファクトリ関数と同型パターン）と、コンストラクタ・関数オーバーロードを跨いだ引数型による呼び出し解決の parity（KSP-CAP-006）
 - `random_xorwow_parity.kt`: `Random(seed)` の Int/Long factory、XorWow の warm-up、`nextInt`/`nextInt(until)`/`nextLong`/`nextBits`/`nextDouble` の固定 seed ビット列 parity（KSP-685）
 - `object_literal_local_capture.kt`: object 式のメンバ関数本体からの外側ローカル変数/パラメータキャプチャ（KSP-CAP-001）。`val` パラメータ・`var` local の複数回呼び出しをまたぐミューテーション・自プロパティによる同名 outer local の shadowing・関数型パラメータ（`() -> Int`）キャプチャの parity
+- `contextual_keyword_parameter_names.kt`: コンストラクタ/関数パラメータ名が `inner`/`sealed`/`operator`/`override`/`vararg` 等の modifier keyword と一致する場合の parity。これらは modifier 位置以外では通常の識別子として有効だが、パーサーがパラメータごと無条件に drop していたバグの回帰
+- `vararg_explicit_type_arg_upcast.kt`: 明示的型引数（`mapOf<Any?, Number?>(...)` 等）を伴う vararg 呼び出しで、各要素の実際の型が型引数への upcast を要する場合の parity。型変数の等価制約（明示的型引数由来）を他の下限/上限境界と同じ lub/glb プールに混在させていたため、`Int`/`Nothing?` 等の下限が絡むと lub が `Any?` に暴走し `Conflicting bounds` を誤検出していたバグの回帰
 
 The set intentionally includes both successful programs and compile-error cases.

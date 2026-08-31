@@ -374,6 +374,40 @@ struct BundledDeclarationIndexTests {
     }
 
     @Test
+    func comparisonsCompareByRetainsAllThreeBundledArities() {
+        // A duplicated `ownerFQName == ["kotlin", "comparisons"]` branch inside
+        // isRuntimeBackedSyntheticRetainedOverlap used to make the second branch
+        // (an older, narrower KSP-309 arity-1/2-only check) permanently
+        // unreachable. Pin the surviving KSP-461 behavior directly so a future
+        // edit to the comparisons routing can't silently drop the arity-3 case
+        // (compareBy(selector1, selector2, selector3)), which the dead branch
+        // never covered even when it still existed.
+        let interner = StringInterner()
+        let ownerFQName = intern(["kotlin", "comparisons"], interner)
+        let compareByName = interner.intern("compareBy")
+
+        for arity in [1, 2, 3] {
+            let key = BundledMemberKey(ownerFQName: ownerFQName, name: compareByName, arity: arity)
+            #expect(
+                BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
+                "compareBy(arity \(arity)) is bundled in Comparators.kt and must be a retained overload"
+            )
+        }
+
+        for arity in [0, 4] {
+            let key = BundledMemberKey(ownerFQName: ownerFQName, name: compareByName, arity: arity)
+            #expect(
+                !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner),
+                "compareBy(arity \(arity)) has no bundled overload and must not be marked retained"
+            )
+        }
+
+        let unrelatedName = interner.intern("compareValues")
+        let unrelatedKey = BundledMemberKey(ownerFQName: ownerFQName, name: unrelatedName, arity: 2)
+        #expect(!BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(unrelatedKey, interner: interner))
+    }
+
+    @Test
     func astBuildResolvesDefaultImportedReceiverTypes() throws {
         let (ast, ctx) = try buildBundledAST(sources: [
             "package kotlin.collections\n\ninterface List<T>",
