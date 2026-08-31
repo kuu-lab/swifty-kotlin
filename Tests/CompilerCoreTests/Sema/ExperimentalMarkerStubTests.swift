@@ -517,6 +517,45 @@ struct ExperimentalMarkerStubTests {
     }
 
     @Test
+    func testExpectRefinementCarriesSourceRetentionAndSinceKotlinMetadata() throws {
+        let (sema, interner) = try sharedSema()
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner))
+        let annotations = sema.symbols.annotations(for: symbol)
+
+        #expect(annotations.contains {
+                $0.annotationFQName == "kotlin.annotation.Retention"
+                    && $0.arguments == ["AnnotationRetention.SOURCE"]
+            }, "ExpectRefinement should carry SOURCE retention, got \(annotations)")
+        #expect(annotations.contains {
+                $0.annotationFQName == "kotlin.SinceKotlin"
+                    && $0.arguments == ["\"2.2\""]
+            }, "ExpectRefinement should carry @SinceKotlin(\"2.2\"), got \(annotations)")
+    }
+
+    @Test
+    func testExpectRefinementHasPublicImplicitNoArgConstructor() throws {
+        let (sema, interner) = try sharedSema()
+        let symbol = try #require(lookupSymbol(fqPath: ["kotlin", "experimental", "ExpectRefinement"], sema: sema, interner: interner))
+        let initName = interner.intern("<init>")
+        let constructor = try #require(sema.symbols.lookupAll(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("experimental"),
+            interner.intern("ExpectRefinement"),
+            initName,
+        ]).first { constructorID in
+            sema.symbols.symbol(constructorID)?.kind == .constructor
+        })
+        let constructorInfo = try #require(sema.symbols.symbol(constructor))
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+
+        #expect(constructorInfo.visibility == .public)
+        #expect(constructorInfo.flags.contains(.synthetic))
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(signature.returnType != sema.types.errorType)
+        #expect(sema.symbols.parentSymbol(for: constructor) == symbol)
+    }
+
+    @Test
     func testExpectRefinementMetadataIsExposedOnExpectDeclaration() throws {
         let sources = [
             """
@@ -621,6 +660,23 @@ struct ExperimentalMarkerStubTests {
         let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-ANNOTATION-TARGET" }
         #expect(diagnostics.count == 1, "Expected ExpectRefinement to reject function target, got \(ctx.diagnostics.diagnostics)")
         #expect(diagnostics.allSatisfy { $0.severity == .error }, "ExpectRefinement target diagnostics should be errors")
+    }
+
+    @Test
+    func testExpectRefinementRequiresTopLevelExpectDeclaration() {
+        let source = """
+        @file:OptIn(kotlin.ExperimentalMultiplatform::class)
+
+        import kotlin.experimental.ExpectRefinement
+
+        @ExpectRefinement
+        class RegularDeclaration
+        """
+
+        let ctx = runSemaCollectingDiagnostics(source)
+        let diagnostics = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-EXPECT-REFINEMENT" }
+        #expect(diagnostics.count == 1, "Expected ExpectRefinement to reject a non-expect class, got \(ctx.diagnostics.diagnostics)")
+        #expect(diagnostics.allSatisfy { $0.message.contains("top-level 'expect'") })
     }
 
     @Test

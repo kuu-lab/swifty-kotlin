@@ -284,11 +284,83 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
+        let timedValueFQName = kotlinTimePkg + [interner.intern("TimedValue")]
+        let timedValueTypeParameterName = interner.intern("T")
+        let timedValueTypeParameterFQName = timedValueFQName + [timedValueTypeParameterName]
+        let timedValueTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
+            fqName: timedValueTypeParameterFQName
+        ) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: timedValueTypeParameterName,
+                fqName: timedValueTypeParameterFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
+        symbols.setParentSymbol(timedValueSymbol, for: timedValueTypeParameterSymbol)
+        let timedValueTypeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: timedValueTypeParameterSymbol,
+            nullability: .nonNull
+        )))
+        symbols.setTypeParameterUpperBounds(
+            [types.nullableAnyType],
+            for: timedValueTypeParameterSymbol
+        )
+        types.setNominalTypeParameterSymbols(
+            [timedValueTypeParameterSymbol],
+            for: timedValueSymbol
+        )
+        types.setNominalTypeParameterVariances([.invariant], for: timedValueSymbol)
         let timedValueType = types.make(.classType(ClassType(
+            classSymbol: timedValueSymbol,
+            args: [.invariant(timedValueTypeParameterType)],
+            nullability: .nonNull
+        )))
+        // Keep the existing raw receiver shape for the bridge accessors. The
+        // Kotlin extension properties still intentionally belong to KSP-1497;
+        // this task only adds the generic constructor surface.
+        let timedValueBridgeType = types.make(.classType(ClassType(
             classSymbol: timedValueSymbol,
             args: [],
             nullability: .nonNull
         )))
+        symbols.setPropertyType(timedValueType, for: timedValueSymbol)
+
+        let timedValueConstructorContext = SyntheticStubRegistrationContext(
+            ownerFQName: timedValueFQName,
+            parentSymbol: timedValueSymbol,
+            typeParameterSymbolsByName: ["T": timedValueTypeParameterSymbol]
+        )
+        registerSyntheticConstructorStubs(
+            [SyntheticConstructorStubSpec(
+                externalLinkName: "kk_timedvalue_new",
+                parameters: [
+                    SyntheticStubParameterSpec(
+                        name: "value",
+                        type: .typeParameter("T")
+                    ),
+                    SyntheticStubParameterSpec(
+                        name: "duration",
+                        type: .namedClass(["kotlin", "time", "Duration"])
+                    ),
+                ],
+                typeParameterNames: ["T"],
+                typeParameterUpperBounds: [[.nullable(.any)]],
+                classTypeParameterCount: 1
+            )],
+            ownerType: .namedClass(
+                ["kotlin", "time", "TimedValue"],
+                args: [.invariant(.typeParameter("T"))]
+            ),
+            context: timedValueConstructorContext,
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // TimedValue.value / TimedValue.duration are implemented in Kotlin
         // source (Stdlib/kotlin/time/TimedValue.kt) as extension properties
@@ -299,7 +371,7 @@ extension DataFlowSemaPhase {
             named: "__kk_timedvalue_value",
             externalLinkName: "kk_timedvalue_value",
             ownerSymbol: timedValueSymbol,
-            ownerType: timedValueType,
+            ownerType: timedValueBridgeType,
             parameterTypes: [],
             returnType: types.makeNullable(types.anyType),
             isOperator: false,
@@ -312,7 +384,7 @@ extension DataFlowSemaPhase {
             named: "__kk_timedvalue_duration",
             externalLinkName: "kk_timedvalue_duration",
             ownerSymbol: timedValueSymbol,
-            ownerType: timedValueType,
+            ownerType: timedValueBridgeType,
             parameterTypes: [],
             returnType: durationType,
             isOperator: false,

@@ -153,8 +153,8 @@ struct ExceptionSyntheticStubTests {
             sema.symbols.symbol($0)?.kind == .constructor
         }
         let expected: [([TypeID], String)] = [
-            ([], "__kk_throwable_new"),
-            ([nullableStringType], "__kk_throwable_new"),
+            ([], "__kk_character_coding_exception_new"),
+            ([nullableStringType], "__kk_character_coding_exception_new_message"),
         ]
         for (parameterTypes, externalLinkName) in expected {
             let constructor = try #require(constructors.first {
