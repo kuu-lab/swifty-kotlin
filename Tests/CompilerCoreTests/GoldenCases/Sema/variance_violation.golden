@@ -3,9 +3,11 @@ symbol fq=__local_1.c kind=local vis=private flags=_ type=golden.sema.Consumer<I
 symbol fq=golden.sema.BadConsumer kind=class vis=public flags=_
 symbol fq=golden.sema.BadProducer kind=class vis=public flags=_
 symbol fq=golden.sema.Consumer kind=class vis=public flags=_
+symbol fq=golden.sema.Consumer.$class0.T kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.Consumer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Consumer<golden.sema.Consumer.$class0.T> params=[] ret=golden.sema.Consumer<golden.sema.Consumer.$class0.T>
 symbol fq=golden.sema.Producer kind=class vis=public flags=_
-symbol fq=golden.sema.Producer.$class0.T kind=typeParameter vis=private flags=_
-symbol fq=golden.sema.Producer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Producer<golden.sema.Producer.$class0.T> params=[golden.sema.Producer.$class0.T] ret=golden.sema.Producer<golden.sema.Producer.$class0.T>
+symbol fq=golden.sema.Producer.$class1.T kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.Producer.<init> kind=constructor vis=public flags=_ sig=recv=golden.sema.Producer<golden.sema.Producer.$class1.T> params=[golden.sema.Producer.$class1.T] ret=golden.sema.Producer<golden.sema.Producer.$class1.T>
 symbol fq=golden.sema.Producer.<init>.$0.item kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.validVariance kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fvariance_violation package=golden.sema
@@ -17,6 +19,6 @@ file fvariance_violation package=golden.sema
 expr e@11:37 int(42) type=Int
 expr e@11:28 call callee=e@11:28#1 args=[_:e@11:37] type=golden.sema.Producer<Int> call=golden.sema.Producer.<init> targs=[Int]
 expr e@11:5 localDecl p mutable=0 type=Producer<Any> init=e@11:28 type=Unit ref=__local_0.p
-expr e@12:28 call callee=e@12:28#1 args=[] type=<error>
+expr e@12:28 call callee=e@12:28#1 args=[] type=golden.sema.Consumer<kotlin.Number> call=golden.sema.Consumer.<init> targs=[kotlin.Number]
 expr e@12:5 localDecl c mutable=0 type=Consumer<Int> init=e@12:28 type=Unit ref=__local_1.c
 expr e@22:25 name(null) type=Nothing?

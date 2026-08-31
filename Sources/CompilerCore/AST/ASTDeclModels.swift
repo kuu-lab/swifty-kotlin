@@ -257,9 +257,7 @@ public struct ObjectDecl: Codable {
     public let annotations: [AnnotationNode]
     public let superTypes: [TypeRefID]
     /// Arguments of the superclass constructor invocation in the object
-    /// header (`object : Base(n) { ... }`), populated only for object
-    /// literal expressions (KSP-CAP-018). Empty for interfaces, for `Base()`,
-    /// and for named `object` declarations (not yet threaded through).
+    /// header (`object : Base(n) { ... }`).
     public let superTypeConstructorArgs: [CallArgument]
     public let nestedTypeAliases: [TypeAliasDecl]
     public let initBlocks: [FunctionBody]
@@ -403,8 +401,8 @@ public struct PropertyDecl: Codable {
     public let setter: PropertyAccessorDecl?
     public let delegateExpression: ExprID?
     /// The trailing lambda body for delegate properties (e.g. `lazy { body }`,
-    /// `Delegates.observable(init) { body }`). Captured separately because
-    /// `propertyHeadTokens` excludes the block node from the delegate expression.
+    /// `Delegates.observable(init) { body }`). Captured separately so existing
+    /// delegate lowering can reuse the call argument's parsed body.
     public let delegateBody: FunctionBody?
     /// Parameter names declared by the trailing lambda of a delegate property
     /// (e.g. `property, old, new` in `Delegates.observable(init) { property, old, new -> ... }`).

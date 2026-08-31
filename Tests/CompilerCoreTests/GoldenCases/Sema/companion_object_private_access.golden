@@ -241,19 +241,19 @@ expr e@117:18#1 memberCall recv=e@117:18 callee=fromNameAndAge args=[_:e@117:38,
 expr e@117:5 localDecl custom mutable=0 type=_ init=e@117:18#1 type=Unit ref=__local_2.custom
 expr e@119:13 name(adult) type=golden.sema.User ref=__local_0.adult
 expr e@119:13#1 memberCall recv=e@119:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
-expr e@119:5 call callee=e@119:5#1 args=[_:e@119:13#1] type=Unit call=kotlin.io.println#1
+expr e@119:5 call callee=e@119:5#1 args=[_:e@119:13#1] type=Unit call=kotlin.io.println#2
 expr e@120:13 name(child) type=golden.sema.User ref=__local_1.child
 expr e@120:13#1 memberCall recv=e@120:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
-expr e@120:5 call callee=e@120:5#1 args=[_:e@120:13#1] type=Unit call=kotlin.io.println#1
+expr e@120:5 call callee=e@120:5#1 args=[_:e@120:13#1] type=Unit call=kotlin.io.println#2
 expr e@121:13 name(custom) type=golden.sema.User ref=__local_2.custom
 expr e@121:13#1 memberCall recv=e@121:13 callee=getInfo args=[] type=String call=golden.sema.User.getInfo
-expr e@121:5 call callee=e@121:5#1 args=[_:e@121:13#1] type=Unit call=kotlin.io.println#1
+expr e@121:5 call callee=e@121:5#1 args=[_:e@121:13#1] type=Unit call=kotlin.io.println#2
 expr e@123:14 call callee=e@123:14#1 args=[] type=golden.sema.Database call=golden.sema.Database.<init>
 expr e@123:5 localDecl db mutable=0 type=_ init=e@123:14 type=Unit ref=__local_3.db
 expr e@124:13 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
 expr e@124:36 name(db) type=golden.sema.Database ref=__local_3.db
 expr e@124:13#1 memberCall recv=e@124:13 callee=getConnection args=[_:e@124:36] type=String call=golden.sema.Database.Companion.getConnection
-expr e@124:5 call callee=e@124:5#1 args=[_:e@124:13#1] type=Unit call=kotlin.io.println#1
+expr e@124:5 call callee=e@124:5#1 args=[_:e@124:13#1] type=Unit call=kotlin.io.println#2
 expr e@125:13 name(Database) type=golden.sema.Database.Companion ref=golden.sema.Database
 expr e@125:40 name(db) type=golden.sema.Database ref=__local_3.db
 expr e@125:13#1 memberCall recv=e@125:13 callee=getMaxConnections args=[_:e@125:40] type=Int call=golden.sema.Database.Companion.getMaxConnections
@@ -276,10 +276,10 @@ expr e@131:5 localDecl logger mutable=0 type=_ init=e@131:18 type=Unit ref=__loc
 expr e@132:13 name(logger) type=golden.sema.Logger ref=__local_5.logger
 expr e@132:24 string(Test message) type=String
 expr e@132:13#1 memberCall recv=e@132:13 callee=log args=[_:e@132:24] type=String call=golden.sema.Logger.log
-expr e@132:5 call callee=e@132:5#1 args=[_:e@132:13#1] type=Unit call=kotlin.io.println#1
+expr e@132:5 call callee=e@132:5#1 args=[_:e@132:13#1] type=Unit call=kotlin.io.println#2
 expr e@133:13 name(logger) type=golden.sema.Logger ref=__local_5.logger
 expr e@133:13#1 memberCall recv=e@133:13 callee=getTag args=[] type=String call=golden.sema.Logger.getTag
-expr e@133:5 call callee=e@133:5#1 args=[_:e@133:13#1] type=Unit call=kotlin.io.println#1
+expr e@133:5 call callee=e@133:5#1 args=[_:e@133:13#1] type=Unit call=kotlin.io.println#2
 expr e@135:17 name(Product) type=golden.sema.Product.Companion ref=golden.sema.Product
 expr e@135:44 string(Widget) type=String
 expr e@135:17#1 memberCall recv=e@135:17 callee=createBasicProduct args=[_:e@135:44] type=golden.sema.Product call=golden.sema.Product.Companion.createBasicProduct
@@ -297,13 +297,13 @@ expr e@137:19#1 memberCall recv=e@137:19 callee=fromCatalog args=[_:e@137:39,_:e
 expr e@137:5 localDecl catalog mutable=0 type=_ init=e@137:19#1 type=Unit ref=__local_8.catalog
 expr e@139:13 name(basic) type=golden.sema.Product ref=__local_6.basic
 expr e@139:13#1 memberCall recv=e@139:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
-expr e@139:5 call callee=e@139:5#1 args=[_:e@139:13#1] type=Unit call=kotlin.io.println#1
+expr e@139:5 call callee=e@139:5#1 args=[_:e@139:13#1] type=Unit call=kotlin.io.println#2
 expr e@140:13 name(premium) type=golden.sema.Product ref=__local_7.premium
 expr e@140:13#1 memberCall recv=e@140:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
-expr e@140:5 call callee=e@140:5#1 args=[_:e@140:13#1] type=Unit call=kotlin.io.println#1
+expr e@140:5 call callee=e@140:5#1 args=[_:e@140:13#1] type=Unit call=kotlin.io.println#2
 expr e@141:13 name(catalog) type=golden.sema.Product ref=__local_8.catalog
 expr e@141:13#1 memberCall recv=e@141:13 callee=getDescription args=[] type=String call=golden.sema.Product.getDescription
-expr e@141:5 call callee=e@141:5#1 args=[_:e@141:13#1] type=Unit call=kotlin.io.println#1
+expr e@141:5 call callee=e@141:5#1 args=[_:e@141:13#1] type=Unit call=kotlin.io.println#2
 expr e@143:22 name(EmailAddress) type=golden.sema.EmailAddress.Companion ref=golden.sema.EmailAddress
 expr e@143:42 string(test@example.com) type=String
 expr e@143:22#1 memberCall recv=e@143:22 callee=create args=[_:e@143:42] type=golden.sema.EmailAddress? call=golden.sema.EmailAddress.Companion.create
@@ -323,13 +323,13 @@ expr e@149:5 localDecl outer mutable=0 type=_ init=e@149:17 type=Unit ref=__loca
 expr e@150:13 name(OuterClass) type=golden.sema.OuterClass.Companion ref=golden.sema.OuterClass
 expr e@150:39 name(outer) type=golden.sema.OuterClass ref=__local_11.outer
 expr e@150:13#1 memberCall recv=e@150:13 callee=getOuterSecret args=[_:e@150:39] type=String call=golden.sema.OuterClass.Companion.getOuterSecret
-expr e@150:5 call callee=e@150:5#1 args=[_:e@150:13#1] type=Unit call=kotlin.io.println#1
+expr e@150:5 call callee=e@150:5#1 args=[_:e@150:13#1] type=Unit call=kotlin.io.println#2
 expr e@151:13 name(OuterClass) type=golden.sema.OuterClass.Companion ref=golden.sema.OuterClass
 expr e@151:13#1 memberCall recv=e@151:13 callee=getCompanionSecret args=[] type=String call=golden.sema.OuterClass.Companion.getCompanionSecret
-expr e@151:5 call callee=e@151:5#1 args=[_:e@151:13#1] type=Unit call=kotlin.io.println#1
+expr e@151:5 call callee=e@151:5#1 args=[_:e@151:13#1] type=Unit call=kotlin.io.println#2
 expr e@152:13 name(outer) type=golden.sema.OuterClass ref=__local_11.outer
 expr e@152:13#1 memberCall recv=e@152:13 callee=getCompanionSecretFromOuter args=[] type=String call=golden.sema.OuterClass.getCompanionSecretFromOuter
-expr e@152:5 call callee=e@152:5#1 args=[_:e@152:13#1] type=Unit call=kotlin.io.println#1
+expr e@152:5 call callee=e@152:5#1 args=[_:e@152:13#1] type=Unit call=kotlin.io.println#2
 expr e@154:19 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@154:19#1 memberCall recv=e@154:19 callee=createDefault args=[] type=golden.sema.NetworkClient call=golden.sema.createDefault
 expr e@154:5 localDecl client1 mutable=0 type=_ init=e@154:19#1 type=Unit ref=__local_12.client1
@@ -340,7 +340,7 @@ expr e@155:5 localDecl client2 mutable=0 type=_ init=e@155:19#1 type=Unit ref=__
 expr e@157:33 name(NetworkClient) type=golden.sema.NetworkClient.Companion ref=golden.sema.NetworkClient
 expr e@157:33#1 memberCall recv=e@157:33 callee=defaultTimeout args=[] type=Int call=golden.sema.defaultTimeout.$get
 expr e@157:13 stringTemplate[lit(Default timeout: ),expr(e@157:33#1)] type=String
-expr e@157:5 call callee=e@157:5#1 args=[_:e@157:13] type=Unit call=kotlin.io.println#1
+expr e@157:5 call callee=e@157:5#1 args=[_:e@157:13] type=Unit call=kotlin.io.println#2
 expr e@159:17 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
 expr e@159:17#1 memberCall recv=e@159:17 callee=createFile args=[] type=golden.sema.FileManager call=golden.sema.createFile
 expr e@159:5 localDecl file1 mutable=0 type=_ init=e@159:17#1 type=Unit ref=__local_14.file1
@@ -350,4 +350,4 @@ expr e@160:5 localDecl file2 mutable=0 type=_ init=e@160:17#1 type=Unit ref=__lo
 expr e@162:27 name(FileManager) type=golden.sema.FileManager.Factory ref=golden.sema.FileManager
 expr e@162:27#1 memberCall recv=e@162:27 callee=maxFiles args=[] type=Int call=golden.sema.maxFiles.$get
 expr e@162:13 stringTemplate[lit(Max files: ),expr(e@162:27#1)] type=String
-expr e@162:5 call callee=e@162:5#1 args=[_:e@162:13] type=Unit call=kotlin.io.println#1
+expr e@162:5 call callee=e@162:5#1 args=[_:e@162:13] type=Unit call=kotlin.io.println#2

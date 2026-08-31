@@ -104,7 +104,7 @@ public abstract class AbstractLongTimeSource protected constructor(
     override fun markNow(): ComparableTimeMark = AbstractLongTimeMark(adjustedRead(), this, timeSourceDurationZero())
 }
 
-public abstract class AbstractDoubleTimeSource protected constructor(
+public abstract class AbstractDoubleTimeSource(
     unit: DurationUnit
 ) : TimeSource.WithComparableMarks {
     protected val unit: DurationUnit = unit
