@@ -27,8 +27,7 @@ struct LoweringCodegenRegressionTests {
                 emit: .executable,
                 outputPath: outputPath
             )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             do {
                 try CodegenPhase().run(ctx)
                 try LinkPhase().run(ctx)

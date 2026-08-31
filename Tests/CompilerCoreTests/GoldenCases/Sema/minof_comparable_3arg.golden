@@ -8,4 +8,4 @@ file fminof_comparable_3arg package=golden.sema
 expr e@4:80 name(a) type=String ref=golden.sema.minOfComparable3ArgString.$0.a
 expr e@4:83 name(b) type=String ref=golden.sema.minOfComparable3ArgString.$0.b
 expr e@4:86 name(c) type=String ref=golden.sema.minOfComparable3ArgString.$0.c
-expr e@4:74 call callee=e@4:74#1 args=[_:e@4:80,_:e@4:83,_:e@4:86] type=String call=kotlin.comparisons.minOf#25 targs=[String]
+expr e@4:74 call callee=e@4:74#1 args=[_:e@4:80,_:e@4:83,_:e@4:86] type=String call=kotlin.comparisons.minOf#31 targs=[String]

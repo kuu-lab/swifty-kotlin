@@ -7,6 +7,7 @@ public struct ASTArenaSnapshot: Codable {
     public let loopLabels: [ExprID: InternedString]
     public let whenSubjectVarNames: [ExprID: InternedString]
     public let lambdaParamTypeRefs: [ExprID: [TypeRefID?]]
+    public let explicitCallExpressions: Set<ExprID>
 
     public init(
         declarations: [Decl],
@@ -14,7 +15,8 @@ public struct ASTArenaSnapshot: Codable {
         typeRefs: [TypeRef],
         loopLabels: [ExprID: InternedString],
         whenSubjectVarNames: [ExprID: InternedString],
-        lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
+        lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:],
+        explicitCallExpressions: Set<ExprID> = []
     ) {
         self.declarations = declarations
         self.expressions = expressions
@@ -22,6 +24,7 @@ public struct ASTArenaSnapshot: Codable {
         self.loopLabels = loopLabels
         self.whenSubjectVarNames = whenSubjectVarNames
         self.lambdaParamTypeRefs = lambdaParamTypeRefs
+        self.explicitCallExpressions = explicitCallExpressions
     }
 }
 
@@ -89,6 +92,9 @@ public final class ASTArena: @unchecked Sendable {
     /// Maps lambdaLiteral expression IDs to their explicit parameter type
     /// annotations (`{ a: Int, b: Int -> ... }`); nil entries are unannotated.
     private var _lambdaParamTypeRefs: [ExprID: [TypeRefID?]] = [:]
+    /// Tracks member-call expressions written with parentheses so zero-argument
+    /// function calls remain distinct from bare property access in the AST.
+    private var _explicitCallExpressions: Set<ExprID> = []
 
     public var decls: [Decl] {
         lock.lock()
@@ -111,6 +117,7 @@ public final class ASTArena: @unchecked Sendable {
         _loopLabels = snapshot.loopLabels
         _whenSubjectVarNames = snapshot.whenSubjectVarNames
         _lambdaParamTypeRefs = snapshot.lambdaParamTypeRefs
+        _explicitCallExpressions = snapshot.explicitCallExpressions
     }
 
     public func snapshot() -> ASTArenaSnapshot {
@@ -122,7 +129,8 @@ public final class ASTArena: @unchecked Sendable {
             typeRefs: _typeRefs,
             loopLabels: _loopLabels,
             whenSubjectVarNames: _whenSubjectVarNames,
-            lambdaParamTypeRefs: _lambdaParamTypeRefs
+            lambdaParamTypeRefs: _lambdaParamTypeRefs,
+            explicitCallExpressions: _explicitCallExpressions
         )
     }
 
@@ -314,6 +322,18 @@ public final class ASTArena: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return _lambdaParamTypeRefs[exprID]
+    }
+
+    public func markExplicitCall(_ exprID: ExprID) {
+        lock.lock()
+        defer { lock.unlock() }
+        _explicitCallExpressions.insert(exprID)
+    }
+
+    public func isExplicitCall(_ exprID: ExprID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _explicitCallExpressions.contains(exprID)
     }
 
     public func appendTypeRef(_ typeRef: TypeRef) -> TypeRefID {
