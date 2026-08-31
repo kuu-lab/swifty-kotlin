@@ -70,6 +70,61 @@ struct LibMetadataSerializationTests {
         #expect(r.itableSlots == "ext.IFace@0")
     }
 
+    @Test func testSyntheticValueClassAnchorPreservesUnderlyingTypeMetadata() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+
+        let stableRef = symbols.define(
+            kind: .class,
+            name: interner.intern("StableRef"),
+            fqName: [
+                interner.intern("kotlinx"),
+                interner.intern("cinterop"),
+                interner.intern("StableRef"),
+            ],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .valueType]
+        )
+        symbols.setValueClassUnderlyingType(types.intType, for: stableRef)
+        symbols.setNominalLayout(
+            NominalLayout(
+                objectHeaderWords: 2,
+                instanceFieldCount: 0,
+                instanceSizeWords: 2,
+                fieldOffsets: [:],
+                vtableSlots: [:],
+                itableSlots: [:],
+                superClass: nil
+            ),
+            for: stableRef
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [:],
+            includeSynthetic: false,
+            includeSyntheticNominalAnchors: true
+        )
+
+        let record = try #require(records.first { $0.fqName == "kotlinx.cinterop.StableRef" })
+        #expect(record.isValueClass)
+        #expect(record.valueClassUnderlyingTypeSig == "I")
+
+        let serialized = encoder.serialize(records)
+        #expect(serialized.contains("fq=kotlinx.cinterop.StableRef"))
+        #expect(serialized.contains("valueClass=1 valueUnderlying=I"))
+
+        let decoded = MetadataDecoder().decode(serialized)
+        let decodedRecord = try #require(decoded.first { $0.fqName == "kotlinx.cinterop.StableRef" })
+        #expect(decodedRecord.valueClassUnderlyingTypeSig == "I")
+    }
+
     @Test func testMetadataEncoderDecoderRoundTripForDataClassFlag() {
         let record = MetadataRecord(
             kind: .class,

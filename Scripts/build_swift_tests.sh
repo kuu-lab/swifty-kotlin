@@ -5,81 +5,65 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/common.sh
 source "$SCRIPT_DIR/lib/common.sh"
 
+# Detect the swift-driver warning that silently turns compilation caching back
+# off (seen when -cache-compile-job is passed without -explicit-module-build).
+# Caching silently degrading to a full rebuild burned ~11 CI minutes per job
+# before this guard existed, so a successful build that dropped caching must
+# be treated as a failure.
+kswiftk_compile_cache_was_dropped() {
+    local build_log="$1"
+    [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]] && grep -q "turn off caching" "$build_log"
+}
+
 # Retry `swift build` a few times on intermittent crashes observed with the
 # Swift 6.3+ swiftbuild backend on Linux (SIGSEGV/SIGBUS/SIGILL). Normal
 # compile errors are not retried.
-#
-# When SWIFT_ENABLE_COMPILE_CACHE=1, the build output is also scanned for the
-# swift-driver warning that silently turns compilation caching back off (seen
-# when -cache-compile-job is passed without -explicit-module-build). Caching
-# silently degrading to a full rebuild burned ~11 CI minutes per job before
-# this guard existed, so a successful build that dropped caching is a failure.
 kswiftk_build_with_retry() {
     local max_attempts=3
-    local attempt=0
     local build_log="${TMPDIR:-/tmp}/kswiftk_build_swift_tests_$$.log"
-    while true; do
-        attempt=$((attempt + 1))
+    local attempt
+    trap 'rm -f "$build_log"' RETURN
+
+    for ((attempt = 1; attempt <= max_attempts; attempt++)); do
         local exit_code=0
-        swift build "$@" 2>&1 | tee "$build_log" || exit_code=$?
+        if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]]; then
+            # Only capture output to a file when something will read it back.
+            swift build "$@" 2>&1 | tee "$build_log" || exit_code=$?
+        else
+            swift build "$@" || exit_code=$?
+        fi
+
         if [[ $exit_code -eq 0 ]]; then
-            if [[ "${SWIFT_ENABLE_COMPILE_CACHE:-}" == "1" ]] \
-                && grep -q "turn off caching" "$build_log"; then
+            if kswiftk_compile_cache_was_dropped "$build_log"; then
                 echo "build_swift_tests.sh: SWIFT_ENABLE_COMPILE_CACHE=1 but swift-driver disabled compilation caching (see 'turn off caching' warning above)." >&2
-                rm -f "$build_log"
                 return 1
             fi
-            rm -f "$build_log"
             return 0
+        fi
+
+        if [[ $exit_code != 132 && $exit_code != 138 && $exit_code != 139 ]]; then
+            return $exit_code
         fi
         if [[ $attempt -ge $max_attempts ]]; then
             echo "build_swift_tests.sh: swift build failed after $attempt attempt(s) (exit $exit_code)" >&2
-            rm -f "$build_log"
             return $exit_code
         fi
-        case $exit_code in
-            132|138|139)
-                echo "build_swift_tests.sh: swift build crashed with signal $exit_code on attempt $attempt; retrying..." >&2
-                ;;
-            *)
-                rm -f "$build_log"
-                return $exit_code
-                ;;
-        esac
+        echo "build_swift_tests.sh: swift build crashed with signal $exit_code on attempt $attempt; retrying..." >&2
     done
 }
 
-# A single `swift build --build-tests` already builds every test target
-# (CompilerCoreTests, CompilerBackendTests, RuntimeTests, RuntimeTestsParallel,
-# KSwiftKCLITests, LSPServerTests) plus everything they depend on - it's the
-# same dependency closure a prior two-pass version of this script tried to
-# warm separately via `--target CompilerCoreTests --target ... --target
-# LSPServerTests` before this build-tests call. That repeated-`--target`
-# pass never did what it looked like it did: SwiftPM's `--target` flag isn't
-# cumulative, so only the last `--target` in the list (LSPServerTests) was
-# ever actually built (confirmed locally: `swift build --target A --target B`
-# only produces B's output - A is silently skipped, no warning/error). Worse,
-# because that pass's flags differed from this one's (it added
-# -Xswiftc -suppress-warnings here but not there), the flag mismatch
-# invalidated SwiftPM's incremental build cache and forced this call to
-# recompile everything the first pass *did* build, from scratch (repro'd
-# locally with --build-system native, the engine CI's ubuntu-latest runners
-# use). Net effect of the old two-pass design: 5 of 6 test targets never got
-# warning coverage from the first pass at all, and the targets that did
-# (LSPServerTests's dependency closure: CompilerCore/CompilerBackend/Runtime/
-# RuntimeABI/LSPServer) paid for a full rebuild in the second pass anyway.
+# `swift build --build-tests` builds every test target plus its full
+# dependency closure in one pass. SwiftPM's `--target` flag is NOT cumulative
+# (only the last `--target` in a command is actually built; earlier ones are
+# silently skipped), so building multiple targets requires one
+# `swift build --target <T>` invocation per target, in a loop, each with
+# identical flags so SwiftPM's incremental cache stays valid across the loop.
 #
-# When SWIFT_TEST_BUILD_TARGETS is set, build only those targets one at a time
-# so multiple CI lanes can each build the minimal set they need. Because
-# SwiftPM's `--target` is not cumulative, multiple targets must be built in a
-# loop with one `swift build --target <T>` invocation per target. Every
-# invocation receives the same command-line flags (and the same cache flags,
-# when compilation caching is enabled) so SwiftPM can reuse already-built
-# artifacts across the loop and across the subsequent `swift test --skip-build`.
-#
-# With the Swift 6.3+ `swiftbuild` build system, per-test-target products are
-# named `<Target>-test-runner` (e.g. `CompilerCoreTests-test-runner`). The
-# build system can be selected via SWIFT_BUILD_SYSTEM (default: native).
+# When SWIFT_TEST_BUILD_TARGETS is set, build only those targets (one
+# invocation per target) so CI lanes can build the minimal set they need.
+# With the Swift 6.3+ `swiftbuild` build system, per-target test products are
+# named `<Target>-test-runner`; select the build system via SWIFT_BUILD_SYSTEM
+# (default: native).
 build_targets="${SWIFT_TEST_BUILD_TARGETS:-}"
 build_system="${SWIFT_BUILD_SYSTEM:-}"
 
@@ -97,9 +81,7 @@ if [[ "${KSWIFTK_CI_FAST_BUILD:-}" == "1" ]]; then
 fi
 
 # Make sure any selected build system is applied to every invocation.
-if [[ -n "$build_system" ]]; then
-    swift_build_args+=(--build-system "$build_system")
-fi
+kswiftk_append_build_system_flag swift_build_args
 
 # Enable swiftbuild's integrated compilation cache if requested.
 kswiftk_setup_compile_cache_env
@@ -117,12 +99,11 @@ if [[ -z "$build_targets" || "$build_system" == "native" ]]; then
     kswiftk_build_with_retry --build-tests "${swift_build_args[@]}"
 else
     echo "build_swift_tests.sh: building selected test targets: $build_targets" >&2
+    # swiftbuild creates per-test-target products as `<Target>-test-runner`.
+    target_suffix=""
+    [[ "$build_system" == "swiftbuild" ]] && target_suffix="-test-runner"
     for target in $build_targets; do
-        # swiftbuild creates per-test-target products as `<Target>-test-runner`.
-        if [[ "$build_system" == "swiftbuild" ]]; then
-            target="${target}-test-runner"
-        fi
-        echo "build_swift_tests.sh: building --target $target" >&2
-        kswiftk_build_with_retry --target "$target" "${swift_build_args[@]}"
+        echo "build_swift_tests.sh: building --target ${target}${target_suffix}" >&2
+        kswiftk_build_with_retry --target "${target}${target_suffix}" "${swift_build_args[@]}"
     done
 fi

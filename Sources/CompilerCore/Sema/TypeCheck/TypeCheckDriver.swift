@@ -74,9 +74,10 @@ final class TypeCheckDriver {
         _ id: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID? = nil
+        expectedType: TypeID? = nil,
+        isStatementContext: Bool = false
     ) -> TypeID {
-        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType)
+        exprChecker.inferExpr(id, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
     }
 
     // MARK: - Module-Level Type Checking

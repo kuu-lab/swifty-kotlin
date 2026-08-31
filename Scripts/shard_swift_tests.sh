@@ -95,7 +95,7 @@ done
 run_swift_test() {
     # swiftbuild creates per-test-target products; `swift test` needs to know
     # which product to load. The target_prefix is the product name.
-    if [[ -n "${target_prefix:-}" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+    if (( use_swiftbuild_product )); then
         SWIFT_TEST_PRODUCT="$target_prefix" bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
     else
         bash "$SCRIPT_DIR/swift_test.sh" --skip-build "$@" "${passthrough[@]}"
@@ -105,12 +105,7 @@ run_swift_test() {
 run_filter_chunks() {
     local total=$(( $# / 2 ))
     local chunk=1
-    local status=0
     local flag pattern
-
-    if (( total == 0 )); then
-        return 0
-    fi
 
     while (( $# > 0 )); do
         flag="$1"
@@ -120,16 +115,22 @@ run_filter_chunks() {
         # SwiftPM 6.2 does not reliably combine repeated --filter flags,
         # so each chunk must run as its own swift test invocation.
         echo "shard_swift_tests.sh: running filter chunk ${chunk}/${total}." >&2
-        if run_swift_test "$flag" "$pattern"; then
-            :
-        else
-            status=$?
-            return "$status"
-        fi
+        run_swift_test "$flag" "$pattern" || return $?
         chunk=$(( chunk + 1 ))
     done
 
-    return "$status"
+    return 0
+}
+
+# Appends --filter args for each alternation chunk read from stdin, wrapped as
+# "${prefix}(chunk)${suffix}", into the caller-named array.
+append_filter_chunks() {
+    local prefix="$1" suffix="$2"
+    local -n __out="$3"
+    local chunk
+    while IFS= read -r chunk; do
+        __out+=(--filter "${prefix}(${chunk})${suffix}")
+    done
 }
 
 case "$mode" in
@@ -162,12 +163,17 @@ kswiftk_setup_compile_cache_env
 
 # Select the same build system used by build_swift_tests.sh.
 build_system_arg=()
-if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
-    build_system_arg=(--build-system "${SWIFT_BUILD_SYSTEM}")
+kswiftk_append_build_system_flag build_system_arg
+
+# swiftbuild creates per-test-target products, so both `swift test list` and
+# `swift test` need to be told which product to load.
+use_swiftbuild_product=0
+if [[ -n "${target_prefix:-}" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+    use_swiftbuild_product=1
 fi
 
 list_product_arg=()
-if [[ -n "${target_prefix:-}" && "${SWIFT_BUILD_SYSTEM:-}" == "swiftbuild" ]]; then
+if (( use_swiftbuild_product )); then
     list_product_arg=(--test-product "$target_prefix")
 fi
 
@@ -225,11 +231,9 @@ if [[ "$mode" == "dynamic" ]]; then
     # alternation across multiple invocations instead of one huge argument.
     chunk_size=400
     declare -a filter_args=()
-    while IFS= read -r chunk; do
-        # Swift Testing may append a runtime case path after the identifier
-        # printed by `swift test list`; XCTest ends at the listed identifier.
-        filter_args+=(--filter "^(${chunk})(/|$)")
-    done < <(
+    # Swift Testing may append a runtime case path after the identifier
+    # printed by `swift test list`; XCTest ends at the listed identifier.
+    append_filter_chunks "^" "(/|\$)" filter_args < <(
         printf '%s\n' "${shard_tests[@]}" \
             | sed -e 's/[][\\.^$*+?(){}|]/\\&/g' \
             | chunk_alternations "$chunk_size"
@@ -271,7 +275,6 @@ mapfile -t all_type_records < <(
                     return
                 }
                 candidates[name] = 1
-                observed[name] = 1
                 current_type = name
                 pending_suite = 0
                 pending_test = 0
@@ -279,7 +282,6 @@ mapfile -t all_type_records < <(
 
             function register_observed(name) {
                 if (name != "") {
-                    observed[name] = 1
                     current_type = name
                     pending_test = 0
                 }
@@ -341,19 +343,6 @@ mapfile -t all_type_records < <(
             }
 
             END {
-                for (name in observed) {
-                    printf "%s\t%d\t%d\n", name, (candidates[name] ? 1 : 0), weights[name] + 0
-                }
-            }
-        ' \
-        | awk -F '\t' '
-            {
-                weights[$1] += $3
-                if ($2 == 1) {
-                    candidates[$1] = 1
-                }
-            }
-            END {
                 for (name in candidates) {
                     # Keep every suite visible to the sharder, including
                     # suites whose source declaration has no explicit test
@@ -365,17 +354,15 @@ mapfile -t all_type_records < <(
         | sort -t $'\t' -k1,1
 )
 
-declare -a all_types=()
 declare -A type_weights=()
 total_weight=0
 for record in "${all_type_records[@]}"; do
     IFS=$'\t' read -r type weight <<< "$record"
-    all_types+=("$type")
     type_weights["$type"]="$weight"
     total_weight=$(( total_weight + weight ))
 done
 
-total="${#all_types[@]}"
+total="${#all_type_records[@]}"
 echo "shard_swift_tests.sh: found $total candidate suite/class names with estimated test weight $total_weight." >&2
 
 declare -a own_types=()
@@ -413,15 +400,12 @@ done
 
 echo "shard_swift_tests.sh: shard $shard_index/$shard_count owns ${#own_types[@]} of $total suite/class names (estimated test weight $own_weight/$total_weight)." >&2
 
-declare -a filters=()
-
+catch_all=0
 if (( shard_index == shard_count - 1 && total == 0 )); then
-    # Extraction found nothing at all; fall back to running everything under
-    # this prefix on the last shard so no test target is silently lost.
-    filters+=("^${target_prefix}\\.")
+    catch_all=1
 fi
 
-if (( ${#own_types[@]} == 0 && ${#filters[@]} == 0 )); then
+if (( ${#own_types[@]} == 0 && ! catch_all )); then
     echo "shard_swift_tests.sh: shard $shard_index has no assigned suites and is not the catch-all shard; skipping." >&2
     exit 0
 fi
@@ -440,18 +424,18 @@ if (( ${#own_types[@]} > 0 )); then
     else
         chunk_size=300
     fi
-    while IFS= read -r chunk; do
-        filter_args+=(--filter "^${target_prefix}\\.(${chunk})(/|\$)")
-    done < <(
+    append_filter_chunks "^${target_prefix}\\." "(/|\$)" filter_args < <(
         printf '%s\n' "${own_types[@]}" | chunk_alternations "$chunk_size"
     )
 
     echo "shard_swift_tests.sh: split suite/class filter into $(( ${#filter_args[@]} / 2 )) chunks of up to $chunk_size names each." >&2
 fi
 
-for f in "${filters[@]}"; do
-    filter_args+=(--filter "$f")
-done
+if (( catch_all )); then
+    # Extraction found nothing at all; fall back to running everything under
+    # this prefix on the last shard so no test target is silently lost.
+    filter_args+=(--filter "^${target_prefix}\\.")
+fi
 
 run_filter_chunks "${filter_args[@]}"
 exit $?
