@@ -3,6 +3,49 @@
 /// members, class-name member values, const-folding) split out of
 /// `CallLowerer+MemberCalls.swift`.
 extension CallLowerer {
+    /// BUG-227: whether a class member-property read/write should dispatch
+    /// through the getter/setter accessor slot LayoutSynthesis assigned it,
+    /// rather than the statically-resolved declaration's own field
+    /// offset/accessor — mirroring `resolveVtableDispatchKind`'s identical
+    /// rule for ordinary method calls: only open/abstract/override members
+    /// whose owner currently has known subtypes are eligible, since a
+    /// receiver typed as a leaf (subtype-less) class can never actually hold
+    /// a more-derived override at runtime.
+    ///
+    /// `super`-qualified access is always excluded — `super.p` must keep
+    /// reading/writing the syntactically-named class's own implementation,
+    /// never the runtime type's override (BUG-228 tracks that `super.p`
+    /// already resolves to the wrong symbol upstream in Sema; this guard
+    /// keeps that pre-existing bug from becoming a *worse*, dynamically wrong
+    /// one once accessors are virtually dispatched).
+    func tryResolvePropertyAccessorVirtualDispatch(
+        propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        accessorKind: PropertyAccessorKind,
+        ast: ASTModule,
+        sema: SemaModule
+    ) -> (accessorSymbol: SymbolID, dispatch: KIRDispatchKind)? {
+        if case .superRef = ast.arena.expr(receiverExpr) {
+            return nil
+        }
+        guard let propInfo = sema.symbols.symbol(propertySymbol),
+              propInfo.flags.contains(.openType)
+                  || propInfo.flags.contains(.abstractType)
+                  || propInfo.flags.contains(.overrideMember),
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerID)?.kind == .class,
+              !sema.symbols.directSubtypes(of: ownerID).isEmpty,
+              let layout = sema.symbols.nominalLayout(for: ownerID)
+        else {
+            return nil
+        }
+        let accessorSymbol = SyntheticSymbolScheme.propertyAccessorSymbol(for: propertySymbol, kind: accessorKind)
+        guard let slot = layout.vtableSlots[accessorSymbol] else {
+            return nil
+        }
+        return (accessorSymbol, .vtable(slot: slot))
+    }
+
     func tryLowerObjectMemberPropertyRead(
         _ exprID: ExprID,
         args: [CallArgument],
@@ -184,6 +227,7 @@ extension CallLowerer {
     func tryLowerStoredMemberPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
         ast: ASTModule,
         sema: SemaModule,
@@ -216,11 +260,42 @@ extension CallLowerer {
             return nil
         }
 
+        // Runtime-backed interface properties (for example Collection.size)
+        // may now carry a bundled source declaration while retaining their
+        // external ABI link. Keep those reads on the direct bridge path below;
+        // registering them as source property getters would require runtime
+        // boxes to provide an itable getter they do not own.
+        if let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
+           !externalLinkName.isEmpty
+        {
+            return nil
+        }
+
         let resultType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: propertySymbol)
             ?? sema.types.anyType
 
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
+            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+                propertySymbol: propertySymbol,
+                receiverExpr: receiverExpr,
+                accessorKind: .getter,
+                ast: ast,
+                sema: sema
+            ) {
+                let result = arena.appendTemporary(type: resultType)
+                instructions.append(.virtualCall(
+                    symbol: accessorSymbol,
+                    callee: interner.intern("get"),
+                    receiver: loweredReceiverID,
+                    arguments: [],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil,
+                    dispatch: dispatch
+                ))
+                return result
+            }
             let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
                 ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
             let result = arena.appendTemporary(type: resultType)
@@ -261,6 +336,31 @@ extension CallLowerer {
                 result: result,
                 canThrow: false,
                 thrownResult: nil
+            ))
+            return result
+        }
+
+        // BUG-227: a stored open/abstract/override property whose owner has
+        // known subtypes must dispatch through its getter's vtable slot — the
+        // field offset below is only this *declaration's own* storage, which
+        // is correct only when no runtime-type override can be in play.
+        if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            accessorKind: .getter,
+            ast: ast,
+            sema: sema
+        ) {
+            let result = arena.appendTemporary(type: resultType)
+            instructions.append(.virtualCall(
+                symbol: accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
             ))
             return result
         }
@@ -353,6 +453,7 @@ extension CallLowerer {
     func tryLowerMemberPropertyAccessorRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
         result: KIRExprID,
         args: [CallArgument],
         ast: ASTModule,
@@ -365,6 +466,26 @@ extension CallLowerer {
               memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema)
         else {
             return nil
+        }
+
+        if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            propertySymbol: propertySymbol,
+            receiverExpr: receiverExpr,
+            accessorKind: .getter,
+            ast: ast,
+            sema: sema
+        ) {
+            instructions.append(.virtualCall(
+                symbol: accessorSymbol,
+                callee: interner.intern("get"),
+                receiver: loweredReceiverID,
+                arguments: [],
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: dispatch
+            ))
+            return result
         }
 
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
@@ -468,6 +589,7 @@ extension CallLowerer {
     func tryLowerExternalMemberPropertyRead(
         _ exprID: ExprID,
         loweredReceiverID: KIRExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
         sema: SemaModule,
         arena: KIRArena,
@@ -479,6 +601,19 @@ extension CallLowerer {
               let externalLinkName = sema.symbols.externalLinkName(for: propertySymbol),
               !externalLinkName.isEmpty
         else {
+            return nil
+        }
+
+        // A source-backed Collection.size declaration is inherited by concrete
+        // collection receivers. Let the normal collection dispatch preserve
+        // List/Set/EnumEntries-specific bridges instead of taking the generic
+        // Collection ABI link here.
+        if shouldDeferCollectionSizePropertyRead(
+            propertySymbol,
+            receiverExpr: receiverExpr,
+            sema: sema,
+            interner: interner
+        ) {
             return nil
         }
 
@@ -502,6 +637,32 @@ extension CallLowerer {
             interner: interner,
             instructions: &instructions
         )
+    }
+
+    func shouldDeferCollectionSizePropertyRead(
+        _ propertySymbol: SymbolID,
+        receiverExpr: ExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let property = sema.symbols.symbol(propertySymbol),
+              property.name == interner.intern("size"),
+              let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
+              sema.symbols.symbol(ownerID)?.fqName == [
+                  interner.intern("kotlin"),
+                  interner.intern("collections"),
+                  interner.intern("Collection"),
+              ],
+              let receiverType = sema.bindings.exprTypes[receiverExpr]
+        else {
+            return false
+        }
+        return unresolvedCollectionMemberCallee(
+            memberName: "size",
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ) != nil
     }
 
     func objectLiteralPropertyUsesAccessor(
