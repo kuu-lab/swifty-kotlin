@@ -28,10 +28,11 @@ extension ConstraintSolverTests {
         let t0 = TypeVarID(rawValue: 295)
         let blame = makeRange(start: 130, end: 135)
 
-        // equal normalizes to: t0 <: intType (upper) + intType <: t0 (lower)
-        // supertype normalizes to: boolType <: t0 (lower)
-        // lowers=[intType, boolType], uppers=[intType]
-        // lub([intType, boolType]) = anyType, not subtype of intType → conflicting bounds
+        // `equal` binds t0 to intType directly (it is the only source of
+        // `.equal` on a variable: an explicit type argument), bypassing the
+        // lub/glb bound pool entirely. The conflict with the unrelated
+        // `boolType` supertype bound therefore only surfaces in the
+        // post-substitution constraint check, not as "Conflicting bounds".
         let constraints: [VariableConstraint] = [
             VariableConstraint(kind: .equal, left: .variable(t0), right: .type(intType)),
             VariableConstraint(kind: .supertype, left: .variable(t0), right: .type(boolType), blameRange: blame),
@@ -40,7 +41,7 @@ extension ConstraintSolverTests {
 
         #expect(!(solution.isSuccess))
         let failure = try #require(solution.failure)
-        #expect(failure.message.contains("Conflicting bounds"))
+        #expect(failure.message.contains("not satisfied"))
     }
 
     @Test func testSolveAllVariablesGetErrorTypeOnEarlyFailure() {

@@ -47,13 +47,14 @@ struct RuntimeStubImplementationTests {
         // Must NOT contain internal linkage definitions for these functions
         let lines = ir.components(separatedBy: "\n")
         for line in lines {
-            if line.contains("kk_register_frame_map") || line.contains("kk_push_frame") || line.contains("kk_pop_frame") {
-                if line.contains("define") {
-                    #expect(
-                        !line.contains("internal"),
-                        "Runtime functions must not be defined as internal: \(line)"
-                    )
-                }
+            let referencesRuntimeFunction = line.contains("kk_register_frame_map")
+                || line.contains("kk_push_frame")
+                || line.contains("kk_pop_frame")
+            if referencesRuntimeFunction && line.contains("define") {
+                #expect(
+                    !line.contains("internal"),
+                    "Runtime functions must not be defined as internal: \(line)"
+                )
             }
         }
     }

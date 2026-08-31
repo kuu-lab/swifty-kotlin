@@ -590,6 +590,7 @@ extension CallTypeChecker {
 
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: memberLookupType,
@@ -618,6 +619,7 @@ extension CallTypeChecker {
         }
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let extensionPropertyType = resolveExtensionPropertyGetter(
                id: id,
                calleeName: calleeName,
@@ -1084,6 +1086,14 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "toList" {
             candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "unzip" {
+            candidates = preferListUnzipCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
                 sema: sema,
