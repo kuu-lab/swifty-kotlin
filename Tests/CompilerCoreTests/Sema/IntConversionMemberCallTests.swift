@@ -266,6 +266,69 @@ struct IntConversionMemberCallTests {
         }
     }
 
+    @Test
+    func testIntConversionsResolveThroughBundledKotlin() throws {
+        let source = """
+        fun main() {
+            val value: Int = 16777217
+            println(value.toChar().code)
+            println(value.toDouble())
+            val nullable: Int? = value
+            println(nullable?.toChar()?.code)
+            println(nullable?.toDouble())
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!ctx.diagnostics.hasError, "Int conversions should type-check")
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            var resolvedNames: [String] = []
+
+            for index in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(index))
+                guard let expr = ast.arena.expr(exprID),
+                      ast.arena.exprRange(exprID)?.start.file == fileID
+                else {
+                    continue
+                }
+
+                let calleeName: InternedString
+                switch expr {
+                case let .memberCall(_, name, _, _, _), let .safeMemberCall(_, name, _, _, _):
+                    calleeName = name
+                default:
+                    continue
+                }
+
+                let name = ctx.interner.resolve(calleeName)
+                guard ["toChar", "toDouble"].contains(name),
+                      let binding = sema.bindings.callBinding(for: exprID)
+                else {
+                    continue
+                }
+
+                resolvedNames.append(name)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(binding.chosenCallee),
+                    "Int.\(name) must resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: binding.chosenCallee) == nil,
+                    "The public Int.\(name) API must not carry a direct runtime link"
+                )
+            }
+
+            #expect(resolvedNames.count == 4, "Expected regular and safe Int conversion calls")
+            #expect(resolvedNames.contains("toChar"))
+            #expect(resolvedNames.contains("toDouble"))
+        }
+    }
+
 }
 
 #endif

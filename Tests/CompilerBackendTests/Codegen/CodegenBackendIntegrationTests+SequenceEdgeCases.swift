@@ -4,42 +4,6 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendSequenceEdgeCasesTests {
     @Test
@@ -299,16 +263,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceFlatMapIndexedUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_flatmap_indexed.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_flatmap_indexed.kt")
 
         try assertKotlinOutput(
             source,
@@ -326,16 +281,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceFirstNotNullOfUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_firstnotnullof.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_firstnotnullof.kt")
 
         try assertKotlinOutput(
             source,
@@ -351,16 +297,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceFirstNotNullOfOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_firstnotnullofornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_firstnotnullofornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -376,16 +313,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceMinusElementUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_minuselement.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_minuselement.kt")
 
         try assertKotlinOutput(
             source,
@@ -414,16 +342,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceSumByUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_sumby.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_sumby.kt")
 
         try assertKotlinOutput(
             source,
@@ -439,16 +358,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceSumByDoubleUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_sumbydouble.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_sumbydouble.kt")
 
         try assertKotlinOutput(
             source,
@@ -504,16 +414,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceShuffledUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_shuffled.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_shuffled.kt")
 
         try assertKotlinOutput(
             source,
@@ -936,16 +837,7 @@ struct CodegenBackendSequenceEdgeCasesTests {
 
     @Test
     func testCodegenSequenceRequireNoNullsUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/sequence_require_no_nulls.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_require_no_nulls.kt")
 
         try assertKotlinOutput(
             source,
@@ -1243,26 +1135,5 @@ struct CodegenBackendSequenceEdgeCasesTests {
         )
     }
 
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 }
 #endif

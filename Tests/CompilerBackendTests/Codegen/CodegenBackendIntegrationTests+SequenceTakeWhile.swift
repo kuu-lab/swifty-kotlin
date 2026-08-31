@@ -9,16 +9,7 @@ struct CodegenBackendSequenceTakeWhileTests {
 
     @Test
     func testCodegenSequenceTakeWhileUsesCanonicalDiffCase() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sourceURL = repoRoot
-            .appendingPathComponent("Scripts")
-            .appendingPathComponent("diff_cases")
-            .appendingPathComponent("sequence_takewhile.kt")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_takewhile.kt")
 
         try assertKotlinOutput(source, moduleName: "SequenceTakeWhileRuntime", expected: "1\n2\n3\n1\n2\n3\n")
     }

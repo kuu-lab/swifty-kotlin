@@ -18,7 +18,7 @@ expr e@2:36 int(5) type=Int
 expr e@2:13 call callee=e@2:13#1 args=[_:e@2:24,_:e@2:27,_:e@2:30,_:e@2:33,_:e@2:36] type=kotlin.sequences.Sequence<Int> call=kotlin.sequences.sequenceOf targs=[Int]
 expr e@2:5 localDecl s mutable=0 type=_ init=e@2:13 type=Unit ref=__local_0.s
 expr e@5:27 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
-expr e@5:27#1 memberCall recv=e@5:27 callee=any args=[] type=Boolean call=kotlin.collections.any#32 targs=[Int]
+expr e@5:27#1 memberCall recv=e@5:27 callee=any args=[] type=Boolean call=kotlin.collections.any#33 targs=[Int]
 expr e@5:5 localDecl hasAny mutable=0 type=Boolean init=e@5:27#1 type=Unit ref=__local_1.hasAny
 expr e@8:28 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@8:36 name(it) type=Int ref=s-0
@@ -27,7 +27,7 @@ expr e@8:36#1 binary(modulo) lhs=e@8:36 rhs=e@8:41 type=Int
 expr e@8:46 int(0) type=Int
 expr e@8:36#2 binary(equal) lhs=e@8:36#1 rhs=e@8:46 type=Boolean
 expr e@8:34 lambda params=[] body=e@8:36#2 label=any type=(Int) -> Boolean
-expr e@8:28#1 memberCall recv=e@8:28 callee=any args=[_:e@8:34] type=Boolean call=kotlin.collections.any#33 targs=[Int]
+expr e@8:28#1 memberCall recv=e@8:28 callee=any args=[_:e@8:34] type=Boolean call=kotlin.collections.any#34 targs=[Int]
 expr e@8:5 localDecl hasEven mutable=0 type=Boolean init=e@8:28#1 type=Unit ref=__local_2.hasEven
 expr e@11:32 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@11:40 name(it) type=Int ref=s-1
@@ -53,7 +53,7 @@ expr e@20:36#1 binary(modulo) lhs=e@20:36 rhs=e@20:41 type=Int
 expr e@20:46 int(0) type=Int
 expr e@20:36#2 binary(equal) lhs=e@20:36#1 rhs=e@20:46 type=Boolean
 expr e@20:34 lambda params=[] body=e@20:36#2 label=find type=(Int) -> Boolean
-expr e@20:27#1 memberCall recv=e@20:27 callee=find args=[_:e@20:34] type=Int? call=kotlin.collections.find#15 targs=[Int]
+expr e@20:27#1 memberCall recv=e@20:27 callee=find args=[_:e@20:34] type=Int? call=kotlin.sequences.find targs=[Int]
 expr e@20:5 localDecl firstEven mutable=0 type=Int? init=e@20:27#1 type=Unit ref=__local_6.firstEven
 expr e@23:26 name(s) type=kotlin.sequences.Sequence<Int> ref=__local_0.s
 expr e@23:39 name(it) type=Int ref=s-4
@@ -62,7 +62,7 @@ expr e@23:39#1 binary(modulo) lhs=e@23:39 rhs=e@23:44 type=Int
 expr e@23:49 int(0) type=Int
 expr e@23:39#2 binary(equal) lhs=e@23:39#1 rhs=e@23:49 type=Boolean
 expr e@23:37 lambda params=[] body=e@23:39#2 label=findLast type=(Int) -> Boolean
-expr e@23:26#1 memberCall recv=e@23:26 callee=findLast args=[_:e@23:37] type=Int? call=kotlin.collections.findLast#15 targs=[Int]
+expr e@23:26#1 memberCall recv=e@23:26 callee=findLast args=[_:e@23:37] type=Int? call=kotlin.sequences.findLast targs=[Int]
 expr e@23:5 localDecl lastEven mutable=0 type=Int? init=e@23:26#1 type=Unit ref=__local_7.lastEven
 expr e@25:13 name(hasAny) type=Boolean ref=__local_1.hasAny
 expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13] type=Unit call=kotlin.io.println#1

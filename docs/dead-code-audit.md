@@ -277,7 +277,6 @@ kk_write_barrier
 
 - `RuntimeHTTPRedirectDelegate.urlSession(_:task:willPerformHTTPRedirection:...)` — `URLSessionTaskDelegate` 準拠。Foundation が呼ぶ
 - `GoldenHarnessWorkerMain` — `Sources/GoldenHarnessWorker/main.swift` の実行ターゲットエントリポイント
-- `kk_match_result_destructured_component1`〜`9` — `HeaderHelpers+SyntheticRegexStubs.swift:448` の文字列補間で emit される
 - `_kswiftkRuntimeAutolinkAnchor`（`LinkPhase.swift`）— Foundation/Dispatch シンボルを強制リンクするためのアンカー（意図的な未呼び出し）
 
 ## D. テストのみ参照 Swift シンボル → DEADCODE-013 ✅ トリアージ済み
