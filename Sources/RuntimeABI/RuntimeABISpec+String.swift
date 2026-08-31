@@ -1182,7 +1182,29 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "valuesRaw", type: .intptr),
                 RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
+        // KSP-1156: cached EnumEntries shared by T.entries and enumEntries<T>().
+        RuntimeABIFunctionSpec(
+            name: "kk_enum_make_entries_list_cached",
+            parameters: [
+                RuntimeABIParameter(name: "valuesRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
                 RuntimeABIParameter(name: "classID", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Enum",
+            isThrowing: false
+        ),
+        // KSP-1156: source-backed internal Array/provider overloads retain the
+        // supplied Array as the EnumEntries backing view.
+        RuntimeABIFunctionSpec(
+            name: "__kk_enum_entries_from_array",
+            parameters: [
+                RuntimeABIParameter(name: "valuesRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Enum",

@@ -108,7 +108,8 @@ extension DataEnumSealedSynthesisPass {
 
     /// Synthesizes the `entries` getter on the companion object.
     /// `Color.entries` returns an EnumEntries (List) containing all enum entry singletons.
-    /// The body is: kk_array_new(count) → kk_array_set for each entry → kk_enum_make_entries_list.
+    /// The body is: kk_array_new(count) → kk_array_set for each entry → cached
+    /// `kk_enum_make_entries_list_cached`.
     func appendSyntheticEnumEntriesGetterIfNeeded(
         owner: SemanticSymbol,
         enumSymbol: SemanticSymbol,
@@ -155,13 +156,13 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             interner: interner
         )
-
-        // kk_enum_make_entries_list(array, count, classID) -- returns List for EnumEntries
+        // Cache the per-enum list so `Color.entries` and `enumEntries<Color>()`
+        // have the same stable identity, matching Kotlin's EnumEntries contract.
         let listExpr = module.arena.appendTemporary(type: returnType
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_enum_make_entries_list"),
+            callee: interner.intern("kk_enum_make_entries_list_cached"),
             arguments: [arrayExpr, countExpr, classIDExpr],
             result: listExpr,
             canThrow: false,
@@ -610,11 +611,6 @@ extension DataEnumSealedSynthesisPass {
 
         // Register supertype edges so boxed enum values can answer `is`/`as`
         // against kotlin.Enum and implemented interfaces (e.g. Comparable).
-        let classIDValue = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: owner.id, sema: sema, interner: interner
-        )
-        let classIDExpr = module.arena.appendExpr(.intLiteral(classIDValue), type: intType)
-        body.append(.constValue(result: classIDExpr, value: .intLiteral(classIDValue)))
         let kotlinPkg = [interner.intern("kotlin")]
         var extraEnumSupers: [SymbolID] = []
         if let enumBaseSymbol = sema.symbols.lookup(fqName: kotlinPkg + [interner.intern("Enum")]) {
@@ -623,29 +619,14 @@ extension DataEnumSealedSynthesisPass {
         if let comparableSymbol = sema.types.comparableInterfaceSymbol {
             extraEnumSupers.append(comparableSymbol)
         }
-        for superSymbol in sema.symbols.directSupertypes(for: owner.id) + extraEnumSupers {
-            let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                symbol: superSymbol, sema: sema, interner: interner
-            )
-            guard parentTypeID != 0 else { continue }
-            let parentExpr = module.arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-            body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-            let registerResult = module.arena.appendTemporary(type: intType)
-            let superKind = sema.symbols.symbol(superSymbol)?.kind
-            let registerCallee: InternedString = if superKind == .interface {
-                interner.intern("kk_type_register_iface")
-            } else {
-                interner.intern("kk_type_register_super")
-            }
-            body.append(.call(
-                symbol: nil,
-                callee: registerCallee,
-                arguments: [classIDExpr, parentExpr],
-                result: registerResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-        }
+        appendNominalSupertypeEdgeRegistrations(
+            childSymbol: owner.id,
+            extraDirectSupertypes: extraEnumSupers,
+            sema: sema,
+            arena: module.arena,
+            interner: interner,
+            instructions: &body
+        )
 
         body.append(.returnUnit)
 

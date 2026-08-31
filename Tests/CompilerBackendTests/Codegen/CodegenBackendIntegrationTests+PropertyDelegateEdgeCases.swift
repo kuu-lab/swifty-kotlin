@@ -4,70 +4,63 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = [],
-    allowDefaultStdlibLibrary: Bool = true
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags,
-        allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
-private func assertKotlinOutput(
-    _ source: String,
-    moduleName: String,
-    expected: String,
-    allowDefaultStdlibLibrary: Bool = true
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let outputBase = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let ctx = try runCodegenPipeline(
-            inputPath: path,
-            moduleName: moduleName,
-            emit: .executable,
-            outputPath: outputBase,
-            allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
-        )
-        try LinkPhase().run(ctx)
-        let result = try CommandRunner.run(executable: outputBase, arguments: [])
-        let normalizedStdout = result.stdout
-            .replacingOccurrences(of: "\r\n", with: "\n")
-        #expect(normalizedStdout == expected)
-    }
-}
-
 @Suite
 struct CodegenBackendPropertyDelegateEdgeCasesTests {
+
+    @Test
+    func testCodegenTrailingLambdaDelegatesAcrossPropertyScopes() throws {
+        let source = """
+        import kotlin.reflect.KProperty
+        class MyLazy<T>(private val initializer: () -> T) {
+            private var cached: Any? = null
+            private var done: Boolean = false
+            operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
+                if (!done) { cached = initializer(); done = true }
+                @Suppress("UNCHECKED_CAST")
+                return cached as T
+            }
+        }
+        fun <T> myLazy(initializer: () -> T): MyLazy<T> = MyLazy(initializer)
+        var evaluations = 0
+        val top: String by MyLazy { val value = "top"; value }
+        val evaluated: Int by myLazy { evaluations = evaluations + 1; evaluations }
+        val parenthesizedCtor: String by MyLazy({ "parenthesized-ctor" })
+        val parenthesizedFactory: String by myLazy({ "parenthesized-factory" })
+        class Box(val prefix: String) {
+            val member: String by myLazy { val value = prefix; value + "-member" }
+        }
+        fun local(prefix: String): String {
+            val value: String by myLazy { val localValue = prefix; localValue + "-local" }
+            return value
+        }
+        fun main() {
+            println(top)
+            println(evaluated)
+            println(evaluated)
+            println(evaluations)
+            println(Box("member").member)
+            println(local("capture"))
+            println(parenthesizedCtor)
+            println(parenthesizedFactory)
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "TrailingLambdaDelegatesAcrossScopes",
+            expected:
+                """
+                top
+                1
+                1
+                1
+                member-member
+                capture-local
+                parenthesized-ctor
+                parenthesized-factory
+                """ + "\n"
+        )
+    }
 
     @Test
     func testCodegenCompilesLazyOfValueRead() throws {
@@ -327,6 +320,66 @@ struct CodegenBackendPropertyDelegateEdgeCasesTests {
                 0
                 100
                 101
+                """ + "\n"
+        )
+    }
+
+    // A mutable delegated local must remain delegate storage when captured by
+    // a lambda, so reads and writes continue to dispatch getValue/setValue.
+    @Test
+    func testCodegenLocalMutableDelegateCaptureInLambdaUsesAccessors() throws {
+        let source = """
+        class IntProp {
+            var backing: Int = 1
+            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
+            operator fun setValue(thisRef: Any?, property: Any?, value: Int) {
+                backing = value
+            }
+        }
+        fun main() {
+            var value by IntProp()
+            val update = {
+                println(value)
+                value = 7
+                println(value)
+            }
+            update()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalMutableDelegateLambdaCapture",
+            expected:
+                """
+                1
+                7
+                """ + "\n"
+        )
+    }
+
+    // A delegated local captured by a nested local function must be restored
+    // as delegate storage after the function scope is reset.
+    @Test
+    func testCodegenLocalDelegateCaptureInNestedFunctionUsesAccessor() throws {
+        let source = """
+        class IntProp {
+            var backing: Int = 42
+            operator fun getValue(thisRef: Any?, property: Any?): Int = backing
+        }
+        fun main() {
+            val value by IntProp()
+            fun readValue(): Int = value
+            println(readValue())
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "LocalDelegateNestedFunctionCapture",
+            expected:
+                """
+                42
                 """ + "\n"
         )
     }

@@ -92,6 +92,14 @@ extension BuildKIRRegressionTests {
                 val list = make9(intArrayOf(1, 2))
                 return list.size
             }
+            """,
+            """
+            package sample10
+            fun make10() = UIntArray(3)
+            fun main10(): Int {
+                val arr = make10()
+                return arr.size
+            }
             """
         ]
         var result: CompilationContext?
@@ -167,7 +175,7 @@ extension BuildKIRRegressionTests {
             "primitive Char elements should not be boxed; got: \(callNames)"
         )
         #expect(
-            !callNames.contains("kk_array_toList"),
+            !callNames.contains("kk_array_toList") && !callNames.contains("__kk_array_toList"),
             "inline charArrayOf should not route through List varargs; got: \(callNames)"
         )
     }
@@ -251,6 +259,27 @@ extension BuildKIRRegressionTests {
         #expect(
             !callNames.contains("IntArray"),
             "IntArray(n) (size-only) must not fall through to an unresolved 'IntArray' call; got: \(callNames)"
+        )
+    }
+
+    @Test
+    func testUIntArraySizeOnlyConstructorLowersToArrayNewWithoutLoop() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make10", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(
+            callNames.contains("kk_array_new_checked"),
+            "UIntArray(n) (size-only) must emit kk_array_new_checked; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("kk_array_set"),
+            "UIntArray(n) (size-only) must not emit a fill loop; got: \(callNames)"
+        )
+        #expect(
+            !callNames.contains("UIntArray"),
+            "UIntArray(n) (size-only) must not fall through to an unresolved 'UIntArray' call; got: \(callNames)"
         )
     }
 

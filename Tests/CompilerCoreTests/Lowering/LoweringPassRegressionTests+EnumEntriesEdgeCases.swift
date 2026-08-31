@@ -84,7 +84,7 @@ extension LoweringPassRegressionTests {
                 "entries$get should be synthesized; got: \(functionNames)")
     }
 
-    // MARK: - STDLIB-023-02: entries$get body calls kk_array_new and kk_enum_make_entries_list
+    // MARK: - STDLIB-023-02: entries$get body calls kk_array_new and cached entries runtime
 
     @Test
     func testEnumEntriesGetterBodyUsesCorrectRuntimeCalls() throws {
@@ -109,8 +109,8 @@ extension LoweringPassRegressionTests {
                 "entries$get should call kk_array_new; callees: \(callees)")
         #expect(callees.contains("kk_array_set"),
                 "entries$get should call kk_array_set for each entry; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list"),
-                "entries$get should call kk_enum_make_entries_list; callees: \(callees)")
+        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                "entries$get should call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
     // MARK: - STDLIB-023-03: entries count matches declared enum cases
@@ -215,8 +215,8 @@ extension LoweringPassRegressionTests {
         let callees = extractCallees(from: entriesFn.body, interner: interner)
         #expect(!callees.contains("kk_array_set"),
                 "Empty enum entries$get must not call kk_array_set; callees: \(callees)")
-        #expect(callees.contains("kk_enum_make_entries_list"),
-                "Empty enum entries$get must still call kk_enum_make_entries_list; callees: \(callees)")
+        #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                "Empty enum entries$get must still call kk_enum_make_entries_list_cached; callees: \(callees)")
     }
 
     // MARK: - STDLIB-023-06: single-variant enum
@@ -288,18 +288,18 @@ extension LoweringPassRegressionTests {
         #expect(functionNames.contains("entries$get"),
                 "entries$get must be synthesized; got: \(functionNames)")
 
-        // values() uses kk_enum_make_values_array; entries$get uses kk_enum_make_entries_list.
+        // values() uses kk_enum_make_values_array; entries$get uses kk_enum_make_entries_list_cached.
         let valuesFn = try findKIRFunction(named: "values", in: module, interner: interner)
         let valuesCallees = extractCallees(from: valuesFn.body, interner: interner)
         #expect(valuesCallees.contains("kk_enum_make_values_array"),
                 "values() should call kk_enum_make_values_array; callees: \(valuesCallees)")
-        #expect(!valuesCallees.contains("kk_enum_make_entries_list"),
-                "values() must NOT call kk_enum_make_entries_list; callees: \(valuesCallees)")
+        #expect(!valuesCallees.contains("kk_enum_make_entries_list_cached"),
+                "values() must NOT call kk_enum_make_entries_list_cached; callees: \(valuesCallees)")
 
         let entriesFn = try findKIRFunction(named: "entries$get", in: module, interner: interner)
         let entriesCallees = extractCallees(from: entriesFn.body, interner: interner)
-        #expect(entriesCallees.contains("kk_enum_make_entries_list"),
-                "entries$get should call kk_enum_make_entries_list; callees: \(entriesCallees)")
+        #expect(entriesCallees.contains("kk_enum_make_entries_list_cached"),
+                "entries$get should call kk_enum_make_entries_list_cached; callees: \(entriesCallees)")
         #expect(!entriesCallees.contains("kk_enum_make_values_array"),
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
@@ -473,8 +473,8 @@ extension LoweringPassRegressionTests {
             let body = try findKIRFunctionBody(named: "useEntries", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("kk_enum_make_entries_list"),
-                    "enumEntries<Color>() should call kk_enum_make_entries_list; callees: \(callees)")
+            #expect(callees.contains("kk_enum_make_entries_list_cached"),
+                    "enumEntries<Color>() should call kk_enum_make_entries_list_cached; callees: \(callees)")
             #expect(!callees.contains("kk_enum_make_values_array"),
                     "enumEntries<Color>() must not call kk_enum_make_values_array; callees: \(callees)")
         }
@@ -575,7 +575,7 @@ extension LoweringPassRegressionTests {
 
             // `main()` calls the `entries$get` accessor directly (once for the
             // forEach receiver, once for .size's receiver); `entries$get`'s own
-            // body is what calls kk_enum_make_entries_list (already covered by
+            // body is what calls kk_enum_make_entries_list_cached (already covered by
             // testEnumEntriesGetterBodyUsesCorrectRuntimeCalls above), so it does
             // not appear in main's own callee list.
             #expect(callees.contains("entries$get"),
@@ -589,7 +589,7 @@ extension LoweringPassRegressionTests {
 
     // MARK: - BUG-178: `Direction.entries[i]` / `enumEntries<T>()[i]` must
     // dispatch to the List `get` runtime. `EnumEntries<T>` is backed by a
-    // `RuntimeListBox` (`kk_enum_make_entries_list`), but while the interface
+    // `RuntimeListBox` (`kk_enum_make_entries_list_cached`), but while the interface
     // had no owned `get` operator, its `List<T>` supertype alone did not make
     // synthetic member lookup find `List.get`. The indexing operator therefore
     // fell back to the array bridge `kk_array_get`, which read the list handle
@@ -616,7 +616,7 @@ extension LoweringPassRegressionTests {
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(callees.contains("__kk_list_get"),
+            #expect(callees.contains("__kk_enum_entries_get"),
                     "EnumEntries indexing should dispatch to the List get runtime; callees: \(callees)")
             #expect(!callees.contains("kk_array_get"),
                     "EnumEntries indexing must not fall back to the array bridge; callees: \(callees)")

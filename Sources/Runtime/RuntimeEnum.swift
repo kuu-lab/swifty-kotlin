@@ -1,26 +1,6 @@
 
 // Runtime support for enum valueOf (STDLIB-173) and enum name/ordinal helpers.
 
-import Foundation
-
-private final class RuntimeEnumEntriesCache: @unchecked Sendable {
-    private let lock = NSLock()
-    private var entriesByEnumType: [Int64: Int] = [:]
-
-    func value(for enumTypeID: Int64, elements: [Int]) -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        if let cached = entriesByEnumType[enumTypeID] {
-            return cached
-        }
-        let raw = registerRuntimeObject(RuntimeListBox(elements: elements))
-        entriesByEnumType[enumTypeID] = raw
-        return raw
-    }
-}
-
-private let runtimeEnumEntriesCache = RuntimeEnumEntriesCache()
-
 @_cdecl("kk_enum_valueOf_throw")
 public func kk_enum_valueOf_throw(_ nameRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
@@ -74,21 +54,58 @@ public func kk_enum_make_values_array(_ valuesRaw: Int, _ count: Int) -> Int {
 /// `entries` returns `EnumEntries<T>` in Kotlin, which extends `List<E>`.
 /// Returns `RuntimeListBox` to match the List-based API.
 @_cdecl("kk_enum_make_entries_list")
-public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
+public func kk_enum_make_entries_list(_ valuesRaw: Int, _ count: Int) -> Int {
     guard let values = runtimeArrayBox(from: valuesRaw) else {
         return registerRuntimeObject(RuntimeListBox(elements: []))
     }
 
     let safeCount = max(0, min(count, values.elements.count))
-    let elements = Array(values.elements.prefix(safeCount))
-    // Kotlin's EnumEntries is a stable immutable collection for each enum
-    // class. The compiler passes the enum class ID so empty enums retain the
-    // same per-enum identity as non-empty enums.
-    let cacheKey = classID != 0
-        ? Int64(classID)
-        : (safeCount > 0 ? runtimeObjectTypeID(rawValue: elements[0]) : nil)
-    guard let cacheKey else {
-        return registerRuntimeObject(RuntimeListBox(elements: elements))
+    return registerRuntimeObject(RuntimeListBox(elements: Array(values.elements.prefix(safeCount))))
+}
+
+/// Creates the per-enum cached `EnumEntries` list used by both `T.entries` and
+/// the reified `enumEntries<T>()` intrinsic. The generated array is retained as
+/// the list's backing view, so the source-backed Array overload remains
+/// no-copy while the reified API preserves stable identity.
+@_cdecl("kk_enum_make_entries_list_cached")
+public func kk_enum_make_entries_list_cached(_ valuesRaw: Int, _ count: Int, _ classID: Int) -> Int {
+    guard classID != 0 else {
+        return kk_enum_make_entries_list(valuesRaw, count)
     }
-    return runtimeEnumEntriesCache.value(for: cacheKey, elements: elements)
+    if let cached = runtimeStorage.withMetadataLock({ state in state.enumEntriesCache[Int64(classID)] }) {
+        return cached
+    }
+
+    let list: RuntimeListBox
+    if let values = runtimeArrayBox(from: valuesRaw) {
+        let safeCount = max(0, min(count, values.elements.count))
+        if safeCount == values.elements.count {
+            list = RuntimeListBox(arrayViewOf: values)
+        } else {
+            let boundedValues = RuntimeArrayBox(length: safeCount)
+            for index in 0..<safeCount {
+                boundedValues.elements[index] = values.elements[index]
+            }
+            list = RuntimeListBox(arrayViewOf: boundedValues)
+        }
+    } else {
+        list = RuntimeListBox(elements: [])
+    }
+    let raw = registerRuntimeObject(list, typeID: listRuntimeTypeID)
+    return runtimeStorage.withMetadataLock { state in
+        if let cached = state.enumEntriesCache[Int64(classID)] {
+            return cached
+        }
+        state.enumEntriesCache[Int64(classID)] = raw
+        return raw
+    }
+}
+
+/// Creates a non-cached entries view over the supplied Array backing store.
+@_cdecl("__kk_enum_entries_from_array")
+public func kk_enum_entries_from_array(_ valuesRaw: Int) -> Int {
+    guard let values = runtimeArrayBox(from: valuesRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []), typeID: listRuntimeTypeID)
+    }
+    return registerRuntimeObject(RuntimeListBox(arrayViewOf: values), typeID: listRuntimeTypeID)
 }
