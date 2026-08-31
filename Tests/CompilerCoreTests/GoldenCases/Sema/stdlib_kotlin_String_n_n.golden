@@ -22,4 +22,4 @@ expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.printl
 expr e@10:13 name(typed) type=String ref=__local_1.typed
 expr e@10:21 string(x) type=String
 expr e@10:13#1 binary(add) lhs=e@10:13 rhs=e@10:21 type=String
-expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
+expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#2

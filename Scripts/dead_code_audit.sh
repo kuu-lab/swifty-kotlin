@@ -30,6 +30,7 @@ Exclusion pipeline (reproduces docs/dead-code-audit.md):
                         (list / set / map / sequence HOF; array is separate)
   4. Test references  — Tests/ direct calls (word-boundary match)
   5. Runtime-internal — non-@_cdecl kk_* appearances inside Sources/Runtime
+                        (excluding fatalError(...) diagnostic-message text)
 
 Output categories:
   A: Completely unreachable — no path from compiler, tests, or runtime internals
@@ -146,10 +147,13 @@ log "[4] StdlibSurfaceSpec link names: $(count "$WORK/kk_stdlib_surface.txt")"
 log "[5] Test references: $(count "$WORK/kk_tests.txt")"
 
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
-# @_cdecl 行と func 定義行を除外することで、他の Runtime 関数からの実際の呼び出しを取得する
+# Exclude @_cdecl and func definition lines to find calls from other Runtime functions.
+# Also exclude fatalError(...) lines because their diagnostics commonly repeat the
+# enclosing function's own kk_* name instead of calling that symbol.
 (grep -rh '_*kk_[a-zA-Z0-9_]' Sources/Runtime --include="*.swift" || true) \
     | grep -v '@_cdecl' \
     | grep -vE '\bfunc _*kk_' \
+    | grep -v 'fatalError(' \
     | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
 log "[6] Runtime-internal refs: $(count "$WORK/kk_runtime_internal.txt")"
@@ -211,12 +215,12 @@ if [[ -n "$OUTPUT_DIR" ]]; then
 fi
 
 # ── Self-test: 既知の誤分類バグに対する回帰 fixture ──────────────────────────
-# 過去に本スクリプトが取りこぼしていた経路を固定する。回帰すると exit 1。
-# fixture を追加するときはこの配列に1行足すだけでよい。
-#   symbol|classified-into-file|検出できないと誤分類される理由
+# Keep known classification regressions in one data-driven list.
+#   symbol|file|expected-state|reason
 FIXTURES=(
-  "kk_print_string_flat|dead_A.txt|CompilerBackend でのみ emit（静的 emit 未検出なら A に入る）"
-  "kk_atomic_ref_array_loadAt|dead_B.txt|2 段階 prefix 生成で到達（未検出なら B に入る）"
+  "kk_print_string_flat|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
+  "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
+  "kk_path_isAbsolute|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
 )
 
 if [[ $SELFTEST -eq 1 ]]; then
@@ -225,12 +229,18 @@ if [[ $SELFTEST -eq 1 ]]; then
   selftest_failed=0
 
   for fixture in "${FIXTURES[@]}"; do
-    IFS='|' read -r symbol file reason <<< "$fixture"
+    IFS='|' read -r symbol file expected reason <<< "$fixture"
     if grep -qx "$symbol" "$WORK/$file"; then
-      echo "FAIL: $symbol misclassified into $file ($reason)" >&2
-      selftest_failed=1
+      actual=present
     else
-      echo "PASS: $symbol not in $file ($reason)"
+      actual=absent
+    fi
+
+    if [[ "$actual" == "$expected" ]]; then
+      echo "PASS: $symbol correctly classified as $actual in $file ($reason)"
+    else
+      echo "FAIL: $symbol expected $expected in $file, got $actual ($reason)" >&2
+      selftest_failed=1
     fi
   done
 
