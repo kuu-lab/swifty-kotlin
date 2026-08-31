@@ -48,19 +48,19 @@ expr e@13:34#1 memberCall recv=e@13:34 callee=orEmpty args=[] type=kotlin.collec
 expr e@13:5 localDecl emptyOrNull mutable=0 type=Set<Int?> init=e@13:34#1 type=Unit ref=__local_5.emptyOrNull
 expr e@14:34 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@14:43 name(null) type=Nothing?
-expr e@14:34#1 binary(add) lhs=e@14:34 rhs=e@14:43 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#4 targs=[Int?]
+expr e@14:34#1 binary(add) lhs=e@14:34 rhs=e@14:43 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#7 targs=[Int?]
 expr e@14:5 localDecl plusElement mutable=0 type=Set<Int?> init=e@14:34#1 type=Unit ref=__local_6.plusElement
 expr e@15:35 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@15:44 name(iterable) type=kotlin.collections.Iterable<Int?> ref=inspect.$0.iterable
-expr e@15:35#1 binary(add) lhs=e@15:35 rhs=e@15:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#5 targs=[Int?]
+expr e@15:35#1 binary(add) lhs=e@15:35 rhs=e@15:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#8 targs=[Int?]
 expr e@15:5 localDecl plusIterable mutable=0 type=Set<Int?> init=e@15:35#1 type=Unit ref=__local_7.plusIterable
 expr e@16:35 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@16:44 name(sequence) type=kotlin.sequences.Sequence<Int?> ref=inspect.$0.sequence
-expr e@16:35#1 binary(add) lhs=e@16:35 rhs=e@16:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#6 targs=[Int?]
+expr e@16:35#1 binary(add) lhs=e@16:35 rhs=e@16:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#9 targs=[Int?]
 expr e@16:5 localDecl plusSequence mutable=0 type=Set<Int?> init=e@16:35#1 type=Unit ref=__local_8.plusSequence
 expr e@17:32 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@17:41 name(array) type=kotlin.Array<Int?> ref=inspect.$0.array
-expr e@17:32#1 binary(add) lhs=e@17:32 rhs=e@17:41 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#7 targs=[Int?]
+expr e@17:32#1 binary(add) lhs=e@17:32 rhs=e@17:41 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#10 targs=[Int?]
 expr e@17:5 localDecl plusArray mutable=0 type=Set<Int?> init=e@17:32#1 type=Unit ref=__local_9.plusArray
 expr e@18:32 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@18:51 name(null) type=Nothing?
