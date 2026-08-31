@@ -1056,9 +1056,10 @@
     - `kotlin.with` — fun with(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> kotlin/with(#A, kotlin/Function1<#A, #B>): #B`
   - 完了確認（2026-08-23、PR #5794 / merge commit `e61cff64521cd8d5a1ca5bea74ca9031d9b8f6c5`）：現行 `Sources/CompilerCore/Stdlib/kotlin/Standard.kt` の `public inline fun <T, R> with(receiver: T, block: T.() -> R): R`、`ScopeFunctionSourceMigrationTests`、`scope_functions` Golden/Backend/diff、およびPR #5794の全CI greenを確認。
 
-- [ ] KSP-795: kotlin.AutoCloseable の未実装 stdlib API を実装する（1 件）
+- [x] KSP-795: kotlin.AutoCloseable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `AutoCloseable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/AutoCloseable.kt`（該当ファイルが無ければ新規作成）
+  - 完了根拠: `AutoCloseable?.closeFinally(Throwable?)` をsource-backed化し、`use` のprimary/suppressed例外規則とnullable receiverを回帰固定。専用KIR loweringもsource-backed `closeFinally`を呼び出す。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_AutoCloseable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_AutoCloseable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_AutoCloseable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
