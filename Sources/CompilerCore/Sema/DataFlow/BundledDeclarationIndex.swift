@@ -270,6 +270,12 @@ struct BundledDeclarationIndex: Sendable {
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)
         }
+        if ownerFQName == ["kotlin", "collections", "Map"] {
+            // Map.get has two intentional surfaces: the source-backed variance
+            // extension and the synthetic interface member that lowers to the
+            // runtime lookup bridge. They must not be collapsed into one symbol.
+            return interner.resolve(key.name) == "get" && key.arity == 1
+        }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparatorSyntheticRetainedOverlap(key, interner: interner)
         }
