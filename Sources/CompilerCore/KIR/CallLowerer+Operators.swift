@@ -1054,6 +1054,30 @@ extension CallLowerer {
             )
             return result
         }
+        if TypeCheckHelpers().arrayElementType(
+            for: nonNullReceiverType,
+            sema: sema,
+            interner: interner
+        ) == sema.types.ubyteType {
+            // ByteArray.asUByteArray() preserves signed storage, so normalize
+            // the raw byte to UByte at the typed read boundary.
+            let rawResult = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get"),
+                arguments: [receiverID, indexID],
+                result: rawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            emitNonThrowingCall(
+                callee: interner.intern("kk_int_to_ubyte"),
+                arg: rawResult,
+                result: result,
+                into: &instructions
+            )
+            return result
+        }
         instructions.append(.call(
             symbol: nil,
             callee: interner.intern("kk_array_get"),
