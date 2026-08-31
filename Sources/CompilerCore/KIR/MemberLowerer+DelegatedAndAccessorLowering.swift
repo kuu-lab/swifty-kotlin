@@ -66,35 +66,17 @@ extension MemberLowerer {
 
         let returnType: TypeID
         let accessorName: InternedString
+        // Sema's typeCheckDelegate resolves getValue/setValue through the ordinary
+        // operator convention for every delegate kind now (lazy/observable/vetoable/
+        // notNull included, since Lazy/ReadWriteProperty implementations declare
+        // real getValue/setValue members) -- there is no separate "custom" path
+        // anymore, just the one resolved-symbol dispatch below.
         let customGetValueSymbol = sema.symbols.delegateGetValueSymbol(for: propertySymbol)
         let customSetValueSymbol = sema.symbols.delegateSetValueSymbol(for: propertySymbol)
-        let getValueName: InternedString = switch delegateKind {
-        case .lazy:
-            interner.intern("kk_lazy_get_value")
-        case .observable:
-            interner.intern("kk_observable_get_value")
-        case .vetoable:
-            interner.intern("kk_vetoable_get_value")
-        case .notNull:
-            interner.intern("kk_notNull_get_value")
-        case .custom:
-            // Dispatches via `symbol: customGetValueSymbol` below (a direct call to the
-            // resolved user-defined operator), so this name is only used for KIR dumps/LLVM
-            // instruction naming, never for runtime symbol lookup.
-            interner.intern("getValue")
-        }
-        let setValueName: InternedString = switch delegateKind {
-        case .lazy:
-            interner.intern("setValue")
-        case .observable:
-            interner.intern("kk_observable_set_value")
-        case .vetoable:
-            interner.intern("kk_vetoable_set_value")
-        case .notNull:
-            interner.intern("kk_notNull_set_value")
-        case .custom:
-            interner.intern("setValue")
-        }
+        // Only used for KIR dumps/LLVM instruction naming -- the actual call target
+        // is `symbol: customGetValueSymbol`/`customSetValueSymbol` below.
+        let getValueName = interner.intern("getValue")
+        let setValueName = interner.intern("setValue")
 
         var body: KIRLoweringEmitContext = [.beginBlock]
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
@@ -117,27 +99,22 @@ extension MemberLowerer {
             // call: $delegate_x.getValue(thisRef, kProperty) -> PropertyType
             let resultExprID = arena.appendTemporary(type: propertyType
             )
-            let notNullThrows = delegateKind == .notNull
-            let thrownExprID: KIRExprID? = notNullThrows
-                ? arena.appendTemporary(type: sema.types.nullableAnyType
-                )
-                : nil
-            body.append(
-                .call(
-                    symbol: delegateKind == .custom ? customGetValueSymbol : delegateStorageSymbol,
-                    callee: getValueName,
-                    arguments: delegateKind == .custom ? [delegateHandleExprID] + buildCustomDelegateGetterArgs(
-                        propertySymbol: propertySymbol,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        body: &body
-                    ) : [delegateHandleExprID],
-                    result: resultExprID,
-                    canThrow: notNullThrows,
-                    thrownResult: thrownExprID
-                )
+            let getterExtraArgs = buildCustomDelegateGetterArgs(
+                propertySymbol: propertySymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
             )
+            body.append(dispatchedDelegateMemberCall(
+                symbol: customGetValueSymbol,
+                callee: getValueName,
+                receiver: delegateHandleExprID,
+                extraArguments: getterExtraArgs,
+                result: resultExprID,
+                sema: sema,
+                interner: interner
+            ))
             body.append(.returnValue(resultExprID))
 
         case .setter:
@@ -160,23 +137,23 @@ extension MemberLowerer {
             )
             let resultExprID = arena.appendTemporary(type: sema.types.unitType
             )
-            body.append(
-                .call(
-                    symbol: delegateKind == .custom ? customSetValueSymbol : delegateStorageSymbol,
-                    callee: setValueName,
-                    arguments: delegateKind == .custom ? [delegateHandleExprID] + buildCustomDelegateSetterArgs(
-                        propertySymbol: propertySymbol,
-                        valueExprID: valueExprID,
-                        sema: sema,
-                        arena: arena,
-                        interner: interner,
-                        body: &body
-                    ) : [delegateHandleExprID, valueExprID],
-                    result: resultExprID,
-                    canThrow: false,
-                    thrownResult: nil
-                )
+            let setterExtraArgs = buildCustomDelegateSetterArgs(
+                propertySymbol: propertySymbol,
+                valueExprID: valueExprID,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                body: &body
             )
+            body.append(dispatchedDelegateMemberCall(
+                symbol: customSetValueSymbol,
+                callee: setValueName,
+                receiver: delegateHandleExprID,
+                extraArguments: setterExtraArgs,
+                result: resultExprID,
+                sema: sema,
+                interner: interner
+            ))
             body.append(.returnUnit)
         }
         body.append(.endBlock)
@@ -202,6 +179,56 @@ extension MemberLowerer {
         allDecls.append(kirID)
         allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
         driver.ctx.clearImplicitReceiver()
+    }
+
+    /// Builds the `getValue`/`setValue` call for a delegate access, using
+    /// itable virtual dispatch when the resolved symbol is an interface's
+    /// abstract declaration (KSP-491: `Lazy<T>`/`ReadWriteProperty<Any?, T>`
+    /// factories like `lazy`/`Delegates.observable` are declared to return
+    /// the interface type, so Sema always resolves `getValue`/`setValue` to
+    /// the interface's abstract member, never the concrete implementation
+    /// class's override -- a direct `.call` to an abstract member has no
+    /// body to run. `.custom` delegates constructed directly (`by Foo()`)
+    /// resolve to Foo's own concrete member and keep using direct dispatch).
+    /// The delegate handle's static type is erased to `Any` in `$delegate_x`
+    /// storage, so this always uses the dynamic (runtime type ID) itable
+    /// lookup rather than a statically-known slot.
+    func dispatchedDelegateMemberCall(
+        symbol: SymbolID?,
+        callee: InternedString,
+        receiver: KIRExprID,
+        extraArguments: [KIRExprID],
+        result: KIRExprID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> KIRInstruction {
+        if let symbol,
+           let parentID = sema.symbols.parentSymbol(for: symbol),
+           sema.symbols.symbol(parentID)?.kind == .interface,
+           let methodSlot = sema.symbols.nominalLayout(for: parentID)?.vtableSlots[symbol]
+        {
+            let interfaceTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
+                symbol: parentID, sema: sema, interner: interner
+            )
+            return .virtualCall(
+                symbol: symbol,
+                callee: callee,
+                receiver: receiver,
+                arguments: extraArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil,
+                dispatch: .itableDynamic(interfaceTypeID: interfaceTypeID, methodSlot: methodSlot)
+            )
+        }
+        return .call(
+            symbol: symbol,
+            callee: callee,
+            arguments: [receiver] + extraArguments,
+            result: result,
+            canThrow: false,
+            thrownResult: nil
+        )
     }
 
     /// DEBT-KIR-008: reads the delegate handle (the `Lazy`/`ObservableProperty`/
@@ -497,6 +524,27 @@ extension MemberLowerer {
                 ?? SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
         }
 
+        // Keep the synthetic accessor's signature available to ABI lowering in
+        // the same compilation. Imported library metadata already restores this
+        // signature, but source-backed properties otherwise leave their accessor
+        // symbol unregistered even though the KIR call carries it.
+        sema.symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: extensionReceiverType ?? ownerSymbol.flatMap { owner in
+                    sema.symbols.symbol(owner).map { ownerInfo in
+                        sema.types.make(.classType(ClassType(
+                            classSymbol: ownerInfo.id,
+                            args: [],
+                            nullability: .nonNull
+                        )))
+                    }
+                },
+                parameterTypes: accessorKind == .setter ? [propertyType] : [],
+                returnType: returnType
+            ),
+            for: syntheticAccessorSymbol
+        )
+
         let kirID = arena.appendDecl(
             .function(
                 KIRFunction(
@@ -568,6 +616,74 @@ extension MemberLowerer {
                     name: interner.intern("get"),
                     params: params,
                     returnType: propType,
+                    body: body,
+                    isSuspend: false,
+                    isInline: false
+                )
+            )
+        )
+        allDecls.append(kirID)
+        allDecls.append(contentsOf: driver.ctx.drainGeneratedCallableDecls())
+    }
+
+    /// BUG-227: emits a setter accessor function (`(receiver, value) -> Unit`)
+    /// that writes a stored property to its instance field. The `var`
+    /// counterpart of `synthesizeStoredPropertyGetterAccessor` above — every
+    /// class whose stored property ever needs virtual dispatch (the
+    /// open/abstract root of an override chain, or a link further down it)
+    /// needs one so a write through a base-typed reference can dispatch to it
+    /// the same way a read dispatches to the getter.
+    func synthesizeStoredPropertySetterAccessor(
+        propertySymbol: SymbolID,
+        ownerSymbol: SymbolID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        allDecls: inout [KIRDeclID]
+    ) {
+        guard let ownerSym = sema.symbols.symbol(ownerSymbol) else { return }
+        let fieldKey = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+        guard let fieldOffset = sema.symbols.nominalLayout(for: ownerSymbol)?.fieldOffsets[fieldKey] else {
+            return
+        }
+        let propType = sema.symbols.propertyType(for: propertySymbol) ?? sema.types.anyType
+
+        let ownerType = sema.types.make(
+            .classType(ClassType(classSymbol: ownerSym.id, args: [], nullability: .nonNull))
+        )
+        let receiverSymbol = driver.callSupportLowerer.syntheticReceiverParameterSymbol(functionSymbol: propertySymbol)
+        let valueParamSymbol = SyntheticSymbolScheme.setterValueParameterSymbol(for: propertySymbol)
+        let params = [
+            KIRParameter(symbol: receiverSymbol, type: ownerType),
+            KIRParameter(symbol: valueParamSymbol, type: propType),
+        ]
+        let receiverExpr = arena.appendExpr(.symbolRef(receiverSymbol), type: ownerType)
+        let valueExpr = arena.appendExpr(.symbolRef(valueParamSymbol), type: propType)
+
+        var body: KIRLoweringEmitContext = [.beginBlock]
+        body.append(.constValue(result: receiverExpr, value: .symbolRef(receiverSymbol)))
+        body.append(.constValue(result: valueExpr, value: .symbolRef(valueParamSymbol)))
+        let offsetExpr = arena.appendExpr(.intLiteral(Int64(fieldOffset)), type: sema.types.intType)
+        body.append(.constValue(result: offsetExpr, value: .intLiteral(Int64(fieldOffset))))
+        body.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_array_set"),
+            arguments: [receiverExpr, offsetExpr, valueExpr],
+            result: nil,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        body.append(.returnUnit)
+        body.append(.endBlock)
+
+        let setterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySymbol)
+        let kirID = arena.appendDecl(
+            .function(
+                KIRFunction(
+                    symbol: setterSymbol,
+                    name: interner.intern("set"),
+                    params: params,
+                    returnType: sema.types.unitType,
                     body: body,
                     isSuspend: false,
                     isInline: false
