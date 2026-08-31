@@ -3446,15 +3446,13 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
 }
 
 @_cdecl("kk_sequence_toMap")
-public func kk_sequence_toMap(_ seqRaw: Int) -> Int {
-    var collected: [Int] = []
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            collected.append(elem)
-            return true
-        }
-    } else {
-        collected = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let collected = runtimeSequenceSourceElementsOrThrow(
+        from: seqRaw,
+        caller: #function,
+        outThrown: outThrown
+    ) else {
+        return runtimeNullSentinelInt
     }
     var keys: [Int] = []
     var values: [Int] = []

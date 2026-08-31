@@ -58,13 +58,14 @@ extension CollectionLiteralConstructionLoweringPass {
         if state.sequenceExprIDs.contains(receiverID.rawValue) {
             let toMapResult = module.arena.appendTemporary(type: nil
             )
+            let thrownExpr = thrownResult ?? module.arena.appendTemporary(type: nil)
             loweredBody.append(.call(
                 symbol: nil,
                 callee: lookup.kkSequenceToMapName,
                 arguments: [receiverID],
                 result: toMapResult,
-                canThrow: false,
-                thrownResult: nil
+                canThrow: true,
+                thrownResult: thrownExpr
             ))
             if let result {
                 state.mapExprIDs.insert(result.rawValue)
