@@ -2138,7 +2138,7 @@
     - `kotlin.UByte.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.UByte.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-905: kotlin.UByteArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-905: kotlin.UByteArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.UByteArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UByteArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2148,6 +2148,7 @@
   - 未実装シンボル一覧:
     - `kotlin.UByteArray.<init>` — constructor (ByteArray)  -- `constructor <init>(kotlin/ByteArray)`
     - `kotlin.UByteArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
+  - 完了根拠 (2026-08-23): #5918 (merge commit `eabdda1156256f3331f117ac9bceb43de0e41267`) の既存 source-backed API は `UByteArray(Int, (Int) -> UByte)` initializer の所有であり、本対応の所有範囲外。今回、`Sources/CompilerCore/Stdlib/kotlin/UByteArray.kt` に `@PublishedApi internal UByteArray(ByteArray)` を追加し、既存 `ByteArray.asUByteArray()` の共有 backing view を再利用。`UByteArray(Int)` は既存 `CallTypeChecker` の primitive-array special call と `kk_array_new_checked` を引き続き使用し、0 長・負長・初期 0 値を専用 Golden/diff で固定した。KSP-905 専用 Golden/diff と CallTypeChecker/KIR の回帰を追加し、#5949 の `ubyteArrayOf` や共有 view Runtime/ABI は変更していない。
 
 - [x] KSP-906: kotlin.UInt top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.UInt` / top-level
