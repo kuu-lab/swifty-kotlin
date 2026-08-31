@@ -94,6 +94,58 @@ struct ListAggregateHOFSourceMigrationTests {
             "Expected List aggregate source calls to type-check cleanly, got: \(aggregateDiagnosticSummary(in: ctx))"
         )
     }
+
+    @Test
+    func listSumOfSelectsNumericSourceOverloads() throws {
+        let source = """
+        fun sample(values: List<Int>) {
+            values.sumOf { it }
+            values.sumOf { it.toLong() }
+            values.sumOf { it.toDouble() }
+        }
+        """
+
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected List.sumOf numeric overloads to type-check cleanly, got: \(aggregateDiagnosticSummary(in: ctx))"
+        )
+
+        let sumCalls = ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let exprID = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(exprID),
+                  ctx.interner.resolve(callee) == "sumOf"
+            else {
+                return nil
+            }
+            return exprID
+        }
+        #expect(sumCalls.count == 3)
+        let expectedTypes = [sema.types.intType, sema.types.longType, sema.types.doubleType]
+        for (call, expectedType) in zip(sumCalls, expectedTypes) {
+            #expect(sema.bindings.exprType(for: call) == expectedType)
+            guard let chosenCallee = sema.bindings.callBinding(for: call)?.chosenCallee,
+                  let signature = sema.symbols.functionSignature(for: chosenCallee)
+            else {
+                Issue.record("Expected List.sumOf call to resolve to a source-backed function")
+                continue
+            }
+            #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+            #expect(signature.returnType == expectedType)
+            guard let parameterType = signature.parameterTypes.first else {
+                Issue.record("Expected List.sumOf selector parameter")
+                continue
+            }
+            guard case let .functionType(selectorType) = sema.types.kind(of: parameterType) else {
+                Issue.record("Expected List.sumOf selector parameter to be a function")
+                continue
+            }
+            #expect(selectorType.returnType == expectedType)
+        }
+    }
 }
 
 private func aggregateDiagnosticSummary(in ctx: CompilationContext) -> String {

@@ -64,6 +64,60 @@ extension CallTypeChecker {
         }
     }
 
+    /// Prefer a source-backed List.unzip() over the generic Iterable.unzip()
+    /// when the concrete receiver is a List. Both extensions have the same
+    /// callable name and type shape after inference, so receiver nominality
+    /// must decide the overload before the regular resolver sees them.
+    func preferListUnzipCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard let listSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]),
+        let iterableSymbol = sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]),
+        let receiverNominal = driver.helpers.nominalSymbol(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types
+        ),
+        sema.types.isNominalSubtypeSymbol(receiverNominal, of: listSymbol),
+        candidates.contains(where: { candidate in
+            guard sema.symbols.isSourceBackedSymbol(candidate),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            return candidateNominal == listSymbol
+        })
+        else {
+            return candidates
+        }
+
+        return candidates.filter { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return true
+            }
+            return candidateNominal != iterableSymbol
+        }
+    }
+
     /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
@@ -308,6 +362,12 @@ extension CallTypeChecker {
                 sema.types.booleanType
             case "collect", "collectLatest":
                 sema.types.unitType
+            case "transform":
+                // Flow.transform emits values through its collector receiver;
+                // the callback itself returns Unit. The lightweight Flow
+                // special case has no receiver-type inference for those
+                // emissions, so keep its output type conservatively erased.
+                sema.types.unitType
             case "takeWhile", "dropWhile":
                 sema.types.unitType
             case "catch":
@@ -339,11 +399,17 @@ extension CallTypeChecker {
 
             if memberName != "collect" && memberName != "collectLatest" {
                 sema.bindings.markFlowExpr(id)
-                let resultElementType: TypeID = if memberName == "map" || memberName == "transform",
+                let resultElementType: TypeID = if memberName == "map",
                                                    case let .lambdaLiteral(_, bodyExpr, _, _) = ast.arena.expr(args[0].expr),
                                                    let mappedType = sema.bindings.exprType(for: bodyExpr)
                 {
                     mappedType
+                } else if memberName == "transform" {
+                    // The callback's Unit result is not a Flow element. Values
+                    // emitted by the transform are represented by the runtime
+                    // bridge and remain type-erased until a richer collector
+                    // receiver model is available.
+                    sema.types.anyType
                 } else if memberName == "flatMapConcat" || memberName == "flatMapMerge" || memberName == "flatMapLatest" {
                     sema.types.anyType
                 } else {

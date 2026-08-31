@@ -79,23 +79,65 @@ func kirFindOverridePropertyGetter(
     in nominalSymbol: SymbolID,
     sema: SemaModule
 ) -> SymbolID? {
-    guard let propertySym = sema.symbols.symbol(interfaceProperty),
-          let ownerSym = sema.symbols.symbol(nominalSymbol)
-    else {
+    guard let propertySym = sema.symbols.symbol(interfaceProperty) else {
         return nil
     }
 
-    let overrideFQName = ownerSym.fqName + [propertySym.name]
-    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-        guard let candidateSym = sema.symbols.symbol(candidate),
-              candidateSym.kind == .property,
-              sema.symbols.parentSymbol(for: candidate) == nominalSymbol
-        else {
-            continue
+    var visited: Set<SymbolID> = []
+    var current: SymbolID? = nominalSymbol
+    while let nominal = current, visited.insert(nominal).inserted {
+        guard let ownerSym = sema.symbols.symbol(nominal) else { break }
+        let overrideFQName = ownerSym.fqName + [propertySym.name]
+        for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+            guard let candidateSym = sema.symbols.symbol(candidate),
+                  candidateSym.kind == .property,
+                  sema.symbols.parentSymbol(for: candidate) == nominal
+            else {
+                continue
+            }
+            return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
         }
-        return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
-            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
+        current = kirSuperclass(of: nominal, sema: sema)
     }
+
+    // If no class override was found, check implemented interfaces in BFS order (most derived first)
+    // for an override or default implementation.
+    var queue: [SymbolID] = []
+    var visitedNominals: Set<SymbolID> = []
+    var currentNominal: SymbolID? = nominalSymbol
+    while let nominal = currentNominal, visitedNominals.insert(nominal).inserted {
+        for supertype in sema.symbols.directSupertypes(for: nominal) {
+            if sema.symbols.symbol(supertype)?.kind == .interface {
+                queue.append(supertype)
+            }
+        }
+        currentNominal = kirSuperclass(of: nominal, sema: sema)
+    }
+
+    var visitedInterfaces: Set<SymbolID> = []
+    while !queue.isEmpty {
+        let iface = queue.removeFirst()
+        guard visitedInterfaces.insert(iface).inserted else { continue }
+        for supertype in sema.symbols.directSupertypes(for: iface) {
+            if sema.symbols.symbol(supertype)?.kind == .interface {
+                queue.append(supertype)
+            }
+        }
+        guard let ifaceSym = sema.symbols.symbol(iface) else { continue }
+        let ifacePropertyFQName = ifaceSym.fqName + [propertySym.name]
+        for candidate in sema.symbols.lookupAll(fqName: ifacePropertyFQName) {
+            guard let candidateSym = sema.symbols.symbol(candidate),
+                  candidateSym.kind == .property,
+                  sema.symbols.parentSymbol(for: candidate) == iface
+            else {
+                continue
+            }
+            return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
+        }
+    }
+
     return nil
 }
 
@@ -117,9 +159,7 @@ func appendObjectItablePropertyGetterRegistrations(
 
     let intType = sema.types.intType
     let registerCallee = interner.intern("kk_object_register_itable_method")
-    let interfaceSupertypes = sema.symbols.directSupertypes(for: nominalSymbol).filter { superSymbol in
-        sema.symbols.symbol(superSymbol)?.kind == .interface
-    }
+    let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: nominalSymbol, sema: sema)
 
     for interfaceSymbol in interfaceSupertypes {
         let getterSlots = kirInterfacePropertyGetterSlots(

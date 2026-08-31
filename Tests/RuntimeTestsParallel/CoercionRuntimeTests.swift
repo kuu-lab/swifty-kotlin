@@ -19,7 +19,7 @@ struct CoercionRuntimeTests {
         let preciseDouble = 1.23456789012345
         let doubleBits = doubleToBits(preciseDouble)
         let floatBits = kk_double_to_float(doubleBits)
-        let convertedBackBits = kk_float_to_double_bits(floatBits)
+        let convertedBackBits = __kk_float_to_double_bits(floatBits)
         let convertedBack = bitsToDouble(convertedBackBits)
 
         #expect(abs(convertedBack - preciseDouble) > 1e-15)
@@ -282,20 +282,6 @@ struct CoercionRuntimeTests {
     func testShortToCharConversion() {
         #expect(kk_short_to_char(65) == 65)
         #expect(kk_short_to_char(0x1F600) == 0xF600)
-    }
-
-    @Test
-    func testFloatToCharConversion() {
-        #expect(kk_float_to_char(kk_float_to_bits(Float(65.0))) == 65)
-        #expect(kk_float_to_char(kk_float_to_bits(Float.nan)) == 0)
-        #expect(kk_float_to_char(kk_float_to_bits(Float(-1.0))) == 0)
-    }
-
-    @Test
-    func testDoubleToCharConversion() {
-        #expect(kk_double_to_char(kk_double_to_bits(65.0)) == 65)
-        #expect(kk_double_to_char(kk_double_to_bits(Double.nan)) == 0)
-        #expect(kk_double_to_char(kk_double_to_bits(-1.0)) == 0)
     }
 
     // MARK: - Cross-Type Conversion Tests

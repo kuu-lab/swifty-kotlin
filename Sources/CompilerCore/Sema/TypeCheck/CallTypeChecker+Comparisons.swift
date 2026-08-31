@@ -33,6 +33,7 @@ extension CallTypeChecker {
         let resolvedName = ctx.interner.resolve(calleeName)
         let types = ctx.sema.types
         let supportedNumericTypes = [types.intType, types.longType, types.doubleType, types.floatType]
+            + (resolvedName == "minOf" ? [types.byteType, types.shortType] : [])
         let numericParamType = resolvedParamType.flatMap { paramType in
             supportedNumericTypes.first(where: { $0 == paramType })
         }
@@ -48,6 +49,8 @@ extension CallTypeChecker {
                 if numericParamType == types.floatType { return .maxOfFloat3 }
                 return .maxOfInt3
             case "minOf":
+                if numericParamType == types.byteType { return .minOfByte3 }
+                if numericParamType == types.shortType { return .minOfShort3 }
                 if numericParamType == types.longType { return .minOfLong3 }
                 if numericParamType == types.doubleType { return .minOfDouble3 }
                 if numericParamType == types.floatType { return .minOfFloat3 }
@@ -65,6 +68,8 @@ extension CallTypeChecker {
             if numericParamType == types.floatType { return .maxOfFloat }
             return .maxOfInt
         case "minOf":
+            if numericParamType == types.byteType { return .minOfByte }
+            if numericParamType == types.shortType { return .minOfShort }
             if numericParamType == types.longType { return .minOfLong }
             if numericParamType == types.doubleType { return .minOfDouble }
             if numericParamType == types.floatType { return .minOfFloat }
