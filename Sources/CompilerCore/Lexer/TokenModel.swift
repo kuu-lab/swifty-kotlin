@@ -135,6 +135,13 @@ public enum SoftKeyword: String, Sendable {
     case constructor
     case out
     case when
+
+    /// Not `allCases` — `.by`, `.context`, `.where`, etc. are soft keywords but never valid use-site targets.
+    public static let useSiteTargets: [SoftKeyword] = [
+        .get, .set, .field, .property, .receiver, .param, .setparam, .delegate, .file,
+    ]
+
+    public static let useSiteTargetNames: Set<String> = Set(useSiteTargets.map(\.rawValue))
 }
 
 public enum Symbol: String, Sendable {

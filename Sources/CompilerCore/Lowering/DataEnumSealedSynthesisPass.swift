@@ -731,13 +731,39 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         params: [KIRParameter],
         body: [KIRInstruction]
     ) {
-        sema.symbols.setFunctionSignature(signature, for: functionSymbol)
+        // Preserve the generic receiver contract collected for source-backed data
+        // class members when the lowering body is synthesized with erased KIR types.
+        let effectiveSignature: FunctionSignature = if
+            signature.classTypeParameterCount == 0,
+            let existingSignature = sema.symbols.functionSignature(for: functionSymbol),
+            existingSignature.classTypeParameterCount > 0
+        {
+            FunctionSignature(
+                receiverType: existingSignature.receiverType,
+                parameterTypes: signature.parameterTypes,
+                returnType: existingSignature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                typeParameterSymbols: existingSignature.typeParameterSymbols,
+                reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: existingSignature.typeParameterUpperBoundsList,
+                classTypeParameterCount: existingSignature.classTypeParameterCount
+            )
+        } else {
+            signature
+        }
+        sema.symbols.setFunctionSignature(effectiveSignature, for: functionSymbol)
         _ = module.arena.appendDecl(.function(
             KIRFunction(
                 symbol: functionSymbol,
                 name: name,
                 params: params,
-                returnType: signature.returnType,
+                returnType: effectiveSignature.returnType,
                 body: body,
                 isSuspend: false,
                 isInline: false

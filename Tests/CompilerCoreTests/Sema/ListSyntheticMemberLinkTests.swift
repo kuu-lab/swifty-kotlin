@@ -239,6 +239,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "LinkedHashSet")
             #expect(classType.args == [.invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(linkedSetCall), "Expected linkedSetOf to be tracked as a collection expression")
+
+            let linkedSetCallee = try #require(sema.bindings.callBinding(for: linkedSetCall)?.chosenCallee)
+            let linkedSetSymbol = try #require(sema.symbols.symbol(linkedSetCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(linkedSetCallee), "linkedSetOf must resolve to bundled Kotlin source")
+            #expect(!linkedSetSymbol.flags.contains(.synthetic), "linkedSetOf must not use the synthetic bootstrap stub")
+            #expect(linkedSetSymbol.declSite != nil, "linkedSetOf source declaration should carry a declaration site")
+            #expect(sema.symbols.externalLinkName(for: linkedSetCallee) == nil)
         }
     }
 
@@ -294,9 +301,11 @@ struct ListSyntheticMemberLinkTests {
 
             let constructorCall = try #require(firstExprID(in: ast) { _, expr in
                 guard case let .call(callee, _, _, _) = expr,
-                      case let .nameRef(name, _) = ast.arena.expr(callee)
+                      case let .nameRef(name, _) = ast.arena.expr(callee),
+                      let range = ast.arena.exprRange(callee)
                 else { return false }
                 return interner.resolve(name) == "LinkedHashSet"
+                    && ctx.sourceManager.path(of: range.start.file) == path
             })
             let callType = try #require(sema.bindings.exprTypes[constructorCall])
             guard case let .classType(classType) = sema.types.kind(of: callType) else {
@@ -392,6 +401,13 @@ struct ListSyntheticMemberLinkTests {
             #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableMap")
             #expect(classType.args == [.invariant(sema.types.stringType), .invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(linkedMapCall), "Expected linkedMapOf to be tracked as a collection expression")
+
+            let linkedMapCallee = try #require(sema.bindings.callBinding(for: linkedMapCall)?.chosenCallee)
+            let linkedMapSymbol = try #require(sema.symbols.symbol(linkedMapCallee))
+            #expect(sema.symbols.isSourceBackedSymbol(linkedMapCallee), "linkedMapOf must resolve to bundled Kotlin source")
+            #expect(!linkedMapSymbol.flags.contains(.synthetic), "linkedMapOf must not use the synthetic bootstrap stub")
+            #expect(linkedMapSymbol.declSite != nil, "linkedMapOf source declaration should carry a declaration site")
+            #expect(sema.symbols.externalLinkName(for: linkedMapCallee) == nil)
         }
     }
 
@@ -1115,11 +1131,19 @@ struct ListSyntheticMemberLinkTests {
         }
 
         fun reduceValues(values: Iterable<Int>): Int {
-            return values.reduce { acc, value -> acc + value }
+            return values.reduce { acc: Int, value: Int -> acc + value }
         }
 
         fun reduceIndexedValues(values: Iterable<Int>): Int {
-            return values.reduceIndexed { index, acc, value -> acc + index + value }
+            return values.reduceIndexed { index: Int, acc: Int, value: Int -> acc + index + value }
+        }
+
+        fun reduceOrNullValues(values: Iterable<Int>): Int? {
+            return values.reduceOrNull { acc: Int, value: Int -> acc + value }
+        }
+
+        fun reduceIndexedOrNullValues(values: Iterable<Int>): Int? {
+            return values.reduceIndexedOrNull { index: Int, acc: Int, value: Int -> acc + index + value }
         }
         """
 
@@ -1130,10 +1154,10 @@ struct ListSyntheticMemberLinkTests {
             let diagnosticSummary = ctx.diagnostics.diagnostics
                 .map { "\($0.code): \($0.message)" }
                 .joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), "Expected KSP-701 Iterable members to resolve cleanly, got: \(diagnosticSummary)")
+            #expect(!(ctx.diagnostics.hasError), "Expected Iterable collection members to resolve cleanly, got: \(diagnosticSummary)")
 
             let sema = try #require(ctx.sema)
-            for memberName in ["filter", "reduce", "reduceIndexed"] {
+            for memberName in ["filter", "reduce", "reduceIndexed", "reduceOrNull", "reduceIndexedOrNull"] {
                 let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
                     named: memberName,
                     sema: sema,
@@ -1462,7 +1486,28 @@ struct ListSyntheticMemberLinkTests {
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
-                #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                if memberName == "lastOrNull" {
+                    let chosenCallee = try #require(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee,
+                        "Expected Collection.lastOrNull to bind to the Iterable source extension"
+                    )
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+                    let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                    let receiverType = try #require(signature.receiverType)
+                    guard case let .classType(receiverClassType) = sema.types.kind(of: receiverType) else {
+                        Issue.record("Expected Collection.lastOrNull to bind to an Iterable receiver")
+                        continue
+                    }
+                    let iterableSymbol = try #require(sema.symbols.lookup(fqName: [
+                        ctx.interner.intern("kotlin"),
+                        ctx.interner.intern("collections"),
+                        ctx.interner.intern("Iterable"),
+                    ]))
+                    #expect(receiverClassType.classSymbol == iterableSymbol)
+                } else {
+                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                }
             }
 
             #expect(!(ctx.diagnostics.diagnostics.isEmpty), "Expected diagnostics for Collection indexed lookup fallbacks")

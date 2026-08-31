@@ -193,70 +193,81 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        let platformSymbol = ensureSyntheticObjectSymbol(
-            named: "Platform",
-            in: kotlinNativePkg,
-            symbols: symbols,
-            interner: interner
+        // KSP-1211: Platform's public surface is source-backed. The synthetic
+        // registration pass runs before bundled headers are collected, so use
+        // the declaration index rather than the symbol table to keep the
+        // source-backed object and its members authoritative.
+        let platformFQName = kotlinNativePkg + [interner.intern("Platform")]
+        let hasSourceBackedPlatform = bundledIndex.contains(
+            ownerFQName: platformFQName,
+            name: interner.intern("canAccessUnaligned"),
+            arity: 0
         )
-        let platformType = types.make(.classType(ClassType(
-            classSymbol: platformSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let booleanType = types.make(.primitive(.boolean, .nonNull))
-        symbols.setPropertyType(platformType, for: platformSymbol)
-
-        registerSyntheticObjectProperty(
-            ownerSymbol: platformSymbol,
-            name: "canAccessUnaligned",
-            propertyType: booleanType,
-            externalLinkName: "kk_platform_canAccessUnaligned",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: platformSymbol,
-            name: "isLittleEndian",
-            propertyType: booleanType,
-            externalLinkName: "kk_platform_isLittleEndian",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: platformSymbol,
-            name: "osFamily",
-            propertyType: osFamilyType,
-            externalLinkName: "kk_platform_osFamily",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: platformSymbol,
-            name: "cpuArchitecture",
-            propertyType: cpuArchitectureType,
-            externalLinkName: "kk_platform_cpuArchitecture",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticObjectProperty(
-            ownerSymbol: platformSymbol,
-            name: "memoryModel",
-            propertyType: memoryModelType,
-            externalLinkName: "kk_platform_memoryModel",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticSystemMember(
-            ownerSymbol: platformSymbol,
-            ownerType: platformType,
-            name: "getAvailableProcessors",
-            externalLinkName: "kk_platform_getAvailableProcessors",
-            returnType: types.intType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
+        if !hasSourceBackedPlatform {
+            let platformSymbol = ensureSyntheticObjectSymbol(
+                named: "Platform",
+                in: kotlinNativePkg,
+                symbols: symbols,
+                interner: interner
+            )
+            let platformType = types.make(.classType(ClassType(
+                classSymbol: platformSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let booleanType = types.make(.primitive(.boolean, .nonNull))
+            symbols.setPropertyType(platformType, for: platformSymbol)
+            registerSyntheticObjectProperty(
+                ownerSymbol: platformSymbol,
+                name: "canAccessUnaligned",
+                propertyType: booleanType,
+                externalLinkName: "kk_platform_canAccessUnaligned",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticObjectProperty(
+                ownerSymbol: platformSymbol,
+                name: "isLittleEndian",
+                propertyType: booleanType,
+                externalLinkName: "kk_platform_isLittleEndian",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticObjectProperty(
+                ownerSymbol: platformSymbol,
+                name: "osFamily",
+                propertyType: osFamilyType,
+                externalLinkName: "kk_platform_osFamily",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticObjectProperty(
+                ownerSymbol: platformSymbol,
+                name: "cpuArchitecture",
+                propertyType: cpuArchitectureType,
+                externalLinkName: "kk_platform_cpuArchitecture",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticObjectProperty(
+                ownerSymbol: platformSymbol,
+                name: "memoryModel",
+                propertyType: memoryModelType,
+                externalLinkName: "kk_platform_memoryModel",
+                symbols: symbols,
+                interner: interner
+            )
+            registerSyntheticSystemMember(
+                ownerSymbol: platformSymbol,
+                ownerType: platformType,
+                name: "getAvailableProcessors",
+                externalLinkName: "kk_platform_getAvailableProcessors",
+                returnType: types.intType,
+                parameters: [],
+                symbols: symbols,
+                interner: interner
+            )
+        }
 
         // --- java.lang.System / Runtime memory management (STDLIB-PERF-154) ---
         let javaLangPkg = ensureSyntheticPackageHierarchy(

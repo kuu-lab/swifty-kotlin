@@ -102,6 +102,15 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_invalid_mutability_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_concurrent_modification_exception_new_message_cause",
             parameters: [
                 RuntimeABIParameter(name: "messageRaw", type: .intptr),
@@ -172,6 +181,22 @@ public extension RuntimeABISpec {
             name: "__kk_exception_new_cause",
             parameters: [
                 RuntimeABIParameter(name: "causeRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_character_coding_exception_new",
+            parameters: [],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_character_coding_exception_new_message",
+            parameters: [
+                RuntimeABIParameter(name: "messageRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Exception",
@@ -654,6 +679,15 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_throwable_suppressedRaw",
+            parameters: [
+                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Exception",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_throwable_captureStackTrace",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
             ],
