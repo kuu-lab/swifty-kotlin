@@ -107,6 +107,26 @@ struct ReceiverClassifier {
         if symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName {
             return true
         }
+        let kotlinRangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        let rangeTypeNames: Set = Set([
+            "OpenEndRange", "IntRange", "IntProgression", "LongRange", "LongProgression",
+            "UIntRange", "UIntProgression", "ULongRange", "ULongProgression",
+            "CharRange", "CharProgression",
+        ].map(interner.intern))
+        if rangeTypeNames.contains(symbol.name),
+           symbol.fqName.isEmpty || (
+               symbol.fqName.count == 3
+                   && Array(symbol.fqName.prefix(2)) == kotlinRangesFQName
+           )
+        {
+            // Range/progression types have dedicated source-backed owners for
+            // collection HOFs. Do not let their Iterable supertypes reroute
+            // those calls to kotlin.collections.Iterable.
+            return false
+        }
         // User-defined classes implementing Iterable must use the generic
         // Iterable source extensions rather than unresolved member fallbacks.
         guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {

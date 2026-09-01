@@ -1061,7 +1061,10 @@ extension CallTypeChecker {
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
                 sema.bindings.markCollectionExpr(id)
                 let didBindSource: Bool = if isSequenceReceiver {
-                    false
+                    bindBundledSequenceDestinationSourceFunction(
+                        typeArguments: [filterType],
+                        parameterMapping: [:]
+                    )
                 } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
                     bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
                 } else {
