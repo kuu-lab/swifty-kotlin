@@ -688,7 +688,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
+    func testMutableCollectionSequenceAddAllOverloadsResolveByReceiver() throws {
         let source = """
         fun appendCollection(collection: MutableCollection<Int>, source: Sequence<Int>) = collection.addAll(source)
         fun appendList(list: MutableList<Int>, source: Sequence<Int>) = list.addAll(source)
@@ -701,8 +701,9 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedExternalLinks = [
-                "collection": "__kk_mutable_collection_addAll_sequence",
+            let expectedExternalLinks: [String: String?] = [
+                // KSP-1019: MutableCollection uses the source-backed extension.
+                "collection": nil,
                 "list": "__kk_mutable_list_addAll_sequence",
                 "set": "__kk_mutable_set_addAll_sequence",
             ]
@@ -719,7 +720,11 @@ extension ListSyntheticMemberLinkTests {
                     return ctx.interner.resolve(name) == receiverName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)")
+                let expectedLinkDescription = externalLinkName ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(expectedLinkDescription)")
+                if receiverName == "collection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Sequence) to be source-backed")
+                }
                 #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
             }
         }
@@ -927,7 +932,11 @@ extension ListSyntheticMemberLinkTests {
 
             for (memberName, externalLinkName) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    guard case let .memberCall(_, callee, _, _, range) = expr,
+                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    else {
+                        return false
+                    }
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
@@ -1576,11 +1585,11 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionArrayAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "__kk_mutable_collection_addAll",
+                nil,
                 "fun mutate(values: MutableCollection<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
@@ -1612,7 +1621,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedLinkDescription)")
+                if receiverName == "MutableCollection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Array) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
@@ -1625,11 +1638,11 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionIterableAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "__kk_mutable_collection_addAll_iterable",
+                nil,
                 "fun mutate(values: MutableCollection<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
@@ -1666,7 +1679,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedLinkDescription)")
+                if receiverName == "MutableCollection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Iterable) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
