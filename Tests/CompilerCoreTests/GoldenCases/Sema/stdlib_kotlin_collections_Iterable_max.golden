@@ -80,7 +80,7 @@ expr e@10:72 lambda params=[] body=e@10:74 label=maxOf type=(Int) -> Any
 expr e@10:59#1 memberCall recv=e@10:59 callee=maxOf args=[_:e@10:72] type=Int call=kotlin.collections.maxOf#2 targs=[Int,Int]
 expr e@11:58 name(values) type=kotlin.collections.Iterable<Int> ref=golden.sema.iterableMaxOfDouble.$6.values
 expr e@11:73 name(it) type=Int ref=s-3
-expr e@11:73#1 memberCall recv=e@11:73 callee=toDouble args=[] type=Double
+expr e@11:73#1 memberCall recv=e@11:73 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
 expr e@11:71 lambda params=[] body=e@11:73#1 label=maxOf type=(Int) -> Any
 expr e@11:58#1 memberCall recv=e@11:58 callee=maxOf args=[_:e@11:71] type=Double call=kotlin.collections.maxOf#0 targs=[Int]
 expr e@12:56 name(values) type=kotlin.collections.Iterable<Int> ref=golden.sema.iterableMaxOfFloat.$7.values
@@ -94,7 +94,7 @@ expr e@13:85 lambda params=[] body=e@13:87 label=maxOfOrNull type=(Int) -> Any
 expr e@13:66#1 memberCall recv=e@13:66 callee=maxOfOrNull args=[_:e@13:85] type=Int? call=kotlin.collections.maxOfOrNull#2 targs=[Int,Int]
 expr e@14:65 name(values) type=kotlin.collections.Iterable<Int> ref=golden.sema.iterableMaxOfOrNullDouble.$9.values
 expr e@14:86 name(it) type=Int ref=s-6
-expr e@14:86#1 memberCall recv=e@14:86 callee=toDouble args=[] type=Double
+expr e@14:86#1 memberCall recv=e@14:86 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
 expr e@14:84 lambda params=[] body=e@14:86#1 label=maxOfOrNull type=(Int) -> Any
 expr e@14:65#1 memberCall recv=e@14:65 callee=maxOfOrNull args=[_:e@14:84] type=Double? call=kotlin.collections.maxOfOrNull#0 targs=[Int]
 expr e@15:63 name(values) type=kotlin.collections.Iterable<Int> ref=golden.sema.iterableMaxOfOrNullFloat.$10.values
