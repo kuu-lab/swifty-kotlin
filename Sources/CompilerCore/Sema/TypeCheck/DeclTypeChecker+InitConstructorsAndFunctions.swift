@@ -512,11 +512,18 @@ extension DeclTypeChecker {
         )
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
-        // skips the nominal subtype check like the equivalent local declaration does.
+        // skips the nominal subtype check like the equivalent local declaration does —
+        // but only when the body's actual element type matches IntRange's (KSWIFTK
+        // range-element-type gap: `fun f(): LongRange = 1..10` must still be rejected).
         let bodyIsRangeExpr = {
             guard case let .expr(bodyExprID, _) = function.body else { return false }
-            return sema.bindings.isRangeExpr(bodyExprID)
-                && driver.helpers.isRangeLikeType(signature.returnType, sema: sema, interner: ctx.interner)
+            return driver.helpers.rangeExprMatchesDeclaredElementType(
+                bodyExprID: bodyExprID,
+                bodyType: bodyType,
+                declaredType: signature.returnType,
+                sema: sema,
+                interner: ctx.interner
+            )
         }()
         if !bodyIsRangeExpr {
             driver.emitSubtypeConstraint(
