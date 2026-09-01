@@ -63,6 +63,8 @@ fun main() {
     println(minInt.toShort())
     println(maxInt.toUByte())
     println(minInt.toUByte())
+    println((-1).toUInt())
+    println(Int.MIN_VALUE.toShort())
     
     // Test float edge cases
     val nan = Float.NaN

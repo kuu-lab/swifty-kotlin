@@ -387,18 +387,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_array_copyInto")
-        {
-            materializeArrayCopyIntoDefaultArguments(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-        }
-        if normalized.defaultMask != 0,
            loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
@@ -484,18 +472,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        if loweredCallee == interner.intern("kk_array_copyOf_newSize_init"),
-           finalArguments.count == 3
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
         let resultFunction1Callees: Set<InternedString> = [
             interner.intern("kk_runtime_result_get_or_else"),
@@ -612,6 +588,7 @@ extension CallLowerer {
             calleeName: loweredCallee,
             receiverExpr: receiver.expr,
             argumentCount: callArguments.count,
+            sourceArgExprs: sourceArgExprs,
             sema: sema,
             interner: interner
         ) {
@@ -736,7 +713,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
-            interner.intern("kk_array_copyOf_newSize_init"),
         ])
     }
 
@@ -744,6 +720,7 @@ extension CallLowerer {
         calleeName: InternedString,
         receiverExpr: ExprID,
         argumentCount: Int,
+        sourceArgExprs: [ExprID],
         sema: SemaModule,
         interner: StringInterner
     ) -> (callee: InternedString, canThrow: Bool)? {
@@ -753,6 +730,20 @@ extension CallLowerer {
             || isIterableOrCollectionInterfaceType(receiverType, sema: sema, interner: interner)
             || isConcreteArrayLikeType(receiverType, sema: sema, interner: interner)
         guard isListWindowChunkReceiver else {
+            return nil
+        }
+
+        if interner.resolve(calleeName) == "zip",
+           let firstArgument = sourceArgExprs.first,
+           let firstArgumentType = sema.bindings.exprTypes[firstArgument],
+           isGenericKotlinArrayType(
+               sema.types.makeNonNullable(firstArgumentType),
+               sema: sema,
+               interner: interner
+           )
+        {
+            // KSP-999: Array overloads execute the bundled Kotlin source body;
+            // the materializing Iterable bridge is retained for Iterable inputs.
             return nil
         }
 

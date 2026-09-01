@@ -8,6 +8,6 @@ file fstring_tolist package=_
   decl stringToList fun stringToList sym=stringToList
   decl charSequenceToList fun charSequenceToList sym=charSequenceToList
 expr e@4:43 name(s) type=String ref=stringToList.$1.s
-expr e@4:43#1 memberCall recv=e@4:43 callee=toList args=[] type=kotlin.collections.List<Char> call=kotlin.text.toList
+expr e@4:43#1 memberCall recv=e@4:43 callee=toList args=[] type=kotlin.collections.List<Char> call=kotlin.text.toList#0
 expr e@5:56 name(cs) type=kotlin.CharSequence ref=charSequenceToList.$0.cs
-expr e@5:56#1 memberCall recv=e@5:56 callee=toList args=[] type=kotlin.collections.List<Char> call=kotlin.text.toList
+expr e@5:56#1 memberCall recv=e@5:56 callee=toList args=[] type=kotlin.collections.List<Char> call=kotlin.text.toList#0

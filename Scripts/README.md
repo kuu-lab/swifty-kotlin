@@ -11,9 +11,10 @@
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
-| `check_todo_ids.sh` | – | Detect duplicate task IDs in `TODO.md` |
+| `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
+| `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
-| `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing |
+| `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
 ## swift_test.sh
 
@@ -70,6 +71,22 @@ Detect duplicate task IDs in `TODO.md`:
 ```bash
 bash Scripts/check_todo_ids.sh
 ```
+
+## Mutation fuzzer keyword drift check
+
+`Scripts/mutate_diff_cases.py` classifies scanned tokens as `keyword` vs.
+`identifier` using its own `IDENTIFIER_KEYWORDS` set, kept independent of the
+Swift lexer for simplicity. Verify it still matches the hard-keyword
+`Keyword` enum in `Sources/CompilerCore/Lexer/TokenModel.swift`:
+
+```bash
+bash Scripts/check_mutation_fuzzer_keywords.sh
+```
+
+Soft keywords (`SoftKeyword` enum, e.g. `by`, `get`, `value`) are
+deliberately excluded from this comparison — they are valid identifiers in
+most contexts, so treating them as keywords would misclassify real
+identifier usages in the seed corpus.
 
 ## Golden update workflow
 
