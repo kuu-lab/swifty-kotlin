@@ -630,43 +630,43 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
-        // A source-backed top-level function with the same name and arity owns
-        // the public overload. Keep the compiler primitive only for allocation
-        // forms that do not have a source implementation (KSP-763).
-        let hasSourceBackedArrayConstructor: Bool = if let calleeName {
-            ctx.cachedScopeLookup(calleeName).contains { candidate in
+        // A visible source-backed top-level function with the same name and applicable
+        // arity owns the overload. For one-argument primitive arrays, compare
+        // the inferred argument type as well: UByteArray(ByteArray) must not
+        // hide the compiler-provided UByteArray(Int) allocation form.
+        let sourceBackedArrayConstructors: [(symbol: SymbolID, signature: FunctionSignature)] = if let calleeName {
+            ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.compactMap { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
-                      signature.parameterTypes.count == args.count
+                      signature.parameterTypes.count == args.count,
+                      !signature.valueParameterIsVararg.contains(true)
                 else {
-                    return false
+                    return nil
                 }
-                guard !signature.valueParameterIsVararg.contains(true) else {
-                    return false
-                }
-                if args.count == 2 {
-                    return true
-                }
-                guard args.count == 1,
-                      let parameterType = signature.parameterTypes.first,
-                      calleeName == knownNames.ushortArray
-                else {
-                    return false
-                }
-                let argumentType = driver.inferExpr(
-                    args[0].expr,
-                    ctx: ctx,
-                    locals: &locals
-                )
-                return argumentType == parameterType
-                    || sema.types.isSubtype(argumentType, parameterType)
+                return (candidate, signature)
             }
         } else {
-            false
+            []
         }
+        let hasSourceBackedArrayConstructor: Bool = {
+            if args.count == 1,
+               let calleeName,
+               knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+               !sourceBackedArrayConstructors.isEmpty
+            {
+                let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                return sourceBackedArrayConstructors.contains { _, signature in
+                    guard let parameterType = signature.parameterTypes.first else {
+                        return false
+                    }
+                    return sema.types.isSubtype(argumentType, parameterType)
+                }
+            }
+            return !sourceBackedArrayConstructors.isEmpty
+        }()
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
@@ -1022,7 +1022,13 @@ final class CallTypeChecker {
             )
 
             // Resolve which numeric type this overload targets.
-            let supportedNumericTypes = [sema.types.longType, sema.types.doubleType, sema.types.floatType, sema.types.intType]
+            let resolvedName = interner.resolve(calleeName)
+            let supportedNumericTypes = [
+                sema.types.longType,
+                sema.types.doubleType,
+                sema.types.floatType,
+                sema.types.intType,
+            ] + (resolvedName == "minOf" ? [sema.types.byteType, sema.types.shortType] : [])
             if let resolvedParamType = supportedNumericTypes.first(where: { firstArgType == $0 }) {
                 var shouldUsePrimitiveComparisonFastPath = true
                 if args.count == 3 {
@@ -2108,7 +2114,11 @@ final class CallTypeChecker {
 
         if let calleeName {
             let resolvedName = interner.resolve(calleeName)
-            if let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
+            // mapOf has both fixed-arity and vararg source declarations. Let the
+            // regular resolver distinguish them for non-empty calls instead of
+            // binding the first collection-factory candidate unconditionally.
+            if !(resolvedName == "mapOf" && !args.isEmpty),
+               let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in
                    guard let symbol = ctx.cachedSymbol(candidate) else {

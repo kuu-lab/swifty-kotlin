@@ -115,6 +115,9 @@ public func kk_collection_size(_ collRaw: Int) -> Int {
     if let set = runtimeSetBox(from: collRaw) {
         return set.elements.count
     }
+    if let sourceSize = runtimeSourceCollectionSize(collRaw) {
+        return sourceSize
+    }
     return 0
 }
 
@@ -125,6 +128,20 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
     }
     if let set = runtimeSetBox(from: collRaw) {
         return set.elements.isEmpty ? 1 : 0
+    }
+    if let sourceSize = runtimeSourceCollectionSize(collRaw) {
+        return sourceSize == 0 ? 1 : 0
+    }
+    return 1
+}
+
+@_cdecl("__kk_collection_containsAll")
+public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
+    let iteratorRaw = kk_list_iterator(elementsRaw)
+    while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+        if kk_op_contains(collRaw, kk_list_iterator_next(iteratorRaw)) == 0 {
+            return 0
+        }
     }
     return 1
 }
@@ -235,6 +252,27 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
     return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
 }
 
+/// Builds a mutable map from a vararg Pair array, including a spread argument.
+/// The compiler packs spread varargs before calling this bridge.
+@_cdecl("__kk_map_of_pairs")
+public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
+    var keys: [Int] = []
+    var values: [Int] = []
+    if count > 0, let pairs = runtimeArrayBox(from: pairsArrayRaw) {
+        for pairRaw in pairs.elements.prefix(count) {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: pairRaw),
+                  let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+            else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_map_of_pairs")
+            }
+            keys.append(pairBox.first)
+            values.append(pairBox.second)
+        }
+    }
+    (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
+}
+
 // STDLIB-410: emptyMap<K,V>() - allocates a fresh empty map each call to avoid
 // aliasing with mutable collection operations (e.g., kk_mutable_map_put).
 @_cdecl("__kk_emptyMap")
@@ -322,7 +360,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
 @_cdecl("kk_map_size")
 public func kk_map_size(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMapSize(mapRaw) ?? 0
     }
     return map.keys.count
 }
@@ -371,6 +409,14 @@ public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: Unsa
     return defaultValue
 }
 
+@_cdecl("__kk_map_has_default")
+public func kk_map_has_default(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return 0
+    }
+    return map.defaultValueFnPtr == 0 ? 0 : 1
+}
+
 @_cdecl("__kk_map_withDefault")
 public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -392,6 +438,9 @@ public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
 @_cdecl("kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
+        if let sourceSize = runtimeSourceMapSize(mapRaw) {
+            return kk_box_bool(sourceSize == 0 ? 1 : 0)
+        }
         return kk_box_bool(1)
     }
     return kk_box_bool(map.keys.isEmpty ? 1 : 0)

@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-20
+最終更新: 2026-08-25
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -32,7 +32,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 | Debt | 件数 | 主因 | 優先アクション |
 | --- | ---: | --- | --- |
-| DEBT-DIFF-001 | 19 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）を含む、現行19件 |
+| DEBT-DIFF-001 | 20 | JVM kotlinc reference 不成立（target/classpath/runtime-only） | 2026-07-29 棚卸し完了。当時の19件全件を再ビルドした kswiftc + kotlinc 2.4.10 で再検証し、全件 keep skip 確定（詳細は下記節）。うち serialization 4件は CLEANUP-STUB-121 でケースごと削除し 15件へ。既存の Kotlin/Native Char API ケースと `state_flow_kotlin.kt`、KSP-684 の `top_level_max_min_with.kt`（JVM kotlinc に対象の bundled API がない）、KSP-1421 の `stdlib_kotlin_text_HexFormat_Builder_n_n.kt`（Kotlin 2.3.10 の `@PublishedApi internal` constructor を外部 JVM module から呼べない）を含む、現行20件 |
 | DEBT-DIFF-002 | 0 | script-style top-level execution parity（解消済み） | — |
 | DEBT-DIFF-003 | 0 | advanced coroutine / channel / Flow / structured concurrency | API 領域ごとに STDLIB-CORO / DEBT-CORO へ分割。cancellation 2 件・`channel_basic.kt`・`coroutine_exception_handling.kt`・`coroutine_scope_lifecycle.kt`・structured concurrency / Deferred / Supervisor 3 件・`coroutine_mutex_semaphore.kt`・`coroutine_edge_cases.kt`・`coroutine_channels_advanced.kt`・`coroutine_flow_backpressure.kt` は解除済み。2026-08-14 に現行 master で4ケースと最小回帰ケースを個別再実行し、全て PASS を確認 |
 | DEBT-DIFF-004 | 0 | value class boxing / generics / interface / collection parity（解消済み） | — |
@@ -40,6 +40,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-006 | 0 | type inference / boxed numeric lowering / compiler-plugin API（解消済み、2026-07-29） | — |
 | DEBT-DIFF-007 | 14 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
+| DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -49,7 +50,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 
 `Scripts/diff_kotlinc.sh` の `--kotlinc-classpath` / coroutines jar 自動取得は **reference(kotlinc)側にしか作用しない**。kswiftc は jar/classpath を一切消費しない設計で、`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+Synthetic*.swift` に手書き登録した合成シンボルだけを認識し、対応する Runtime 実装を呼ぶ。したがって candidate 側が特定の Java/Kotlin API を新たに認識するには synthetic stub の実装が要り、jar 注入は原理的に届かない。「dependency injection で実行可能化」できるのは reference 側だけが理由で落ちているケースに限られるが、以下のケースはいずれも candidate 側の未実装、またはテスト内容自体が実 API 呼び出し規約と非互換という、jar 注入では解決しない理由だった。
 
-### 確定した keep skip 一覧(現行17件)
+### 確定した keep skip 一覧(現行18件)
 
 serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_serialization.kt`, `collection_serialization.kt`)は、synthetic stub を除去した CLEANUP-STUB-121 でケースごと削除した(実 kotlinx.serialization の呼び出し規約で書き直す道は取らず、`kotlinx.serialization` サポート自体を target-out とした)。
 
@@ -60,6 +61,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | Kotlin/JS | `js_annotations.kt`, `js_api.kt` | `kotlin.js.*` は JVM kotlinc に存在しない。`error: symbol is declared in module 'kotlin.stdlib' which does not export package 'kotlin.js'` 等で即失敗を確認 | JS/Wasm stub cleanup の target-out backlog と接続する |
 | Runtime-only system API | `system_process_start_nanos.kt` | `System.processStartNanos()` は KSwiftK 独自 API。kotlinc は `unresolved reference` で即失敗を確認 | Runtime unit test または candidate-only smoke に移す |
 | KSwiftK bundled comparisons API | `top_level_max_min_with.kt` | `kotlin.comparisons.maxWith(comparator, a, b)` / `minWith(comparator, a, b)` は KSwiftK の bundled source API で、JVM kotlinc 2.4.10 では `unresolved reference` になる | `ComparisonsTopLevelMaxMinWithFunctionTests` と candidate-only 直接実行を owner とする |
+| Kotlin 2.3.10 bundled HexFormat constructor | `stdlib_kotlin_text_HexFormat_Builder_n_n.kt` | Kotlin 2.3.10 の `HexFormat.Builder` constructor は `@PublishedApi internal` のため、外部 JVM module の kotlinc は direct constructor call を拒否する。KSwiftK 側は focused Sema Golden と candidate-only の直接 `kswiftc` 実行で検証する | KSP-1421 の constructor-only surface。JVM reference 側からの direct call が可能になるまで `SKIP-DIFF` を維持する |
 | Primitive-array bundled HOF | `ksp687_map_not_null.kt` | KSP-687 の primitive-array `mapNotNull` は KSwiftK の bundled source API だが、JVM kotlinc 2.4.10 には対応する primitive-array surface がないため `IntArray.mapNotNull` が `unresolved reference` になる。KSwiftK 側は candidate-only 直接実行と `BuildKIRCodegenRegressionTests.testPrimitiveArrayHOFsRemainBundledSourceCalls` で検証する | JVM reference のAPI追加または専用target runnerが整うまで `SKIP-DIFF` を維持する |
 | JDBC / java.sql | `jdbc_basic.kt`, `prepared_statement_complete.kt`, `resultset_complete.kt`, `connection_validation.kt`, `transaction_management.kt` | **訂正**: 従来「custom jdbc:kswiftk driver をこの runtime が提供する」としていたが誤り。`Sources/` 全体を検索しても `DriverManager` / `java.sql` / `JDBC` / `jdbc:kswiftk` は一件もヒットせず、kswiftc は java.sql.\* を一切実装していない。再検証で `ref_compile_exit=0 / cand_compile_exit=1`(reference は素の JDK `java.sql` で普通にコンパイルが通り、candidate 側が `Unresolved reference 'DriverManager'` で落ちる)ことを確認 — reference 側の問題ではなく candidate 側の未実装機能だった。なお `jdbc_basic.kt` のみ実在し移植可能な `"jdbc:sqlite::memory:"` という URL を使っており(他4件は架空の `"jdbc:kswiftk:memory"`)、将来 JDBC 対応に着手する際の再開候補として最有望 | kswiftc に java.sql.\*(DriverManager/Connection/Statement/PreparedStatement/ResultSet 相当)の synthetic stub と対応する Runtime 実装を追加する大きめの機能追加が前提。実装後は `jdbc_basic.kt` を実 SQLite JDBC driver(`org.xerial:sqlite-jdbc`)の reference 側注入で検証し、他4件は URL を `jdbc:sqlite:` 系に書き換えてから同様に戻す |
 | KMP expect/actual(単一ファイル制約) | `kmp_common.kt` | kotlinc 2.4.10 は `-Xmulti-platform` と `-Xcommon-sources=<file>` を付けても単一ファイル内の expect/actual を `'expect' and 'actual' declarations can be used only in multiplatform projects` / `expect and corresponding actual are declared in the same module` で拒否することを実測で確認した。common ソースと platform ソースを別コンパイル単位にして最終的にリンクする、genuinely 複数回起動する KMP 専用ビルドモデルが必須で、`kotlinc file.kt` 一発では原理的に表現できない。kswiftc 側も独立した expect/actual バグを抱える | harness に「1ファイルを common/platform に分割して2回コンパイル+リンクする」専用 KMP runner を新設しない限り不可能。ROI が低いため現時点では見送り、`Scripts/diff_kotlinc.sh` の対象外に据え置く |
@@ -348,6 +350,18 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | --- | --- |
 | `stdlib_kotlin_n_Number_primitive.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
 | `stdlib_kotlin_n_Number_primitive_generic.kt` | `SKIP-DIFF` 解除、`diff_kotlinc.sh` で real kotlinc と一致確認 |
+
+## DEBT-DIFF-009: script mode 失敗系 exit code 規約差異
+
+`Scripts/diff_kotlinc.sh` の `run_case()` は、`script_*.kt` ケースの reference 側を `kotlinc -script` 一発実行（compile+run が単一 JVM プロセス）にしていたため、そのプロセスの単一 exit code を `ref_compile_exit` / `ref_run_exit` のどちらに振るか「exit != 0 かつ stdout が空なら compile 失敗」というヒューリスティックで推測していた。しかし「出力前に例外を投げるスクリプト」（stdout 空 + exit != 0）は compile 失敗ではなく実行時失敗であり、この場合 candidate（kswiftc）側の compile は正しく成功する（`cand_compile_exit=0`）ため、`ref_compile_exit(推測値) != cand_compile_exit(0)` として「compile exit mismatch」という誤った診断になり、実際の失敗理由（reference 側の stderr にある実行時例外スタックトレース）が `ref_compile_exit -eq 0 && cand_compile_exit -eq 0` を前提にしたレポート出力条件から漏れて一切表示されなかった。
+
+修正: `is_script` の場合は compile/run を分割推測せず、reference 側の単一 exit を丸ごと `ref_run_exit` に格納し、比較ロジックも script 専用の分岐（`ref_run_exit` 対 candidate の合成 exit — 実際に compile が失敗していればその exit、そうでなければ run の exit）に分離した。メッセージも「script exit mismatch」に変更し、`ref script stderr:` として reference 側の実際の stderr を常に表示するようにした。
+
+この修正を診断する過程で、上記ヒューリスティックとは別の、構造的な差異が判明した: `kotlinc -script` は実行時失敗を**常に** exit=3（`SCRIPT_EXECUTION_ERROR`、Kotlin コンパイラの `ExitCode` enum が定義する script runner 固有の規約）として報告するが、kswiftc がコンパイルするネイティブバイナリの未捕捉例外（panic）は exit=1（`KSWIFTK-LINK-0003`）で終了する。これは kswiftc のバグではない — `kotlinc -script` の exit=3 は JVM script エンジン特有の実装詳細であり、同じコードを通常の（非 script）Kotlin プログラムとして実行した場合、JVM の `main()` 内未捕捉例外は exit=1 になる（つまり非 script 経路であれば ref/candidate 両方 exit=1 で一致するはずの状況）。したがって、reference 側が実行時に失敗する `script_*.kt` ケースは、上記の分類修正後であっても exit code 自体が構造的に一致しない。
+
+| case | 結果 |
+| --- | --- |
+| `script_runtime_exception_before_output.kt` | `SKIP-DIFF` — 分類修正の診断に使った最小 repro として保持。`--force-run-skipped` で `script exit mismatch: ref=3 candidate=1` と正しく報告されることを確認済み（旧実装では `compile exit mismatch: ref=3 candidate=0` と誤診断し、stderr も両側空で表示されていた） |
 
 ## 解除手順
 

@@ -264,6 +264,7 @@ struct CollectionLiteralLookupTables {
     var longArrayOfName: InternedString { arrayLookup.longArrayOfName }
     var shortArrayOfName: InternedString { arrayLookup.shortArrayOfName }
     var byteArrayOfName: InternedString { arrayLookup.byteArrayOfName }
+    var ushortArrayOfName: InternedString { arrayLookup.ushortArrayOfName }
     var uintArrayOfName: InternedString { arrayLookup.uintArrayOfName }
     var doubleArrayOfName: InternedString { arrayLookup.doubleArrayOfName }
     var floatArrayOfName: InternedString { arrayLookup.floatArrayOfName }
@@ -277,9 +278,6 @@ struct CollectionLiteralLookupTables {
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
 
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
-    var kkArrayCopyOfNewSizeName: InternedString { arrayLookup.kkArrayCopyOfNewSizeName }
-    var kkArrayCopyOfNewSizeInitName: InternedString { arrayLookup.kkArrayCopyOfNewSizeInitName }
-    var kkArrayCopyOfRangeName: InternedString { arrayLookup.kkArrayCopyOfRangeName }
     var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }

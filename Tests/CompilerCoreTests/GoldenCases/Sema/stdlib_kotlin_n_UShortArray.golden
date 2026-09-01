@@ -4,10 +4,8 @@ symbol fq=__local_2.storage kind=local vis=private flags=_ type=kotlin.ShortArra
 symbol fq=__local_3.storageView kind=local vis=private flags=_ type=kotlin.UShortArray
 symbol fq=__local_4.values kind=local vis=private flags=_ type=kotlin.UShortArray
 symbol fq=golden.sema.main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.ShortArray kind=class vis=public flags=synthetic
+symbol fq=kotlin.ShortArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
-symbol fq=kotlin.UShortArray.size kind=property vis=public flags=synthetic type=Int
-symbol fq=kotlin.UShortArray.toList kind=function vis=public flags=synthetic sig=recv=kotlin.UShortArray params=[] ret=kotlin.collections.List<UShort>
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 file fstdlib_kotlin_n_UShortArray package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
@@ -34,7 +32,7 @@ expr e@8:33 lambda params=[] body=e@8:36#2 label=UShortArray type=(Int) -> UShor
 expr e@8:18 call callee=e@8:18#1 args=[_:e@8:30,_:e@8:33] type=kotlin.UShortArray call=kotlin.UShortArray#1
 expr e@8:5 localDecl values mutable=0 type=_ init=e@8:18 type=Unit ref=__local_4.values
 expr e@9:13 name(empty) type=kotlin.UShortArray ref=__local_0.empty
-expr e@9:13#1 memberCall recv=e@9:13 callee=size args=[] type=Int ref=kotlin.UShortArray.size
+expr e@9:13#1 memberCall recv=e@9:13 callee=size args=[] type=Int call=kotlin.collections.size.$get#12
 expr e@9:5 call callee=e@9:5#1 args=[_:e@9:13#1] type=Unit call=kotlin.io.println#1
 expr e@10:13 name(zeros) type=kotlin.UShortArray ref=__local_1.zeros
 expr e@10:19 int(0) type=Int
@@ -46,5 +44,5 @@ expr e@11:40 int(1) type=Int
 expr e@11:13#2 indexedAccess receiver=e@11:13#1 indices=[e@11:40] type=Short
 expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#2] type=Unit call=kotlin.io.println#1
 expr e@12:13 name(values) type=kotlin.UShortArray ref=__local_4.values
-expr e@12:13#1 memberCall recv=e@12:13 callee=toList args=[] type=kotlin.collections.List<UShort> call=kotlin.UShortArray.toList
+expr e@12:13#1 memberCall recv=e@12:13 callee=toList args=[] type=kotlin.collections.List<UShort> call=kotlin.collections.toList#12
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println#1
