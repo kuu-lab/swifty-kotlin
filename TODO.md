@@ -1179,15 +1179,17 @@
   - 実装済みシンボル一覧:
     - `kotlin.suppressedExceptions` — val Throwable.suppressedExceptions  -- `final val kotlin/suppressedExceptions`
 
-- [ ] KSP-805: kotlin.Any top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-805: kotlin.Any top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.Any` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Any/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Any_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Any_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Any_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 実装シンボル:
     - `kotlin.Any.<init>` — constructor ()  -- `constructor <init>()`
+  - 実装根拠: synthetic `kotlin.Any` に public constructor symbol と two-word nominal layout を登録し、既存の `kk_object_new` allocation path で constructor call を完了する。実装コミットは `49dd15dea`。最小回帰は `stdlib_kotlin_Any_n_n.kt` の distinct allocation/identity checks。
+  - 検証根拠: Sema Golden shard 30/31、個別 diff、Runtime ABI外部リンク4件、`check_todo_ids.sh` が pass。
 
 - [x] KSP-806: kotlin.ArithmeticException top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ArithmeticException` / top-level
