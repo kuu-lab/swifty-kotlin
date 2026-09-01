@@ -338,8 +338,8 @@ extension OverloadResolver {
         // bound (for example `M : MutableMap<in K, in V>`). Resolve the member
         // against that bound so calls such as `destination.put(key, value)`
         // infer the member's class type parameters from the projected bound.
-        // Recursive bounds such as `T : Comparable<T>` must keep the direct
-        // receiver constraint; resolving them through the bound loses T.
+        // Star-projected bounds erase those member type arguments, so preserve
+        // the direct receiver constraint instead of inferring them as Any?.
         if case let .typeParam(typeParam) = typeSystem.kind(of: implicitReceiverType),
            typeVarBySymbol[typeParam.symbol] == nil,
            let symbols = typeSystem.symbolTable
@@ -348,6 +348,7 @@ extension OverloadResolver {
             if !upperBounds.isEmpty,
                upperBounds.allSatisfy({
                    !typeSystem.typeContainsTypeParam($0, symbol: typeParam.symbol)
+                       && !containsStarProjection($0, typeSystem: typeSystem)
                })
             {
                 return upperBounds.flatMap { upperBound in
@@ -368,6 +369,32 @@ extension OverloadResolver {
             typeSystem: typeSystem,
             blameRange: range
         )
+    }
+
+    private func containsStarProjection(_ type: TypeID, typeSystem: TypeSystem) -> Bool {
+        switch typeSystem.kind(of: type) {
+        case let .classType(classType):
+            classType.args.contains { argument in
+                switch argument {
+                case .star:
+                    true
+                case let .invariant(inner), let .out(inner), let .in(inner):
+                    containsStarProjection(inner, typeSystem: typeSystem)
+                }
+            }
+        case let .functionType(functionType):
+            functionType.contextReceivers.contains { containsStarProjection($0, typeSystem: typeSystem) }
+                || functionType.receiver.map { containsStarProjection($0, typeSystem: typeSystem) } == true
+                || functionType.params.contains { containsStarProjection($0, typeSystem: typeSystem) }
+                || containsStarProjection(functionType.returnType, typeSystem: typeSystem)
+                || functionType.throws.contains { containsStarProjection($0, typeSystem: typeSystem) }
+        case let .intersection(parts):
+            parts.contains { containsStarProjection($0, typeSystem: typeSystem) }
+        case let .kClassType(kClassType):
+            containsStarProjection(kClassType.argument, typeSystem: typeSystem)
+        default:
+            false
+        }
     }
 
     private func appendArgumentConstraints(
