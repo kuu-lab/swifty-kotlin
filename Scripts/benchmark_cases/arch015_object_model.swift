@@ -17,21 +17,25 @@ func maxRSS() -> Int64 {
     return Int64(usage.ru_maxrss)
 }
 
+func runRounds(label: String, target: Int, slot: Int) {
+    for round in 0..<5 {
+        let result = elapsed {
+            var checksum = 0
+            for _ in 0..<iterations {
+                checksum ^= kk_vtable_lookup(target, slot)
+            }
+            return checksum
+        }
+        print("\(label) round=\(round) ns=\(result.0) checksum=\(result.1)")
+    }
+}
+
 let baselineRSS = maxRSS()
 let box = kk_object_new(0, 1)
 for slot in 0..<slots {
     _ = kk_object_register_vtable_method(box, slot, 1)
 }
-for round in 0..<5 {
-    let result = elapsed {
-        var checksum = 0
-        for _ in 0..<iterations {
-            checksum ^= kk_vtable_lookup(box, slots - 1)
-        }
-        return checksum
-    }
-    print("box round=\(round) ns=\(result.0) checksum=\(result.1)")
-}
+runRounds(label: "box", target: box, slot: slots - 1)
 
 let functionPointer = UnsafeRawPointer(bitPattern: 1)!
 let offsets = UnsafeMutablePointer<UInt32>.allocate(capacity: 1)
@@ -53,26 +57,14 @@ vtable.initialize(to: functionPointer)
     withUnsafePointer(to: &info) { infoPointer in
         let object = kk_alloc(64, UnsafeRawPointer(infoPointer))
         let raw = Int(bitPattern: object)
-        for round in 0..<5 {
-            let result = elapsed {
-                var checksum = 0
-                for _ in 0..<iterations {
-                    checksum ^= kk_vtable_lookup(raw, 0)
-                }
-                return checksum
-            }
-            print("ktypeinfo round=\(round) ns=\(result.0) checksum=\(result.1)")
-        }
+        runRounds(label: "ktypeinfo", target: raw, slot: 0)
     }
 }
 
 let instances = 2_048
 let methods = 16
-var objects: [Int] = []
-objects.reserveCapacity(instances)
 for _ in 0..<instances {
     let object = kk_object_new(0, 1)
-    objects.append(object)
     for method in 0..<methods {
         _ = kk_object_register_vtable_method(object, method, 1)
     }

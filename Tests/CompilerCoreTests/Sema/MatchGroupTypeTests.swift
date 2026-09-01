@@ -61,6 +61,44 @@ struct MatchGroupTypeTests {
         )
     }
 
+    // KSP-1430: the Native MatchGroup constructor is a public source-backed
+    // primary constructor with exactly (String, IntRange) parameters.
+    @Test func testMatchGroupConstructorHasNativeSignature() throws {
+        let (sema, interner, ctx) = try sharedSema()
+        let matchGroupFQ = ["kotlin", "text", "MatchGroup"].map { interner.intern($0) }
+        let matchGroupSymbol = try #require(sema.symbols.lookup(fqName: matchGroupFQ))
+        let matchGroupType = sema.types.make(.classType(ClassType(
+            classSymbol: matchGroupSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let intRangeFQ = ["kotlin", "ranges", "IntRange"].map { interner.intern($0) }
+        let intRangeSymbol = try #require(sema.symbols.lookup(fqName: intRangeFQ))
+        let intRangeType = sema.types.make(.classType(ClassType(
+            classSymbol: intRangeSymbol,
+            args: [],
+            nullability: .nonNull
+        )))
+
+        let constructors = sema.symbols.lookupAll(
+            fqName: matchGroupFQ + [interner.intern("<init>")]
+        ).filter { sema.symbols.symbol($0)?.kind == .constructor }
+        #expect(constructors.count == 1)
+        let constructor = try #require(constructors.first)
+        let info = try #require(sema.symbols.symbol(constructor))
+        let signature = try #require(sema.symbols.functionSignature(for: constructor))
+
+        #expect(info.visibility == .public)
+        #expect(!info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: constructor) == nil)
+        #expect(sourcePath(for: constructor, sema: sema, ctx: ctx)?.contains("__bundled_kotlin/text/MatchResult.kt") == true)
+        #expect(signature.receiverType == matchGroupType)
+        #expect(signature.parameterTypes == [sema.types.stringType, intRangeType])
+        #expect(signature.returnType == matchGroupType)
+        #expect(signature.valueParameterHasDefaultValues == [false, false])
+        #expect(signature.valueParameterIsVararg == [false, false])
+    }
+
     // MARK: - 2. value / range are plain source properties (no runtime link)
 
     @Test func testMatchGroupPropertiesAreSourceBacked() throws {

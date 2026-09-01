@@ -36,6 +36,7 @@ extension CallLowerer {
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
+        "shuffled",
         "distinct", "distinctBy", "count",
     ]
 
@@ -143,6 +144,23 @@ extension CallLowerer {
             if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
                 return true
             }
+            if interner.resolve(calleeName) == "zip" {
+                guard let firstArgument = args.first,
+                      let firstArgumentType = sema.bindings.exprTypes[firstArgument.expr]
+                else {
+                    return false
+                }
+                // KSP-999: only the Array overload is fully source-backed. The
+                // existing Iterable overload intentionally keeps its shared runtime
+                // bridge for now. Inspect the bound argument rather than the
+                // generic declaration signature so Array<out R> remains visible
+                // after overload substitution.
+                return isGenericKotlinArrayType(
+                    sema.types.makeNonNullable(firstArgumentType),
+                    sema: sema,
+                    interner: interner
+                )
+            }
             let sourceBackedListSearchNames: Set<String> = [
                 "find", "findLast", "indexOf", "indexOfFirst", "indexOfLast",
                 "lastIndexOf", "contains", "containsAll", "any", "all", "none",
@@ -158,10 +176,10 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
-        // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
-        // When Sema resolves the call to that source declaration, skip the legacy
-        // kk_array_copyOf* interception below so the resolved symbol is emitted.
+        // KSP-1515: Array copy APIs now have bundled Kotlin source implementations
+        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt). When Sema resolves
+        // the call to one of those declarations, skip the legacy copy interception
+        // below so the resolved source symbol is emitted.
         let isSourceBackedArrayCopyCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -449,6 +467,7 @@ extension CallLowerer {
         if let storedMemberProperty = tryLowerStoredMemberPropertyRead(
             exprID,
             loweredReceiverID: loweredReceiverID,
+            receiverExpr: receiverExpr,
             args: args,
             ast: ast,
             sema: sema,
@@ -805,12 +824,10 @@ extension CallLowerer {
             case ("toInt", byteType, intType): nil // identity
             case ("toInt", shortType, intType): nil // identity
             case ("toInt", intType, intType): nil // identity
-            case ("toChar", intType, charType): interner.intern("kk_int_to_char")
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
-            case ("toUInt", charType, uintType): interner.intern("kk_char_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
@@ -820,7 +837,6 @@ extension CallLowerer {
             case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
             case ("toLong", doubleType, longType): interner.intern("__kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("__kk_float_to_long")
-            case ("toLong", charType, longType): interner.intern("kk_char_to_long")
             case ("toLong", byteType, longType): nil // identity
             case ("toLong", shortType, longType): nil // identity
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
@@ -829,7 +845,6 @@ extension CallLowerer {
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
             case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
             case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
-            case ("toULong", charType, ulongType): interner.intern("kk_char_to_ulong")
             case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", ulongType, ulongType): nil // identity
@@ -839,7 +854,6 @@ extension CallLowerer {
             case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", doubleType, floatType): interner.intern("kk_double_to_float")
             case ("toFloat", floatType, floatType): nil // identity
-            case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", byteType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", shortType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
@@ -895,7 +909,9 @@ extension CallLowerer {
                     || (calleeStr == "toInt" && nonNullReceiverType == charType && nonNullResultType == intType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
-            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toUByte", "toUShort", "toChar"].contains(calleeStr),
+            // Short.toShort() has no runtime callee; keep the identity conversion
+            // from falling through to generic member emission as the raw `toShort` symbol.
+            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toShort", "toUByte", "toUShort", "toChar"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
                nonNullReceiverType == intType || nonNullReceiverType == longType
                || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
@@ -1240,7 +1256,6 @@ extension CallLowerer {
                 let flatMapIndexedName = interner.intern("flatMapIndexed")
                 let takeLastWhileName = interner.intern("takeLastWhile")
                 let sortedByName = interner.intern("sortedBy")
-                let sortedWithName = interner.intern("sortedWith")
                 let sortedByDescendingName = interner.intern("sortedByDescending")
                 let firstNotNullOfName = interner.intern("firstNotNullOf")
                 let firstNotNullOfOrNullName = interner.intern("firstNotNullOfOrNull")
@@ -1271,8 +1286,6 @@ extension CallLowerer {
                     runtimeCallee = "kk_sequence_takeLastWhile"
                 } else if calleeName == sortedByName {
                     runtimeCallee = "kk_sequence_sortedBy"
-                } else if calleeName == sortedWithName {
-                    runtimeCallee = "kk_sequence_sortedWith"
                 } else if calleeName == sortedByDescendingName {
                     runtimeCallee = "kk_sequence_sortedByDescending"
                 } else if calleeName == firstNotNullOfName {
@@ -1388,7 +1401,6 @@ extension CallLowerer {
                 }
                 if let runtimeCallee {
                     let canThrow = runtimeCallee == "kk_sequence_sortedBy"
-                        || runtimeCallee == "kk_sequence_sortedWith"
                         || runtimeCallee == "kk_sequence_sortedByDescending"
                         || runtimeCallee == "kk_sequence_takeLastWhile"
                         || runtimeCallee == "kk_sequence_firstNotNullOf"
@@ -1645,74 +1657,6 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall,
-               interner.resolve(calleeName) == "copyOf"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_copyOf_newSize"),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        if args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall {
-                if interner.resolve(calleeName) == "copyOf" {
-                    let fnPtrExpr: KIRExprID
-                    let envPtrExpr: KIRExprID
-                    if normalizedArgIDs.count >= 3 {
-                        fnPtrExpr = normalizedArgIDs[1]
-                        envPtrExpr = normalizedArgIDs[2]
-                    } else {
-                        let split = splitCallableLambdaArgument(
-                            normalizedArgIDs[1],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        fnPtrExpr = split.fnPtrExpr
-                        envPtrExpr = split.envPtrExpr
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOf_newSize_init"),
-                        arguments: [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if interner.resolve(calleeName) == "copyOfRange" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOfRange"),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: true,
-                        thrownResult: arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
-                        )
-                    ))
-                    return result
-                }
-            }
-        }
-
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
 
         // KSP-307: ListWindowChunk public functions are source-backed, but codegen
@@ -1858,9 +1802,9 @@ extension CallLowerer {
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":
-                    "kk_array_copyOf"
+                    "__kk_array_copyOf"
                 case "copyOf":
-                    isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
+                    isSourceBackedArrayCopyCall ? nil : "__kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
                 default:

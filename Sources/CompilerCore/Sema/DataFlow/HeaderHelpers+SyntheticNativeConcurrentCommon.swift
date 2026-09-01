@@ -47,20 +47,6 @@ extension DataFlowSemaPhase {
         return enumSymbol
     }
 
-    func setNativeConcurrentEnumEntryTypes(
-        enumSymbol: SymbolID,
-        enumType: TypeID,
-        symbols: SymbolTable
-    ) {
-        guard let enumInfo = symbols.symbol(enumSymbol) else { return }
-        for child in symbols.children(ofFQName: enumInfo.fqName) {
-            guard let childInfo = symbols.symbol(child), childInfo.kind == .field else { continue }
-            if symbols.propertyType(for: child) == nil {
-                symbols.setPropertyType(enumType, for: child)
-            }
-        }
-    }
-
     func registerNativeConcurrentMemberFunction(
         ownerSymbol: SymbolID,
         ownerType: TypeID,
@@ -137,6 +123,8 @@ extension DataFlowSemaPhase {
         ownerSymbol: SymbolID,
         ownerType: TypeID,
         externalLinkName: String? = nil,
+        visibility: Visibility = .public,
+        annotations: [MetadataAnnotationRecord] = [],
         parameters: [(name: String, type: TypeID)],
         defaultValues: [Bool],
         typeParameterSymbols: [SymbolID] = [],
@@ -164,7 +152,7 @@ extension DataFlowSemaPhase {
             name: initName,
             fqName: constructorFQName,
             declSite: nil,
-            visibility: .public,
+            visibility: visibility,
             flags: [.synthetic]
         )
         symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
@@ -201,6 +189,7 @@ extension DataFlowSemaPhase {
             ),
             for: constructorSymbol
         )
+        appendNativeConcurrentMetadataAnnotations(annotations, to: constructorSymbol, symbols: symbols)
     }
 
     func nativeConcurrentClassType(

@@ -24,14 +24,7 @@ struct BackendDriverOutputTests {
             let exitCode = makeTestDriver().run(options: options)
             #expect(exitCode == 0)
             let data = try Data(contentsOf: outputURL)
-            #expect(data.count >= 4)
-            #if os(Linux)
-                // ELF magic number
-                #expect(Array(data.prefix(4)) == [0x7F, 0x45, 0x4C, 0x46])
-            #else
-                // Mach-O magic number
-                #expect(Array(data.prefix(4)) == [0xCF, 0xFA, 0xED, 0xFE])
-            #endif
+            assertIsNativeObjectFile(data)
         }
     }
 
@@ -99,14 +92,7 @@ struct BackendDriverOutputTests {
             #expect(result.exitCode == 0)
             #expect(!result.diagnostics.contains(where: { $0.severity == .error }))
             let data = try Data(contentsOf: URL(fileURLWithPath: objectPath))
-            #expect(data.count >= 4)
-            #if os(Linux)
-                // ELF magic number
-                #expect(Array(data.prefix(4)) == [0x7F, 0x45, 0x4C, 0x46])
-            #else
-                // Mach-O magic number
-                #expect(Array(data.prefix(4)) == [0xCF, 0xFA, 0xED, 0xFE])
-            #endif
+            assertIsNativeObjectFile(data)
         }
     }
 }
