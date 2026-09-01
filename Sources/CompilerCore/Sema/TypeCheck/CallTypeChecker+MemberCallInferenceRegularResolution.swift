@@ -1849,7 +1849,8 @@ extension CallTypeChecker {
     ) -> Bool {
         switch interner.resolve(calleeName) {
         case "contains", "isEmpty", "iterator",
-             "toList", "forEach", "map", "filter",
+             "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+             "filter", "filterIndexed", "filterNot",
              "take", "drop", "sorted", "average", "random", "randomOrNull":
             return true
         default:
@@ -1980,16 +1981,17 @@ extension CallTypeChecker {
             interner.intern("kotlin"),
             interner.intern("ranges"),
         ]
-        guard let rangesPackageSymbol = sema.symbols.lookup(fqName: rangesFQName) else {
-            return []
-        }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
+        // Source-backed range extensions keep a kotlin.ranges FQN but are
+        // parented by their receiver class, so match the declaration FQN and
+        // source-backed status instead of the package symbol.
         return sema.symbols.lookupAll(fqName: rangesFQName + [calleeName])
             .filter { candidate in
                 guard let symbol = sema.symbols.symbol(candidate),
                       symbol.kind == .function,
                       !symbol.flags.contains(.synthetic),
-                      sema.symbols.parentSymbol(for: candidate) == rangesPackageSymbol,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      symbol.fqName == rangesFQName + [calleeName],
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let declaredReceiver = signature.receiverType
                 else {
