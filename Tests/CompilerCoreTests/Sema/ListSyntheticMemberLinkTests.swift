@@ -2561,10 +2561,17 @@ struct ListSyntheticMemberLinkTests {
             let iterableSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterable")]))
             let iteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")]))
             let mutableIteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")]))
+            let mutableIteratorInfo = try #require(sema.symbols.symbol(mutableIteratorSymbol))
+            // KSP-943: MutableIterator is backed by bundled Kotlin source while
+            // the synthetic shell remains available for non-bundled contexts.
+            #expect(!mutableIteratorInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.sourceFileID(for: mutableIteratorSymbol) == ctx.sourceManager.fileID(forPath: "__bundled_kotlin/collections/MutableIterator.kt"))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableIteratorSymbol) == [.out])
             #expect(sema.symbols.directSupertypes(for: mutableIteratorSymbol).contains(iteratorSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: mutableIteratorSymbol, supertype: iteratorSymbol).count == 1)
             let removeSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator"), ctx.interner.intern("remove")]))
+            let removeInfo = try #require(sema.symbols.symbol(removeSymbol))
+            #expect(!removeInfo.flags.contains(.synthetic))
             let removeSignature = try #require(sema.symbols.functionSignature(for: removeSymbol))
             #expect(removeSignature.parameterTypes.isEmpty)
             #expect(removeSignature.returnType == sema.types.unitType)
