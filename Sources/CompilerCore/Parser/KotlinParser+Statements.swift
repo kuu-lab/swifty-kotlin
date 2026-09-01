@@ -28,7 +28,14 @@ extension KotlinParser {
                 atBlockStart = false
                 continue
             }
-            if isDeclarationStart(token.kind), !isObjectExpressionStart(token), hasLeadingNewline(token) || atBlockStart {
+            // A `;` is an explicit statement separator, so a declaration-start
+            // token right after one is always a fresh declaration — even when
+            // it shares a physical line with the statement that preceded the
+            // `;` (e.g. `val y = 1; @Anno constructor() : this(0)`).
+            let precededBySemicolon = lastConsumedToken?.kind == .symbol(.semicolon)
+            if isDeclarationStart(token.kind), !isObjectExpressionStart(token),
+               hasLeadingNewline(token) || atBlockStart || precededBySemicolon
+            {
                 children.append(.node(parseDeclaration()))
                 atBlockStart = false
             } else if !shouldStopStatementBefore(token, inBlock: true) {
