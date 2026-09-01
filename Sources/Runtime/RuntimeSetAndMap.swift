@@ -230,8 +230,12 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
 
 // MARK: - Map Functions (STDLIB-001)
 
-@_cdecl("__kk_map_of")
-public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+private func runtimeMapOf(
+    keysArrayRaw: Int,
+    valuesArrayRaw: Int,
+    count: Int,
+    typeID: Int64
+) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
     if count > 0, let arrays = runtimeMapArrayPair(keysRaw: keysArrayRaw, valuesRaw: valuesArrayRaw) {
@@ -242,7 +246,27 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: typeID)
+}
+
+@_cdecl("__kk_map_of")
+public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: mutableMapRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_hash_map_of")
+public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: hashMapRuntimeTypeID
+    )
 }
 
 /// Builds a mutable map from a vararg Pair array, including a spread argument.

@@ -2214,17 +2214,30 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             case "HashMap", "LinkedHashMap":
-                let keyType = explicitTypeArgs.first ?? expectedCollectionArgs.first ?? sema.types.anyType
+                let inferredMapTypes = inferMapTypeArgumentsFromConstructorArgument(from: argTypes, ctx: ctx)
+                let keyType = explicitTypeArgs.first
+                    ?? expectedCollectionArgs.first
+                    ?? inferredMapTypes?.keyType
+                    ?? sema.types.anyType
                 let valueType = explicitTypeArgs.dropFirst().first
                     ?? expectedCollectionArgs.dropFirst().first
+                    ?? inferredMapTypes?.valueType
                     ?? sema.types.anyType
-                let resultType = makeSyntheticMutableMapType(
-                    symbols: sema.symbols,
-                    types: sema.types,
-                    interner: interner,
-                    keyType: keyType,
-                    valueType: valueType
-                )
+                let resultType = resolvedName == "HashMap"
+                    ? makeSourceBackedHashMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                    : makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
                 sema.bindings.markCollectionExpr(id)
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
