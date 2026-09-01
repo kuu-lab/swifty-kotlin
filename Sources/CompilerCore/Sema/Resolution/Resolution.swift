@@ -334,16 +334,22 @@ extension OverloadResolver {
         // Use decomposeSubtypeConstraint to properly extract type variables
         // from generic receiver types (e.g. Class<T>) so the solver can
         // infer type arguments from projected receivers (e.g. Class<out Any>).
-        // A receiver can itself be a type parameter with an upper bound (for
-        // example `M : MutableMap<in K, in V>`). Resolve the member against
-        // that bound so calls such as `destination.put(key, value)` infer the
-        // member's class type parameters from the projected bound.
+        // A receiver can itself be a type parameter with a non-recursive upper
+        // bound (for example `M : MutableMap<in K, in V>`). Resolve the member
+        // against that bound so calls such as `destination.put(key, value)`
+        // infer the member's class type parameters from the projected bound.
+        // Recursive bounds such as `T : Comparable<T>` must keep the direct
+        // receiver constraint; resolving them through the bound loses T.
         if case let .typeParam(typeParam) = typeSystem.kind(of: implicitReceiverType),
            typeVarBySymbol[typeParam.symbol] == nil,
            let symbols = typeSystem.symbolTable
         {
             let upperBounds = symbols.typeParameterUpperBounds(for: typeParam.symbol)
-            if !upperBounds.isEmpty {
+            if !upperBounds.isEmpty,
+               upperBounds.allSatisfy({
+                   !typeSystem.typeContainsTypeParam($0, symbol: typeParam.symbol)
+               })
+            {
                 return upperBounds.flatMap { upperBound in
                     decomposeSubtypeConstraint(
                         subtype: upperBound,
