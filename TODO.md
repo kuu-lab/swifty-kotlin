@@ -556,7 +556,7 @@
   - diff: `uint_range_hof*.kt` 既存 + `mapNotNull`/`filterIndexed` ケース
   - 前提: KSP-1523
 
-- [ ] KSP-1526: `UIntRange` の fold / reduce / forEach / 述語検索 HOF を Kotlin 化する
+- [x] KSP-1526: `UIntRange` の fold / reduce / forEach / 述語検索 HOF を Kotlin 化する
   - 対象スタブ: 同上（`kk_uint_range_*` 動的生成 + unsigned range メンバ登録）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
   - 削除/降格 kk_*: `kk_uint_range_fold`, `_foldIndexed`, `_reduce`, `_reduceIndexed`, `_forEach`, `_any`, `_all`, `_none`, `_find`, `_findLast`, `_first_predicate`, `_firstOrNull_predicate`, `_last_predicate`, `_lastOrNull_predicate`（14件）
