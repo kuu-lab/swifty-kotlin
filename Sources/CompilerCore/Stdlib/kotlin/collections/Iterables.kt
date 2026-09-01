@@ -1,6 +1,9 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
+import kotlin.comparisons.reverseOrder
 import kotlin.internal.__valuesEqual
+import kotlin.random.Random
 
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
@@ -59,6 +62,32 @@ public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
         second.add(pair.second)
     }
     return Pair(first, second)
+}
+
+public fun <T> Iterable<T>.shuffled(): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = Random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.shuffled(random: Random): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
 }
 
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
@@ -223,6 +252,84 @@ public fun <T> Iterable<T>.last(): T {
     return last as T
 }
 
+// KSP-965: numeric Iterable averages are source-backed and preserve iterator order.
+private fun checkAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+@kotlin.jvm.JvmName("averageOfByte")
+public fun Iterable<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfShort")
+public fun Iterable<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfInt")
+public fun Iterable<Int>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfLong")
+public fun Iterable<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfFloat")
+public fun Iterable<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfDouble")
+public fun Iterable<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
 @Suppress("UNCHECKED_CAST")
 public inline fun <T> Iterable<T>.last(predicate: (T) -> Boolean): T {
     var last: T? = null
@@ -269,6 +376,19 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
         if (predicate(element)) result.add(element)
     }
     return result
+}
+
+public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
+    val first = ArrayList<T>()
+    val second = ArrayList<T>()
+    for (element in this) {
+        if (predicate(element)) {
+            first.add(element)
+        } else {
+            second.add(element)
+        }
+    }
+    return Pair(first, second)
 }
 
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
@@ -569,6 +689,84 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
         i -= 1
     }
     return accumulator
+}
+
+// KSP-993: Iterable sorting remains source-backed and materializes exactly
+// once before applying stable in-place sorting to the mutable result.
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
+    return sortedWith(reverseOrder())
+}
+
+public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (comparator.compare(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
 }
 
 public fun <T> Iterable<T>.joinToString(
