@@ -1,5 +1,4 @@
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
-symbol fq=kotlin.Array.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.enums.EnumEntries kind=interface vis=public flags=synthetic
 symbol fq=kotlin.native.OsFamily.Companion.entries kind=property vis=public flags=synthetic|static type=kotlin.enums.EnumEntries<kotlin.native.OsFamily>
 symbol fq=kotlin.native.OsFamily.Companion.valueOf kind=function vis=public flags=synthetic|static sig=recv=kotlin.native.OsFamily.Companion params=[String] ret=kotlin.native.OsFamily
@@ -14,7 +13,7 @@ expr e@6:13#2 memberCall recv=e@6:13#1 callee=size args=[] type=Int ref=kotlin.c
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13#2] type=Unit call=kotlin.io.println#1
 expr e@7:13 name(OsFamily) type=kotlin.native.OsFamily ref=kotlin.native.OsFamily
 expr e@7:13#1 memberCall recv=e@7:13 callee=values args=[] type=kotlin.Array<kotlin.native.OsFamily> ref=kotlin.native.OsFamily.values call=kotlin.native.OsFamily.values
-expr e@7:13#2 memberCall recv=e@7:13#1 callee=size args=[] type=Int ref=kotlin.Array.size
+expr e@7:13#2 memberCall recv=e@7:13#1 callee=size args=[] type=Int call=kotlin.collections.size.$get#0
 expr e@7:5 call callee=e@7:5#1 args=[_:e@7:13#2] type=Unit call=kotlin.io.println#1
 expr e@8:13 name(OsFamily) type=kotlin.native.OsFamily.Companion ref=kotlin.native.OsFamily
 expr e@8:30 string(TVOS) type=String
