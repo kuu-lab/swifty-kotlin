@@ -2878,7 +2878,7 @@
     - `kotlin.collections.associateWith` — fun Iterable.associateWith(Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/associateWith(kotlin/Function1<#A, #B>): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.associateWithTo` — fun Iterable.associateWithTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/associateWithTo(#C, kotlin/Function1<#A, #B>): #C`
 
-- [ ] KSP-965: kotlin.collections.Iterable.average-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-965: kotlin.collections.Iterable.average-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `average`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
