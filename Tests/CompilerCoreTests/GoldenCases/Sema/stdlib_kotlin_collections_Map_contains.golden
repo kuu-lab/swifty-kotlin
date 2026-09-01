@@ -28,7 +28,7 @@ expr e@9:40#1 memberCall recv=e@9:40 callee=to args=[_:e@9:53] type=kotlin.Pair<
 expr e@9:59 string(number) type=String
 expr e@9:71 int(1) type=Int
 expr e@9:59#1 memberCall recv=e@9:59 callee=to args=[_:e@9:71] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@9:34 call callee=e@9:34#1 args=[_:e@9:40#1,_:e@9:59#1] type=kotlin.collections.Map<String, Int?> call=kotlin.collections.mapOf#1 targs=[String,Int?]
+expr e@9:34 call callee=e@9:34#1 args=[_:e@9:40#1,_:e@9:59#1] type=kotlin.collections.Map<String, Int?> call=kotlin.collections.mapOf#2 targs=[String,Int?]
 expr e@9:5 localDecl map mutable=0 type=Map<String,Int?> init=e@9:34 type=Unit ref=__local_0.map
 expr e@10:13 string(present) type=String
 expr e@10:26 name(map) type=kotlin.collections.Map<String, Int?> ref=__local_0.map
@@ -60,7 +60,7 @@ expr e@17:49#1 memberCall recv=e@17:49 callee=to args=[_:e@17:57] type=kotlin.Pa
 expr e@17:63 string(value) type=String
 expr e@17:74 int(2) type=Int
 expr e@17:63#1 memberCall recv=e@17:63 callee=to args=[_:e@17:74] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@17:43 call callee=e@17:43#1 args=[_:e@17:49#1,_:e@17:63#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf#1 targs=[String?,Int?]
+expr e@17:43 call callee=e@17:43#1 args=[_:e@17:49#1,_:e@17:63#1] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf#2 targs=[String?,Int?]
 expr e@17:5 localDecl nullableMap mutable=0 type=Map<String?,Int?> init=e@17:43 type=Unit ref=__local_1.nullableMap
 expr e@18:32 name(null) type=Nothing?
 expr e@18:5 localDecl nullableKey mutable=0 type=String? init=e@18:32 type=Unit ref=__local_2.nullableKey
@@ -80,7 +80,7 @@ expr e@23:60 int(7) type=Int
 expr e@23:51 call callee=e@23:51#1 args=[_:e@23:60] type=EqualKey call=EqualKey.<init>
 expr e@23:66 name(null) type=Nothing?
 expr e@23:51#2 memberCall recv=e@23:51 callee=to args=[_:e@23:66] type=kotlin.Pair<EqualKey, Nothing?> call=kotlin.to targs=[EqualKey,Nothing?]
-expr e@23:45 call callee=e@23:45#1 args=[_:e@23:51#2] type=kotlin.collections.Map<EqualKey, String?> call=kotlin.collections.mapOf#1 targs=[EqualKey,String?]
+expr e@23:45 call callee=e@23:45#1 args=[_:e@23:51#2] type=kotlin.collections.Map<EqualKey, Nothing?> call=kotlin.collections.mapOf#1 targs=[EqualKey,Nothing?]
 expr e@23:5 localDecl equalKeys mutable=0 type=Map<EqualKey,String?> init=e@23:45 type=Unit ref=__local_3.equalKeys
 expr e@24:22 int(7) type=Int
 expr e@24:13 call callee=e@24:13#1 args=[_:e@24:22] type=EqualKey call=EqualKey.<init>
@@ -95,7 +95,7 @@ expr e@25:5 call callee=e@25:5#1 args=[_:e@25:13#1] type=Unit call=kotlin.io.pri
 expr e@27:46 int(1) type=Int
 expr e@27:51 name(null) type=Nothing?
 expr e@27:46#1 memberCall recv=e@27:46 callee=to args=[_:e@27:51] type=kotlin.Pair<Int, Nothing?> call=kotlin.to targs=[Int,Nothing?]
-expr e@27:40 call callee=e@27:40#1 args=[_:e@27:46#1] type=kotlin.collections.Map<Int, String?> call=kotlin.collections.mapOf#1 targs=[Int,String?]
+expr e@27:40 call callee=e@27:40#1 args=[_:e@27:46#1] type=kotlin.collections.Map<Int, Nothing?> call=kotlin.collections.mapOf#1 targs=[Int,Nothing?]
 expr e@27:5 localDecl boxedKeys mutable=0 type=Map<Int,String?> init=e@27:40 type=Unit ref=__local_4.boxedKeys
 expr e@28:13 int(1) type=Int
 expr e@28:18 name(boxedKeys) type=kotlin.collections.Map<Int, String?> ref=__local_4.boxedKeys
