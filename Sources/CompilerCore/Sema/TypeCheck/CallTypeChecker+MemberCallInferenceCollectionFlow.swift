@@ -1936,11 +1936,10 @@ extension CallTypeChecker {
                                 overrideTypeArguments: [collectionElementType]
                             )
                         } else if bindBundledIterableSourceFunction(typeArguments: [collectionElementType]),
-                                  let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
-                            // KSP-626: bundled Iterable<T>.withIndex() materialises a List.
+                                  let iterableSymbol = lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner) {
                             resultType = sema.types.make(.classType(ClassType(
-                                classSymbol: listSymbol,
-                                args: [.invariant(indexedValueType)],
+                                classSymbol: iterableSymbol,
+                                args: [.out(indexedValueType)],
                                 nullability: .nonNull
                             )))
                         } else if let iterableSymbol = lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner) {
@@ -2090,7 +2089,7 @@ extension CallTypeChecker {
                         _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     }
                     if calleeStr == "withIndex", !isSequenceReceiver {
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {

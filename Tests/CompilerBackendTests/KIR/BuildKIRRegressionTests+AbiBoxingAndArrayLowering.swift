@@ -198,6 +198,33 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    /// KSP-998: Iterable.withIndex() returns the source-backed lazy wrapper;
+    /// acquiring its iterator must stay on the throwing Iterable bridge rather
+    /// than the eager List or legacy range bridge.
+    @Test
+    func testBuildKIRLowersIterableWithIndexToLazyIterableIteratorBridge() throws {
+        let source = """
+        fun main(values: Iterable<Int>) {
+            val indexed: Iterable<IndexedValue<Int>> = values.withIndex()
+            indexed.iterator()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(containsKotlinCallee("withIndex", in: callNames))
+            #expect(callNames.contains("kk_iterable_iterator"), "Iterable.iterator() must use the lazy throwing bridge, got: \(callNames)")
+            #expect(!(callNames.contains("kk_list_withIndex")))
+            #expect(!(callNames.contains("kk_range_iterator")))
+        }
+    }
+
     @Test
     func testBuildKIRLowersListZipToPrivateBridge() throws {
         let source = """
