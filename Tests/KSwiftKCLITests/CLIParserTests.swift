@@ -164,6 +164,28 @@ struct CLIParserTests {
     }
 
     @Test
+    func parsesStdlibFromSourceDebugFallback() throws {
+        let options = try CLIParser.parse(args: ["--stdlib-from-source", "main.kt"])
+
+        #expect(options.allowDefaultStdlibLibrary == false)
+        #expect(options.includeStdlib)
+        #expect(options.stdlibLibraryPath == nil)
+    }
+
+    @Test
+    func rejectsStdlibLibraryWithSourceFallback() {
+        #expect(throws: CLIParseError.incompatibleStdlibOptions(
+            "--stdlib-library cannot be combined with --stdlib-from-source"
+        )) {
+            try CLIParser.parse(args: [
+                "--stdlib-library", "/tmp/KSwiftKStdlib.kklib",
+                "--stdlib-from-source",
+                "main.kt",
+            ])
+        }
+    }
+
+    @Test
     func rejectsStdlibOnlyWithInput() {
         #expect(throws: CLIParseError.incompatibleStdlibOptions("--stdlib-only cannot be combined with input files")) {
             try CLIParser.parse(args: ["--stdlib-only", "main.kt"])

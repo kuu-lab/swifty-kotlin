@@ -12,10 +12,10 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.Annotation` interface, set during registration.
     public internal(set) var annotationInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the `kotlin.AutoCloseable` interface, set during registration.
+    /// The symbol ID of the source-backed `kotlin.AutoCloseable` interface.
     public internal(set) var closeableInterfaceSymbol: SymbolID?
 
-    /// The symbol ID of the `kotlin.io.Closeable` interface, set during registration.
+    /// The symbol ID of the source-backed `kotlin.io.Closeable` interface.
     /// Used to register synthetic IO nominals as subtypes of `Closeable` (which itself
     /// extends `AutoCloseable`) so that user code can assign a stream/reader to a
     /// `Closeable`-typed variable while `.use {}` lowering resolves `close()` from
@@ -25,7 +25,7 @@ public final class TypeSystem {
     /// The symbol ID of the synthetic `kotlin.CharSequence` interface, set during registration.
     public internal(set) var charSequenceInterfaceSymbol: SymbolID?
 
-    /// Cached TypeID for `kotlin.AutoCloseable` (non-null), set alongside `closeableInterfaceSymbol`.
+    /// Cached TypeID for source-backed `kotlin.AutoCloseable` (non-null).
     /// Avoids repeated `make(...)` allocations on the hot path in `isCloseableReceiver`.
     public internal(set) var closeableTypeID: TypeID?
 
@@ -62,6 +62,10 @@ public final class TypeSystem {
     /// hashCode/equals member declarations). Same disguise-vs-canonical-`anyType` situation
     /// as `stringClassSymbol`.
     public internal(set) var anyClassSymbol: SymbolID?
+
+    /// The source-backed `kotlin.Unit` object symbol used to resolve members on
+    /// the builtin Unit value representation.
+    public internal(set) var unitClassSymbol: SymbolID?
 
 
     /// Symbol table reference for SAM (fun interface) subtyping. Set during DataFlowSemaPhase.

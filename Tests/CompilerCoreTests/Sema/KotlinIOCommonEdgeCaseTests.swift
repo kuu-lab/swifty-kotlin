@@ -529,6 +529,7 @@ struct KotlinIOCommonEdgeCaseTests {
         let autoCloseableFQN = kotlinFQN + [interner.intern("AutoCloseable")]
         let symbol = try #require(sema.symbols.lookup(fqName: autoCloseableFQN), "kotlin.AutoCloseable should be registered as a source-backed interface symbol")
         #expect(sema.symbols.symbol(symbol)?.kind == .interface, "kotlin.AutoCloseable should be an interface symbol")
+        #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false, "kotlin.AutoCloseable should not be a synthetic fallback")
     }
 
 
@@ -558,6 +559,60 @@ struct KotlinIOCommonEdgeCaseTests {
         }
         let symbol = try #require(functionSymbol, "kotlin.AutoCloseable factory should be registered")
         #expect(sema.symbols.externalLinkName(for: symbol) == "__kk_auto_closeable_create")
+        #expect(
+            sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false,
+            "kotlin.AutoCloseable factory should be the source-backed declaration"
+        )
+    }
+
+
+    @Test
+    func testBothCloseableUseOverloadsAreSourceBacked() throws {
+        let ctx = try sharedIOCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+
+        let rootUse = try #require(
+            sema.symbols.lookup(fqName: [interner.intern("kotlin"), interner.intern("use")]),
+            "kotlin.use should be registered"
+        )
+        let ioUse = try #require(
+            sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("io"),
+                interner.intern("use"),
+            ]),
+            "kotlin.io.use should be registered"
+        )
+
+        #expect(sema.symbols.symbol(rootUse)?.kind == .function)
+        #expect(sema.symbols.symbol(ioUse)?.kind == .function)
+        #expect(sema.symbols.symbol(rootUse)?.flags.contains(.synthetic) == false)
+        #expect(sema.symbols.symbol(ioUse)?.flags.contains(.synthetic) == false)
+    }
+
+    @Test
+    func testAutoCloseableCloseFinallyIsSourceBackedInternalNullableExtension() throws {
+        let ctx = try sharedIOCtx()
+        let sema = try #require(ctx.sema)
+        let interner = ctx.interner
+        let closeFinallyFQName = [interner.intern("kotlin"), interner.intern("closeFinally")]
+        let symbol = try #require(
+            sema.symbols.lookupAll(fqName: closeFinallyFQName).first(where: { candidate in
+                sema.symbols.isSourceBackedSymbol(candidate)
+                    && sema.symbols.functionSignature(for: candidate)?.receiverType != nil
+            }),
+            "kotlin.closeFinally should be a source-backed extension"
+        )
+        let info = try #require(sema.symbols.symbol(symbol))
+        let signature = try #require(sema.symbols.functionSignature(for: symbol))
+        let receiverType = try #require(signature.receiverType)
+
+        #expect(info.visibility == .internal)
+        #expect(sema.types.nullability(of: receiverType) == .nullable)
+        #expect(signature.parameterTypes.count == 1)
+        #expect(sema.types.nullability(of: signature.parameterTypes[0]) == .nullable)
+        #expect(signature.returnType == sema.types.unitType)
     }
 
 
@@ -574,6 +629,7 @@ struct KotlinIOCommonEdgeCaseTests {
         let closeableFQN = kotlinIOFQN + [interner.intern("Closeable")]
         let symbol = try #require(sema.symbols.lookup(fqName: closeableFQN), "kotlin.io.Closeable should be registered as an interface symbol")
         #expect(sema.symbols.symbol(symbol)?.kind == .interface, "kotlin.io.Closeable should be an interface symbol")
+        #expect(sema.symbols.symbol(symbol)?.flags.contains(.synthetic) == false, "kotlin.io.Closeable should not be a synthetic fallback")
     }
 
 
