@@ -251,7 +251,7 @@ public fun <R : Any> IntRange.mapNotNull(transform: (Int) -> R?): List<R> {
 }
 
 public fun IntRange.reduce(operation: (Int, Int) -> Int): Int {
-    val iterator = iterator()
+    val iterator = this.iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = iterator.next()
     while (iterator.hasNext()) {
@@ -261,7 +261,7 @@ public fun IntRange.reduce(operation: (Int, Int) -> Int): Int {
 }
 
 public fun IntRange.reduceIndexed(operation: (Int, Int, Int) -> Int): Int {
-    val iterator = iterator()
+    val iterator = this.iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = iterator.next()
     var index = 1
@@ -501,7 +501,7 @@ public fun <R : Any> IntProgression.mapNotNull(transform: (Int) -> R?): List<R> 
 }
 
 public fun IntProgression.reduce(operation: (Int, Int) -> Int): Int {
-    val iterator = iterator()
+    val iterator = this.iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = iterator.next()
     while (iterator.hasNext()) {
@@ -511,7 +511,7 @@ public fun IntProgression.reduce(operation: (Int, Int) -> Int): Int {
 }
 
 public fun IntProgression.reduceIndexed(operation: (Int, Int, Int) -> Int): Int {
-    val iterator = iterator()
+    val iterator = this.iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
     var accumulator = iterator.next()
     var index = 1
