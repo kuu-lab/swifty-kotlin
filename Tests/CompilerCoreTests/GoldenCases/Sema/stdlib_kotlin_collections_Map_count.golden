@@ -31,8 +31,8 @@ expr e@12:57 name(null) type=Nothing?
 expr e@12:45#2 binary(equal) lhs=e@12:45#1 rhs=e@12:57 type=Boolean
 expr e@12:27#3 binary(logicalOr) lhs=e@12:27#2 rhs=e@12:45#2 type=Boolean
 expr e@12:25 lambda params=[] body=e@12:27#3 label=count type=(kotlin.collections.Map.Entry<out String?, out Int?>) -> Boolean
-expr e@12:12#1 memberCall recv=e@12:12 callee=count args=[_:e@12:25] type=Int call=kotlin.collections.count#28 targs=[String?,Int?]
+expr e@12:12#1 memberCall recv=e@12:12 callee=count args=[_:e@12:25] type=Int call=kotlin.collections.count#30 targs=[String?,Int?]
 expr e@12:5 return value=e@12:12#1 type=Nothing
 expr e@16:12 call callee=e@16:12#1 args=[] type=ObservedMap call=ObservedMap.<init>
-expr e@16:12#2 memberCall recv=e@16:12 callee=count args=[] type=Int call=kotlin.collections.count#29 targs=[String?,Int?]
+expr e@16:12#2 memberCall recv=e@16:12 callee=count args=[] type=Int call=kotlin.collections.count#31 targs=[String?,Int?]
 expr e@16:5 return value=e@16:12#2 type=Nothing
