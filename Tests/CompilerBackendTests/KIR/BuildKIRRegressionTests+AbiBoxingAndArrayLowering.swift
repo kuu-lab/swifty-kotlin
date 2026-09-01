@@ -743,6 +743,30 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testUShortArrayStorageConstructorUsesSignedArrayViewBridge() throws {
+        let source = """
+        fun main(): Short {
+            val storage = shortArrayOf(1, -1)
+            val values = UShortArray(storage)
+            return values.asShortArray()[1]
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            #expect(callNames.contains("__kk_shortArray_asUShortArray"))
+            #expect(callNames.contains("asShortArray"))
+            #expect(!callNames.contains("kk_object_new"))
+        }
+    }
+
+    @Test
     func testUIntArrayAccessAndFactoriesLowerToRuntimeCallsAndResolveUIntArrayType() throws {
         let source = """
         fun make() = uintArrayOf(1u, 2u)
