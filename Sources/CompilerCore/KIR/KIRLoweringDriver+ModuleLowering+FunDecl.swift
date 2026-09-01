@@ -224,8 +224,8 @@ extension KIRLoweringDriver {
         }
     }
 
-    /// True when `symbol` is an extension whose receiver is `kotlin.collections.Set`.
-    private func isSetReceiverFunction(
+    /// True when `symbol` is an extension whose receiver is `kotlin.collections.List`.
+    private func isListReceiverFunction(
         symbol: SymbolID,
         sema: SemaModule,
         interner: StringInterner
@@ -239,7 +239,7 @@ extension KIRLoweringDriver {
         return receiverName == [
             interner.intern("kotlin"),
             interner.intern("collections"),
-            interner.intern("Set"),
+            interner.intern("List"),
         ]
     }
 
@@ -289,9 +289,9 @@ extension KIRLoweringDriver {
                  "emptyMap", "mapOf", "mutableMapOf", "hashMapOf", "linkedMapOf":
                 return true
             case "shuffled":
-                // These List overloads still have dedicated runtime lowering;
-                // Set overloads in SetHOF.kt remain ordinary source declarations.
-                return !isSetReceiverFunction(symbol: symbol, sema: sema, interner: interner)
+                // List overloads still have dedicated runtime lowering; Set and
+                // Iterable overloads remain ordinary source declarations.
+                return isListReceiverFunction(symbol: symbol, sema: sema, interner: interner)
             default:
                 return false
             }

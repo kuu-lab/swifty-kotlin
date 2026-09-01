@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Testing
 
 private struct TestRequirementFailure: Error, CustomStringConvertible {
@@ -30,8 +31,7 @@ func assertHasDiagnostic(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    #expect(found, "Expected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
+    CompilerTestSupport.assertHasDiagnostic(code, in: ctx, file: file, line: line)
 }
 
 func assertHasDiagnostic(
@@ -50,8 +50,7 @@ func assertNoDiagnostic(
     file: StaticString = #filePath,
     line: UInt = #line
 ) {
-    let found = ctx.diagnostics.diagnostics.contains { $0.code == code }
-    #expect(!(found), "Unexpected diagnostic \(code), got: \(ctx.diagnostics.diagnostics.map(\.code))")
+    CompilerTestSupport.assertNoDiagnostic(code, in: ctx, file: file, line: line)
 }
 
 func assertNoDiagnostic(
