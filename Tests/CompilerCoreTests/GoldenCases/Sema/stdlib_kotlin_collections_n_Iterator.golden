@@ -5,7 +5,6 @@ symbol fq=golden.sema.NullableIterator.index kind=property vis=private flags=mut
 symbol fq=golden.sema.NullableIterator.values kind=property vis=public flags=_ type=kotlin.collections.List<String?>
 symbol fq=golden.sema.consume kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterator<String?>] ret=String?
 symbol fq=golden.sema.consume.$0.iterator kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.Iterator.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_

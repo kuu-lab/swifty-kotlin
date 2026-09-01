@@ -7,6 +7,8 @@
 
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
 /**
  * An iterator over a sequence of elements.
  */
@@ -14,12 +16,14 @@ public interface Iterator<out T> {
     /**
      * Returns true if the iteration has more elements.
      */
+    @KsSymbolName("kk_iterator_hasNext")
     public operator fun hasNext(): Boolean
 
     /**
      * Returns the next element in the iteration, or throws [NoSuchElementException]
      * if the iteration has no more elements.
      */
+    @KsSymbolName("kk_iterator_next")
     public operator fun next(): T
 }
 

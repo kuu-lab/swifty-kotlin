@@ -231,21 +231,29 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        // Runtime ABI bridges are receiver-type-agnostic entry points even
-        // when their declarations are imported interface members. Dispatching
-        // those symbols through an itable is invalid for the built-in runtime
-        // collection boxes; only source-backed/internal links may use virtual
-        // dispatch here. Clock bridges are the deliberate exception: their
-        // receiver is represented by a runtime-backed virtual object.
-        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
-            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
-        else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]
             }
             return arena.exprType(loweredReceiverID)
         }()
+        // Runtime ABI bridges are receiver-type-agnostic entry points even
+        // when their declarations are imported interface members. Dispatching
+        // those symbols through an itable is invalid for the built-in runtime
+        // collection boxes; only source-backed/internal links may use virtual
+        // dispatch here. Clock and Iterator bridges are deliberate exceptions:
+        // their source-backed class receivers are represented by runtime-backed
+        // virtual objects.
+        let usesIteratorRuntimeVirtualBridge = isIteratorRuntimeVirtualBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema,
+            interner: interner
+        )
+        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+            || usesIteratorRuntimeVirtualBridge
+        else { return nil }
         guard let dispatchKind = resolveVirtualDispatch(
             callee: chosenCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
@@ -255,9 +263,12 @@ extension CallLowerer {
         {
             vcArguments.removeFirst()
         }
+        let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+            ? (sema.symbols.symbol(chosenCallee)?.name ?? calleeName)
+            : calleeName
         return .virtualCall(
             symbol: chosenCallee,
-            callee: calleeName,
+            callee: virtualCalleeName,
             receiver: loweredReceiverID,
             arguments: vcArguments,
             result: result,
