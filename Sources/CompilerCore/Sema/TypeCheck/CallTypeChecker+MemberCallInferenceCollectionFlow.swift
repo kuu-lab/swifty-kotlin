@@ -162,7 +162,10 @@ extension CallTypeChecker {
             return nil
         }
         let isCollectionHOF = activeCollectionHOFNames.contains(calleeStr)
-            && (isCollectionReceiver || isSequenceReceiver || (calleeStr == "asSequence" && isIterableReceiver))
+            && (isCollectionReceiver
+                || isSequenceReceiver
+                || (calleeStr == "asSequence" && isIterableReceiver)
+                || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)
 
@@ -369,7 +372,11 @@ extension CallTypeChecker {
             receiverElementType: TypeID? = nil
         ) -> Bool {
             guard !isSequenceReceiver,
-                  isCollectionReceiver || (isIterableReceiver && (calleeStr == "drop" || calleeStr == "dropWhile"))
+                  isCollectionReceiver
+                  || (isIterableReceiver && (calleeStr == "drop"
+                      || calleeStr == "dropWhile"
+                      || calleeStr == "runningReduce"
+                      || calleeStr == "runningReduceIndexed"))
             else {
                 return false
             }
@@ -2897,9 +2904,23 @@ extension CallTypeChecker {
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
+                let isIterableRunningReduce = !isSequenceReceiver
+                    && !receiverClassifier.isConcreteListLikeType(receiverType)
+                let accumulatorType: TypeID = if isIterableRunningReduce,
+                                                  let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+                                                      args[0].expr,
+                                                      ctx: ctx,
+                                                      paramCount: 2
+                                                  ),
+                                                  let annotated = annotations[0]
+                {
+                    annotated
+                } else {
+                    collectionElementType
+                }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [collectionElementType, collectionElementType],
-                    returnType: collectionElementType
+                    params: [accumulatorType, collectionElementType],
+                    returnType: accumulatorType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -2915,13 +2936,19 @@ extension CallTypeChecker {
                 } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                     resultType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.invariant(accumulatorType)],
                         nullability: .nonNull
                     )))
                 } else {
                     resultType = sema.types.anyType
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let sourceTypeArguments = isIterableRunningReduce
+                    ? [accumulatorType, collectionElementType]
+                    : [collectionElementType]
+                let didBindSource = isIterableRunningReduce
+                    ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                    : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -2939,9 +2966,23 @@ extension CallTypeChecker {
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
+                let isIterableRunningReduce = !isSequenceReceiver
+                    && !receiverClassifier.isConcreteListLikeType(receiverType)
+                let accumulatorType: TypeID = if isIterableRunningReduce,
+                                                  let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+                                                      args[0].expr,
+                                                      ctx: ctx,
+                                                      paramCount: 3
+                                                  ),
+                                                  let annotated = annotations[1]
+                {
+                    annotated
+                } else {
+                    collectionElementType
+                }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [sema.types.intType, collectionElementType, collectionElementType],
-                    returnType: collectionElementType
+                    params: [sema.types.intType, accumulatorType, collectionElementType],
+                    returnType: accumulatorType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -2957,13 +2998,19 @@ extension CallTypeChecker {
                 } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                     resultType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.invariant(accumulatorType)],
                         nullability: .nonNull
                     )))
                 } else {
                     resultType = sema.types.anyType
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let sourceTypeArguments = isIterableRunningReduce
+                    ? [accumulatorType, collectionElementType]
+                    : [collectionElementType]
+                let didBindSource = isIterableRunningReduce
+                    ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                    : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
