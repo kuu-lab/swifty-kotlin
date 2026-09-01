@@ -3122,7 +3122,7 @@
     - `kotlin.collections.mapNotNullTo` — fun Iterable.mapNotNullTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/mapNotNullTo(#C, kotlin/Function1<#A, #B?>): #C`
     - `kotlin.collections.mapTo` — fun Iterable.mapTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.collections/Iterable<#A>).kotlin.collections/mapTo(#C, kotlin/Function1<#A, #B>): #C`
 
-- [ ] KSP-983: kotlin.collections.Iterable.max-family の未実装 stdlib API を実装する（18 件）
+- [x] KSP-983: kotlin.collections.Iterable.max-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `max`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3148,6 +3148,7 @@
     - `kotlin.collections.maxOrNull` — fun Iterable.maxOrNull(): #A  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.collections/Iterable<#A>).kotlin.collections/maxOrNull(): #A?`
     - `kotlin.collections.maxWith` — fun Iterable.maxWith(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/maxWith(kotlin/Comparator<in #A>): #A`
     - `kotlin.collections.maxWithOrNull` — fun Iterable.maxWithOrNull(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/maxWithOrNull(kotlin/Comparator<in #A>): #A?`
+  - 完了根拠（KSP-983専用PR）：18宣言を `Iterables.kt` に source-backed 化し、Sema Golden、Kotlin/JVM diff（one-shot Iterable、selector/comparator評価順、empty/nullable、Comparator contravariance、Float/Double の NaN・符号付きゼロ・無限大）を固定。既存 List/Sequence 境界、Runtime ABI、`@JvmName` artifact link 回帰も focused pass。
 
 - [ ] KSP-984: kotlin.collections.Iterable.min-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `min`
