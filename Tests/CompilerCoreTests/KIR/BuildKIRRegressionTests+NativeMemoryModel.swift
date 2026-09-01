@@ -83,7 +83,7 @@ extension BuildKIRRegressionTests {
             #expect(extractCallees(from: valuesBody, interner: interner).contains("kk_enum_make_values_array"))
 
             let entriesBody = try findKIRFunctionBody(named: "entries$get", in: module, interner: interner)
-            #expect(extractCallees(from: entriesBody, interner: interner).contains("kk_enum_make_entries_list"))
+            #expect(extractCallees(from: entriesBody, interner: interner).contains("kk_enum_make_entries_list_cached"))
 
             let valueOfFunction = try findKIRFunction(named: "valueOf", in: module, interner: interner)
             #expect(valueOfFunction.params.count == 1)
