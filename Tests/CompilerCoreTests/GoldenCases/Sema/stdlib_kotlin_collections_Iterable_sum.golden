@@ -71,7 +71,7 @@ expr e@10:56#1 memberCall recv=e@10:56 callee=sum args=[] type=ULong call=kotlin
 expr e@12:61 name(values) type=kotlin.collections.Iterable<String> ref=sumOfDouble.$6.values
 expr e@12:76 name(it) type=String ref=s-0
 expr e@12:76#1 memberCall recv=e@12:76 callee=length args=[] type=Int call=kotlin.length.$get
-expr e@12:76#2 memberCall recv=e@12:76#1 callee=toDouble args=[] type=Double
+expr e@12:76#2 memberCall recv=e@12:76#1 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
 expr e@12:74 lambda params=[] body=e@12:76#2 label=sumOf type=(String) -> Any
 expr e@12:61#1 memberCall recv=e@12:61 callee=sumOf args=[_:e@12:74] type=Double call=kotlin.collections.sumOf#0 targs=[String]
 expr e@13:55 name(values) type=kotlin.collections.Iterable<String> ref=sumOfInt.$7.values
