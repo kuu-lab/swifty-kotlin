@@ -36,6 +36,7 @@ extension CallLowerer {
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
+        "shuffled",
         "distinct", "distinctBy", "count",
     ]
 
