@@ -683,8 +683,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsSet.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for elem in lhsElems {
-            // swiftlint:disable:next for_where
-            if !rhsElems.contains(where: { runtimeValuesEqual($0, elem) }) {
+            if !rhsSet.contains(rawValue: elem) {
                 return false
             }
         }
@@ -695,10 +694,13 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         guard lhsMap.keys.count == rhsMap.keys.count else { return false }
         for (i, lhsKey) in lhsMap.keys.enumerated() {
-            guard let rhsIdx = rhsMap.keys.firstIndex(where: { runtimeValuesEqual($0, lhsKey) }) else {
+            guard let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
+                  let lhsValue = lhsMap.rawValue(at: i),
+                  let rhsValue = rhsMap.rawValue(at: rhsIdx)
+            else {
                 return false
             }
-            if !runtimeValuesEqual(lhsMap.values[i], rhsMap.values[rhsIdx]) {
+            if !runtimeValuesEqual(lhsValue, rhsValue) {
                 return false
             }
         }
