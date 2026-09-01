@@ -12,11 +12,10 @@ RELEASE="${BENCH_RELEASE:-0}"
 
 if [[ "$RELEASE" == "1" ]]; then
     BUILD_CONFIG="release"
-    KSWIFTC="${KSWIFTKC:-$ROOT_DIR/.build/release/kswiftc}"
 else
     BUILD_CONFIG="debug"
-    KSWIFTC="${KSWIFTKC:-$ROOT_DIR/.build/debug/kswiftc}"
 fi
+KSWIFTC="${KSWIFTKC:-$ROOT_DIR/.build/$BUILD_CONFIG/kswiftc}"
 
 if [[ ! -x "$KSWIFTC" ]]; then
     echo "kswiftc not found at $KSWIFTC; building $BUILD_CONFIG..." >&2
@@ -38,33 +37,41 @@ if [[ ! -d "$CASES_DIR" ]]; then
     exit 1
 fi
 
+# $EPOCHREALTIME (bash >= 5) is a pure variable expansion, unlike `date`,
+# so it avoids forking a subprocess inside the timed hot loop below — that
+# fork+exec latency would otherwise add noise to each measured sample.
+if (( BASH_VERSINFO[0] >= 5 )); then
+    now_ns() { printf -v "$1" '%s000' "${EPOCHREALTIME/./}"; }
+else
+    now_ns() { printf -v "$1" '%s' "$(date +%s%N)"; }
+fi
+
 echo "Benchmarking with $KSWIFTC ($BUILD_CONFIG), $RUNS runs per case..." >&2
 echo ""
 printf "%-20s %10s\n" "Case" "Median (ms)"
 printf "%-20s %10s\n" "----" "-----------"
 
+tmp_out=""
+trap 'rm -f "$tmp_out"' EXIT
 for kt in "$CASES_DIR"/*.kt; do
     name="$(basename "$kt" .kt)"
     tmp_out="$(mktemp "${TMPDIR:-/tmp}/kswiftk_bench_${name}.XXXXXX")"
-    trap 'rm -f "$tmp_out"' EXIT
 
     "$KSWIFTC" --emit executable -o "$tmp_out" "$kt" >/dev/null
 
     times=()
     for ((i = 1; i <= RUNS; i++)); do
-        start_ns=$(date +%s%N)
+        now_ns start_ns
         "$tmp_out" >/dev/null
-        end_ns=$(date +%s%N)
+        now_ns end_ns
         elapsed_ms=$(( (end_ns - start_ns) / 1000000 ))
         times+=("$elapsed_ms")
     done
 
     rm -f "$tmp_out"
-    trap - EXIT
 
     # Compute median
-    sorted="$(printf '%s\n' "${times[@]}" | sort -n)"
-    median="$(echo "$sorted" | awk '{ a[NR] = $1 } END { if (NR % 2) { print a[(NR + 1) / 2] } else { print (a[NR / 2] + a[NR / 2 + 1]) / 2 } }')"
+    median="$(printf '%s\n' "${times[@]}" | sort -n | awk '{ a[NR] = $1 } END { if (NR % 2) { print a[(NR + 1) / 2] } else { print (a[NR / 2] + a[NR / 2 + 1]) / 2 } }')"
 
     printf "%-20s %10s\n" "$name" "$median"
 done

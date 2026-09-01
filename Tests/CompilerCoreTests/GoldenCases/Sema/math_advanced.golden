@@ -41,7 +41,7 @@ expr e@10:37#1 memberCall recv=e@10:37 callee=coerceAtMost args=[_:e@10:52] type
 expr e@12:53 name(a) type=Int ref=golden.sema.testMaxOf3.$3.a
 expr e@12:56 name(b) type=Int ref=golden.sema.testMaxOf3.$3.b
 expr e@12:59 name(c) type=Int ref=golden.sema.testMaxOf3.$3.c
-expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#8
+expr e@12:47 call callee=e@12:47#1 args=[_:e@12:53,_:e@12:56,_:e@12:59] type=Int call=kotlin.comparisons.maxOf#11
 expr e@13:53 name(a) type=Int ref=golden.sema.testMinOf3.$4.a
 expr e@13:56 name(b) type=Int ref=golden.sema.testMinOf3.$4.b
 expr e@13:59 name(c) type=Int ref=golden.sema.testMinOf3.$4.c
