@@ -12,4 +12,4 @@ expr e@8:5 name(property) type=kotlin.reflect.KMutableProperty0<golden.sema.assi
 expr e@8:23 name(null) type=Nothing?
 expr e@8:29 name(property) type=kotlin.reflect.KMutableProperty0<golden.sema.assignWithSetValue.$0.V> ref=golden.sema.assignWithSetValue.$0.property
 expr e@8:39 name(value) type=golden.sema.assignWithSetValue.$0.V ref=golden.sema.assignWithSetValue.$0.value
-expr e@8:5#1 memberCall recv=e@8:5 callee=setValue args=[_:e@8:23,_:e@8:29,_:e@8:39] type=Unit call=kotlin.setValue targs=[golden.sema.assignWithSetValue.$0.V]
+expr e@8:5#1 memberCall recv=e@8:5 callee=setValue args=[_:e@8:23,_:e@8:29,_:e@8:39] type=Unit call=kotlin.setValue#0 targs=[golden.sema.assignWithSetValue.$0.V]
