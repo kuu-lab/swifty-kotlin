@@ -10,6 +10,6 @@ expr e@3:58 name(acc) type=Int ref=s-0
 expr e@3:64 name(x) type=Int ref=s-1
 expr e@3:58#1 binary(add) lhs=e@3:58 rhs=e@3:64 type=Int
 expr e@3:46 lambda params=[acc,x] body=e@3:58#1 label=fold type=(Int, Int) -> Int
-expr e@3:25#2 memberCall recv=e@3:25 callee=fold args=[_:e@3:43,_:e@3:46] type=Int call=kotlin.collections.fold#15 targs=[Int,Int]
+expr e@3:25#2 memberCall recv=e@3:25 callee=fold args=[_:e@3:43,_:e@3:46] type=Int call=kotlin.collections.fold#16 targs=[Int,Int]
 expr e@3:70 int(1) type=Int
 expr e@3:25#3 binary(add) lhs=e@3:25#2 rhs=e@3:70 type=Int
