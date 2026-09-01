@@ -790,7 +790,11 @@ extension CallTypeChecker {
             })
         }
 
-        if args.count == 1, ["then", "thenDescending"].contains(calleeStr) {
+        if args.count == 1,
+           ["then", "thenDescending"].contains(calleeStr),
+           let argumentExpr = ctx.ast.arena.expr(args[0].expr),
+           !argumentExpr.isLambdaOrCallableRef
+        {
             let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let comparatorFQName = [
                 interner.intern("kotlin"),

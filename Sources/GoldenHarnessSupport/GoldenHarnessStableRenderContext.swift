@@ -284,12 +284,31 @@ final class StableRenderContext {
         guard let sig = sema.symbols.functionSignature(for: symbol.id) else {
             return ""
         }
-        let recv = sig.receiverType.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) } ?? "_"
-        let params = sig.parameterTypes.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) }
+        let typeParameterOrdinals = Dictionary(
+            uniqueKeysWithValues: sig.typeParameterSymbols.enumerated().map { ($0.element.rawValue, $0.offset) }
+        )
+        let recv = sig.receiverType.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                typeParameterOrdinals: typeParameterOrdinals
+            )
+        } ?? "_"
+        let params = sig.parameterTypes.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                typeParameterOrdinals: typeParameterOrdinals
+            )
+        }
         return "\(recv)|\(params.joined(separator: ","))"
     }
 
-    private static func stabilizeTypeRefsStatic(_ text: String, fqMap: [Int32: String]) -> String {
+    private static func stabilizeTypeRefsStatic(
+        _ text: String,
+        fqMap: [Int32: String],
+        typeParameterOrdinals: [Int32: Int]
+    ) -> String {
         let nsText = text as NSString
         let range = NSRange(location: 0, length: nsText.length)
         let matches = typeRefRegex.matches(in: text, range: range)
@@ -299,10 +318,15 @@ final class StableRenderContext {
         for match in matches.reversed() {
             let idRange = match.range(at: 2)
             guard idRange.location != NSNotFound,
-                  let rawID = Int32(nsText.substring(with: idRange)),
-                  let fq = fqMap[rawID]
+                  let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
-            mutable.replaceCharacters(in: match.range, with: fq)
+            let prefix = nsText.substring(with: match.range(at: 1))
+            if prefix == "T#" {
+                let stableName = typeParameterOrdinals[rawID].map { "T\($0)" } ?? "T"
+                mutable.replaceCharacters(in: match.range, with: stableName)
+            } else if let fq = fqMap[rawID] {
+                mutable.replaceCharacters(in: match.range, with: fq)
+            }
         }
         return mutable as String
     }
