@@ -10,11 +10,6 @@ symbol fq=golden.sema.inspect.$2.collection kind=valueParameter vis=private flag
 symbol fq=golden.sema.inspect.$2.values kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Collection.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Collection.contains kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Collection<out kotlin.collections.Collection.E> params=[kotlin.collections.Collection.E] ret=Boolean
-symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
-symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Iterable.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Iterable.iterator kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Iterable<out kotlin.collections.Iterable.E> params=[] ret=kotlin.collections.Iterator<out kotlin.collections.Iterable.E> type=() -> kotlin.collections.Iterator<out kotlin.collections.Iterable.E>
 symbol fq=kotlin.collections.Iterator kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Iterator.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Iterator.hasNext kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Iterator<out kotlin.collections.Iterator.T> params=[] ret=Boolean type=() -> Boolean
@@ -46,7 +41,7 @@ expr e@13:9 return value=e@13:16 type=Nothing
 expr e@16:39 name(values) type=kotlin.collections.List<Int> ref=golden.sema.ProbeSet.values
 expr e@16:39#1 memberCall recv=e@16:39 callee=isEmpty args=[] type=Boolean call=kotlin.collections.List.isEmpty
 expr e@18:46 name(values) type=kotlin.collections.List<Int> ref=golden.sema.ProbeSet.values
-expr e@18:46#1 memberCall recv=e@18:46 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Iterable.iterator
+expr e@18:46#1 memberCall recv=e@18:46 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Collection.iterator
 expr e@22:20 name(values) type=kotlin.collections.Set<Int> ref=golden.sema.inspect.$2.values
 expr e@22:20#1 memberCall recv=e@22:20 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.Collection.iterator
 expr e@22:5 localDecl iterator mutable=0 type=_ init=e@22:20#1 type=Unit ref=__local_0.iterator
