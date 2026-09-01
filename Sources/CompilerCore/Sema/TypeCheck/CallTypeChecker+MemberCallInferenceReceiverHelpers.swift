@@ -132,6 +132,31 @@ extension CallTypeChecker {
         if sema.types.isSubtype(actual, declared) {
             return true
         }
+        // A type parameter's upper bound is the receiver contract at the call
+        // site. `T : Comparable<T>` therefore matches the source-backed
+        // `Comparable<T>.compareTo` receiver even when the subtype checker
+        // cannot materialize the F-bounded type parameter as a nominal type.
+        if case let .typeParam(actualParam) = sema.types.kind(of: actual),
+           sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: {
+               sema.types.isSubtype($0, declared)
+           })
+        {
+            return true
+        }
+        if case let .typeParam(actualParam) = sema.types.kind(of: actual),
+           case let .classType(declaredClass) = sema.types.kind(of: declared),
+           sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: { bound in
+               guard case let .classType(boundClass) = sema.types.kind(of: sema.types.makeNonNullable(bound)) else {
+                   return false
+               }
+               return boundClass.classSymbol == declaredClass.classSymbol
+           })
+        {
+            // The type arguments of an F-bounded upper bound and a generic
+            // member receiver may use different declaration-local type
+            // parameter IDs; overload resolution will solve those arguments.
+            return true
+        }
         if case .typeParam = sema.types.kind(of: declared) {
             return true
         }

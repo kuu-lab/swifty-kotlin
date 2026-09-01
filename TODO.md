@@ -1092,15 +1092,14 @@
   - 回帰証跡: `stdlib_kotlin_n_from.kt/.golden`、`Scripts/diff_cases/stdlib_kotlin_n_from.kt`、`FloatBitsSourceTests`、`RuntimeFloatBitsTests`、`BundledStdlibExecutionTests` を含む。#5936のTODO ID、CompilerCore/Smoke全shard、Backend/Runtime/CLI/LSP、Repository Checks、kotlinc Diff両shard、Devin ReviewはSUCCESS。
   - 現行master再監査（2026-08-23）: `FloatBitsSourceTests` 3件、`RuntimeFloatBitsTests` 8件、Backend実行1件、focused kotlinc diff 1件（`DIFF_WORKERS=1`）、Runtime ABI link 4件がすべてpass。Long/Intの符号bit、負零、NaN payloadのround-tripを確認済み。
 
-- [ ] KSP-797: kotlin.Comparable の未実装 stdlib API を実装する（1 件）
+- [x] KSP-797: kotlin.Comparable の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `Comparable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Comparable.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Comparable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Comparable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Comparable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.compareTo` — fun Comparable.compareTo(): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin/Comparable<#A>).kotlin/compareTo(#A): kotlin/Int`
+  - 根拠: Kotlin 2.3.10 の source-backed `Comparable.compareTo` と `__kk_comparable_compareTo` bridge、Sema Golden、KIR/runtime の最小回帰を同PRで確認。
 
 - [x] KSP-798: kotlin.DeepRecursiveFunction の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin` / receiver `DeepRecursiveFunction`
