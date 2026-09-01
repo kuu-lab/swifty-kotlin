@@ -195,3 +195,15 @@ kswiftk_setup_compile_cache_env() {
         fi
     fi
 }
+
+# Append the shared --build-system flag (from SWIFT_BUILD_SYSTEM) to the named
+# bash array when set. build_swift_tests.sh, swift_test.sh, and
+# shard_swift_tests.sh must all select the same build system so swiftbuild's
+# per-test-target products and compilation cache are reused across build and
+# test invocations.
+kswiftk_append_build_system_flag() {
+    local -n __flags_array="$1"
+    if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
+        __flags_array+=(--build-system "$SWIFT_BUILD_SYSTEM")
+    fi
+}

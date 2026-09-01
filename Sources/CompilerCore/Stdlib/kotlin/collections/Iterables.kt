@@ -1,5 +1,7 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
+import kotlin.comparisons.reverseOrder
 import kotlin.internal.__valuesEqual
 
 // KSP-435
@@ -46,6 +48,19 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
     return result
+}
+
+// KSP-997: Split each pair from a generic Iterable in encounter order.
+public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
+    val first = mutableListOf<T>()
+    val second = mutableListOf<R>()
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        val pair = iterator.next()
+        first.add(pair.first)
+        second.add(pair.second)
+    }
+    return Pair(first, second)
 }
 
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
@@ -558,6 +573,84 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
+// KSP-993: Iterable sorting remains source-backed and materializes exactly
+// once before applying stable in-place sorting to the mutable result.
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
+    return sortedWith(reverseOrder())
+}
+
+public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (comparator.compare(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = appendJoinToTransform(this.iterator(), StringBuilder(), ", ", "", "", -1, "...", transform).toString()
@@ -579,4 +672,23 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
+// type while traversing every receiver through its iterator exactly once.
+public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: Int, acc: R, T) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
 }
