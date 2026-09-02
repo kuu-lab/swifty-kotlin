@@ -98,14 +98,6 @@ extension CallLowerer {
             }
         }
 
-        // Generic Comparable<T>.compareTo — emitted when the receiver is a type parameter
-        // bounded by Comparable<T> and no concrete stub covers it (e.g. sorted() in the
-        // bundled stdlib).  String is excluded above; Char and primitives are excluded by
-        // tryLowerPrimitiveCompareTo which runs before this path.
-        if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("__kk_comparable_compareTo")
-        }
-
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.

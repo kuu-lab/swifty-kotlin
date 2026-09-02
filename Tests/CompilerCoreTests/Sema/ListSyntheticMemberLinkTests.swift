@@ -342,13 +342,12 @@ struct ListSyntheticMemberLinkTests {
             let interner = ctx.interner
             let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
 
-            // KSP-627: the aliases are declared by
+            // KSP-627: the remaining aliases are declared by
             // `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt`,
             // not by synthetic self-registration.
             for (aliasName, targetName) in [
                 ("ArrayList", "MutableList"),
                 ("HashSet", "MutableSet"),
-                ("HashMap", "MutableMap"),
                 ("LinkedHashMap", "MutableMap"),
             ] {
                 let aliasSymbol = try #require(
@@ -366,6 +365,19 @@ struct ListSyntheticMemberLinkTests {
                 }
                 #expect(try interner.resolve(#require(sema.symbols.symbol(underlyingClass.classSymbol)?.name)) == targetName)
             }
+
+            let hashMapSymbol = try #require(
+                sema.symbols.lookupAll(fqName: kotlinCollections + [interner.intern("HashMap")])
+                    .first { sema.symbols.symbol($0)?.kind == .class },
+                "Expected HashMap to be registered as a class"
+            )
+            let hashMapInfo = try #require(sema.symbols.symbol(hashMapSymbol))
+            #expect(!hashMapInfo.flags.contains(.synthetic), "Expected HashMap to be source-backed")
+            #expect(hashMapInfo.declSite != nil, "Expected HashMap to carry a declaration site")
+            let mutableMapSymbol = try #require(
+                sema.symbols.lookup(fqName: kotlinCollections + [interner.intern("MutableMap")])
+            )
+            #expect(sema.symbols.directSupertypes(for: hashMapSymbol).contains(mutableMapSymbol))
         }
     }
 
@@ -1480,13 +1492,42 @@ struct ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let nullableIntType = sema.types.makeNullable(sema.types.intType)
 
             for memberName in ["firstOrNull", "lastOrNull", "getOrElse"] {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
                     guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
-                if memberName == "lastOrNull" {
+                if memberName == "firstOrNull" {
+                    // KSP-973: Collection inherits Iterable, so firstOrNull now resolves to bundled source.
+                    let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                    let chosenSymbol = try #require(sema.symbols.symbol(chosenCallee))
+                    #expect(
+                        chosenSymbol.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "firstOrNull"],
+                        "Expected Collection.firstOrNull to resolve to kotlin.collections.firstOrNull"
+                    )
+                    #expect(sema.symbols.isSourceBackedSymbol(chosenCallee))
+                    #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil)
+
+                    let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                    #expect(signature.parameterTypes.isEmpty, "Expected Iterable.firstOrNull() to have no value parameters")
+                    let receiverType = try #require(signature.receiverType)
+                    guard case let .classType(receiver) = sema.types.kind(of: receiverType),
+                          let receiverSymbol = sema.symbols.symbol(receiver.classSymbol)
+                    else {
+                        Issue.record("Expected Collection.firstOrNull to have a class receiver")
+                        continue
+                    }
+                    #expect(
+                        receiverSymbol.fqName.map(ctx.interner.resolve) == ["kotlin", "collections", "Iterable"],
+                        "Expected Collection.firstOrNull receiver to be kotlin.collections.Iterable"
+                    )
+                    #expect(
+                        sema.bindings.exprTypes[callExpr] == nullableIntType,
+                        "Expected Collection.firstOrNull to return Int?"
+                    )
+                } else if memberName == "lastOrNull" {
                     let chosenCallee = try #require(
                         sema.bindings.callBinding(for: callExpr)?.chosenCallee,
                         "Expected Collection.lastOrNull to bind to the Iterable source extension"
@@ -1506,7 +1547,10 @@ struct ListSyntheticMemberLinkTests {
                     ]))
                     #expect(receiverClassType.classSymbol == iterableSymbol)
                 } else {
-                    #expect(sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil, "Expected Collection.\(memberName) to remain unresolved")
+                    #expect(
+                        sema.bindings.callBinding(for: callExpr)?.chosenCallee == nil,
+                        "Expected Collection.\(memberName) to remain unresolved"
+                    )
                 }
             }
 
@@ -2343,24 +2387,25 @@ struct ListSyntheticMemberLinkTests {
 
             let sema = try #require(ctx.sema)
             let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
-            let setSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Set")]))
             let mutableSetSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableSet")]))
             let abstractMutableSetFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableSet")]
             let abstractMutableSetSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName))
             let abstractMutableSetInfo = try #require(sema.symbols.symbol(abstractMutableSetSymbol))
             #expect(abstractMutableSetInfo.kind == .class)
-            #expect(abstractMutableSetInfo.flags.contains(.synthetic))
+            #expect(!abstractMutableSetInfo.flags.contains(.synthetic))
             #expect(abstractMutableSetInfo.flags.contains(.abstractType))
             #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableSetSymbol) == [.invariant])
+            #expect(sema.symbols.lookupAll(fqName: abstractMutableSetFQName).count == 1)
+            let sourceFileID = try #require(sema.symbols.sourceFileID(for: abstractMutableSetSymbol))
+            #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/AbstractMutableSet.kt")
 
-            let abstractSetSymbol = sema.symbols.lookup(
-                fqName: collectionsPkg + [ctx.interner.intern("AbstractSet")]
+            let abstractMutableCollectionSymbol = try #require(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")])
             )
-            let readonlySupertype = abstractSetSymbol ?? setSymbol
             let directSupertypes = sema.symbols.directSupertypes(for: abstractMutableSetSymbol)
-            #expect(directSupertypes.contains(readonlySupertype))
+            #expect(directSupertypes.contains(abstractMutableCollectionSymbol))
             #expect(directSupertypes.contains(mutableSetSymbol))
-            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: readonlySupertype).count == 1)
+            #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: abstractMutableCollectionSymbol).count == 1)
             #expect(sema.symbols.supertypeTypeArgs(for: abstractMutableSetSymbol, supertype: mutableSetSymbol).count == 1)
 
             let constructorSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableSetFQName + [ctx.interner.intern("<init>")]))
@@ -2434,9 +2479,8 @@ struct ListSyntheticMemberLinkTests {
         import kotlin.collections.Set
         import kotlin.collections.MutableSet
 
-        // KSP-633: `AbstractCollection` / `AbstractMutableCollection` are source-backed and
-        // declare `size` / `iterator` / `add` as abstract members, so (like kotlinc) a
-        // concrete subclass has to implement them — the probe stays abstract.
+        // KSP-931: `AbstractMutableSet` is source-backed and exposes the
+        // `size` / `iterator` / `add` contract for concrete subclasses.
         abstract class ProbeMutableSet : AbstractMutableSet<Int>()
 
         fun acceptReadonly(values: Set<Int>) {}

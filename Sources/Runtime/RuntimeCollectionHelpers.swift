@@ -42,15 +42,18 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
     let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
+    let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
-    return (mapID, mutableMapID)
+    runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)
+    return (mapID, mutableMapID, hashMapID)
 }()
 
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
+let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
 
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
@@ -683,8 +686,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsSet.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for elem in lhsElems {
-            // swiftlint:disable:next for_where
-            if !rhsElems.contains(where: { runtimeValuesEqual($0, elem) }) {
+            if !rhsSet.contains(rawValue: elem) {
                 return false
             }
         }
@@ -695,10 +697,13 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         guard lhsMap.keys.count == rhsMap.keys.count else { return false }
         for (i, lhsKey) in lhsMap.keys.enumerated() {
-            guard let rhsIdx = rhsMap.keys.firstIndex(where: { runtimeValuesEqual($0, lhsKey) }) else {
+            guard let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
+                  let lhsValue = lhsMap.rawValue(at: i),
+                  let rhsValue = rhsMap.rawValue(at: rhsIdx)
+            else {
                 return false
             }
-            if !runtimeValuesEqual(lhsMap.values[i], rhsMap.values[rhsIdx]) {
+            if !runtimeValuesEqual(lhsValue, rhsValue) {
                 return false
             }
         }

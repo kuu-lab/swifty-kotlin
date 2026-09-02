@@ -350,6 +350,22 @@ final class CallTypeChecker {
                     return nil
                 } ?? sema.types.anyType
             }
+            // Refine the call result type using the lambda body's concrete type,
+            // but ONLY when no expected type was provided (i.e. expected was
+            // anyType, the placeholder for "unconstrained") — mirrors the
+            // `use`/`usePinned`/`useContents` refinement above. Needed when the
+            // `context(...) { ... }` call itself isn't in a target-typed
+            // position, e.g. as an operand of `+`:
+            //   context("one") { contextOf<String>() } + context(...) { ... }
+            let refinedReturnType: TypeID = {
+                guard returnType == sema.types.anyType else { return returnType }
+                guard let lambdaExpr = ast.arena.expr(blockArg.expr),
+                      case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                      let bodyType = sema.bindings.exprTypes[bodyExprID],
+                      bodyType != sema.types.anyType
+                else { return returnType }
+                return bodyType
+            }()
             if let contextSymbol = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
                 guard isStdlibContextHelper(candidate, named: "context", ctx: ctx, interner: interner),
                       let signature = sema.symbols.functionSignature(for: candidate),
@@ -369,15 +385,15 @@ final class CallTypeChecker {
                     id,
                     binding: CallBinding(
                         chosenCallee: contextSymbol,
-                        substitutedTypeArguments: contextValueTypes + [returnType],
+                        substitutedTypeArguments: contextValueTypes + [refinedReturnType],
                         parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(contextSymbol))
             }
             sema.bindings.markScopeFunctionExpr(id, kind: .scopeContext)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
         }
 
         // --- produce { ... } builder (CORO-075) ---
@@ -2198,17 +2214,30 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             case "HashMap", "LinkedHashMap":
-                let keyType = explicitTypeArgs.first ?? expectedCollectionArgs.first ?? sema.types.anyType
+                let inferredMapTypes = inferMapTypeArgumentsFromConstructorArgument(from: argTypes, ctx: ctx)
+                let keyType = explicitTypeArgs.first
+                    ?? expectedCollectionArgs.first
+                    ?? inferredMapTypes?.keyType
+                    ?? sema.types.anyType
                 let valueType = explicitTypeArgs.dropFirst().first
                     ?? expectedCollectionArgs.dropFirst().first
+                    ?? inferredMapTypes?.valueType
                     ?? sema.types.anyType
-                let resultType = makeSyntheticMutableMapType(
-                    symbols: sema.symbols,
-                    types: sema.types,
-                    interner: interner,
-                    keyType: keyType,
-                    valueType: valueType
-                )
+                let resultType = resolvedName == "HashMap"
+                    ? makeSourceBackedHashMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                    : makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
                 sema.bindings.markCollectionExpr(id)
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
