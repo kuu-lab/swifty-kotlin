@@ -350,6 +350,22 @@ final class CallTypeChecker {
                     return nil
                 } ?? sema.types.anyType
             }
+            // Refine the call result type using the lambda body's concrete type,
+            // but ONLY when no expected type was provided (i.e. expected was
+            // anyType, the placeholder for "unconstrained") — mirrors the
+            // `use`/`usePinned`/`useContents` refinement above. Needed when the
+            // `context(...) { ... }` call itself isn't in a target-typed
+            // position, e.g. as an operand of `+`:
+            //   context("one") { contextOf<String>() } + context(...) { ... }
+            let refinedReturnType: TypeID = {
+                guard returnType == sema.types.anyType else { return returnType }
+                guard let lambdaExpr = ast.arena.expr(blockArg.expr),
+                      case let .lambdaLiteral(_, bodyExprID, _, _) = lambdaExpr,
+                      let bodyType = sema.bindings.exprTypes[bodyExprID],
+                      bodyType != sema.types.anyType
+                else { return returnType }
+                return bodyType
+            }()
             if let contextSymbol = ctx.cachedScopeLookup(calleeName).first(where: { candidate in
                 guard isStdlibContextHelper(candidate, named: "context", ctx: ctx, interner: interner),
                       let signature = sema.symbols.functionSignature(for: candidate),
@@ -369,15 +385,15 @@ final class CallTypeChecker {
                     id,
                     binding: CallBinding(
                         chosenCallee: contextSymbol,
-                        substitutedTypeArguments: contextValueTypes + [returnType],
+                        substitutedTypeArguments: contextValueTypes + [refinedReturnType],
                         parameterMapping: Dictionary(uniqueKeysWithValues: args.indices.map { ($0, $0) })
                     )
                 )
                 sema.bindings.bindCallableTarget(id, target: .symbol(contextSymbol))
             }
             sema.bindings.markScopeFunctionExpr(id, kind: .scopeContext)
-            sema.bindings.bindExprType(id, type: returnType)
-            return returnType
+            sema.bindings.bindExprType(id, type: refinedReturnType)
+            return refinedReturnType
         }
 
         // --- produce { ... } builder (CORO-075) ---
@@ -630,25 +646,43 @@ final class CallTypeChecker {
         }
 
         // --- Stdlib Array(size) { init } constructor (STDLIB-085/086, TYPE-103) ---
-        // A source-backed top-level function with the same name and arity owns
-        // the public overload. Keep the compiler primitive only for allocation
-        // forms that do not have a source implementation (KSP-763).
-        let hasSourceBackedArrayConstructor: Bool = if let calleeName {
-            ctx.cachedScopeLookup(calleeName).contains { candidate in
+        // A visible source-backed top-level function with the same name and applicable
+        // arity owns the overload. For one-argument primitive arrays, compare
+        // the inferred argument type as well: UByteArray(ByteArray) must not
+        // hide the compiler-provided UByteArray(Int) allocation form.
+        let sourceBackedArrayConstructors: [(symbol: SymbolID, signature: FunctionSignature)] = if let calleeName {
+            ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible.compactMap { candidate in
                 guard let symbol = ctx.cachedSymbol(candidate),
                       symbol.kind == .function,
                       sema.symbols.isSourceBackedSymbol(candidate),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       signature.receiverType == nil,
-                      signature.parameterTypes.count == args.count
+                      signature.parameterTypes.count == args.count,
+                      !signature.valueParameterIsVararg.contains(true)
                 else {
-                    return false
+                    return nil
                 }
-                return !signature.valueParameterIsVararg.contains(true)
+                return (candidate, signature)
             }
         } else {
-            false
+            []
         }
+        let hasSourceBackedArrayConstructor: Bool = {
+            if args.count == 1,
+               let calleeName,
+               knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
+               !sourceBackedArrayConstructors.isEmpty
+            {
+                let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+                return sourceBackedArrayConstructors.contains { _, signature in
+                    guard let parameterType = signature.parameterTypes.first else {
+                        return false
+                    }
+                    return sema.types.isSubtype(argumentType, parameterType)
+                }
+            }
+            return !sourceBackedArrayConstructors.isEmpty
+        }()
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
            args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
@@ -1004,7 +1038,13 @@ final class CallTypeChecker {
             )
 
             // Resolve which numeric type this overload targets.
-            let supportedNumericTypes = [sema.types.longType, sema.types.doubleType, sema.types.floatType, sema.types.intType]
+            let resolvedName = interner.resolve(calleeName)
+            let supportedNumericTypes = [
+                sema.types.longType,
+                sema.types.doubleType,
+                sema.types.floatType,
+                sema.types.intType,
+            ] + (resolvedName == "minOf" ? [sema.types.byteType, sema.types.shortType] : [])
             if let resolvedParamType = supportedNumericTypes.first(where: { firstArgType == $0 }) {
                 var shouldUsePrimitiveComparisonFastPath = true
                 if args.count == 3 {
@@ -2090,7 +2130,11 @@ final class CallTypeChecker {
 
         if let calleeName {
             let resolvedName = interner.resolve(calleeName)
-            if let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
+            // mapOf has both fixed-arity and vararg source declarations. Let the
+            // regular resolver distinguish them for non-empty calls instead of
+            // binding the first collection-factory candidate unconditionally.
+            if !(resolvedName == "mapOf" && !args.isEmpty),
+               let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in
                    guard let symbol = ctx.cachedSymbol(candidate) else {
@@ -2170,17 +2214,30 @@ final class CallTypeChecker {
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             case "HashMap", "LinkedHashMap":
-                let keyType = explicitTypeArgs.first ?? expectedCollectionArgs.first ?? sema.types.anyType
+                let inferredMapTypes = inferMapTypeArgumentsFromConstructorArgument(from: argTypes, ctx: ctx)
+                let keyType = explicitTypeArgs.first
+                    ?? expectedCollectionArgs.first
+                    ?? inferredMapTypes?.keyType
+                    ?? sema.types.anyType
                 let valueType = explicitTypeArgs.dropFirst().first
                     ?? expectedCollectionArgs.dropFirst().first
+                    ?? inferredMapTypes?.valueType
                     ?? sema.types.anyType
-                let resultType = makeSyntheticMutableMapType(
-                    symbols: sema.symbols,
-                    types: sema.types,
-                    interner: interner,
-                    keyType: keyType,
-                    valueType: valueType
-                )
+                let resultType = resolvedName == "HashMap"
+                    ? makeSourceBackedHashMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                    : makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
                 sema.bindings.markCollectionExpr(id)
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType

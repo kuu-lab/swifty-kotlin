@@ -102,6 +102,28 @@ extension DataFlowSemaPhase {
             {
                 superSymbols.append(annotationSymbol)
             }
+            // Enum classes implicitly extend `kotlin.Enum<ThisEnum>`. The
+            // generated enum lowering registers the runtime edge later, but
+            // source-backed Comparable member lookup must see this conformance
+            // during Sema as well (e.g. `Direction.NORTH.compareTo(...)`).
+            if symbolInfo.kind == .enumClass,
+               let enumBaseSymbol = symbols.lookup(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("Enum"),
+               ]),
+               symbol != enumBaseSymbol,
+               !superSymbols.contains(enumBaseSymbol)
+            {
+                let enumType = types.make(.classType(ClassType(
+                    classSymbol: symbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let enumTypeArg: [TypeArg] = [.invariant(enumType)]
+                symbols.setSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
+                types.setNominalSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
+                superSymbols.append(enumBaseSymbol)
+            }
             // Add implicit kotlin.Any for classes/objects/enums that have no
             // class supertype yet (they may still implement interfaces).
             if symbolInfo.kind == .class || symbolInfo.kind == .object
@@ -605,18 +627,20 @@ extension DataFlowSemaPhase {
             return
         }
 
-        // Check that abstract class has at least one abstract member
+        // Check that an abstract class has an abstract member in its own body
+        // or an inherited abstract contract. Kotlin's skeletal collection
+        // classes, including AbstractSet, inherit their required size and
+        // iterator members from AbstractCollection.
         let children = symbols.children(ofFQName: symbolInfo.fqName)
-        var hasAbstractMember = false
-
-        for childID in children {
-            guard let childSym = symbols.symbol(childID) else { continue }
-            if (childSym.kind == .function || childSym.kind == .property) &&
-               childSym.flags.contains(.abstractType) {
-                hasAbstractMember = true
-                break
-            }
+        let hasDirectAbstractMember = children.contains { childID in
+            guard let childSym = symbols.symbol(childID) else { return false }
+            return (childSym.kind == .function || childSym.kind == .property) &&
+                childSym.flags.contains(.abstractType)
         }
+        let hasAbstractMember = hasDirectAbstractMember || !collectInheritedAbstractMembers(
+            for: symbol,
+            symbols: symbols
+        ).isEmpty
 
         if !hasAbstractMember {
             let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")

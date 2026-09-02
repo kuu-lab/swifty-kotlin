@@ -47,6 +47,40 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func collectionMutationSignaturesIncludeThrowingChannel() throws {
+        let expected: [(name: String, parameters: [String])] = [
+            ("__kk_mutable_list_add", ["listRaw", "elem", "outThrown"]),
+            ("__kk_mutable_set_add", ["setRaw", "elem", "outThrown"]),
+            ("__kk_mutable_map_put", ["mapRaw", "key", "value", "outThrown"]),
+        ]
+        for item in expected {
+            let spec = try requireSpec(item.name)
+            #expect(spec.parameters.map(\.name) == item.parameters)
+            #expect(spec.parameters.dropLast().allSatisfy { $0.type == .intptr })
+            #expect(spec.parameters.last?.type == .nullableIntptrPointer)
+            #expect(spec.isThrowing)
+            #expect(!RuntimeABISpec.nonThrowingRuntimeCalleeNames.contains(item.name))
+
+            let extern = try #require(RuntimeABIExterns.externDecl(named: item.name))
+            #expect(extern.parameterTypes == spec.parameterTypeStrings)
+            #expect(
+                RuntimeABISpec.generateCHeader().contains(spec.cDeclaration),
+                "Generated C header must expose the throwing collection mutation ABI for \(item.name)"
+            )
+        }
+    }
+
+    @Test
+    func charNumericBridgeABIsRemoved() {
+        for name in ["kk_char_to_int", "kk_char_to_long", "kk_char_to_uint", "kk_char_to_ulong"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "Char numeric conversion bridge \(name) should be removed after KSP-1539"
+            )
+        }
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
@@ -107,6 +141,13 @@ struct ABIMismatchTests {
         #expect(spec.returnType == .opaquePointer)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .nullableOpaquePointer)
+    }
+
+    @Test
+    func kkThrowableNewCauseSignature() throws {
+        let spec = try requireSpec("__kk_throwable_new_cause")
+        #expect(spec.returnType == .opaquePointer)
+        #expect(spec.parameters.map(\.type) == [.intptr])
     }
 
     @Test
@@ -778,6 +819,14 @@ struct ABIMismatchTests {
     @Test
     func printRawSignature() throws {
         let spec = try requireSpec("__kk_print_raw")
+        #expect(spec.returnType == .void)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
+    func printlnRawSignature() throws {
+        let spec = try requireSpec("__kk_println_raw")
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)

@@ -4,15 +4,17 @@
 
 | Script | CI | Purpose |
 |---|---|---|
-| `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations |
+| `swift_test.sh` | ✓ | `swift test` wrapper: parallel defaults, grouped failure summary, golden-update hint, GitHub annotations, crash-signal retry |
 | `shard_swift_tests.sh` | ✓ | Split one slow test target across CI jobs (`--mode dynamic` per-test / `--mode static` per-suite) |
 | `diff_kotlinc.sh` | ✓ | Behavioral diff of `kswiftc` vs `kotlinc` over `diff_cases/`; persists failure artifacts |
+| `diff_diagnostics.sh` | ✓ | Diagnostic differential over `diagnostic_cases/`: compile acceptance and normalized error line sets |
 | `diff_kotlinc_ci_summary.sh` | ✓ | Render the diff TSV report as a markdown step summary with embedded diffs |
 | `loc_report.sh` | – | Refactoring guard metrics as TSV (LoC by directory, `kk_` literals, TODO/FIXME counts) |
 | `dead_code_audit.sh` | – | Audit `@_cdecl kk_*` runtime symbols unreachable from the compiler |
-| `check_todo_ids.sh` | – | Detect duplicate task IDs in `TODO.md` |
+| `check_todo_ids.sh` | ✓ | Detect duplicate task IDs in `TODO.md` |
+| `check_mutation_fuzzer_keywords.sh` | ✓ | Verify `mutate_diff_cases.py`'s `IDENTIFIER_KEYWORDS` matches the lexer's `Keyword` enum |
 | `validate_runtime_abi_links.sh` | – | Shorthand for the `RuntimeABIExternalLinkValidationTests` filter |
-| `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing |
+| `lib/common.sh` | (sourced) | Shared helpers: worker detection, interleaved sharding, filter chunking, case-name sanitizing, diff-tooling preflight, case-directive parsing, artifact-collision avoidance |
 
 ## swift_test.sh
 
@@ -21,6 +23,14 @@
 - Tune workers: `SWIFT_TEST_WORKERS=4 bash Scripts/swift_test.sh`
 - Tune build jobs: `SWIFT_TEST_BUILD_JOBS=4 bash Scripts/swift_test.sh`
 - Disable parallel mode: `SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh`
+
+If a run crashes with a signal (e.g. `*** Signal 11: ...` / `exited with
+unexpected signal code`) and no per-test failure line was parsed, the whole
+`swift test` invocation is retried up to 3 times before failing the step.
+This targets swift-corelibs-foundation's Linux `Process.run()` races that
+`CommandRunner.processLaunchLock` cannot fully close (unrelated threads in
+the same xctest process can still mutate the fd table mid-spawn); genuine
+test failures are never retried, since they always produce a parsed failure.
 
 When you are iterating on test failures after a successful build, you can also
 reuse the existing build products:
@@ -61,6 +71,22 @@ Detect duplicate task IDs in `TODO.md`:
 ```bash
 bash Scripts/check_todo_ids.sh
 ```
+
+## Mutation fuzzer keyword drift check
+
+`Scripts/mutate_diff_cases.py` classifies scanned tokens as `keyword` vs.
+`identifier` using its own `IDENTIFIER_KEYWORDS` set, kept independent of the
+Swift lexer for simplicity. Verify it still matches the hard-keyword
+`Keyword` enum in `Sources/CompilerCore/Lexer/TokenModel.swift`:
+
+```bash
+bash Scripts/check_mutation_fuzzer_keywords.sh
+```
+
+Soft keywords (`SoftKeyword` enum, e.g. `by`, `get`, `value`) are
+deliberately excluded from this comparison — they are valid identifiers in
+most contexts, so treating them as keywords would misclassify real
+identifier usages in the seed corpus.
 
 ## Golden update workflow
 
@@ -219,6 +245,28 @@ Render a markdown summary from that report:
 bash Scripts/diff_kotlinc_ci_summary.sh --report /tmp/diff_report.tsv --summary /tmp/step_summary.md
 ```
 
+## Diagnostic differential workflow
+
+`diff_diagnostics.sh` is the first-stage diagnostic oracle. It compares only
+whether `kotlinc` and `kswiftc` accept the source and, when both reject it, the
+normalized set of source line numbers containing an error diagnostic. Diagnostic
+wording and diagnostic codes are deliberately outside this contract.
+
+The dedicated `Scripts/diagnostic_cases/` directory keeps negative cases out of
+the behavioral `diff_kotlinc.sh` run. Use `// EXPECT-REJECT` for a case that
+must be rejected by both compilers; acceptance is the default and can be stated
+explicitly with `// EXPECT-ACCEPT`.
+
+```bash
+bash Scripts/diff_diagnostics.sh Scripts/diagnostic_cases
+bash Scripts/diff_diagnostics.sh --report /tmp/diagnostics.tsv Scripts/diagnostic_cases
+bash Scripts/diff_diagnostics.sh --self-test
+```
+
+The harness requires JDK 21 or newer by default, matching the CI Kotlin 2.3.10
+lane. For local toolchains that are intentionally different, set
+`DIFF_REQUIRE_JDK21=0` and record that limitation with the result.
+
 ## Precompiled stdlib artifact for diff runs
 
 `diff_kotlinc.sh` builds a shared stdlib `.kklib` once per shard and references it from
@@ -257,7 +305,7 @@ bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerBackend
 bash Scripts/shard_swift_tests.sh --mode dynamic --list-filter '^CompilerCoreTests\.' \
   --list-exclude '^CompilerCoreTests\.(FrontendParallelBenchmarkTests|SmokeTests)/' \
   --target-prefix CompilerCoreTests \
-  --shard-index 0 --shard-count 3
+  --shard-index 0 --shard-count 6
 bash Scripts/shard_swift_tests.sh --mode static --tests-dir Tests/RuntimeTests \
   --target-prefix RuntimeTests
 ```

@@ -184,9 +184,6 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Atomic") { phase, symbols, types, interner in
             phase.registerSyntheticAtomicStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .sourceBackedMigration, name: "Uuid") { phase, symbols, types, interner in
-            phase.registerSyntheticUuidStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "KotlinAnnotation") { phase, symbols, types, interner in
             phase.registerSyntheticKotlinAnnotationStubs(symbols: symbols, types: types, interner: interner)
         },
@@ -208,8 +205,8 @@ private func extendedStdlibRegistryEntries() -> [SyntheticStubRegistryEntry] {
         SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "NativeConcurrent") { phase, symbols, types, interner in
             phase.registerSyntheticNativeConcurrentStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, _, interner in
-            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, interner: interner)
+        SyntheticStubRegistryEntry(bucket: .residualCompilerSurface, name: "ExperimentalMarker") { phase, symbols, types, interner in
+            phase.registerSyntheticExperimentalMarkerStubs(symbols: symbols, types: types, interner: interner)
         },
     ]
 }
@@ -236,5 +233,11 @@ extension DataFlowSemaPhase {
             _ = (entry.bucket, entry.name)
             entry.register(self, symbols, types, interner)
         }
+        // KSP-1205: EnumEntries is available after the Enum bucket has run.
+        registerSyntheticMemoryModelEnumMembers(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }

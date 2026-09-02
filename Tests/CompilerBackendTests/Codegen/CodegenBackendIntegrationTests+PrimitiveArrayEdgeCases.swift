@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendPrimitiveArrayEdgeCasesTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testPrimitiveArrayZeroInit() throws {
@@ -157,6 +99,73 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
         }
         """
         try assertKotlinOutput(source, moduleName: "UIntArrayFactoryAndAccess", expected: "3\n1\n3\n")
+    }
+
+    @Test
+    func testUnsignedArraySizeToListCopyAndAsListView() throws {
+        let source = """
+        fun main() {
+            val ubytes = ubyteArrayOf(1.toUByte(), 2.toUByte())
+            val ubyteCopy = ubytes.toList()
+            val ubyteView = ubytes.asList()
+            ubytes[0] = 9.toUByte()
+            println(ubytes.size)
+            println(ubyteCopy)
+            println(ubyteView)
+
+            val ushorts = ushortArrayOf(3.toUShort(), 4.toUShort())
+            val ushortCopy = ushorts.toList()
+            val ushortView = ushorts.asList()
+            ushorts[0] = 8.toUShort()
+            println(ushorts.size)
+            println(ushortCopy)
+            println(ushortView)
+
+            val uints = uintArrayOf(5u, 6u)
+            val uintCopy = uints.toList()
+            val uintView = uints.asList()
+            uints[0] = 7u
+            println(uints.size)
+            println(uintCopy)
+            println(uintView)
+
+            val ulongs = ulongArrayOf(10uL, 11uL)
+            val ulongCopy = ulongs.toList()
+            val ulongView = ulongs.asList()
+            ulongs[0] = 12uL
+            println(ulongs.size)
+            println(ulongCopy)
+            println(ulongView)
+
+            val objects = arrayOf("a", "b")
+            val objectCopy: List<String> = objects.toList()
+            objects[0] = "z"
+            println(objects.size)
+            println(objectCopy)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "UnsignedArraySizeToListCopyAndAsListView",
+            expected:
+                """
+                2
+                [1, 2]
+                [9, 2]
+                2
+                [3, 4]
+                [8, 4]
+                2
+                [5, 6]
+                [7, 6]
+                2
+                [10, 11]
+                [12, 11]
+                2
+                [a, b]
+                """
+                + "\n"
+        )
     }
 
     @Test
@@ -295,6 +304,73 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     }
 
     @Test
+    func testArrayCopyContractBoundariesAndOverlap() throws {
+        let source = """
+        fun main() {
+            val values = arrayOf(1, 2, 3)
+            println(values.copyOf(2).toList())
+            println(values.copyOf(5).toList())
+            println(values.copyOf(5) { index -> index * 10 }.toList())
+            println(values.copyOfRange(1, 3).toList())
+
+            val overlap = intArrayOf(1, 2, 3, 4)
+            overlap.copyInto(overlap, destinationOffset = 1, startIndex = 0, endIndex = 3)
+            println(overlap.toList())
+
+            try {
+                values.copyOf(-1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyOf-negative")
+            }
+            try {
+                intArrayOf(1, 2).copyOf(-1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("primitive-copyOf-negative")
+            }
+            try {
+                values.copyOfRange(2, 1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyOfRange-reversed")
+            }
+            try {
+                values.copyInto(arrayOf(0, 0), destinationOffset = 0, startIndex = 0, endIndex = 3)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyInto-destination-too-small")
+            }
+            try {
+                values.copyInto(arrayOf(0, 0, 0), startIndex = -1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyInto-negative-start")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayCopyContractBoundariesAndOverlap",
+            expected:
+                """
+                [1, 2]
+                [1, 2, 3, null, null]
+                [1, 2, 3, 30, 40]
+                [2, 3]
+                [1, 1, 2, 3]
+                copyOf-negative
+                primitive-copyOf-negative
+                copyOfRange-reversed
+                copyInto-destination-too-small
+                copyInto-negative-start
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testArraySliceArrayOverloads() throws {
         let source = """
         fun main() {
@@ -387,6 +463,40 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
                 [1000, 2000]
                 """
                 + "\n"
+        )
+    }
+
+    @Test
+    func testUShortArrayConstructorsPreserveZeroAndSignedStorageSemantics() throws {
+        let source = """
+        fun main() {
+            try {
+                UShortArray(-1)
+                println("no throw")
+            } catch (e: NegativeArraySizeException) {
+                println("negative: ${e.message}")
+            }
+
+            println(UShortArray(0).size)
+
+            val zeros = UShortArray(3)
+            println(zeros[0].toInt())
+
+            val storage = shortArrayOf(1, -1)
+            val values = UShortArray(storage)
+            val signedView = values.asShortArray()
+            println(values.size)
+            println(signedView[0])
+            println(signedView[1])
+            signedView[0] = -2
+            println(storage[0])
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UShortArrayConstructors",
+            expected: "negative: -1\n0\n0\n2\n1\n-1\n-2\n"
         )
     }
 

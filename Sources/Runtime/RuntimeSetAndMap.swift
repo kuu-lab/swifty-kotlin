@@ -51,7 +51,7 @@ public func kk_set_size(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return 0
     }
-    return set.elements.count
+    return set.count
 }
 
 @_cdecl("__kk_set_contains")
@@ -59,7 +59,7 @@ public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
     }
-    return kk_box_bool(set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0)
+    return kk_box_bool(set.contains(rawValue: element) ? 1 : 0)
 }
 
 @_cdecl("__kk_set_is_empty")
@@ -67,7 +67,7 @@ public func kk_set_is_empty(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(1)
     }
-    return kk_box_bool(set.elements.isEmpty ? 1 : 0)
+    return kk_box_bool(set.isEmpty ? 1 : 0)
 }
 
 @_cdecl("__kk_set_to_string")
@@ -113,7 +113,10 @@ public func kk_collection_size(_ collRaw: Int) -> Int {
         return list.elements.count
     }
     if let set = runtimeSetBox(from: collRaw) {
-        return set.elements.count
+        return set.count
+    }
+    if let sourceSize = runtimeSourceCollectionSize(collRaw) {
+        return sourceSize
     }
     return 0
 }
@@ -124,7 +127,21 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
         return list.elements.isEmpty ? 1 : 0
     }
     if let set = runtimeSetBox(from: collRaw) {
-        return set.elements.isEmpty ? 1 : 0
+        return set.isEmpty ? 1 : 0
+    }
+    if let sourceSize = runtimeSourceCollectionSize(collRaw) {
+        return sourceSize == 0 ? 1 : 0
+    }
+    return 1
+}
+
+@_cdecl("__kk_collection_containsAll")
+public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int {
+    let iteratorRaw = kk_list_iterator(elementsRaw)
+    while kk_list_iterator_hasNext(iteratorRaw) != 0 {
+        if kk_op_contains(collRaw, kk_list_iterator_next(iteratorRaw)) == 0 {
+            return 0
+        }
     }
     return 1
 }
@@ -132,26 +149,28 @@ public func kk_collection_isEmpty(_ collRaw: Int) -> Int {
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
-public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_set_add(
+    _ setRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
     }
-    if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
+    guard !set.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
-    set.elements.append(elem)
-    return kk_box_bool(1)
+    return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
 }
 
 @_cdecl("__kk_mutable_set_remove")
 public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
-    guard let set = runtimeSetBox(from: setRaw),
-          let index = set.elements.firstIndex(where: { runtimeValuesEqual($0, elem) })
-    else {
+    guard let set = runtimeSetBox(from: setRaw) else {
         return kk_box_bool(0)
     }
-    set.elements.remove(at: index)
-    return kk_box_bool(1)
+    return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
 }
 
 @_cdecl("__kk_mutable_set_clear")
@@ -159,7 +178,7 @@ public func kk_mutable_set_clear(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
         return 0
     }
-    set.elements.removeAll(keepingCapacity: false)
+    _ = set.removeAll(keepingCapacity: false)
     return 0
 }
 
@@ -191,11 +210,11 @@ public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     } else {
         return kk_box_bool(0)
     }
-    let originalCount = set.elements.count
-    set.elements.removeAll { elem in
-        collectionElements.contains(where: { runtimeValuesEqual($0, elem) })
+    let originalCount = set.count
+    _ = set.removeAll { elem in
+        collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
     }
-    return kk_box_bool(set.elements.count != originalCount ? 1 : 0)
+    return kk_box_bool(set.count != originalCount ? 1 : 0)
 }
 
 @_cdecl("__kk_mutable_set_retainAll")
@@ -211,17 +230,21 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     } else {
         return kk_box_bool(0)
     }
-    let originalCount = set.elements.count
-    set.elements.removeAll { elem in
-        !collectionElements.contains(where: { runtimeValuesEqual($0, elem) })
+    let originalCount = set.count
+    _ = set.removeAll { elem in
+        !collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
     }
-    return kk_box_bool(set.elements.count != originalCount ? 1 : 0)
+    return kk_box_bool(set.count != originalCount ? 1 : 0)
 }
 
 // MARK: - Map Functions (STDLIB-001)
 
-@_cdecl("__kk_map_of")
-public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+private func runtimeMapOf(
+    keysArrayRaw: Int,
+    valuesArrayRaw: Int,
+    count: Int,
+    typeID: Int64
+) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
     if count > 0, let arrays = runtimeMapArrayPair(keysRaw: keysArrayRaw, valuesRaw: valuesArrayRaw) {
@@ -229,6 +252,47 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         if effectiveCount > 0 {
             keys = Array(arrays.keys.prefix(effectiveCount))
             values = Array(arrays.values.prefix(effectiveCount))
+        }
+    }
+    (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: typeID)
+}
+
+@_cdecl("__kk_map_of")
+public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: mutableMapRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_hash_map_of")
+public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: hashMapRuntimeTypeID
+    )
+}
+
+/// Builds a mutable map from a vararg Pair array, including a spread argument.
+/// The compiler packs spread varargs before calling this bridge.
+@_cdecl("__kk_map_of_pairs")
+public func kk_map_of_pairs(_ pairsArrayRaw: Int, _ count: Int) -> Int {
+    var keys: [Int] = []
+    var values: [Int] = []
+    if count > 0, let pairs = runtimeArrayBox(from: pairsArrayRaw) {
+        for pairRaw in pairs.elements.prefix(count) {
+            guard let pointer = UnsafeMutableRawPointer(bitPattern: pairRaw),
+                  let pairBox = tryCast(pointer, to: RuntimePairBox.self)
+            else {
+                fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_map_of_pairs")
+            }
+            keys.append(pairBox.first)
+            values.append(pairBox.second)
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
@@ -243,43 +307,35 @@ public func kk_emptyMap() -> Int {
 }
 
 @_cdecl("__kk_mutable_map_put")
-public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
+public func kk_mutable_map_put(
+    _ mapRaw: Int,
+    _ key: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
     }
-    if let index = map.keys.firstIndex(where: { runtimeValuesEqual($0, key) }) {
-        let previous = index < map.values.count ? map.values[index] : runtimeNullSentinelInt
-        if index < map.values.count {
-            map.values[index] = value
-        } else {
-            map.values.append(value)
-        }
-        return previous
+    guard !map.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
+        return runtimeNullSentinelInt
     }
-    map.keys.append(key)
-    map.values.append(value)
-    return runtimeNullSentinelInt
+    return map.put(key: key, value: value) ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_remove")
 public func kk_mutable_map_remove(_ mapRaw: Int, _ key: Int) -> Int {
-    guard let map = runtimeMapBox(from: mapRaw),
-          let index = map.keys.firstIndex(where: { runtimeValuesEqual($0, key) })
-    else {
+    guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
     }
-    map.keys.remove(at: index)
-    guard index < map.values.count else {
-        return runtimeNullSentinelInt
-    }
-    return map.values.remove(at: index)
+    return map.remove(key: key) ?? runtimeNullSentinelInt
 }
 
 @_cdecl("__kk_mutable_map_clear")
 public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
     if let map = runtimeMapBox(from: mapRaw) {
-        map.keys.removeAll()
-        map.values.removeAll()
+        map.removeAll()
     }
     return 0
 }
@@ -288,22 +344,11 @@ public func kk_mutable_map_clear(_ mapRaw: Int) -> Int {
 public func kk_mutable_map_putAll(_ mapRaw: Int, _ otherMapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw),
           let other = runtimeMapBox(from: otherMapRaw) else { return 0 }
-    for (idx, key) in other.keys.enumerated() {
-        guard idx < other.values.count else { break }
-        var found = false
-        for (existIdx, existKey) in map.keys.enumerated() where runtimeValuesEqual(existKey, key) {
-            if existIdx < map.values.count {
-                map.values[existIdx] = other.values[idx]
-            } else {
-                map.values.append(other.values[idx])
-            }
-            found = true
-            break
-        }
-        if !found {
-            map.keys.append(key)
-            map.values.append(other.values[idx])
-        }
+    let otherKeys = other.keys
+    let otherValues = other.values
+    for (idx, key) in otherKeys.enumerated() {
+        guard idx < otherValues.count else { break }
+        _ = map.put(key: key, value: otherValues[idx])
     }
     return 0
 }
@@ -315,16 +360,16 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second)
+    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
     return 0
 }
 
 @_cdecl("kk_map_size")
 public func kk_map_size(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
-        return 0
+        return runtimeSourceMapSize(mapRaw) ?? 0
     }
-    return map.keys.count
+    return map.count
 }
 
 @_cdecl("__kk_map_get")
@@ -332,11 +377,10 @@ public func kk_map_get(_ mapRaw: Int, _ key: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeNullSentinelInt
     }
-    for (idx, mapKey) in map.keys.enumerated() where runtimeValuesEqual(mapKey, key) {
-        guard idx < map.values.count else { return runtimeNullSentinelInt }
-        return map.values[idx]
+    guard let index = map.index(ofRawKey: key) else {
+        return runtimeNullSentinelInt
     }
-    return runtimeNullSentinelInt
+    return map.rawValue(at: index) ?? runtimeNullSentinelInt
 }
 
 @inline(__always)
@@ -371,6 +415,14 @@ public func kk_map_implicit_default(_ mapRaw: Int, _ key: Int, _ outThrown: Unsa
     return defaultValue
 }
 
+@_cdecl("__kk_map_has_default")
+public func kk_map_has_default(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return 0
+    }
+    return map.defaultValueFnPtr == 0 ? 0 : 1
+}
+
 @_cdecl("__kk_map_withDefault")
 public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -392,9 +444,12 @@ public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
 @_cdecl("kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
+        if let sourceSize = runtimeSourceMapSize(mapRaw) {
+            return kk_box_bool(sourceSize == 0 ? 1 : 0)
+        }
         return kk_box_bool(1)
     }
-    return kk_box_bool(map.keys.isEmpty ? 1 : 0)
+    return kk_box_bool(map.isEmpty ? 1 : 0)
 }
 
 @_cdecl("__kk_map_entries")

@@ -9,4 +9,4 @@ file fdelegate_custom package=golden.sema
 expr e@4:68 string(default) type=String
 expr e@8:25 call callee=e@8:25#1 args=[] type=golden.sema.StringDelegate call=golden.sema.StringDelegate.<init>
 expr e@11:13 name(greeting) type=String ref=golden.sema.greeting
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13] type=Unit call=kotlin.io.println#1
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13] type=Unit call=kotlin.io.println#2

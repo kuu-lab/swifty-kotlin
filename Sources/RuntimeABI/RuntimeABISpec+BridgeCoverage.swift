@@ -31,6 +31,14 @@ func bridgeSpec(
 }
 
 private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
+    bridgeSpec(
+        "kk_iterable_iterator",
+        section: "Collection",
+        typedParams: [
+            ("iterableRaw", .intptr),
+            ("outThrown", .nullableIntptrPointer),
+        ]
+    ),
 ]
 
 private let listClosureBridgeNames = [
@@ -148,8 +156,14 @@ private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_iterator", section: "Range", params: ["rangeRaw"],
-            isThrowing: false),
+    bridgeSpec(
+        "kk_range_iterator",
+        section: "Range",
+        typedParams: [
+            ("rangeRaw", .intptr),
+            ("outThrown", .nullableIntptrPointer),
+        ]
+    ),
     bridgeSpec("kk_range_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
     bridgeSpec("kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],
@@ -181,15 +195,21 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("__kk_double_fromBits", section: "NumericConversion", params: ["bits"],
             isThrowing: false),
-            bridgeSpec("kk_double_to_char", section: "NumericConversion", params: ["value"]),
+            bridgeSpec("__kk_double_to_int", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
+            bridgeSpec("__kk_double_to_long", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
             bridgeSpec("__kk_float_fromBits", section: "NumericConversion", params: ["bits"],
             isThrowing: false),
             bridgeSpec("__kk_float_toBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("__kk_float_toRawBits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
-            bridgeSpec("kk_float_to_char", section: "NumericConversion", params: ["value"]),
-            bridgeSpec("kk_float_to_double_bits", section: "NumericConversion", params: ["value"],
+            bridgeSpec("__kk_float_to_double_bits", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
+            bridgeSpec("__kk_float_to_int", section: "NumericConversion", params: ["value"],
+            isThrowing: false),
+            bridgeSpec("__kk_float_to_long", section: "NumericConversion", params: ["value"],
             isThrowing: false),
             bridgeSpec("kk_int_to_double_bits", section: "NumericConversion", params: ["value"],
             isThrowing: false),
@@ -307,7 +327,7 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_identityHashCode", section: "Native", params: ["objectRaw"],
             isThrowing: false),
-            bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: [],
+            bridgeSpec("kk_native_getStackTraceAddresses", section: "Native", params: ["throwableRaw"],
             isThrowing: false),
             bridgeSpec("kk_native_getUnhandledExceptionHook", section: "Native", params: [],
             isThrowing: false),
@@ -367,7 +387,8 @@ public extension RuntimeABISpec {
             isThrowing: false),
             bridgeSpec("kk_native_byteArray_setDoubleAt", section: "Native", params: ["arrayRaw", "index", "value"],
             isThrowing: false),
-            bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"]),
+            bridgeSpec("kk_platform_isDebugBinary", section: "System", params: ["platformRaw"],
+            isThrowing: false),
             bridgeSpec("kk_with_timeout", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
             bridgeSpec("kk_with_timeout_or_null", section: "Coroutine", params: ["timeoutMillis", "entryPointRaw", "continuation"]),
         ]

@@ -230,6 +230,21 @@ private func sharedDataFlowTryCatchCtx() throws -> (ctx: CompilationContext, pat
             package sample24
             const val name: String = "ok"
             fun main(): Int = 0
+        """,
+        """
+            package sample25
+            fun requireNonNullLocal(value: Any?): Any {
+                if (value == null) throw IllegalArgumentException()
+                return value
+            }
+
+            fun combinedOrCondition(v: Any): String {
+                if (v !is String || v.length == 0) {
+                    return ""
+                }
+                return v
+            }
+            fun main(): Int = 0
         """
     ]
     var result: (ctx: CompilationContext, paths: [String])?
@@ -534,6 +549,18 @@ extension DataFlowAndSemaRegressionTests {
         let samplePath = paths[24]
         let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
             assertNoDiagnostic("KSWIFTK-SEMA-0082", in: sampleDiagnostics)
+    }
+
+    // Narrowing must survive the fallthrough after a no-else `if` whose then-branch
+    // always exits (return/throw): the statements after the `if` only run via the
+    // implicit else path, i.e. the negated condition.
+    @Test func testNarrowingSurvivesFallthroughAfterUnconditionalExitIf() throws {
+        let (ctx, paths) = try sharedDataFlowTryCatchCtx()
+        let samplePath = paths[25]
+        let sampleDiagnostics = diagnosticsForPath(samplePath, in: ctx)
+            let errors = sampleDiagnostics.filter { $0.severity == .error }
+            #expect(errors.isEmpty, Comment(rawValue: "unexpected errors: \(errors.map(\.code))"))
+            assertNoDiagnostic("KSWIFTK-TYPE-0001", in: sampleDiagnostics)
     }
 }
 #endif

@@ -40,8 +40,13 @@ extension DeclTypeChecker {
             // function and local declaration do.
             let bodyIsRangeExpr = {
                 guard case let .expr(bodyExprID, _) = getter.body else { return false }
-                return sema.bindings.isRangeExpr(bodyExprID)
-                    && driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+                return driver.helpers.rangeExprMatchesDeclaredElementType(
+                    bodyExprID: bodyExprID,
+                    bodyType: getterType,
+                    declaredType: declaredType,
+                    sema: sema,
+                    interner: interner
+                )
             }()
             if !bodyIsRangeExpr {
                 driver.emitSubtypeConstraint(
@@ -261,40 +266,13 @@ extension DeclTypeChecker {
             }
         }
 
-        // Kotlin requires a delegate's (effective, post-provideDelegate) type to expose
-        // getValue (and setValue for `var`) operators; a type lacking them is a compile
-        // error, not a silent fallback to Any?. Skip the small set of stdlib delegate
-        // factories (`lazy`, `Delegates.observable/vetoable/notNull`) whose dispatch KIR
-        // lowering still hardcodes structurally (StdlibDelegateLoweringPass) rather than
-        // resolving through the operator convention — that gap is tracked separately
-        // (KSP-491/492) and must stay silent until those factories are wired to real
-        // operator-based dispatch.
-        let isKnownStdlibDelegate = stdlibDelegateKind != .custom
-        if result == nil, isKnownStdlibDelegate {
-            // These factories are dispatched structurally rather than through the
-            // getValue operator, so the property type has to be read off the
-            // factory's return type (`Lazy<T>` / `ReadWriteProperty<Any?, T>`)
-            // instead of a resolved getValue signature.
-            result = stdlibDelegateValueType(
-                delegateType: delegateType,
-                kind: stdlibDelegateKind,
-                sema: sema,
-                interner: interner
-            )
-        }
-
-        // A stdlib delegate factory's trailing lambda is usually parsed into
-        // `delegateBody` separately from `delegateExpr` -- see
-        // `BuildASTPhase+DeclBuilders.swift` -- specifically so KIR lowering can
-        // repackage it into a standalone synthetic function
-        // (`lowerDelegateLambdaBody`). Because it's not part of `delegateExpr`,
-        // the ordinary call-argument inference above would otherwise skip its
-        // identifiers (BUG-170). `lazy` is the exception: its required
-        // initializer lambda is included in `delegateExpr` so overload
-        // resolution sees the real call signature, and inference above already
-        // type-checks its body. Checking `delegateBody` again would duplicate
-        // every diagnostic from that initializer.
-        if isKnownStdlibDelegate, stdlibDelegateKind != .lazy, let delegateBody {
+        // Delegate trailing lambdas are now ordinary call arguments and have
+        // already been type-checked by `inferExpr`. Keep the fallback body
+        // check only for legacy ASTs whose body is not present in the call;
+        // checking an included lambda again would duplicate diagnostics.
+        let delegateBodyIsCallArgument = delegateBody != nil
+            && delegateExpressionContainsLambdaArgument(delegateExpr, ast: ctx.ast)
+        if !delegateBodyIsCallArgument, let delegateBody {
             var bodyLocals = locals
             for (index, name) in delegateBodyParams.enumerated() {
                 let paramSymbol = SyntheticSymbolScheme.delegateLambdaParameterSymbol(
@@ -318,14 +296,14 @@ extension DeclTypeChecker {
             )
         }
 
-        if !getValueResolved, !getValueDiagnosticReported, !isKnownStdlibDelegate {
+        if !getValueResolved, !getValueDiagnosticReported {
             diagnostics.error(
                 "KSWIFTK-SEMA-0103",
                 "Property delegate must have a 'getValue' operator function.",
                 range: ctx.ast.arena.exprRange(delegateExpr) ?? fallbackRange
             )
         }
-        if isVar, !setValueResolved, !setValueDiagnosticReported, !isKnownStdlibDelegate {
+        if isVar, !setValueResolved, !setValueDiagnosticReported {
             diagnostics.error(
                 "KSWIFTK-SEMA-0104",
                 "Mutable property delegate must have a 'setValue' operator function.",
@@ -333,11 +311,37 @@ extension DeclTypeChecker {
             )
         }
 
-        if result == nil {
-            result = sema.types.nullableAnyType
+        // An explicitly declared delegated-property type is authoritative for
+        // the local/property binding. This matters for generic extension
+        // operators such as Map<in String, V>.getValue(...): V1, whose V1
+        // return type is intentionally inferred from that declaration.
+        if let inferredPropertyType {
+            return inferredPropertyType
         }
+        return result ?? sema.types.nullableAnyType
+    }
 
-        return result
+    private func delegateExpressionContainsLambdaArgument(
+        _ delegateExpr: ExprID,
+        ast: ASTModule
+    ) -> Bool {
+        let args: [CallArgument]
+        switch ast.arena.expr(delegateExpr) {
+        case let .call(_, _, callArgs, _):
+            args = callArgs
+        case let .memberCall(_, _, _, memberArgs, _):
+            args = memberArgs
+        default:
+            return false
+        }
+        guard let lastArgument = args.last else { return false }
+        guard let expression = ast.arena.expr(lastArgument.expr) else {
+            return false
+        }
+        if case .lambdaLiteral = expression {
+            return true
+        }
+        return false
     }
 
     /// Resolve one property-delegate convention function with the same
@@ -563,42 +567,6 @@ extension DeclTypeChecker {
 
     private func stdlibDelegateInterfaceFQName(for kind: StdlibDelegateKind) -> [String] {
         kind == .lazy ? ["kotlin", "Lazy"] : ["kotlin", "properties", "ReadWriteProperty"]
-    }
-
-    /// The value type a stdlib delegate factory's result exposes:
-    /// `Lazy<T>` → `T`, `ReadWriteProperty<Any?, T>` → `T`. Returns nil when the
-    /// delegate type is not (a subtype of) the expected interface, e.g. because
-    /// the factory call itself failed to resolve.
-    private func stdlibDelegateValueType(
-        delegateType: TypeID,
-        kind: StdlibDelegateKind,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID? {
-        let ownerFQName = stdlibDelegateInterfaceFQName(for: kind)
-        let valueArgIndex = kind == .lazy ? 0 : 1
-        guard let ownerSymbol = sema.symbols.lookup(fqName: ownerFQName.map { interner.intern($0) }),
-              let delegateClass = resolveClassType(delegateType, sema: sema)
-        else {
-            return nil
-        }
-        let args: [TypeArg]
-        if delegateClass.classSymbol == ownerSymbol {
-            args = delegateClass.args
-        } else if let lifted = sema.types.liftedNominalSupertypeArgs(
-            from: delegateClass.classSymbol,
-            childArgs: delegateClass.args,
-            to: ownerSymbol
-        ) {
-            args = lifted
-        } else {
-            return nil
-        }
-        guard valueArgIndex < args.count else { return nil }
-        return switch args[valueArgIndex] {
-        case let .invariant(type), let .out(type), let .in(type): type
-        case .star: nil
-        }
     }
 
     private func resolvedDelegateMemberSignature(

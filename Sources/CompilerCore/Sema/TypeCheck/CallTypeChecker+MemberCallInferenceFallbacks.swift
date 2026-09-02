@@ -487,9 +487,6 @@ extension CallTypeChecker {
     ) -> (TypeID, KIRExprKind)? {
         let types = sema.types
         switch (typeName, memberName) {
-        // Short
-        case ("Short", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int16.max)))
-        case ("Short", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int16.min)))
         // Byte
         case ("Byte", "MAX_VALUE"): return (types.intType, .intLiteral(Int64(Int8.max)))
         case ("Byte", "MIN_VALUE"): return (types.intType, .intLiteral(Int64(Int8.min)))
@@ -503,16 +500,6 @@ extension CallTypeChecker {
         case ("ULong", "MIN_VALUE"): return (types.ulongType, .ulongLiteral(0))
         case ("ULong", "SIZE_BITS"): return (types.intType, .intLiteral(64))
         case ("ULong", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
-        // UByte (8-bit unsigned)
-        case ("UByte", "MAX_VALUE"): return (types.ubyteType, .uintLiteral(UInt64(UInt8.max)))
-        case ("UByte", "MIN_VALUE"): return (types.ubyteType, .uintLiteral(0))
-        case ("UByte", "SIZE_BITS"): return (types.intType, .intLiteral(8))
-        case ("UByte", "SIZE_BYTES"): return (types.intType, .intLiteral(1))
-        // UShort (16-bit unsigned)
-        case ("UShort", "MAX_VALUE"): return (types.ushortType, .uintLiteral(UInt64(UInt16.max)))
-        case ("UShort", "MIN_VALUE"): return (types.ushortType, .uintLiteral(0))
-        case ("UShort", "SIZE_BITS"): return (types.intType, .intLiteral(16))
-        case ("UShort", "SIZE_BYTES"): return (types.intType, .intLiteral(2))
         // Float
         case ("Float", "MAX_VALUE"): return (types.floatType, .floatLiteral(Double(Float.greatestFiniteMagnitude)))
         case ("Float", "MIN_VALUE"): return (types.floatType, .floatLiteral(Double(Float.leastNonzeroMagnitude)))

@@ -82,13 +82,15 @@ extension DeclTypeChecker {
         typeCheckPrimaryConstructorDefaultValues(classDecl, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckEnumEntryConstructorArguments(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckPrimaryConstructorSuperDelegation(classDecl, symbol: symbol, ctx: classCtx)
+        let explicitSuperclassSymbol = explicitClassSuperclassSymbol(classDecl, ctx: classCtx)
         typeCheckSecondaryConstructors(
             classDecl.secondaryConstructors,
             ctx: classCtx,
             solver: solver,
             diagnostics: diagnostics,
             ownerSymbol: symbol,
-            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax
+            hasPrimaryConstructor: classDecl.hasPrimaryConstructorSyntax,
+            explicitSuperclassSymbol: explicitSuperclassSymbol
         )
         typeCheckClassDelegation(classDecl, symbol: symbol, ctx: classCtx, solver: solver, diagnostics: diagnostics)
         typeCheckClassLikeMembers(
@@ -190,6 +192,20 @@ extension DeclTypeChecker {
             ctx: objectCtx,
             range: objectDecl.range
         )
+
+        // Superclass constructor arguments are evaluated in the enclosing
+        // declaration scope, so visit them before lowering can emit the
+        // constructor call. This also records constant-property bindings for
+        // expressions such as `Base64(STANDARD_ALPHABET, 0)`.
+        var superclassArgumentLocals: LocalBindings = [:]
+        for argument in objectDecl.superTypeConstructorArgs {
+            _ = driver.inferExpr(
+                argument.expr,
+                ctx: ctx,
+                locals: &superclassArgumentLocals,
+                expectedType: nil
+            )
+        }
 
         typeCheckInitBlocks(objectDecl.initBlocks, ctx: objectCtx)
         typeCheckClassLikeMembers(

@@ -42,15 +42,73 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
     let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
+    let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
-    return (mapID, mutableMapID)
+    runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)
+    return (mapID, mutableMapID, hashMapID)
 }()
 
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
+let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
+
+private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Collection"
+)
+private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Map"
+)
+// These slots are the generated interface property getter slots in the current
+// bundled layout: Collection.size follows six inherited vtable entries, while
+// Map.size is the first property after two vtable entries.
+private let runtimeCollectionSizeGetterSlot = 6
+private let runtimeMapSizeGetterSlot = 2
+
+/// Source-defined Collection/Map implementations expose `size` through the
+/// same dynamic interface-property getter table used by ordinary Kotlin code.
+/// Built-in list/set/map boxes continue to use their direct fast paths.
+@inline(__always)
+func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeCollectionSizeInterfaceTypeID),
+        runtimeCollectionSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapSizeInterfaceTypeID),
+        runtimeMapSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
 
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
@@ -306,7 +364,7 @@ func registerRuntimeObject(_ box: AnyObject) -> Int {
     let raw = Int(bitPattern: opaque)
     maybeRegisterCollectionIterableItable(raw: raw, box: box)
     if box is RuntimeStringBox {
-        runtimeRegisterCharSequenceLengthItable(raw)
+        runtimeRegisterCharSequenceItable(raw)
     }
     return raw
 }
@@ -322,7 +380,9 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeMutableIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterator")
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+private let runtimeMutableIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 
 /// Register the `kotlin.collections.Iterator` itable on a raw object handle.
@@ -338,9 +398,27 @@ private func registerIteratorItable(
     _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
 }
 
+/// Register the `kotlin.collections.MutableIterator` itable on a raw object handle.
+private func registerMutableIteratorItable(
+    raw: Int,
+    remove: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
+    ifaceSlot: Int = 1
+) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIteratorInterfaceTypeID), ifaceSlot)
+    let removePtr = unsafeBitCast(remove, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, removePtr)
+}
+
 /// Register the `kotlin.collections.Iterable` itable on a raw object handle.
 private func registerIterableItable(raw: Int, ifaceSlot: Int = 0) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+/// Register the `kotlin.collections.MutableIterable` itable on a raw object handle.
+private func registerMutableIterableItable(raw: Int, ifaceSlot: Int = 2) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIterableInterfaceTypeID), ifaceSlot)
     let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
     _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
 }
@@ -374,10 +452,12 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
         runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
     } else if box is RuntimeSetBox {
         runtimeRegisterObjectType(rawValue: raw, classID: setRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
     } else if type(of: box) == RuntimeArrayBox.self {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
@@ -402,9 +482,17 @@ private let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoin
     return kk_list_iterator_next(iterRaw)
 }
 
+private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return runtimeListIteratorRemove(iterRaw)
+}
+
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
+    if box.removeAction != nil {
+        registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk)
+    }
     return raw
 }
 
@@ -544,6 +632,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         }
         return maybeUnbox(lhs) == maybeUnbox(rhs)
     }
+    if runtimeIsUnitBox(lhs) || runtimeIsUnitBox(rhs) {
+        return runtimeIsUnitBox(lhs) && runtimeIsUnitBox(rhs)
+    }
     if !lhsIsObjectPointer, !rhsIsObjectPointer {
         return lhs == rhs
     }
@@ -625,8 +716,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsSet.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for elem in lhsElems {
-            // swiftlint:disable:next for_where
-            if !rhsElems.contains(where: { runtimeValuesEqual($0, elem) }) {
+            if !rhsSet.contains(rawValue: elem) {
                 return false
             }
         }
@@ -637,10 +727,13 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         guard lhsMap.keys.count == rhsMap.keys.count else { return false }
         for (i, lhsKey) in lhsMap.keys.enumerated() {
-            guard let rhsIdx = rhsMap.keys.firstIndex(where: { runtimeValuesEqual($0, lhsKey) }) else {
+            guard let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
+                  let lhsValue = lhsMap.rawValue(at: i),
+                  let rhsValue = rhsMap.rawValue(at: rhsIdx)
+            else {
                 return false
             }
-            if !runtimeValuesEqual(lhsMap.values[i], rhsMap.values[rhsIdx]) {
+            if !runtimeValuesEqual(lhsValue, rhsValue) {
                 return false
             }
         }
@@ -662,9 +755,9 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
        let lhsTriple = tryCast(lhsPtr, to: RuntimeTripleBox.self),
        let rhsTriple = tryCast(rhsPtr, to: RuntimeTripleBox.self)
     {
-        return runtimeValuesEqual(lhsTriple.first, rhsTriple.first)
-            && runtimeValuesEqual(lhsTriple.second, rhsTriple.second)
-            && runtimeValuesEqual(lhsTriple.third, rhsTriple.third)
+        return runtimeValuesEqual(lhsTriple.firstValue, rhsTriple.firstValue)
+            && runtimeValuesEqual(lhsTriple.secondValue, rhsTriple.secondValue)
+            && runtimeValuesEqual(lhsTriple.thirdValue, rhsTriple.thirdValue)
     }
     if let lhsLocale = tryCast(lhsPtr, to: RuntimeLocaleBox.self),
        let rhsLocale = tryCast(rhsPtr, to: RuntimeLocaleBox.self)
@@ -784,6 +877,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if runtimeIsUnitBox(elem) {
+        return "kotlin.Unit"
+    }
     if let stringBox = tryCast(ptr, to: RuntimeStringBox.self) {
         return stringBox.value
     }
@@ -811,6 +907,9 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
         return "Throwable(\(throwable.renderedMessage))"
     }
+    if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
+        return runtimeInstantToString(instantBox)
+    }
     if let listBox = tryCast(ptr, to: RuntimeListBox.self) {
         let parts = listBox.values.map { runtimeElementToString($0) }
         return "[" + parts.joined(separator: ", ") + "]"
@@ -837,9 +936,9 @@ func runtimeElementToString(_ elem: Int) -> String {
         return "(\(first), \(second))"
     }
     if let tripleBox = tryCast(ptr, to: RuntimeTripleBox.self) {
-        let first = runtimeElementToString(tripleBox.first)
-        let second = runtimeElementToString(tripleBox.second)
-        let third = runtimeElementToString(tripleBox.third)
+        let first = runtimeElementToString(tripleBox.firstValue)
+        let second = runtimeElementToString(tripleBox.secondValue)
+        let third = runtimeElementToString(tripleBox.thirdValue)
         return "(\(first), \(second), \(third))"
     }
     if let rangeBox = tryCast(ptr, to: RuntimeRangeBox.self) {
