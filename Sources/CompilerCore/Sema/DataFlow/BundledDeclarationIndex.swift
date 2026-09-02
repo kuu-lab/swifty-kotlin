@@ -631,7 +631,7 @@ struct BundledDeclarationIndex: Sendable {
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
         // Aliasing List member implementations to Iterable suppresses synthetic
-        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
         let nonAliasedZeroArgNames = Set([
@@ -641,6 +641,7 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("first"),
             interner.intern("last"),
             interner.intern("single"),
+            interner.intern("singleOrNull"),
         ])
         // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
         // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with

@@ -38,15 +38,33 @@ final class StableRenderContext {
             fqGroups[fq, default: []].append(symbol)
         }
 
+        var stableTypeParameterFQ: [Int32: String] = [:]
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .typeParameter {
+            if let fq = fqMap[symbol.id.rawValue] {
+                stableTypeParameterFQ[symbol.id.rawValue] = Self.stabilizeTypeParameterFQName(fq)
+            }
+        }
+
         self.symbolFQ = fqMap
 
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
-            let sorted = symbols.sorted { a, b in
-                let lhs = Self.overloadSortKey(a, sema: sema, fqMap: fqMap)
-                let rhs = Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
-                return lhs.compare(rhs, options: .numeric) == .orderedAscending
-            }
+            let sorted = symbols.enumerated().sorted { lhs, rhs in
+                let lhsKey = Self.overloadSortKey(
+                    lhs.element,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                let rhsKey = Self.overloadSortKey(
+                    rhs.element,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                let cmp = lhsKey.compare(rhsKey, options: .numeric)
+                return cmp == .orderedSame ? lhs.offset < rhs.offset : cmp == .orderedAscending
+            }.map(\.element)
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"
             }
@@ -281,17 +299,34 @@ final class StableRenderContext {
     private static func overloadSortKey(
         _ symbol: SemanticSymbol,
         sema: SemaModule,
-        fqMap: [Int32: String]
+        fqMap: [Int32: String],
+        stableTypeParameterFQ: [Int32: String]
     ) -> String {
         guard let sig = sema.symbols.functionSignature(for: symbol.id) else {
             return ""
         }
-        let recv = sig.receiverType.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) } ?? "_"
-        let params = sig.parameterTypes.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) }
+        let recv = sig.receiverType.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                stableTypeParameterFQ: stableTypeParameterFQ
+            )
+        } ?? "_"
+        let params = sig.parameterTypes.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                stableTypeParameterFQ: stableTypeParameterFQ
+            )
+        }
         return "\(recv)|\(params.joined(separator: ","))"
     }
 
-    private static func stabilizeTypeRefsStatic(_ text: String, fqMap: [Int32: String]) -> String {
+    private static func stabilizeTypeRefsStatic(
+        _ text: String,
+        fqMap: [Int32: String],
+        stableTypeParameterFQ: [Int32: String]
+    ) -> String {
         let nsText = text as NSString
         let range = NSRange(location: 0, length: nsText.length)
         let matches = typeRefRegex.matches(in: text, range: range)
@@ -301,11 +336,42 @@ final class StableRenderContext {
         for match in matches.reversed() {
             let idRange = match.range(at: 2)
             guard idRange.location != NSNotFound,
-                  let rawID = Int32(nsText.substring(with: idRange)),
-                  let fq = fqMap[rawID]
+                  let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
-            mutable.replaceCharacters(in: match.range, with: fq)
+            let prefix = nsText.substring(with: match.range(at: 1))
+            let stableFQ: String?
+            if prefix == "T#" {
+                stableFQ = stableTypeParameterFQ[rawID] ?? fqMap[rawID]
+            } else {
+                stableFQ = fqMap[rawID]
+            }
+            guard let stableFQ else {
+                continue
+            }
+            mutable.replaceCharacters(in: match.range, with: stableFQ)
         }
         return mutable as String
+    }
+
+    private static func stabilizeTypeParameterFQName(_ fq: String) -> String {
+        let components = fq.split(separator: ".", omittingEmptySubsequences: false)
+        return components.map { component in
+            let characters = Array(component)
+            guard characters.first == "$" else { return String(component) }
+
+            var digitStart = 1
+            while digitStart < characters.count, characters[digitStart].isLetter {
+                digitStart += 1
+            }
+            guard digitStart < characters.count,
+                  characters[digitStart...].allSatisfy(\.isNumber),
+                  let ownerID = Int64(String(characters[digitStart...]))
+            else {
+                return String(component)
+            }
+
+            let prefix = String(characters[..<digitStart])
+            return prefix + String(format: "%010lld", ownerID)
+        }.joined(separator: ".")
     }
 }

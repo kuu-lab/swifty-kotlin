@@ -38,6 +38,8 @@ extension CallLowerer {
         "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
         "shuffled",
         "distinct", "distinctBy", "count",
+        "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
+        "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
