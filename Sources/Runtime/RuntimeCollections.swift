@@ -204,7 +204,9 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
 public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
-        return registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+        registerListIteratorItable(raw: raw)
+        return raw
     }
     guard (0...list.elements.count).contains(index) else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
@@ -220,7 +222,9 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
         }
     )
     iter.index = index
-    return registerRuntimeObject(iter)
+    let raw = registerRuntimeObject(iter)
+    registerListIteratorItable(raw: raw)
+    return raw
 }
 
 @_cdecl("kk_list_iterator_hasNext")
