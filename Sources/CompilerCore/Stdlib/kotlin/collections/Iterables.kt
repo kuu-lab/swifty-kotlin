@@ -701,6 +701,41 @@ public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
+// KSP-979: Keep the Iterable index family on the iterator-backed source path.
+// The counter is checked after the previous increment wraps negative, allowing
+// the candidate at Int.MAX_VALUE to be evaluated before the next iteration
+// reports overflow, matching the Kotlin stdlib contract.
+public fun <T> Iterable<T>.indexOf(element: T): Int {
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (element == item) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (predicate(item)) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    var lastIndex = -1
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (predicate(item)) lastIndex = index
+        index++
+    }
+    return lastIndex
+}
+
 @SinceKotlin("1.5")
 public inline fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
     for (element in this) {
