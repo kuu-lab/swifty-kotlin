@@ -15,7 +15,7 @@ symbol fq=kotlin.collections.MutableCollection kind=interface vis=public flags=s
 symbol fq=kotlin.collections.MutableIterable kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableIterable.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableIterable.iterator kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableIterable<out kotlin.collections.MutableIterable.T> params=[] ret=kotlin.collections.MutableIterator<out kotlin.collections.MutableIterable.T>
-symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableSet.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableSet.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
@@ -28,7 +28,7 @@ symbol fq=kotlin.collections.MutableSet.plusAssign#1 kind=function vis=public fl
 symbol fq=kotlin.collections.MutableSet.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.MutableSet.E] ret=Boolean
 symbol fq=kotlin.collections.MutableSet.removeAll kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.Collection<out kotlin.collections.MutableSet.E>] ret=Boolean
 symbol fq=kotlin.collections.MutableSet.retainAll kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableSet<kotlin.collections.MutableSet.E> params=[kotlin.collections.Collection<out kotlin.collections.MutableSet.E>] ret=Boolean
-symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
 symbol fq=probe kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableSet<Int>] ret=Unit
 symbol fq=probe.$3.values kind=valueParameter vis=private flags=_
 file fstdlib_kotlin_collections_n_MutableSet package=_
