@@ -665,9 +665,20 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     // MARK: - Iterator protocol correctness
 
+    @Test func iterator_withoutThrownChannel_preservesRangeIteration() {
+        let range = kk_op_rangeTo(1, 2)
+        let iterator = kk_range_iterator(range)
+
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 1)
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 2)
+        #expect(kk_range_hasNext(iterator) == 0)
+    }
+
     @Test func iterator_stepsCorrectly_ascending() {
         let range = kk_op_rangeTo(1, 4)
-        let iter = kk_range_iterator(range)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))
@@ -677,7 +688,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func iterator_stepsCorrectly_descending() {
         let range = __kk_op_downTo(4, 1)
-        let iter = kk_range_iterator(range)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))
@@ -687,14 +698,14 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     @Test func iterator_emptyRange_hasNextFalseImmediately() {
         let empty = kk_op_rangeTo(5, 1)
-        let iter = kk_range_iterator(empty)
+        let iter = kk_range_iterator(empty, nil)
         #expect(kk_range_hasNext(iter) == 0, "hasNext on empty range must be false immediately")
     }
 
     @Test func iterator_withStep_yieldsAlignedValues() {
         // (1..10 step 3) -> 1,4,7,10
         let range = __kk_op_step(kk_op_rangeTo(1, 10), 3, nil)
-        let iter = kk_range_iterator(range)
+        let iter = kk_range_iterator(range, nil)
         var values: [Int] = []
         while kk_range_hasNext(iter) != 0 {
             values.append(kk_range_next(iter))

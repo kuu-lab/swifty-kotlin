@@ -1,5 +1,5 @@
 import Foundation
-typealias SyntheticStringStubContext = (symbols: SymbolTable, types: TypeSystem, interner: StringInterner, kotlinTextPkg: [InternedString], kotlinRootPkg: [InternedString], stringType: TypeID, charSequenceSymbol: SymbolID, charSequenceType: TypeID, appendableSymbol: SymbolID, appendableType: TypeID, boolType: TypeID, intType: TypeID, longType: TypeID, charType: TypeID, nullableCharType: TypeID, listStringType: TypeID, nullableCharSequenceType: TypeID)
+typealias SyntheticStringStubContext = (symbols: SymbolTable, types: TypeSystem, interner: StringInterner, kotlinTextPkg: [InternedString], kotlinRootPkg: [InternedString], stringType: TypeID, charSequenceSymbol: SymbolID, charSequenceType: TypeID, boolType: TypeID, intType: TypeID, longType: TypeID, charType: TypeID, nullableCharType: TypeID, listStringType: TypeID)
 extension DataFlowSemaPhase {
     func registerSyntheticStringStubs(
         symbols: SymbolTable,
@@ -9,7 +9,12 @@ extension DataFlowSemaPhase {
         let kotlinTextPkg = ensureKotlinTextPackage(symbols: symbols, interner: interner)
         let kotlinRootPkg = ensurePackage(path: ["kotlin"], symbols: symbols, interner: interner)
         let stringType = types.stringType
-        let charSequenceSymbol = ensureInterfaceSymbol(
+        // String is a compiler/runtime nominal shell. The bundled source owns
+        // CharSequence whenever it is available; the fallback keeps bootstrap
+        // contexts that intentionally omit bundled stdlib headers functional.
+        let charSequenceSymbol = symbols.lookup(
+            fqName: kotlinRootPkg + [interner.intern("CharSequence")]
+        ) ?? ensureInterfaceSymbol(
             named: "CharSequence",
             in: kotlinRootPkg,
             symbols: symbols,
@@ -22,27 +27,13 @@ extension DataFlowSemaPhase {
         if let kotlinRootPkgSymbol = symbols.lookup(fqName: kotlinRootPkg) {
             symbols.setParentSymbol(kotlinRootPkgSymbol, for: charSequenceSymbol)
         }
-        let appendableSymbol = ensureInterfaceSymbol(
-            named: "Appendable",
-            in: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let appendableType = types.make(.classType(ClassType(
-            classSymbol: appendableSymbol, args: [], nullability: .nonNull
-        )))
-        if let kotlinTextPkgSymbol = symbols.lookup(fqName: kotlinTextPkg) {
-            symbols.setParentSymbol(kotlinTextPkgSymbol, for: appendableSymbol)
-        }
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let intType = types.intType
         let longType = types.make(.primitive(.long, .nonNull))
         let charType = types.make(.primitive(.char, .nonNull))
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
-        let nullableCharSequenceType = types.makeNullable(charSequenceType)
-        let context: SyntheticStringStubContext = (symbols, types, interner, kotlinTextPkg, kotlinRootPkg, stringType, charSequenceSymbol, charSequenceType, appendableSymbol, appendableType, boolType, intType, longType, charType, nullableCharType, listStringType, nullableCharSequenceType)
-        registerSyntheticStringTypeStubs(context: context)
+        let context: SyntheticStringStubContext = (symbols, types, interner, kotlinTextPkg, kotlinRootPkg, stringType, charSequenceSymbol, charSequenceType, boolType, intType, longType, charType, nullableCharType, listStringType)
         let localeType = registerSyntheticStringConversionStubs(context: context)
         registerSyntheticStringCoreStubs(context: context)
         let nullableStringType = registerSyntheticStringQueryStubs(context: context)

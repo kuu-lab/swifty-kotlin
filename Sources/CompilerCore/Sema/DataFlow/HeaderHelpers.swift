@@ -1342,6 +1342,50 @@ extension DataFlowSemaPhase {
         guard let anyInfo = symbols.symbol(anySymbol) else { return }
         let anyClassType = types.make(.classType(ClassType(
             classSymbol: anySymbol, args: [], nullability: .nonNull)))
+
+        // Kotlin/Native exposes Any's implicit public constructor in metadata,
+        // although the actual class declaration is compiler-provided rather
+        // than bundled Kotlin source. The KIR constructor path performs the
+        // object allocation; no constructor body is emitted for this symbol.
+        let anyConstructorName = interner.intern("<init>")
+        let anyConstructorFQName = anyInfo.fqName + [anyConstructorName]
+        if symbols.lookupAll(fqName: anyConstructorFQName).isEmpty {
+            let constructorSymbol = symbols.define(
+                kind: .constructor,
+                name: anyConstructorName,
+                fqName: anyConstructorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic])
+            symbols.setParentSymbol(anySymbol, for: constructorSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [],
+                    returnType: anyClassType,
+                    isSuspend: false,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [],
+                    valueParameterIsVararg: []),
+                for: constructorSymbol)
+        }
+
+        // Any has only the two-word object header and is the root of the
+        // nominal allocation hierarchy. Keep its layout empty so the existing
+        // Any member fallback remains responsible for toString/hashCode/equals
+        // dispatch while constructors still receive a stable nominal type ID.
+        if symbols.nominalLayout(for: anySymbol) == nil {
+            symbols.setNominalLayout(
+                NominalLayout(
+                    objectHeaderWords: 2,
+                    instanceFieldCount: 0,
+                    instanceSizeWords: 2,
+                    vtableSlots: [:],
+                    itableSlots: [:],
+                    superClass: nil),
+                for: anySymbol)
+        }
+
         let stringType = types.stringType
         let intType = types.intType
         let booleanType = types.booleanType

@@ -1722,6 +1722,15 @@ extension ExprLowerer {
             {
                 return operandID
             }
+            if let targetType = sema.bindings.castTargetType(for: exprID),
+               isRedundantComparableCast(
+                   from: sema.bindings.exprTypes[exprToCast],
+                   to: targetType,
+                   sema: sema
+               )
+            {
+                return operandID
+            }
             // Unchecked erasure cast: `as`/`as?` to a non-reified type parameter
             // has no runtime type information to check against — Sema allows
             // this (with an "unchecked cast" warning) but only rejects `is T`

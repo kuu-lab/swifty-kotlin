@@ -198,7 +198,7 @@ public func kk_map_mapKeysTo(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        _ = kk_mutable_map_put(destRaw, maybeUnbox(result), value)
+        _ = kk_mutable_map_put(destRaw, maybeUnbox(result), value, nil)
     }
     return destRaw
 }
@@ -254,7 +254,7 @@ public func kk_map_mapValuesTo(
             outThrown: &thrown
         )
         if thrown != 0 { return handleCollectionLambdaThrow(thrown, outThrown) }
-        _ = kk_mutable_map_put(destRaw, key, maybeUnbox(result))
+        _ = kk_mutable_map_put(destRaw, key, maybeUnbox(result), nil)
     }
     return destRaw
 }
