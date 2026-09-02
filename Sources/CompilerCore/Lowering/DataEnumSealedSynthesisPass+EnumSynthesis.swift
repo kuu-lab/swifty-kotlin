@@ -492,13 +492,14 @@ extension DataEnumSealedSynthesisPass {
         ))
         body.append(.returnValue(throwResult))
 
+        let isCompanionMember = owner.kind == .object
         let companionType = sema.types.make(.classType(ClassType(
             classSymbol: owner.id,
             args: [],
             nullability: .nonNull
         )))
         let signature = FunctionSignature(
-            receiverType: companionType,
+            receiverType: isCompanionMember ? companionType : nil,
             parameterTypes: [stringType],
             returnType: enumType,
             isSuspend: false,
@@ -516,46 +517,43 @@ extension DataEnumSealedSynthesisPass {
             else { return false }
             return true
         }
-        if let existingSymbol = existingValueOf, !existingFunctionSymbols.contains(existingSymbol) {
-            let receiverParam = KIRParameter(
-                symbol: sema.symbols.define(
-                    kind: .valueParameter,
-                    name: interner.intern("$self"),
-                    fqName: fqName + [interner.intern("$self")],
-                    declSite: owner.declSite,
-                    visibility: .private,
-                    flags: [.synthetic]
+        let params: [KIRParameter] = if isCompanionMember {
+            [
+                KIRParameter(
+                    symbol: sema.symbols.define(
+                        kind: .valueParameter,
+                        name: interner.intern("$self"),
+                        fqName: fqName + [interner.intern("$self")],
+                        declSite: owner.declSite,
+                        visibility: .private,
+                        flags: [.synthetic]
+                    ),
+                    type: companionType
                 ),
-                type: companionType
-            )
+                parameter,
+            ]
+        } else {
+            [parameter]
+        }
+
+        if let existingSymbol = existingValueOf, !existingFunctionSymbols.contains(existingSymbol) {
             appendSyntheticFunctionWithSymbol(
                 functionSymbol: existingSymbol,
                 name: name,
                 module: module,
                 sema: sema,
                 signature: signature,
-                params: [receiverParam, parameter],
+                params: params,
                 body: body
             )
         } else {
-            let receiverParam = KIRParameter(
-                symbol: sema.symbols.define(
-                    kind: .valueParameter,
-                    name: interner.intern("$self"),
-                    fqName: fqName + [interner.intern("$self")],
-                    declSite: owner.declSite,
-                    visibility: .private,
-                    flags: [.synthetic]
-                ),
-                type: companionType
-            )
             appendSyntheticFunctionIfNeeded(
                 name: name,
                 owner: owner,
                 module: module,
                 sema: sema,
                 signature: signature,
-                params: [receiverParam, parameter],
+                params: params,
                 body: body,
                 existingFunctionSymbols: existingFunctionSymbols
             )

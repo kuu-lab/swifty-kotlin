@@ -1042,7 +1042,13 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
-        var candidates = visible
+        var candidates = preferMostSpecificMemberReceiverCandidates(
+            visible,
+            receiverType: lookupReceiverType,
+            argumentTypes: argTypes,
+            sema: sema,
+            interner: interner
+        )
         if interner.resolve(calleeName) == "coerceIn",
            !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
@@ -1089,6 +1095,14 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "toList" {
             candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "take" {
+            candidates = preferListTakeCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
                 sema: sema,

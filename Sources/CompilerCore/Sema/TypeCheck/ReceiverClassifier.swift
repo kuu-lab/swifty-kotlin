@@ -49,7 +49,10 @@ struct ReceiverClassifier {
             && !isIterableLikeType(receiverType)
         return ReceiverClassification(
             isArrayReceiver: isArrayLikeType(receiverType),
-            isIterableReceiver: isIterableLikeType(receiverType),
+            // Keep concrete Kotlin collections on their collection-owned paths.
+            // Only exact Iterable and user-defined nominal Iterable implementations
+            // should activate the generic Iterable source extensions.
+            isIterableReceiver: isIterableLikeType(receiverType) && !isCollectionType,
             isCollectionReceiver: isCollectionExpr || isCollectionType,
             isSequenceReceiver: isSequenceLikeType(receiverType) || isSyntheticSequenceReceiver,
             isMapReceiver: isMapReceiver,
@@ -80,16 +83,56 @@ struct ReceiverClassifier {
         isIterableLikeType(receiverType(for: receiverID))
     }
 
-    func isIterableLikeType(_ type: TypeID) -> Bool {
+    func isExactIterableType(_ type: TypeID) -> Bool {
         guard let (_, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
             return false
         }
-        return symbol.name == interner.intern("Iterable")
-            || symbol.fqName == [
+        let iterableFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        return symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName
+    }
+
+    func isIterableLikeType(_ type: TypeID) -> Bool {
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let iterableFQName = [
                 interner.intern("kotlin"),
                 interner.intern("collections"),
                 interner.intern("Iterable"),
             ]
+        if symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName {
+            return true
+        }
+        let kotlinRangesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("ranges"),
+        ]
+        let rangeTypeNames: Set = Set([
+            "OpenEndRange", "IntRange", "IntProgression", "LongRange", "LongProgression",
+            "UIntRange", "UIntProgression", "ULongRange", "ULongProgression",
+            "CharRange", "CharProgression",
+        ].map(interner.intern))
+        if rangeTypeNames.contains(symbol.name),
+           symbol.fqName.isEmpty || (
+               symbol.fqName.count == 3
+                   && Array(symbol.fqName.prefix(2)) == kotlinRangesFQName
+           )
+        {
+            // Range/progression types have dedicated source-backed owners for
+            // collection HOFs. Do not let their Iterable supertypes reroute
+            // those calls to kotlin.collections.Iterable.
+            return false
+        }
+        // User-defined classes implementing Iterable must use the generic
+        // Iterable source extensions rather than unresolved member fallbacks.
+        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+            return false
+        }
+        return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
     }
 
     /// KSP-979: Recognize a statically Iterable value and user-defined nominal

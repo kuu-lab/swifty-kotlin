@@ -11,7 +11,7 @@ file flateinit_var package=_
   decl Config class Config sym=Config
   decl main fun main sym=main
 expr e@4:30 callableRef recv=_ member=name type=kotlin.reflect.KMutableProperty0<String> ref=Config.name
-expr e@4:30#1 memberCall recv=e@4:30 callee=isInitialized args=[] type=Boolean
+expr e@4:30#1 memberCall recv=e@4:30 callee=isInitialized args=[] type=Boolean ref=kotlin.isInitialized
 expr e@6:26 string(test) type=String
 expr e@6:19 localAssign name value=e@6:26 type=Unit ref=Config.name
 expr e@10:13 call callee=e@10:13#1 args=[] type=Config call=Config.<init>

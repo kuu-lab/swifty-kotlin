@@ -212,6 +212,12 @@ extension KIRLoweringDriver {
         }) else {
             return
         }
+        if sema.symbols.symbol(superConstructor)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: superConstructor) == sema.types.anyClassSymbol
+        {
+            // Kotlin/Native's implicit Any constructor has no body to delegate to.
+            return
+        }
 
         var argumentIDs: [KIRExprID] = [receiverID]
         for argument in objectDecl.superTypeConstructorArgs {

@@ -1,15 +1,9 @@
 extension DataFlowSemaPhase {
     func registerSyntheticStringEncodingStubs(context: SyntheticStringStubContext) -> SymbolID {
-        let (symbols, types, interner, kotlinTextPkg) = (context.symbols, context.types, context.interner, context.kotlinTextPkg); let (stringType, charSequenceSymbol, intType) = (context.stringType, context.charSequenceSymbol, context.intType)
+        let (symbols, types, interner) = (context.symbols, context.types, context.interner)
+        let charSequenceSymbol = context.charSequenceSymbol
         // --- STDLIB-145: String.toByteArray / encodeToByteArray ---
-        let charsetSymbol = ensureClassSymbol(
-            named: "Charset", in: kotlinTextPkg,
-            symbols: symbols, interner: interner
-        )
-        let charsetType = types.make(.classType(ClassType(
-            classSymbol: charsetSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(charsetType, for: charsetSymbol)
+        // These APIs are bundled Kotlin source in StringEncoding.kt.
         let javaMathPkg = ensurePackage(
             path: ["java", "math"],
             symbols: symbols,
@@ -30,19 +24,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(bigDecimalType, for: bigDecimalSymbol)
 
-        // STDLIB-574: ByteArray / List<Int> internal representation
-        let listIntType = makeListType(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            elementType: intType
-        )
-        let byteArrayType = makeNominalType(
-            symbols: symbols,
-            types: types,
-            fqName: [interner.intern("kotlin"), interner.intern("ByteArray")]
-        )
-
         // STDLIB-STR-125
         let kotlinPkg: [InternedString] = [interner.intern("kotlin")]
         let stringClassSymbol = ensureClassSymbol(
@@ -57,25 +38,9 @@ extension DataFlowSemaPhase {
         types.stringClassSymbol = stringClassSymbol
         symbols.setDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
         types.setNominalDirectSupertypes([charSequenceSymbol], for: stringClassSymbol)
-        for bytesType in [listIntType, byteArrayType] {
-            registerStringConstructorFromBytes(
-                ownerSymbol: stringClassSymbol,
-                ownerType: stringType,
-                parameters: [("bytes", bytesType), ("charset", charsetType)],
-                externalLinkName: "__kk_bytearray_decodeToString_charset",
-                symbols: symbols,
-                interner: interner
-            )
-            // String(ByteArray) — default UTF-8 decoding
-            registerStringConstructorFromBytes(
-                ownerSymbol: stringClassSymbol,
-                ownerType: stringType,
-                parameters: [("bytes", bytesType)],
-                externalLinkName: "__kk_bytearray_decodeToString",
-                symbols: symbols,
-                interner: interner
-            )
-        }
+        // String constructors are source-backed in StringConstructors.kt. The
+        // nominal shell and its CharSequence relationship remain here because
+        // String is represented specially by the compiler and runtime.
 
         return stringClassSymbol
     }
