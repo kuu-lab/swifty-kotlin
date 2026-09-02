@@ -467,6 +467,40 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     }
 
     @Test
+    func testUShortArrayConstructorsPreserveZeroAndSignedStorageSemantics() throws {
+        let source = """
+        fun main() {
+            try {
+                UShortArray(-1)
+                println("no throw")
+            } catch (e: NegativeArraySizeException) {
+                println("negative: ${e.message}")
+            }
+
+            println(UShortArray(0).size)
+
+            val zeros = UShortArray(3)
+            println(zeros[0].toInt())
+
+            val storage = shortArrayOf(1, -1)
+            val values = UShortArray(storage)
+            val signedView = values.asShortArray()
+            println(values.size)
+            println(signedView[0])
+            println(signedView[1])
+            signedView[0] = -2
+            println(storage[0])
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UShortArrayConstructors",
+            expected: "negative: -1\n0\n0\n2\n1\n-1\n-2\n"
+        )
+    }
+
+    @Test
     func testUnsignedCollectionToPrimitiveArrayConversions() throws {
         let source = """
         fun main() {
