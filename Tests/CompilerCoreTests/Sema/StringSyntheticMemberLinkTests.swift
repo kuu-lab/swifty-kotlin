@@ -1055,8 +1055,12 @@ struct StringSyntheticMemberLinkTests {
 
             do {
                 let constructorFQName = ["kotlin", "String"].map { interner.intern($0) }
+                // KSP-711's byte-decoding overloads all take a `bytes` parameter; the
+                // unrelated no-arg `String(): String = ""` factory (KSP-... empty String
+                // factory) resolves to the same FQ name but isn't one of them.
                 let constructorFunctions = sema.symbols.lookupAll(fqName: constructorFQName).filter {
                     sema.symbols.symbol($0)?.kind == .function
+                        && !(sema.symbols.functionSignature(for: $0)?.parameterTypes.isEmpty ?? true)
                 }
                 #expect(constructorFunctions.count == 4)
                 for constructor in constructorFunctions {
