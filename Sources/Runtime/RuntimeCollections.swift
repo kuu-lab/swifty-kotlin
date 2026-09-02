@@ -188,6 +188,33 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListIteratorBox(elements: []))
 }
 
+/// Backs both `List.listIterator(index)` and `MutableList.listIterator(index)`
+/// (Sema registers the same external link name for both, matching the
+/// zero-arg `kk_list_iterator` convention above): a list iterator positioned
+/// so the next `next()` call returns the element at `index`.
+@_cdecl("kk_list_iterator_at")
+public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+    }
+    guard (0...list.elements.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "Index: \(index), Size: \(list.elements.count)"
+        )
+        return 0
+    }
+    let iter = RuntimeListIteratorBox(
+        elements: list.elements,
+        removeAction: { removedIndex in
+            guard list.elements.indices.contains(removedIndex) else { return }
+            list.elements.remove(at: removedIndex)
+        }
+    )
+    iter.index = index
+    return registerRuntimeObject(iter)
+}
+
 @_cdecl("kk_list_iterator_hasNext")
 public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
@@ -547,6 +574,31 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
     list.values = values
     return 0
+}
+
+@_cdecl("__kk_mutable_list_addAll_at")
+public func kk_mutable_list_addAll_at(
+    _ listRaw: Int,
+    _ index: Int,
+    _ collectionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
+        return 0
+    }
+    guard (0...list.elements.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "MutableList index \(index) out of bounds for length \(list.elements.count)."
+        )
+        return 0
+    }
+    guard let newElements = runtimeCollectionOrArrayElements(from: collectionRaw), !newElements.isEmpty else {
+        return kk_box_bool(0)
+    }
+    list.elements.insert(contentsOf: newElements, at: index)
+    return kk_box_bool(1)
 }
 
 @_cdecl("__kk_mutable_list_set")
