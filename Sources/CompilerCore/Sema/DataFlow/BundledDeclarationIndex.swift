@@ -118,6 +118,13 @@ struct BundledDeclarationIndex: Sendable {
             guard symbol.flags.contains(.synthetic) else { continue }
             guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
+            // Header collection represents source-declared property accessors as
+            // synthetic function symbols. They are implementation details of the
+            // source property, not residual stdlib stubs that a KSP-002 guard
+            // should have skipped.
+            guard !Self.isSyntheticPropertyAccessor(symbol, symbols: symbols) else {
+                continue
+            }
             guard let key = Self.memberKey(
                 for: symbol,
                 symbolID: symbol.id,
@@ -133,6 +140,20 @@ struct BundledDeclarationIndex: Sendable {
             // synthetic member alias for owner-based lookup. That alias is an
             // intentional index entry, not a missed synthetic-stub skip.
             guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
+                continue
+            }
+            // KSP-1019: MutableCollection keeps its interface members for
+            // member-priority dispatch while the same names also have
+            // source-backed top-level extensions. The arity-only index cannot
+            // distinguish those two declarations, so this is an intentional
+            // overlap when the exact receiver owner has a source declaration.
+            if Self.isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
                 continue
             }
             // joinTo/joinToString transform overloads intentionally share arity
@@ -159,6 +180,61 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    private static func isSyntheticPropertyAccessor(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard symbol.kind == .function,
+              let propertySymbol = symbols.parentSymbol(for: symbol.id),
+              symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return false
+        }
+
+        return symbols.extensionPropertyGetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.extensionPropertySetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.accessorOwnerProperty(for: symbol.id) == propertySymbol
+    }
+
+    private static func isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let kotlinCollections = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let mutableCollection = kotlinCollections + [interner.intern("MutableCollection")]
+        guard key.ownerFQName == mutableCollection,
+              ["addAll", "remove", "removeAll", "retainAll"].contains(interner.resolve(symbol.name))
+        else {
+            return false
+        }
+
+        let sourceFunctionFQName = kotlinCollections + [symbol.name]
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.kind == .function,
+                  (!candidate.flags.contains(.synthetic) || candidate.flags.contains(.importedLibrary)),
+                  candidate.name == symbol.name,
+                  candidate.fqName == sourceFunctionFQName,
+                  let signature = symbols.functionSignature(for: candidate.id),
+                  let receiverType = signature.receiverType,
+                  let receiverOwner = receiverOwnerFQName(
+                      for: receiverType,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverOwner == mutableCollection
         }
     }
 

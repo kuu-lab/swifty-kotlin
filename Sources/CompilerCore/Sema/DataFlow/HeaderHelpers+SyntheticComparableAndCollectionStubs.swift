@@ -1,7 +1,8 @@
 // swiftlint:disable file_length
 
 extension DataFlowSemaPhase {
-    /// Register `kotlin.Comparable<in T>` interface stub with `operator fun compareTo(other: T): Int`.
+    /// Register the compiler-owned `kotlin.Comparable<in T>` shell and residual
+    /// primitive/range compatibility hooks.
     func registerSyntheticComparableStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -33,42 +34,14 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
         }
-
         // Store in TypeSystem for use in isSubtype
         types.comparableInterfaceSymbol = comparableSymbol
         types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
 
-        // KSP-669: the `Comparable<in T>` declaration is source-backed by
-        // `Stdlib/kotlin/Comparable.kt`, which reuses this synthetic shell on
-        // bundle load. The residual `compareTo` operator, primitive conformances
-        // (c-hard) and range upper bounds stay compiler-side (see
-        // `docs/stdlib-pipeline.md`).
-        // Define type parameter T for Comparable<in T>.
-        let tParamName = interner.intern("T")
-        let tParamFQName = comparableFQName + [tParamName]
-        let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: tParamName,
-                fqName: tParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let tParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol, nullability: .nonNull
-        )))
-
-        registerComparableCompareToOperator(
-            symbols: symbols, types: types, interner: interner,
-            comparableFQName: comparableFQName,
-            comparableSymbol: comparableSymbol,
-            tParamSymbol: tParamSymbol,
-            tParamType: tParamType
-        )
+        // KSP-669/KSP-797: the `Comparable<in T>` declaration and compareTo
+        // member are source-backed by `Stdlib/kotlin/Comparable.kt`, which
+        // reuses this synthetic shell on bundle load. Primitive conformances
+        // (c-hard) and range upper bounds stay compiler-side.
         registerOpenEndRangeComparableUpperBound(
             comparableSymbol: comparableSymbol,
             symbols: symbols,

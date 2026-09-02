@@ -257,6 +257,49 @@ extension CallTypeChecker {
         }
     }
 
+    /// Prefer the source-backed List.take overload when a concrete List receiver
+    /// also exposes the generic Iterable.take extension.
+    ///
+    /// The regular resolver cannot rank these two extension receivers because
+    /// their value parameter lists are identical. Keep this preference narrowly
+    /// tied to the exact List receiver and source-backed declaration so generic
+    /// Iterable and other receiver families retain their normal overload sets.
+    func preferListTakeCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let listFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("List"),
+        ]
+        guard let listSymbol = sema.symbols.lookup(fqName: listFQName),
+              let receiverNominal = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType),
+                  types: sema.types
+              ),
+              sema.types.isNominalSubtypeSymbol(receiverNominal, of: listSymbol)
+        else {
+            return candidates
+        }
+
+        let listTakeCandidates = candidates.filter { candidate in
+            guard sema.symbols.isSourceBackedSymbol(candidate),
+                  let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                  let candidateNominal = driver.helpers.nominalSymbol(
+                      of: sema.types.makeNonNullable(receiver),
+                      types: sema.types
+                  )
+            else {
+                return false
+            }
+            return candidateNominal == listSymbol
+        }
+        return listTakeCandidates.isEmpty ? candidates : listTakeCandidates
+    }
+
     /// Receiver check for the scope fallback that restores synthetic extensions excluded from import scopes.
     /// Aligns with `Helpers.collectMemberFunctionCandidates`: require `actual <: declared` when possible,
     /// but keep generics such as `Continuation<T>.intercepted` where `isSubtype(Continuation<Int>, Continuation<T>)`
@@ -269,6 +312,31 @@ extension CallTypeChecker {
         let actual = sema.types.makeNonNullable(callSiteReceiver)
         let declared = sema.types.makeNonNullable(declaredReceiver)
         if sema.types.isSubtype(actual, declared) {
+            return true
+        }
+        // A type parameter's upper bound is the receiver contract at the call
+        // site. `T : Comparable<T>` therefore matches the source-backed
+        // `Comparable<T>.compareTo` receiver even when the subtype checker
+        // cannot materialize the F-bounded type parameter as a nominal type.
+        if case let .typeParam(actualParam) = sema.types.kind(of: actual),
+           sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: {
+               sema.types.isSubtype($0, declared)
+           })
+        {
+            return true
+        }
+        if case let .typeParam(actualParam) = sema.types.kind(of: actual),
+           case let .classType(declaredClass) = sema.types.kind(of: declared),
+           sema.symbols.typeParameterUpperBounds(for: actualParam.symbol).contains(where: { bound in
+               guard case let .classType(boundClass) = sema.types.kind(of: sema.types.makeNonNullable(bound)) else {
+                   return false
+               }
+               return boundClass.classSymbol == declaredClass.classSymbol
+           })
+        {
+            // The type arguments of an F-bounded upper bound and a generic
+            // member receiver may use different declaration-local type
+            // parameter IDs; overload resolution will solve those arguments.
             return true
         }
         if case .typeParam = sema.types.kind(of: declared) {
