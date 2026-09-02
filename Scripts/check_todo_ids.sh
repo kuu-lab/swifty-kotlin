@@ -34,10 +34,8 @@ if ! command -v rg >/dev/null 2>&1; then
   exit 127
 fi
 
-set +e
-matches="$(rg '^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-[0-9]+):' "$TODO_FILE" -or '$1')"
-rg_status=$?
-set -e
+rg_status=0
+matches="$(rg '^- \[[ x]\] ([A-Z]+(?:-[A-Z]+)*-[0-9]+):' "$TODO_FILE" -or '$1')" || rg_status=$?
 
 if [[ $rg_status -gt 1 ]]; then
   exit "$rg_status"

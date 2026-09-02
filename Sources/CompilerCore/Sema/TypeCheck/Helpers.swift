@@ -1,5 +1,6 @@
 
-/// Returns the element type for a nominal range class such as `UIntRange`.
+/// Returns the element type for a nominal range/progression class with a
+/// fixed primitive element type, such as `UIntRange` or `CharProgression`.
 func nominalRangeElementType(
     for rangeType: TypeID,
     sema: SemaModule,
@@ -11,14 +12,16 @@ func nominalRangeElementType(
     }
 
     switch interner.resolve(symbol.name) {
-    case "IntRange":
+    case "IntRange", "IntProgression":
         return sema.types.intType
-    case "LongRange":
+    case "LongRange", "LongProgression":
         return sema.types.longType
-    case "UIntRange":
+    case "UIntRange", "UIntProgression":
         return sema.types.uintType
-    case "ULongRange":
+    case "ULongRange", "ULongProgression":
         return sema.types.ulongType
+    case "CharRange", "CharProgression":
+        return sema.types.charType
     default:
         return nil
     }
@@ -88,7 +91,7 @@ struct TypeCheckHelpers {
             return false
         }
         switch interner.resolve(symbol.name) {
-        case "OpenEndRange",
+        case "OpenEndRange", "ClosedRange", "ClosedFloatingPointRange",
              "IntRange", "IntProgression",
              "LongRange", "LongProgression",
              "UIntRange", "UIntProgression",
@@ -98,6 +101,109 @@ struct TypeCheckHelpers {
         default:
             return false
         }
+    }
+
+    /// Returns the expected scalar element type for a range-like declared type
+    /// (a type for which `isRangeLikeType` returns `true`).
+    ///
+    /// Concrete classes such as `LongRange`/`CharProgression` have a fixed
+    /// primitive element type. Generic interfaces (`OpenEndRange<T>`,
+    /// `ClosedRange<T>`, `ClosedFloatingPointRange<T>`) are invariant in `T`,
+    /// so their element type is read directly from the sole type argument.
+    /// Returns `nil` when the element type cannot be determined (e.g. a
+    /// star-projected type argument), in which case callers should not skip
+    /// the nominal subtype check.
+    func rangeLikeDeclaredElementType(
+        for rangeType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID? {
+        if let fixedElement = nominalRangeElementType(for: rangeType, sema: sema, interner: interner) {
+            return fixedElement
+        }
+        guard let (classType, symbol) = resolveClassTypeSymbol(
+            sema.types.makeNonNullable(rangeType), sema: sema
+        ) else {
+            return nil
+        }
+        switch interner.resolve(symbol.name) {
+        case "OpenEndRange", "ClosedRange", "ClosedFloatingPointRange":
+            switch classType.args.first {
+            case let .invariant(inner), let .out(inner), let .in(inner):
+                return sema.types.makeNonNullable(inner)
+            case .star, nil:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    /// Returns the actual element type of an expression already marked as a
+    /// range expression by the isRangeExpr duck-typing convention (see
+    /// `rangeLikeDeclaredElementType`'s callers).
+    ///
+    /// A range literal's bound `bodyType` is usually the scalar element type
+    /// itself (Int/Long/UInt/ULong), but two cases hide the true element type
+    /// behind a side channel: Char ranges share Int's representation
+    /// (STDLIB-290), and floating-point ranges are tracked separately
+    /// (`floatingPointRangeElementType`) because the primary scalar inference
+    /// in `ExprTypeChecker+BinaryAndFlowInference.swift` has no Double/Float
+    /// branch. A range value produced by a resolved call (e.g.
+    /// `IntProgression.fromClosedRange(...)`) instead binds `bodyType` to the
+    /// real nominal class directly, so that case is unwrapped via
+    /// `rangeLikeDeclaredElementType` too.
+    func rangeExprActualElementType(
+        for exprID: ExprID,
+        bodyType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> TypeID {
+        if let floatElement = sema.bindings.floatingPointRangeElementType(forExpr: exprID) {
+            return floatElement
+        }
+        if sema.bindings.isCharRangeExpr(exprID) {
+            return sema.types.charType
+        }
+        if isRangeLikeType(bodyType, sema: sema, interner: interner),
+           let nominalElement = rangeLikeDeclaredElementType(for: bodyType, sema: sema, interner: interner)
+        {
+            return nominalElement
+        }
+        return sema.types.makeNonNullable(bodyType)
+    }
+
+    /// Decides whether the nominal subtype check between a range-literal
+    /// body/initializer and a range-like declared/expected type may be
+    /// skipped under the isRangeExpr duck-typing convention.
+    ///
+    /// The skip is only valid when the body's actual element type matches
+    /// the declared type's expected element type exactly: range element
+    /// types are invariant type parameters, and primitives don't implicitly
+    /// widen in Kotlin (e.g. an `Int` range literal is not an acceptable
+    /// `LongRange`). When the element types don't match — or the expected
+    /// element type can't be determined, e.g. a star-projected type
+    /// argument — this returns `false` so the caller falls through to the
+    /// normal subtype constraint, which correctly rejects the mismatch.
+    func rangeExprMatchesDeclaredElementType(
+        bodyExprID: ExprID,
+        bodyType: TypeID,
+        declaredType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard sema.bindings.isRangeExpr(bodyExprID),
+              isRangeLikeType(declaredType, sema: sema, interner: interner),
+              let expectedElement = rangeLikeDeclaredElementType(
+                  for: declaredType, sema: sema, interner: interner
+              )
+        else {
+            return false
+        }
+        let actualElement = rangeExprActualElementType(
+            for: bodyExprID, bodyType: bodyType, sema: sema, interner: interner
+        )
+        return actualElement == expectedElement
     }
 
     /// Returns true only for the plain `kotlin.collections.Iterable` interface.

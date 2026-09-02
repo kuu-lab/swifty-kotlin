@@ -1,6 +1,16 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
+import kotlin.comparisons.reverseOrder
 import kotlin.internal.__valuesEqual
+import kotlin.random.Random
+
+// Float/Double maxOf uses these existing shared numeric helpers so NaN and
+// signed-zero behavior stays identical to kotlin.comparisons.maxOf.
+private external fun kk_max_float(a: Float, b: Float): Float
+private external fun kk_max_double(a: Double, b: Double): Double
+private external fun kk_unbox_float(value: Float): Float
+private external fun kk_unbox_double(value: Double): Double
 
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
@@ -45,6 +55,45 @@ public inline fun <T> Iterable<T>.dropWhile(predicate: (T) -> Boolean): List<T> 
 public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     val result = mutableListOf<T>()
     for (element in this) result.add(element)
+    return result
+}
+
+// KSP-997: Split each pair from a generic Iterable in encounter order.
+public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
+    val first = mutableListOf<T>()
+    val second = mutableListOf<R>()
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        val pair = iterator.next()
+        first.add(pair.first)
+        second.add(pair.second)
+    }
+    return Pair(first, second)
+}
+
+public fun <T> Iterable<T>.shuffled(): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = Random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.shuffled(random: Random): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
     return result
 }
 
@@ -198,6 +247,30 @@ public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
 
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
+public fun <T> Iterable<T>.first(): T {
+    for (element in this) return element
+    throw NoSuchElementException("Collection is empty.")
+}
+
+public inline fun <T> Iterable<T>.first(predicate: (T) -> Boolean): T {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    throw NoSuchElementException("Collection contains no element matching the predicate.")
+}
+
+public fun <T> Iterable<T>.firstOrNull(): T? {
+    for (element in this) return element
+    return null
+}
+
+public inline fun <T> Iterable<T>.firstOrNull(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> Iterable<T>.last(): T {
     var found = false
@@ -208,6 +281,84 @@ public fun <T> Iterable<T>.last(): T {
     }
     if (!found) throw NoSuchElementException("Collection is empty.")
     return last as T
+}
+
+// KSP-965: numeric Iterable averages are source-backed and preserve iterator order.
+private fun checkAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+@kotlin.jvm.JvmName("averageOfByte")
+public fun Iterable<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfShort")
+public fun Iterable<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfInt")
+public fun Iterable<Int>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfLong")
+public fun Iterable<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfFloat")
+public fun Iterable<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfDouble")
+public fun Iterable<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -256,6 +407,19 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
         if (predicate(element)) result.add(element)
     }
     return result
+}
+
+public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
+    val first = ArrayList<T>()
+    val second = ArrayList<T>()
+    for (element in this) {
+        if (predicate(element)) {
+            first.add(element)
+        } else {
+            second.add(element)
+        }
+    }
+    return Pair(first, second)
 }
 
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
@@ -345,7 +509,8 @@ public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
     return count
 }
 
-public fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
+@SinceKotlin("1.5")
+public inline fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): R? {
     for (element in this) {
         val result = transform(element)
         if (result != null) return result
@@ -353,7 +518,8 @@ public fun <T, R : Any> Iterable<T>.firstNotNullOfOrNull(transform: (T) -> R?): 
     return null
 }
 
-public fun <T, R : Any> Iterable<T>.firstNotNullOf(transform: (T) -> R?): R {
+@SinceKotlin("1.5")
+public inline fun <T, R : Any> Iterable<T>.firstNotNullOf(transform: (T) -> R?): R {
     for (element in this) {
         val result = transform(element)
         if (result != null) return result
@@ -558,6 +724,84 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
+// KSP-993: Iterable sorting remains source-backed and materializes exactly
+// once before applying stable in-place sorting to the mutable result.
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
+    return sortedWith(reverseOrder())
+}
+
+public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (comparator.compare(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = appendJoinToTransform(this.iterator(), StringBuilder(), ", ", "", "", -1, "...", transform).toString()
@@ -579,4 +823,287 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
+// type while traversing every receiver through its iterator exactly once.
+public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: Int, acc: R, T) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
+}
+
+// KSP-983: Iterable max-family APIs migrated from the Kotlin 2.3.10 stdlib.
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Double>.max(): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_double(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Float>.max(): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_float(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T : Comparable<T>> Iterable<T>.max(): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxBy(selector: (T) -> R): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxElem = iterator.next()
+    if (!iterator.hasNext()) return maxElem
+    var maxValue = selector(maxElem)
+    do {
+        val e = iterator.next()
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    } while (iterator.hasNext())
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxByOrNull(selector: (T) -> R): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxElem = iterator.next()
+    if (!iterator.hasNext()) return maxElem
+    var maxValue = selector(maxElem)
+    do {
+        val e = iterator.next()
+        val v = selector(e)
+        if (maxValue < v) {
+            maxElem = e
+            maxValue = v
+        }
+    } while (iterator.hasNext())
+    return maxElem
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOf(selector: (T) -> Double): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = kk_unbox_double(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_double(selector(iterator.next()))
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOf(selector: (T) -> Float): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = kk_unbox_float(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_float(selector(iterator.next()))
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxOf(selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (maxValue < v) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOfOrNull(selector: (T) -> Double): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = kk_unbox_double(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_double(selector(iterator.next()))
+        maxValue = kk_max_double(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T> Iterable<T>.maxOfOrNull(selector: (T) -> Float): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = kk_unbox_float(selector(iterator.next()))
+    while (iterator.hasNext()) {
+        val v = kk_unbox_float(selector(iterator.next()))
+        maxValue = kk_max_float(maxValue, v)
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R : Comparable<R>> Iterable<T>.maxOfOrNull(selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (maxValue < v) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.maxOfWith(comparator: Comparator<in R>, selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (comparator.compare(maxValue, v) < 0) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.maxOfWithOrNull(comparator: Comparator<in R>, selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var maxValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val v = selector(iterator.next())
+        if (comparator.compare(maxValue, v) < 0) maxValue = v
+    }
+    return maxValue
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Double>.maxOrNull(): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_double(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Float>.maxOrNull(): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        max = kk_max_float(max, e)
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun <T : Comparable<T>> Iterable<T>.maxOrNull(): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (max < e) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("maxWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T> Iterable<T>.maxWith(comparator: Comparator<in T>): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
+}
+
+@SinceKotlin("1.4")
+public fun <T> Iterable<T>.maxWithOrNull(comparator: Comparator<in T>): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var max = iterator.next()
+    while (iterator.hasNext()) {
+        val e = iterator.next()
+        if (comparator.compare(max, e) < 0) max = e
+    }
+    return max
 }

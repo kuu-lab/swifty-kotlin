@@ -313,7 +313,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         appendSyntheticEnumValueOfIfNeeded(
             name: ctx.interner.intern("valueOf"),
             owner: valueOfOwner,
-            enumName: nominalSymbol.name,
+            enumName: nominalSymbol.fqName.map(ctx.interner.resolve).joined(separator: "."),
             enumType: sema.types.make(.classType(ClassType(
                 classSymbol: nominalSymbol.id,
                 args: [],
