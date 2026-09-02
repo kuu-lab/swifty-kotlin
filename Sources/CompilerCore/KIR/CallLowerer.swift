@@ -1255,6 +1255,7 @@ final class CallLowerer {
             "__kk_mutable_set_add",
             "__kk_mutable_map_put",
             "__kk_enum_entries_get",
+            "kk_iterable_iterator",
         ].contains(name)
     }
 
@@ -1269,6 +1270,7 @@ final class CallLowerer {
             "kk_runtime_result_recover",
             "__kk_synchronized",
             "__kk_enum_entries_get",
+            "kk_iterable_iterator",
         ].contains(interner.resolve(calleeName))
     }
 
@@ -1610,7 +1612,7 @@ final class CallLowerer {
         case ("toInt", sema.types.ushortType, sema.types.intType): interner.intern("kk_ushort_to_int")
         case ("toInt", sema.types.doubleType, sema.types.intType): interner.intern("__kk_double_to_int")
         case ("toInt", sema.types.floatType, sema.types.intType): interner.intern("__kk_float_to_int")
-        case ("toInt", sema.types.charType, sema.types.intType): interner.intern("kk_char_to_int")
+        case ("toInt", sema.types.charType, sema.types.intType): nil
         case ("toInt", sema.types.byteType, sema.types.intType): nil
         case ("toInt", sema.types.shortType, sema.types.intType): nil
         case ("toInt", sema.types.intType, sema.types.intType), ("toInt", sema.types.longType, sema.types.intType): nil
@@ -1620,7 +1622,7 @@ final class CallLowerer {
         case ("toLong", sema.types.ushortType, sema.types.longType): interner.intern("kk_ushort_to_long")
         case ("toLong", sema.types.doubleType, sema.types.longType): interner.intern("__kk_double_to_long")
         case ("toLong", sema.types.floatType, sema.types.longType): interner.intern("__kk_float_to_long")
-        case ("toLong", sema.types.charType, sema.types.longType): interner.intern("kk_char_to_long")
+        case ("toLong", sema.types.charType, sema.types.longType): nil
         case ("toLong", sema.types.byteType, sema.types.longType): nil
         case ("toLong", sema.types.shortType, sema.types.longType): nil
         case ("toLong", sema.types.longType, sema.types.longType), ("toLong", sema.types.ulongType, sema.types.longType): nil
@@ -1628,7 +1630,7 @@ final class CallLowerer {
         case ("toUInt", sema.types.longType, sema.types.uintType): interner.intern("kk_long_to_uint")
         case ("toUInt", sema.types.ubyteType, sema.types.uintType): interner.intern("kk_ubyte_to_uint")
         case ("toUInt", sema.types.ushortType, sema.types.uintType): interner.intern("kk_ushort_to_uint")
-        case ("toUInt", sema.types.charType, sema.types.uintType): interner.intern("kk_char_to_uint")
+        case ("toUInt", sema.types.charType, sema.types.uintType): nil
         case ("toUInt", sema.types.byteType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.shortType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
@@ -1636,7 +1638,7 @@ final class CallLowerer {
         case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
         case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")
         case ("toULong", sema.types.ushortType, sema.types.ulongType): interner.intern("kk_ushort_to_ulong")
-        case ("toULong", sema.types.charType, sema.types.ulongType): interner.intern("kk_char_to_ulong")
+        case ("toULong", sema.types.charType, sema.types.ulongType): nil
         case ("toULong", sema.types.byteType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.shortType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.uintType, sema.types.ulongType): interner.intern("kk_uint_to_ulong")
@@ -1683,8 +1685,11 @@ final class CallLowerer {
         default: nil
         }
 
+        let isCharNarrowingConversion = receiverType == sema.types.charType
+            && (calleeStr == "toByte" || calleeStr == "toShort")
         if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toByte", "toShort", "toChar"].contains(calleeStr),
-           runtimeCallee == nil
+           runtimeCallee == nil,
+           !isCharNarrowingConversion
         {
             return loweredArgumentID
         }

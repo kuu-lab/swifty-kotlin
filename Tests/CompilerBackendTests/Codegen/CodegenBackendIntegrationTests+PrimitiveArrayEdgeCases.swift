@@ -304,6 +304,73 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
     }
 
     @Test
+    func testArrayCopyContractBoundariesAndOverlap() throws {
+        let source = """
+        fun main() {
+            val values = arrayOf(1, 2, 3)
+            println(values.copyOf(2).toList())
+            println(values.copyOf(5).toList())
+            println(values.copyOf(5) { index -> index * 10 }.toList())
+            println(values.copyOfRange(1, 3).toList())
+
+            val overlap = intArrayOf(1, 2, 3, 4)
+            overlap.copyInto(overlap, destinationOffset = 1, startIndex = 0, endIndex = 3)
+            println(overlap.toList())
+
+            try {
+                values.copyOf(-1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyOf-negative")
+            }
+            try {
+                intArrayOf(1, 2).copyOf(-1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("primitive-copyOf-negative")
+            }
+            try {
+                values.copyOfRange(2, 1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyOfRange-reversed")
+            }
+            try {
+                values.copyInto(arrayOf(0, 0), destinationOffset = 0, startIndex = 0, endIndex = 3)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyInto-destination-too-small")
+            }
+            try {
+                values.copyInto(arrayOf(0, 0, 0), startIndex = -1)
+                println("no-throw")
+            } catch (e: Throwable) {
+                println("copyInto-negative-start")
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayCopyContractBoundariesAndOverlap",
+            expected:
+                """
+                [1, 2]
+                [1, 2, 3, null, null]
+                [1, 2, 3, 30, 40]
+                [2, 3]
+                [1, 1, 2, 3]
+                copyOf-negative
+                primitive-copyOf-negative
+                copyOfRange-reversed
+                copyInto-destination-too-small
+                copyInto-negative-start
+                """
+                + "\n"
+        )
+    }
+
+    @Test
     func testArraySliceArrayOverloads() throws {
         let source = """
         fun main() {
@@ -396,6 +463,40 @@ struct CodegenBackendPrimitiveArrayEdgeCasesTests {
                 [1000, 2000]
                 """
                 + "\n"
+        )
+    }
+
+    @Test
+    func testUShortArrayConstructorsPreserveZeroAndSignedStorageSemantics() throws {
+        let source = """
+        fun main() {
+            try {
+                UShortArray(-1)
+                println("no throw")
+            } catch (e: NegativeArraySizeException) {
+                println("negative: ${e.message}")
+            }
+
+            println(UShortArray(0).size)
+
+            val zeros = UShortArray(3)
+            println(zeros[0].toInt())
+
+            val storage = shortArrayOf(1, -1)
+            val values = UShortArray(storage)
+            val signedView = values.asShortArray()
+            println(values.size)
+            println(signedView[0])
+            println(signedView[1])
+            signedView[0] = -2
+            println(storage[0])
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UShortArrayConstructors",
+            expected: "negative: -1\n0\n0\n2\n1\n-1\n-2\n"
         )
     }
 

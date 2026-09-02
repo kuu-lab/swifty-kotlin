@@ -19,10 +19,6 @@ fun nestedLists() {
     println(nested.size)
 }
 
-class MyList : ArrayList<String>() {
-    fun customOp() = "custom"
-}
-
 fun <T : ArrayList<String>> constrain(list: T): T {
     return list
 }
@@ -63,10 +59,6 @@ fun main() {
     println(container.items.size)
 
     nestedLists()
-
-    val myList = MyList()
-    myList.add("inherited")
-    println(myList.customOp())
 
     val constrained = constrain(list)
     println(constrained.size)

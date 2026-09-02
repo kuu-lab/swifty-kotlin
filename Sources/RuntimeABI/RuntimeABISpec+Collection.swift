@@ -313,6 +313,17 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_hash_map_of",
+            parameters: [
+                RuntimeABIParameter(name: "keysArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "valuesArrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_map_of_pairs",
             parameters: [
                 RuntimeABIParameter(name: "pairsArrayRaw", type: .intptr),
@@ -1001,46 +1012,13 @@ public extension RuntimeABISpec {
         ),
         // Array utility functions (STDLIB-089)
         RuntimeABIFunctionSpec(
-            name: "kk_array_copyOf",
+            name: "__kk_array_copyOf",
             parameters: [
                 RuntimeABIParameter(name: "arrayRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_copyOf_newSize",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "newSize", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_copyOf_newSize_init",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "newSize", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_copyOfRange",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "fromIndex", type: .intptr),
-                RuntimeABIParameter(name: "toIndex", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_reversedArray",
@@ -1070,18 +1048,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "Collection",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_array_copyInto",
-            parameters: [
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationRaw", type: .intptr),
-                RuntimeABIParameter(name: "destinationOffset", type: .intptr),
-                RuntimeABIParameter(name: "startIndex", type: .intptr),
-                RuntimeABIParameter(name: "endIndex", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection"
         ),
         RuntimeABIFunctionSpec(
             name: "kk_array_fill",

@@ -8,21 +8,9 @@ internal struct RuntimeElementKey: Hashable {
     let value: Int
 
     func hash(into hasher: inout Hasher) {
-        // Normalise ±0.0 so that IEEE-equal values (-0.0 == +0.0) produce
-        // identical hashes, keeping the Hashable contract intact.
-        var h = kk_any_hashCode(value, 0)
-        if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
-            let isObj = runtimeStorage.withGCLock { $0.objectPointers.contains(UInt(bitPattern: ptr)) }
-            if isObj {
-                if let fb = tryCast(ptr, to: RuntimeFloatBox.self), fb.value == 0 {
-                    h = kk_float_to_bits(Float(0))
-                } else if let db = tryCast(ptr, to: RuntimeDoubleBox.self), db.value == 0 {
-                    let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(Double(0)))))
-                    h = Int(truncatingIfNeeded: bits ^ (bits >> 32))
-                }
-            }
-        }
-        hasher.combine(h)
+        // Keep the runtime's floating-point hash normalization in one helper
+        // so every indexed collection uses the same value-level hash.
+        hasher.combine(runtimeValueHash(value))
     }
 
     static func == (lhs: RuntimeElementKey, rhs: RuntimeElementKey) -> Bool {
@@ -58,10 +46,12 @@ func runtimeDeduplicatePreservingOrder(_ elements: [Int]) -> [Int] {
 }
 
 func runtimeDeduplicatePreservingOrder(_ values: [RuntimeValue]) -> [RuntimeValue] {
+    var seen = Set<RuntimeElementKey>()
+    seen.reserveCapacity(values.count)
     var unique: [RuntimeValue] = []
     unique.reserveCapacity(values.count)
     for value in values {
-        if !unique.contains(where: { runtimeValuesEqual($0, value) }) {
+        if seen.insert(RuntimeElementKey(value: value.legacyRawValue)).inserted {
             unique.append(value)
         }
     }
@@ -71,13 +61,17 @@ func runtimeDeduplicatePreservingOrder(_ values: [RuntimeValue]) -> [RuntimeValu
 func runtimeNormalizeMapEntries(keys: [Int], values: [Int]) -> ([Int], [Int]) {
     var normalizedKeys: [Int] = []
     var normalizedValues: [Int] = []
+    var keyIndex: [RuntimeElementKey: Int] = [:]
     let count = min(keys.count, values.count)
+    keyIndex.reserveCapacity(count)
     for index in 0 ..< count {
         let key = keys[index]
         let value = values[index]
-        if let existing = normalizedKeys.firstIndex(where: { runtimeValuesEqual($0, key) }) {
+        let runtimeKey = RuntimeElementKey(value: key)
+        if let existing = keyIndex[runtimeKey] {
             normalizedValues[existing] = value
         } else {
+            keyIndex[runtimeKey] = normalizedKeys.count
             normalizedKeys.append(key)
             normalizedValues.append(value)
         }
@@ -268,9 +262,7 @@ func runtimeAppendToMutableCollection(_ destRaw: Int, _ element: RuntimeValue) {
         return
     }
     if let set = runtimeSetBox(from: destRaw) {
-        if !set.values.contains(where: { runtimeValuesEqual($0, element) }) {
-            set.values.append(element)
-        }
+        _ = set.insert(rawValue: element.legacyRawValue)
         return
     }
     invalidContainerPanic(#function, "mutable collection")
@@ -285,11 +277,7 @@ public func kk_mutable_collection_add(_ collectionRaw: Int, _ elem: Int) -> Int 
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
-        if set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
-            return kk_box_bool(0)
-        }
-        set.elements.append(elem)
-        return kk_box_bool(1)
+        return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
     }
     return kk_box_bool(0)
 }
@@ -306,11 +294,7 @@ public func kk_mutable_collection_remove(_ collectionRaw: Int, _ elem: Int) -> I
         return kk_box_bool(1)
     }
     if let set = runtimeSetBox(from: collectionRaw) {
-        guard let index = set.elements.firstIndex(where: { runtimeValuesEqual($0, elem) }) else {
-            return kk_box_bool(0)
-        }
-        set.elements.remove(at: index)
-        return kk_box_bool(1)
+        return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
     }
     return kk_box_bool(0)
 }
@@ -322,7 +306,7 @@ public func kk_mutable_collection_clear(_ collectionRaw: Int) -> Int {
         return 0
     }
     if let set = runtimeSetBox(from: collectionRaw) {
-        set.elements = []
+        _ = set.removeAll()
         return 0
     }
     return 0
@@ -364,9 +348,10 @@ public func kk_mutable_collection_addAll(_ collectionRaw: Int, _ elementsRaw: In
     }
     if let set = runtimeSetBox(from: collectionRaw) {
         var modified = false
-        for element in elements where !set.elements.contains(where: { runtimeValuesEqual($0, element) }) {
-            set.elements.append(element)
-            modified = true
+        for element in elements {
+            if set.insert(rawValue: element) {
+                modified = true
+            }
         }
         return kk_box_bool(modified ? 1 : 0)
     }
@@ -612,9 +597,7 @@ private func runtimeMutableSetAddAllSequence(set: RuntimeSetBox, sequenceRaw: In
     }
     var modified = false
     for elem in elements {
-        // swiftlint:disable:next for_where
-        if !set.elements.contains(where: { runtimeValuesEqual($0, elem) }) {
-            set.elements.append(elem)
+        if set.insert(rawValue: elem) {
             modified = true
         }
     }
@@ -665,9 +648,10 @@ public func kk_mutable_collection_addAll_iterable(_ collectionRaw: Int, _ iterab
     }
     if let set = runtimeSetBox(from: collectionRaw) {
         var modified = false
-        for value in values where !set.values.contains(where: { runtimeValuesEqual($0, value) }) {
-            set.values.append(value)
-            modified = true
+        for value in values {
+            if set.insert(rawValue: value.legacyRawValue) {
+                modified = true
+            }
         }
         return kk_box_bool(modified ? 1 : 0)
     }
