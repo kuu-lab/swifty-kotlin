@@ -85,6 +85,12 @@ final class ConstraintSolver {
         var lowerBounds: [TypeVarID: [TypeID]] = [:]
         var upperBounds: [TypeVarID: [TypeID]] = [:]
         var varRelations: [(left: TypeVarID, right: TypeVarID, blame: SourceRange?)] = []
+        // A variable equated to a concrete type (only ever produced for an
+        // explicit type argument, e.g. `mapOf<Any?, Number?>(...)`) is
+        // authoritative: its value is that type, full stop. Recorded here so
+        // the substitution loop below can bind it directly instead of folding
+        // it into the same lub/glb computation as argument-derived bounds.
+        var explicitBindings: [TypeVarID: TypeID] = [:]
 
         for variable in vars {
             lowerBounds[variable] = []
@@ -92,6 +98,13 @@ final class ConstraintSolver {
         }
 
         for constraint in constraints {
+            if constraint.kind == .equal {
+                if case let .variable(variable) = constraint.left, case let .type(boundType) = constraint.right {
+                    explicitBindings[variable] = boundType
+                } else if case let .type(boundType) = constraint.left, case let .variable(variable) = constraint.right {
+                    explicitBindings[variable] = boundType
+                }
+            }
             let relations = normalize(constraint)
             for relation in relations {
                 switch (relation.left, relation.right) {
@@ -125,7 +138,11 @@ final class ConstraintSolver {
                     }
 
                     let leftLower = lowerBounds[leftVar, default: []]
-                    for bound in leftLower where appendUnique(bound, to: &lowerBounds[rightVar, default: []]) {
+                    for bound in leftLower where appendNonRedundantLowerBound(
+                        bound,
+                        to: &lowerBounds[rightVar, default: []],
+                        typeSystem: typeSystem
+                    ) {
                         changed = true
                     }
                 }
@@ -137,6 +154,11 @@ final class ConstraintSolver {
 
         var substitution: [TypeVarID: TypeID] = [:]
         for variable in vars {
+            if let explicitBinding = explicitBindings[variable], explicitBinding != typeSystem.errorType {
+                substitution[variable] = explicitBinding
+                continue
+            }
+
             let lowers = lowerBounds[variable, default: []]
             let uppers = upperBounds[variable, default: []]
             if lowers.isEmpty, uppers.isEmpty {
@@ -266,6 +288,25 @@ final class ConstraintSolver {
         }
         array.append(value)
         return true
+    }
+
+    private func appendNonRedundantLowerBound(
+        _ value: TypeID,
+        to array: inout [TypeID],
+        typeSystem: TypeSystem
+    ) -> Bool {
+        // Keep lower-bound sets minimal. Retaining a bound that is already a
+        // subtype of another lower bound can make the simplified LUB widen
+        // unnecessarily (for example, Base plus Child becoming Any).
+        guard !array.contains(where: { typeSystem.isSubtype(value, $0) }) else {
+            return false
+        }
+        let original = array
+        array.removeAll { typeSystem.isSubtype($0, value) }
+        if !array.contains(value) {
+            array.append(value)
+        }
+        return array != original
     }
 
     private func firstRelevantBlameRange(

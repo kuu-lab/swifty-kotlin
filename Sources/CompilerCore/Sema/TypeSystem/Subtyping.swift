@@ -487,6 +487,11 @@ extension TypeSystem {
         }
         let result: TypeID = if filtered.dropFirst().allSatisfy({ $0 == first }) {
             first
+        } else if case .typeParam = kind(of: first),
+                  filtered.dropFirst().allSatisfy({ isSubtype($0, first) }) {
+            // Preserve a declared common supertype such as `R` when a
+            // self-type extension combines it with a bounded receiver `C`.
+            first
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub
         } else {

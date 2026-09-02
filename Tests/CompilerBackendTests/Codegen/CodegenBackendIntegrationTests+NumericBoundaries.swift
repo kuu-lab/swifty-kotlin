@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite
 struct CodegenBackendNumericBoundariesTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testNumericBoundaryUnsignedCompanionConstants() throws {
@@ -153,6 +95,36 @@ struct CodegenBackendNumericBoundariesTests {
             -2147483648
             -1
             -1
+            """ + "\n"
+        )
+    }
+
+    @Test
+    func testCharNumericConversionsPreserveCodeUnitSemantics() throws {
+        let source = """
+        fun main() {
+            val high = '\\uD800'
+            val max = '\\uFFFF'
+            println(high.toByte())
+            println(high.toShort())
+            println(high.toInt())
+            println(high.toLong())
+            println(max.code)
+            println(max.code.toUInt())
+            println(max.code.toULong())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharNumericConversionCodeUnits",
+            expected: """
+            0
+            -10240
+            55296
+            55296
+            65535
+            65535
+            65535
             """ + "\n"
         )
     }
@@ -334,6 +306,34 @@ struct CodegenBackendNumericBoundariesTests {
             4464
             0
             0
+            """ + "\n"
+        )
+    }
+
+    @Test
+    func testNumericBoundaryIntSourceBackedConversions() throws {
+        let source = """
+        fun main() {
+            val value: Int = 16777217
+            println(value.toDouble() == 16777217.0)
+            println(value.toChar().code)
+            println((-1).toUInt())
+            println(Int.MIN_VALUE.toShort())
+            val nullable: Int? = value
+            println(nullable?.toDouble())
+            println(nullable?.toChar()?.code)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "NumericBoundaryIntSourceBackedConversions",
+            expected: """
+            true
+            1
+            4294967295
+            0
+            1.6777217E7
+            1
             """ + "\n"
         )
     }

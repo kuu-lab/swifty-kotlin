@@ -26,9 +26,6 @@ struct ArrayLookupNames {
     let kkArrayToMutableListName: InternedString
 
     let kkArrayCopyOfName: InternedString
-    let kkArrayCopyOfNewSizeName: InternedString
-    let kkArrayCopyOfNewSizeInitName: InternedString
-    let kkArrayCopyOfRangeName: InternedString
     let kkArrayFillName: InternedString
     let kkListAsSequenceName: InternedString
     let kkArrayAsSequenceName: InternedString
@@ -62,10 +59,7 @@ struct ArrayLookupNames {
         kkArrayToListName = interner.intern("__kk_array_toList")
         kkArrayToMutableListName = interner.intern("kk_array_toMutableList")
 
-        kkArrayCopyOfName = interner.intern("kk_array_copyOf")
-        kkArrayCopyOfNewSizeName = interner.intern("kk_array_copyOf_newSize")
-        kkArrayCopyOfNewSizeInitName = interner.intern("kk_array_copyOf_newSize_init")
-        kkArrayCopyOfRangeName = interner.intern("kk_array_copyOfRange")
+        kkArrayCopyOfName = interner.intern("__kk_array_copyOf")
         kkArrayFillName = interner.intern("kk_array_fill")
         kkListAsSequenceName = interner.intern("kk_list_asSequence")
         kkArrayAsSequenceName = interner.intern("kk_array_asSequence")

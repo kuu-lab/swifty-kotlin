@@ -1,6 +1,9 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
+import kotlin.comparisons.reverseOrder
 import kotlin.internal.__valuesEqual
+import kotlin.random.Random
 
 // KSP-435
 // Generic Iterable<T> surface migrated from the Swift runtime `kk_iterable_*`
@@ -48,6 +51,45 @@ public fun <T> Iterable<T>.toMutableList(): MutableList<T> {
     return result
 }
 
+// KSP-997: Split each pair from a generic Iterable in encounter order.
+public fun <T, R> Iterable<Pair<T, R>>.unzip(): Pair<List<T>, List<R>> {
+    val first = mutableListOf<T>()
+    val second = mutableListOf<R>()
+    val iterator = iterator()
+    while (iterator.hasNext()) {
+        val pair = iterator.next()
+        first.add(pair.first)
+        second.add(pair.second)
+    }
+    return Pair(first, second)
+}
+
+public fun <T> Iterable<T>.shuffled(): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = Random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
+public fun <T> Iterable<T>.shuffled(random: Random): List<T> {
+    val result = this.toMutableList()
+    var i = result.size - 1
+    while (i > 0) {
+        val j = random.nextInt(i + 1)
+        val temporary = result[i]
+        result[i] = result[j]
+        result[j] = temporary
+        i -= 1
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
@@ -65,6 +107,137 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+// KSP-974: Iterable flat-map transformations are source-backed. Keep the
+// Iterable and Sequence inner-result overloads distinct so lambda-return-type
+// overload resolution selects the same public API as the Kotlin stdlib.
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequence")
+public inline fun <T, R> Iterable<T>.flatMap(transform: (T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterable")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Iterable<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequence")
+@kotlin.internal.InlineOnly
+public inline fun <T, R> Iterable<T>.flatMapIndexed(transform: (index: Int, T) -> Sequence<R>): List<R> {
+    val result = mutableListOf<R>()
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) result.add(nestedIterator.next())
+    }
+    return result
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterableTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Iterable<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedSequenceTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, T) -> Sequence<R>
+): C {
+    var index = 0
+    for (element in this) {
+        val currentIndex = index
+        if (currentIndex < 0) throw ArithmeticException("Index overflow has happened.")
+        index += 1
+        val nestedIterator = transform(currentIndex, element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Iterable<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequenceTo")
+@IgnorableReturnValue
+public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
+    destination: C,
+    transform: (T) -> Sequence<R>
+): C {
+    for (element in this) {
+        val nestedIterator = transform(element).iterator()
+        while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
+    }
+    return destination
+}
+
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
 
 @Suppress("UNCHECKED_CAST")
@@ -77,6 +250,84 @@ public fun <T> Iterable<T>.last(): T {
     }
     if (!found) throw NoSuchElementException("Collection is empty.")
     return last as T
+}
+
+// KSP-965: numeric Iterable averages are source-backed and preserve iterator order.
+private fun checkAverageCountOverflow(count: Int): Int {
+    if (count < 0) throw ArithmeticException("Count overflow has happened.")
+    return count
+}
+
+@kotlin.jvm.JvmName("averageOfByte")
+public fun Iterable<Byte>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfShort")
+public fun Iterable<Short>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfInt")
+public fun Iterable<Int>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfLong")
+public fun Iterable<Long>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfFloat")
+public fun Iterable<Float>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
+}
+
+@kotlin.jvm.JvmName("averageOfDouble")
+public fun Iterable<Double>.average(): Double {
+    var sum: Double = 0.0
+    var count: Int = 0
+    for (element in this) {
+        sum += element
+        count += 1
+        checkAverageCountOverflow(count)
+    }
+    return if (count == 0) Double.NaN else sum / count
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -125,6 +376,19 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
         if (predicate(element)) result.add(element)
     }
     return result
+}
+
+public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
+    val first = ArrayList<T>()
+    val second = ArrayList<T>()
+    for (element in this) {
+        if (predicate(element)) {
+            first.add(element)
+        } else {
+            second.add(element)
+        }
+    }
+    return Pair(first, second)
 }
 
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
@@ -427,6 +691,84 @@ public fun <T> Iterable<T>.reduceRightIndexedOrNull(operation: (Int, T, T) -> T)
     return accumulator
 }
 
+// KSP-993: Iterable sorting remains source-backed and materializes exactly
+// once before applying stable in-place sorting to the mutable result.
+public fun <T : Comparable<T>> Iterable<T>.sorted(): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedBy(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public inline fun <T, R : Comparable<R>> Iterable<T>.sortedByDescending(crossinline selector: (T) -> R?): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (compareValues(selector(result[j + 1]), selector(result[j])) > 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
+public fun <T : Comparable<T>> Iterable<T>.sortedDescending(): List<T> {
+    return sortedWith(reverseOrder())
+}
+
+public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
+    val result = toMutableList()
+    var i = 0
+    while (i < result.size - 1) {
+        var j = 0
+        while (j < result.size - i - 1) {
+            if (comparator.compare(result[j + 1], result[j]) < 0) {
+                val tmp = result[j]
+                result[j] = result[j + 1]
+                result[j + 1] = tmp
+            }
+            j++
+        }
+        i++
+    }
+    return result
+}
+
 public fun <T> Iterable<T>.joinToString(
     transform: (T) -> Any
 ): String = appendJoinToTransform(this.iterator(), StringBuilder(), ", ", "", "", -1, "...", transform).toString()
@@ -448,4 +790,23 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-976: Iterable fold-family source bodies preserve the generic accumulator
+// type while traversing every receiver through its iterator exactly once.
+public inline fun <T, R> Iterable<T>.fold(initial: R, operation: (acc: R, T) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public inline fun <T, R> Iterable<T>.foldIndexed(initial: R, operation: (index: Int, acc: R, T) -> R): R {
+    var index = 0
+    var accumulator = initial
+    for (element in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        accumulator = operation(index, accumulator, element)
+        index += 1
+    }
+    return accumulator
 }

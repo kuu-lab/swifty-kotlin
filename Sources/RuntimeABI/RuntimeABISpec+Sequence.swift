@@ -307,17 +307,6 @@ public extension RuntimeABISpec {
             section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_sequence_sortedWith",
-            parameters: [
-                RuntimeABIParameter(name: "seqRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Sequence"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_sequence_sortedByDescending",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
@@ -812,10 +801,10 @@ public extension RuntimeABISpec {
             name: "kk_sequence_toMap",
             parameters: [
                 RuntimeABIParameter(name: "seqRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Sequence",
-            isThrowing: false
+            section: "Sequence"
         ),
         RuntimeABIFunctionSpec(
             name: stdlibSequenceHOFName("groupBy", arity: 1, fallback: "kk_sequence_groupBy"),

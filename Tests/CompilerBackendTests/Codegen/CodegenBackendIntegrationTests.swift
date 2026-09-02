@@ -389,20 +389,7 @@ import Testing
             println(enumValueOf<Color>("GREEN"))
         }
         """
-        try withTemporaryFile(contents: sourceValueOf) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: "EnumValueOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "GREEN\n")
-        }
+        try assertKotlinOutput(sourceValueOf, moduleName: "EnumValueOf", expected: "GREEN\n")
 
         // Test enumValues
         let sourceValues = """
@@ -415,20 +402,7 @@ import Testing
             println(values.get(1))
         }
         """
-        try withTemporaryFile(contents: sourceValues) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: "EnumValues",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "3\nRED\nGREEN\n")
-        }
+        try assertKotlinOutput(sourceValues, moduleName: "EnumValues", expected: "3\nRED\nGREEN\n")
     }
 
     @Test
@@ -502,16 +476,7 @@ import Testing
 
     @Test
     func testCodegenMutableListRemoveFirstOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/mutable_list_removefirstornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("mutable_list_removefirstornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -530,16 +495,7 @@ import Testing
 
     @Test
     func testCodegenMutableListRemoveLastOrNullUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/mutable_list_removelastornull.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("mutable_list_removelastornull.kt")
 
         try assertKotlinOutput(
             source,
@@ -558,16 +514,7 @@ import Testing
 
     @Test
     func testCodegenMutableListSortWithUsesCanonicalDiffCase() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Codegen/
-            .deletingLastPathComponent() // CompilerCoreTests/
-            .deletingLastPathComponent() // Tests/
-            .deletingLastPathComponent() // repo root
-        let caseURL = root.appendingPathComponent(
-            "Scripts/diff_cases/mutable_list_sortwith.kt",
-            isDirectory: false
-        )
-        let source = try String(contentsOf: caseURL, encoding: .utf8)
+        let source = try diffCaseSource("mutable_list_sortwith.kt")
 
         try assertKotlinOutput(
             source,
@@ -1105,20 +1052,7 @@ import Testing
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfLongVararg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "1\n50\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfLongVararg", expected: "1\n50\n")
     }
 
     // STDLIB-COMP-FN-032: minOf(Byte, Byte)
@@ -1222,20 +1156,7 @@ import Testing
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: "MinOfComparableTwoArg",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "apple\n")
-        }
+        try assertKotlinOutput(source, moduleName: "MinOfComparableTwoArg", expected: "apple\n")
     }
 
     // STDLIB-COMP-FN-030: minOf(T, T, T) where T : Comparable<T>
@@ -1291,20 +1212,7 @@ import Testing
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try pipelineHelper.runCodegenPipeline(
-                inputPath: path,
-                moduleName: "UnsignedComparisonMinOf",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "true\ntrue\n")
-        }
+        try assertKotlinOutput(source, moduleName: "UnsignedComparisonMinOf", expected: "true\ntrue\n")
     }
     // MARK: - Private Helpers
 

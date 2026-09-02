@@ -4,66 +4,8 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 @Suite(.serialized)
 struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test func testKotlinTextSplitEdgeCases() throws {
         let source = """
@@ -447,6 +389,63 @@ struct CodegenBackendKotlinTextSplittingEdgeCasesTests {
                 step must be positive, but was 0
                 size must be positive, but was 0
                 step must be positive, but was 0
+                """
+                + "\n"
+        )
+    }
+
+    @Test func testKotlinTextWindowedTransformDefaultArgsAndInvalidSize() throws {
+        let source = """
+        fun main() {
+            println("hello".windowed(2) { it.length })
+            println("hello".windowed(3, 2) { it.length })
+            println("hello".windowed(3, 2, true) { it.length })
+
+            val chars: CharSequence = "hello"
+            println(chars.windowed(2) { it.length })
+            println(chars.windowed(3, 2) { it.length })
+            println("hello".windowedSequence(2) { it.length }.toList())
+            println("hello".windowedSequence(3, 2) { it.length }.toList())
+
+            try {
+                "abc".chunked(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                "abc".windowed(2, 0) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+            try {
+                chars.windowed(0, 1, false) { it.length }
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+            }
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "KotlinTextWindowedTransformDefaultArgsAndInvalidSize",
+            expected:
+                """
+                [2, 2, 2, 2]
+                [3, 3]
+                [3, 3, 1]
+                [2, 2, 2, 2]
+                [3, 3]
+                [2, 2, 2, 2]
+                [3, 3]
+                size must be positive, but was 0
+                size must be positive, but was 0
+                step must be positive, but was 0
+                size must be positive, but was 0
                 """
                 + "\n"
         )

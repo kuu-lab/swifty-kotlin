@@ -27,4 +27,4 @@ expr e@13:35 string(Ada) type=String
 expr e@13:28 call callee=e@13:28#1 args=[_:e@13:35] type=golden.sema.Person call=golden.sema.Person.<init>
 expr e@13:43 name(property) type=kotlin.reflect.KProperty1<golden.sema.Person, String> ref=__local_0.property
 expr e@13:13 call callee=e@13:13#1 args=[_:e@13:18,_:e@13:28,_:e@13:43] type=String call=golden.sema.read targs=[golden.sema.Person,String]
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println#1
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13] type=Unit call=kotlin.io.println#2
