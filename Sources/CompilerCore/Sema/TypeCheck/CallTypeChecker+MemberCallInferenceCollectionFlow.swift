@@ -3695,6 +3695,7 @@ extension CallTypeChecker {
                 let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
                 let usesIterableMinComparator = (calleeStr == "minWith" || calleeStr == "minWithOrNull")
                     && !isSequenceReceiver
+                    && !isMapReceiver
                     && !receiverClassifier.isConcreteListLikeType(receiverType)
                     && !isListFactoryReceiver
                 let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
@@ -3753,6 +3754,7 @@ extension CallTypeChecker {
                 let comparatorFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Comparator")]
                 let usesIterableMinComparator = (calleeStr == "minOfWith" || calleeStr == "minOfWithOrNull")
                     && !isSequenceReceiver
+                    && !isMapReceiver
                     && !receiverClassifier.isConcreteListLikeType(receiverType)
                     && !isListFactoryReceiver
                 let comparatorExpectedType: TypeID? = if let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) {
