@@ -32,17 +32,17 @@ file fstdlib_kotlin_collections_Map_is package=golden.sema
 expr e@3:65 name(map) type=kotlin.collections.Map<out golden.sema.mapIsNotEmpty.$1.K, golden.sema.mapIsNotEmpty.$1.V> ref=golden.sema.mapIsNotEmpty.$1.map
 expr e@3:65#1 memberCall recv=e@3:65 callee=isNotEmpty args=[] type=Boolean call=kotlin.collections.isNotEmpty#1 targs=[golden.sema.mapIsNotEmpty.$1.K,golden.sema.mapIsNotEmpty.$1.V]
 expr e@5:69 name(map) type=kotlin.collections.Map<out golden.sema.mapIsNullOrEmpty.$2.K, golden.sema.mapIsNullOrEmpty.$2.V>? ref=golden.sema.mapIsNullOrEmpty.$2.map
-expr e@5:69#1 memberCall recv=e@5:69 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty targs=[golden.sema.mapIsNullOrEmpty.$2.K,golden.sema.mapIsNullOrEmpty.$2.V]
+expr e@5:69#1 memberCall recv=e@5:69 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty#1 targs=[golden.sema.mapIsNullOrEmpty.$2.K,golden.sema.mapIsNullOrEmpty.$2.V]
 expr e@8:12 name(map) type=kotlin.collections.Map<out golden.sema.mapIsNullOrEmptyFromGeneric.$3.K, golden.sema.mapIsNullOrEmptyFromGeneric.$3.V>? ref=golden.sema.mapIsNullOrEmptyFromGeneric.$3.map
-expr e@8:12#1 memberCall recv=e@8:12 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty targs=[golden.sema.mapIsNullOrEmptyFromGeneric.$3.K,golden.sema.mapIsNullOrEmptyFromGeneric.$3.V]
+expr e@8:12#1 memberCall recv=e@8:12 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty#1 targs=[golden.sema.mapIsNullOrEmptyFromGeneric.$3.K,golden.sema.mapIsNullOrEmptyFromGeneric.$3.V]
 expr e@8:5 return value=e@8:12#1 type=Nothing
 expr e@11:74 name(values) type=kotlin.collections.Collection<Int>? ref=golden.sema.collectionIsNullOrEmpty.$0.values
-expr e@11:74#1 memberCall recv=e@11:74 callee=isNullOrEmpty args=[] type=Boolean
+expr e@11:74#1 memberCall recv=e@11:74 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty#0 targs=[Int]
 expr e@18:20 name(empty) type=kotlin.collections.Map<String, Int> ref=golden.sema.useMapIsFamily.$4.empty
 expr e@18:20#1 memberCall recv=e@18:20 callee=isNotEmpty args=[] type=Boolean call=kotlin.collections.isNotEmpty#1 targs=[String,Int]
 expr e@18:5 localDecl nonEmpty mutable=0 type=_ init=e@18:20#1 type=Unit ref=__local_0.nonEmpty
 expr e@19:26 name(nullable) type=kotlin.collections.Map<String?, Int?>? ref=golden.sema.useMapIsFamily.$4.nullable
-expr e@19:26#1 memberCall recv=e@19:26 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty targs=[String?,Int?]
+expr e@19:26#1 memberCall recv=e@19:26 callee=isNullOrEmpty args=[] type=Boolean call=kotlin.collections.isNullOrEmpty#1 targs=[String?,Int?]
 expr e@19:5 localDecl nullableResult mutable=0 type=_ init=e@19:26#1 type=Unit ref=__local_1.nullableResult
 expr e@20:53 name(projected) type=kotlin.collections.Map<String, Int?> ref=golden.sema.useMapIsFamily.$4.projected
 expr e@20:27 call callee=e@20:27#1 args=[_:e@20:53] type=Boolean call=golden.sema.mapIsNotEmpty targs=[Any?,Int?]

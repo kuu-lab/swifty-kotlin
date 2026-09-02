@@ -53,7 +53,7 @@ expr e@13:13#1 memberCall recv=e@13:13 callee=size args=[] type=Int ref=kotlin.c
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
 expr e@14:13 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_1.flattenedSeq
 expr e@14:31 int(5) type=Int
-expr e@14:13#1 memberCall recv=e@14:13 callee=take args=[_:e@14:31] type=kotlin.collections.List<Int> call=kotlin.collections.take targs=[Int]
+expr e@14:13#1 memberCall recv=e@14:13 callee=take args=[_:e@14:31] type=kotlin.collections.List<Int> call=kotlin.collections.take#1 targs=[Int]
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println#1
 expr e@15:13 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_1.flattenedSeq
 expr e@15:31 name(flattenedSeq) type=kotlin.collections.List<Int> ref=__local_1.flattenedSeq

@@ -1,4 +1,4 @@
-symbol fq=__local_0.emptyMap kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String?, Int?>
+symbol fq=__local_0.emptyMap kind=local vis=private flags=_ type=kotlin.collections.HashMap<String?, Int?>
 symbol fq=__local_1.map kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String?, Int?>
 symbol fq=__local_2.spreadMap kind=local vis=private flags=_ type=kotlin.collections.MutableMap<String, Int>
 symbol fq=__local_3.emptySet kind=local vis=private flags=_ type=kotlin.collections.MutableSet<String?>
@@ -11,7 +11,7 @@ symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=syntheti
 symbol fq=probe kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_n_hash package=_
   decl probe fun probe sym=probe
-expr e@2:44 call callee=e@2:44#1 args=[] type=kotlin.collections.MutableMap<String?, Int?> call=kotlin.collections.hashMapOf#0 targs=[String?,Int?]
+expr e@2:44 call callee=e@2:44#1 args=[] type=kotlin.collections.HashMap<String?, Int?> call=kotlin.collections.hashMapOf#0 targs=[String?,Int?]
 expr e@2:5 localDecl emptyMap mutable=0 type=HashMap<String?,Int?> init=e@2:44 type=Unit ref=__local_0.emptyMap
 expr e@3:25 name(null) type=Nothing?
 expr e@3:33 name(null) type=Nothing?
@@ -42,7 +42,7 @@ expr e@8:53 string(y) type=String
 expr e@8:40 call callee=e@8:40#1 args=[_:e@8:48,_:e@8:53] type=kotlin.Array<String> call=kotlin.arrayOf targs=[String]
 expr e@8:21 call callee=e@8:21#1 args=[_:e@8:40] type=kotlin.collections.MutableSet<String> call=kotlin.collections.hashSetOf#1 targs=[String]
 expr e@8:5 localDecl spreadSet mutable=0 type=_ init=e@8:21 type=Unit ref=__local_5.spreadSet
-expr e@10:13 name(emptyMap) type=kotlin.collections.MutableMap<String?, Int?> ref=__local_0.emptyMap
+expr e@10:13 name(emptyMap) type=kotlin.collections.HashMap<String?, Int?> ref=__local_0.emptyMap
 expr e@10:13#1 memberCall recv=e@10:13 callee=size args=[] type=Int
 expr e@10:29 name(map) type=kotlin.collections.MutableMap<String?, Int?> ref=__local_1.map
 expr e@10:29#1 memberCall recv=e@10:29 callee=size args=[] type=Int

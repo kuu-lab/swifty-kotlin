@@ -93,6 +93,47 @@ struct KIRBuildClassLoweringTests {
         }
     }
 
+    @Test func testCompanionInitializerDoesNotCallSyntheticAnyConstructor() throws {
+        let source = """
+        class Host {
+            companion object {
+                val answer: Int = 42
+            }
+        }
+        fun main(): Int = Host.answer
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let companionInitializers = findAllKIRFunctions(in: module).filter { function in
+                ctx.interner.resolve(function.name).hasPrefix("__companion_init_")
+            }
+            #expect(!companionInitializers.isEmpty, "Expected synthesized companion initializer")
+
+            let hasSyntheticAnyConstructorCall = companionInitializers.contains { function in
+                function.body.contains { instruction in
+                    guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                          let symbol,
+                          ctx.interner.resolve(callee) == "<init>",
+                          let symbolInfo = sema.symbols.symbol(symbol)
+                    else {
+                        return false
+                    }
+                    return symbolInfo.flags.contains(.synthetic)
+                        && sema.symbols.parentSymbol(for: symbol) == sema.types.anyClassSymbol
+                }
+            }
+            #expect(
+                !hasSyntheticAnyConstructorCall,
+                "Companion initializer must not call the body-less synthetic Any constructor"
+            )
+        }
+    }
+
     @Test func testClassLoweringGeneratesConstructorDefaultStubForSecondaryConstructor() throws {
         let source = """
         class Box {

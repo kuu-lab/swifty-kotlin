@@ -219,7 +219,12 @@ final class ControlFlowLowerer {
         // intrinsics below, which reinterpret the collection object as a range
         // and yield garbage elements (or none at all). Lower them like an
         // explicit `val it = xs.iterator()` loop instead.
-        if usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner) {
+        let nonNullIterableType = sema.types.makeNonNullable(iterableType)
+        let isIterableInterfaceResult = ReceiverClassifier(sema: sema, interner: interner)
+            .isIterableLikeType(nonNullIterableType)
+        if usesDynamicIteratorDispatch(iterableType, sema: sema, interner: interner)
+            || isIterableInterfaceResult
+        {
             return lowerDynamicIteratorForExpr(
                 exprID,
                 iterableExpr: iterableExpr,
@@ -244,7 +249,6 @@ final class ControlFlowLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let nonNullIterableType = sema.types.makeNonNullable(iterableType)
         let isUIntRangeLike = sema.bindings.isUIntRangeExpr(iterableExpr) || nonNullIterableType == sema.types.uintType
         let isULongRangeLike = sema.bindings.isULongRangeExpr(iterableExpr) || nonNullIterableType == sema.types.ulongType
 
@@ -850,13 +854,11 @@ final class ControlFlowLowerer {
             .contains(iterableSymbol)
     }
 
-    /// BUG-167: Lowers `for (x in iterable)` for an iterable whose `iterator()`
-    /// is only known at runtime. `kk_range_iterator` resolves the concrete
-    /// iterator (runtime collection box or `Iterable` itable dispatch), so
-    /// `hasNext()`/`next()` go through the generic `kk_iterator_*` intrinsics
-    /// (which handle every iterator representation) and the element is unboxed
-    /// into the loop variable's primitive type — the same shape an explicit
-    /// `val it = iterable.iterator()` loop lowers to.
+    /// BUG-167/KSP-998: Lowers `for (x in iterable)` for an iterable whose
+    /// `iterator()` is only known at runtime. The throwing Iterable bridge keeps
+    /// iterator acquisition lazy and preserves source exceptions for the
+    /// enclosing Kotlin try/catch. `hasNext()`/`next()` go through the generic
+    /// `kk_iterator_*` intrinsics, which handle every iterator representation.
     private func lowerDynamicIteratorForExpr(
         _ exprID: ExprID,
         iterableExpr: ExprID,
@@ -881,19 +883,29 @@ final class ControlFlowLowerer {
         )
 
         let iteratorID = arena.appendTemporary(type: sema.types.anyType)
-        emitNonThrowingCall(
-            callee: interner.intern("kk_range_iterator"),
-            arg: iterableID,
+        let thrownResult = arena.appendTemporary(type: sema.types.nullableAnyType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: interner.intern("kk_iterable_iterator"),
+            arguments: [iterableID],
             result: iteratorID,
-            into: &instructions
-        )
+            canThrow: true,
+            thrownResult: thrownResult
+        ))
+        let continueAfterIteratorLabel = driver.ctx.makeLoopLabel()
+        let rethrowIteratorLabel = driver.ctx.makeLoopLabel()
+        instructions.append(.jumpIfNotNull(value: thrownResult, target: rethrowIteratorLabel))
+        instructions.append(.jump(continueAfterIteratorLabel))
+        instructions.append(.label(rethrowIteratorLabel))
+        instructions.append(.rethrow(value: thrownResult))
+        instructions.append(.label(continueAfterIteratorLabel))
 
         let continueLabel = driver.ctx.makeLoopLabel()
         let breakLabel = driver.ctx.makeLoopLabel()
         instructions.append(.label(continueLabel))
 
         let hasNextID = arena.appendTemporary(type: boolType)
-        emitNonThrowingCall(
+        emitThrowingCall(
             callee: interner.intern("kk_iterator_hasNext"),
             arg: iteratorID,
             result: hasNextID,
@@ -915,7 +927,7 @@ final class ControlFlowLowerer {
             requireNonNull: true
         ) {
             let boxedID = arena.appendTemporary(type: sema.types.anyType)
-            emitNonThrowingCall(
+            emitThrowingCall(
                 callee: interner.intern("kk_iterator_next"),
                 arg: iteratorID,
                 result: boxedID,
@@ -928,7 +940,7 @@ final class ControlFlowLowerer {
                 into: &instructions
             )
         } else {
-            emitNonThrowingCall(
+            emitThrowingCall(
                 callee: interner.intern("kk_iterator_next"),
                 arg: iteratorID,
                 result: nextValueID,
@@ -2355,7 +2367,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern("kk_range_iterator"),
                 arguments: [iterableID],
                 result: iteratorID,
-                canThrow: false,
+                canThrow: true,
                 thrownResult: nil
             ))
         }
@@ -2389,7 +2401,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }
@@ -2423,7 +2435,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }

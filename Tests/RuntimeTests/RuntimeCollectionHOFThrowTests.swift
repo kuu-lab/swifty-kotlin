@@ -59,7 +59,7 @@ struct RuntimeCollectionHOFThrowTests {
     @Test
     func testMapForEachThrows() {
         let map = kk_map_of(kk_array_new(0), kk_array_new(0), 0)
-        _ = kk_mutable_map_put(map, 1, 10)
+        _ = kk_mutable_map_put(map, 1, 10, nil)
 
         var outThrown = 0
         let result = kk_map_forEach(map, unsafeBitCast(lambdaThatThrows, to: Int.self), 0, &outThrown)

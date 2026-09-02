@@ -323,10 +323,18 @@ extension CollectionLiteralConstructionLoweringPass {
         let isListIteratorReceiverCall = arguments.count == 1
             && state.listIteratorExprIDs.contains(arguments[0].rawValue)
         if isListIteratorReceiverCall,
-           callee == lookup.hasPreviousName || callee == lookup.previousName {
-            let runtimeCallee = callee == lookup.hasPreviousName
-                ? lookup.kkListIteratorHasPreviousName
-                : lookup.kkListIteratorPreviousName
+           callee == lookup.hasPreviousName || callee == lookup.previousName
+                || callee == lookup.nextIndexName || callee == lookup.previousIndexName {
+            let runtimeCallee: InternedString = switch callee {
+            case lookup.hasPreviousName:
+                lookup.kkListIteratorHasPreviousName
+            case lookup.previousName:
+                lookup.kkListIteratorPreviousName
+            case lookup.nextIndexName:
+                lookup.kkListIteratorNextIndexName
+            default:
+                lookup.kkListIteratorPreviousIndexName
+            }
             loweredBody.append(.call(
                 symbol: nil,
                 callee: runtimeCallee,
