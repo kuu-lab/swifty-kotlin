@@ -4,4 +4,5 @@ file fstdlib_kotlin_n_suspend package=golden.sema
   decl golden.sema.sourceSuspend fun sourceSuspend suspend=1 sym=golden.sema.sourceSuspend
   decl golden.sema.makeSuspendFunction fun makeSuspendFunction sym=golden.sema.makeSuspendFunction
 expr e@3:39 string(ok) type=String
-diagnostic severity=error code=KSWIFTK-SEMA-0009 at=5:1 msg=Function 'makeSuspendFunction' must have a body.
+expr e@6:15 call callee=e@6:15#1 args=[] type=String call=golden.sema.sourceSuspend
+expr e@6:5 lambda params=[] body=e@6:15 type=suspend () -> String

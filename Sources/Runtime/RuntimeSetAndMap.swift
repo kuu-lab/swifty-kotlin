@@ -149,8 +149,17 @@ public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
-public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_set_add(
+    _ setRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !set.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
@@ -230,8 +239,12 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
 
 // MARK: - Map Functions (STDLIB-001)
 
-@_cdecl("__kk_map_of")
-public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+private func runtimeMapOf(
+    keysArrayRaw: Int,
+    valuesArrayRaw: Int,
+    count: Int,
+    typeID: Int64
+) -> Int {
     var keys: [Int] = []
     var values: [Int] = []
     if count > 0, let arrays = runtimeMapArrayPair(keysRaw: keysArrayRaw, valuesRaw: valuesArrayRaw) {
@@ -242,7 +255,27 @@ public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) 
         }
     }
     (keys, values) = runtimeNormalizeMapEntries(keys: keys, values: values)
-    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: mutableMapRuntimeTypeID)
+    return registerRuntimeObject(RuntimeMapBox(keys: keys, values: values), typeID: typeID)
+}
+
+@_cdecl("__kk_map_of")
+public func kk_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: mutableMapRuntimeTypeID
+    )
+}
+
+@_cdecl("__kk_hash_map_of")
+public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: hashMapRuntimeTypeID
+    )
 }
 
 /// Builds a mutable map from a vararg Pair array, including a spread argument.
@@ -274,8 +307,18 @@ public func kk_emptyMap() -> Int {
 }
 
 @_cdecl("__kk_mutable_map_put")
-public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
+public func kk_mutable_map_put(
+    _ mapRaw: Int,
+    _ key: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeNullSentinelInt
+    }
+    guard !map.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return runtimeNullSentinelInt
     }
     return map.put(key: key, value: value) ?? runtimeNullSentinelInt
@@ -317,7 +360,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second)
+    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
     return 0
 }
 

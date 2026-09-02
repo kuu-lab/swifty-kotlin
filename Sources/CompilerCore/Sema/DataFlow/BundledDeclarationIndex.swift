@@ -118,6 +118,13 @@ struct BundledDeclarationIndex: Sendable {
             guard symbol.flags.contains(.synthetic) else { continue }
             guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
+            // Header collection represents source-declared property accessors as
+            // synthetic function symbols. They are implementation details of the
+            // source property, not residual stdlib stubs that a KSP-002 guard
+            // should have skipped.
+            guard !Self.isSyntheticPropertyAccessor(symbol, symbols: symbols) else {
+                continue
+            }
             guard let key = Self.memberKey(
                 for: symbol,
                 symbolID: symbol.id,
@@ -174,6 +181,22 @@ struct BundledDeclarationIndex: Sendable {
                 range: nil
             )
         }
+    }
+
+    private static func isSyntheticPropertyAccessor(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard symbol.kind == .function,
+              let propertySymbol = symbols.parentSymbol(for: symbol.id),
+              symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return false
+        }
+
+        return symbols.extensionPropertyGetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.extensionPropertySetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.accessorOwnerProperty(for: symbol.id) == propertySymbol
     }
 
     private static func isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
@@ -608,7 +631,7 @@ struct BundledDeclarationIndex: Sendable {
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
         // Aliasing List member implementations to Iterable suppresses synthetic
-        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
         let nonAliasedZeroArgNames = Set([
@@ -618,6 +641,7 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("first"),
             interner.intern("last"),
             interner.intern("single"),
+            interner.intern("singleOrNull"),
         ])
         // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
         // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with

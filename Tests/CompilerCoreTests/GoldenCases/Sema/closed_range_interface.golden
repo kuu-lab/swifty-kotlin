@@ -67,8 +67,3 @@ expr e@13:63 name(range) type=kotlin.ranges.ClosedRange<ULong> ref=golden.sema.u
 expr e@13:63#1 memberCall recv=e@13:63 callee=start args=[] type=ULong ref=kotlin.ranges.ClosedRange.start
 expr e@14:58 name(range) type=kotlin.ranges.ClosedRange<Char> ref=golden.sema.charClosedRangeEnd.$0.range
 expr e@14:58#1 memberCall recv=e@14:58 callee=endInclusive args=[] type=Char ref=kotlin.ranges.ClosedRange.endInclusive
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=3:1 msg=Type constraint could not be satisfied.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=4:1 msg=Type constraint could not be satisfied.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=5:1 msg=Type constraint could not be satisfied.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=6:1 msg=Type constraint could not be satisfied.
-diagnostic severity=error code=KSWIFTK-TYPE-0001 at=7:1 msg=Type constraint could not be satisfied.

@@ -233,5 +233,11 @@ extension DataFlowSemaPhase {
             _ = (entry.bucket, entry.name)
             entry.register(self, symbols, types, interner)
         }
+        // KSP-1205: EnumEntries is available after the Enum bucket has run.
+        registerSyntheticMemoryModelEnumMembers(
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
     }
 }
