@@ -1191,6 +1191,15 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
+        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        #expect(
+            callees.contains("kk_list_is_empty"),
+            "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
+        )
+    }
+
+    @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Set", callee: "size")
         #expect(
@@ -1293,8 +1302,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
         #expect(
-            callees.contains("kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter should be rewritten to kk_array_toList, got: \(callees)"
+            callees.contains("__kk_array_toList"),
+            "virtualCall(toList) on Array-typed parameter should be rewritten to __kk_array_toList, got: \(callees)"
         )
     }
 
@@ -1302,8 +1311,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnArrayTypedParameterRewritesToKkArraySize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "size")
         #expect(
-            callees.contains("kk_array_size"),
-            "virtualCall(size) on Array-typed parameter should be rewritten to kk_array_size, got: \(callees)"
+            callees.contains("__kk_array_size"),
+            "virtualCall(size) on Array-typed parameter should be rewritten to __kk_array_size, got: \(callees)"
         )
     }
 

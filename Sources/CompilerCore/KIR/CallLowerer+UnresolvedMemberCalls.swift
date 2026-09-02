@@ -193,22 +193,11 @@ extension CallLowerer {
             case "get":
                 return interner.intern("kk_array_get")
             case "toList":
-                return interner.intern("kk_array_toList")
+                return interner.intern("__kk_array_toList")
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
-                return interner.intern("kk_array_copyOf")
-            case "copyOf":
-                switch argumentCount {
-                case 0:
-                    return interner.intern("kk_array_copyOf")
-                case 1:
-                    return interner.intern("kk_array_copyOf_newSize")
-                case 2:
-                    return interner.intern("kk_array_copyOf_newSize_init")
-                default:
-                    break
-                }
+                return interner.intern("__kk_array_copyOf")
             case "fill":
                 return interner.intern("kk_array_fill")
             case "asSequence":
@@ -294,7 +283,6 @@ extension CallLowerer {
             let takeLastWhileName = interner.intern("takeLastWhile")
             let sortedName = interner.intern("sorted")
             let sortedByName = interner.intern("sortedBy")
-            let sortedWithName = interner.intern("sortedWith")
             let sortedByDescendingName = interner.intern("sortedByDescending")
             let sortedDescendingName = interner.intern("sortedDescending")
             let firstNotNullOfName = interner.intern("firstNotNullOf")
@@ -326,8 +314,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_sorted")
             case sortedByName:
                 return interner.intern("kk_sequence_sortedBy")
-            case sortedWithName:
-                return interner.intern("kk_sequence_sortedWith")
             case sortedByDescendingName:
                 return interner.intern("kk_sequence_sortedByDescending")
             case sortedDescendingName:
@@ -361,10 +347,6 @@ extension CallLowerer {
                 return interner.intern("kk_sequence_elementAt")
             case interner.intern("elementAtOrNull"):
                 return interner.intern("kk_sequence_elementAtOrNull")
-            case interner.intern("findLast"):
-                return interner.intern("kk_sequence_findLast")
-            case interner.intern("find"):
-                return interner.intern("kk_sequence_find")
             case interner.intern("single"):
                 return interner.intern("kk_sequence_single")
             case interner.intern("singleOrNull"):
@@ -534,13 +516,77 @@ extension CallLowerer {
               || memberName == "reduceIndexed"
               || memberName == "reduceRightIndexed"
               || memberName == "reduceRightOrNull"
-              || memberName == "reduceRightIndexedOrNull",
-              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+              || memberName == "reduceRightIndexedOrNull"
         else {
             return nil
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
+        if memberName == "size" || memberName == "isEmpty" {
+            func collectionKind(
+                for type: TypeID,
+                visitedTypeParams: inout Set<SymbolID>
+            ) -> KnownCollectionKind? {
+                let nonNullType = sema.types.makeNonNullable(type)
+                switch sema.types.kind(of: nonNullType) {
+                case let .classType(classType):
+                    guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                        return nil
+                    }
+                    return collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames)
+                case let .intersection(parts):
+                    for part in parts {
+                        if let kind = collectionKind(for: part, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                case let .typeParam(typeParam):
+                    guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                        return nil
+                    }
+                    for bound in sema.symbols.typeParameterUpperBounds(for: typeParam.symbol) {
+                        if let kind = collectionKind(for: bound, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                default:
+                    return nil
+                }
+            }
+
+            var visitedTypeParams = Set<SymbolID>()
+            switch (memberName, collectionKind(for: receiverType, visitedTypeParams: &visitedTypeParams)) {
+            case ("size", .map?):
+                return interner.intern("kk_map_size")
+            case ("size", .set?):
+                return interner.intern("__kk_set_size")
+            case ("size", .array?):
+                return interner.intern("__kk_array_size")
+            case ("size", .list?):
+                return interner.intern("__kk_list_size")
+            case ("size", .collection?):
+                return interner.intern("__kk_collection_size")
+            case ("isEmpty", .map?):
+                return interner.intern("kk_map_is_empty")
+            case ("isEmpty", .set?):
+                return interner.intern("__kk_set_is_empty")
+            case ("isEmpty", .array?):
+                return interner.intern("kk_array_is_empty")
+            case ("isEmpty", .list?):
+                return interner.intern("kk_list_is_empty")
+            case ("isEmpty", .collection?):
+                return interner.intern("__kk_collection_isEmpty")
+            default:
+                return nil
+            }
+        }
+
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return nil
+        }
+
         switch memberName {
         case "size":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
@@ -549,7 +595,7 @@ extension CallLowerer {
             case .set?:
                 return interner.intern("__kk_set_size")
             case .array?:
-                return interner.intern("kk_array_size")
+                return interner.intern("__kk_array_size")
             case .list?:
                 return interner.intern("__kk_list_size")
             case .collection?:

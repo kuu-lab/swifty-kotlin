@@ -47,6 +47,16 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func charNumericBridgeABIsRemoved() {
+        for name in ["kk_char_to_int", "kk_char_to_long", "kk_char_to_uint", "kk_char_to_ulong"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "Char numeric conversion bridge \(name) should be removed after KSP-1539"
+            )
+        }
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
@@ -796,6 +806,14 @@ struct ABIMismatchTests {
     @Test
     func printRawSignature() throws {
         let spec = try requireSpec("__kk_print_raw")
+        #expect(spec.returnType == .void)
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
+    }
+
+    @Test
+    func printlnRawSignature() throws {
+        let spec = try requireSpec("__kk_println_raw")
         #expect(spec.returnType == .void)
         #expect(spec.parameters.count == 1)
         #expect(spec.parameters[0].type == .intptr)

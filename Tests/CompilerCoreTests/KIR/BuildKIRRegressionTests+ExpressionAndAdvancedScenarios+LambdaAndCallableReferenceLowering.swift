@@ -209,7 +209,8 @@ extension BuildKIRRegressionTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let addCallExprID = try #require(firstExprID(in: ast) { _, expr in
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            let addCallExprID = try #require(firstExprID(in: ast) { exprID, expr in
                 guard case let .call(calleeExprID, _, _, _) = expr,
                       let calleeExpr = ast.arena.expr(calleeExprID),
                       case let .nameRef(calleeName, _) = calleeExpr
@@ -217,6 +218,7 @@ extension BuildKIRRegressionTests {
                     return false
                 }
                 return ctx.interner.resolve(calleeName) == "add"
+                    && ast.arena.exprRange(exprID)?.start.file == sourceFileID
             })
             let existingBinding = try #require(sema.bindings.callableValueCalls[addCallExprID])
             sema.bindings.bindCallableValueCall(

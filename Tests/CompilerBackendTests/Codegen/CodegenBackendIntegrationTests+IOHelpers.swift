@@ -4,66 +4,33 @@
 import Foundation
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
+/// Compiles and links `source`, then runs it with `shellInvocation` wrapping
+/// the binary (`"$1"` refers to the compiled executable), returning
+/// normalized stdout. Shared by the `readLine`/`readln`/`readlnOrNull`
+/// stdin tests below, which differ only in the shell-side stdin redirect.
+private func runWithStdin(_ source: String, moduleName: String, shellInvocation: String) throws -> String {
+    var normalizedStdout = ""
+    try withTemporaryFile(contents: source) { path in
+        let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        let ctx = try runCodegenPipeline(
+            inputPath: path,
+            moduleName: moduleName,
+            emit: .executable,
+            outputPath: outputBase
+        )
+        try LinkPhase().run(ctx)
+
+        let result = try CommandRunner.run(
+            executable: "/bin/sh",
+            arguments: ["-c", shellInvocation, "sh", outputBase]
+        )
+        normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
     }
-    return ctx
+    return normalizedStdout
 }
 
 @Suite
 struct CodegenBackendIOHelpersTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func testCodegenBuildListProducesCorrectly() throws {
@@ -254,23 +221,8 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadLineEOF",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "\"$1\" </dev/null", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "null\n")
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadLineEOF", shellInvocation: "\"$1\" </dev/null")
+        #expect(normalizedStdout == "null\n")
     }
 
     @Test
@@ -282,23 +234,8 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadLineEmptyLine",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "printf '\\n' | \"$1\"", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "\n")
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadLineEmptyLine", shellInvocation: "printf '\\n' | \"$1\"")
+        #expect(normalizedStdout == "\n")
     }
 
     @Test
@@ -310,23 +247,8 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadlnInput",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "echo hello | \"$1\"", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "hello\n")
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnInput", shellInvocation: "echo hello | \"$1\"")
+        #expect(normalizedStdout == "hello\n")
     }
 
     @Test
@@ -342,26 +264,11 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadlnEOF",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "\"$1\" </dev/null", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(
-                normalizedStdout.contains("EOF"),
-                "Expected EOF-related message, got: \(normalizedStdout)"
-            )
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnEOF", shellInvocation: "\"$1\" </dev/null")
+        #expect(
+            normalizedStdout.contains("EOF"),
+            "Expected EOF-related message, got: \(normalizedStdout)"
+        )
     }
 
     @Test
@@ -373,23 +280,8 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadlnOrNullInput",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "echo hello | \"$1\"", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "hello\n")
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnOrNullInput", shellInvocation: "echo hello | \"$1\"")
+        #expect(normalizedStdout == "hello\n")
     }
 
     @Test
@@ -401,23 +293,8 @@ struct CodegenBackendIOHelpersTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: "ReadlnOrNullEOF",
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-
-            let result = try CommandRunner.run(
-                executable: "/bin/sh",
-                arguments: ["-c", "\"$1\" </dev/null", "sh", outputBase]
-            )
-            let normalizedStdout = result.stdout.replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == "null\n")
-        }
+        let normalizedStdout = try runWithStdin(source, moduleName: "ReadlnOrNullEOF", shellInvocation: "\"$1\" </dev/null")
+        #expect(normalizedStdout == "null\n")
     }
 
     @Test

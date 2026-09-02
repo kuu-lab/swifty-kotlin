@@ -10,7 +10,8 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty
     ) -> SymbolID {
         let collectionName = interner.intern("Collection")
         let collectionFQName = kotlinCollectionsPkg + [collectionName]
@@ -100,6 +101,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(collectionInterfaceSymbol, for: sizeSymbol)
+            symbols.setExternalLinkName("__kk_collection_size", for: sizeSymbol)
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
@@ -140,6 +142,35 @@ extension DataFlowSemaPhase {
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
             externalLinkName: "kk_op_contains"
+        )
+
+        let iteratorFQName = kotlinCollectionsPkg + [interner.intern("Iterator")]
+        if let iteratorSymbol = symbols.lookup(fqName: iteratorFQName) {
+            let iteratorReturnType = types.make(.classType(ClassType(
+                classSymbol: iteratorSymbol,
+                args: [.out(typeParamType)],
+                nullability: .nonNull
+            )))
+            defineCollectionFunctionMember(
+                name: "iterator",
+                parameterTypes: [],
+                returnType: iteratorReturnType,
+                flags: [.synthetic, .operatorFunction],
+                externalLinkName: "kk_list_iterator"
+            )
+        }
+
+        let collectionParameterType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+        defineCollectionFunctionMember(
+            name: "containsAll",
+            parameterTypes: [collectionParameterType],
+            returnType: types.booleanType,
+            flags: [.synthetic],
+            externalLinkName: "__kk_collection_containsAll"
         )
 
         defineCollectionFunctionMember(
@@ -601,7 +632,9 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iterableInterfaceSymbol, for: iterFnSymbol)
-            symbols.setExternalLinkName("kk_range_iterator", for: iterFnSymbol)
+            // KSP-998: Explicit Iterable.iterator() calls must preserve the
+            // source iterator's thrown channel and remain lazy.
+            symbols.setExternalLinkName("kk_iterable_iterator", for: iterFnSymbol)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [],
                 returnType: iteratorReturnType,

@@ -273,30 +273,6 @@ public func kk_ushort_to_char(_ value: Int) -> Int {
     value
 }
 
-@_cdecl("kk_char_to_int")
-public func kk_char_to_int(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_long")
-public func kk_char_to_long(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_uint")
-public func kk_char_to_uint(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_ulong")
-public func kk_char_to_ulong(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
 
@@ -330,24 +306,6 @@ public func kk_byte_to_char(_ value: Int) -> Int {
 @_cdecl("kk_short_to_char")
 public func kk_short_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: Int16(truncatingIfNeeded: value)))
-}
-
-@_cdecl("kk_float_to_char")
-public func kk_float_to_char(_ value: Int) -> Int {
-    let f = kk_bits_to_float(value)
-    if f.isNaN || f.isSignalingNaN { return 0 }
-    if f <= 0 { return 0 }
-    if f >= Float(UInt16.max) { return Int(UInt16.max) }
-    return Int(UInt16(f))
-}
-
-@_cdecl("kk_double_to_char")
-public func kk_double_to_char(_ value: Int) -> Int {
-    let d = kk_bits_to_double(value)
-    if d.isNaN || d.isSignalingNaN { return 0 }
-    if d <= 0 { return 0 }
-    if d >= Double(UInt16.max) { return Int(UInt16.max) }
-    return Int(UInt16(d))
 }
 
 func runtimeMakeStringPointer(_ value: String) -> UnsafeMutableRawPointer {

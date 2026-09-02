@@ -143,46 +143,6 @@ extension CallLowerer {
         }
     }
 
-    func materializeArrayCopyIntoDefaultArguments(
-        _ defaultMask: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard arguments.count >= 5 else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let destinationOffsetMaskBit = Int64(1) << 1
-        let startIndexMaskBit = Int64(1) << 2
-        let endIndexMaskBit = Int64(1) << 3
-        if (defaultMask & destinationOffsetMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[2] = zeroExpr
-        }
-
-        if (defaultMask & startIndexMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[3] = zeroExpr
-        }
-
-        if (defaultMask & endIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendTemporary(type: intType)
-            emitNonThrowingCall(
-                callee: interner.intern("kk_array_size"),
-                arg: arguments[0],
-                result: sizeExpr,
-                into: &instructions
-            )
-            arguments[4] = sizeExpr
-        }
-    }
-
     /// STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex = 0, endIndex = size,
     /// throwOnInvalidSequence = false). The generic default-argument filler
     /// (`CallSupportLowerer.normalizedCallArguments`) substitutes an `0` sentinel
@@ -208,25 +168,12 @@ extension CallLowerer {
         let intType = sema.types.intType
         let sizeExpr = arena.appendTemporary(type: intType)
         emitNonThrowingCall(
-            callee: interner.intern("kk_array_size"),
+            callee: interner.intern("__kk_array_size"),
             arg: arguments[0],
             result: sizeExpr,
             into: &instructions
         )
         arguments[2] = sizeExpr
-    }
-
-    /// KSP-611: a member of an interface imported from a compiled library carries the
-    /// link name of the body emitted for it in that library. For an abstract member that
-    /// body is an empty stub, so honouring the link name would silently call nothing;
-    /// interface members must dispatch through the receiver's itable instead.
-    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
-        guard let calleeSymbol = sema.symbols.symbol(callee),
-              calleeSymbol.flags.contains(.importedLibrary),
-              let parentID = sema.symbols.parentSymbol(for: callee),
-              let parentSymbol = sema.symbols.symbol(parentID)
-        else { return false }
-        return parentSymbol.kind == .interface
     }
 
     /// Callees bridged to a C runtime function (such as kk_array_get) are
@@ -244,8 +191,13 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
+        // Runtime ABI bridges are receiver-type-agnostic entry points even
+        // when their declarations are imported interface members. Dispatching
+        // those symbols through an itable is invalid for the built-in runtime
+        // collection boxes; only source-backed/internal links may use virtual
+        // dispatch here. Clock bridges are the deliberate exception: their
+        // receiver is represented by a runtime-backed virtual object.
         guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
-            || isImportedInterfaceMember(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
         else { return nil }
         let receiverTypeForDispatch: TypeID? = {
@@ -339,6 +291,35 @@ extension CallLowerer {
                    )
                 {
                     return collectionIterator
+                }
+                // Collection.size is source-declared but runtime-backed. When
+                // it is inherited by a concrete List/Set/EnumEntries receiver,
+                // retain the receiver-specific bridge instead of letting the
+                // Collection declaration's generic link erase the nominal kind.
+                if fallbackName == "size",
+                   let ownerID = sema.symbols.parentSymbol(for: chosenCallee),
+                   let owner = sema.symbols.symbol(ownerID),
+                   owner.fqName == [
+                       interner.intern("kotlin"),
+                       interner.intern("collections"),
+                       interner.intern("Collection"),
+                   ],
+                   let collectionSize = unresolvedCollectionMemberCallee(
+                       memberName: fallbackName,
+                       receiverType: receiverType,
+                       sema: sema,
+                       interner: interner
+                   )
+                {
+                    return collectionSize
+                }
+                if let collectionProperty = unresolvedCollectionMemberCallee(
+                    memberName: fallbackName,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return collectionProperty
                 }
                 return interner.intern(externalLinkName)
             }
