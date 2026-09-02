@@ -44,12 +44,12 @@ expr e@25:31 name(it) type=Int ref=s-0
 expr e@25:36 int(0) type=Int
 expr e@25:31#1 binary(greaterThan) lhs=e@25:31 rhs=e@25:36 type=Boolean
 expr e@25:29 lambda params=[] body=e@25:31#1 label=removeAll type=(Int) -> Boolean
-expr e@25:12#1 memberCall recv=e@25:12 callee=removeAll args=[_:e@25:29] type=Boolean call=kotlin.collections.removeAll targs=[Int]
+expr e@25:12#1 memberCall recv=e@25:12 callee=removeAll args=[_:e@25:29] type=Boolean call=kotlin.collections.removeAll#4 targs=[Int]
 expr e@25:43 name(values) type=kotlin.collections.MutableIterable<Int> ref=probe.$1.values
 expr e@25:62 name(it) type=Int ref=s-1
 expr e@25:68 int(0) type=Int
 expr e@25:62#1 binary(equal) lhs=e@25:62 rhs=e@25:68 type=Boolean
 expr e@25:60 lambda params=[] body=e@25:62#1 label=retainAll type=(Int) -> Boolean
-expr e@25:43#1 memberCall recv=e@25:43 callee=retainAll args=[_:e@25:60] type=Boolean call=kotlin.collections.retainAll targs=[Int]
+expr e@25:43#1 memberCall recv=e@25:43 callee=retainAll args=[_:e@25:60] type=Boolean call=kotlin.collections.retainAll#4 targs=[Int]
 expr e@25:12#2 binary(logicalOr) lhs=e@25:12#1 rhs=e@25:43#1 type=Boolean
 expr e@25:5 return value=e@25:12#2 type=Nothing
