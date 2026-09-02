@@ -582,6 +582,7 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
             let usesRuntimeCallbackRawABI = runtimeCallbackRawABISymbols.contains(function.symbol)
@@ -810,11 +811,13 @@ struct NativeEmitter {
             let lhsName = CodegenSymbolSupport.cFunctionSymbol(
                 for: lhs,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
             let rhsName = CodegenSymbolSupport.cFunctionSymbol(
                 for: rhs,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
             if lhsName != rhsName { return lhsName < rhsName }
@@ -825,6 +828,7 @@ struct NativeEmitter {
             let functionName = CodegenSymbolSupport.cFunctionSymbol(
                 for: function,
                 interner: interner,
+                symbols: symbols,
                 fileFacadeNamesByFileID: fileFacadeNamesByFileID
             )
             var lineNo: UInt32 = 0

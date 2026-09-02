@@ -387,18 +387,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_array_copyInto")
-        {
-            materializeArrayCopyIntoDefaultArguments(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-        }
-        if normalized.defaultMask != 0,
            loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
@@ -484,18 +472,6 @@ extension CallLowerer {
                 instructions: &instructions
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
-        }
-        if loweredCallee == interner.intern("kk_array_copyOf_newSize_init"),
-           finalArguments.count == 3
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
         }
         let resultFunction1Callees: Set<InternedString> = [
             interner.intern("kk_runtime_result_get_or_else"),
@@ -747,7 +723,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
-            interner.intern("kk_array_copyOf_newSize_init"),
         ])
     }
 

@@ -100,6 +100,36 @@ struct CodegenBackendNumericBoundariesTests {
     }
 
     @Test
+    func testCharNumericConversionsPreserveCodeUnitSemantics() throws {
+        let source = """
+        fun main() {
+            val high = '\\uD800'
+            val max = '\\uFFFF'
+            println(high.toByte())
+            println(high.toShort())
+            println(high.toInt())
+            println(high.toLong())
+            println(max.code)
+            println(max.code.toUInt())
+            println(max.code.toULong())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "CharNumericConversionCodeUnits",
+            expected: """
+            0
+            -10240
+            55296
+            55296
+            65535
+            65535
+            65535
+            """ + "\n"
+        )
+    }
+
+    @Test
     func testNumericBoundaryFloatToInt() throws {
         let source = """
         fun main() {

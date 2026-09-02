@@ -872,7 +872,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
-        return set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return set.contains(rawValue: element) ? 1 : 0
     }
     // Array check
     guard let array = runtimeArrayBox(from: container) else {

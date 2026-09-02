@@ -143,46 +143,6 @@ extension CallLowerer {
         }
     }
 
-    func materializeArrayCopyIntoDefaultArguments(
-        _ defaultMask: Int64,
-        sema: SemaModule,
-        arena: KIRArena,
-        interner: StringInterner,
-        instructions: inout [KIRInstruction],
-        arguments: inout [KIRExprID]
-    ) {
-        guard arguments.count >= 5 else {
-            return
-        }
-
-        let intType = sema.types.intType
-        let destinationOffsetMaskBit = Int64(1) << 1
-        let startIndexMaskBit = Int64(1) << 2
-        let endIndexMaskBit = Int64(1) << 3
-        if (defaultMask & destinationOffsetMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[2] = zeroExpr
-        }
-
-        if (defaultMask & startIndexMaskBit) != 0 {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            arguments[3] = zeroExpr
-        }
-
-        if (defaultMask & endIndexMaskBit) != 0 {
-            let sizeExpr = arena.appendTemporary(type: intType)
-            emitNonThrowingCall(
-                callee: interner.intern("__kk_array_size"),
-                arg: arguments[0],
-                result: sizeExpr,
-                into: &instructions
-            )
-            arguments[4] = sizeExpr
-        }
-    }
-
     /// STDLIB-CINTEROP-FN-029: ByteArray.toKString(startIndex = 0, endIndex = size,
     /// throwOnInvalidSequence = false). The generic default-argument filler
     /// (`CallSupportLowerer.normalizedCallArguments`) substitutes an `0` sentinel
@@ -400,6 +360,14 @@ extension CallLowerer {
                    )
                 {
                     return collectionSize
+                }
+                if let collectionProperty = unresolvedCollectionMemberCallee(
+                    memberName: fallbackName,
+                    receiverType: receiverType,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return collectionProperty
                 }
                 return interner.intern(externalLinkName)
             }

@@ -1950,6 +1950,86 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testSourceBackedAbstractMutableListSurfaceAndSubclassTypes() throws {
+        let source = """
+        import kotlin.collections.AbstractMutableList
+        import kotlin.collections.List
+        import kotlin.collections.MutableList
+        import kotlin.collections.MutableIterator
+
+        class ProbeIterator : MutableIterator<Int> {
+            override fun hasNext(): Boolean = false
+            override fun next(): Int = 0
+            override fun remove() {}
+        }
+
+        class Probe : AbstractMutableList<Int>() {
+            override val size: Int
+                get() = 0
+
+            override fun get(index: Int): Int = 0
+            override fun set(index: Int, element: Int): Int = 0
+            override fun add(index: Int, element: Int) {}
+            override fun removeAt(index: Int): Int = 0
+            override fun iterator(): MutableIterator<Int> = ProbeIterator()
+        }
+
+        fun acceptList(values: List<Int>) {}
+        fun acceptMutableList(values: MutableList<Int>) {}
+
+        fun probe(values: Probe) {
+            val asList: List<Int> = values
+            val asMutable: MutableList<Int> = values
+            acceptList(asList)
+            acceptMutableList(asMutable)
+            values.add(0, 1)
+            values.set(0, 2)
+            values.removeAt(0)
+            values.iterator()
+            asList.subList(0, 0)
+            asMutable.listIterator()
+            asMutable.subList(0, 0)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let sema = try #require(ctx.sema)
+            let diagnosticMessages = ctx.diagnostics.diagnostics.map { $0.message }
+            #expect(!(ctx.diagnostics.hasError), "Expected AbstractMutableList subclass surface to resolve: \(diagnosticMessages)")
+
+            let collectionsPkg = ["kotlin", "collections"].map { ctx.interner.intern($0) }
+            let abstractMutableListFQName = collectionsPkg + [ctx.interner.intern("AbstractMutableList")]
+            let abstractMutableListSymbol = try #require(sema.symbols.lookup(fqName: abstractMutableListFQName))
+            let info = try #require(sema.symbols.symbol(abstractMutableListSymbol))
+            #expect(info.kind == .class)
+            #expect(!info.flags.contains(.synthetic))
+            #expect(info.flags.contains(.abstractType))
+            #expect(sema.types.nominalTypeParameterVariances(for: abstractMutableListSymbol) == [.invariant])
+
+            let abstractMutableCollectionSymbol = try #require(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("AbstractMutableCollection")])
+            )
+            let mutableListSymbol = try #require(
+                sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableList")])
+            )
+            #expect(sema.symbols.directSupertypes(for: abstractMutableListSymbol).contains(abstractMutableCollectionSymbol))
+            #expect(sema.symbols.directSupertypes(for: abstractMutableListSymbol).contains(mutableListSymbol))
+            #expect(sema.types.directNominalSupertypes(for: abstractMutableListSymbol).contains(abstractMutableCollectionSymbol))
+            #expect(sema.types.directNominalSupertypes(for: abstractMutableListSymbol).contains(mutableListSymbol))
+
+            let constructorSymbol = try #require(
+                sema.symbols.lookup(fqName: abstractMutableListFQName + [ctx.interner.intern("<init>")])
+            )
+            let constructorInfo = try #require(sema.symbols.symbol(constructorSymbol))
+            #expect(constructorInfo.visibility == .protected)
+            #expect(try #require(sema.symbols.functionSignature(for: constructorSymbol)).parameterTypes.isEmpty)
+        }
+    }
+
+    @Test
     func testAbstractSetSurfaceIsRegistered() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
@@ -2481,10 +2561,17 @@ struct ListSyntheticMemberLinkTests {
             let iterableSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterable")]))
             let iteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("Iterator")]))
             let mutableIteratorSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator")]))
+            let mutableIteratorInfo = try #require(sema.symbols.symbol(mutableIteratorSymbol))
+            // KSP-943: MutableIterator is backed by bundled Kotlin source while
+            // the synthetic shell remains available for non-bundled contexts.
+            #expect(!mutableIteratorInfo.flags.contains(.synthetic))
+            #expect(sema.symbols.sourceFileID(for: mutableIteratorSymbol) == ctx.sourceManager.fileID(forPath: "__bundled_kotlin/collections/MutableIterator.kt"))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableIteratorSymbol) == [.out])
             #expect(sema.symbols.directSupertypes(for: mutableIteratorSymbol).contains(iteratorSymbol))
             #expect(sema.symbols.supertypeTypeArgs(for: mutableIteratorSymbol, supertype: iteratorSymbol).count == 1)
             let removeSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableIterator"), ctx.interner.intern("remove")]))
+            let removeInfo = try #require(sema.symbols.symbol(removeSymbol))
+            #expect(!removeInfo.flags.contains(.synthetic))
             let removeSignature = try #require(sema.symbols.functionSignature(for: removeSymbol))
             #expect(removeSignature.parameterTypes.isEmpty)
             #expect(removeSignature.returnType == sema.types.unitType)
