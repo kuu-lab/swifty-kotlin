@@ -2310,38 +2310,6 @@ public func kk_sequence_sortedBy(
     return registerRuntimeObject(seq)
 }
 
-@_cdecl("kk_sequence_sortedWith")
-public func kk_sequence_sortedWith(
-    _ seqRaw: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    let elements = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
-    let comparatorInvoke = runtimeSortedWithComparatorInvoke(fnPtr: fnPtr, closureRaw: closureRaw)
-    var hadThrow = false
-    var indexed = elements.enumerated().map { ($0.offset, $0.element) }
-    indexed.sort { lhs, rhs in
-        guard !hadThrow else { return false }
-        var thrown = 0
-        let result = comparatorInvoke(lhs.1, rhs.1, &thrown)
-        if thrown != 0 {
-            outThrown?.pointee = thrown
-            hadThrow = true
-            return false
-        }
-        if result != 0 {
-            return result < 0
-        }
-        return lhs.0 < rhs.0
-    }
-    if hadThrow {
-        return registerRuntimeObject(RuntimeSequenceBox(steps: [.source(elements: [])]))
-    }
-    let seq = RuntimeSequenceBox(steps: [.source(elements: indexed.map { $0.1 })])
-    return registerRuntimeObject(seq)
-}
-
 @_cdecl("kk_sequence_sortedByDescending")
 public func kk_sequence_sortedByDescending(
     _ seqRaw: Int,
@@ -3478,15 +3446,13 @@ public func kk_sequence_toSortedSet(_ seqRaw: Int) -> Int {
 }
 
 @_cdecl("kk_sequence_toMap")
-public func kk_sequence_toMap(_ seqRaw: Int) -> Int {
-    var collected: [Int] = []
-    if let seq = runtimeSequenceBox(from: seqRaw) {
-        runtimeTraverseSequence(seq, outThrown: nil) { elem in
-            collected.append(elem)
-            return true
-        }
-    } else {
-        collected = runtimeSequenceSourceElementsOrPanic(from: seqRaw, caller: #function)
+public func kk_sequence_toMap(_ seqRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    guard let collected = runtimeSequenceSourceElementsOrThrow(
+        from: seqRaw,
+        caller: #function,
+        outThrown: outThrown
+    ) else {
+        return runtimeNullSentinelInt
     }
     var keys: [Int] = []
     var values: [Int] = []

@@ -7,15 +7,21 @@ struct MemberCallReceiver {
 /// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`
 /// call site (Any-fallback member calls, string concatenation/interpolation,
 /// data class `toString()` synthesis, `println(dataClass)` rewriting, ...):
-/// 1=default (Int/Long/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
-/// 6=Double, 7=ULong. ULong spans the full 64 bits, so kk_any_to_string must
-/// reinterpret it as unsigned (tag 1 would print the signed reinterpretation,
-/// or even "null" for values whose bit pattern equals Int.min). UInt/UByte/
-/// UShort stay on the default tag: they are always zero-extended into this
-/// container, so tag 1's signed decimal rendering already matches their
-/// unsigned value. This is a free function (not a `CallLowerer` method) so
-/// every lowering pass that stringifies an arbitrary Any-typed value can
-/// share the exact same tag computation instead of drifting out of sync.
+/// 1=default (Int/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
+/// 6=Double, 7=ULong, 8=Long. ULong spans the full 64 bits, so kk_any_to_string
+/// must reinterpret it as unsigned (tag 1 would print the signed
+/// reinterpretation, or even "null" for values whose bit pattern equals
+/// Int.min). UInt/UByte/UShort stay on the default tag: they are always
+/// zero-extended into this container, so tag 1's signed decimal rendering
+/// already matches their unsigned value. Long gets its own tag (distinct from
+/// the default) solely so `kk_any_hashCode` can apply the `(this xor (this
+/// ushr 32)).toInt()` formula to unboxed Long receivers; `kk_any_to_string`
+/// and `kk_any_equals` treat tag 8 exactly like tag 1 (Long's raw 64-bit slot
+/// value already prints/compares correctly without reinterpretation), so this
+/// addition changes no other call site's behavior. This is a free function
+/// (not a `CallLowerer` method) so every lowering pass that stringifies an
+/// arbitrary Any-typed value can share the exact same tag computation instead
+/// of drifting out of sync.
 func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
     switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
     case .primitive(.boolean, _):
@@ -30,6 +36,8 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
         6
     case .primitive(.ulong, _):
         7
+    case .primitive(.long, _):
+        8
     default:
         1
     }
@@ -447,7 +455,7 @@ extension CallLowerer {
         "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         "sort", "sortWith", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
-        "copyOf", "copyOfRange", "fill",
+        "fill",
         "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
         "intersect", "union", "subtract",

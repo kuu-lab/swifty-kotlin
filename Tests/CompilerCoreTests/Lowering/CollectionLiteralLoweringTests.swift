@@ -324,6 +324,24 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testHashMapConstructorRewrittenToKkHashMapOf() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithZeroArgCall(
+            callee: interner.intern("HashMap"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("HashMap"), "HashMap should be rewritten")
+        #expect(callees.contains("__kk_hash_map_of"), "HashMap should become __kk_hash_map_of")
+    }
+
+    @Test
     func testEmptyMapRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -1187,6 +1205,15 @@ struct CollectionLiteralLoweringTests {
         #expect(
             callees.contains("__kk_list_size"),
             "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
+        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        #expect(
+            callees.contains("kk_list_is_empty"),
+            "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
     }
 

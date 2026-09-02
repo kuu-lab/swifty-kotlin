@@ -62,6 +62,11 @@ let package = Package(
             dependencies: ["CompilerCore", "CompilerBackend"]
         ),
         .target(
+            name: "CompilerTestSupport",
+            dependencies: ["CompilerCore"],
+            path: "Sources/CompilerTestSupport"
+        ),
+        .target(
             name: "GoldenHarnessSupport",
             dependencies: ["CompilerCore"],
             path: "Sources/GoldenHarnessSupport",
@@ -101,7 +106,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CompilerCoreTests",
-            dependencies: ["CompilerCore", "GoldenHarnessSupport", "GoldenHarnessWorker", "TestStdlibCache"],
+            dependencies: ["CompilerCore", "CompilerTestSupport", "GoldenHarnessSupport", "GoldenHarnessWorker", "TestStdlibCache"],
             path: "Tests/CompilerCoreTests",
             exclude: [
                 "GoldenCases",
@@ -110,7 +115,7 @@ let package = Package(
         ),
         .testTarget(
             name: "CompilerBackendTests",
-            dependencies: ["CompilerBackend", "CompilerCore", "TestStdlibCache"],
+            dependencies: ["CompilerBackend", "CompilerCore", "CompilerTestSupport", "TestStdlibCache"],
             path: "Tests/CompilerBackendTests",
             exclude: [
                 "Fixtures",

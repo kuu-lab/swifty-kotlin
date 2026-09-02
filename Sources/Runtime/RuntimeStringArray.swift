@@ -266,6 +266,12 @@ public func __kk_print_raw(_ messageRaw: Int) {
     Swift.print(message, terminator: "")
 }
 
+@_cdecl("__kk_println_raw")
+public func __kk_println_raw(_ messageRaw: Int) {
+    let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? "null"
+    Swift.print(message, terminator: "\n")
+}
+
 @_cdecl("__kk_printStderr")
 public func __kk_printStderr(_ messageRaw: Int) -> Int {
     let message = extractString(from: UnsafeMutableRawPointer(bitPattern: messageRaw)) ?? ""
@@ -866,7 +872,7 @@ public func kk_op_contains(_ container: Int, _ element: Int) -> Int {
     }
     // Set check
     if let set = runtimeSetBox(from: container) {
-        return set.elements.contains(where: { runtimeValuesEqual($0, element) }) ? 1 : 0
+        return set.contains(rawValue: element) ? 1 : 0
     }
     // Array check
     guard let array = runtimeArrayBox(from: container) else {

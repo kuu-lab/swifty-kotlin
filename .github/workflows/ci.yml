@@ -30,6 +30,8 @@ jobs:
         uses: ./.github/actions/setup-self-hosted
       - name: Check for duplicate TODO task IDs
         run: bash Scripts/check_todo_ids.sh
+      - name: Check mutation fuzzer keyword set matches lexer
+        run: bash Scripts/check_mutation_fuzzer_keywords.sh
 
   build-debug-tests:
     name: Build debug Swift test bundle once

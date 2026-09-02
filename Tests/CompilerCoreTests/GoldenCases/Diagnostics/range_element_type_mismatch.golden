@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 2, "character": 0 },
+        "end": { "line": 2, "character": 48 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 4, "character": 0 },
+        "end": { "line": 4, "character": 48 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 6, "character": 0 },
+        "end": { "line": 6, "character": 48 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 8, "character": 0 },
+        "end": { "line": 8, "character": 66 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 10, "character": 0 },
+        "end": { "line": 10, "character": 49 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 13, "character": 4 },
+        "end": { "line": 13, "character": 16 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 16, "character": 0 },
+        "end": { "line": 17, "character": 17 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    },
+    {
+      "file": "range_element_type_mismatch.kt",
+      "range": {
+        "start": { "line": 20, "character": 4 },
+        "end": { "line": 20, "character": 28 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-TYPE-0001",
+      "source": "kswiftk",
+      "message": "Type constraint could not be satisfied.",
+      "codeActions": []
+    }
+  ]
+}
