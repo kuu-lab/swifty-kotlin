@@ -154,6 +154,11 @@ extension CallTypeChecker {
         }
         if isMapReceiver {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
+            // Map.flatMapTo has Iterable- and Sequence-return overloads. Let
+            // the source-backed declarations reach regular overload
+            // resolution instead of the collection fast path, which assumes
+            // a single Collection<R>-returning lambda shape.
+            activeCollectionHOFNames.remove("flatMapTo")
         }
         let calleeStr = interner.resolve(calleeName)
         let isIterableIndexFamilyHOF = ["indexOf", "indexOfFirst", "indexOfLast"].contains(calleeStr)
