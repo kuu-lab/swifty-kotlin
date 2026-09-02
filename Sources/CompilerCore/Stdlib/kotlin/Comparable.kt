@@ -7,9 +7,11 @@
 
 package kotlin
 
-// KSP-669: nominal `kotlin.Comparable<in T>` declaration migrated out of the
-// synthetic self-registration; on bundle load it reuses the synthetic shell.
-// `compareTo` is intentionally omitted here — it stays a compiler residual
-// (bare type-parameter receiver, alongside the c-hard primitive conformances) so
-// member calls on `T : Comparable<T>`-bounded type parameters keep resolving.
-public interface Comparable<in T>
+import kotlin.internal.KsSymbolName
+
+// KSP-797: source-backed `compareTo` declaration. The runtime bridge performs
+// erased Comparable dispatch after source-level member resolution.
+public interface Comparable<in T> {
+    @KsSymbolName("__kk_comparable_compareTo")
+    public external operator fun compareTo(other: T): Int
+}

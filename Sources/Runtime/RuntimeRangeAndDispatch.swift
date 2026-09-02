@@ -697,10 +697,8 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
 }
 
 @_cdecl("kk_range_iterator")
-public func kk_range_iterator(
-    _ rangeRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
+public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -732,6 +730,9 @@ public func kk_range_iterator(
     // `Sequence` — instead of treating the object as an invalid range.
     if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
         return sourceIterator
+    }
+    if let outThrown, outThrown.pointee != 0 {
+        return 0
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0

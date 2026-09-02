@@ -447,6 +447,30 @@ public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<Lis
     return Pair(first, second)
 }
 
+// KSP-995: source-backed generic Iterable take family.
+public fun <T> Iterable<T>.take(n: Int): List<T> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    if (n == 0) return emptyList()
+
+    val result = mutableListOf<T>()
+    var count = 0
+    for (element in this) {
+        result.add(element)
+        count += 1
+        if (count == n) break
+    }
+    return result
+}
+
+public inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) break
+        result.add(element)
+    }
+    return result
+}
+
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
     val iterator = iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
@@ -489,6 +513,63 @@ public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: 
         index += 1
     }
     return accumulator
+}
+
+// KSP-992: generic Iterable single-family APIs use one iterator and stop as soon
+// as their result is determined. List receivers continue to use ListSearchHOF.kt.
+public fun <T> Iterable<T>.single(): T {
+    when (this) {
+        is List -> return this.single()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+            val single = iterator.next()
+            if (iterator.hasNext()) throw IllegalArgumentException("Collection has more than one element.")
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.single(predicate: (T) -> Boolean): T {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Collection contains more than one matching element.")
+            single = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as T
+}
+
+public fun <T> Iterable<T>.singleOrNull(): T? {
+    when (this) {
+        is List -> return this.singleOrNull()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) return null
+            val single = iterator.next()
+            if (iterator.hasNext()) return null
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+    }
+    if (!found) return null
+    return single
 }
 
 public fun <T> Iterable<T>.any(): Boolean {

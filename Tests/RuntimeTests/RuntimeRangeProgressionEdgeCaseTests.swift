@@ -665,6 +665,17 @@ struct RuntimeRangeProgressionEdgeCaseTests {
 
     // MARK: - Iterator protocol correctness
 
+    @Test func iterator_withoutThrownChannel_preservesRangeIteration() {
+        let range = kk_op_rangeTo(1, 2)
+        let iterator = kk_range_iterator(range)
+
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 1)
+        #expect(kk_range_hasNext(iterator) == 1)
+        #expect(kk_range_next(iterator) == 2)
+        #expect(kk_range_hasNext(iterator) == 0)
+    }
+
     @Test func iterator_stepsCorrectly_ascending() {
         let range = kk_op_rangeTo(1, 4)
         let iter = kk_range_iterator(range, nil)
