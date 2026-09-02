@@ -3238,7 +3238,7 @@
     - `kotlin.collections.reduceIndexedOrNull` — fun Iterable.reduceIndexedOrNull(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/reduceIndexedOrNull(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A?`
     - `kotlin.collections.reduceOrNull` — fun Iterable.reduceOrNull(Function2): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/reduceOrNull(kotlin/Function2<#A, #B, #A>): #A?`
 
-- [ ] KSP-990: kotlin.collections.Iterable.running-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-990: kotlin.collections.Iterable.running-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `running`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/IterableAggregateHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3248,6 +3248,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.runningReduce` — fun Iterable.runningReduce(Function2): List  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/runningReduce(kotlin/Function2<#A, #B, #A>): kotlin.collections/List<#A>`
     - `kotlin.collections.runningReduceIndexed` — fun Iterable.runningReduceIndexed(Function3): List  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.collections/Iterable<#B>).kotlin.collections/runningReduceIndexed(kotlin/Function3<kotlin/Int, #A, #B, #A>): kotlin.collections/List<#A>`
+  - 完了根拠: `IterableAggregateHOF.kt` をKotlin 2.3.10のsource-backed `<S, T : S>`実装へ移行し、empty/singleton、index=1、nullable・supertype accumulator、one-shot consume、例外時即時中断を専用diff/Backendで固定。Sema Golden/KIRでIterable source bindingとList/Sequence overloadを確認し、Kotlin 2.3.10との専用diff、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check`を実行。
 
 - [x] KSP-991: kotlin.collections.Iterable.shuffled-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `shuffled`
