@@ -17,6 +17,6 @@ expr e@3:49 lambda params=[] body=e@3:51#1 label=takeLastWhile type=(Char) -> Bo
 expr e@3:26#1 memberCall recv=e@3:26 callee=takeLastWhile args=[_:e@3:49] type=String call=kotlin.text.takeLastWhile
 expr e@3:5 localDecl suffix mutable=0 type=String init=e@3:26#1 type=Unit ref=__local_1.suffix
 expr e@4:13 name(prefix) type=String ref=__local_0.prefix
-expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println#1
+expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13] type=Unit call=kotlin.io.println#2
 expr e@5:13 name(suffix) type=String ref=__local_1.suffix
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println#1
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13] type=Unit call=kotlin.io.println#2

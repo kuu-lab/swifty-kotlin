@@ -31,6 +31,14 @@ func bridgeSpec(
 }
 
 private let collectionBridgeBase: [RuntimeABIFunctionSpec] = [
+    bridgeSpec(
+        "kk_iterable_iterator",
+        section: "Collection",
+        typedParams: [
+            ("iterableRaw", .intptr),
+            ("outThrown", .nullableIntptrPointer),
+        ]
+    ),
 ]
 
 private let listClosureBridgeNames = [
@@ -148,8 +156,14 @@ private let mutableListBridgeFunctions: [RuntimeABIFunctionSpec] =
 private let sequenceAndSetBridgeFunctions: [RuntimeABIFunctionSpec] = [
     bridgeSpec("kk_range_hasNext", section: "Range", params: ["iterRaw"],
             isThrowing: false),
-    bridgeSpec("kk_range_iterator", section: "Range", params: ["rangeRaw"],
-            isThrowing: false),
+    bridgeSpec(
+        "kk_range_iterator",
+        section: "Range",
+        typedParams: [
+            ("rangeRaw", .intptr),
+            ("outThrown", .nullableIntptrPointer),
+        ]
+    ),
     bridgeSpec("kk_range_next", section: "Range", params: ["iterRaw"],
             isThrowing: false),
     bridgeSpec("kk_range_for_in_hasNext", section: "Range", params: ["iterRaw"],

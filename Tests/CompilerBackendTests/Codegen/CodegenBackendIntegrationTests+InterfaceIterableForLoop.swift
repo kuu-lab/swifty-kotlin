@@ -10,64 +10,6 @@ import Testing
 // through to the range-iterator intrinsics and reinterpreted the collection
 // object as a range, yielding garbage elements.
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
-private func assertKotlinOutput(
-    _ source: String,
-    moduleName: String,
-    expected: String
-) throws {
-    try withTemporaryFile(contents: source) { path in
-        let outputBase = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString).path
-        let ctx = try runCodegenPipeline(
-            inputPath: path,
-            moduleName: moduleName,
-            emit: .executable,
-            outputPath: outputBase
-        )
-        try LinkPhase().run(ctx)
-        let result = try CommandRunner.run(executable: outputBase, arguments: [])
-        let normalizedStdout = result.stdout
-            .replacingOccurrences(of: "\r\n", with: "\n")
-        #expect(normalizedStdout == expected)
-    }
-}
-
 @Suite
 struct CodegenBackendInterfaceIterableForLoopTests {
 
@@ -215,6 +157,50 @@ struct CodegenBackendInterfaceIterableForLoopTests {
             source,
             moduleName: "IterableInterfaceForLoopDestructuring",
             expected: "1a\n2b\n"
+        )
+    }
+
+    @Test
+    func testIterableUnzipUsesOneIteratorAndPreservesOrder() throws {
+        let source = """
+        class CountingPairs : Iterable<Pair<Int, String>> {
+            var iteratorCalls = 0
+            var nextCalls = 0
+
+            override fun iterator(): Iterator<Pair<Int, String>> {
+                iteratorCalls += 1
+                return CountingPairsIterator(this)
+            }
+        }
+
+        class CountingPairsIterator(private val owner: CountingPairs) : Iterator<Pair<Int, String>> {
+            private var index = 0
+
+            override fun hasNext(): Boolean = index < 3
+            override fun next(): Pair<Int, String> {
+                owner.nextCalls += 1
+                val pair = when (index) {
+                    0 -> Pair(2, "x")
+                    1 -> Pair(2, "x")
+                    else -> Pair(1, "y")
+                }
+                index += 1
+                return pair
+            }
+        }
+
+        fun main() {
+            val source = CountingPairs()
+            val result = source.unzip()
+            println(result)
+            println("iterators=" + source.iteratorCalls + ", next=" + source.nextCalls)
+            println("independent=" + (result.first !== result.second))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableUnzipOneIterator",
+            expected: "([2, 2, 1], [x, x, y])\niterators=1, next=3\nindependent=true\n"
         )
     }
 

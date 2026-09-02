@@ -31,16 +31,7 @@ struct CodegenBackendSequenceToSetTests {
 
     @Test
     func testCodegenSequenceToSetUsesCanonicalDiffCase() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sourceURL = repoRoot
-            .appendingPathComponent("Scripts")
-            .appendingPathComponent("diff_cases")
-            .appendingPathComponent("sequence_toset.kt")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let source = try diffCaseSource("sequence_toset.kt")
 
         try assertKotlinOutput(source, moduleName: "SequenceToSetRuntime", expected: "[3, 1, 2]\ntrue\nfalse\n[]\n")
     }

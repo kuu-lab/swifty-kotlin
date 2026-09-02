@@ -124,12 +124,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let calls = body.compactMap { instruction -> (String, Int)? in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
-                    return nil
-                }
-                return (ctx.interner.resolve(callee), arguments.count)
-            }
+            let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
 
             // Property accessors in the artifact use the mangled JVM-style
             // `get` entry name rather than the Kotlin property name.  The
@@ -209,12 +204,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
-            let calls = body.compactMap { instruction -> (String, Int)? in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
-                    return nil
-                }
-                return (ctx.interner.resolve(callee), arguments.count)
-            }
+            let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
 
             for expected in ["max", "min"] {
                 #expect(
@@ -263,10 +253,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
-            let calls = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
-            }
+            let calls = extractCallees(from: body, interner: ctx.interner)
 
             for sourceFunction in [
                 "atan2", "cbrt", "sinh", "cosh", "tanh", "atanh",
@@ -310,12 +297,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
-            let calls = body.compactMap { instruction -> (String, Int)? in
-                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction else {
-                    return nil
-                }
-                return (ctx.interner.resolve(callee), arguments.count)
-            }
+            let calls = extractCalleesWithArgumentCounts(from: body, interner: ctx.interner)
 
             for sourceFunction in ["IEEErem", "nextTowards", "pow"] {
                 #expect(
@@ -352,10 +334,7 @@ struct CodegenBackendMathOverloadEdgeCasesTests {
 
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sample", in: module, interner: ctx.interner)
-            let callees = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
-            }
+            let callees = extractCallees(from: body, interner: ctx.interner)
 
             #expect(
                 callees.filter { isKotlinCallee($0, named: "abs") }.count == 2,

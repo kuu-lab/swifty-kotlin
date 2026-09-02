@@ -45,6 +45,14 @@ extension BuildASTPhase.ExpressionParser {
             return parsePrimaryThis(token)
         case .keyword(.object):
             return parseObjectLiteral()
+        case .keyword(.suspend) where peek(1)?.kind == .symbol(.lBrace):
+            // `suspend { ... }` is a suspend-modified lambda literal, not a
+            // call to a function named `suspend` — distinct from `suspend`
+            // used as a declaration modifier (`suspend fun f() {}`), which
+            // is never followed directly by `{`.
+            let suspendStart = token.range.start
+            _ = consume()
+            return parseLambdaLiteral(start: suspendStart)
         case let .keyword(keyword):
             _ = consume()
             return astArena.appendExpr(.nameRef(interner.intern(keyword.rawValue), token.range))

@@ -94,18 +94,14 @@ extension BuildASTPhase.ExpressionParser {
                     if case .newline = piece { return true }
                     return false
                 }
-                if hasNewline, lastTokenIndex >= groupStart {
-                    let lastKind = tokens[lastTokenIndex].kind
-                    let lastIsContinuation = isStatementContinuationAtLineEnd(lastKind)
-                        || lastKind == .symbol(.lParen)
-                        || lastKind == .symbol(.comma)
-                    let nextIsContinuation = isBinaryOperatorTokenKind(token.kind)
-                    let nextIsTrailingLambda = token.kind == .symbol(.lBrace)
-                        && canAcceptTrailingLambda(tokens[groupStart ... lastTokenIndex])
-                    if !lastIsContinuation, !nextIsContinuation, !nextIsTrailingLambda {
-                        ranges.append((groupStart, lastTokenIndex + 1))
-                        groupStart = idx
-                    }
+                if hasNewline, lastTokenIndex >= groupStart,
+                   !BuildASTPhase.isContinuationBoundary(
+                       previousTail: tokens[groupStart ... lastTokenIndex],
+                       nextHead: tokens[idx...]
+                   )
+                {
+                    ranges.append((groupStart, lastTokenIndex + 1))
+                    groupStart = idx
                 }
             }
             switch token.kind {
@@ -123,18 +119,6 @@ extension BuildASTPhase.ExpressionParser {
             ranges.append((groupStart, lastTokenIndex + 1))
         }
         return ranges
-    }
-
-    private func canAcceptTrailingLambda(_ tokens: ArraySlice<Token>) -> Bool {
-        BuildASTPhase.canAcceptTrailingLambda(on: tokens)
-    }
-
-    func isBinaryOperatorTokenKind(_ kind: TokenKind) -> Bool {
-        BuildASTPhase.isBinaryOperatorToken(kind)
-    }
-
-    func isStatementContinuationAtLineEnd(_ kind: TokenKind) -> Bool {
-        BuildASTPhase.isStatementContinuationAtLineEnd(kind)
     }
 
     func parseLocalDeclFromSlice(_ tokens: ArraySlice<Token>) -> ExprID? {
