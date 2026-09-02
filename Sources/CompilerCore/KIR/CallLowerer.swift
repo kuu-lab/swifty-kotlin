@@ -85,6 +85,24 @@ final class CallLowerer {
         return ownerSymbol
     }
 
+    /// True for the compiler-provided `kotlin.Any.<init>()`. Its constructor
+    /// has no body; the normal constructor path already allocates and registers
+    /// the object, so emitting a second call would create an undefined callee.
+    private func isSyntheticAnyConstructor(
+        _ symbolID: SymbolID?,
+        sema: SemaModule
+    ) -> Bool {
+        guard let symbolID,
+              let constructor = sema.symbols.symbol(symbolID),
+              constructor.kind == .constructor,
+              constructor.flags.contains(.synthetic),
+              let ownerSymbol = sema.symbols.parentSymbol(for: symbolID)
+        else {
+            return false
+        }
+        return ownerSymbol == sema.types.anyClassSymbol
+    }
+
     private func lowerStringBuilderConstructorCall(
         finalArgIDs: [KIRExprID],
         resultType: TypeID,
@@ -925,6 +943,12 @@ final class CallLowerer {
                 }
             }
             finalArgIDs.insert(allocatedObj, at: 0)
+            if isSyntheticAnyConstructor(chosen, sema: sema) {
+                // Any's implicit constructor is represented by allocation only;
+                // there is no source or runtime constructor body to call.
+                instructions.append(.copy(from: allocatedObj, to: result))
+                return result
+            }
         } else if let chosen,
                   let signature = sema.symbols.functionSignature(for: chosen),
                   signature.receiverType != nil
@@ -1251,6 +1275,9 @@ final class CallLowerer {
             "kk_runtime_result_run_catching",
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
+            "__kk_mutable_list_add",
+            "__kk_mutable_set_add",
+            "__kk_mutable_map_put",
             "__kk_enum_entries_get",
             "kk_iterable_iterator",
         ].contains(name)
