@@ -4596,7 +4596,7 @@
     - `kotlin.comparisons.minOf` — fun minOf(, , , Comparator): #A  -- `final fun <#A: kotlin/Any?> kotlin.comparisons/minOf(#A, #A, #A, kotlin/Comparator<in #A>): #A`
   - 根拠 (2026-08-24): Kotlin 2.3.10 の公式 generated source と metadata を照合し、20 surface の generic bound、`Comparator<in T>`、fixed/vararg arity、inline flags、Byte/Short 非 widening を確認。`Comparisons.kt` の min-family だけを exact source-backed declarations に修正し、Byte/Short fixed lowering と min-only primitive vararg lowering、source-surface 回帰、Golden、diff case を追加した。Comparator の共有 stub/runtime ABI と max-family は変更していない。
 
-- [ ] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.comparisons` / receiver `Comparator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparators.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
