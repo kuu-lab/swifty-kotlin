@@ -256,8 +256,8 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     // through the same dynamic interface used by generic for-loops.
     if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
         var values: [RuntimeValue] = []
-        while kk_iterator_hasNext(iteratorRaw) != 0 {
-            let element = kk_iterator_next(iteratorRaw)
+        while kk_iterator_hasNext(iteratorRaw, nil) != 0 {
+            let element = kk_iterator_next(iteratorRaw, nil)
             values.append(runtimeSourceIteratorValue(element, iteratorRaw: iteratorRaw))
         }
         return values

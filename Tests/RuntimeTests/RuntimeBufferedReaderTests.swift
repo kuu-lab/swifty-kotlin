@@ -98,13 +98,13 @@ struct RuntimeBufferedReaderTests {
         #expect(iterRaw != 0)
         #expect(runtimeListIteratorBox(from: iterRaw) != nil)
 
-        #expect(kk_iterator_hasNext(iterRaw) == 1)
-        #expect(readString(kk_iterator_next(iterRaw)) == "alpha")
-        #expect(kk_iterator_hasNext(iterRaw) == 1)
-        #expect(readString(kk_iterator_next(iterRaw)) == "beta")
-        #expect(kk_iterator_hasNext(iterRaw) == 1)
-        #expect(readString(kk_iterator_next(iterRaw)) == "gamma")
-        #expect(kk_iterator_hasNext(iterRaw) == 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "alpha")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "beta")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 1)
+        #expect(readString(kk_iterator_next(iterRaw, nil)) == "gamma")
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
     @Test func testBufferedReaderIteratorOnEmptyFileYieldsNoElements() throws {
@@ -118,7 +118,7 @@ struct RuntimeBufferedReaderTests {
 
         let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
-        #expect(kk_iterator_hasNext(iterRaw) == 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
     // MARK: - STDLIB-IO-FN-033: Reader.readText()
@@ -203,7 +203,7 @@ struct RuntimeBufferedReaderTests {
 
         let iterRaw = __kk_buffered_reader_iterator(readerRaw)
         #expect(iterRaw != 0)
-        #expect(kk_iterator_hasNext(iterRaw) == 0)
+        #expect(kk_iterator_hasNext(iterRaw, nil) == 0)
     }
 
     @Test func testBufferedReaderCloseStopsReading() throws {

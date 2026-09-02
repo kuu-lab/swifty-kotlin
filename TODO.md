@@ -3338,7 +3338,7 @@
     - `kotlin.collections.take` — fun Iterable.take(Int): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/take(kotlin/Int): kotlin.collections/List<#A>`
     - `kotlin.collections.takeWhile` — fun Iterable.takeWhile(Function1): List  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/takeWhile(kotlin/Function1<#A, kotlin/Boolean>): kotlin.collections/List<#A>`
 
-- [ ] KSP-996: kotlin.collections.Iterable.to-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-996: kotlin.collections.Iterable.to-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `to`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3351,6 +3351,7 @@
     - `kotlin.collections.toMap` — fun Iterable.toMap(): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.toMap` — fun Iterable.toMap(): #C  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.collections/Iterable<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(#C): #C`
     - `kotlin.collections.toSet` — fun Iterable.toSet(): Set  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/toSet(): kotlin.collections/Set<#A>`
+  - 完了 (2026-08-24): 既存の Iterable.toCollection/toHashSet は重複追加せず exact source-backed contract を確認し、Iterable.toMap 2 overload/toSet を追加。Kotlin 2.3.10 metadata signature、destination identity・既存要素保持・順序、重複keyのlast value、nullable、one-shot/例外即時中断を専用 Golden/diff で固定。List/Sequence/CharSequence の別receiverを維持し、List generic overload 選択の回帰と iterator outThrown ABI/runtime propagation を修正した。
 
 - [x] KSP-997: kotlin.collections.Iterable.unzip-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `unzip`
