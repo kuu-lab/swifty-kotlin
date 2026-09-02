@@ -2132,7 +2132,7 @@
     - `kotlin.TypeCastException.<init>` — constructor (String)  -- `constructor <init>(kotlin/String?)`
   - 完了根拠: PR #5875（KSP-760、merge commit `33cc05ca94bf43574adf537e687bf916168d591f`）で `Sources/CompilerCore/Stdlib/kotlin/TypeCastException.kt` に2 constructorをsource-backed実装済み。`Sources/Runtime/RuntimeAssertions.swift` と `Sources/RuntimeABI/RuntimeABISpec+Exception.swift` の対応接続を維持し、既存Golden/diffおよびfocused最小実行でmessage、null、catch/is、ancestor chainを確認済み。
 
-- [ ] KSP-903: kotlin.UByte top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-903: kotlin.UByte top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.UByte` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UByte/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2141,6 +2141,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.UByte.<init>` — constructor (Byte)  -- `constructor <init>(kotlin/Byte)`
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/ubyte.kt` に `@PublishedApi internal UByte(Byte)` を追加し、既存の primitive UByte と Int-to-UByte runtime 経路で raw Byte bits を保持する専用 Golden/diff/Sema 回帰を追加した。constructor 専用 bridge/ABI/name-string 特例は存在しないため追加していない。
 
 - [x] KSP-904: kotlin.UByte.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.UByte.Companion` / receiver `Companion`
@@ -2602,7 +2603,7 @@
     - `kotlin.collections.MutableList` — interface kotlin.collections.MutableList  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableList : kotlin.collections/List<#A>, kotlin.collections/MutableCollection<#A> {`
     - `kotlin.collections.MutableList` — fun MutableList(Int, Function1): MutableList  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/MutableList(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): kotlin.collections/MutableList<#A>`
 
-- [ ] KSP-945: kotlin.collections.MutableListIterator-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-945: kotlin.collections.MutableListIterator-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `MutableListIterator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableListIterator.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2611,6 +2612,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableListIterator` — interface kotlin.collections.MutableListIterator  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableListIterator : kotlin.collections/ListIterator<#A>, kotlin.collections/MutableIterator<#A> {`
+  - 完了根拠: `MutableListIterator.kt` を source-backed 化し、ListIterator/MutableIterator 継承、invariant type parameter、custom implementation と mutation variance の Sema/Golden 回帰を追加。MutableList.listIterator() と共有 iterator runtime は維持し、add/set/remove residual は KSP-1073 の対象として残した。
 
 - [ ] KSP-946: kotlin.collections.MutableMap-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `MutableMap`
@@ -2960,7 +2962,7 @@
     - `kotlin.collections.elementAtOrElse` — fun Iterable.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.collections.elementAtOrNull` — fun Iterable.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrNull(kotlin/Int): #A?`
 
-- [ ] KSP-971: kotlin.collections.Iterable.filter-family の未実装 stdlib API を実装する（10 件）
+- [x] KSP-971: kotlin.collections.Iterable.filter-family の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `filter`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2978,6 +2980,11 @@
     - `kotlin.collections.filterNotNullTo` — fun Iterable.filterNotNullTo(): #A  -- `final fun <#A: kotlin.collections/MutableCollection<in #B>, #B: kotlin/Any> (kotlin.collections/Iterable<#B?>).kotlin.collections/filterNotNullTo(#A): #A`
     - `kotlin.collections.filterNotTo` — fun Iterable.filterNotTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin.collections/Iterable<#A>).kotlin.collections/filterNotTo(#B, kotlin/Function1<#A, kotlin/Boolean>): #B`
     - `kotlin.collections.filterTo` — fun Iterable.filterTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin.collections/Iterable<#A>).kotlin.collections/filterTo(#B, kotlin/Function1<#A, kotlin/Boolean>): #B`
+  - 完了根拠（2026-08-23、KSP-971専用）:
+    - 既存の `Iterable.filter` は KSP-701 の merged PR #5915 / commit `a1716ae92` で source-backed 済みであり、重複追加・意味変更を行わなかった。
+    - 残る9件を `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` に追加し、`MutableCollection<in T>` 等の destination 型 `C` と同一 destination 返却、reified type-test、indexed 0 始まりを bundled Kotlin source に固定した。custom/one-shot Iterable の認識・source binding と legacy runtime lowerer の対象名も Iterable filter-family に限定して更新した。
+    - `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Iterable_filter.kt` / `.golden`、`Tests/CompilerCoreTests/Sema/ListSyntheticMemberLinkTests.swift`、`Scripts/diff_cases/stdlib_kotlin_collections_Iterable_filter.kt` を追加。Sema source-backed 回帰、Golden 直接比較、kotlinc 2.3.10 との差分で、順序・評価回数・例外中断・nullable 要素・継承型判定・destination identity/既存要素保持・empty/custom/one-shot Iterable を確認した。
+    - `check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` は pass。対象外の List/Array/Map/Set/Sequence の source 所有・runtime/ABI は変更していない。
 
 - [ ] KSP-972: kotlin.collections.Iterable.find-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `find`
@@ -4597,7 +4604,7 @@
     - `kotlin.comparisons.minOf` — fun minOf(, , , Comparator): #A  -- `final fun <#A: kotlin/Any?> kotlin.comparisons/minOf(#A, #A, #A, kotlin/Comparator<in #A>): #A`
   - 根拠 (2026-08-24): Kotlin 2.3.10 の公式 generated source と metadata を照合し、20 surface の generic bound、`Comparator<in T>`、fixed/vararg arity、inline flags、Byte/Short 非 widening を確認。`Comparisons.kt` の min-family だけを exact source-backed declarations に修正し、Byte/Short fixed lowering と min-only primitive vararg lowering、source-surface 回帰、Golden、diff case を追加した。Comparator の共有 stub/runtime ABI と max-family は変更していない。
 
-- [ ] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1082: kotlin.comparisons.Comparator の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.comparisons` / receiver `Comparator`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/comparisons/Comparators.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
