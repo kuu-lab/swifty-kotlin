@@ -457,6 +457,7 @@ final class RuntimeListBox {
 /// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
     private var storage: [RuntimeValue]
+    private var index: [RuntimeElementKey: Int]
 
     var values: [RuntimeValue] {
         get {
@@ -464,6 +465,7 @@ final class RuntimeSetBox {
         }
         set {
             storage = newValue
+            rebuildIndex()
         }
     }
 
@@ -473,15 +475,88 @@ final class RuntimeSetBox {
         }
         set {
             storage = newValue.map { RuntimeValue(raw: $0) }
+            rebuildIndex()
         }
     }
 
     init(elements: [Int]) {
         self.storage = elements.map { RuntimeValue(raw: $0) }
+        self.index = [:]
+        rebuildIndex()
     }
 
     init(values: [RuntimeValue]) {
         self.storage = values
+        self.index = [:]
+        rebuildIndex()
+    }
+
+    var count: Int {
+        storage.count
+    }
+
+    var isEmpty: Bool {
+        storage.isEmpty
+    }
+
+    func contains(rawValue: Int) -> Bool {
+        return index[RuntimeElementKey(value: rawValue)] != nil
+    }
+
+    @discardableResult
+    func insert(rawValue: Int) -> Bool {
+        let key = RuntimeElementKey(value: rawValue)
+        guard index[key] == nil else {
+            return false
+        }
+        let newIndex = storage.count
+        storage.append(RuntimeValue(raw: rawValue))
+        index[key] = newIndex
+        return true
+    }
+
+    @discardableResult
+    func remove(rawValue: Int) -> Bool {
+        guard let index = index[RuntimeElementKey(value: rawValue)] else {
+            return false
+        }
+        storage.remove(at: index)
+        rebuildIndex()
+        return true
+    }
+
+    @discardableResult
+    func removeAll(keepingCapacity: Bool = false) -> Bool {
+        guard !storage.isEmpty else {
+            return false
+        }
+        storage.removeAll(keepingCapacity: keepingCapacity)
+        index.removeAll(keepingCapacity: keepingCapacity)
+        return true
+    }
+
+    @discardableResult
+    func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        let originalCount = storage.count
+        try storage.removeAll(where: shouldRemove)
+        guard storage.count != originalCount else {
+            return false
+        }
+        rebuildIndex()
+        return true
+    }
+
+    private func rebuildIndex() {
+        index.removeAll(keepingCapacity: true)
+        index.reserveCapacity(storage.count)
+        for (offset, value) in storage.enumerated() {
+            let key = RuntimeElementKey(value: value.legacyRawValue)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if index[key] == nil {
+                index[key] = offset
+            }
+        }
     }
 }
 
@@ -490,6 +565,7 @@ final class RuntimeSetBox {
 final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
+    private var keyIndex: [RuntimeElementKey: Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
 
@@ -499,6 +575,7 @@ final class RuntimeMapBox {
         }
         set {
             keyStorage = newValue
+            rebuildKeyIndex()
         }
     }
 
@@ -517,6 +594,7 @@ final class RuntimeMapBox {
         }
         set {
             keyStorage = newValue.map { RuntimeValue(raw: $0) }
+            rebuildKeyIndex()
         }
     }
 
@@ -532,8 +610,89 @@ final class RuntimeMapBox {
     init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
         self.keyStorage = keys.map { RuntimeValue(raw: $0) }
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
+        self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+        rebuildKeyIndex()
+    }
+
+    var count: Int {
+        keyStorage.count
+    }
+
+    var isEmpty: Bool {
+        keyStorage.isEmpty
+    }
+
+    func index(ofRawKey key: Int) -> Int? {
+        return keyIndex[RuntimeElementKey(value: key)]
+    }
+
+    func rawValue(at index: Int) -> Int? {
+        guard valueStorage.indices.contains(index) else {
+            return nil
+        }
+        return valueStorage[index].legacyRawValue
+    }
+
+    func updateValue(at index: Int, rawValue: Int) {
+        guard valueStorage.indices.contains(index) else {
+            valueStorage.append(RuntimeValue(raw: rawValue))
+            return
+        }
+        valueStorage[index] = RuntimeValue(raw: rawValue)
+    }
+
+    func appendEntry(key: Int, value: Int) {
+        let newIndex = keyStorage.count
+        keyStorage.append(RuntimeValue(raw: key))
+        valueStorage.append(RuntimeValue(raw: value))
+        let runtimeKey = RuntimeElementKey(value: key)
+        if keyIndex[runtimeKey] == nil {
+            keyIndex[runtimeKey] = newIndex
+        }
+    }
+
+    @discardableResult
+    func put(key: Int, value: Int) -> Int? {
+        let runtimeKey = RuntimeElementKey(value: key)
+        if let index = keyIndex[runtimeKey] {
+            let previous = rawValue(at: index)
+            updateValue(at: index, rawValue: value)
+            return previous
+        }
+        appendEntry(key: key, value: value)
+        return nil
+    }
+
+    @discardableResult
+    func remove(key: Int) -> Int? {
+        guard let index = index(ofRawKey: key) else {
+            return nil
+        }
+        keyStorage.remove(at: index)
+        let removedValue = valueStorage.indices.contains(index) ? valueStorage.remove(at: index).legacyRawValue : nil
+        rebuildKeyIndex()
+        return removedValue
+    }
+
+    func removeAll() {
+        keyStorage.removeAll()
+        valueStorage.removeAll()
+        keyIndex.removeAll()
+    }
+
+    private func rebuildKeyIndex() {
+        keyIndex.removeAll(keepingCapacity: true)
+        keyIndex.reserveCapacity(keyStorage.count)
+        for (offset, key) in keyStorage.enumerated() {
+            let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if keyIndex[runtimeKey] == nil {
+                keyIndex[runtimeKey] = offset
+            }
+        }
     }
 }
 

@@ -142,8 +142,30 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
+
+        // KSP-983: a nominal Iterable receiver must use the exact bundled
+        // Iterable max-family declarations. Let regular overload resolution
+        // select the Comparable/Float/Double and lambda-return overloads;
+        // concrete List/Set/Map/Sequence paths remain under their own owners.
+        let iterableMaxFamilyNames: Set = [
+            "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull",
+            "maxOfWith", "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        ]
+        if iterableMaxFamilyNames.contains(calleeStr),
+           (isCollectionReceiver || isIterableReceiver),
+           !isSequenceReceiver,
+           !isSetReceiver,
+           !isMapReceiver,
+           !isArrayReceiver,
+           !receiverClassifier.isConcreteListLikeType(receiverType)
+        {
+            return nil
+        }
         let isCollectionHOF = activeCollectionHOFNames.contains(calleeStr)
-            && (isCollectionReceiver || isSequenceReceiver || (calleeStr == "asSequence" && isIterableReceiver))
+            && (isCollectionReceiver
+                || isSequenceReceiver
+                || (calleeStr == "asSequence" && isIterableReceiver)
+                || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))
             && !(calleeStr == "binarySearch"
                 && isArrayReceiver)
 
@@ -345,9 +367,16 @@ extension CallTypeChecker {
         }
 
         @discardableResult
-        func bindBundledIterableSourceFunction(typeArguments: [TypeID]) -> Bool {
+        func bindBundledIterableSourceFunction(
+            typeArguments: [TypeID],
+            receiverElementType: TypeID? = nil
+        ) -> Bool {
             guard !isSequenceReceiver,
-                  isCollectionReceiver || (isIterableReceiver && (calleeStr == "drop" || calleeStr == "dropWhile"))
+                  isCollectionReceiver
+                  || (isIterableReceiver && (calleeStr == "drop"
+                      || calleeStr == "dropWhile"
+                      || calleeStr == "runningReduce"
+                      || calleeStr == "runningReduceIndexed"))
             else {
                 return false
             }
@@ -369,6 +398,10 @@ extension CallTypeChecker {
                       signature.parameterTypes.count == args.count,
                       let signatureReceiver = signature.receiverType
                 else {
+                    return false
+                }
+                if let receiverElementType,
+                   getCollectionElementType(signatureReceiver, sema: sema, interner: interner) != receiverElementType {
                     return false
                 }
                 if isCollectionLikeType(signatureReceiver, sema: sema, interner: interner),
@@ -745,7 +778,23 @@ extension CallTypeChecker {
             }
             let extraParamSymbols = Array(signature.typeParameterSymbols.dropFirst(typeArguments.count))
             if !extraParamSymbols.isEmpty {
-                var inferredExtras: [TypeID] = []
+                var inferredExtras: [TypeID?] = Array(repeating: nil, count: extraParamSymbols.count)
+                // Destination-type parameters such as `C`/`M` appear directly in
+                // the first value parameter, so infer them from the actual
+                // destination before inferring transform-result parameters.
+                if isMapReceiver {
+                    for (argIndex, parameterType) in signature.parameterTypes.enumerated() {
+                        guard argIndex < args.count,
+                              case let .typeParam(parameterTypeParam) = sema.types.kind(of: parameterType),
+                              let extraIndex = extraParamSymbols.firstIndex(of: parameterTypeParam.symbol)
+                        else {
+                            continue
+                        }
+                        let actualArgumentType = sema.bindings.exprTypes[args[argIndex].expr] ?? sema.types.anyType
+                        inferredExtras[extraIndex] = sema.types.makeNonNullable(actualArgumentType)
+                    }
+                }
+                var inferredLambdaArgExpr: ExprID?
                 for (argIndex, paramType) in signature.parameterTypes.enumerated() {
                     guard case let .functionType(fn) = sema.types.kind(of: paramType) else {
                         continue
@@ -757,7 +806,11 @@ extension CallTypeChecker {
                     let actualArgExpr = args[argIndex].expr
                     let actualLambdaReturnType = inferredLambdaReturnType(argExpr: actualArgExpr, ast: ast, sema: sema)
                     var extrasForParam: [TypeID] = []
-                    for extraSymbol in extraParamSymbols {
+                    for (extraIndex, extraSymbol) in extraParamSymbols.enumerated() {
+                        if let inferred = inferredExtras[extraIndex] {
+                            extrasForParam.append(inferred)
+                            continue
+                        }
                         if let inferred = mapExtraTypeArgument(
                             signatureReturnType: paramReturnType,
                             actualLambdaReturnType: actualLambdaReturnType,
@@ -771,14 +824,15 @@ extension CallTypeChecker {
                         }
                     }
                     if extrasForParam.count == extraParamSymbols.count {
-                        inferredExtras = extrasForParam
-                        if let lambdaExpr = ast.arena.expr(actualArgExpr), lambdaExpr.isLambdaOrCallableRef {
-                            sema.bindings.unmarkCollectionHOFLambdaExpr(actualArgExpr)
-                        }
+                        inferredExtras = extrasForParam.map(Optional.some)
+                        inferredLambdaArgExpr = actualArgExpr
                         break
                     }
                 }
-                typeArguments.append(contentsOf: inferredExtras)
+                if let inferredLambdaArgExpr {
+                    sema.bindings.unmarkCollectionHOFLambdaExpr(inferredLambdaArgExpr)
+                }
+                typeArguments.append(contentsOf: inferredExtras.map { $0 ?? sema.types.anyType })
                 if typeArguments.count < signature.typeParameterSymbols.count {
                     typeArguments.append(contentsOf: Array(repeating: sema.types.anyType, count: signature.typeParameterSymbols.count - typeArguments.count))
                 }
@@ -1662,7 +1716,8 @@ extension CallTypeChecker {
                     )
                 }
                 if ["mapTo", "mapNotNullTo", "flatMapTo", "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo"].contains(calleeStr),
-                   !isSequenceReceiver
+                   !isSequenceReceiver,
+                   !isMapReceiver
                 {
                     let rawLambdaReturnType = inferredLambdaReturnType(argExpr: args[1].expr, ast: ast, sema: sema)
                     let resultElementType: TypeID
@@ -1718,7 +1773,9 @@ extension CallTypeChecker {
                     }
                     _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
                 }
-                if calleeStr == "mapKeysTo" || calleeStr == "mapValuesTo" {
+                if isMapReceiver,
+                   ["mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)
+                {
                     _ = bindBundledMapSourceFunction()
                 }
                 let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -1929,11 +1986,10 @@ extension CallTypeChecker {
                                 overrideTypeArguments: [collectionElementType]
                             )
                         } else if bindBundledIterableSourceFunction(typeArguments: [collectionElementType]),
-                                  let listSymbol = lookupStdlibSymbol("List", symbols: sema.symbols, interner: interner) {
-                            // KSP-626: bundled Iterable<T>.withIndex() materialises a List.
+                                  let iterableSymbol = lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner) {
                             resultType = sema.types.make(.classType(ClassType(
-                                classSymbol: listSymbol,
-                                args: [.invariant(indexedValueType)],
+                                classSymbol: iterableSymbol,
+                                args: [.out(indexedValueType)],
                                 nullability: .nonNull
                             )))
                         } else if let iterableSymbol = lookupStdlibSymbol("Iterable", symbols: sema.symbols, interner: interner) {
@@ -2030,11 +2086,48 @@ extension CallTypeChecker {
                     if ["any", "none", "first", "last", "single"].contains(calleeStr) {
                         _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
                     }
+                    if isMapReceiver, calleeStr == "none" {
+                        // KSP-1016: bind the zero-argument Map overload to its
+                        // bundled source symbol instead of the name-only fallback.
+                        _ = bindBundledMapSourceFunction()
+                    }
                     if ["sum", "average"].contains(calleeStr), !isSequenceReceiver {
-                        _ = bindBundledListSourceFunction(
-                            typeArguments: [],
-                            receiverElementType: calleeStr == "average" ? collectionElementType : nil
-                        )
+                        if calleeStr == "average" {
+                            // KSP-965: prefer the existing List overloads, then bind
+                            // the numeric Iterable overload matching the element type.
+                            let didBindAverageSource = if bindBundledListSourceFunction(
+                                typeArguments: [],
+                                receiverElementType: collectionElementType
+                            ) {
+                                true
+                            } else {
+                                bindBundledIterableSourceFunction(
+                                    typeArguments: [collectionElementType],
+                                    receiverElementType: collectionElementType
+                                )
+                            }
+                            if !didBindAverageSource,
+                               isIterableReceiver,
+                               !isArrayReceiver
+                            {
+                                // Iterable.average() is defined only for the six
+                                // non-null numeric element types. Do not let the
+                                // legacy name-based fallback accept String, nullable,
+                                // or otherwise unsupported Iterable receivers.
+                                ctx.semaCtx.diagnostics.error(
+                                    "KSWIFTK-SEMA-0024",
+                                    "No viable overload found for call.",
+                                    range: ast.arena.exprRange(id)
+                                )
+                                let failedType = safeCall
+                                    ? sema.types.makeNullable(sema.types.errorType)
+                                    : sema.types.errorType
+                                sema.bindings.bindExprType(id, type: failedType)
+                                return failedType
+                            }
+                        } else {
+                            _ = bindBundledListSourceFunction(typeArguments: [])
+                        }
                     }
                     if calleeStr == "reversed", !isSequenceReceiver {
                         _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
@@ -2046,7 +2139,7 @@ extension CallTypeChecker {
                         _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     }
                     if calleeStr == "withIndex", !isSequenceReceiver {
-                        _ = bindBundledListSourceFunction(typeArguments: [collectionElementType])
+                        _ = bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
                     }
                 } else {
                     let lambdaReturnType: TypeID = switch calleeStr {
@@ -2835,9 +2928,23 @@ extension CallTypeChecker {
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
+                let isIterableRunningReduce = !isSequenceReceiver
+                    && !receiverClassifier.isConcreteListLikeType(receiverType)
+                let accumulatorType: TypeID = if isIterableRunningReduce,
+                                                  let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+                                                      args[0].expr,
+                                                      ctx: ctx,
+                                                      paramCount: 2
+                                                  ),
+                                                  let annotated = annotations[0]
+                {
+                    annotated
+                } else {
+                    collectionElementType
+                }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [collectionElementType, collectionElementType],
-                    returnType: collectionElementType
+                    params: [accumulatorType, collectionElementType],
+                    returnType: accumulatorType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -2853,13 +2960,19 @@ extension CallTypeChecker {
                 } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                     resultType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.invariant(accumulatorType)],
                         nullability: .nonNull
                     )))
                 } else {
                     resultType = sema.types.anyType
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let sourceTypeArguments = isIterableRunningReduce
+                    ? [accumulatorType, collectionElementType]
+                    : [collectionElementType]
+                let didBindSource = isIterableRunningReduce
+                    ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                    : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -2877,9 +2990,23 @@ extension CallTypeChecker {
                     )
                     return driver.helpers.bindAndReturnErrorType(id, sema: sema)
                 }
+                let isIterableRunningReduce = !isSequenceReceiver
+                    && !receiverClassifier.isConcreteListLikeType(receiverType)
+                let accumulatorType: TypeID = if isIterableRunningReduce,
+                                                  let annotations = driver.exprChecker.resolveLambdaParamAnnotations(
+                                                      args[0].expr,
+                                                      ctx: ctx,
+                                                      paramCount: 3
+                                                  ),
+                                                  let annotated = annotations[1]
+                {
+                    annotated
+                } else {
+                    collectionElementType
+                }
                 let lambdaExpectedType = sema.types.make(.functionType(FunctionType(
-                    params: [sema.types.intType, collectionElementType, collectionElementType],
-                    returnType: collectionElementType
+                    params: [sema.types.intType, accumulatorType, collectionElementType],
+                    returnType: accumulatorType
                 )))
                 if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                     sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
@@ -2895,13 +3022,19 @@ extension CallTypeChecker {
                 } else if let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first {
                     resultType = sema.types.make(.classType(ClassType(
                         classSymbol: listSymbol,
-                        args: [.invariant(collectionElementType)],
+                        args: [.invariant(accumulatorType)],
                         nullability: .nonNull
                     )))
                 } else {
                     resultType = sema.types.anyType
                 }
-                if bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
+                let sourceTypeArguments = isIterableRunningReduce
+                    ? [accumulatorType, collectionElementType]
+                    : [collectionElementType]
+                let didBindSource = isIterableRunningReduce
+                    ? bindBundledIterableSourceFunction(typeArguments: sourceTypeArguments)
+                    : bindBundledListSourceFunction(typeArguments: sourceTypeArguments)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -4356,6 +4489,7 @@ extension CallTypeChecker {
             // declaration or a removed synthetic runtime bridge.
             let iterableSourceHOFNames: Set = [
                 "filter",
+                "partition",
                 "reduce",
                 "reduceIndexed",
                 "reduceRight",
