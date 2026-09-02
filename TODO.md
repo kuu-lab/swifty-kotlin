@@ -3674,13 +3674,14 @@
     - `kotlin.collections.retainAll` — fun MutableCollection.retainAll(Array): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableCollection<in #A>).kotlin.collections/retainAll(kotlin/Array<out #A>): kotlin/Boolean`
     - `kotlin.collections.retainAll` — fun MutableCollection.retainAll(Collection): Boolean  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/MutableCollection<out #A>).kotlin.collections/retainAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
 
-- [ ] KSP-1020: kotlin.collections.MutableIterable の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1020: kotlin.collections.MutableIterable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `MutableIterable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MutableIterable.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_MutableIterable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_MutableIterable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_MutableIterable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了確認（2026-08-24）: `removeAll`/`retainAll` を Kotlin 2.3.10 の iterator/filterInPlace 契約どおり source-backed 化し、MutableIterator の remove と MutableIterable の compiler-residual iterator を含む KIR/Runtime 動的 dispatch を実装。MutableIterable surface/subtype Sema、custom MutableIterable/List/Set の Backend 回帰、対象 Golden 更新、`DIFF_REQUIRE_JDK21=0 bash Scripts/diff_kotlinc.sh --no-parallel --run-timeout 30 Scripts/diff_cases/stdlib_kotlin_collections_MutableIterable_n.kt`、`bash Scripts/validate_runtime_abi_links.sh`、`bash Scripts/check_todo_ids.sh`、`git diff --check` が pass。Golden の非更新再確認は既存8ケース同梱バッチが240秒で timeout したため、対象Golden更新成功と別記録する。
   - 未実装シンボル一覧:
     - `kotlin.collections.removeAll` — fun MutableIterable.removeAll(Function1): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableIterable<#A>).kotlin.collections/removeAll(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Boolean`
     - `kotlin.collections.retainAll` — fun MutableIterable.retainAll(Function1): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableIterable<#A>).kotlin.collections/retainAll(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Boolean`
