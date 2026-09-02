@@ -1,5 +1,4 @@
 symbol fq=__local_0.large kind=local vis=private flags=_ type=kotlin.collections.List<kotlin.collections.List<out Int>>
-symbol fq=kotlin.collections.Collection.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.ranges.IntRange kind=class vis=public flags=synthetic
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
@@ -67,5 +66,5 @@ expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13#2] type=Unit call=kotlin.io.pri
 expr e@17:13 name(large) type=kotlin.collections.List<kotlin.collections.List<out Int>> ref=__local_0.large
 expr e@17:13#1 memberCall recv=e@17:13 callee=flatten args=[] type=kotlin.collections.List<Int> call=kotlin.collections.flatten targs=[Int]
 expr e@17:34 int(3) type=Int
-expr e@17:13#2 memberCall recv=e@17:13#1 callee=take args=[_:e@17:34] type=kotlin.collections.List<Int> call=kotlin.collections.take targs=[Int]
+expr e@17:13#2 memberCall recv=e@17:13#1 callee=take args=[_:e@17:34] type=kotlin.collections.List<Int> call=kotlin.collections.take#1 targs=[Int]
 expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13#2] type=Unit call=kotlin.io.println#1

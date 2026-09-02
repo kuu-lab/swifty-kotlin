@@ -6,6 +6,13 @@ enum DataClassSyntheticMethodPhase {
 }
 
 extension DataFlowSemaPhase {
+    private func syntheticDataClassMemberTypeParameterSymbols(
+        ownerSymbol: SymbolID,
+        types: TypeSystem
+    ) -> [SymbolID] {
+        types.nominalTypeParameterSymbols(for: ownerSymbol)
+    }
+
     func hasImportedLibrarySymbol(
         fqName: [InternedString],
         kind: SymbolKind,
@@ -659,6 +666,10 @@ extension DataFlowSemaPhase {
         let toStringName = interner.intern("toString")
         let toStringFQName = ownerFQName + [toStringName]
         let stringType = types.stringType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: toStringFQName,
             receiverType: ownerType,
@@ -686,7 +697,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -713,6 +725,10 @@ extension DataFlowSemaPhase {
         let equalsFQName = ownerFQName + [equalsName]
         let boolType = types.make(.primitive(.boolean, .nonNull))
         let nullableAnyType = types.nullableAnyType
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: equalsFQName,
             receiverType: ownerType,
@@ -749,7 +765,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [otherParamSymbol],
                 valueParameterHasDefaultValues: [false],
                 valueParameterIsVararg: [false],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -775,6 +792,10 @@ extension DataFlowSemaPhase {
         let hashCodeName = interner.intern("hashCode")
         let hashCodeFQName = ownerFQName + [hashCodeName]
         let intType = types.make(.primitive(.int, .nonNull))
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
         guard !hasUserDeclaredFunction(
             fqName: hashCodeFQName,
             receiverType: ownerType,
@@ -802,7 +823,8 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: [],
                 valueParameterHasDefaultValues: [],
                 valueParameterIsVararg: [],
-                typeParameterSymbols: []
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: funcSymbol
         )
@@ -849,6 +871,10 @@ extension DataFlowSemaPhase {
                 diagnostics: diagnostics,
                 usageRange: classDecl.range
             ) ?? types.anyType
+            let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+                ownerSymbol: ownerSymbol,
+                types: types
+            )
 
             let funcSymbol = symbols.define(
                 kind: .function,
@@ -869,7 +895,8 @@ extension DataFlowSemaPhase {
                     valueParameterSymbols: [],
                     valueParameterHasDefaultValues: [],
                     valueParameterIsVararg: [],
-                    typeParameterSymbols: []
+                    typeParameterSymbols: classTypeParameterSymbols,
+                    classTypeParameterCount: classTypeParameterSymbols.count
                 ),
                 for: funcSymbol
             )
@@ -924,6 +951,10 @@ extension DataFlowSemaPhase {
             diagnostics: diagnostics,
             fallbackType: types.anyType
         )
+        let classTypeParameterSymbols = syntheticDataClassMemberTypeParameterSymbols(
+            ownerSymbol: ownerSymbol,
+            types: types
+        )
 
         symbols.setFunctionSignature(
             FunctionSignature(
@@ -933,7 +964,9 @@ extension DataFlowSemaPhase {
                 valueParameterSymbols: copyParams.paramSymbols,
                 valueParameterHasDefaultValues: Array(repeating: true, count: copyParams.paramSymbols.count),
                 valueParameterIsVararg: copyParams.paramIsVararg,
-                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn
+                valueParameterAllowsNonLocalReturn: copyParams.paramAllowsNonLocalReturn,
+                typeParameterSymbols: classTypeParameterSymbols,
+                classTypeParameterCount: classTypeParameterSymbols.count
             ),
             for: copySymbol
         )
@@ -1224,7 +1257,6 @@ extension DataFlowSemaPhase {
             skipStats.logIfEnabled()
         }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticRandomStubs(symbols: symbols, interner: interner)
         registerSyntheticCollectionStubs(
             symbols: symbols,
             types: types,
@@ -1246,7 +1278,6 @@ extension DataFlowSemaPhase {
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticRegexStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
@@ -1267,7 +1298,6 @@ extension DataFlowSemaPhase {
         patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
         patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCloseableStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticFilesUtilityStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
@@ -1312,6 +1342,50 @@ extension DataFlowSemaPhase {
         guard let anyInfo = symbols.symbol(anySymbol) else { return }
         let anyClassType = types.make(.classType(ClassType(
             classSymbol: anySymbol, args: [], nullability: .nonNull)))
+
+        // Kotlin/Native exposes Any's implicit public constructor in metadata,
+        // although the actual class declaration is compiler-provided rather
+        // than bundled Kotlin source. The KIR constructor path performs the
+        // object allocation; no constructor body is emitted for this symbol.
+        let anyConstructorName = interner.intern("<init>")
+        let anyConstructorFQName = anyInfo.fqName + [anyConstructorName]
+        if symbols.lookupAll(fqName: anyConstructorFQName).isEmpty {
+            let constructorSymbol = symbols.define(
+                kind: .constructor,
+                name: anyConstructorName,
+                fqName: anyConstructorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic])
+            symbols.setParentSymbol(anySymbol, for: constructorSymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: nil,
+                    parameterTypes: [],
+                    returnType: anyClassType,
+                    isSuspend: false,
+                    valueParameterSymbols: [],
+                    valueParameterHasDefaultValues: [],
+                    valueParameterIsVararg: []),
+                for: constructorSymbol)
+        }
+
+        // Any has only the two-word object header and is the root of the
+        // nominal allocation hierarchy. Keep its layout empty so the existing
+        // Any member fallback remains responsible for toString/hashCode/equals
+        // dispatch while constructors still receive a stable nominal type ID.
+        if symbols.nominalLayout(for: anySymbol) == nil {
+            symbols.setNominalLayout(
+                NominalLayout(
+                    objectHeaderWords: 2,
+                    instanceFieldCount: 0,
+                    instanceSizeWords: 2,
+                    vtableSlots: [:],
+                    itableSlots: [:],
+                    superClass: nil),
+                for: anySymbol)
+        }
+
         let stringType = types.stringType
         let intType = types.intType
         let booleanType = types.booleanType
@@ -1478,6 +1552,24 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([anySymbol], for: numberSymbol)
         types.setNominalDirectSupertypes([anySymbol], for: numberSymbol)
         types.numberClassSymbol = numberSymbol
+    }
+
+    /// Resolve the source-backed or imported kotlin.Unit object while
+    /// preserving the compiler's builtin Unit value representation.
+    func resolveUnitClassSymbol(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        kotlinPkg: [InternedString]? = nil
+    ) {
+        let kotlinPkg = kotlinPkg ?? ensureKotlinPackage(symbols: symbols, interner: interner)
+        let unitName = BuiltinTypeNames(interner: interner).unit
+        let unitFQName = kotlinPkg + [unitName]
+        if let unitSymbol = symbols.lookupAll(fqName: unitFQName).first(where: { symbolID in
+            symbols.symbol(symbolID)?.kind == .object
+        }) {
+            types.unitClassSymbol = unitSymbol
+        }
     }
 
     /// Look up or define a synthetic interface symbol in the given package.

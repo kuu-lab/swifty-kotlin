@@ -4,68 +4,10 @@ import Foundation
 #if canImport(Testing)
 import Testing
 
-private func runCodegenPipeline(
-    inputPath: String,
-    moduleName: String,
-    emit: EmitMode,
-    outputPath: String,
-    irFlags: [String] = []
-) throws -> CompilationContext {
-    let options = CompilerOptions(
-        moduleName: moduleName,
-        inputs: [inputPath],
-        outputPath: outputPath,
-        emit: emit,
-        target: defaultTargetTriple(),
-        irFlags: irFlags
-    )
-    let ctx = CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: DiagnosticEngine(),
-        interner: StringInterner()
-    )
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
-    if emit == .kirDump {
-        guard let kir = ctx.kir else {
-            throw CompilerPipelineError.invalidInput("KIR not available for dump.")
-        }
-        let path = outputPath + ".kir"
-        let dump = kir.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-        try dump.write(to: URL(fileURLWithPath: path), atomically: true, encoding: .utf8)
-    } else {
-        try CodegenPhase().run(ctx)
-    }
-    return ctx
-}
-
 // KSP-423 regression tests: predicate first/last and Array.contains must lower
 // to bundled Kotlin source rather than stale kk_* runtime entries.
 @Suite
 struct CodegenBackendCollectionSearchHOFRegressionTests {
-
-    private func assertKotlinOutput(
-        _ source: String,
-        moduleName: String,
-        expected: String
-    ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let outputBase = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path
-            let ctx = try runCodegenPipeline(
-                inputPath: path,
-                moduleName: moduleName,
-                emit: .executable,
-                outputPath: outputBase
-            )
-            try LinkPhase().run(ctx)
-            let result = try CommandRunner.run(executable: outputBase, arguments: [])
-            let normalizedStdout = result.stdout
-                .replacingOccurrences(of: "\r\n", with: "\n")
-            #expect(normalizedStdout == expected)
-        }
-    }
 
     @Test
     func codegenListFirstAndLastPredicateUseSourceImplementation() throws {
@@ -84,6 +26,32 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
             source,
             moduleName: "ListFirstLastPredicateSource",
             expected: "4\n3\n4\n5\n5\n"
+        )
+    }
+
+    // KSP-973: generic Iterable.first-family calls must use bundled source implementations.
+    @Test
+    func codegenIterableFirstFamilyUsesSourceImplementation() throws {
+        let source = """
+        fun describe(values: Iterable<Int>): String {
+            val first = values.first()
+            val firstMatching = values.first { it > 1 }
+            val firstOrNull = values.firstOrNull()
+            val firstMatchingOrNull = values.firstOrNull { it > 10 }
+            val firstNotNull = values.firstNotNullOf { if (it > 1) "hit" else null }
+            val firstNotNullOrNull = values.firstNotNullOfOrNull { if (it > 10) "hit" else null }
+            return "$first|$firstMatching|$firstOrNull|$firstMatchingOrNull|$firstNotNull|$firstNotNullOrNull"
+        }
+
+        fun main() {
+            println(describe(listOf(1, 2, 3)))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableFirstFamilySource",
+            expected: "1|2|1|null|hit|null\n"
         )
     }
 

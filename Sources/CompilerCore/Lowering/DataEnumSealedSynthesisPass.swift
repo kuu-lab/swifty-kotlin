@@ -16,6 +16,12 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return
         }
 
+        appendReferencedSyntheticMemoryModelNominalIfNeeded(
+            module: module,
+            sema: sema,
+            interner: ctx.interner
+        )
+
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let existingFunctionSymbols = Set(module.arena.declarations.compactMap { decl -> SymbolID? in
             guard case let .function(function) = decl else {
@@ -109,6 +115,58 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
 
         module.recordLowering(Self.name)
+    }
+
+    /// Makes the synthetic Native MemoryModel visible to the shared enum
+    /// synthesis pass only when one of its generated APIs is referenced.
+    private func appendReferencedSyntheticMemoryModelNominalIfNeeded(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        let memoryModelFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("MemoryModel"),
+        ]
+        guard let memoryModelSymbol = sema.symbols.lookup(fqName: memoryModelFQName),
+              let memoryModel = sema.symbols.symbol(memoryModelSymbol),
+              memoryModel.kind == .enumClass
+        else {
+            return
+        }
+
+        let generatedMemberNames = [
+            interner.intern("entries"),
+            interner.intern("valueOf"),
+            interner.intern("values"),
+        ]
+        let generatedMembers = Set(generatedMemberNames.flatMap { name in
+            sema.symbols.lookupAll(fqName: memoryModelFQName + [name])
+        })
+        guard !generatedMembers.isEmpty else {
+            return
+        }
+
+        let isReferenced = sema.bindings.identifierSymbols.values.contains {
+            generatedMembers.contains($0)
+        } || sema.bindings.callBindings.values.contains {
+            generatedMembers.contains($0.chosenCallee)
+        }
+        guard isReferenced else {
+            return
+        }
+
+        let alreadyDeclared = module.arena.declarations.contains { declaration in
+            guard case let .nominalType(nominal) = declaration else {
+                return false
+            }
+            return nominal.symbol == memoryModelSymbol
+        }
+        guard !alreadyDeclared else {
+            return
+        }
+        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: memoryModelSymbol)))
     }
 
     /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
@@ -242,7 +300,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         appendSyntheticEnumValueOfIfNeeded(
             name: ctx.interner.intern("valueOf"),
             owner: valueOfOwner,
-            enumName: nominalSymbol.name,
+            enumName: nominalSymbol.fqName.map(ctx.interner.resolve).joined(separator: "."),
             enumType: sema.types.make(.classType(ClassType(
                 classSymbol: nominalSymbol.id,
                 args: [],
@@ -660,13 +718,39 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         params: [KIRParameter],
         body: [KIRInstruction]
     ) {
-        sema.symbols.setFunctionSignature(signature, for: functionSymbol)
+        // Preserve the generic receiver contract collected for source-backed data
+        // class members when the lowering body is synthesized with erased KIR types.
+        let effectiveSignature: FunctionSignature = if
+            signature.classTypeParameterCount == 0,
+            let existingSignature = sema.symbols.functionSignature(for: functionSymbol),
+            existingSignature.classTypeParameterCount > 0
+        {
+            FunctionSignature(
+                receiverType: existingSignature.receiverType,
+                parameterTypes: signature.parameterTypes,
+                returnType: existingSignature.returnType,
+                isSuspend: signature.isSuspend,
+                canThrow: signature.canThrow,
+                valueParameterSymbols: signature.valueParameterSymbols,
+                valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
+                valueParameterIsVararg: signature.valueParameterIsVararg,
+                valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
+                typeParameterSymbols: existingSignature.typeParameterSymbols,
+                reifiedTypeParameterIndices: existingSignature.reifiedTypeParameterIndices,
+                typeParameterUpperBounds: existingSignature.typeParameterUpperBounds,
+                typeParameterUpperBoundsList: existingSignature.typeParameterUpperBoundsList,
+                classTypeParameterCount: existingSignature.classTypeParameterCount
+            )
+        } else {
+            signature
+        }
+        sema.symbols.setFunctionSignature(effectiveSignature, for: functionSymbol)
         _ = module.arena.appendDecl(.function(
             KIRFunction(
                 symbol: functionSymbol,
                 name: name,
                 params: params,
-                returnType: signature.returnType,
+                returnType: effectiveSignature.returnType,
                 body: body,
                 isSuspend: false,
                 isInline: false

@@ -1,0 +1,17 @@
+symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=shuffleIterableDefault kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterable<Int>] ret=kotlin.collections.List<Int>
+symbol fq=shuffleIterableDefault.$0.values kind=valueParameter vis=private flags=_
+symbol fq=shuffleIterableWithRandom kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterable<String?>,kotlin.random.Random] ret=kotlin.collections.List<String?>
+symbol fq=shuffleIterableWithRandom.$1.random kind=valueParameter vis=private flags=_
+symbol fq=shuffleIterableWithRandom.$1.values kind=valueParameter vis=private flags=_
+file fstdlib_kotlin_collections_Iterable_shuffled package=_
+  decl shuffleIterableDefault fun shuffleIterableDefault sym=shuffleIterableDefault
+  decl shuffleIterableWithRandom fun shuffleIterableWithRandom sym=shuffleIterableWithRandom
+expr e@4:12 name(values) type=kotlin.collections.Iterable<Int> ref=shuffleIterableDefault.$0.values
+expr e@4:12#1 memberCall recv=e@4:12 callee=shuffled args=[] type=kotlin.collections.List<Int> call=kotlin.collections.shuffled#0 targs=[Int]
+expr e@4:5 return value=e@4:12#1 type=Nothing
+expr e@8:12 name(values) type=kotlin.collections.Iterable<String?> ref=shuffleIterableWithRandom.$1.values
+expr e@8:28 name(random) type=kotlin.random.Random ref=shuffleIterableWithRandom.$1.random
+expr e@8:12#1 memberCall recv=e@8:12 callee=shuffled args=[_:e@8:28] type=kotlin.collections.List<String?> call=kotlin.collections.shuffled#1 targs=[String?]
+expr e@8:5 return value=e@8:12#1 type=Nothing

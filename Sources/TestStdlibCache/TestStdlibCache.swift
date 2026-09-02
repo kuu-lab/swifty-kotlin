@@ -102,25 +102,10 @@ public final class TestStdlibCache: @unchecked Sendable {
         try? fm.removeItem(atPath: buildingBase)
         try? fm.removeItem(atPath: buildingArtifactPath)
 
-        let options = CompilerOptions(
-            moduleName: "KSwiftKStdlib",
-            inputs: [],
-            outputPath: buildingBase,
-            emit: .library,
-            target: TargetTriple.hostDefault(),
-            includeStdlib: true,
-            stdlibOnly: true
+        _ = try StdlibArtifactBuilder.build(
+            outputBase: buildingBase,
+            target: TargetTriple.hostDefault()
         )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: StringInterner()
-        )
-
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
-        try CodegenPhase().run(ctx)
 
         guard fm.fileExists(atPath: buildingArtifactPath) else {
             throw TestStdlibCacheError.artifactMissing(buildingArtifactPath)
@@ -136,15 +121,6 @@ public final class TestStdlibCache: @unchecked Sendable {
         }
 
         return artifactPath
-    }
-
-    private func runToKIR(_ ctx: CompilationContext) throws {
-        try LoadSourcesPhase().run(ctx)
-        try LexPhase().run(ctx)
-        try ParsePhase().run(ctx)
-        try BuildASTPhase().run(ctx)
-        try SemaPhase().run(ctx)
-        try BuildKIRPhase().run(ctx)
     }
 
     /// A cheap fingerprint (mtime + size) of the `KSwiftKPackageTests` test

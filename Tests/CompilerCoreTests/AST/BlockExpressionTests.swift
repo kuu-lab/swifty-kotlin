@@ -302,6 +302,129 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
+    // MARK: - Local function body must preserve semicolon splits inside nested blocks
+
+    @Test
+    func testLocalFunctionNestedBlockPreservesInnerSemicolonSplit() throws {
+        let source = """
+        fun outer() {
+            fun inner() {
+                if (true) { val a = 1; val b = 2 }
+            }
+        }
+        fun main() = outer()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runFrontend(ctx)
+            let ast = try #require(ctx.ast)
+            let interner = ctx.interner
+
+            func localDeclName(_ exprID: ExprID) -> String? {
+                guard case let .localDecl(name, _, _, _, _, _) = ast.arena.expr(exprID) else {
+                    return nil
+                }
+                return interner.resolve(name)
+            }
+
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            let file = try #require(ast.files.first { $0.fileID == fileID })
+            let outerDecl = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
+                guard case let .funDecl(fd) = ast.arena.decl(declID), interner.resolve(fd.name) == "outer" else {
+                    return nil
+                }
+                return fd
+            }.first)
+            guard case let .block(outerStmts, _) = outerDecl.body else {
+                Issue.record("Expected outer() to have a block body")
+                return
+            }
+            let outerFirstStmtID = try #require(outerStmts.first)
+            guard case let .localFunDecl(_, _, _, innerBody, _, _) = try #require(ast.arena.expr(outerFirstStmtID)) else {
+                Issue.record("Expected outer()'s first statement to be inner()'s local fun declaration")
+                return
+            }
+            guard case let .block(innerStmts, _) = innerBody else {
+                Issue.record("Expected inner() to have a block body")
+                return
+            }
+            let innerFirstStmtID = try #require(innerStmts.first)
+            guard case let .ifExpr(_, thenExprID, _, _) = try #require(ast.arena.expr(innerFirstStmtID)) else {
+                Issue.record("Expected inner()'s first statement to be an if expression")
+                return
+            }
+            guard case let .blockExpr(stmts, _, _) = try #require(ast.arena.expr(thenExprID)) else {
+                Issue.record("Expected the if's then-branch to be a blockExpr")
+                return
+            }
+            #expect(
+                stmts.compactMap(localDeclName) == ["a", "b"],
+                "Nested block inside a local function's body should preserve both semicolon-separated statements"
+            )
+        }
+    }
+
+    // MARK: - Local function expression body must preserve semicolon splits inside nested blocks
+
+    @Test
+    func testLocalFunctionExpressionBodyPreservesInnerSemicolonSplit() throws {
+        let source = """
+        fun outer(): Int {
+            fun f(): Int = if (true) { val a = 1; val b = 2; a + b } else 0
+            return f()
+        }
+        fun main() = outer()
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runFrontend(ctx)
+            let ast = try #require(ctx.ast)
+            let interner = ctx.interner
+
+            func localDeclName(_ exprID: ExprID) -> String? {
+                guard case let .localDecl(name, _, _, _, _, _) = ast.arena.expr(exprID) else {
+                    return nil
+                }
+                return interner.resolve(name)
+            }
+
+            let fileID = try #require(ctx.sourceManager.fileID(forPath: path))
+            let file = try #require(ast.files.first { $0.fileID == fileID })
+            let outerDecl = try #require(file.topLevelDecls.compactMap { declID -> FunDecl? in
+                guard case let .funDecl(fd) = ast.arena.decl(declID), interner.resolve(fd.name) == "outer" else {
+                    return nil
+                }
+                return fd
+            }.first)
+            guard case let .block(outerStmts, _) = outerDecl.body else {
+                Issue.record("Expected outer() to have a block body")
+                return
+            }
+            let outerFirstStmtID = try #require(outerStmts.first)
+            guard case let .localFunDecl(_, _, _, fBody, _, _) = try #require(ast.arena.expr(outerFirstStmtID)) else {
+                Issue.record("Expected outer()'s first statement to be f()'s local fun declaration")
+                return
+            }
+            guard case let .expr(ifExprID, _) = fBody else {
+                Issue.record("Expected f() to have an expression body")
+                return
+            }
+            guard case let .ifExpr(_, thenExprID, _, _) = try #require(ast.arena.expr(ifExprID)) else {
+                Issue.record("Expected f()'s expression body to be an if expression")
+                return
+            }
+            guard case let .blockExpr(stmts, trailing, _) = try #require(ast.arena.expr(thenExprID)) else {
+                Issue.record("Expected the if's then-branch to be a blockExpr")
+                return
+            }
+            #expect(
+                stmts.compactMap(localDeclName) == ["a", "b"],
+                "Nested block inside a local function's expression body should preserve both semicolon-separated statements"
+            )
+            #expect(trailing != nil, "Expected trailing `a + b` expression to survive")
+        }
+    }
+
     // MARK: - AST structure: blockExpr has statements and trailing expression
 
     @Test

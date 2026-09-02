@@ -74,88 +74,14 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 
 // MARK: - Array utility functions (STDLIB-089)
 
-@_cdecl("kk_array_copyOf")
-public func kk_array_copyOf(_ arrayRaw: Int) -> Int {
+@_cdecl("__kk_array_copyOf")
+public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_copyOf")
     }
     let box = RuntimeArrayBox(length: array.elements.count)
     for (i, elem) in array.elements.enumerated() {
         box.elements[i] = elem
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOf_newSize")
-public func kk_array_copyOf_newSize(_ arrayRaw: Int, _ newSize: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf_newSize")
-    }
-    let targetSize = max(0, newSize)
-    let box = RuntimeArrayBox(length: targetSize)
-    let copiedCount = min(array.elements.count, targetSize)
-    for i in 0 ..< copiedCount {
-        box.elements[i] = array.elements[i]
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOf_newSize_init")
-public func kk_array_copyOf_newSize_init(
-    _ arrayRaw: Int,
-    _ newSize: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf_newSize_init")
-    }
-    let targetSize = max(0, newSize)
-    let box = RuntimeArrayBox(length: targetSize)
-    let copiedCount = min(array.elements.count, targetSize)
-    for i in 0 ..< copiedCount {
-        box.elements[i] = array.elements[i]
-    }
-    if copiedCount < targetSize {
-        for index in copiedCount ..< targetSize {
-            var thrown = 0
-            let value = runtimeInvokeCollectionLambda1(
-                fnPtr: fnPtr,
-                closureRaw: closureRaw,
-                value: index,
-                outThrown: &thrown
-            )
-            if thrown != 0 {
-                return handleCollectionLambdaThrow(thrown, outThrown)
-            }
-            box.elements[index] = maybeUnbox(value)
-        }
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOfRange")
-public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOfRange")
-    }
-    let size = array.elements.count
-    guard fromIndex <= toIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "fromIndex (\(fromIndex)) > toIndex (\(toIndex)).")
-        return 0
-    }
-    guard fromIndex >= 0, toIndex <= size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "Array index out of bounds: fromIndex=\(fromIndex), toIndex=\(toIndex), size=\(size).")
-        return 0
-    }
-    let count = toIndex - fromIndex
-    let box = RuntimeArrayBox(length: count)
-    for i in 0 ..< count {
-        box.elements[i] = array.elements[fromIndex + i]
     }
     return registerRuntimeObject(box)
 }
@@ -170,37 +96,6 @@ public func kk_array_reversedArray(_ arrayRaw: Int) -> Int {
         box.elements[index] = element
     }
     return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyInto")
-public func kk_array_copyInto(
-    _ arrayRaw: Int,
-    _ destinationRaw: Int,
-    _ destinationOffset: Int,
-    _ startIndex: Int,
-    _ endIndex: Int
-) -> Int {
-    guard let source = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyInto")
-    }
-    guard let destination = runtimeArrayBox(from: destinationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid destination handle in kk_array_copyInto")
-    }
-
-    let sourceSize = source.elements.count
-    let start = max(0, min(startIndex, sourceSize))
-    let end = max(start, min(endIndex, sourceSize))
-    let destinationStart = max(0, min(destinationOffset, destination.elements.count))
-    let count = min(end - start, destination.elements.count - destinationStart)
-    guard count > 0 else {
-        return destinationRaw
-    }
-
-    let copied = Array(source.elements[start ..< start + count])
-    for index in 0 ..< count {
-        destination.elements[destinationStart + index] = copied[index]
-    }
-    return destinationRaw
 }
 
 private func runtimeArrayFromElements(_ elements: [Int]) -> Int {
@@ -271,101 +166,6 @@ public func kk_array_fill(_ arrayRaw: Int, _ value: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_byteArray_contentEquals")
-public func kk_byteArray_contentEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw), let other = runtimeArrayBox(from: otherRaw) else {
-        return kk_box_bool(0)
-    }
-    if array.elements.count != other.elements.count {
-        return kk_box_bool(0)
-    }
-    for i in 0 ..< array.elements.count {
-        // swiftlint:disable:next for_where
-        if Int8(truncatingIfNeeded: array.elements[i]) != Int8(truncatingIfNeeded: other.elements[i]) {
-            return kk_box_bool(0)
-        }
-    }
-    return kk_box_bool(1)
-}
-
-private func runtimeCollectionStringPointer(_ value: String) -> UnsafeMutableRawPointer {
-    let utf8 = Array(value.utf8)
-    return utf8.withUnsafeBufferPointer { buffer in
-        kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count))
-    }
-}
-
-private func runtimeArrayContentToString(
-    _ arrayRaw: Int,
-    renderElement: (Int) -> String
-) -> UnsafeMutableRawPointer {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return runtimeCollectionStringPointer("[]")
-    }
-    let rendered = array.elements.map(renderElement).joined(separator: ", ")
-    return runtimeCollectionStringPointer("[\(rendered)]")
-}
-
-@_cdecl("kk_intArray_contentToString")
-public func kk_intArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(Int32(truncatingIfNeeded: $0)) }
-}
-
-@_cdecl("kk_longArray_contentToString")
-public func kk_longArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(Int64($0)) }
-}
-
-@_cdecl("kk_byteArray_contentToString")
-public func kk_byteArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(Int8(truncatingIfNeeded: $0)) }
-}
-
-@_cdecl("kk_shortArray_contentToString")
-public func kk_shortArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(Int16(truncatingIfNeeded: $0)) }
-}
-
-@_cdecl("kk_uIntArray_contentToString")
-public func kk_uIntArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(UInt32(bitPattern: Int32(truncatingIfNeeded: $0))) }
-}
-
-@_cdecl("kk_uLongArray_contentToString")
-public func kk_uLongArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(UInt64(bitPattern: Int64($0))) }
-}
-
-@_cdecl("kk_doubleArray_contentToString")
-public func kk_doubleArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { runtimeFormatFloatingPoint(kk_bits_to_double($0)) }
-}
-
-@_cdecl("kk_floatArray_contentToString")
-public func kk_floatArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { runtimeFormatFloatingPoint(kk_bits_to_float($0)) }
-}
-
-@_cdecl("kk_booleanArray_contentToString")
-public func kk_booleanArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { $0 != 0 ? "true" : "false" }
-}
-
-@_cdecl("kk_charArray_contentToString")
-public func kk_charArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { UnicodeScalar($0).map(String.init) ?? "?" }
-}
-
-@_cdecl("kk_uByteArray_contentToString")
-public func kk_uByteArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(UInt8(truncatingIfNeeded: $0)) }
-}
-
-@_cdecl("kk_uShortArray_contentToString")
-public func kk_uShortArray_contentToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
-    runtimeArrayContentToString(arrayRaw) { String(UInt16(truncatingIfNeeded: $0)) }
-}
-
 private struct RuntimeArrayDeepEqualityPair: Hashable {
     let lhs: Int
     let rhs: Int
@@ -434,8 +234,8 @@ private func runtimeValuesDeepEqual(
     return runtimeValuesEqual(lhsRaw, rhsRaw)
 }
 
-@_cdecl("kk_array_contentDeepEquals")
-public func kk_array_contentDeepEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_array_contentDeepEquals")
+public func __kk_array_contentDeepEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return kk_box_bool(runtimeArrayBox(from: otherRaw) == nil ? 1 : 0)
     }
@@ -450,20 +250,6 @@ public func kk_array_contentDeepEquals(_ arrayRaw: Int, _ otherRaw: Int) -> Int 
         rhs: other,
         visited: &visited
     ) ? 1 : 0)
-}
-
-@_cdecl("kk_array_contentHashCode")
-public func kk_array_contentHashCode(_ arrayRaw: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        return 0
-    }
-
-    var result: Int = 1
-    for element in array.elements {
-        result = 31 * result + kk_any_hashCode(element, 0)
-    }
-
-    return result
 }
 
 private func runtimeArrayBoxDeepToString(
@@ -496,8 +282,8 @@ private func runtimeArrayStringPointer(_ value: String) -> UnsafeMutableRawPoint
     }
 }
 
-@_cdecl("kk_array_contentDeepToString")
-public func kk_array_contentDeepToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
+@_cdecl("__kk_array_contentDeepToString")
+public func __kk_array_contentDeepToString(_ arrayRaw: Int) -> UnsafeMutableRawPointer {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return runtimeArrayStringPointer("null")
     }
@@ -529,8 +315,8 @@ private func runtimeValueDeepHash(_ raw: Int, visited: inout Set<Int>) -> Int {
     return kk_any_hashCode(raw, 0)
 }
 
-@_cdecl("kk_array_contentDeepHashCode")
-public func kk_array_contentDeepHashCode(_ arrayRaw: Int) -> Int {
+@_cdecl("__kk_array_contentDeepHashCode")
+public func __kk_array_contentDeepHashCode(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
         return 0
     }

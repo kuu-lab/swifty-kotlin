@@ -19,9 +19,7 @@ extension KIRLoweringDriver {
         let sema = shared.sema
 
         // Determine whether this object implements any interfaces or has vtable entries.
-        let interfaceSupertypes = sema.symbols.directSupertypes(for: objectSymbol).filter { superSym in
-            sema.symbols.symbol(superSym)?.kind == .interface
-        }
+        let interfaceSupertypes = kirTransitiveInterfaceSupertypes(of: objectSymbol, sema: sema)
         let needsDispatchObject = !interfaceSupertypes.isEmpty
             || !kirVtableImplementations(for: objectSymbol, sema: sema).isEmpty
 
@@ -72,31 +70,15 @@ extension KIRLoweringDriver {
             // Store the allocated object pointer in the global slot.
             body.append(.storeGlobal(value: allocatedObj, symbol: objectSymbol))
 
-            // Register supertype relationships (interfaces).
-            let childTypeExpr = arena.appendExpr(.intLiteral(classIDValue), type: intType)
-            body.append(.constValue(result: childTypeExpr, value: .intLiteral(classIDValue)))
-            for superSymbol in sema.symbols.directSupertypes(for: objectSymbol) {
-                let parentTypeID = RuntimeTypeCheckToken.stableNominalTypeID(
-                    symbol: superSymbol, sema: sema, interner: interner
-                )
-                let parentExpr = arena.appendExpr(.intLiteral(parentTypeID), type: intType)
-                body.append(.constValue(result: parentExpr, value: .intLiteral(parentTypeID)))
-                let registerResult = arena.appendTemporary(type: intType)
-                let superKind = sema.symbols.symbol(superSymbol)?.kind
-                let registerCallee: InternedString = if superKind == .interface {
-                    interner.intern("kk_type_register_iface")
-                } else {
-                    interner.intern("kk_type_register_super")
-                }
-                body.append(.call(
-                    symbol: nil,
-                    callee: registerCallee,
-                    arguments: [childTypeExpr, parentExpr],
-                    result: registerResult,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            }
+            var typeEdgeInstructions: [KIRInstruction] = []
+            appendNominalSupertypeEdgeRegistrations(
+                childSymbol: objectSymbol,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &typeEdgeInstructions
+            )
+            body.append(contentsOf: typeEdgeInstructions)
 
             // Register itable methods for each interface.
             if let objectLayout = sema.symbols.nominalLayout(for: objectSymbol) {
@@ -122,14 +104,20 @@ extension KIRLoweringDriver {
                         thrownResult: nil
                     ))
 
-                    // Walk the interface's vtableSlots to find each method that needs registration.
-                    for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots.sorted(by: { $0.value < $1.value }) {
+                    // Walk the interface methods to find each method that needs registration.
+                    for (methodSymbol, methodSlotInt) in kirItableMethodEntries(
+                        for: interfaceSymbol,
+                        interfaceLayout: interfaceLayout,
+                        sema: sema,
+                        interner: interner
+                    ) {
                         let methodSlot = Int64(methodSlotInt)
                         // Find the override in the object's member functions.
-                        let implementationSymbol = findOverrideMethod(
+                        let implementationSymbol = kirFindOverrideMethod(
                             for: methodSymbol,
                             in: objectSymbol,
-                            sema: sema
+                            sema: sema,
+                            interner: interner
                         ) ?? methodSymbol
                         let bridgeSymbol = itableBridgeSymbolForMethod(
                             interfaceMethod: methodSymbol,
@@ -196,27 +184,6 @@ extension KIRLoweringDriver {
         declIDs.append(contentsOf: ctx.drainGeneratedCallableDecls())
         ctx.clearImplicitReceiver()
         return declIDs
-    }
-
-    /// Find an override method in the given nominal type for a method declared
-    /// in an interface.
-    private func findOverrideMethod(
-        for interfaceMethod: SymbolID,
-        in nominalSymbol: SymbolID,
-        sema: SemaModule
-    ) -> SymbolID? {
-        guard let methodSym = sema.symbols.symbol(interfaceMethod) else { return nil }
-        let methodName = methodSym.name
-        guard let ownerSym = sema.symbols.symbol(nominalSymbol) else { return nil }
-        let overrideFQName = ownerSym.fqName + [methodName]
-        for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
-            guard let candidateSym = sema.symbols.symbol(candidate),
-                  candidateSym.kind == .function,
-                  sema.symbols.parentSymbol(for: candidate) == nominalSymbol
-            else { continue }
-            return candidate
-        }
-        return nil
     }
 
     private func emitObjectBodyInitializers(

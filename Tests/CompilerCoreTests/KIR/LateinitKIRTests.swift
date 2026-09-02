@@ -50,5 +50,27 @@ struct LateinitKIRTests {
                           "Expected kk_lateinit_is_initialized in ready body, got: \(callees)")
         }
     }
+
+    @Test func testKProperty0IsInitializedRejectsValueReceiver() throws {
+        let source = """
+        import kotlin.reflect.KProperty0
+
+        var value: Int = 7
+
+        fun invalid(property: KProperty0<*>): Boolean = property.isInitialized
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(
+                ctx.diagnostics.diagnostics.contains { diagnostic in
+                    diagnostic.code == "KSWIFTK-SEMA-LATEINIT"
+                        && diagnostic.message.contains("property literals")
+                },
+                "KProperty0.isInitialized should reject value receivers: \(ctx.diagnostics.diagnostics.map { $0.message })"
+            )
+        }
+    }
 }
 #endif
