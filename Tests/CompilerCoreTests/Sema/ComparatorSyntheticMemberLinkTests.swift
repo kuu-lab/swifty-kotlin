@@ -109,6 +109,14 @@ struct ComparatorSyntheticMemberLinkTests {
                 values.sortedWith(comparator)
             }
             """,
+            """
+            import kotlin.comparisons.thenDescending
+
+            fun render6(values: List<Int>) {
+                val comparator = compareBy<Int> { it % 10 }.thenDescending { a, b -> b.compareTo(a) }
+                values.sortedWith(comparator)
+            }
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -168,6 +176,33 @@ struct ComparatorSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected thenDescending to resolve to bundled stdlib source")
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let parameterType = try #require(signature.parameterTypes.first)
+                guard case .functionType = sema.types.kind(of: parameterType) else {
+                    Issue.record("Expected thenDescending lambda syntax to resolve to the function-parameter overload")
+                    return
+                }
+
+            }
+
+            // === testImportedComparatorThenDescendingLambdaUsesLambdaOverload ===
+
+            do {
+
+                let samplePath = paths[6]
+
+                let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    return interner.resolve(callee) == "thenDescending"
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected imported thenDescending to resolve to bundled stdlib source")
+                let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
+                let parameterType = try #require(signature.parameterTypes.first)
+                guard case .functionType = sema.types.kind(of: parameterType) else {
+                    Issue.record("Expected imported thenDescending lambda syntax to resolve to the function-parameter overload")
+                    return
+                }
 
             }
 
