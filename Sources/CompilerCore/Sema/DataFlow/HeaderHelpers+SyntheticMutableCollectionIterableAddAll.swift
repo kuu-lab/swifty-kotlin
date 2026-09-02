@@ -7,16 +7,6 @@ extension DataFlowSemaPhase {
         iterableInterfaceSymbol: SymbolID
     ) {
         registerMutableCollectionIterableAddAllMember(
-            ownerName: "MutableCollection",
-            externalLinkName: "__kk_mutable_collection_addAll_iterable",
-            flags: [.synthetic],
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            iterableInterfaceSymbol: iterableInterfaceSymbol
-        )
-        registerMutableCollectionIterableAddAllMember(
             ownerName: "MutableList",
             externalLinkName: "__kk_mutable_list_addAll_iterable",
             flags: [.synthetic, .operatorFunction],

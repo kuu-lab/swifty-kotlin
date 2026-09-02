@@ -52,7 +52,11 @@ extension DataFlowSemaPhase {
         // bundled Kotlin source `Stdlib/kotlin/experimental/TypeInference.kt`
         // (KSP-668). No synthetic registration is needed here.
 
-        // kotlin.annotation package — provides @Target and AnnotationTarget.
+        // kotlin.annotation package. KSP-918 owns these six declarations in
+        // bundled source. Keep the old registration below only as a fallback
+        // for configurations that do not inject that source (for example
+        // `--no-stdlib`), so normal source-backed compilation never creates a
+        // synthetic declaration for this API.
         let kotlinAnnotationPkg = ensurePackage(
             path: ["kotlin", "annotation"],
             symbols: symbols,
@@ -60,14 +64,29 @@ extension DataFlowSemaPhase {
         )
         let kotlinAnnotationPkgSymbol = symbols.lookup(fqName: kotlinAnnotationPkg) ?? .invalid
 
-        registerSyntheticAnnotationClass(
-            named: "Target",
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let targetSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Target")]) {
+        let sourceBackedCoreNames = [
+            "AnnotationRetention",
+            "AnnotationTarget",
+            "MustBeDocumented",
+            "Repeatable",
+            "Retention",
+            "Target",
+        ].map(interner.intern)
+        let hasSourceBackedAnnotationCore = sourceBackedCoreNames.allSatisfy { name in
+            guard let symbol = symbols.lookup(fqName: kotlinAnnotationPkg + [name]),
+                  let info = symbols.symbol(symbol)
+            else { return false }
+            return !info.flags.contains(.synthetic) && info.declSite != nil
+        }
+
+        if !hasSourceBackedAnnotationCore {
+            registerSyntheticAnnotationClass(
+                named: "Target",
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                interner: interner
+            )
             attachAnnotationIfNeeded(
                 MetadataAnnotationRecord(
                     annotationFQName: "kotlin.annotation.Target",
@@ -76,17 +95,14 @@ extension DataFlowSemaPhase {
                 to: kotlinAnnotationPkg + [interner.intern("Target")],
                 symbols: symbols
             )
-            _ = targetSymbol
-        }
 
-        registerSyntheticAnnotationClass(
-            named: "MustBeDocumented",
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let mustBeDocumentedSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("MustBeDocumented")]) {
+            registerSyntheticAnnotationClass(
+                named: "MustBeDocumented",
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                interner: interner
+            )
             attachAnnotationIfNeeded(
                 MetadataAnnotationRecord(
                     annotationFQName: "kotlin.annotation.Target",
@@ -95,91 +111,84 @@ extension DataFlowSemaPhase {
                 to: kotlinAnnotationPkg + [interner.intern("MustBeDocumented")],
                 symbols: symbols
             )
-            _ = mustBeDocumentedSymbol
-        }
 
-        registerSyntheticAnnotationClass(
-            named: "Repeatable",
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let repeatableSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Repeatable")]) {
-            let record = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
+            registerSyntheticAnnotationClass(
+                named: "Repeatable",
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                interner: interner
             )
-            var annotations = symbols.annotations(for: repeatableSymbol)
-            if !annotations.contains(record) {
-                annotations.append(record)
-            }
-            symbols.setAnnotations(annotations, for: repeatableSymbol)
-        }
-
-        registerSyntheticAnnotationClass(
-            named: "Retention",
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        if let retentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Retention")]) {
-            let record = MetadataAnnotationRecord(
-                annotationFQName: "kotlin.annotation.Target",
-                arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
+            attachAnnotationIfNeeded(
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Target",
+                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
+                ),
+                to: kotlinAnnotationPkg + [interner.intern("Repeatable")],
+                symbols: symbols
             )
-            var annotations = symbols.annotations(for: retentionSymbol)
-            if !annotations.contains(record) {
-                annotations.append(record)
-            }
-            symbols.setAnnotations(annotations, for: retentionSymbol)
-        }
 
-        registerSyntheticAnnotationTargetEnum(
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticAnnotationRetentionEnum(
-            packageFQName: kotlinAnnotationPkg,
-            packageSymbol: kotlinAnnotationPkgSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+            registerSyntheticAnnotationClass(
+                named: "Retention",
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                interner: interner
+            )
+            attachAnnotationIfNeeded(
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.annotation.Target",
+                    arguments: ["AnnotationTarget.ANNOTATION_CLASS"]
+                ),
+                to: kotlinAnnotationPkg + [interner.intern("Retention")],
+                symbols: symbols
+            )
 
-        let annotationRetentionName = interner.intern("AnnotationRetention")
-        if let retentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Retention")]),
-           let annotationRetentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [annotationRetentionName]),
-           let retentionEntrySymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [annotationRetentionName, interner.intern("RUNTIME")])
-        {
-            let retentionType = types.make(.classType(ClassType(
-                classSymbol: annotationRetentionSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-            let valueName = interner.intern("value")
-            let retentionName = interner.intern("Retention")
-            let valueFQName = kotlinAnnotationPkg + [retentionName, valueName]
-            let valueSymbol: SymbolID
-            if let existing = symbols.lookup(fqName: valueFQName) {
-                valueSymbol = existing
-            } else {
-                valueSymbol = symbols.define(
-                    kind: .property,
-                    name: valueName,
-                    fqName: valueFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .constValue]
-                )
+            registerSyntheticAnnotationTargetEnum(
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+            registerSyntheticAnnotationRetentionEnum(
+                packageFQName: kotlinAnnotationPkg,
+                packageSymbol: kotlinAnnotationPkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+
+            let annotationRetentionName = interner.intern("AnnotationRetention")
+            if let retentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [interner.intern("Retention")]),
+               let annotationRetentionSymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [annotationRetentionName]),
+               let retentionEntrySymbol = symbols.lookup(fqName: kotlinAnnotationPkg + [annotationRetentionName, interner.intern("RUNTIME")])
+            {
+                let retentionType = types.make(.classType(ClassType(
+                    classSymbol: annotationRetentionSymbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let valueName = interner.intern("value")
+                let retentionName = interner.intern("Retention")
+                let valueFQName = kotlinAnnotationPkg + [retentionName, valueName]
+                let valueSymbol: SymbolID
+                if let existing = symbols.lookup(fqName: valueFQName) {
+                    valueSymbol = existing
+                } else {
+                    valueSymbol = symbols.define(
+                        kind: .property,
+                        name: valueName,
+                        fqName: valueFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic, .constValue]
+                    )
+                }
+                symbols.setParentSymbol(retentionSymbol, for: valueSymbol)
+                symbols.setPropertyType(retentionType, for: valueSymbol)
+                symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
             }
-            symbols.setParentSymbol(retentionSymbol, for: valueSymbol)
-            symbols.setPropertyType(retentionType, for: valueSymbol)
-            symbols.setConstValueExprKind(.symbolRef(retentionEntrySymbol), for: valueSymbol)
         }
 
         if let introducedAtSymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern("IntroducedAt")]) {
