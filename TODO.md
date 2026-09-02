@@ -1087,7 +1087,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.contains` — fun Iterable.contains(): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/contains(#A): kotlin/Boolean`
 
-- [ ] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
+- [x] KSP-970: kotlin.collections.Iterable.element-family の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `element`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
