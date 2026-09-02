@@ -1275,6 +1275,9 @@ final class CallLowerer {
             "kk_runtime_result_run_catching",
             "__kk_synchronized",
             "__kk_string_builder_new_capacity_checked",
+            "__kk_mutable_list_add",
+            "__kk_mutable_set_add",
+            "__kk_mutable_map_put",
             "__kk_enum_entries_get",
             "kk_iterable_iterator",
         ].contains(name)

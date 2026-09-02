@@ -389,7 +389,9 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
 }
 
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
+private let runtimeMutableIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterator")
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
+private let runtimeMutableIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
 
 /// Register the `kotlin.collections.Iterator` itable on a raw object handle.
@@ -405,9 +407,27 @@ private func registerIteratorItable(
     _ = kk_object_register_itable_method(raw, 0, 1, nextPtr)
 }
 
+/// Register the `kotlin.collections.MutableIterator` itable on a raw object handle.
+private func registerMutableIteratorItable(
+    raw: Int,
+    remove: @convention(c) @escaping (Int, UnsafeMutablePointer<Int>?) -> Int,
+    ifaceSlot: Int = 1
+) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIteratorInterfaceTypeID), ifaceSlot)
+    let removePtr = unsafeBitCast(remove, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, removePtr)
+}
+
 /// Register the `kotlin.collections.Iterable` itable on a raw object handle.
 private func registerIterableItable(raw: Int, ifaceSlot: Int = 0) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeIterableInterfaceTypeID), ifaceSlot)
+    let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
+}
+
+/// Register the `kotlin.collections.MutableIterable` itable on a raw object handle.
+private func registerMutableIterableItable(raw: Int, ifaceSlot: Int = 2) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeMutableIterableInterfaceTypeID), ifaceSlot)
     let iteratorPtr = unsafeBitCast(runtimeIterableIteratorThunk, to: Int.self)
     _ = kk_object_register_itable_method(raw, ifaceSlot, 0, iteratorPtr)
 }
@@ -441,10 +461,12 @@ private func maybeRegisterCollectionIterableItable(raw: Int, box: AnyObject) {
         runtimeRegisterObjectType(rawValue: raw, classID: listRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
     } else if box is RuntimeSetBox {
         runtimeRegisterObjectType(rawValue: raw, classID: setRuntimeTypeID)
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
+        registerMutableIterableItable(raw: raw, ifaceSlot: 2)
     } else if type(of: box) == RuntimeArrayBox.self {
         registerIterableItable(raw: raw, ifaceSlot: 0)
         registerSequenceItable(raw: raw, ifaceSlot: 1)
@@ -469,9 +491,17 @@ private let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePoin
     return kk_list_iterator_next(iterRaw)
 }
 
+private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
+    outThrown?.pointee = 0
+    return runtimeListIteratorRemove(iterRaw)
+}
+
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
+    if box.removeAction != nil {
+        registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk)
+    }
     return raw
 }
 

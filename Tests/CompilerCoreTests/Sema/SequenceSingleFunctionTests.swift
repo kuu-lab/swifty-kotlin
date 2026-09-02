@@ -33,10 +33,15 @@ struct SequenceSingleFunctionTests {
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
 
+        // Bundled stdlib bodies share the AST with user code, so select the
+        // user call by its `values` receiver instead of taking the last call.
         let callExpr = try #require(
             lastExprID(in: ast) { _, expr in
-                guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
-                return ctx.interner.resolve(callee) == "single"
+                guard case let .memberCall(receiver, callee, _, _, _) = expr,
+                      ctx.interner.resolve(callee) == "single",
+                      case let .nameRef(receiverName, _) = ast.arena.expr(receiver)
+                else { return false }
+                return receiverName == ctx.interner.intern("values")
             },
             "Expected single member call"
         )
