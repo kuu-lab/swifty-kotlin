@@ -43,7 +43,9 @@ final class StableRenderContext {
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
             let sorted = symbols.sorted { a, b in
-                Self.overloadSortKey(a, sema: sema, fqMap: fqMap) < Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
+                let lhs = Self.overloadSortKey(a, sema: sema, fqMap: fqMap)
+                let rhs = Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
+                return lhs.compare(rhs, options: .numeric) == .orderedAscending
             }
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"

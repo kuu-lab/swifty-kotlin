@@ -4,7 +4,6 @@ enum AnnotationParsingSupport {
     struct ParsedAnnotation {
         let annotation: AnnotationNode
         let nextIndex: Int
-        let hadInvalidUseSiteTarget: Bool
         let invalidUseSiteTargetRange: SourceRange?
     }
 
@@ -24,91 +23,64 @@ enum AnnotationParsingSupport {
         }
 
         var useSiteTarget: String?
-        var hadInvalidUseSiteTarget = false
         var invalidUseSiteTargetRange: SourceRange?
-        if index + 1 < tokens.count, tokens[index + 1].kind == .symbol(.colon) {
-            let candidate = tokens[index]
-            if let candidateName = tokenText(candidate, interner: interner) {
-                let knownTargets: Set<String> = [
-                    "get", "set", "field", "param", "setparam",
-                    "delegate", "property", "receiver", "file",
-                ]
-                if knownTargets.contains(candidateName) {
-                    if allowUseSiteTarget {
-                        useSiteTarget = candidateName
-                    } else {
-                        hadInvalidUseSiteTarget = true
-                        invalidUseSiteTargetRange = candidate.range
-                    }
-                    index += 2
-                }
+        if index + 1 < tokens.count, tokens[index + 1].kind == .symbol(.colon),
+           let candidateName = tokenText(tokens[index], interner: interner),
+           SoftKeyword.useSiteTargetNames.contains(candidateName)
+        {
+            if allowUseSiteTarget {
+                useSiteTarget = candidateName
+            } else {
+                invalidUseSiteTargetRange = tokens[index].range
             }
+            index += 2
         }
 
         guard index < tokens.count else {
             return nil
         }
 
-        var nameParts: [String] = []
-        guard let firstPart = tokenText(tokens[index], interner: interner) else {
+        guard var name = tokenText(tokens[index], interner: interner) else {
             return nil
         }
-        nameParts.append(firstPart)
         index += 1
         while index + 1 < tokens.count,
               tokens[index].kind == .symbol(.dot),
               let nextPart = tokenText(tokens[index + 1], interner: interner)
         {
-            nameParts.append(nextPart)
+            name += "."
+            name += nextPart
             index += 2
         }
 
         var arguments: [String] = []
         if index < tokens.count, tokens[index].kind == .symbol(.lParen) {
             index += 1
-            var parenDepth = 1
-            var bracketDepth = 0
-            var braceDepth = 0
-            var currentArg: [String] = []
-            while index < tokens.count, parenDepth > 0 {
+            var depth = BuildASTPhase.BracketDepth()
+            depth.paren = 1
+            var currentArg = ""
+            while index < tokens.count, depth.paren > 0 {
                 let argToken = tokens[index]
-                if argToken.kind == .symbol(.lParen) {
-                    parenDepth += 1
-                    currentArg.append("(")
-                } else if argToken.kind == .symbol(.rParen) {
-                    parenDepth -= 1
-                    if parenDepth == 0 {
-                        let trimmed = currentArg.joined().trimmingCharacters(in: .whitespaces)
-                        if !trimmed.isEmpty {
-                            arguments.append(trimmed)
-                        }
-                    } else {
-                        currentArg.append(")")
-                    }
-                } else if argToken.kind == .symbol(.lBracket) {
-                    bracketDepth += 1
-                    currentArg.append("[")
-                } else if argToken.kind == .symbol(.rBracket) {
-                    bracketDepth = max(0, bracketDepth - 1)
-                    currentArg.append("]")
-                } else if argToken.kind == .symbol(.lBrace) {
-                    braceDepth += 1
-                    currentArg.append("{")
-                } else if argToken.kind == .symbol(.rBrace) {
-                    braceDepth = max(0, braceDepth - 1)
-                    currentArg.append("}")
-                } else if argToken.kind == .symbol(.comma), parenDepth == 1,
-                          bracketDepth == 0, braceDepth == 0
+                if argToken.kind == .symbol(.comma), depth.paren == 1,
+                   depth.bracket == 0, depth.brace == 0
                 {
-                    let trimmed = currentArg.joined().trimmingCharacters(in: .whitespaces)
+                    let trimmed = currentArg.trimmingCharacters(in: .whitespaces)
                     if !trimmed.isEmpty {
                         arguments.append(trimmed)
                     }
-                    currentArg = []
-                } else if let text = tokenText(argToken, interner: interner) {
-                    currentArg.append(text)
+                    currentArg = ""
                 } else {
-                    currentArg.append(tokenRawText(argToken, interner: interner))
+                    depth.track(argToken.kind)
+                    if argToken.kind == .symbol(.rParen), depth.paren == 0 {
+                        let trimmed = currentArg.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty {
+                            arguments.append(trimmed)
+                        }
+                    } else if let text = tokenText(argToken, interner: interner) {
+                        currentArg += text
+                    } else {
+                        currentArg += tokenRawText(argToken, interner: interner)
+                    }
                 }
                 index += 1
             }
@@ -116,12 +88,11 @@ enum AnnotationParsingSupport {
 
         return ParsedAnnotation(
             annotation: AnnotationNode(
-                name: nameParts.joined(separator: "."),
+                name: name,
                 arguments: arguments,
                 useSiteTarget: useSiteTarget
             ),
             nextIndex: index,
-            hadInvalidUseSiteTarget: hadInvalidUseSiteTarget,
             invalidUseSiteTargetRange: invalidUseSiteTargetRange
         )
     }

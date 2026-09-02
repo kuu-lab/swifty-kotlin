@@ -67,19 +67,12 @@ extension KotlinParser {
 
     func isAnnotationUseSiteTarget(_ token: Token) -> Bool {
         switch token.kind {
-        case .softKeyword(.get), .softKeyword(.set), .softKeyword(.field), .softKeyword(.property),
-             .softKeyword(.receiver), .softKeyword(.param), .softKeyword(.setparam),
-             .softKeyword(.delegate), .softKeyword(.file):
-            return true
+        case let .softKeyword(soft):
+            return SoftKeyword.useSiteTargets.contains(soft)
         case let .identifier(id), let .backtickedIdentifier(id):
-            let name = interner.resolve(id)
-            return [
-                "get", "set", "field", "property", "receiver", "param", "setparam", "delegate", "file",
-            ].contains(name)
+            return SoftKeyword.useSiteTargetNames.contains(interner.resolve(id))
         case let .keyword(keyword):
-            return [
-                "get", "set", "field", "property", "receiver", "param", "setparam", "delegate", "file",
-            ].contains(keyword.rawValue)
+            return SoftKeyword.useSiteTargetNames.contains(keyword.rawValue)
         default:
             return false
         }

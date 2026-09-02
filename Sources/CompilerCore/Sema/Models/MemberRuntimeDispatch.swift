@@ -399,7 +399,22 @@ enum MemberRuntimeDispatch {
         if kind.isULongRangeLike {
             return "kk_ulong_range_\(member)"
         }
-        if kind == .uintRange || kind == .uintProgression {
+        if kind == .uintRange {
+            let sourceBacked: Set<String> = [
+                "map", "mapIndexed", "mapNotNull",
+                "filter", "filterIndexed", "filterNot",
+                "forEach",
+                "reduce", "reduceIndexed", "fold", "foldIndexed",
+                "find", "findLast",
+                "first_predicate", "firstOrNull_predicate",
+                "last_predicate", "lastOrNull_predicate",
+                "any", "all", "none",
+            ]
+            if sourceBacked.contains(member) {
+                return nil
+            }
+        }
+        if kind == .uintProgression {
             let sourceBacked: Set<String> = [
                 "map", "mapIndexed", "mapNotNull",
                 "filter", "filterIndexed", "filterNot",
