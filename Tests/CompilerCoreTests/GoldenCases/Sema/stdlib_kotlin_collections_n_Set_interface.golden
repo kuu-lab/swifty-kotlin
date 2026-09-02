@@ -51,7 +51,7 @@ expr e@23:12#1 memberCall recv=e@23:12 callee=contains args=[_:e@23:28] type=Boo
 expr e@23:34 name(values) type=kotlin.collections.Set<Int> ref=golden.sema.inspect.$2.values
 expr e@23:60 int(1) type=Int
 expr e@23:53 call callee=e@23:53#1 args=[_:e@23:60] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf#1 targs=[Int]
-expr e@23:34#1 memberCall recv=e@23:34 callee=containsAll args=[_:e@23:53] type=Boolean call=kotlin.collections.containsAll#1
+expr e@23:34#1 memberCall recv=e@23:34 callee=containsAll args=[_:e@23:53] type=Boolean call=kotlin.collections.containsAll#2
 expr e@23:12#2 binary(logicalAnd) lhs=e@23:12#1 rhs=e@23:34#1 type=Boolean
 expr e@23:67 name(collection) type=kotlin.collections.Collection<Int> ref=golden.sema.inspect.$2.collection
 expr e@23:87 int(1) type=Int
