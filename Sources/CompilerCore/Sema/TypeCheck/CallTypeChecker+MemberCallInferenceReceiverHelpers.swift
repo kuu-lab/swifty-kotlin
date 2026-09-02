@@ -64,6 +64,145 @@ extension CallTypeChecker {
         }
     }
 
+    /// Kotlin prefers the extension whose receiver is the most specific type
+    /// when several bundled source extensions have the same name and arity.
+    /// This matters for the Collection/Iterable pairs that coexist in the
+    /// upstream common stdlib (for example `toMutableList` and `plus`).
+    func preferMostSpecificMemberReceiverCandidates(
+        _ candidates: [SymbolID],
+        receiverType: TypeID,
+        argumentTypes: [TypeID] = [],
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        guard candidates.count > 1 else { return candidates }
+        let actualReceiver = sema.types.makeNonNullable(receiverType)
+        let receiverTypes: [(SymbolID, TypeID)] = candidates.compactMap { candidate in
+            guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType else {
+                return nil
+            }
+            return (candidate, sema.types.makeNonNullable(receiver))
+        }
+        guard receiverTypes.count == candidates.count else { return candidates }
+
+        // Receiver specificity must not hide a viable generic extension behind
+        // a more-specific receiver overload that cannot accept the arguments.
+        // For example, String.contains(String) must keep the CharSequence
+        // overload when the more-specific String overload is contains(Regex).
+        let potentiallyApplicableCandidates: Set<SymbolID> = if argumentTypes.isEmpty {
+            Set(candidates)
+        } else {
+            Set(candidates.filter { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate) else {
+                    return false
+                }
+                guard argumentTypes.count <= signature.parameterTypes.count
+                    || signature.valueParameterIsVararg.contains(true)
+                else {
+                    return false
+                }
+                for (index, argumentType) in argumentTypes.enumerated() {
+                    let parameterIndex: Int
+                    if index < signature.parameterTypes.count {
+                        parameterIndex = index
+                    } else if let varargIndex = signature.valueParameterIsVararg.firstIndex(of: true) {
+                        parameterIndex = varargIndex
+                    } else {
+                        return false
+                    }
+                    let parameterType = signature.parameterTypes[parameterIndex]
+                    let actual = sema.types.makeNonNullable(argumentType)
+                    let expected = sema.types.makeNonNullable(parameterType)
+                    if actual == sema.types.errorType
+                        || expected == sema.types.errorType
+                        || actual == sema.types.anyType
+                        || expected == sema.types.anyType
+                    {
+                        continue
+                    }
+                    if case .typeParam = sema.types.kind(of: actual) {
+                        continue
+                    }
+                    if case .typeParam = sema.types.kind(of: expected) {
+                        continue
+                    }
+                    guard sema.types.isSubtype(actual, expected) else {
+                        return false
+                    }
+                }
+                return true
+            })
+        }
+        let specificityCandidates = potentiallyApplicableCandidates.isEmpty
+            ? Set(candidates)
+            : potentiallyApplicableCandidates
+
+        let collectionFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]
+        let iterableFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        var remainingCandidates = candidates
+        let hasCollectionReceiver = receiverTypes.contains { _, receiver in
+            driver.helpers.nominalSymbol(of: receiver, types: sema.types)
+                .flatMap { sema.symbols.symbol($0)?.fqName } == collectionFQName
+        }
+        if hasCollectionReceiver,
+           let actualNominal = driver.helpers.nominalSymbol(of: actualReceiver, types: sema.types),
+           sema.types.isNominalSubtypeSymbol(
+               actualNominal,
+               of: sema.symbols.lookup(fqName: collectionFQName) ?? actualNominal
+           )
+        {
+            let filtered = remainingCandidates.filter { candidate in
+                guard let receiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                      let nominal = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(nominal)
+                else {
+                    return true
+                }
+                return symbol.fqName != iterableFQName
+            }
+            if !filtered.isEmpty { remainingCandidates = filtered }
+        }
+
+        let actualNominal = driver.helpers.nominalSymbol(of: actualReceiver, types: sema.types)
+        let lessSpecific = Set(receiverTypes.compactMap { candidate, candidateReceiver -> SymbolID? in
+            guard remainingCandidates.contains(candidate), specificityCandidates.contains(candidate) else { return nil }
+            let candidateNominal = driver.helpers.nominalSymbol(of: candidateReceiver, types: sema.types)
+            let hasMoreSpecific = receiverTypes.contains { other, otherReceiver in
+                guard remainingCandidates.contains(other), specificityCandidates.contains(other), candidate != other else { return false }
+                let nominallyMoreSpecific: Bool = if let actualNominal,
+                                                     let candidateNominal,
+                                                     let otherNominal = driver.helpers.nominalSymbol(of: otherReceiver, types: sema.types)
+                {
+                    actualNominal != candidateNominal
+                        && candidateNominal != otherNominal
+                        && sema.types.isNominalSubtypeSymbol(actualNominal, of: otherNominal)
+                        && sema.types.isNominalSubtypeSymbol(otherNominal, of: candidateNominal)
+                } else {
+                    false
+                }
+                if nominallyMoreSpecific { return true }
+                guard candidate != other,
+                      sema.types.isSubtype(actualReceiver, otherReceiver),
+                      sema.types.isSubtype(otherReceiver, candidateReceiver)
+                else {
+                    return false
+                }
+                return !sema.types.isSubtype(candidateReceiver, otherReceiver)
+            }
+            return hasMoreSpecific ? candidate : nil
+        })
+        let filtered = remainingCandidates.filter { !lessSpecific.contains($0) }
+        return filtered.isEmpty ? candidates : filtered
+    }
+
     /// Prefer a source-backed List.unzip() over the generic Iterable.unzip()
     /// when the concrete receiver is a List. Both extensions have the same
     /// callable name and type shape after inference, so receiver nominality
