@@ -9,7 +9,7 @@ symbol fq=__local_7.minOfFloat kind=local vis=private flags=_ type=Float
 symbol fq=__local_8.minOfOrNullComparable kind=local vis=private flags=_ type=Int?
 symbol fq=__local_9.minOfOrNullDouble kind=local vis=private flags=_ type=Double?
 symbol fq=__local_10.minOfOrNullFloat kind=local vis=private flags=_ type=Float?
-symbol fq=__local_11.maxOfOrNullComparable kind=local vis=private flags=_ type=Any?
+symbol fq=__local_11.maxOfOrNullComparable kind=local vis=private flags=_ type=Int?
 symbol fq=__local_12.minOfWith kind=local vis=private flags=_ type=Double
 symbol fq=__local_13.minOfWithOrNull kind=local vis=private flags=_ type=Double?
 symbol fq=__local_14.minOrNullDouble kind=local vis=private flags=_ type=Double?
@@ -28,7 +28,7 @@ symbol fq=kotlin.Comparable kind=interface vis=public flags=_
 symbol fq=kotlin.Comparator kind=interface vis=public flags=funInterface
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=listOwner kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.List<Int>] ret=Unit
 symbol fq=listOwner.$1.values kind=valueParameter vis=private flags=_
@@ -54,14 +54,14 @@ expr e@11:26 name(nullableStrings) type=kotlin.collections.Iterable<String?> ref
 expr e@11:50 name(it) type=String? ref=s-0
 expr e@11:56 string() type=String
 expr e@11:50#1 binary(elvis) lhs=e@11:50 rhs=e@11:56 type=String
-expr e@11:48 lambda params=[] body=e@11:50#1 label=minBy type=(String?) -> Any
+expr e@11:48 lambda params=[] body=e@11:50#1 label=minBy type=(String?) -> String
 expr e@11:26#1 memberCall recv=e@11:26 callee=minBy args=[_:e@11:48] type=String? call=kotlin.collections.minBy#0 targs=[String?,String]
 expr e@11:5 localDecl minBy mutable=0 type=String? init=e@11:26#1 type=Unit ref=__local_3.minBy
 expr e@12:32 name(nullableStrings) type=kotlin.collections.Iterable<String?> ref=exercise.$0.nullableStrings
 expr e@12:62 name(it) type=String? ref=s-1
 expr e@12:68 string() type=String
 expr e@12:62#1 binary(elvis) lhs=e@12:62 rhs=e@12:68 type=String
-expr e@12:60 lambda params=[] body=e@12:62#1 label=minByOrNull type=(String?) -> Any
+expr e@12:60 lambda params=[] body=e@12:62#1 label=minByOrNull type=(String?) -> String
 expr e@12:32#1 memberCall recv=e@12:32 callee=minByOrNull args=[_:e@12:60] type=String? call=kotlin.collections.minByOrNull#0 targs=[String?,String]
 expr e@12:5 localDecl minByOrNull mutable=0 type=String? init=e@12:32#1 type=Unit ref=__local_4.minByOrNull
 expr e@13:32 name(ints) type=kotlin.collections.Iterable<Int> ref=exercise.$0.ints
@@ -101,20 +101,20 @@ expr e@18:5 localDecl minOfOrNullFloat mutable=0 type=Float? init=e@18:36#1 type
 expr e@19:33 name(ints) type=kotlin.collections.Iterable<Int> ref=exercise.$0.ints
 expr e@19:52 name(it) type=Int ref=s-8
 expr e@19:50 lambda params=[] body=e@19:52 label=maxOfOrNull type=(Int) -> Any
-expr e@19:33#1 memberCall recv=e@19:33 callee=maxOfOrNull args=[_:e@19:50] type=Any?
+expr e@19:33#1 memberCall recv=e@19:33 callee=maxOfOrNull args=[_:e@19:50] type=Int? call=kotlin.collections.maxOfOrNull#2 targs=[Int,Int]
 expr e@19:5 localDecl maxOfOrNullComparable mutable=0 type=_ init=e@19:33#1 type=Unit ref=__local_11.maxOfOrNullComparable
 expr e@20:29 name(ints) type=kotlin.collections.Iterable<Int> ref=exercise.$0.ints
 expr e@20:44 name(comparator) type=kotlin.Comparator<kotlin.Number> ref=exercise.$0.comparator
 expr e@20:58 name(it) type=Int ref=s-9
 expr e@20:58#1 memberCall recv=e@20:58 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
-expr e@20:56 lambda params=[] body=e@20:58#1 label=minOfWith type=(Int) -> Any
+expr e@20:56 lambda params=[] body=e@20:58#1 label=minOfWith type=(Int) -> Double
 expr e@20:29#1 memberCall recv=e@20:29 callee=minOfWith args=[_:e@20:44,_:e@20:56] type=Double call=kotlin.collections.minOfWith#0 targs=[Int,Double]
 expr e@20:5 localDecl minOfWith mutable=0 type=Double init=e@20:29#1 type=Unit ref=__local_12.minOfWith
 expr e@21:36 name(ints) type=kotlin.collections.Iterable<Int> ref=exercise.$0.ints
 expr e@21:57 name(comparator) type=kotlin.Comparator<kotlin.Number> ref=exercise.$0.comparator
 expr e@21:71 name(it) type=Int ref=s-10
 expr e@21:71#1 memberCall recv=e@21:71 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
-expr e@21:69 lambda params=[] body=e@21:71#1 label=minOfWithOrNull type=(Int) -> Any
+expr e@21:69 lambda params=[] body=e@21:71#1 label=minOfWithOrNull type=(Int) -> Double
 expr e@21:36#1 memberCall recv=e@21:36 callee=minOfWithOrNull args=[_:e@21:57,_:e@21:69] type=Double? call=kotlin.collections.minOfWithOrNull#0 targs=[Int,Double]
 expr e@21:5 localDecl minOfWithOrNull mutable=0 type=Double? init=e@21:36#1 type=Unit ref=__local_13.minOfWithOrNull
 expr e@22:36 name(doubles) type=kotlin.collections.Iterable<Double> ref=exercise.$0.doubles
@@ -156,7 +156,7 @@ expr e@36:13 name(minOfOrNullDouble) type=Double? ref=__local_9.minOfOrNullDoubl
 expr e@36:5 call callee=e@36:5#1 args=[_:e@36:13] type=Unit call=kotlin.io.println#1
 expr e@37:13 name(minOfOrNullFloat) type=Float? ref=__local_10.minOfOrNullFloat
 expr e@37:5 call callee=e@37:5#1 args=[_:e@37:13] type=Unit call=kotlin.io.println#1
-expr e@38:13 name(maxOfOrNullComparable) type=Any? ref=__local_11.maxOfOrNullComparable
+expr e@38:13 name(maxOfOrNullComparable) type=Int? ref=__local_11.maxOfOrNullComparable
 expr e@38:5 call callee=e@38:5#1 args=[_:e@38:13] type=Unit call=kotlin.io.println#1
 expr e@39:13 name(minOfWith) type=Double ref=__local_12.minOfWith
 expr e@39:5 call callee=e@39:5#1 args=[_:e@39:13] type=Unit call=kotlin.io.println#1
@@ -178,7 +178,7 @@ expr e@49:5 call callee=e@49:5#1 args=[_:e@49:13#1] type=Unit call=kotlin.io.pri
 expr e@50:39 name(values) type=kotlin.collections.List<Int> ref=listOwner.$1.values
 expr e@50:60 name(it) type=Int ref=s-11
 expr e@50:58 lambda params=[] body=e@50:60 label=maxOfOrNull type=(Int) -> Any
-expr e@50:39#1 memberCall recv=e@50:39 callee=maxOfOrNull args=[_:e@50:58] type=Int? call=kotlin.collections.maxOfOrNull#0 targs=[Int,Int]
+expr e@50:39#1 memberCall recv=e@50:39 callee=maxOfOrNull args=[_:e@50:58] type=Int? call=kotlin.collections.maxOfOrNull#3 targs=[Int,Int]
 expr e@50:5 localDecl maxOfOrNullComparable mutable=0 type=Int? init=e@50:39#1 type=Unit ref=__local_19.maxOfOrNullComparable
 expr e@51:13 name(maxOfOrNullComparable) type=Int? ref=__local_19.maxOfOrNullComparable
 expr e@51:5 call callee=e@51:5#1 args=[_:e@51:13] type=Unit call=kotlin.io.println#1
