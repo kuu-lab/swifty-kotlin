@@ -328,7 +328,7 @@ extension BuildKIRRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
             let expectedNames: Set<String> = [
-                "kk_range_iterator",
+                "kk_iterable_iterator",
                 "kk_iterator_hasNext",
                 "kk_iterator_next",
             ]

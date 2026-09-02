@@ -632,7 +632,9 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iterableInterfaceSymbol, for: iterFnSymbol)
-            symbols.setExternalLinkName("kk_range_iterator", for: iterFnSymbol)
+            // KSP-998: Explicit Iterable.iterator() calls must preserve the
+            // source iterator's thrown channel and remain lazy.
+            symbols.setExternalLinkName("kk_iterable_iterator", for: iterFnSymbol)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [],
                 returnType: iteratorReturnType,

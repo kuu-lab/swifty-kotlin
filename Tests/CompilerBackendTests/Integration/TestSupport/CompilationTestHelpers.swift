@@ -29,7 +29,12 @@ func makeTestOptions(
         inputs: inputs,
         outputPath: outputPath,
         emit: emit,
-        target: defaultTargetTriple()
+        target: defaultTargetTriple(),
+        // Matches the makeCompilationContext default in Pipeline.swift: Backend
+        // tests link the precompiled stdlib artifact rather than compiling
+        // bundled Kotlin sources. Stated explicitly rather than left to
+        // CompilerOptions' own default so the choice isn't silently implicit.
+        allowDefaultStdlibLibrary: true
     )
 }
 

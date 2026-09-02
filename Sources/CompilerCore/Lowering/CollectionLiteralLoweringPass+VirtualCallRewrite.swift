@@ -289,7 +289,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
         // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
 
-        // toTypedArray() on array → kk_array_copyOf (result is Array)
+        // toTypedArray() on array → __kk_array_copyOf (result is Array)
         if callee == lookup.toTypedArrayName, arguments.isEmpty, arrayExprIDs.contains(receiver.rawValue) {
             let toArrayResult = module.arena.appendTemporary(type: nil
             )
