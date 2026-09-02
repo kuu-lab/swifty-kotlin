@@ -13,7 +13,7 @@ symbol fq=kotlin.collections.ListIterator.hasNext kind=function vis=public flags
 symbol fq=kotlin.collections.ListIterator.hasPrevious kind=function vis=public flags=synthetic sig=recv=kotlin.collections.ListIterator<out kotlin.collections.ListIterator.T> params=[] ret=Boolean type=() -> Boolean
 symbol fq=kotlin.collections.ListIterator.next kind=function vis=public flags=synthetic sig=recv=kotlin.collections.ListIterator<out kotlin.collections.ListIterator.T> params=[] ret=kotlin.collections.ListIterator.T type=() -> kotlin.collections.ListIterator.T
 symbol fq=kotlin.collections.ListIterator.previous kind=function vis=public flags=synthetic sig=recv=kotlin.collections.ListIterator<out kotlin.collections.ListIterator.T> params=[] ret=kotlin.collections.ListIterator.T type=() -> kotlin.collections.ListIterator.T
-symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableListIterator kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableListIterator.T kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableListIterator.add kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableListIterator<kotlin.collections.MutableListIterator.T> params=[kotlin.collections.MutableListIterator.T] ret=Unit
