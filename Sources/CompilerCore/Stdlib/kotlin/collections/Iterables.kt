@@ -103,12 +103,13 @@ public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     return result
 }
 
-public fun <T> Iterable<T>.toHashSet(): MutableSet<T> {
+public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
     return result
 }
 
+@IgnorableReturnValue
 public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination: C): C {
     for (element in this) destination.add(element)
     return destination
@@ -243,6 +244,30 @@ public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
         while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
     }
     return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Iterable<Pair<K, V>>.toMap(): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (pair in this) result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V, M : MutableMap<in K, in V>> Iterable<Pair<K, V>>.toMap(destination: M): M {
+    // The bundled MutableMap stub exposes invariant operator parameters; the
+    // official contravariant API permits every K/V write to this destination.
+    val typedDestination = destination as MutableMap<K, V>
+    for (pair in this) typedDestination[pair.first] = pair.second
+    return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T> Iterable<T>.toSet(): Set<T> {
+    val result = mutableSetOf<T>()
+    for (element in this) result.add(element)
+    return result as Set<T>
 }
 
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
@@ -409,6 +434,93 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+// KSP-971: remaining Iterable filter-family APIs use bundled Kotlin source
+// bodies so custom and one-shot Iterable receivers follow the same iteration
+// and destination semantics as the Kotlin standard library.
+public inline fun <T> Iterable<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterIndexedTo(
+    destination: C,
+    predicate: (Int, T) -> Boolean
+): C {
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) destination.add(element)
+        index++
+    }
+    return destination
+}
+
+public inline fun <reified R> Iterable<*>.filterIsInstance(): List<R> {
+    val destination = mutableListOf<R>()
+    for (element in this) {
+        if (element is R) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <reified R, C : MutableCollection<in R>> Iterable<*>.filterIsInstanceTo(
+    destination: C
+): C {
+    for (element in this) {
+        if (element is R) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T> Iterable<T>.filterNot(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) result.add(element)
+    }
+    return result
+}
+
+public fun <T : Any> Iterable<T?>.filterNotNull(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
+
+public fun <C : MutableCollection<in T>, T : Any> Iterable<T?>.filterNotNullTo(
+    destination: C
+): C {
+    for (element in this) {
+        if (element != null) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterNotTo(
+    destination: C,
+    predicate: (T) -> Boolean
+): C {
+    for (element in this) {
+        if (!predicate(element)) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterTo(
+    destination: C,
+    predicate: (T) -> Boolean
+): C {
+    for (element in this) {
+        if (predicate(element)) destination.add(element)
+    }
+    return destination
+}
+
 public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
     val first = ArrayList<T>()
     val second = ArrayList<T>()
@@ -445,7 +557,6 @@ public inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> 
     }
     return result
 }
-
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
     val iterator = iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")

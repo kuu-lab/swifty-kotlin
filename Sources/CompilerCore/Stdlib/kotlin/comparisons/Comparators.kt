@@ -246,3 +246,21 @@ public fun <T> Comparator<T>.thenComparator(comparison: (T, T) -> Int): Comparat
         if (r != 0) r else comparison(a, b)
     }
 }
+
+// --- Comparator<T>.then / thenDescending ------------------------------------
+
+public infix fun <T> Comparator<T>.then(comparator: Comparator<in T>): Comparator<T> {
+    val self = this
+    return Comparator { a, b ->
+        val r = self.compare(a, b)
+        if (r != 0) r else comparator.compare(a, b)
+    }
+}
+
+public infix fun <T> Comparator<T>.thenDescending(comparator: Comparator<in T>): Comparator<T> {
+    val self = this
+    return Comparator<T> { a, b ->
+        val r = self.compare(a, b)
+        if (r != 0) r else comparator.compare(b, a)
+    }
+}

@@ -288,6 +288,53 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Restore the shared MutableIterable residual edge after a bundled
+    /// MutableList source declaration is bound. The source declaration owns
+    /// List/MutableCollection, while the compiler shell still owns the
+    /// residual iterator/mutation surface and its direct compatibility edge.
+    func patchSourceBackedMutableListSupertypes(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let collectionsPackage = [interner.intern("kotlin"), interner.intern("collections")]
+        let mutableListName = interner.intern("MutableList")
+        let mutableIterableName = interner.intern("MutableIterable")
+        guard let mutableListSymbol = symbols.lookup(fqName: collectionsPackage + [mutableListName]),
+              let mutableListInfo = symbols.symbol(mutableListSymbol),
+              !mutableListInfo.flags.contains(.synthetic),
+              let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName]),
+              let typeParameter = types.nominalTypeParameterSymbols(for: mutableListSymbol).first
+        else {
+            return
+        }
+
+        let directSupertypes = symbols.directSupertypes(for: mutableListSymbol)
+        guard !directSupertypes.contains(mutableIterableSymbol) else {
+            return
+        }
+        let patchedSupertypes = Array(Set(directSupertypes + [mutableIterableSymbol]))
+            .sorted(by: { $0.rawValue < $1.rawValue })
+        symbols.setDirectSupertypes(patchedSupertypes, for: mutableListSymbol)
+        types.setNominalDirectSupertypes(patchedSupertypes, for: mutableListSymbol)
+
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameter,
+            nullability: .nonNull
+        )))
+        let mutableIterableTypeArgs: [TypeArg] = [.invariant(typeParameterType)]
+        symbols.setSupertypeTypeArgs(
+            mutableIterableTypeArgs,
+            for: mutableListSymbol,
+            supertype: mutableIterableSymbol
+        )
+        types.setNominalSupertypeTypeArgs(
+            mutableIterableTypeArgs,
+            for: mutableListSymbol,
+            supertype: mutableIterableSymbol
+        )
+    }
+
     /// Register `kotlin.collections.AbstractMutableList<E>` surface (STDLIB-COL-ABSTRACT-006).
     func registerSyntheticAbstractMutableListStub(
         symbols: SymbolTable,

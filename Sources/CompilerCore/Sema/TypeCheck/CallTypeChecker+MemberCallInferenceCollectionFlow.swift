@@ -150,7 +150,6 @@ extension CallTypeChecker {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
         }
         let calleeStr = interner.resolve(calleeName)
-
         // KSP-983: a nominal Iterable receiver must use the exact bundled
         // Iterable max-family declarations. Let regular overload resolution
         // select the Comparable/Float/Double and lambda-return overloads;
@@ -169,9 +168,14 @@ extension CallTypeChecker {
         {
             return nil
         }
-        let isCollectionHOF = activeCollectionHOFNames.contains(calleeStr)
+        let isIterableFilterFamilyHOF = [
+            "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance", "filterIsInstanceTo",
+            "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+        ].contains(calleeStr)
+        let isCollectionHOF = (activeCollectionHOFNames.contains(calleeStr) || isIterableFilterFamilyHOF)
             && (isCollectionReceiver
                 || isSequenceReceiver
+                || (isIterableFilterFamilyHOF && isIterableReceiver)
                 || (calleeStr == "asSequence" && isIterableReceiver)
                 || ((calleeStr == "runningReduce" || calleeStr == "runningReduceIndexed") && isIterableReceiver))
             && !(calleeStr == "binarySearch"
@@ -390,7 +394,8 @@ extension CallTypeChecker {
                   || (isIterableReceiver && (calleeStr == "drop"
                       || calleeStr == "dropWhile"
                       || calleeStr == "runningReduce"
-                      || calleeStr == "runningReduceIndexed"))
+                      || calleeStr == "runningReduceIndexed"
+                      || isIterableFilterFamilyHOF))
             else {
                 return false
             }
@@ -1367,7 +1372,7 @@ extension CallTypeChecker {
         // filterIsInstance<R>() — reified type parameter, returns List<R> or Sequence<R>
         if interner.resolve(calleeName) == "filterIsInstance",
            args.isEmpty,
-           isCollectionReceiver || isSequenceReceiver
+           isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let filterType = explicitTypeArgs.first ?? sema.types.anyType
             let receiverElementType = resolvedCollectionElementType(
@@ -1402,8 +1407,10 @@ extension CallTypeChecker {
                         typeArguments: [filterType],
                         parameterMapping: [:]
                     )
-                } else {
+                } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
                     bindBundledListSourceFunction(typeArguments: [filterType], parameterMapping: [:])
+                } else {
+                    bindBundledIterableSourceFunction(typeArguments: [filterType])
                 }
                 let ownerFQName = isSequenceReceiver
                     ? [interner.intern("kotlin"), interner.intern("sequences")]
@@ -1454,7 +1461,7 @@ extension CallTypeChecker {
 
         if interner.resolve(calleeName) == "filterIsInstanceTo",
            args.count == 1,
-           isCollectionReceiver || isSequenceReceiver
+           isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
@@ -1473,10 +1480,14 @@ extension CallTypeChecker {
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
                 )
-            } else {
+            } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
                 bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
+                )
+            } else {
+                _ = bindBundledIterableSourceFunction(
+                    typeArguments: [destinationElementType, nonNullableDestinationType]
                 )
             }
             sema.bindings.markCollectionExpr(id)
@@ -1488,7 +1499,7 @@ extension CallTypeChecker {
         // filterNotNull() — bundled Kotlin source implementation with sequence runtime fallback.
         if interner.resolve(calleeName) == "filterNotNull",
            args.isEmpty,
-           isCollectionReceiver || isSequenceReceiver
+           isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let receiverElementType = resolvedCollectionElementType(
                 receiverID: receiverID,
@@ -1540,8 +1551,10 @@ extension CallTypeChecker {
                     ))
                     sema.bindings.bindCallableTarget(id, target: .symbol(chosenCallee))
                 }
+            } else if receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver {
+                _ = bindBundledListSourceFunction(typeArguments: [resultElementType])
             } else {
-                bindBundledListSourceFunction(typeArguments: [resultElementType])
+                _ = bindBundledIterableSourceFunction(typeArguments: [resultElementType])
             }
             sema.bindings.markCollectionExpr(id)
             let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
@@ -1552,7 +1565,7 @@ extension CallTypeChecker {
         // filterNotNullTo(destination) — no lambda, returns destination type (STDLIB-SEQ-021)
         if interner.resolve(calleeName) == "filterNotNullTo",
            args.count == 1,
-           isCollectionReceiver || isSequenceReceiver
+           isCollectionReceiver || isIterableReceiver || isSequenceReceiver
         {
             let destinationType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
             let nonNullableDestinationType = sema.types.makeNonNullable(destinationType)
@@ -1566,10 +1579,16 @@ extension CallTypeChecker {
             } else {
                 sema.types.anyType
             }
-            if !isSequenceReceiver {
+            if !isSequenceReceiver,
+               receiverClassifier.isConcreteListLikeType(receiverType) || isListFactoryReceiver
+            {
                 bindBundledListSourceFunction(
                     typeArguments: [destinationElementType, nonNullableDestinationType],
                     parameterMapping: [0: 0]
+                )
+            } else if !isSequenceReceiver {
+                _ = bindBundledIterableSourceFunction(
+                    typeArguments: [destinationElementType, nonNullableDestinationType]
                 )
             } else {
                 _ = bindBundledSequenceDestinationSourceFunction(
@@ -2000,9 +2019,19 @@ extension CallTypeChecker {
                 if ["filterTo", "filterNotTo", "filterIndexedTo"].contains(calleeStr),
                    !isSequenceReceiver
                 {
-                    bindBundledListSourceFunction(
+                    let didBindListSource = bindBundledListSourceFunction(
                         typeArguments: [collectionElementType, nonNullableDestinationType]
                     )
+                    let didBindIterableSource = !didBindListSource && isIterableReceiver
+                        && bindBundledIterableSourceFunction(
+                            typeArguments: [collectionElementType, nonNullableDestinationType]
+                        )
+                    if didBindListSource || didBindIterableSource,
+                       let lambdaExpr = ast.arena.expr(args[1].expr),
+                       lambdaExpr.isLambdaOrCallableRef
+                    {
+                        sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
+                    }
                 }
                 if ["mapTo", "mapNotNullTo", "flatMapTo", "mapIndexedTo", "mapIndexedNotNullTo", "flatMapIndexedTo"].contains(calleeStr),
                    !isSequenceReceiver,
@@ -4694,7 +4723,25 @@ extension CallTypeChecker {
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
             }
 
-            if !didBindListFilterSource, calleeStr == "filterIndexed", isCollectionReceiver {
+            let didBindIterableFilterSource = sourceBackedListFilterNames.contains(calleeStr)
+                && args.count == 1
+                && !didBindListFilterSource
+                && isIterableReceiver
+                && (!isSetReceiver || calleeStr == "filterIndexed")
+                && bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+            if didBindIterableFilterSource,
+               let lambdaExpr = ast.arena.expr(args[0].expr),
+               lambdaExpr.isLambdaOrCallableRef
+            {
+                sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+            }
+
+            if !didBindListFilterSource,
+               !didBindIterableFilterSource,
+               sema.bindings.callBindings[id] == nil,
+               calleeStr == "filterIndexed",
+               isCollectionReceiver
+            {
                 let knownNames = KnownCompilerNames(interner: interner)
                 let memberFQName = knownNames.kotlinCollectionsListFQName + [calleeName]
                 if let chosenCallee = sema.symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
