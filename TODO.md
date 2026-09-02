@@ -1291,13 +1291,14 @@
     - `kotlin.collections.filterNotTo` — fun Map.filterNotTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/filterNotTo(#C, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin/Boolean>): #C`
     - `kotlin.collections.filterTo` — fun Map.filterTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/filterTo(#C, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin/Boolean>): #C`
 
-- [ ] KSP-1008: kotlin.collections.Map.flat-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1008: kotlin.collections.Map.flat-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `flat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Map_flat.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Map_flat.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Map_flat.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `MapHOF.kt` に `Map<out K, V>`、`C : MutableCollection<in R>`、Iterable/Sequence return の2 overloadを公式注釈付きでsource-backed化。Map専用の単一shape fast pathを通常overload解決へ分離し、指定Golden/diffで型選択、destination identity、順序、empty/nullable、one-shot、transform回数、例外中断を固定。
   - 未実装シンボル一覧:
     - `kotlin.collections.flatMapTo` — fun Map.flatMapTo(, Function1): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableCollection<in #C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/flatMapTo(#D, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin.collections/Iterable<#C>>): #D`
     - `kotlin.collections.flatMapTo` — fun Map.flatMapTo(, Function1): #D  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin/Any?, #D: kotlin.collections/MutableCollection<in #C>> (kotlin.collections/Map<out #A, #B>).kotlin.collections/flatMapTo(#D, kotlin/Function1<kotlin.collections/Map.Entry<#A, #B>, kotlin.sequences/Sequence<#C>>): #D`
