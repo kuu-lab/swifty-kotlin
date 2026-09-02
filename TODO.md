@@ -3744,7 +3744,7 @@
     - `kotlin.collections.toMap` — fun Sequence.toMap(): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.toMap` — fun Sequence.toMap(): #C  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.sequences/Sequence<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(#C): #C`
 
-- [ ] KSP-1024: kotlin.collections.Set の未実装 stdlib API を実装する（11 件）
+- [x] KSP-1024: kotlin.collections.Set の未実装 stdlib API を実装する（11 件）
   - 対象: `kotlin.collections` / receiver `Set`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/SetHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
