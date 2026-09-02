@@ -1010,14 +1010,32 @@ extension CallLowerer {
                 guard calleeStr == "isNullOrEmpty",
                       let chosenCallee = chosenCalleeForArgumentAdaptation,
                       let symbol = sema.symbols.symbol(chosenCallee),
-                      sema.symbols.isSourceBackedSymbol(chosenCallee)
+                      sema.symbols.isSourceBackedSymbol(chosenCallee),
+                      symbol.fqName == [
+                          interner.intern("kotlin"),
+                          interner.intern("collections"),
+                          calleeName,
+                      ]
                 else {
                     return false
                 }
-                return symbol.fqName == [
+                // `kotlin.collections.isNullOrEmpty` is overloaded per receiver
+                // (Collection, Map, ...); the bare package+name FQN above can't
+                // tell those apart since extension receivers aren't part of it.
+                // Map's own isNullOrEmpty is also source-backed and must keep
+                // calling through its Kotlin declaration (which owns the
+                // private kk_map_is_empty helper), so only take the
+                // runtime-bridge fast path when the chosen overload's own
+                // receiver is actually Collection<T>.
+                guard let signatureReceiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiverType, sema: sema)
+                else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
                     interner.intern("kotlin"),
                     interner.intern("collections"),
-                    calleeName,
+                    interner.intern("Collection"),
                 ]
             }()
             if calleeStr == "isNullOrEmpty",
