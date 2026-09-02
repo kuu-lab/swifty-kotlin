@@ -3434,7 +3434,7 @@
   - 実装根拠: Kotlin 2.3.10 公式 `_Maps.kt` は `Map<out K, V>.any()`（非 inline、`!isEmpty()`）。現行 master に Map `isEmpty()` source surface がなく、そのままでは `_isEmpty` が未定義になるため、既存の `kk_map_size` count kernel を private source alias から参照して同じ semantics を実現した。新しい no-arg synthetic/runtime/ABI/lowering 経路は追加せず、predicate overload の `kk_map_any` 経路は保持した。
   - 回帰: `stdlib_kotlin_collections_Map_any` の Sema Golden/diff、空 Map・非空 Map・nullable key/value・predicate overload の focused Backend integration test を追加。
 
-- [ ] KSP-1003: kotlin.collections.Map.as-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1003: kotlin.collections.Map.as-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Map` / family `as`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
