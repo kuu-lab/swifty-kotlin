@@ -24,7 +24,6 @@ symbol fq=kotlin.collections.MutableCollection.E kind=typeParameter vis=private 
 symbol fq=kotlin.collections.MutableCollection.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableCollection<kotlin.collections.MutableCollection.E> params=[kotlin.collections.MutableCollection.E] ret=Boolean
 symbol fq=kotlin.collections.MutableCollection.remove.element kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
-symbol fq=kotlin.random.Random#0 kind=class vis=public flags=abstractType|openType
 file fstdlib_kotlin_collections_MutableList_n package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@5:51 int(1) type=Int

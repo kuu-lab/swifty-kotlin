@@ -509,6 +509,10 @@ extension NativeEmitter {
                 return nullability != .nonNull
             case let .classType(classType):
                 return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+            case .unit:
+                // Safe calls returning Unit use the Int64.min sentinel for
+                // null, while the valid Unit value is raw zero.
+                return true
             default:
                 return false
             }
