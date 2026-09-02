@@ -3062,7 +3062,6 @@
     - `kotlin.native.ObjCName.swiftName` — val ObjCName.swiftName: String  -- `final val swiftName`
 
 - [x] KSP-1210: kotlin.native.OsFamily.OsFamily の stdlib enum API を実装・検証する（3 件）
-- [x] KSP-1210: kotlin.native.OsFamily.OsFamily の stdlib enum API を実装・検証する（3 件）
   - 対象: `kotlin.native.OsFamily` / receiver `OsFamily`
   - 実装: `Sources/CompilerCore/Stdlib/kotlin/native/OsFamily/OsFamily.kt` に Kotlin 2.3.10 の source order と `ExperimentalNativeApi` を追加。`HeaderCollection` / `Phase` が source-backed nominal を先行登録し、既存の `Platform.osFamily` runtime/ABI bridge を保持した。
   - bridge/stub 整理: `HeaderHelpers+SyntheticTODOAndIOStubs.swift` は source-backed `OsFamily` を優先し、fallback と runtime ordinal を Kotlin の source order に整合。共有 enum synthesis の consumer KIR nominal 再掲を KSP-1210 専用回帰で固定した。
