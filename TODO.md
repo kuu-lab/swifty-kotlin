@@ -3290,7 +3290,7 @@
     - `kotlin.collections.sortedDescending` — fun Iterable.sortedDescending(): List  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.collections/Iterable<#A>).kotlin.collections/sortedDescending(): kotlin.collections/List<#A>`
     - `kotlin.collections.sortedWith` — fun Iterable.sortedWith(Comparator): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/sortedWith(kotlin/Comparator<in #A>): kotlin.collections/List<#A>`
 
-- [ ] KSP-994: kotlin.collections.Iterable.sum-family の未実装 stdlib API を実装する（15 件）
+- [x] KSP-994: kotlin.collections.Iterable.sum-family の未実装 stdlib API を実装する（15 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `sum`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ListCollectionOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3313,6 +3313,7 @@
     - `kotlin.collections.sumOf` — fun Iterable.sumOf(Function1): Long  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/sumOf(kotlin/Function1<#A, kotlin/Long>): kotlin/Long`
     - `kotlin.collections.sumOf` — fun Iterable.sumOf(Function1): UInt  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/sumOf(kotlin/Function1<#A, kotlin/UInt>): kotlin/UInt`
     - `kotlin.collections.sumOf` — fun Iterable.sumOf(Function1): ULong  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/sumOf(kotlin/Function1<#A, kotlin/ULong>): kotlin/ULong`
+  - 完了根拠: PR #6198（commit `da9bd09d4`）で15 overloadをsource-backed化。Sema source provenance/overload、Golden shard 34/50、source-backed Backend、Kotlin 2.3.10/JDK21 exact diff、List/Sequence/Range focused非回帰がPASS。
 
 - [x] KSP-995: kotlin.collections.Iterable.take-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `take`
