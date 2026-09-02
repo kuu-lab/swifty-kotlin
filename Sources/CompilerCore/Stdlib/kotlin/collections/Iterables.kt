@@ -434,6 +434,21 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
     return result
 }
 
+public inline fun <T> Iterable<T>.find(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+public inline fun <T> Iterable<T>.findLast(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
 // KSP-971: remaining Iterable filter-family APIs use bundled Kotlin source
 // bodies so custom and one-shot Iterable receivers follow the same iteration
 // and destination semantics as the Kotlin standard library.

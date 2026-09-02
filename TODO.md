@@ -1099,7 +1099,7 @@
     - `kotlin.collections.elementAtOrElse` — fun Iterable.elementAtOrElse(Int, Function1): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, #A>): #A`
     - `kotlin.collections.elementAtOrNull` — fun Iterable.elementAtOrNull(Int): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/elementAtOrNull(kotlin/Int): #A?`
 
-- [ ] KSP-972: kotlin.collections.Iterable.find-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-972: kotlin.collections.Iterable.find-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `find`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1109,6 +1109,9 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.find` — fun Iterable.find(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/find(kotlin/Function1<#A, kotlin/Boolean>): #A?`
     - `kotlin.collections.findLast` — fun Iterable.findLast(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/findLast(kotlin/Function1<#A, kotlin/Boolean>): #A?`
+
+  - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` に本家準拠の `public inline` `Iterable<T>.find` / `findLast` を追加した。`find` は最初の match で short-circuit し、`findLast` は iterator を最後まで走査して最後の match を返す。対象の `kk_*` / `__kk_*` Runtime、synthetic stub、RuntimeABI、CallTypeChecker/CallLowerer の対象専用 bridge は現行 master に存在せず、共有の List/Sequence/Range 経路は変更していない。
+  - 回帰: `stdlib_kotlin_collections_Iterable_find.golden` で Iterable/nullable/List の exact overload と戻り値型を固定し、`stdlib_kotlin_collections_Iterable_find.kt` で custom one-shot Iterable、順序、predicate 評価回数、nullable match/no-match、empty/no-match、predicate 例外中断を kotlinc と比較する。
 
 - [ ] KSP-975: kotlin.collections.Iterable.flatten-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `flatten`
