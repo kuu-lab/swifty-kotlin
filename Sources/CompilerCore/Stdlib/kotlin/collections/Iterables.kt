@@ -103,12 +103,13 @@ public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     return result
 }
 
-public fun <T> Iterable<T>.toHashSet(): MutableSet<T> {
+public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
     return result
 }
 
+@IgnorableReturnValue
 public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination: C): C {
     for (element in this) destination.add(element)
     return destination
@@ -243,6 +244,30 @@ public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
         while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
     }
     return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Iterable<Pair<K, V>>.toMap(): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (pair in this) result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V, M : MutableMap<in K, in V>> Iterable<Pair<K, V>>.toMap(destination: M): M {
+    // The bundled MutableMap stub exposes invariant operator parameters; the
+    // official contravariant API permits every K/V write to this destination.
+    val typedDestination = destination as MutableMap<K, V>
+    for (pair in this) typedDestination[pair.first] = pair.second
+    return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T> Iterable<T>.toSet(): Set<T> {
+    val result = mutableSetOf<T>()
+    for (element in this) result.add(element)
+    return result as Set<T>
 }
 
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()

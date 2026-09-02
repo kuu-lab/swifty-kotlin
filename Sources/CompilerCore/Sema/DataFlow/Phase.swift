@@ -50,6 +50,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
+        // extension bridges need the source symbol before synthetic
+        // registration constructs their signatures.
+        predeclareBundledStringEncodingHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1522: bundled collection and interop headers refer to the
         // source-backed Random types while synthetic members are registered.
         // Forward-declare those real nominal headers before the synthetic pass

@@ -311,13 +311,15 @@
   - diff: `string_builder_*.kt` 既存 + `Appendable`/`CharSequence` supertype ケース
   - 前提: KSP-711, KSP-717
 
-- [ ] KSP-711: StringRegistrationHelpers (`String` constructors / Appendable / CharSequence / typography constants) を Kotlin 化し `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` を削除する
+- [x] KSP-711: StringRegistrationHelpers (`String` constructors / Appendable / CharSequence / typography constants) を Kotlin 化し `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringRegistrationHelpers.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/` 新設 `Appendable.kt`/`CharSequence.kt`/`StringConstructors.kt`/`Typography.kt`（`StringBuilder.kt`/`String*.kt` 既存と統合）
-  - 削除/降格 kk_*: `kk_string_from_*`, `kk_char_*_typography` 等 public ブリッジ（`RuntimeString*.swift`。着手時 `rg 'kk_string_from_|kk_char.*typography|kk_string_constructor' Sources/Runtime`）
+  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/` の `Appendable.kt`/既存 `CharSequence.kt`/新設 `StringConstructors.kt`/`Typography.kt`（`StringBuilder.kt`/`String*.kt` 既存と接続）
+  - 完了（2026-08-23）: Appendable、String の ByteArray/Charset constructor、Typography の全定数を source-backed 化。CharSequence は既存 source を利用し、String の compiler/runtime nominal shell と共有 `kk_string_from_utf8`/`kk_string_from_flat` allocation 経路は保持。対象 helper を削除し、残存する専用 runtime bridges は `__kk_*` の source external link として保持。StringBuilder への Appendable 接続のみを追加し、KSP-710 の公開 supertypes 移行は未実施。
+  - 削除/降格 kk_*: KSP-711 所有の synthetic constructor/Typography/Appendable 登録を削除。共有 `kk_string_from_*` と `__kk_string_builder_append_*` は実利用のため保持
   - 手順: T
-  - diff: `string_constructors.kt` 新規 + `string_*.kt` 既存
+  - diff: `string_constructors.kt`/`appendable_append_overloads.kt` 新規 + `string_*.kt` 既存
   - 前提: なし（KSP-406/407/408/409/410/411 完了後に実施）
+  - 検証: Sema source/link inventory、String constructor/Appendable/Typography 回帰、StringBuilder edge 13件、encoding edge 3件、関連 Golden 8件、`diff_kotlinc` 4件、Runtime ABI 4件、`check_todo_ids.sh`、`git diff --check` が pass
 
 - [x] KSP-712: Instant / Clock / ExperimentalTime を Kotlin 化し stub 群を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticInstantStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticClockStubs.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticExperimentalTimeStubs.swift`
@@ -2798,14 +2800,15 @@
     - `kotlin.collections.throwIndexOverflow` — fun throwIndexOverflow(): Unit  -- `final fun kotlin.collections/throwIndexOverflow()`
   - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/throw.kt` に本家同等の `@PublishedApi` / `@SinceKotlin("1.3")` / `internal` source-backed 実装を追加し、両関数が常に `ArithmeticException` と本家同一メッセージを投げることを固定。ブロック本体で明示戻り値なしの本家契約は `Unit`（`Nothing` ではない）。focused Sema 回帰で非synthetic・非RuntimeABI・bundled source path・visibility・`Unit` を確認し、Sema Golden と direct kswiftc/kotlinc parity を通過。internal API のため通常 consumer diff は不可視であり、diff case は `SKIP-DIFF` として同一 package の direct 実行を別途確認。
 
-- [ ] KSP-960: kotlin.collections.Collection の未実装 stdlib API を実装する（27 件）
+- [x] KSP-960: kotlin.collections.Collection の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.collections` / receiver `Collection`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Collections.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_Collection_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_Collection_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_Collection_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-08-23、`origin/master=83dad8ad78a84a7ca0ca2dc7819cf34e7efa5959`）: 現行 `Collections.kt` の source-backed 宣言、Collection receiver の exact receiver/arity/type 突合、Kotlin v2.3.10 原典、kotlinc metadata、Sema Golden、focused KIR/backend/runtime 実行を確認した。List receiver の既存 primitive-array 実装と shared runtime/ABI bridge は別 ownership のため変更せず維持した。
+  - 実装済み source-backed シンボル一覧:
     - `kotlin.collections.containsAll` — fun Collection.containsAll(Collection): Boolean  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Collection<#A>).kotlin.collections/containsAll(kotlin.collections/Collection<#A>): kotlin/Boolean`
     - `kotlin.collections.count` — fun Collection.count(): Int  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Collection<#A>).kotlin.collections/count(): kotlin/Int`
     - `kotlin.collections.indices` — val Collection.indices  -- `final val kotlin.collections/indices`
@@ -3339,7 +3342,7 @@
     - `kotlin.collections.take` — fun Iterable.take(Int): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/take(kotlin/Int): kotlin.collections/List<#A>`
     - `kotlin.collections.takeWhile` — fun Iterable.takeWhile(Function1): List  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/takeWhile(kotlin/Function1<#A, kotlin/Boolean>): kotlin.collections/List<#A>`
 
-- [ ] KSP-996: kotlin.collections.Iterable.to-family の未実装 stdlib API を実装する（5 件）
+- [x] KSP-996: kotlin.collections.Iterable.to-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `to`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3352,6 +3355,7 @@
     - `kotlin.collections.toMap` — fun Iterable.toMap(): Map  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.collections/Iterable<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(): kotlin.collections/Map<#A, #B>`
     - `kotlin.collections.toMap` — fun Iterable.toMap(): #C  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin.collections/Iterable<kotlin/Pair<#A, #B>>).kotlin.collections/toMap(#C): #C`
     - `kotlin.collections.toSet` — fun Iterable.toSet(): Set  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/toSet(): kotlin.collections/Set<#A>`
+  - 完了 (2026-08-24): 既存の Iterable.toCollection/toHashSet は重複追加せず exact source-backed contract を確認し、Iterable.toMap 2 overload/toSet を追加。Kotlin 2.3.10 metadata signature、destination identity・既存要素保持・順序、重複keyのlast value、nullable、one-shot/例外即時中断を専用 Golden/diff で固定。List/Sequence/CharSequence の別receiverを維持し、List generic overload 選択の回帰と iterator outThrown ABI/runtime propagation を修正した。
 
 - [x] KSP-997: kotlin.collections.Iterable.unzip-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `unzip`
