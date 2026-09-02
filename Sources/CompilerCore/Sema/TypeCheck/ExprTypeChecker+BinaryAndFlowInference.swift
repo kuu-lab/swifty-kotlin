@@ -110,7 +110,7 @@ extension ExprTypeChecker {
         default:
             true
         }
-        let operatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
+        let collectedOperatorCandidates: [SymbolID] = if shouldUseInheritedEqualityDispatch {
             collectOperatorCandidates(
                 names: operatorNames,
                 receiverType: lhs,
@@ -119,6 +119,13 @@ extension ExprTypeChecker {
         } else {
             []
         }
+        let operatorCandidates = driver.callChecker.preferMostSpecificMemberReceiverCandidates(
+            collectedOperatorCandidates,
+            receiverType: lhs,
+            argumentTypes: [rhs],
+            sema: sema,
+            interner: interner
+        )
         // Kotlin's `+` resolves against the LHS (receiver) type: `String.plus(Any?)`
         // accepts any RHS, but non-String receivers don't get string concatenation
         // just because the RHS happens to be a String (e.g. `1 + "x"` is not valid

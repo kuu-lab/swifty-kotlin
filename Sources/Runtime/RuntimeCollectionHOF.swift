@@ -59,16 +59,7 @@ func invalidContainerPanic(_ caller: StaticString, _ kind: StaticString) -> Neve
     fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: \(caller) received invalid \(kind) handle")
 }
 
-/// Builds a key-index dictionary from existing map keys for O(1) lookups.
-func buildKeyIndex(from dest: RuntimeMapBox) -> [Int: Int] {
-    var keyIndex: [Int: Int] = [:]
-    for (i, k) in dest.keys.enumerated() {
-        keyIndex[k] = i
-    }
-    return keyIndex
-}
-
-/// Inserts or updates a key-value pair in a destination map, maintaining the key index.
+/// Inserts or updates an integer-keyed map entry for legacy test shims.
 @discardableResult
 func mapInsertOrUpdate(
     dest: RuntimeMapBox,
@@ -77,15 +68,13 @@ func mapInsertOrUpdate(
     value: Int
 ) -> Int {
     if let index = keyIndex[key] {
-        dest.values[index] = value
+        dest.updateValue(at: index, rawValue: value)
         return index
-    } else {
-        let newIndex = dest.keys.count
-        dest.keys.append(key)
-        dest.values.append(value)
-        keyIndex[key] = newIndex
-        return newIndex
     }
+    let newIndex = dest.count
+    dest.appendEntry(key: key, value: value)
+    keyIndex[key] = newIndex
+    return newIndex
 }
 
 @inline(__always)

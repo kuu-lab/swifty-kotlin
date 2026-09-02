@@ -410,5 +410,29 @@ final class RuntimeListIteratorTests {
         #expect(result > 0) // Should be valid element
         #expect(result <= 30) // Should be within bounds
     }
+
+    @Test
+    func testListIteratorIndicesTrackCursorBoundaries() {
+        let iterHandle = makeListIterator([10, 20, 30])
+
+        #expect(kk_list_iterator_nextIndex(iterHandle) == 0)
+        #expect(kk_list_iterator_previousIndex(iterHandle) == -1)
+
+        #expect(kk_list_iterator_next(iterHandle) == 10)
+        #expect(kk_list_iterator_nextIndex(iterHandle) == 1)
+        #expect(kk_list_iterator_previousIndex(iterHandle) == 0)
+
+        #expect(kk_list_iterator_next(iterHandle) == 20)
+        #expect(kk_list_iterator_nextIndex(iterHandle) == 2)
+        #expect(kk_list_iterator_previousIndex(iterHandle) == 1)
+
+        #expect(kk_list_iterator_previous(iterHandle) == 20)
+        #expect(kk_list_iterator_nextIndex(iterHandle) == 1)
+        #expect(kk_list_iterator_previousIndex(iterHandle) == 0)
+
+        #expect(kk_list_iterator_previous(iterHandle) == 10)
+        #expect(kk_list_iterator_nextIndex(iterHandle) == 0)
+        #expect(kk_list_iterator_previousIndex(iterHandle) == -1)
+    }
 }
 #endif

@@ -151,9 +151,11 @@ private func runtimeStringHashCode(_ value: String) -> Int {
 // Keep this aligned with RuntimeSetBox equality so sets that contain the same
 // elements in different insertion orders have identical hashes.
 private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
-    set.elements.reduce(0) { partial, element in
-        partial &+ kk_any_hashCode(element, 0)
+    var hash: Int32 = 0
+    for element in set.elements {
+        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
     }
+    return Int(hash)
 }
 
 /// `(this xor (this ushr 32)).toInt()` — the formula behind Long/ULong/Double
@@ -270,7 +272,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if let listBox = tryCast(pointer, to: RuntimeListBox.self) {
         var hash: Int32 = 1
         for element in listBox.elements {
-            hash = 31 &* hash &+ Int32(truncatingIfNeeded: kk_any_hashCode(element, 0))
+            hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
         }
         return Int(hash)
     }
@@ -279,11 +281,9 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     }
     if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
         var hash: Int32 = 0
-        let keys = mapBox.keys
-        let values = mapBox.values
-        for i in keys.indices {
-            let entryHash = Int32(truncatingIfNeeded: kk_any_hashCode(keys[i], 0))
-                ^ Int32(truncatingIfNeeded: kk_any_hashCode(values[i], 0))
+        for (key, value) in zip(mapBox.keys, mapBox.values) {
+            let entryHash = Int32(truncatingIfNeeded: runtimeValueHash(key))
+                ^ Int32(truncatingIfNeeded: runtimeValueHash(value))
             hash = hash &+ entryHash
         }
         return Int(hash)
@@ -310,6 +310,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // instances compared with `==` reported equal but had different
     // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        if let setBox = objBox.backingSetBox {
+            // Some mutable set implementations use a RuntimeObjectBox shell
+            // with a RuntimeSetBox backing store; preserve the same Set hash
+            // contract for that representation.
+            return setBox.values.reduce(0) { hash, element in
+                hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+            }
+        }
         var hash = Int(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
             // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
@@ -384,6 +392,27 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
     runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))
+}
+
+/// Hashes an opaque runtime value with the same value-level semantics used by
+/// RuntimeElementKey. The collection index must not hash object identity when
+/// runtimeValuesEqual considers two handles equal by content.
+func runtimeValueHash(_ value: Int) -> Int {
+    var hash = kk_any_hashCode(value, 0)
+    if let ptr = UnsafeMutableRawPointer(bitPattern: value) {
+        let isObjectPointer = runtimeStorage.withGCLock { state in
+            state.objectPointers.contains(UInt(bitPattern: ptr))
+        }
+        if isObjectPointer {
+            if let floatBox = tryCast(ptr, to: RuntimeFloatBox.self), floatBox.value == 0 {
+                hash = kk_float_to_bits(Float(0))
+            } else if let doubleBox = tryCast(ptr, to: RuntimeDoubleBox.self), doubleBox.value == 0 {
+                let bits = Int64(bitPattern: UInt64(bitPattern: Int64(kk_double_to_bits(Double(0)))))
+                hash = Int(truncatingIfNeeded: bits ^ (bits >> 32))
+            }
+        }
+    }
+    return hash
 }
 
 /// Any.equals(other) — uses runtime-aware equality for boxed values and tagged primitives.
