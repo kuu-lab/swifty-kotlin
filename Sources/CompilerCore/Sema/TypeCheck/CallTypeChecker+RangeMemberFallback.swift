@@ -239,6 +239,24 @@ extension CallTypeChecker {
     }
 
     private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "first" || memberName == "last"
+            || memberName == "firstOrNull" || memberName == "lastOrNull"
+        {
+            return argCount > 0
+        }
+        let sourceBacked: Set<String> = [
+            "map", "mapIndexed", "mapNotNull",
+            "filter", "filterIndexed", "filterNot",
+            "forEach",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+        ]
+        return sourceBacked.contains(memberName)
+    }
+
+    private func isUIntProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
         guard argCount == 1 else { return false }
         return [
             "map", "mapIndexed", "mapNotNull",
@@ -272,8 +290,10 @@ extension CallTypeChecker {
         let isSourceBackedRangeCall =
             ((rangeKind == .intRange || rangeKind == .intProgression)
                 && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
-            || ((rangeKind == .uintRange || rangeKind == .uintProgression)
+            || (rangeKind == .uintRange
                 && isUIntRangeSourceBackedHOF(memberName, argCount: args.count))
+            || (rangeKind == .uintProgression
+                && isUIntProgressionSourceBackedHOF(memberName, argCount: args.count))
             || (rangeKind == .charProgression
                 && isCharProgressionSourceBackedHOF(memberName, argCount: args.count))
             || ((memberName == "random" || memberName == "randomOrNull")
