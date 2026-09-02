@@ -3262,7 +3262,7 @@
     - `kotlin.collections.shuffled` — fun Iterable.shuffled(Random): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/shuffled(kotlin.random/Random): kotlin.collections/List<#A>`
   - 完了根拠: `Iterables.kt` を source-backed 化し、`Iterable` receiver を明示した Sema Golden、KIR、focused Backend、専用 `diff_kotlinc` で2 overloadを検証。empty/singleton、duplicate/null、one-shot Iterableの1回eager消費、fresh List、元receiver非変更、seeded再現性・multisetを固定し、List/Sequenceのsynthetic/runtime/RuntimeABI経路は変更していない。
 
-- [ ] KSP-992: kotlin.collections.Iterable.single-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-992: kotlin.collections.Iterable.single-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `single`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3274,6 +3274,7 @@
     - `kotlin.collections.single` — fun Iterable.single(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/single(kotlin/Function1<#A, kotlin/Boolean>): #A`
     - `kotlin.collections.singleOrNull` — fun Iterable.singleOrNull(): #A  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/singleOrNull(): #A?`
     - `kotlin.collections.singleOrNull` — fun Iterable.singleOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/singleOrNull(kotlin/Function1<#A, kotlin/Boolean>): #A?`
+  - 完了根拠: Kotlin 2.3.10 の公開 signature・例外型/message・短絡評価を source-backed 実装と custom/one-shot Iterable の専用 diff・Golden・Sema/KIR/Backend/Runtime 回帰で確認。既存 List/Set/Sequence/String の receiver ownership と Runtime ABI は維持し、追加 bridge はない。
 
 - [x] KSP-993: kotlin.collections.Iterable.sorted-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `sorted`

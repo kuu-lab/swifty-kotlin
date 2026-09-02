@@ -490,6 +490,63 @@ public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: 
     return accumulator
 }
 
+// KSP-992: generic Iterable single-family APIs use one iterator and stop as soon
+// as their result is determined. List receivers continue to use ListSearchHOF.kt.
+public fun <T> Iterable<T>.single(): T {
+    when (this) {
+        is List -> return this.single()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+            val single = iterator.next()
+            if (iterator.hasNext()) throw IllegalArgumentException("Collection has more than one element.")
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.single(predicate: (T) -> Boolean): T {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Collection contains more than one matching element.")
+            single = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as T
+}
+
+public fun <T> Iterable<T>.singleOrNull(): T? {
+    when (this) {
+        is List -> return this.singleOrNull()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) return null
+            val single = iterator.next()
+            if (iterator.hasNext()) return null
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+    }
+    if (!found) return null
+    return single
+}
+
 public fun <T> Iterable<T>.any(): Boolean {
     for (element in this) return true
     return false
