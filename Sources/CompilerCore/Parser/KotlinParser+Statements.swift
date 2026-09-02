@@ -691,6 +691,73 @@ extension KotlinParser {
         }
     }
 
+    /// A modifier keyword (`suspend`, `private`, ...) or the `context` soft
+    /// keyword is ambiguous the same way `object` is (see
+    /// `isObjectExpressionStart` above): it can introduce a genuine
+    /// declaration (`suspend fun f() {}`, `context(x: T) fun f() {}`) or
+    /// appear inside an expression (`suspend { ... }` lambda literal,
+    /// `context(...) { ... }` helper call). A single token of lookahead
+    /// can't tell these apart.
+    private func isAmbiguousDeclarationPrefix(_ token: Token) -> Bool {
+        switch token.kind {
+        case let .keyword(kw):
+            return Self.isDeclarationModifierKeyword(kw)
+        case .softKeyword(.context):
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Resolves the ambiguity in `isAmbiguousDeclarationPrefix` by scanning
+    /// past the modifier / context-parameter prefix at lookahead `offset` —
+    /// recursing through chained modifiers and skipping a balanced `(...)`
+    /// group after `context` — to see whether an actual declaration keyword
+    /// (or another declaration-start token) follows. Never consumes tokens.
+    private func startsGenuineDeclaration(at offset: Int) -> Bool {
+        let token = stream.peek(offset)
+        if case let .keyword(kw) = token.kind, Self.isDeclarationModifierKeyword(kw) {
+            return startsGenuineDeclaration(at: offset + 1)
+        }
+        if case .softKeyword(.context) = token.kind {
+            var next = offset + 1
+            if stream.peek(next).kind == .symbol(.lParen) {
+                next = offsetPastBalancedGroup(from: next, open: .symbol(.lParen), close: .symbol(.rParen))
+            }
+            return startsGenuineDeclaration(at: next)
+        }
+        return isDeclarationStart(token.kind)
+    }
+
+    /// Advances a lookahead offset past a balanced bracket group whose
+    /// opening symbol sits at `offset`, without consuming any tokens.
+    private func offsetPastBalancedGroup(from offset: Int, open: TokenKind, close: TokenKind) -> Int {
+        var depth = 0
+        var index = offset
+        repeat {
+            let kind = stream.peek(index).kind
+            if kind == .eof { break }
+            if kind == open {
+                depth += 1
+            } else if kind == close {
+                depth -= 1
+            }
+            index += 1
+        } while depth > 0
+        return index
+    }
+
+    /// Whether `token` truly starts a new declaration for the purpose of
+    /// ending a statement/expression tail — deferring to
+    /// `startsGenuineDeclaration` lookahead only for the ambiguous modifier /
+    /// `context` prefixes, and otherwise trusting the caller's own check.
+    private func isGenuineDeclarationBoundary(_ token: Token) -> Bool {
+        guard isAmbiguousDeclarationPrefix(token) else {
+            return true
+        }
+        return startsGenuineDeclaration(at: 0)
+    }
+
     func parseTail(inBlock: Bool, into children: inout [SyntaxChild], range: inout RangeAccumulator) {
         var progress = false
         var sawTryKeyword = false
@@ -701,7 +768,9 @@ extension KotlinParser {
         while !stream.atEOF() {
             let token = stream.peek()
             let atTopLevel = parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
-            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token) {
+            if atTopLevel, shouldStopStatementBefore(token, inBlock: inBlock), !isObjectExpressionStart(token),
+               isGenuineDeclarationBoundary(token)
+            {
                 break
             }
             if case .symbol(.lBrace) = token.kind, inBlock, atTopLevel {
@@ -718,13 +787,17 @@ extension KotlinParser {
                 progress = true
                 // Continue when the block is followed by a continuation keyword of
                 // a multi-block expression: `try { } catch { } finally { }` and
-                // `if (c) { } else { }` / `else if (c) { } else { }`.
+                // `if (c) { } else { }` / `else if (c) { } else { }` — or by a
+                // symbol that cannot end an expression on its own (`+`, `.`,
+                // `?.`, ...), meaning this trailing-lambda call is only part of
+                // a larger expression (e.g. `f() { ... } + g() { ... }`).
                 let nextAfterBlock = stream.peek()
                 if sawTryKeyword {
                     if case .keyword(.catch) = nextAfterBlock.kind { continue }
                     if case .keyword(.finally) = nextAfterBlock.kind { continue }
                 }
                 if sawIfKeyword, case .keyword(.else) = nextAfterBlock.kind { continue }
+                if ParserBoundaryPolicy.continuesExpressionAfterNewline(nextAfterBlock.kind) { continue }
                 break
             }
             if case .keyword(.try) = token.kind {
@@ -765,14 +838,12 @@ extension KotlinParser {
                 // in the same declaration node.
                 if ParserBoundaryPolicy.continuesExpressionAfterNewline(token.kind) {
                     // But stop if the next line starts a new declaration
-                    // (modifier keyword, declaration keyword, or annotation).
+                    // (modifier keyword, declaration keyword, context-parameter
+                    // prefix, or annotation) — not merely a modifier / `context`
+                    // prefix that is actually introducing an expression
+                    // (`suspend { ... }`, `context(...) { ... }`).
                     let nextToken = stream.peek()
-                    if case let .keyword(kw) = nextToken.kind,
-                       Self.isDeclarationModifierKeyword(kw)
-                    {
-                        break
-                    }
-                    if isDeclarationStart(nextToken.kind), !isObjectExpressionStart(nextToken) {
+                    if startsGenuineDeclaration(at: 0), !isObjectExpressionStart(nextToken) {
                         break
                     }
                     continue
