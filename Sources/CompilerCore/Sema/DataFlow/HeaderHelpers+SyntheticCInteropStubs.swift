@@ -456,7 +456,7 @@ extension DataFlowSemaPhase {
         }
         symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: nativePlacementAllocTypeParameterSymbol)
         symbols.setTypeParameterUpperBounds([cVariableType], for: nativePlacementAllocTypeParameterSymbol)
-        let nativePlacementAllocTypeParameterType = types.make(.typeParam(TypeParamType(
+        _ = types.make(.typeParam(TypeParamType(
             symbol: nativePlacementAllocTypeParameterSymbol,
             nullability: .nonNull
         )))
@@ -487,12 +487,12 @@ extension DataFlowSemaPhase {
             symbol: nativePlacementPlaceTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let cValuesOfPlaceTypeParameterType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cValuesSymbol,
             args: [.invariant(nativePlacementPlaceTypeParameterType)],
             nullability: .nonNull
         )))
-        let cPointerOfPlaceTypeParameterType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.invariant(nativePlacementPlaceTypeParameterType)],
             nullability: .nonNull
@@ -518,7 +518,7 @@ extension DataFlowSemaPhase {
         symbols.setPropertyType(deferScopeType, for: deferScopeSymbol)
         symbols.insertFlags([.openType], for: deferScopeSymbol)
 
-        let deferBlockType = types.make(.functionType(FunctionType(
+        _ = types.make(.functionType(FunctionType(
             params: [],
             returnType: types.unitType
         )))
@@ -657,12 +657,12 @@ extension DataFlowSemaPhase {
                 symbol: cValuesRefTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let cValuesRefType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesRefSymbol,
                 args: [.invariant(cValuesRefTypeParameterType)],
                 nullability: .nonNull
             )))
-            let cPointerToCValuesRefTypeParameterType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cPointerSymbol,
                 args: [.invariant(cValuesRefTypeParameterType)],
                 nullability: .nonNull
@@ -686,7 +686,7 @@ extension DataFlowSemaPhase {
                 symbol: cValueTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let cValueType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValueSymbol,
                 args: [.invariant(cValueTypeParameterType)],
                 nullability: .nonNull
@@ -728,12 +728,12 @@ extension DataFlowSemaPhase {
                 symbol: useContentsReturnTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let useContentsReceiverType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValueSymbol,
                 args: [.invariant(useContentsTypeParameterType)],
                 nullability: .nonNull
             )))
-            let useContentsBlockType = types.make(.functionType(FunctionType(
+            _ = types.make(.functionType(FunctionType(
                 receiver: useContentsTypeParameterType,
                 params: [],
                 returnType: useContentsReturnTypeParameterType,
@@ -758,12 +758,12 @@ extension DataFlowSemaPhase {
                 symbol: cValuesTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let cValuesType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(cValuesTypeParameterType)],
                 nullability: .nonNull
             )))
-            let cPointerToCValuesTypeParameterType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cPointerSymbol,
                 args: [.invariant(cValuesTypeParameterType)],
                 nullability: .nonNull
@@ -791,7 +791,7 @@ extension DataFlowSemaPhase {
                 symbol: cPointerTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let cPointerType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cPointerSymbol,
                 args: [.invariant(cPointerTypeParameterType)],
                 nullability: .nonNull
@@ -810,7 +810,7 @@ extension DataFlowSemaPhase {
                 nullability: .nonNull
             ))),
         ]
-        for (upperBoundIndex, upperBound) in cPointerPlusOverloadUpperBounds.enumerated() {
+        for _ in cPointerPlusOverloadUpperBounds.enumerated() {
 
 
         }
@@ -821,7 +821,7 @@ extension DataFlowSemaPhase {
 
 
         // inline fun <reified T : CPointed> CPointer<*>.reinterpret(): CPointer<T>
-        let reinterpretStarReceiverType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.star],
             nullability: .nonNull
@@ -850,7 +850,7 @@ extension DataFlowSemaPhase {
             symbol: reinterpretTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let reinterpretReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.invariant(reinterpretTypeParameterType)],
             nullability: .nonNull
@@ -924,7 +924,7 @@ extension DataFlowSemaPhase {
             symbol: plusTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let plusNullableCPointerType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.invariant(plusTypeParameterType)],
             nullability: .nullable
@@ -951,11 +951,11 @@ extension DataFlowSemaPhase {
         }
         symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: unwrapHolderTypeParameterSymbol)
         symbols.setTypeParameterUpperBounds([types.anyType], for: unwrapHolderTypeParameterSymbol)
-        let unwrapHolderTypeParameterType = types.make(.typeParam(TypeParamType(
+        _ = types.make(.typeParam(TypeParamType(
             symbol: unwrapHolderTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let unwrapHolderHolderType: TypeID = if let cOpaquePointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("COpaquePointer")]) {
+        _ = if let cOpaquePointerSymbol = symbols.lookup(fqName: cinteropPkg + [interner.intern("COpaquePointer")]) {
             types.make(.classType(ClassType(
                 classSymbol: cOpaquePointerSymbol,
                 args: [],
@@ -991,7 +991,7 @@ extension DataFlowSemaPhase {
                 symbol: cPointerVarOfTypeParameterSymbol,
                 nullability: .nonNull
             )))
-            let cPointerVarOfType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cPointerVarOfSymbol,
                 args: [.invariant(cPointerVarOfTypeParameterType)],
                 nullability: .nonNull
@@ -1152,7 +1152,7 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let cstrReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cValuesSymbol,
             args: [.invariant(byteVarType)],
             nullability: .nonNull
@@ -1468,7 +1468,7 @@ extension DataFlowSemaPhase {
             symbol: createTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let createReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: stableRefSymbol,
             args: [.out(createTypeParameterType)],
             nullability: .nonNull
@@ -1498,12 +1498,12 @@ extension DataFlowSemaPhase {
             symbol: asStableRefTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let cPointerStarType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cPointerSymbol,
             args: [.star],
             nullability: .nonNull
         )))
-        let asStableRefReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: stableRefSymbol,
             args: [.out(asStableRefTypeParameterType)],
             nullability: .nonNull
@@ -1578,7 +1578,7 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let wcstrReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(uShortVarType)],
                 nullability: .nonNull
@@ -1623,14 +1623,14 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let longArrayReceiverType = syntheticClassType(
+            _ = syntheticClassType(
                 packagePath: ["kotlin"],
                 name: "LongArray",
                 symbols: symbols,
                 types: types,
                 interner: interner
             )
-            let longArrayToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(longVarType)],
                 nullability: .nonNull
@@ -1644,14 +1644,14 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let floatArrayReceiverType = syntheticClassType(
+            _ = syntheticClassType(
                 packagePath: ["kotlin"],
                 name: "FloatArray",
                 symbols: symbols,
                 types: types,
                 interner: interner
             )
-            let floatArrayToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(floatVarType)],
                 nullability: .nonNull
@@ -1665,14 +1665,14 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let doubleArrayReceiverType = syntheticClassType(
+            _ = syntheticClassType(
                 packagePath: ["kotlin"],
                 name: "DoubleArray",
                 symbols: symbols,
                 types: types,
                 interner: interner
             )
-            let doubleArrayToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(doubleVarType)],
                 nullability: .nonNull
@@ -1765,7 +1765,7 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let toKStringFromUtf16ShortReceiverType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cPointerSymbol,
                 args: [.invariant(shortVarTypeForUtf16)],
                 nullability: .nonNull
@@ -1858,14 +1858,14 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let shortArrayReceiverType = syntheticClassType(
+            _ = syntheticClassType(
                 packagePath: ["kotlin"],
                 name: "ShortArray",
                 symbols: symbols,
                 types: types,
                 interner: interner
             )
-            let shortArrayToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(shortVarType)],
                 nullability: .nonNull
@@ -1879,14 +1879,14 @@ extension DataFlowSemaPhase {
                 args: [],
                 nullability: .nonNull
             )))
-            let uShortArrayReceiverType = syntheticClassType(
+            _ = syntheticClassType(
                 packagePath: ["kotlin"],
                 name: "UShortArray",
                 symbols: symbols,
                 types: types,
                 interner: interner
             )
-            let uShortArrayToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(uShortVarType)],
                 nullability: .nonNull
@@ -1924,7 +1924,7 @@ extension DataFlowSemaPhase {
         )))
         let kotlinArrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
         if let kotlinArraySymbol = symbols.lookup(fqName: kotlinArrayFQName) {
-            let arrayCPointerTReceiverType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: kotlinArraySymbol,
                 args: [.invariant(arrayCPointerNullableElementType)],
                 nullability: .nonNull
@@ -1939,7 +1939,7 @@ extension DataFlowSemaPhase {
                 args: [.invariant(cPointerTNonNullType)],
                 nullability: .nonNull
             )))
-            let arrayCPointerToCValuesReturnType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cValuesSymbol,
                 args: [.invariant(cPointerVarOfCPointerTType)],
                 nullability: .nonNull
@@ -1960,7 +1960,7 @@ extension DataFlowSemaPhase {
             args: [.invariant(listCPointerTParamType)],
             nullability: .nullable
         )))
-        let listCPointerReceiverType = syntheticListType(
+        _ = syntheticListType(
             elementType: nullableCPointerTType,
             symbols: symbols,
             types: types,
@@ -1971,7 +1971,7 @@ extension DataFlowSemaPhase {
             args: [.invariant(listCPointerTParamType)],
             nullability: .nonNull
         )))
-        let listCPointerToCValuesReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cValuesSymbol,
             args: [.invariant(cPointerVarOfTType)],
             nullability: .nonNull
@@ -1988,7 +1988,7 @@ extension DataFlowSemaPhase {
         if let cinteropTypeOfKTypeSymbol = symbols.lookup(
             fqName: kotlinReflectInteropPkg + [cinteropTypeOfKTypeName]
         ) {
-            let cinteropKTypeType = types.make(.classType(ClassType(
+            _ = types.make(.classType(ClassType(
                 classSymbol: cinteropTypeOfKTypeSymbol,
                 args: [],
                 nullability: .nonNull
@@ -1996,7 +1996,7 @@ extension DataFlowSemaPhase {
             let cinteropTypeOfFQName = cinteropPkg + [interner.intern("typeOf")]
             if symbols.lookupAll(fqName: cinteropTypeOfFQName).isEmpty {
                 let tParamName = interner.intern("T")
-                let tParamSymbol = symbols.define(
+                _ = symbols.define(
                     kind: .typeParameter,
                     name: tParamName,
                     fqName: cinteropTypeOfFQName + [tParamName],
@@ -2032,7 +2032,7 @@ extension DataFlowSemaPhase {
             symbol: zeroValueTypeParameterSymbol,
             nullability: .nonNull
         )))
-        let zeroValueReturnType = types.make(.classType(ClassType(
+        _ = types.make(.classType(ClassType(
             classSymbol: cValueSymbol,
             args: [.invariant(zeroValueTypeParameterType)],
             nullability: .nonNull

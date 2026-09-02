@@ -30,6 +30,50 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenUIntRangeHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1u..5u).fold(10u) { accumulator, value -> accumulator + value })
+            println((1u..5u).foldIndexed(10u) { index, accumulator, value -> accumulator + index.toUInt() + value })
+            println((1u..5u).reduce { accumulator, value -> accumulator + value })
+            println((1u..5u).reduceIndexed { index, accumulator, value -> accumulator + index.toUInt() + value })
+            println((1u..5u).find { it % 2u == 0u })
+            println((1u..5u).findLast { it % 2u == 0u })
+            println((1u..5u).first { it > 3u })
+            println((1u..5u).firstOrNull { it > 8u })
+            println((1u..5u).last { it < 4u })
+            println((1u..5u).lastOrNull { it > 8u })
+            println((1u..5u).any { it == 5u })
+            println((1u..5u).all { it > 0u })
+            println((1u..5u).none { it > 5u })
+            (1u..3u).forEach { print("$it ") }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "UIntRangeHOFExecution",
+            expected:
+                """
+                25
+                35
+                15
+                25
+                2
+                4
+                4
+                null
+                3
+                null
+                true
+                true
+                true
+                """ + "\n1 2 3 \n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapNotNull() throws {
         let source = """
         fun main() {

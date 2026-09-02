@@ -138,7 +138,11 @@ final class ConstraintSolver {
                     }
 
                     let leftLower = lowerBounds[leftVar, default: []]
-                    for bound in leftLower where appendUnique(bound, to: &lowerBounds[rightVar, default: []]) {
+                    for bound in leftLower where appendNonRedundantLowerBound(
+                        bound,
+                        to: &lowerBounds[rightVar, default: []],
+                        typeSystem: typeSystem
+                    ) {
                         changed = true
                     }
                 }
@@ -284,6 +288,25 @@ final class ConstraintSolver {
         }
         array.append(value)
         return true
+    }
+
+    private func appendNonRedundantLowerBound(
+        _ value: TypeID,
+        to array: inout [TypeID],
+        typeSystem: TypeSystem
+    ) -> Bool {
+        // Keep lower-bound sets minimal. Retaining a bound that is already a
+        // subtype of another lower bound can make the simplified LUB widen
+        // unnecessarily (for example, Base plus Child becoming Any).
+        guard !array.contains(where: { typeSystem.isSubtype(value, $0) }) else {
+            return false
+        }
+        let original = array
+        array.removeAll { typeSystem.isSubtype($0, value) }
+        if !array.contains(value) {
+            array.append(value)
+        }
+        return array != original
     }
 
     private func firstRelevantBlameRange(
