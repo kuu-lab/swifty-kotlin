@@ -35,6 +35,23 @@ public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
 }
 
 /**
+ * Creates an [Iterable] instance that wraps the original map returning its entries when being iterated.
+ */
+public inline fun <K, V> Map<out K, V>.asIterable(): Iterable<Map.Entry<K, V>> {
+    return this.entries
+}
+
+/**
+ * Creates a lazy [Sequence] instance that wraps the original map returning its entries when being iterated.
+ */
+public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
+    val source = this
+    return object : Sequence<Map.Entry<K, V>> {
+        override fun iterator(): Iterator<Map.Entry<K, V>> = source.entries.iterator()
+    }
+}
+
+/**
  * Performs the given [action] on each entry.
  */
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
@@ -86,6 +103,14 @@ public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean)
         if (predicate(entry)) return false
     }
     return true
+}
+
+/**
+ * Returns the number of entries in this map.
+ */
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.count(): Int {
+    return size
 }
 
 /**
@@ -244,12 +269,12 @@ public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> 
  * Populates the given [destination] map with entries having the keys obtained by applying
  * the [transform] function to each entry of the original map.
  */
-public inline fun <K, V, R> Map<K, V>.mapKeysTo(
-    destination: MutableMap<R, V>,
+public inline fun <K, V, R, M : MutableMap<in R, in V>> Map<out K, V>.mapKeysTo(
+    destination: M,
     transform: (Map.Entry<K, V>) -> R
-): MutableMap<R, V> {
+): M {
     for (entry in this.entries) {
-        destination[transform(entry)] = entry.value
+        destination.put(transform(entry), entry.value)
     }
     return destination
 }
@@ -258,12 +283,41 @@ public inline fun <K, V, R> Map<K, V>.mapKeysTo(
  * Populates the given [destination] map with entries having the values obtained by applying
  * the [transform] function to each entry of the original map.
  */
-public inline fun <K, V, R> Map<K, V>.mapValuesTo(
-    destination: MutableMap<K, R>,
+public inline fun <K, V, R, M : MutableMap<in K, in R>> Map<out K, V>.mapValuesTo(
+    destination: M,
     transform: (Map.Entry<K, V>) -> R
-): MutableMap<K, R> {
+): M {
     for (entry in this.entries) {
-        destination[entry.key] = transform(entry)
+        destination.put(entry.key, transform(entry))
+    }
+    return destination
+}
+
+/**
+ * Applies the given [transform] function to each entry of the original map
+ * and appends the results to the given [destination].
+ */
+public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.mapTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> R
+): C {
+    for (entry in this.entries) {
+        destination.add(transform(entry))
+    }
+    return destination
+}
+
+/**
+ * Applies the given [transform] function to each entry of the original map
+ * and appends only the non-null results to the given [destination].
+ */
+public inline fun <K, V, R : Any, C : MutableCollection<in R>> Map<out K, V>.mapNotNullTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> R?
+): C {
+    for (entry in this.entries) {
+        val value = transform(entry)
+        if (value != null) destination.add(value)
     }
     return destination
 }

@@ -135,6 +135,8 @@ struct MemberRuntimeDispatchTests {
             ("filterValues", 1),
             ("mapValues", 1),
             ("mapKeys", 1),
+            ("mapTo", 2),
+            ("mapNotNullTo", 2),
             ("mapValuesTo", 2),
             ("mapKeysTo", 2),
             ("any", 1),

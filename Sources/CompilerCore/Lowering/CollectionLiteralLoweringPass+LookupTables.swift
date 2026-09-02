@@ -166,6 +166,7 @@ struct CollectionLiteralLookupTables {
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
+    var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
@@ -375,7 +376,9 @@ struct CollectionLiteralLookupTables {
     var kkBuildListName: InternedString { builderDSLLookup.kkBuildListName }
     var kkBuildListWithCapacityName: InternedString { builderDSLLookup.kkBuildListWithCapacityName }
     var kkBuildSetName: InternedString { builderDSLLookup.kkBuildSetName }
+    var kkBuildSetWithCapacityName: InternedString { builderDSLLookup.kkBuildSetWithCapacityName }
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
+    var kkBuildMapWithCapacityName: InternedString { builderDSLLookup.kkBuildMapWithCapacityName }
     var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
     var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
     var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }

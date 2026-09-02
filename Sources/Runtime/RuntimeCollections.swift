@@ -160,21 +160,38 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
 
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
-    let elements: [Int] = if let list = runtimeListBox(from: listRaw) {
-        list.elements
-    } else if let set = runtimeSetBox(from: listRaw) {
-        set.elements
-    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        array.elements
-    } else {
-        []
+    if let list = runtimeListBox(from: listRaw) {
+        let raw = registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: list.elements,
+                removeAction: { index in
+                    guard list.elements.indices.contains(index) else { return }
+                    list.elements.remove(at: index)
+                }
+            )
+        )
+        registerListIteratorItable(raw: raw)
+        return raw
     }
-    let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
-    registerIteratorItable(
-        raw: raw,
-        hasNext: runtimeListIteratorHasNextThunk,
-        next: runtimeListIteratorNextThunk
-    )
+    if let set = runtimeSetBox(from: listRaw) {
+        let raw = registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: set.elements,
+                removeAction: { index in
+                    guard set.elements.indices.contains(index) else { return }
+                    set.elements.remove(at: index)
+                }
+            )
+        )
+        registerListIteratorItable(raw: raw)
+        return raw
+    }
+    if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+        registerListIteratorItable(raw: raw)
+        return raw
+    }
+    let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
     registerListIteratorItable(raw: raw)
     return raw
 }
@@ -198,6 +215,14 @@ public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
     let value = iter.elements[iter.index]
     iter.index += 1
     return value
+}
+
+func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    _ = iter.removeLastReturned()
+    return 0
 }
 
 /// Whether the iterator has a valid previous element.
@@ -418,8 +443,17 @@ private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], 
 }
 
 @_cdecl("__kk_mutable_list_add")
-public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_list_add(
+    _ listRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !list.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     var values = list.values
