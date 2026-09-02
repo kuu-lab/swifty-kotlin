@@ -644,18 +644,17 @@ public fun <T : Comparable<T>> Iterable<T>.min(): T {
 public inline fun <T, R : Comparable<R>> Iterable<T>.minBy(selector: (T) -> R): T {
     val iterator = iterator()
     if (!iterator.hasNext()) throw NoSuchElementException()
-    val first = iterator.next()
-    if (!iterator.hasNext()) return first
-    var minElement = first
-    var minValue = selector(first)
-    while (iterator.hasNext()) {
+    var minElement = iterator.next()
+    if (!iterator.hasNext()) return minElement
+    var minValue = selector(minElement)
+    do {
         val element = iterator.next()
         val value = selector(element)
         if (minValue > value) {
-            minValue = value
             minElement = element
+            minValue = value
         }
-    }
+    } while (iterator.hasNext())
     return minElement
 }
 
@@ -663,18 +662,17 @@ public inline fun <T, R : Comparable<R>> Iterable<T>.minBy(selector: (T) -> R): 
 public inline fun <T, R : Comparable<R>> Iterable<T>.minByOrNull(selector: (T) -> R): T? {
     val iterator = iterator()
     if (!iterator.hasNext()) return null
-    val first = iterator.next()
-    if (!iterator.hasNext()) return first
-    var minElement = first
-    var minValue = selector(first)
-    while (iterator.hasNext()) {
+    var minElement = iterator.next()
+    if (!iterator.hasNext()) return minElement
+    var minValue = selector(minElement)
+    do {
         val element = iterator.next()
         val value = selector(element)
         if (minValue > value) {
-            minValue = value
             minElement = element
+            minValue = value
         }
-    }
+    } while (iterator.hasNext())
     return minElement
 }
 
