@@ -183,6 +183,47 @@ extension DeclTypeChecker {
         }
     }
 
+    /// Returns the class-kind superclass written in the source header.
+    ///
+    /// Inheritance binding adds kotlin.Any to classes without an explicit
+    /// superclass. That implicit edge represents nominal inheritance, but it
+    /// is not an explicit constructor delegation target for `super()`.
+    func explicitClassSuperclassSymbol(
+        _ classDecl: ClassDecl,
+        ctx: TypeInferenceContext
+    ) -> SymbolID? {
+        for entry in classDecl.superTypeEntries {
+            let resolved = driver.helpers.resolveTypeRef(
+                entry.typeRef,
+                ast: ctx.ast,
+                sema: ctx.sema,
+                interner: ctx.interner,
+                scope: ctx.scope,
+                diagnostics: nil
+            )
+            if resolved == ctx.sema.types.anyType,
+               let anySymbol = ctx.sema.symbols.lookup(fqName: [
+                   ctx.interner.intern("kotlin"),
+                   ctx.interner.intern("Any"),
+               ])
+            {
+                return anySymbol
+            }
+            guard case let .classType(classType) = ctx.sema.types.kind(of: resolved),
+                  let symbol = ctx.sema.symbols.symbol(classType.classSymbol)
+            else {
+                continue
+            }
+            switch symbol.kind {
+            case .class, .enumClass, .annotationClass:
+                return classType.classSymbol
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
     // MARK: - Init Block & Secondary Constructor Type Checking
 
     /// Kotlin scopes primary constructor parameters declared without `val`/`var`
@@ -242,7 +283,8 @@ extension DeclTypeChecker {
         solver: ConstraintSolver,
         diagnostics: DiagnosticEngine,
         ownerSymbol: SymbolID? = nil,
-        hasPrimaryConstructor: Bool = true
+        hasPrimaryConstructor: Bool = true,
+        explicitSuperclassSymbol: SymbolID? = nil
     ) {
         let sema = ctx.sema
         for ctor in constructors {
@@ -300,6 +342,7 @@ extension DeclTypeChecker {
                 ctor: ctor,
                 currentCtorSymbolID: currentCtorSymbolID,
                 ownerSymbol: ownerSymbol,
+                explicitSuperclassSymbol: explicitSuperclassSymbol,
                 ctx: constructorCtx,
                 locals: &locals
             )
@@ -311,6 +354,7 @@ extension DeclTypeChecker {
         ctor: ConstructorDecl,
         currentCtorSymbolID: SymbolID?,
         ownerSymbol: SymbolID?,
+        explicitSuperclassSymbol: SymbolID?,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings
     ) {
@@ -326,6 +370,7 @@ extension DeclTypeChecker {
         let delegationTargetFQName = resolveDelegationTarget(
             delegation: delegation,
             ownerSymbol: ownerSymbol,
+            explicitSuperclassSymbol: explicitSuperclassSymbol,
             ctx: ctx
         )
 
@@ -365,6 +410,7 @@ extension DeclTypeChecker {
     private func resolveDelegationTarget(
         delegation: ConstructorDelegationCall,
         ownerSymbol: SymbolID?,
+        explicitSuperclassSymbol: SymbolID?,
         ctx: TypeInferenceContext
     ) -> [InternedString] {
         let sema = ctx.sema
@@ -377,18 +423,10 @@ extension DeclTypeChecker {
             }
             return []
         case .super_:
-            guard let owner = ownerSymbol else { return [] }
-            let supertypes = sema.symbols.directSupertypes(for: owner)
-            let classSupertypes = supertypes.filter {
-                let kind = sema.symbols.symbol($0)?.kind
-                return kind == .class || kind == .enumClass
-            }
-            if let superclass = classSupertypes.first {
-                if let superSym = sema.symbols.symbol(superclass) {
-                    return superSym.fqName + [ctx.interner.intern("<init>")]
-                }
-            }
-            return []
+            guard ownerSymbol != nil, let superclass = explicitSuperclassSymbol,
+                  let superSym = sema.symbols.symbol(superclass)
+            else { return [] }
+            return superSym.fqName + [ctx.interner.intern("<init>")]
         }
     }
 
@@ -512,11 +550,18 @@ extension DeclTypeChecker {
         )
         // Expression bodies that are range expressions infer as the scalar element
         // type (the isRangeExpr duck-typing convention), so `fun f(): IntRange = a..b`
-        // skips the nominal subtype check like the equivalent local declaration does.
+        // skips the nominal subtype check like the equivalent local declaration does —
+        // but only when the body's actual element type matches IntRange's (KSWIFTK
+        // range-element-type gap: `fun f(): LongRange = 1..10` must still be rejected).
         let bodyIsRangeExpr = {
             guard case let .expr(bodyExprID, _) = function.body else { return false }
-            return sema.bindings.isRangeExpr(bodyExprID)
-                && driver.helpers.isRangeLikeType(signature.returnType, sema: sema, interner: ctx.interner)
+            return driver.helpers.rangeExprMatchesDeclaredElementType(
+                bodyExprID: bodyExprID,
+                bodyType: bodyType,
+                declaredType: signature.returnType,
+                sema: sema,
+                interner: ctx.interner
+            )
         }()
         if !bodyIsRangeExpr {
             driver.emitSubtypeConstraint(

@@ -25,6 +25,36 @@ extension ExprLowerer {
             && targetClass.args.count == 1
     }
 
+    /// A generic comparison helper uses an erased Comparable cast to reach the
+    /// source-backed member. The runtime representation does not attach
+    /// interface metadata to primitive values, so checking this cast would
+    /// reject valid calls before the bridge can compare them.
+    func isRedundantComparableCast(
+        from sourceType: TypeID?,
+        to targetType: TypeID,
+        sema: SemaModule
+    ) -> Bool {
+        guard let sourceType,
+              case let .typeParam(sourceParam) = sema.types.kind(of: sourceType),
+              case let .classType(targetClass) = sema.types.kind(of: sema.types.makeNonNullable(targetType)),
+              targetClass.classSymbol == sema.types.comparableInterfaceSymbol
+        else {
+            return false
+        }
+        let upperBounds = sema.symbols.typeParameterUpperBounds(for: sourceParam.symbol)
+        if upperBounds.isEmpty {
+            // An unconstrained T is the intentional erasure boundary used by
+            // compareValuesUnchecked and Array/List binary search.
+            return true
+        }
+        return upperBounds.contains { bound in
+            guard case let .classType(boundClass) = sema.types.kind(of: sema.types.makeNonNullable(bound)) else {
+                return false
+            }
+            return boundClass.classSymbol == targetClass.classSymbol
+        }
+    }
+
     func lowerIsCheckTypeTokenExpr(
         typeRefID: TypeRefID,
         ast: ASTModule,

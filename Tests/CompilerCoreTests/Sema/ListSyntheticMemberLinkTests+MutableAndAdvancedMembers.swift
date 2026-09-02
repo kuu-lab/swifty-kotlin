@@ -688,7 +688,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionSequenceAddAllMembersUseRuntimeExternalLinks() throws {
+    func testMutableCollectionSequenceAddAllOverloadsResolveByReceiver() throws {
         let source = """
         fun appendCollection(collection: MutableCollection<Int>, source: Sequence<Int>) = collection.addAll(source)
         fun appendList(list: MutableList<Int>, source: Sequence<Int>) = list.addAll(source)
@@ -701,8 +701,9 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
-            let expectedExternalLinks = [
-                "collection": "__kk_mutable_collection_addAll_sequence",
+            let expectedExternalLinks: [String: String?] = [
+                // KSP-1019: MutableCollection uses the source-backed extension.
+                "collection": nil,
                 "list": "__kk_mutable_list_addAll_sequence",
                 "set": "__kk_mutable_set_addAll_sequence",
             ]
@@ -719,7 +720,11 @@ extension ListSyntheticMemberLinkTests {
                     return ctx.interner.resolve(name) == receiverName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(externalLinkName)")
+                let expectedLinkDescription = externalLinkName ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(receiverName).addAll(Sequence) to resolve to \(expectedLinkDescription)")
+                if receiverName == "collection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Sequence) to be source-backed")
+                }
                 #expect(sema.bindings.exprType(for: callExpr) == sema.types.booleanType)
             }
         }
@@ -927,7 +932,11 @@ extension ListSyntheticMemberLinkTests {
 
             for (memberName, externalLinkName) in expectedExternalLinks {
                 let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
+                    guard case let .memberCall(_, callee, _, _, range) = expr,
+                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                    else {
+                        return false
+                    }
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
@@ -1415,7 +1424,7 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testWithIndexUsesListOfIndexedValueSignature() throws {
+    func testWithIndexUsesIterableOfIndexedValueSignature() throws {
         try withTemporaryFile(contents: "fun noop() {}") { _ in
             let ctx = try sharedListSemaContext()
 
@@ -1435,21 +1444,21 @@ extension ListSyntheticMemberLinkTests {
             #expect(indexedValueRecord.flags.contains(.dataType))
 
             let signature = try #require(sema.symbols.functionSignature(for: withIndexSymbol))
-            guard case let .classType(listType) = sema.types.kind(of: signature.returnType),
-                  let firstArg = listType.args.first
+            guard case let .classType(iterableType) = sema.types.kind(of: signature.returnType),
+                  let firstArg = iterableType.args.first
             else {
-                Issue.record("Expected withIndex() to return List<IndexedValue<T>>"); return
+                Issue.record("Expected withIndex() to return Iterable<IndexedValue<T>>"); return
             }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(listType.classSymbol)?.name)) == "List")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(iterableType.classSymbol)?.name)) == "Iterable")
             let elementType: TypeID
             switch firstArg {
             case .invariant(let t), .out(let t), .in(let t):
                 elementType = t
             case .star:
-                Issue.record("Expected List element type, got star projection"); return
+                Issue.record("Expected Iterable element type, got star projection"); return
             }
             guard case let .classType(indexedValueType) = sema.types.kind(of: elementType) else {
-                Issue.record("Expected List element type to be IndexedValue"); return
+                Issue.record("Expected Iterable element type to be IndexedValue"); return
             }
             #expect(indexedValueType.classSymbol == indexedValueSymbol)
         }
@@ -1576,11 +1585,11 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionArrayAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionArrayAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "__kk_mutable_collection_addAll",
+                nil,
                 "fun mutate(values: MutableCollection<Int>) { values.addAll(arrayOf(1, 2)) }"
             ),
             (
@@ -1612,7 +1621,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Array) to resolve to \(expectedLinkDescription)")
+                if receiverName == "MutableCollection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Array) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
@@ -1625,11 +1638,11 @@ extension ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testMutableCollectionIterableAddAllOverloadsUseRuntimeExternalLinks() throws {
-        let cases: [(String, String, String)] = [
+    func testMutableCollectionIterableAddAllOverloadsResolveByReceiver() throws {
+        let cases: [(String, String?, String)] = [
             (
                 "MutableCollection",
-                "__kk_mutable_collection_addAll_iterable",
+                nil,
                 "fun mutate(values: MutableCollection<Int>, source: Iterable<Int>) { values.addAll(source) }"
             ),
             (
@@ -1666,7 +1679,11 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
 
-                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedExternalLink)")
+                let expectedLinkDescription = expectedExternalLink ?? "source-backed extension"
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == expectedExternalLink, "Expected \(receiverName).addAll(Iterable) to resolve to \(expectedLinkDescription)")
+                if receiverName == "MutableCollection" {
+                    #expect(sema.symbols.symbol(chosenCallee)?.declSite != nil, "Expected MutableCollection.addAll(Iterable) to be source-backed")
+                }
 
                 let signature = try #require(sema.symbols.functionSignature(for: chosenCallee))
                 let parameterType = try #require(signature.parameterTypes.first)
@@ -1709,6 +1726,61 @@ extension ListSyntheticMemberLinkTests {
                 let symbolID = try #require(sema.symbols.lookup(fqName: memberFQ))
                 #expect(sema.symbols.externalLinkName(for: symbolID) == expectedExternal, "Expected \(memberName) to have external link \(expectedExternal)")
             }
+        }
+    }
+
+    @Test
+    func testMapCountOverloadsAreBundledSourceBacked() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let packageFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func bundledMapCountSymbols(arity: Int) -> [SymbolID] {
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("count")]).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == arity,
+                          let receiverType = signature.receiverType,
+                          case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                          sema.symbols.symbol(receiverClassType.classSymbol)?.fqName == mapFQName
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                }
+            }
+
+            let noArg = bundledMapCountSymbols(arity: 0)
+            #expect(!noArg.isEmpty, "Expected bundled Kotlin source for Map.count()")
+            #expect(noArg.allSatisfy { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.flags.contains(.inlineFunction)
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            })
+
+            let predicate = bundledMapCountSymbols(arity: 1)
+            #expect(!predicate.isEmpty, "Expected bundled Kotlin source for Map.count(predicate)")
+            #expect(predicate.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+
+            let syntheticNoArg = sema.symbols.lookupAll(fqName: mapFQName + [interner.intern("count")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.parameterTypes.isEmpty
+            }
+            #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic kk_map_size overload")
         }
     }
 

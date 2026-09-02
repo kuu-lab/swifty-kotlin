@@ -1,3 +1,5 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package kotlin.comparisons
 
 import kotlin.Comparator
@@ -23,7 +25,7 @@ private fun compareNullable(a: Comparable<*>?, b: Comparable<*>?): Int {
 internal fun <T> compareValuesUnchecked(a: T?, b: T?): Int {
     if (a == null) return if (b == null) 0 else -1
     if (b == null) return 1
-    return a.compareTo(b)
+    return (a as Comparable<Any>).compareTo(b)
 }
 
 // --- compareValues / compareValuesBy ----------------------------------------
@@ -31,7 +33,7 @@ internal fun <T> compareValuesUnchecked(a: T?, b: T?): Int {
 public fun <T : Comparable<*>> compareValues(a: T?, b: T?): Int {
     if (a == null) return if (b == null) 0 else -1
     if (b == null) return 1
-    return a.compareTo(b)
+    return (a as Comparable<Any>).compareTo(b)
 }
 
 public fun <T> compareValuesBy(a: T, b: T, selector: (T) -> Comparable<*>?): Int =
@@ -242,5 +244,23 @@ public fun <T> Comparator<T>.thenComparator(comparison: (T, T) -> Int): Comparat
     return Comparator { a, b ->
         val r = self.compare(a, b)
         if (r != 0) r else comparison(a, b)
+    }
+}
+
+// --- Comparator<T>.then / thenDescending ------------------------------------
+
+public infix fun <T> Comparator<T>.then(comparator: Comparator<in T>): Comparator<T> {
+    val self = this
+    return Comparator { a, b ->
+        val r = self.compare(a, b)
+        if (r != 0) r else comparator.compare(a, b)
+    }
+}
+
+public infix fun <T> Comparator<T>.thenDescending(comparator: Comparator<in T>): Comparator<T> {
+    val self = this
+    return Comparator<T> { a, b ->
+        val r = self.compare(a, b)
+        if (r != 0) r else comparator.compare(b, a)
     }
 }

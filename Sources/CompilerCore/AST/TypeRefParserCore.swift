@@ -166,7 +166,7 @@ enum TypeRefParserCore {
                 interner: interner,
                 allowUseSiteTarget: false
             ) {
-                if parsedAnnotation.hadInvalidUseSiteTarget {
+                if parsedAnnotation.invalidUseSiteTargetRange != nil {
                     diagnostics?.error(
                         "KSWIFTK-PARSE-TYPE-ANNOTATION",
                         "Use-site targets are not allowed on type annotations.",

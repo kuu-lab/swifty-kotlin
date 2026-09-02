@@ -1,0 +1,20 @@
+fun main() {
+    val values: Set<Int?> = setOf(1, null, 2, 3)
+    val iterable: Iterable<Int?> = listOf(2, null, 9, 9)
+    val sequence: Sequence<Int?> = sequenceOf(3, 9, 3)
+    val array: Array<Int?> = arrayOf(1, null, 8, 8)
+
+    println(values)
+    println(values - 2)
+    println(values - iterable)
+    println(values - sequence)
+    println(values - array)
+    println(values.minusElement(null))
+    println((null as Set<Int?>?).orEmpty())
+    println(values + 4)
+    println(values + iterable)
+    println(values + sequence)
+    println(values + array)
+    println(values.plusElement(8))
+    println(values)
+}
