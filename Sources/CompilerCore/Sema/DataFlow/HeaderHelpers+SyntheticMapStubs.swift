@@ -204,6 +204,30 @@ extension DataFlowSemaPhase {
         skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let mapFQName = kotlinCollectionsPkg + [interner.intern("Map")]
+
+        // Keep the legacy Map vtable slot reserved when the source-backed
+        // no-argument count extension replaces the synthetic member. Runtime
+        // dispatch for Map.size uses the slot after the two existing Map
+        // entries, so removing the synthetic count symbol must not shift that
+        // ABI slot even though the source declaration is not a Map member.
+        let sourceBackedMapCount = bundledIndex.contains(
+            ownerFQName: mapFQName,
+            name: interner.intern("count"),
+            arity: 0
+        )
+        if sourceBackedMapCount {
+            let existingHint = symbols.nominalLayoutHint(for: mapInterfaceSymbol)
+            symbols.setNominalLayoutHint(
+                NominalLayoutHint(
+                    declaredFieldCount: existingHint?.declaredFieldCount,
+                    declaredInstanceSizeWords: existingHint?.declaredInstanceSizeWords,
+                    declaredVtableSize: max(existingHint?.declaredVtableSize ?? 0, 2),
+                    declaredItableSize: existingHint?.declaredItableSize
+                ),
+                for: mapInterfaceSymbol
+            )
+        }
+
         let keyType = types.make(.typeParam(TypeParamType(symbol: keyTypeParamSymbol, nullability: .nonNull)))
         let valueType = types.make(.typeParam(TypeParamType(symbol: valueTypeParamSymbol, nullability: .nonNull)))
         let receiverType = types.make(.classType(ClassType(
@@ -1006,8 +1030,8 @@ extension DataFlowSemaPhase {
         }
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
-            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction]),
-            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic]),
+            ("set", [keyType, valueType], types.unitType, "__kk_mutable_map_put", [.synthetic, .operatorFunction, .throwingFunction]),
+            ("put", [keyType, valueType], types.makeNullable(valueType), "__kk_mutable_map_put", [.synthetic, .throwingFunction]),
             ("remove", [keyType], types.makeNullable(valueType), "__kk_mutable_map_remove", [.synthetic]),
             ("clear", [], types.unitType, "__kk_mutable_map_clear", [.synthetic]),
             ("putAll", [mapParamType], types.unitType, "__kk_mutable_map_putAll", [.synthetic]),

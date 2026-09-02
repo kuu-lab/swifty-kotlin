@@ -919,7 +919,7 @@ extension CallTypeChecker {
                    else {
                        return false
                    }
-                   return receiverClassifier.isIterableLikeType(parameterType)
+                   return receiverClassifier.isExactIterableType(parameterType)
                })
             {
                 return iterableMatch

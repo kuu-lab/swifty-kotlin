@@ -191,6 +191,25 @@ struct EnumAPISurfaceInventoryTests {
         )
     }
 
+    // A class-name receiver may select static properties only. An instance
+    // property must require an actual Foo receiver, not the Foo class name.
+    @Test func testClassNameRejectsInstancePropertyMember() throws {
+        let ctx = makeContextFromSource("""
+        class Foo {
+            val bar: Int = 1
+        }
+
+        fun probe(): Int = Foo.bar
+        """)
+        try? runSema(ctx)
+
+        let messages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(
+            messages.contains { $0.contains("bar") },
+            "Expected class-name instance property access to be rejected, got: \(messages)"
+        )
+    }
+
     // BUG: Nested enum classes (declared inside another class/interface/object,
     // e.g. `class Outer { enum class Color { RED, GREEN } }`) never got ANY of
     // the Enum stdlib surface synthesized at all. MemberHeaderCollection's

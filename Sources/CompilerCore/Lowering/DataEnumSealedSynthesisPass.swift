@@ -16,6 +16,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             return
         }
 
+        appendReferencedSyntheticMemoryModelNominalIfNeeded(
+            module: module,
+            sema: sema,
+            interner: ctx.interner
+        )
         appendReferencedSourceBackedOsFamilyNominalIfNeeded(
             module: module,
             sema: sema,
@@ -115,6 +120,58 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         rewriteSyntheticEnumEntryRefs(module: module, sema: sema)
 
         module.recordLowering(Self.name)
+    }
+
+    /// Makes the synthetic Native MemoryModel visible to the shared enum
+    /// synthesis pass only when one of its generated APIs is referenced.
+    private func appendReferencedSyntheticMemoryModelNominalIfNeeded(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        let memoryModelFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("MemoryModel"),
+        ]
+        guard let memoryModelSymbol = sema.symbols.lookup(fqName: memoryModelFQName),
+              let memoryModel = sema.symbols.symbol(memoryModelSymbol),
+              memoryModel.kind == .enumClass
+        else {
+            return
+        }
+
+        let generatedMemberNames = [
+            interner.intern("entries"),
+            interner.intern("valueOf"),
+            interner.intern("values"),
+        ]
+        let generatedMembers = Set(generatedMemberNames.flatMap { name in
+            sema.symbols.lookupAll(fqName: memoryModelFQName + [name])
+        })
+        guard !generatedMembers.isEmpty else {
+            return
+        }
+
+        let isReferenced = sema.bindings.identifierSymbols.values.contains {
+            generatedMembers.contains($0)
+        } || sema.bindings.callBindings.values.contains {
+            generatedMembers.contains($0.chosenCallee)
+        }
+        guard isReferenced else {
+            return
+        }
+
+        let alreadyDeclared = module.arena.declarations.contains { declaration in
+            guard case let .nominalType(nominal) = declaration else {
+                return false
+            }
+            return nominal.symbol == memoryModelSymbol
+        }
+        guard !alreadyDeclared else {
+            return
+        }
+        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: memoryModelSymbol)))
     }
 
     /// Makes the bundled Native OsFamily enum available to the shared enum

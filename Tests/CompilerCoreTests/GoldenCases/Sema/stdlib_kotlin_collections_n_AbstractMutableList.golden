@@ -24,13 +24,13 @@ symbol fq=golden.sema.probe.$7.values kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
-symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int,kotlin.collections.MutableList.E] ret=Unit
 symbol fq=kotlin.collections.MutableList.listIterator kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[] ret=kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E> type=() -> kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E>
 symbol fq=kotlin.collections.MutableList.removeAt kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int] ret=kotlin.collections.MutableList.E
 symbol fq=kotlin.collections.MutableList.set kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int,kotlin.collections.MutableList.E] ret=kotlin.collections.MutableList.E
-symbol fq=kotlin.collections.MutableListIterator kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableListIterator kind=interface vis=public flags=_
 symbol fq=kotlin.collections.arrayListOf kind=function vis=public flags=synthetic sig=recv=_ params=[Any] ret=Any vararg=[1]
 symbol fq=kotlin.collections.arrayListOf.T kind=typeParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.arrayListOf.elements kind=valueParameter vis=private flags=synthetic

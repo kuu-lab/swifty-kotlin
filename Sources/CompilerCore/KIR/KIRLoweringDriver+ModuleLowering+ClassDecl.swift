@@ -506,6 +506,13 @@ extension KIRLoweringDriver {
         // naive lookup (still excluding self) if that binding is missing.
         let resolvedSymbol = sema.bindings.constructorDelegationTarget(for: ctorSymbol)
             ?? sema.symbols.lookupAll(fqName: delegationTarget).first(where: { $0 != ctorSymbol })
+        if let resolvedSymbol,
+           sema.symbols.symbol(resolvedSymbol)?.flags.contains(.synthetic) == true,
+           sema.symbols.parentSymbol(for: resolvedSymbol) == sema.types.anyClassSymbol
+        {
+            // Any's compiler-provided constructor is allocation-only.
+            return
+        }
         body.append(.call(
             symbol: resolvedSymbol,
             callee: compilationCtx.interner.intern("<init>"),
