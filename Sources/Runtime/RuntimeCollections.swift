@@ -161,7 +161,7 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
     if let list = runtimeListBox(from: listRaw) {
-        return registerRuntimeObject(
+        let raw = registerRuntimeObject(
             RuntimeListIteratorBox(
                 elements: list.elements,
                 removeAction: { index in
@@ -170,9 +170,11 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 }
             )
         )
+        registerListIteratorItable(raw: raw)
+        return raw
     }
     if let set = runtimeSetBox(from: listRaw) {
-        return registerRuntimeObject(
+        let raw = registerRuntimeObject(
             RuntimeListIteratorBox(
                 elements: set.elements,
                 removeAction: { index in
@@ -181,11 +183,17 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
                 }
             )
         )
+        registerListIteratorItable(raw: raw)
+        return raw
     }
     if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        return registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+        registerListIteratorItable(raw: raw)
+        return raw
     }
-    return registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+    let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+    registerListIteratorItable(raw: raw)
+    return raw
 }
 
 /// Backs both `List.listIterator(index)` and `MutableList.listIterator(index)`
@@ -249,7 +257,7 @@ func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
 /// `index` is always in `0...elements.count`, but we defensively
 /// also check the upper bound so that a corrupted/invalid index
 /// cannot lead to an out-of-bounds access in `previous()`.
-private func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
+func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
     iter.index > 0 && iter.index <= iter.elements.count
 }
 
@@ -273,6 +281,22 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     // This matches the standard ListIterator behavior
     iter.index -= 1
     return iter.elements[iter.index]
+}
+
+@_cdecl("kk_list_iterator_nextIndex")
+public func kk_list_iterator_nextIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.index
+}
+
+@_cdecl("kk_list_iterator_previousIndex")
+public func kk_list_iterator_previousIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return -1
+    }
+    return iter.index - 1
 }
 
 @_cdecl("kk_list_to_string")

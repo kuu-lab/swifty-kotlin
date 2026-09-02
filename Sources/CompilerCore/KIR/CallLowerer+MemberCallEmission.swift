@@ -543,6 +543,15 @@ extension CallLowerer {
         // so itable dispatch must be attempted there as well;
         // tryEmitVirtualDispatch falls back to the link name when the receiver
         // has no resolvable itable entry.
+        // Source-backed ListIterator inherits hasNext/next from Iterator, but
+        // loweredMemberCalleeName intentionally retains those names so the
+        // implementation can be selected through its dynamic itable.
+        let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
+            receiverType: sema.bindings.exprTypes[receiver.expr],
+            calleeName: loweredCallee,
+            sema: sema,
+            interner: interner
+        ) != nil
         let isImportedLibraryLink = chosenCallee.map { symbol in
             // Imported source-backed interface members (kk_fn_* links) still
             // need itable dispatch, but runtime-bridged interface members must
@@ -559,6 +568,7 @@ extension CallLowerer {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || listIteratorInheritedDispatch
             || isImportedLibraryLink
             || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
