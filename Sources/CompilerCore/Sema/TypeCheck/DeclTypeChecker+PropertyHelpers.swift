@@ -40,8 +40,13 @@ extension DeclTypeChecker {
             // function and local declaration do.
             let bodyIsRangeExpr = {
                 guard case let .expr(bodyExprID, _) = getter.body else { return false }
-                return sema.bindings.isRangeExpr(bodyExprID)
-                    && driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+                return driver.helpers.rangeExprMatchesDeclaredElementType(
+                    bodyExprID: bodyExprID,
+                    bodyType: getterType,
+                    declaredType: declaredType,
+                    sema: sema,
+                    interner: interner
+                )
             }()
             if !bodyIsRangeExpr {
                 driver.emitSubtypeConstraint(

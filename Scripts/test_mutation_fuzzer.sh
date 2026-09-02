@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Smoke-tests the mutation generator itself (determinism + operation
+# coverage). Compiling generated/corpus cases against kswiftc is the nightly
+# workflow's job (nightly-mutation-fuzzer.yml) — its "Replay committed crash
+# corpus" and "Run bounded mutation fuzzer" steps already cover that ground,
+# so this script stays generator-only and needs no kswiftc/stdlib inputs.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
-KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
-STDLIB_ARGS=()
-if [[ -n "${FUZZ_STDLIB_LIBRARY:-}" ]]; then
-  STDLIB_ARGS=(--stdlib-library "$FUZZ_STDLIB_LIBRARY")
-fi
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kswiftk-mutation-test.XXXXXX")"
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 run_generator() {
   local output_dir="$1"
   "$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-    --seed-dir "$ROOT_DIR/Scripts/diff_cases" \
+    --seed-dir "$SCRIPT_DIR/diff_cases" \
     --seed 23023 \
     --cases 24 \
     --duration-seconds 30 \
@@ -34,6 +34,7 @@ import sys
 
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 operations = {entry["mutation"]["operation"] for entry in manifest}
+# Kept in sync by hand with the operations mutate_diff_cases.py can choose from.
 expected = {"replace", "delete", "swap"}
 missing = expected - operations
 if missing:
@@ -41,22 +42,4 @@ if missing:
 print(f"Deterministic mutation smoke: {len(manifest)} cases, operations={sorted(operations)}")
 PY
 
-"$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-  --kswiftc "$KSWIFTC" \
-  --replay-dir "$ROOT_DIR/Tests/CrashCorpus" \
-  "${STDLIB_ARGS[@]}" \
-  --timeout-seconds 30 \
-  --workers 1
-
-"$PYTHON_BIN" "$SCRIPT_DIR/mutate_diff_cases.py" \
-  --kswiftc "$KSWIFTC" \
-  --seed-dir "$ROOT_DIR/Scripts/diff_cases" \
-  --seed 23023 \
-  --cases 2 \
-  --duration-seconds 90 \
-  --timeout-seconds 30 \
-  "${STDLIB_ARGS[@]}" \
-  --workers 1 \
-  --report "$TEMP_DIR/focused-report.json"
-
-echo "Mutation fuzzer focused tests passed."
+echo "Mutation generator smoke test passed."
