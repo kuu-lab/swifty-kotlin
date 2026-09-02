@@ -102,7 +102,8 @@ extension DataFlowSemaPhase {
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             iterableInterfaceSymbol: iterableInterfaceSymbol,
-            bundledIndex: bundledIndex
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         let abstractCollectionSymbol = registerSyntheticAbstractCollectionStub(

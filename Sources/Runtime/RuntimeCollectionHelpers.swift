@@ -62,9 +62,18 @@ private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Map"
 )
 // These slots are the generated interface property getter slots in the current
-// bundled layout: Collection.size follows six inherited vtable entries, while
-// Map.size is the first property after two vtable entries.
-private let runtimeCollectionSizeGetterSlot = 6
+// bundled layout: `size`'s slot is `Collection`/`Map`'s own vtableSize (its
+// method-slot count), since KIRInterfacePropertyDispatch.swift lays property
+// getters out right after an interface's own method slots.
+//
+// Collection's own vtable methods are isEmpty/contains/iterator/containsAll
+// (4 slots) -- KSP-960 (source-backing Collection.random/randomOrNull as
+// top-level extensions in Collections.kt) removed the two synthetic
+// Collection.random/randomOrNull member registrations that previously
+// contributed 2 more vtable slots here, so this dropped from 6 to 4. Map's
+// own vtable method count (2 slots) is untouched by KSP-960, which only
+// changes Collection's synthetic member registration.
+private let runtimeCollectionSizeGetterSlot = 4
 private let runtimeMapSizeGetterSlot = 2
 
 /// Source-defined Collection/Map implementations expose `size` through the
@@ -256,8 +265,8 @@ func runtimeIterableValues(from rawValue: Int) -> [RuntimeValue]? {
     // through the same dynamic interface used by generic for-loops.
     if let iteratorRaw = runtimeSourceIterableIterator(rawValue) {
         var values: [RuntimeValue] = []
-        while kk_iterator_hasNext(iteratorRaw) != 0 {
-            let element = kk_iterator_next(iteratorRaw)
+        while kk_iterator_hasNext(iteratorRaw, nil) != 0 {
+            let element = kk_iterator_next(iteratorRaw, nil)
             values.append(runtimeSourceIteratorValue(element, iteratorRaw: iteratorRaw))
         }
         return values
