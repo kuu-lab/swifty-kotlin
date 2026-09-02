@@ -301,7 +301,7 @@ extension LoweringPassRegressionTests {
         #expect(functionNames.contains("GREEN$enumName$\(colorSuffix)"), "Missing GREEN$enumName$\(colorSuffix), got: \(functionNames)")
         #expect(functionNames.contains("BLUE$enumName$\(colorSuffix)"), "Missing BLUE$enumName$\(colorSuffix), got: \(functionNames)")
 
-        // Verify values() and valueOf() companion functions
+        // Verify values() and valueOf() enum-owner functions
         #expect(functionNames.contains("values"), "Missing values, got: \(functionNames)")
         #expect(functionNames.contains("valueOf"), "Missing valueOf, got: \(functionNames)")
 
@@ -337,9 +337,9 @@ extension LoweringPassRegressionTests {
         }
         #expect(redNameConsts.contains(interner.intern("RED")), "RED name function should return \"RED\"")
 
-        // Verify valueOf has receiver + name parameter (companion member)
+        // Verify valueOf has only the name parameter when owned by the enum
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
-        #expect(valueOfFn.params.count == 2, "valueOf should have receiver + 1 name parameter")
+        #expect(valueOfFn.params.count == 1, "valueOf should have 1 name parameter")
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
@@ -347,13 +347,13 @@ extension LoweringPassRegressionTests {
         #expect(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
         #expect(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
-        // Verify valueOf body contains the class name prefix string "Color."
+        // Verify valueOf body contains the fully qualified class name prefix string "demo.Color."
         let valueOfStringConsts = valueOfFn.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s
         }
-        #expect(valueOfStringConsts.contains(interner.intern("Color.")),
-                "valueOf should contain 'Color.' prefix for Kotlin-compatible error message")
+        #expect(valueOfStringConsts.contains(interner.intern("demo.Color.")),
+                "valueOf should contain 'demo.Color.' prefix for Kotlin-compatible error message")
     }
 
     // MARK: - DATA-003: hashCode() synthesis for data classes

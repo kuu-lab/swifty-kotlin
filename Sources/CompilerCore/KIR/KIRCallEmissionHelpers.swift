@@ -79,6 +79,25 @@ func emitNonThrowingCall(
     ))
 }
 
+/// Emits a runtime bridge call whose trailing `outThrown` channel must be
+/// present even when the enclosing Kotlin function has no local catch block.
+/// Try-lowering may route the call to its local exception slot later.
+func emitThrowingCall(
+    callee: InternedString,
+    arg: KIRExprID,
+    result: KIRExprID,
+    into instructions: inout [KIRInstruction]
+) {
+    instructions.append(.call(
+        symbol: nil,
+        callee: callee,
+        arguments: [arg],
+        result: result,
+        canThrow: true,
+        thrownResult: nil
+    ))
+}
+
 /// Resolve `componentN` for destructuring against `receiverType`.
 ///
 /// External members lower to their runtime link name; the resolved symbol is

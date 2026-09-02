@@ -58,5 +58,5 @@ expr e@8:47#1 memberCall recv=e@8:47 callee=length args=[] type=Int call=kotlin.
 expr e@8:59 int(3) type=Int
 expr e@8:47#2 binary(greaterThan) lhs=e@8:47#1 rhs=e@8:59 type=Boolean
 expr e@8:45 lambda params=[] body=e@8:47#2 label=partition type=(String) -> Boolean
-expr e@8:28#1 memberCall recv=e@8:28 callee=partition args=[_:e@8:45] type=kotlin.Pair<kotlin.collections.List<String>, kotlin.collections.List<String>> call=kotlin.collections.partition#0 targs=[String]
+expr e@8:28#1 memberCall recv=e@8:28 callee=partition args=[_:e@8:45] type=kotlin.Pair<kotlin.collections.List<String>, kotlin.collections.List<String>> call=kotlin.collections.partition#1 targs=[String]
 expr e@8:5 destructuringDecl names=[matching,rest] mutable=0 init=e@8:28#1 type=Unit

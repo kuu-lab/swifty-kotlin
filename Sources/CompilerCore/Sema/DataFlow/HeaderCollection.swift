@@ -326,6 +326,99 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-711: forward-declares `Charset` and `Charsets` from
+    /// `StringEncoding.kt` before synthetic FileIO bridges are registered.
+    /// Their source symbols must be available while bridge signatures are
+    /// constructed; `collectAllHeaders` later fills in the complete headers.
+    func predeclareBundledStringEncodingHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let charsetFQName = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("Charset"),
+        ]
+        guard symbols.lookup(fqName: charsetFQName) == nil else { return }
+
+        for file in ast.sortedFiles
+            where sourceManager.path(of: file.fileID) == "__bundled_kotlin/text/StringEncoding.kt"
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
+            // Keep the source file association for metadata and declaration
+            // binding, while retaining the historical compatibility-shell
+            // visibility used by semantic inventory goldens. The normal header
+            // pass still fills the source-backed declaration details.
+            symbols.setDeclSite(nil, for: charsetSymbol)
+        }
+    }
+
+    /// KSP-918: forward-declare the six `kotlin.annotation` core declarations
+    /// before synthetic annotation bootstrap runs. Their source declarations
+    /// refer to one another through `@Target`, `@Retention`, and
+    /// `@MustBeDocumented`, so the symbols must exist before annotations are
+    /// registered on the first source header.
+    func predeclareBundledAnnotationHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("annotation")]
+        let coreNames: Set<InternedString> = [
+            interner.intern("AnnotationRetention"),
+            interner.intern("AnnotationTarget"),
+            interner.intern("MustBeDocumented"),
+            interner.intern("Repeatable"),
+            interner.intern("Retention"),
+            interner.intern("Target"),
+        ]
+
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresCoreType = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return coreNames.contains(classDecl.name)
+                case let .interfaceDecl(interfaceDecl):
+                    return coreNames.contains(interfaceDecl.name)
+                case let .objectDecl(objectDecl):
+                    return coreNames.contains(objectDecl.name)
+                case let .typeAliasDecl(typeAliasDecl):
+                    return coreNames.contains(typeAliasDecl.name)
+                default:
+                    return false
+                }
+            }
+            guard declaresCoreType, let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1522: forward-declares the source-backed `kotlin.random.Random` and
     /// `java.util.Random` nominal types before synthetic collection and Sequence
     /// members resolve their parameter types. `JavaRandomInterop.kt` can also be

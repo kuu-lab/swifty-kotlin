@@ -322,23 +322,30 @@ struct ArraySyntheticMemberLinkTests {
                 }
             }
 
-            // === testArrayCopyIntoUsesRuntimeExternalLink ===
+            // === testArrayCopySurfaceIsBundledSourceBacked ===
             do {
+                for functionName in ["copyOf", "copyOfRange", "copyInto"] {
+                    #expect(
+                        sema.symbols.lookup(
+                            fqName: [
+                                ctx.interner.intern("kotlin"),
+                                ctx.interner.intern("Array"),
+                                ctx.interner.intern(functionName),
+                            ]
+                        ) == nil,
+                        "Generic Array.\(functionName) synthetic stub should be removed"
+                    )
+                }
+
                 let symbolID = try #require(
-                    sema.symbols.lookup(
-                        fqName: [
-                            ctx.interner.intern("kotlin"),
-                            ctx.interner.intern("Array"),
-                            ctx.interner.intern("copyInto"),
-                        ]
-                    ),
-                    "Expected synthetic Array.copyInto to be registered"
+                    sourceArrayExtension(named: "copyInto", receiverName: "Array"),
+                    "Expected bundled source Array.copyInto extension"
                 )
-                #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_copyInto")
+                #expect(sema.symbols.isSourceBackedSymbol(symbolID))
+                #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
                 let signature = try #require(sema.symbols.functionSignature(for: symbolID))
                 #expect(signature.parameterTypes.count == 4)
-                let receiverType = try #require(signature.receiverType)
-                #expect(signature.returnType == receiverType)
+                #expect(signature.returnType == signature.parameterTypes[0])
                 #expect(signature.valueParameterHasDefaultValues == [false, true, true, true])
                 #expect(signature.valueParameterIsVararg == [false, false, false, false])
                 #expect(signature.typeParameterSymbols.count == 1)
@@ -346,6 +353,15 @@ struct ArraySyntheticMemberLinkTests {
                     sema.symbols.symbol(symbolID).map { ctx.interner.resolve($0.name) }
                 }
                 #expect(parameterNames == ["destination", "destinationOffset", "startIndex", "endIndex"])
+
+                for functionName in ["copyOf", "copyOfRange"] {
+                    let sourceSymbol = try #require(
+                        sourceArrayExtension(named: functionName, receiverName: "Array"),
+                        "Expected bundled source Array.\(functionName) extension"
+                    )
+                    #expect(sema.symbols.isSourceBackedSymbol(sourceSymbol))
+                    #expect((sema.symbols.externalLinkName(for: sourceSymbol) ?? "").isEmpty)
+                }
             }
 
             // === testPrimitiveArrayContentToStringOverloadsAreSourceBacked ===
@@ -540,7 +556,7 @@ struct ArraySyntheticMemberLinkTests {
                 }
             }
 
-            // === testPrimitiveArrayCopyIntoOverloadsUseRuntimeExternalLink ===
+            // === testPrimitiveArrayCopySurfaceIsBundledSourceBacked ===
             do {
                 let arrayNames = [
                     "IntArray",
@@ -557,23 +573,28 @@ struct ArraySyntheticMemberLinkTests {
                     "UShortArray",
                 ]
                 for arrayName in arrayNames {
-                    let symbolID = try #require(
-                        sema.symbols.lookup(
-                            fqName: [
-                                ctx.interner.intern("kotlin"),
-                                ctx.interner.intern(arrayName),
-                                ctx.interner.intern("copyInto"),
-                            ]
-                        ),
-                        "Expected \(arrayName).copyInto to be registered"
-                    )
-                    #expect(sema.symbols.externalLinkName(for: symbolID) == "kk_array_copyInto")
-                    let signature = try #require(sema.symbols.functionSignature(for: symbolID))
-                    #expect(signature.parameterTypes.count == 4, "\(arrayName).copyInto should take four parameters")
-                    let receiverType = try #require(signature.receiverType)
-                    #expect(signature.returnType == receiverType, "\(arrayName).copyInto should return destination array type")
-                    #expect(signature.valueParameterHasDefaultValues == [false, true, true, true])
-                    #expect(signature.valueParameterIsVararg == [false, false, false, false])
+                    for functionName in ["copyOf", "copyOfRange", "copyInto"] {
+                        let symbolID = try #require(
+                            sourceArrayExtension(named: functionName, receiverName: arrayName),
+                            "Expected bundled source \(arrayName).\(functionName) extension"
+                        )
+                        #expect(sema.symbols.isSourceBackedSymbol(symbolID))
+                        #expect((sema.symbols.externalLinkName(for: symbolID) ?? "").isEmpty)
+                        let signature = try #require(sema.symbols.functionSignature(for: symbolID))
+                        let expectedParameterCount = switch functionName {
+                        case "copyOf": 0
+                        case "copyOfRange": 2
+                        default: 4
+                        }
+                        #expect(
+                            signature.parameterTypes.count == expectedParameterCount,
+                            "\(arrayName).\(functionName) source overload should expose its base arity"
+                        )
+                        if functionName == "copyInto" {
+                            #expect(signature.valueParameterHasDefaultValues == [false, true, true, true])
+                            #expect(signature.valueParameterIsVararg == [false, false, false, false])
+                        }
+                    }
                 }
             }
 
