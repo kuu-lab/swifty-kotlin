@@ -35,6 +35,23 @@ public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
 }
 
 /**
+ * Creates an [Iterable] instance that wraps the original map returning its entries when being iterated.
+ */
+public inline fun <K, V> Map<out K, V>.asIterable(): Iterable<Map.Entry<K, V>> {
+    return this.entries
+}
+
+/**
+ * Creates a lazy [Sequence] instance that wraps the original map returning its entries when being iterated.
+ */
+public fun <K, V> Map<out K, V>.asSequence(): Sequence<Map.Entry<K, V>> {
+    val source = this
+    return object : Sequence<Map.Entry<K, V>> {
+        override fun iterator(): Iterator<Map.Entry<K, V>> = source.entries.iterator()
+    }
+}
+
+/**
  * Performs the given [action] on each entry.
  */
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
@@ -86,6 +103,14 @@ public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean)
         if (predicate(entry)) return false
     }
     return true
+}
+
+/**
+ * Returns the number of entries in this map.
+ */
+@kotlin.internal.InlineOnly
+public inline fun <K, V> Map<out K, V>.count(): Int {
+    return size
 }
 
 /**

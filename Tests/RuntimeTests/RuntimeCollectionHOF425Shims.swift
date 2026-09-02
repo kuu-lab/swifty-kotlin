@@ -146,7 +146,7 @@ public func kk_list_associateTo(_ listRaw: Int, _ destRaw: Int, _ fnPtr: Int, _ 
         if thrown != 0 {
             return handleCollectionLambdaThrow(thrown, outThrown)
         }
-        _ = kk_mutable_map_put(destRaw, kk_pair_first(pair), kk_pair_second(pair))
+        _ = kk_mutable_map_put(destRaw, kk_pair_first(pair), kk_pair_second(pair), nil)
     }
     return destRaw
 }

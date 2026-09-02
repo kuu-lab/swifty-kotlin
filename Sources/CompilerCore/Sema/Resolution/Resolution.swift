@@ -352,9 +352,18 @@ extension OverloadResolver {
             return .rejected
         }
 
+        let instantiatedReceiverType = signature.receiverType.map {
+            ctx.types.substituteTypeParameters(
+                in: $0,
+                substitution: substitution,
+                typeVarBySymbol: typeVarBySymbol
+            )
+        }
+
         return .viable(ViableCandidate(
             symbol: candidate,
             signature: signature,
+            instantiatedReceiverType: instantiatedReceiverType,
             instantiatedParameterTypes: instantiatedParameterTypes,
             substitutedTypeArguments: substitution,
             parameterMapping: parameterMapping,
@@ -626,6 +635,7 @@ extension OverloadResolver {
     private struct ViableCandidate {
         let symbol: SymbolID
         let signature: FunctionSignature
+        let instantiatedReceiverType: TypeID?
         let instantiatedParameterTypes: [TypeID]
         let substitutedTypeArguments: [TypeVarID: TypeID]
         let parameterMapping: [Int: Int]
@@ -743,8 +753,8 @@ extension OverloadResolver {
         guard paramsEqual else {
             return false
         }
-        if let lhsReceiver = lhs.signature.receiverType,
-           let rhsReceiver = rhs.signature.receiverType
+        if let lhsReceiver = lhs.instantiatedReceiverType,
+           let rhsReceiver = rhs.instantiatedReceiverType
         {
             let lhsReceiverSubRhs = typeSystem.isSubtype(lhsReceiver, rhsReceiver)
             let rhsReceiverSubLhs = typeSystem.isSubtype(rhsReceiver, lhsReceiver)
