@@ -45,16 +45,7 @@ struct CodegenBackendStringWithIndexTests {
 
     @Test
     func testCodegenStringWithIndexUsesCanonicalDiffCase() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sourceURL = repoRoot
-            .appendingPathComponent("Scripts")
-            .appendingPathComponent("diff_cases")
-            .appendingPathComponent("string_withindex.kt")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+        let source = try diffCaseSource("string_withindex.kt")
 
         try withTemporaryFile(contents: source) { path in
             let outputBase = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path

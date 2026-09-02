@@ -347,13 +347,13 @@ extension LoweringPassRegressionTests {
         #expect(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
         #expect(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
-        // Verify valueOf body contains the class name prefix string "Color."
+        // Verify valueOf body contains the fully qualified class name prefix string "demo.Color."
         let valueOfStringConsts = valueOfFn.body.compactMap { inst -> InternedString? in
             guard case let .constValue(_, value) = inst, case let .stringLiteral(s) = value else { return nil }
             return s
         }
-        #expect(valueOfStringConsts.contains(interner.intern("Color.")),
-                "valueOf should contain 'Color.' prefix for Kotlin-compatible error message")
+        #expect(valueOfStringConsts.contains(interner.intern("demo.Color.")),
+                "valueOf should contain 'demo.Color.' prefix for Kotlin-compatible error message")
     }
 
     // MARK: - DATA-003: hashCode() synthesis for data classes

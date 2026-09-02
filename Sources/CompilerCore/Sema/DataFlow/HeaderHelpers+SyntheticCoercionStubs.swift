@@ -102,31 +102,8 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            registerSyntheticCoercionFunction(
-                named: "toDouble",
-                externalLinkName: "kk_int_to_double_bits",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.doubleType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toChar",
-                externalLinkName: "kk_int_to_char",
-                receiverType: types.intType,
-                parameters: [],
-                returnType: types.charType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
+            // KSP-1536: Int.toDouble() and Int.toChar() are declared in bundled
+            // Kotlin source (`Stdlib/kotlin/Numbers.kt`).
 
             registerSyntheticCoercionFunction(
                 named: "toUByte",
@@ -378,84 +355,6 @@ extension DataFlowSemaPhase {
                 types: types
             )
 
-            // Char conversion functions
-            registerSyntheticCoercionFunction(
-                named: "toByte",
-                externalLinkName: "kk_char_to_int",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toShort",
-                externalLinkName: "kk_char_to_int",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toInt",
-                externalLinkName: "kk_char_to_int",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.intType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toLong",
-                externalLinkName: "kk_char_to_long",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.longType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toUInt",
-                externalLinkName: "kk_char_to_uint",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.uintType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
-
-            registerSyntheticCoercionFunction(
-                named: "toULong",
-                externalLinkName: "kk_char_to_ulong",
-                receiverType: types.charType,
-                parameters: [],
-                returnType: types.ulongType,
-                packageFQName: kotlinPkg,
-                packageSymbol: kotlinPackageSymbol,
-                symbols: symbols,
-                interner: interner,
-                types: types
-            )
         }
 
     }

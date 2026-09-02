@@ -1,11 +1,38 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
+
+@KsSymbolName("kk_map_is_empty")
+private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
 // Sources/Runtime/RuntimeCollectionHOF.swift (kk_map_* HOFs)
 // Sources/Runtime/RuntimeSetAndMap.swift (kk_map_plus / kk_map_minus)
+
+// Reuse the existing Map size ABI until Map.isEmpty is source-backed.
+@KsSymbolName("kk_map_size")
+private external fun <K, V> __kk_map_size_for_any(map: Map<K, V>): Int
+
+/**
+ * Returns `true` if this map is not empty.
+ */
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !__kkMapIsEmpty(this)
+
+/**
+ * Returns `true` if this nullable map is either null or empty.
+ */
+@SinceKotlin("1.3")
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this != null)
+    }
+    return this == null || __kkMapIsEmpty(this)
+}
 
 /**
  * Creates an [Iterable] instance that wraps the original map returning its entries when being iterated.
@@ -34,6 +61,14 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
 }
 
 /**
+ * Returns `true` if map has at least one entry.
+ */
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Map<out K, V>.any(): Boolean {
+    return __kk_map_size_for_any(this as Map<K, V>) > 0
+}
+
+/**
  * Returns `true` if at least one entry matches the given [predicate].
  */
 public inline fun <K, V> Map<K, V>.any(predicate: (Map.Entry<K, V>) -> Boolean): Boolean {
@@ -51,6 +86,13 @@ public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean):
         if (!predicate(entry)) return false
     }
     return true
+}
+
+/**
+ * Returns `true` if the map has no entries.
+ */
+public fun <K, V> Map<out K, V>.none(): Boolean {
+    return __kkMapIsEmpty(this)
 }
 
 /**
@@ -72,6 +114,34 @@ public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean
         if (predicate(entry)) count++
     }
     return count
+}
+
+/**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or throws [NoSuchElementException] if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOf(
+    transform: (Map.Entry<K, V>) -> R?
+): R {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    throw NoSuchElementException("No element of the map was transformed to a non-null value.")
+}
+
+/**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or `null` if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOfOrNull(
+    transform: (Map.Entry<K, V>) -> R?
+): R? {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    return null
 }
 
 /**
@@ -214,6 +284,18 @@ public inline fun <K, V, R> Map<K, V>.mapValuesTo(
     }
     return destination
 }
+
+/**
+ * Returns an iterator over the entries in this map.
+ *
+ * KSP-1011: named `__kspMapIterator` rather than `iterator` so this
+ * declaration never enters the global by-simple-name candidate pool that
+ * the generic `Iterable<T>.iterator()` call inside bundled source HOFs
+ * (e.g. `reduce`, `reduceIndexed`) resolves against — a second source-backed
+ * `iterator` there caused that call to bind here for every receiver,
+ * including ranges. Sema binds `map.iterator()` straight to this symbol.
+ */
+public inline fun <K, V> Map<out K, V>.__kspMapIterator(): Iterator<Map.Entry<K, V>> = this.entries.iterator()
 
 /**
  * Returns the first entry yielding the smallest value of the given [selector].
@@ -623,5 +705,25 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     for (entry in this.entries) {
         if (entry.key !in keySet) result[entry.key] = entry.value
     }
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Sequence<K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
     return result as Map<K, V>
 }

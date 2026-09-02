@@ -35,12 +35,9 @@ struct LoweringFlowCodegenTests {
                 moduleName: "FlowBundledPriority",
                 emit: .kirDump
             )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                 extractCallees(from: function.body, interner: ctx.interner)
             }
@@ -87,12 +84,9 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowSuspendFunctionCapture", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                 extractCallees(from: function.body, interner: ctx.interner)
             }
@@ -127,16 +121,10 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowLoweringRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
-            var allCallees: [String] = []
-            for function in findAllKIRFunctions(in: module) {
-                allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
-            }
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
 
             #expect(allCallees.contains("kk_flow_create"))
             #expect(allCallees.contains("kk_flow_emit"))
@@ -167,27 +155,21 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowCollectSuspend", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
-            var collectCallArgs: [KIRExprID]?
-            for function in findAllKIRFunctions(in: module) {
-                for instruction in function.body {
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let allFunctions = findAllKIRFunctions(in: module)
+            let collectCallArgs = allFunctions
+                .flatMap { $0.body }
+                .compactMap { instruction -> [KIRExprID]? in
                     guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
                           ctx.interner.resolve(callee) == "kk_flow_collect"
                     else {
-                        continue
+                        return nil
                     }
-                    collectCallArgs = arguments
-                    break
+                    return arguments
                 }
-                if collectCallArgs != nil {
-                    break
-                }
-            }
+                .first
 
             guard let callArgs = collectCallArgs else {
                 throw FlowTestFailure(description: "Expected kk_flow_collect call after lowering.")
@@ -205,7 +187,7 @@ struct LoweringFlowCodegenTests {
                 throw FlowTestFailure(description: "kk_flow_collect collector argument must be a symbol reference.")
             }
 
-            let collectorFunction = findAllKIRFunctions(in: module).first { function in
+            let collectorFunction = allFunctions.first { function in
                 function.symbol == collectorSymbol
             }
             let collectorName = collectorFunction.map { ctx.interner.resolve($0.name) } ?? ""
@@ -290,12 +272,9 @@ struct LoweringFlowCodegenTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowColdExecutable", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
             let collectCalls = findAllKIRFunctions(in: module).compactMap { function -> Int? in
                 let callees = extractCallees(from: function.body, interner: ctx.interner)
                 let collectCount = callees.filter { $0 == "kk_flow_collect" }.count
@@ -330,16 +309,10 @@ struct LoweringFlowCodegenTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FlowOwnership", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
-            guard let module = ctx.kir else {
-                throw FlowTestFailure(description: "KIR module not produced after lowering.")
-            }
-            var allCallees: [String] = []
-            for function in findAllKIRFunctions(in: module) {
-                allCallees.append(contentsOf: extractCallees(from: function.body, interner: ctx.interner))
-            }
+            let module = try #require(ctx.kir, "KIR module not produced after lowering.")
+            let allCallees = findAllKIRFunctions(in: module).flatMap { extractCallees(from: $0.body, interner: ctx.interner) }
 
             #expect(allCallees.contains("__kk_flow_release"))
         }
@@ -454,8 +427,7 @@ struct LoweringFlowCodegenTests {
     private func assertFlowExecutableOutput(
         source: String,
         moduleName: String,
-        expectedStdout: String,
-        irFlags: [String] = []
+        expectedStdout: String
     ) throws {
         try withTemporaryFile(contents: source) { path in
             let fileManager = FileManager.default
@@ -468,11 +440,9 @@ struct LoweringFlowCodegenTests {
                 inputs: [path],
                 moduleName: moduleName,
                 emit: .executable,
-                outputPath: outputPath,
-                irFlags: irFlags
+                outputPath: outputPath
             )
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             try CodegenPhase().run(ctx)
             try LinkPhase().run(ctx)
 
