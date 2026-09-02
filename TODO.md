@@ -2654,7 +2654,7 @@
     - `kotlin.collections.arrayListOf` — fun arrayListOf(Array): ArrayList  -- `final fun <#A: kotlin/Any?> kotlin.collections/arrayListOf(kotlin/Array<out #A>...): kotlin.collections/ArrayList<#A>`
     - `kotlin.collections.arrayOfUninitializedElements` — fun arrayOfUninitializedElements(Int): Array  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/arrayOfUninitializedElements(kotlin/Int): kotlin/Array<#A>`
 
-- [ ] KSP-950: kotlin.collections.build-family の未実装 stdlib API を実装する（12 件）
+- [x] KSP-950: kotlin.collections.build-family の未実装 stdlib API を実装する（12 件）
   - 対象: `kotlin.collections` / top-level / family `build`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionBuilders.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2674,6 +2674,8 @@
     - `kotlin.collections.buildSet` — fun buildSet(Int, Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSet(kotlin/Int, kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
     - `kotlin.collections.buildSetInternal` — fun buildSetInternal(Int, Function1): Set  -- `final inline fun <#A: kotlin/Any?> kotlin.collections/buildSetInternal(kotlin/Int, kotlin/Function1<kotlin.collections/MutableSet<#A>, kotlin/Unit>): kotlin.collections/Set<#A>`
+  - 完了根拠: `CollectionBuilders.kt` が6 public overloadと6 `@PublishedApi internal` overloadをsource-backedに所有し、capacity予約・負値例外・builder例外伝播・返却後read-onlyを実装。既存の共有synthetic/lowering/runtime/ABI bridgeは実行経路を確認して保持した。KSP-622/623（PR #5702/#5719）の既存public実装履歴も確認済み。
+  - 回帰根拠: KSP-950専用Sema/Golden/lowering/backend/runtimeテストとkotlinc差分ケースを追加し、対象focused検証を通過。
 
 - [x] KSP-951: kotlin.collections.check-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / top-level / family `check`
