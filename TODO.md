@@ -2638,12 +2638,12 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.MutableSet` — interface kotlin.collections.MutableSet  -- `abstract interface <#A: kotlin/Any?> kotlin.collections/MutableSet : kotlin.collections/MutableCollection<#A>, kotlin.collections/Set<#A> {`
 
-- [ ] KSP-948: kotlin.collections.Set-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-948: kotlin.collections.Set-family の未実装 stdlib API を実装する（1 件） — `Set<out E> : Collection<E>` を `SetHOF.kt` で source-backed 化し、Set 固有の synthetic shell は `contains`/`isEmpty` の residual bridge として保持。Sema/Golden/diff 回帰と順序非依存 `Set.hashCode()` を確認。
   - 対象: `kotlin.collections` / top-level / family `Set`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/SetHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_Set.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_Set.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_Set.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_Set_interface.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。`_n_Set` ではなく `_n_Set_interface` なのは、既存の `_n_set`（`set` operator）と大文字小文字のみで衝突するため。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_Set_interface.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_Set_interface.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.Set` — interface kotlin.collections.Set  -- `abstract interface <#A: out kotlin/Any?> kotlin.collections/Set : kotlin.collections/Collection<#A> {`
