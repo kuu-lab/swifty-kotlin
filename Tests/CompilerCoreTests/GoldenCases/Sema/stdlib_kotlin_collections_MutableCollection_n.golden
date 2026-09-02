@@ -35,7 +35,7 @@ symbol fq=kotlin.collections.MutableCollection.removeAll kind=function vis=publi
 symbol fq=kotlin.collections.MutableCollection.removeAll.elements kind=valueParameter vis=private flags=synthetic
 symbol fq=kotlin.collections.MutableCollection.retainAll kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableCollection<kotlin.collections.MutableCollection.E> params=[kotlin.collections.Collection<out kotlin.collections.MutableCollection.E>] ret=Boolean
 symbol fq=kotlin.collections.MutableCollection.retainAll.elements kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.collections.MutableList kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_MutableCollection_n package=_

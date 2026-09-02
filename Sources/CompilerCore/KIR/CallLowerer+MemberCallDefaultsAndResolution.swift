@@ -176,8 +176,49 @@ extension CallLowerer {
         arguments[2] = sizeExpr
     }
 
+    /// Resolve inherited Iterator methods through their real interface owner when
+    /// the receiver is statically typed as a source-backed ListIterator.
+    func listIteratorInheritedDispatchCallee(
+        receiverType: TypeID?,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> SymbolID? {
+        guard let receiverType,
+              isExactListIteratorReceiverType(receiverType, sema: sema, interner: interner),
+              calleeName == interner.intern("hasNext") || calleeName == interner.intern("next")
+        else {
+            return nil
+        }
+        return sema.symbols.lookup(
+            fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterator"),
+                calleeName,
+            ]
+        )
+    }
+
+    /// KSP-611: a member of an interface imported from a compiled library carries the
+    /// link name of the body emitted for it in that library. For an abstract member that
+    /// body is an empty stub, so honouring the link name would silently call nothing;
+    /// interface members must dispatch through the receiver's itable instead. A
+    /// source-backed interface declaration may instead carry a private runtime bridge
+    /// such as `__kk_string_builder_append_obj`; that link is the actual implementation
+    /// and must stay on direct dispatch, just like a synthetic runtime bridge.
+    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
+        guard let calleeSymbol = sema.symbols.symbol(callee),
+              calleeSymbol.flags.contains(.importedLibrary),
+              let parentID = sema.symbols.parentSymbol(for: callee),
+              let parentSymbol = sema.symbols.symbol(parentID)
+        else { return false }
+        return parentSymbol.kind == .interface
+            && Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
+    }
+
     /// Callees bridged to a C runtime function (such as kk_array_get) are
-    /// never dispatched virtually; see `kirIsRuntimeBridgedCallee`.
+    /// normally not dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
         chosenCallee: SymbolID?,
         calleeName: InternedString,
@@ -191,32 +232,43 @@ extension CallLowerer {
         interner: StringInterner
     ) -> KIRInstruction? {
         guard !isSuperCall, let chosenCallee else { return nil }
-        // Runtime ABI bridges are receiver-type-agnostic entry points even
-        // when their declarations are imported interface members. Dispatching
-        // those symbols through an itable is invalid for the built-in runtime
-        // collection boxes; only source-backed/internal links may use virtual
-        // dispatch here. Clock bridges are the deliberate exception: their
-        // receiver is represented by a runtime-backed virtual object.
-        guard !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
-            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
-        else { return nil }
         let receiverTypeForDispatch: TypeID? = {
             if let receiverExpr {
                 return sema.bindings.exprTypes[receiverExpr]
             }
             return arena.exprType(loweredReceiverID)
         }()
+        let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
+            receiverType: receiverTypeForDispatch,
+            calleeName: calleeName,
+            sema: sema,
+            interner: interner
+        )
+        let dispatchCallee = listIteratorInheritedDispatch ?? chosenCallee
+        // Runtime ABI bridges are receiver-type-agnostic entry points even
+        // when their declarations are imported interface members. Dispatching
+        // those symbols through an itable is invalid for the built-in runtime
+        // collection boxes; only source-backed/internal links may use virtual
+        // dispatch here. A source-backed ListIterator's inherited Iterator
+        // methods are the deliberate exception because they must use the
+        // implementation's inherited itable slots. Clock bridges are another
+        // deliberate exception: their receiver is represented by a
+        // runtime-backed virtual object.
+        guard listIteratorInheritedDispatch != nil
+            || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
+            || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+        else { return nil }
         guard let dispatchKind = resolveVirtualDispatch(
-            callee: chosenCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
+            callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
         ) else { return nil }
         var vcArguments = finalArguments
-        if let sig = sema.symbols.functionSignature(for: chosenCallee),
+        if let sig = sema.symbols.functionSignature(for: dispatchCallee),
            sig.receiverType != nil, !vcArguments.isEmpty
         {
             vcArguments.removeFirst()
         }
         return .virtualCall(
-            symbol: chosenCallee,
+            symbol: dispatchCallee,
             callee: calleeName,
             receiver: loweredReceiverID,
             arguments: vcArguments,
@@ -274,6 +326,19 @@ extension CallLowerer {
             if let externalLinkName = sema.symbols.externalLinkName(for: chosenCallee),
                !externalLinkName.isEmpty
             {
+                // A source-backed ListIterator can be implemented by user code.
+                // Its inherited synthetic Iterator members must therefore use
+                // the same dynamic itable path as the four source-backed members
+                // instead of calling the runtime list-iterator bridge directly.
+                if isExactListIteratorReceiverType(receiverType, sema: sema, interner: interner),
+                   let parentSymbol = sema.symbols.parentSymbol(for: chosenCallee)
+                       .flatMap(sema.symbols.symbol),
+                   (parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "Iterator"]
+                       || parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]),
+                   fallbackName == "hasNext" || fallbackName == "next"
+                {
+                    return fallback
+                }
                 if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
                     memberName: fallbackName,
                     receiverType: receiverType,
@@ -420,6 +485,21 @@ extension CallLowerer {
             return unresolvedSynthetic
         }
         return fallback
+    }
+
+    private func isExactListIteratorReceiverType(
+        _ receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        guard case let .classType(classType) = sema.types.kind(of: nonNullReceiverType),
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.kind == .interface
+            && symbol.fqName.map(interner.resolve) == ["kotlin", "collections", "ListIterator"]
     }
 
     func resultRuntimeHOFMemberCalleeName(

@@ -17,7 +17,7 @@ symbol fq=inspect.$0.sequence kind=valueParameter vis=private flags=_
 symbol fq=inspect.$0.values kind=valueParameter vis=private flags=_
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Set kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Set.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Set.isEmpty kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Set<out kotlin.collections.Set.E> params=[] ret=Boolean
 symbol fq=kotlin.sequences.Sequence kind=interface vis=public flags=_
@@ -44,27 +44,27 @@ expr e@12:53 name(null) type=Nothing?
 expr e@12:33#1 memberCall recv=e@12:33 callee=minusElement args=[_:e@12:53] type=kotlin.collections.Set<Int?> call=kotlin.collections.minusElement#1 targs=[Int?]
 expr e@12:5 localDecl minusAlias mutable=0 type=Set<Int?> init=e@12:33#1 type=Unit ref=__local_4.minusAlias
 expr e@13:34 name(nullable) type=kotlin.collections.Set<Int?>? ref=inspect.$0.nullable
-expr e@13:34#1 memberCall recv=e@13:34 callee=orEmpty args=[] type=kotlin.collections.Set<Int?> call=kotlin.collections.orEmpty#2 targs=[Int?]
+expr e@13:34#1 memberCall recv=e@13:34 callee=orEmpty args=[] type=kotlin.collections.Set<Int?> call=kotlin.collections.orEmpty#3 targs=[Int?]
 expr e@13:5 localDecl emptyOrNull mutable=0 type=Set<Int?> init=e@13:34#1 type=Unit ref=__local_5.emptyOrNull
 expr e@14:34 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@14:43 name(null) type=Nothing?
-expr e@14:34#1 binary(add) lhs=e@14:34 rhs=e@14:43 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#7 targs=[Int?]
+expr e@14:34#1 binary(add) lhs=e@14:34 rhs=e@14:43 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#11 targs=[Int?]
 expr e@14:5 localDecl plusElement mutable=0 type=Set<Int?> init=e@14:34#1 type=Unit ref=__local_6.plusElement
 expr e@15:35 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@15:44 name(iterable) type=kotlin.collections.Iterable<Int?> ref=inspect.$0.iterable
-expr e@15:35#1 binary(add) lhs=e@15:35 rhs=e@15:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#8 targs=[Int?]
+expr e@15:35#1 binary(add) lhs=e@15:35 rhs=e@15:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#12 targs=[Int?]
 expr e@15:5 localDecl plusIterable mutable=0 type=Set<Int?> init=e@15:35#1 type=Unit ref=__local_7.plusIterable
 expr e@16:35 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@16:44 name(sequence) type=kotlin.sequences.Sequence<Int?> ref=inspect.$0.sequence
-expr e@16:35#1 binary(add) lhs=e@16:35 rhs=e@16:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#9 targs=[Int?]
+expr e@16:35#1 binary(add) lhs=e@16:35 rhs=e@16:44 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#13 targs=[Int?]
 expr e@16:5 localDecl plusSequence mutable=0 type=Set<Int?> init=e@16:35#1 type=Unit ref=__local_8.plusSequence
 expr e@17:32 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@17:41 name(array) type=kotlin.Array<Int?> ref=inspect.$0.array
-expr e@17:32#1 binary(add) lhs=e@17:32 rhs=e@17:41 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#10 targs=[Int?]
+expr e@17:32#1 binary(add) lhs=e@17:32 rhs=e@17:41 type=kotlin.collections.Set<Int?> call=kotlin.collections.plus#14 targs=[Int?]
 expr e@17:5 localDecl plusArray mutable=0 type=Set<Int?> init=e@17:32#1 type=Unit ref=__local_9.plusArray
 expr e@18:32 name(values) type=kotlin.collections.Set<Int?> ref=inspect.$0.values
 expr e@18:51 name(null) type=Nothing?
-expr e@18:32#1 memberCall recv=e@18:32 callee=plusElement args=[_:e@18:51] type=kotlin.collections.Set<Int?> call=kotlin.collections.plusElement#1 targs=[Int?]
+expr e@18:32#1 memberCall recv=e@18:32 callee=plusElement args=[_:e@18:51] type=kotlin.collections.Set<Int?> call=kotlin.collections.plusElement#2 targs=[Int?]
 expr e@18:5 localDecl plusAlias mutable=0 type=Set<Int?> init=e@18:32#1 type=Unit ref=__local_10.plusAlias
 expr e@20:9 name(minusElement) type=kotlin.collections.Set<Int?> ref=__local_0.minusElement
 expr e@20:9#1 memberCall recv=e@20:9 callee=isEmpty args=[] type=Boolean call=kotlin.collections.Set.isEmpty
