@@ -40,8 +40,13 @@ extension DeclTypeChecker {
             // function and local declaration do.
             let bodyIsRangeExpr = {
                 guard case let .expr(bodyExprID, _) = getter.body else { return false }
-                return sema.bindings.isRangeExpr(bodyExprID)
-                    && driver.helpers.isRangeLikeType(declaredType, sema: sema, interner: interner)
+                return driver.helpers.rangeExprMatchesDeclaredElementType(
+                    bodyExprID: bodyExprID,
+                    bodyType: getterType,
+                    declaredType: declaredType,
+                    sema: sema,
+                    interner: interner
+                )
             }()
             if !bodyIsRangeExpr {
                 driver.emitSubtypeConstraint(
@@ -306,11 +311,14 @@ extension DeclTypeChecker {
             )
         }
 
-        if result == nil {
-            result = sema.types.nullableAnyType
+        // An explicitly declared delegated-property type is authoritative for
+        // the local/property binding. This matters for generic extension
+        // operators such as Map<in String, V>.getValue(...): V1, whose V1
+        // return type is intentionally inferred from that declaration.
+        if let inferredPropertyType {
+            return inferredPropertyType
         }
-
-        return result
+        return result ?? sema.types.nullableAnyType
     }
 
     private func delegateExpressionContainsLambdaArgument(

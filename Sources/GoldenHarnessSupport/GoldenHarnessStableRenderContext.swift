@@ -62,7 +62,8 @@ final class StableRenderContext {
                     fqMap: fqMap,
                     stableTypeParameterFQ: stableTypeParameterFQ
                 )
-                return lhsKey == rhsKey ? lhs.offset < rhs.offset : lhsKey < rhsKey
+                let cmp = lhsKey.compare(rhsKey, options: .numeric)
+                return cmp == .orderedSame ? lhs.offset < rhs.offset : cmp == .orderedAscending
             }.map(\.element)
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"

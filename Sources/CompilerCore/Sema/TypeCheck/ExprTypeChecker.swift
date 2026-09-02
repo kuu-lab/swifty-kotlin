@@ -13,7 +13,8 @@ final class ExprTypeChecker {
         _ id: ExprID,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID? = nil
+        expectedType: TypeID? = nil,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -189,10 +190,15 @@ final class ExprTypeChecker {
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
                 // the local-declaration rule in LocalDeclTypeChecker.
-                let returnsRangeExpr = sema.bindings.isRangeExpr(value)
-                    && (expectedType.map {
-                        driver.helpers.isRangeLikeType($0, sema: sema, interner: interner)
-                    } ?? false)
+                let returnsRangeExpr = expectedType.map {
+                    driver.helpers.rangeExprMatchesDeclaredElementType(
+                        bodyExprID: value,
+                        bodyType: resolved,
+                        declaredType: $0,
+                        sema: sema,
+                        interner: interner
+                    )
+                } ?? false
                 if let expectedType, !returnsRangeExpr {
                     driver.emitSubtypeConstraint(
                         left: resolved,
@@ -426,7 +432,7 @@ final class ExprTypeChecker {
             return inferMemberCompoundAssignExpr(id, op: op, receiverExpr: receiverExpr, calleeName: calleeName, valueExpr: valueExpr, range: range, ctx: ctx, locals: &locals)
 
         case let .whenExpr(subjectID, branches, elseExpr, range):
-            return driver.controlFlowChecker.inferWhenExpr(id, subjectID: subjectID, branches: branches, elseExpr: elseExpr, range: range, ctx: ctx, locals: &locals, expectedType: expectedType)
+            return driver.controlFlowChecker.inferWhenExpr(id, subjectID: subjectID, branches: branches, elseExpr: elseExpr, range: range, ctx: ctx, locals: &locals, expectedType: expectedType, isStatementContext: isStatementContext)
 
         case let .throwExpr(value, _):
             _ = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: nil)
@@ -456,10 +462,10 @@ final class ExprTypeChecker {
                         )
                     }
                     // Still type-check for completeness but skip further unreachable warnings
-                    _ = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil)
+                    _ = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                     continue
                 }
-                let stmtType = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil)
+                let stmtType = driver.inferExpr(stmt, ctx: ctx, locals: &blockLocals, expectedType: nil, isStatementContext: true)
                 if stmtType == sema.types.nothingType {
                     reachedNothing = true
                 }
@@ -474,11 +480,11 @@ final class ExprTypeChecker {
                             range: trailingRange
                         )
                     }
-                    _ = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType)
+                    _ = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
                 }
                 resultType = sema.types.nothingType
             } else if let trailingExpr {
-                resultType = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType)
+                resultType = driver.inferExpr(trailingExpr, ctx: ctx, locals: &blockLocals, expectedType: expectedType, isStatementContext: isStatementContext)
             } else {
                 resultType = sema.types.unitType
             }

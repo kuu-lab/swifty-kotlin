@@ -15,18 +15,17 @@ private external fun kk_min_double(a: Double, b: Double): Double
 
 // Comparable overloads
 
-public inline fun <T : Comparable<T>> maxOf(a: T, b: T): T =
-    if (a.compareTo(b) >= 0) a else b
+public fun <T : Comparable<T>> maxOf(a: T, b: T): T =
+    if (a >= b) a else b
 
-public inline fun <T : Comparable<T>> maxOf(a: T, b: T, c: T): T =
-    maxOf(maxOf(a, b), c)
+public fun <T : Comparable<T>> maxOf(a: T, b: T, c: T): T =
+    maxOf(a, maxOf(b, c))
 
-public inline fun <T : Comparable<T>> maxOf(vararg values: T): T {
-    if (values.size == 0) throw IllegalArgumentException("Failed requirement.")
-    var result = values[0]
-    var i = 1
-    while (i < values.size) {
-        result = maxOf(result, values[i])
+public fun <T : Comparable<T>> maxOf(a: T, vararg other: T): T {
+    var result = a
+    var i = 0
+    while (i < other.size) {
+        result = maxOf(result, other[i])
         i += 1
     }
     return result
@@ -58,17 +57,17 @@ public fun <T> maxWith(comparator: Comparator<in T>, a: T, b: T): T =
 public fun <T> minWith(comparator: Comparator<in T>, a: T, b: T): T =
     if (comparator.compare(a, b) <= 0) a else b
 
-public inline fun <T> maxOf(a: T, b: T, comparator: Comparator<T>): T =
+public fun <T> maxOf(a: T, b: T, comparator: Comparator<in T>): T =
     if (comparator.compare(a, b) >= 0) a else b
 
-public inline fun <T> maxOf(a: T, b: T, c: T, comparator: Comparator<T>): T =
-    maxOf(maxOf(a, b, comparator), c, comparator)
+public fun <T> maxOf(a: T, b: T, c: T, comparator: Comparator<in T>): T =
+    maxOf(a, maxOf(b, c, comparator), comparator)
 
-public inline fun <T> maxOf(a: T, vararg other: T, comparator: Comparator<T>): T {
+public fun <T> maxOf(a: T, vararg other: T, comparator: Comparator<in T>): T {
     var result = a
     var i = 0
     while (i < other.size) {
-        result = maxOf(result, other[i], comparator)
+        if (comparator.compare(result, other[i]) < 0) result = other[i]
         i += 1
     }
     return result
@@ -92,6 +91,18 @@ public fun <T> minOf(a: T, vararg other: T, comparator: Comparator<in T>): T {
 
 // Signed primitive overloads
 
+public inline fun maxOf(a: Byte, b: Byte): Byte = if (a >= b) a else b
+public inline fun maxOf(a: Byte, b: Byte, c: Byte): Byte = maxOf(a, maxOf(b, c))
+public fun maxOf(a: Byte, vararg other: Byte): Byte {
+    var result = a
+    var i = 0
+    while (i < other.size) {
+        result = maxOf(result, other[i])
+        i += 1
+    }
+    return result
+}
+
 public inline fun minOf(a: Byte, b: Byte): Byte = if (a <= b) a else b
 public inline fun minOf(a: Byte, b: Byte, c: Byte): Byte = minOf(minOf(a, b), c)
 public fun minOf(a: Byte, vararg other: Byte): Byte {
@@ -99,6 +110,18 @@ public fun minOf(a: Byte, vararg other: Byte): Byte {
     var i = 0
     while (i < other.size) {
         result = minOf(result, other[i])
+        i += 1
+    }
+    return result
+}
+
+public inline fun maxOf(a: Short, b: Short): Short = if (a >= b) a else b
+public inline fun maxOf(a: Short, b: Short, c: Short): Short = maxOf(a, maxOf(b, c))
+public fun maxOf(a: Short, vararg other: Short): Short {
+    var result = a
+    var i = 0
+    while (i < other.size) {
+        result = maxOf(result, other[i])
         i += 1
     }
     return result
@@ -118,7 +141,7 @@ public fun minOf(a: Short, vararg other: Short): Short {
 
 public inline fun maxOf(a: Int, b: Int): Int = if (a >= b) a else b
 public inline fun maxOf(a: Int, b: Int, c: Int): Int = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: Int, vararg other: Int): Int {
+public fun maxOf(a: Int, vararg other: Int): Int {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -142,7 +165,7 @@ public fun minOf(a: Int, vararg other: Int): Int {
 
 public inline fun maxOf(a: Long, b: Long): Long = if (a >= b) a else b
 public inline fun maxOf(a: Long, b: Long, c: Long): Long = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: Long, vararg other: Long): Long {
+public fun maxOf(a: Long, vararg other: Long): Long {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -166,7 +189,7 @@ public fun minOf(a: Long, vararg other: Long): Long {
 
 public inline fun maxOf(a: Float, b: Float): Float = kk_max_float(a, b)
 public inline fun maxOf(a: Float, b: Float, c: Float): Float = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: Float, vararg other: Float): Float {
+public fun maxOf(a: Float, vararg other: Float): Float {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -190,7 +213,7 @@ public fun minOf(a: Float, vararg other: Float): Float {
 
 public inline fun maxOf(a: Double, b: Double): Double = kk_max_double(a, b)
 public inline fun maxOf(a: Double, b: Double, c: Double): Double = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: Double, vararg other: Double): Double {
+public fun maxOf(a: Double, vararg other: Double): Double {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -216,7 +239,7 @@ public fun minOf(a: Double, vararg other: Double): Double {
 
 public inline fun maxOf(a: UByte, b: UByte): UByte = if (a >= b) a else b
 public inline fun maxOf(a: UByte, b: UByte, c: UByte): UByte = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: UByte, vararg other: UByte): UByte {
+public fun maxOf(a: UByte, vararg other: UByte): UByte {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -240,7 +263,7 @@ public fun minOf(a: UByte, vararg other: UByte): UByte {
 
 public inline fun maxOf(a: UShort, b: UShort): UShort = if (a >= b) a else b
 public inline fun maxOf(a: UShort, b: UShort, c: UShort): UShort = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: UShort, vararg other: UShort): UShort {
+public fun maxOf(a: UShort, vararg other: UShort): UShort {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -264,7 +287,7 @@ public fun minOf(a: UShort, vararg other: UShort): UShort {
 
 public inline fun maxOf(a: UInt, b: UInt): UInt = if (a >= b) a else b
 public inline fun maxOf(a: UInt, b: UInt, c: UInt): UInt = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: UInt, vararg other: UInt): UInt {
+public fun maxOf(a: UInt, vararg other: UInt): UInt {
     var result = a
     var i = 0
     while (i < other.size) {
@@ -288,7 +311,7 @@ public fun minOf(a: UInt, vararg other: UInt): UInt {
 
 public inline fun maxOf(a: ULong, b: ULong): ULong = if (a >= b) a else b
 public inline fun maxOf(a: ULong, b: ULong, c: ULong): ULong = maxOf(maxOf(a, b), c)
-public inline fun maxOf(a: ULong, vararg other: ULong): ULong {
+public fun maxOf(a: ULong, vararg other: ULong): ULong {
     var result = a
     var i = 0
     while (i < other.size) {

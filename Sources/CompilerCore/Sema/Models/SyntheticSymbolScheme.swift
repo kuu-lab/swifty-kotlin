@@ -191,4 +191,19 @@ enum SyntheticSymbolScheme {
         originalPropertySymbolFromAccessor(setterAccessor)
     }
 
+    /// Reverse of `propertyGetterAccessorSymbol(for:)`/`propertySetterAccessorSymbol(for:)`:
+    /// recovers the original property symbol and which accessor kind `accessor`
+    /// encodes, or `nil` if `accessor` is not a synthetic property accessor
+    /// symbol at all (e.g. a real method symbol sharing the same `vtableSlots`
+    /// dictionary). Used by property-accessor vtable registration, which must
+    /// tell property entries apart from method entries in that shared dictionary.
+    static func decodedPropertyAccessor(_ accessor: SymbolID) -> (property: SymbolID, kind: PropertyAccessorKind)? {
+        guard let (kind, original) = decode(accessor) else { return nil }
+        switch kind {
+        case .getter: return (original, .getter)
+        case .setter: return (original, .setter)
+        default: return nil
+        }
+    }
+
 }
