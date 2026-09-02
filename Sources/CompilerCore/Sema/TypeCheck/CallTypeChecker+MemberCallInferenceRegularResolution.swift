@@ -157,7 +157,7 @@ extension CallTypeChecker {
                let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
             {
                 switch receiverSymbol.kind {
-                case .class, .interface, .enumClass:
+                case .class, .interface, .enumClass, .annotationClass:
                     return receiverSymbolID
                 default:
                     break
@@ -169,7 +169,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .interface, .enumClass:
+                    case .class, .interface, .enumClass, .annotationClass:
                         return true
                     default:
                         return false
@@ -449,7 +449,7 @@ extension CallTypeChecker {
                     return false
                 }
                 switch symbol.kind {
-                case .class, .enumClass, .object:
+                case .class, .enumClass, .object, .annotationClass:
                     return true
                 default:
                     return false
@@ -464,7 +464,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .enumClass, .object:
+                    case .class, .enumClass, .object, .annotationClass:
                         return true
                     default:
                         return false
@@ -474,22 +474,25 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
-            // `Owner.Nested` and `Owner.Nested()` parse to the identical
-            // zero-arg `.memberCall` node — there is no AST signal for
-            // whether call syntax was written. This is only unambiguous when
+            // `Owner.Nested` and `Owner.Nested()` share the same zero-arg
+            // `.memberCall` shape, but the AST arena records whether parentheses
+            // were written. This is mostly unambiguous when
             // no valid constructor-call reading could exist in the first
             // place: enum class constructors are always implicitly private
             // (never callable from outside the enum body) and `object`
             // declarations have no constructor at all, so a nested enum/object
             // reference must be the bare type/nested-owner (needed e.g. for
             // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
-            // further static member access). A nested `class`, in contrast,
-            // may have a genuine public zero-arg constructor (e.g.
+            // further static member access). A parenthesis-less nested annotation
+            // class is likewise a qualifier, while an explicit call must continue
+            // through constructor resolution. A nested `class`, in
+            // contrast, may have a genuine public zero-arg constructor (e.g.
             // `Outer.Builder()`), so it falls through to constructor
             // resolution below, preserving the pre-existing behavior.
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+                   || (nestedOwnerKind == .annotationClass && !ast.arena.isExplicitCall(id))
             {
                 let nestedType = sema.types.make(.classType(ClassType(
                     classSymbol: nestedOwner,
@@ -1092,6 +1095,14 @@ extension CallTypeChecker {
                 interner: interner
             )
         }
+        if interner.resolve(calleeName) == "unzip" {
+            candidates = preferListUnzipCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
         if isNullLiteralReceiver,
            args.isEmpty,
            interner.resolve(calleeName) == "isNullOrEmpty",
@@ -1211,7 +1222,7 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
         // KSP-687 resolves Array.joinToString through the dedicated primitive

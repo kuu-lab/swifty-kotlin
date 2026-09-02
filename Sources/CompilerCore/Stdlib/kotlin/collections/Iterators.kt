@@ -14,13 +14,10 @@ package kotlin.collections
  */
 public inline operator fun <T> Iterator<T>.iterator(): Iterator<T> = this
 
-// KSP-626
-// IndexedValue and the indexed Iterable helpers migrated to Kotlin source.
+// KSP-626 / KSP-998
+// IndexedValue and the indexed collection helpers migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollectionHOF.swift
 //   (kk_list_forEachIndexed, kk_list_withIndex)
-//
-// `withIndex` materialises eagerly to preserve the existing KSwiftK bridge
-// behavior while this surface moves to bundled source.
 
 public data class IndexedValue<out T>(public val index: Int, public val value: T)
 
@@ -33,15 +30,31 @@ public fun <T> Iterable<T>.forEachIndexed(action: (Int, T) -> Unit) {
     }
 }
 
-public fun <T> Iterable<T>.withIndex(): List<IndexedValue<T>> {
-    val result = mutableListOf<IndexedValue<T>>()
-    var index = 0
-    val iterator = iterator()
-    while (iterator.hasNext()) {
-        result.add(IndexedValue(index, iterator.next()))
+internal class IndexingIterator<out T>(
+    private val source: Iterator<T>
+) : Iterator<IndexedValue<T>> {
+    private var index = 0
+
+    override fun hasNext(): Boolean = source.hasNext()
+
+    override fun next(): IndexedValue<T> {
+        val currentIndex = index
         index += 1
+        if (currentIndex < 0) {
+            throw ArithmeticException("Index overflow has happened.")
+        }
+        return IndexedValue(currentIndex, source.next())
     }
-    return result
+}
+
+internal class IndexingIterable<out T>(
+    private val source: Iterable<T>
+) : Iterable<IndexedValue<T>> {
+    override fun iterator(): Iterator<IndexedValue<T>> = IndexingIterator(source.iterator())
+}
+
+public fun <T> Iterable<T>.withIndex(): Iterable<IndexedValue<T>> {
+    return IndexingIterable(this)
 }
 
 // KSP-630

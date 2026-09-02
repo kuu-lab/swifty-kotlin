@@ -110,7 +110,7 @@ extension BuildASTPhase {
                 ) {
                     // Skip annotations that had an invalid (property) use-site target —
                     // those belong to property declarations, not enum entries.
-                    if !parsed.hadInvalidUseSiteTarget {
+                    if parsed.invalidUseSiteTargetRange == nil {
                         annotations.append(parsed.annotation)
                     }
                     annotIndex = parsed.nextIndex

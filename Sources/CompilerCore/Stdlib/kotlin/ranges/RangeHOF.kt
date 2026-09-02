@@ -1045,6 +1045,89 @@ public fun UIntRange.forEach(action: (UInt) -> Unit) {
     for (element in this) { action(element) }
 }
 
+public fun UIntRange.reduce(operation: (UInt, UInt) -> UInt): UInt {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public fun UIntRange.reduceIndexed(operation: (Int, UInt, UInt) -> UInt): UInt {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index++
+    }
+    return accumulator
+}
+
+public fun <R> UIntRange.fold(initial: R, operation: (R, UInt) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public fun <R> UIntRange.foldIndexed(initial: R, operation: (Int, R, UInt) -> R): R {
+    var accumulator = initial
+    var index = 0
+    for (element in this) {
+        accumulator = operation(index, accumulator, element)
+        index++
+    }
+    return accumulator
+}
+
+public fun UIntRange.find(predicate: (UInt) -> Boolean): UInt? = firstOrNull(predicate)
+public fun UIntRange.findLast(predicate: (UInt) -> Boolean): UInt? = lastOrNull(predicate)
+
+public fun UIntRange.first(predicate: (UInt) -> Boolean): UInt {
+    for (element in this) if (predicate(element)) return element
+    throw NoSuchElementException("Collection contains no element matching the predicate.")
+}
+
+public fun UIntRange.firstOrNull(predicate: (UInt) -> Boolean): UInt? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
+
+@NoInline
+public fun UIntRange.last(predicate: (UInt) -> Boolean): UInt {
+    var found = false
+    var result = 0u
+    for (element in this) if (predicate(element)) { result = element; found = true }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    return result
+}
+
+@NoInline
+public fun UIntRange.lastOrNull(predicate: (UInt) -> Boolean): UInt? {
+    var found = false
+    var result = 0u
+    for (element in this) if (predicate(element)) { result = element; found = true }
+    return if (found) result else null
+}
+
+public fun UIntRange.any(predicate: (UInt) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return true
+    return false
+}
+
+public fun UIntRange.all(predicate: (UInt) -> Boolean): Boolean {
+    for (element in this) if (!predicate(element)) return false
+    return true
+}
+
+public fun UIntRange.none(predicate: (UInt) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return false
+    return true
+}
+
 public fun <R> UIntRange.map(transform: (UInt) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }

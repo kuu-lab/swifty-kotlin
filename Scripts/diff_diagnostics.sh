@@ -3,6 +3,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
 KSWIFTC="${KSWIFTC:-$ROOT_DIR/.build/debug/kswiftc}"
 KOTLINC="${KOTLINC:-kotlinc}"
@@ -143,18 +145,13 @@ if [[ $SELF_TEST -eq 1 && -n "$TARGET" ]]; then
   exit 1
 fi
 
-sanitize_case_name() {
+# Unlike lib/common.sh's sanitize_case_name (basename, .kt stripped), this
+# keeps the case's full path relative to ROOT_DIR so artifact directory names
+# stay unambiguous across Scripts/diff_cases subdirectories.
+sanitize_diagnostics_case_name() {
   local case_path="$1"
   case_path="${case_path#$ROOT_DIR/}"
   printf '%s' "$case_path" | tr '/[:space:]' '__' | tr -cd '[:alnum:]_.-'
-}
-
-should_skip_case() {
-  local case_path="$1"
-  if [[ $FORCE_RUN_SKIPPED -eq 1 ]]; then
-    return 1
-  fi
-  grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$case_path"
 }
 
 expected_outcome() {
@@ -175,12 +172,6 @@ expected_outcome() {
   else
     printf 'accept\n'
   fi
-}
-
-kotlinc_flags() {
-  local case_path="$1"
-  { grep -E '^[[:space:]]*//[[:space:]]*KOTLINC_FLAGS:' "$case_path" 2>/dev/null || true; } \
-    | sed 's/.*KOTLINC_FLAGS:[[:space:]]*//' | tr '\n' ' ' | sed 's/[[:space:]]*$//'
 }
 
 normalize_error_lines() {
@@ -216,12 +207,8 @@ persist_failure() {
   local case_path="$1" tmp_dir="$2" result_reason="$3" ref_exit="$4" candidate_exit="$5" ref_lines="$6" candidate_lines="$7"
   mkdir -p "$ARTIFACT_ROOT"
 
-  local destination="$ARTIFACT_ROOT/$(sanitize_case_name "$case_path")"
-  local suffix=1
-  while [[ -e "$destination" ]]; do
-    destination="$ARTIFACT_ROOT/$(sanitize_case_name "$case_path")_$suffix"
-    suffix=$((suffix + 1))
-  done
+  local destination
+  destination="$(unique_artifact_destination "$ARTIFACT_ROOT" "$(sanitize_diagnostics_case_name "$case_path")")"
   mv "$tmp_dir" "$destination"
   cp "$case_path" "$destination/input.kt"
   printf '%s\n' "$ref_lines" >"$destination/ref_error_lines.txt"
@@ -254,12 +241,12 @@ EOF
 
 run_case() {
   local case_path="$1"
-  local tmp_dir="$TMP_ROOT/$(sanitize_case_name "$case_path")"
+  local tmp_dir="$TMP_ROOT/$(sanitize_diagnostics_case_name "$case_path")"
   mkdir -p "$tmp_dir"
 
   local ref_exit=0 candidate_exit=0
   local flags expectation result_reason result_status artifact_dir=""
-  flags="$(kotlinc_flags "$case_path")"
+  flags="$(read_case_directive_flags "$case_path" 'KOTLINC_FLAGS')"
   if ! expectation="$(expected_outcome "$case_path")"; then
     result_reason="invalid expectation directives"
     result_status="FAIL"
@@ -418,31 +405,8 @@ if [[ ! -e "$TARGET" ]]; then
   echo "Target does not exist: $TARGET" >&2
   exit 1
 fi
-if ! [[ -x "$KSWIFTC" ]]; then
-  echo "kswiftc not found or not executable: $KSWIFTC" >&2
-  exit 1
-fi
-if ! command -v "$KOTLINC" >/dev/null 2>&1; then
-  echo "kotlinc command not found: $KOTLINC" >&2
-  exit 1
-fi
-if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
-  echo "java command not found: $JAVA_BIN" >&2
-  exit 1
-fi
-if ! command -v "$TIMEOUT_CMD" >/dev/null 2>&1; then
-  echo "timeout command not found: $TIMEOUT_CMD (on macOS: brew install coreutils, or set TIMEOUT)" >&2
-  exit 1
-fi
 
-java_major="$("$JAVA_BIN" -version 2>&1 | awk -F'"' '/version/ { print $2; exit }' | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }')"
-if [[ "$DIFF_REQUIRE_JDK21" != "0" ]]; then
-  if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
-    echo "java is too old for the diagnostic diff gate: $JAVA_BIN reports major version '${java_major:-unknown}', need >= 21." >&2
-    echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
-    exit 1
-  fi
-fi
+require_diff_tooling "$KSWIFTC" "$KOTLINC" "$JAVA_BIN" "$TIMEOUT_CMD" "$DIFF_REQUIRE_JDK21" "diagnostic diff gate"
 
 TMP_ROOT="$(mktemp -d -t kswiftk-diagnostics-XXXXXX)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -470,7 +434,7 @@ echo "Target: $TARGET"
 echo "========================================"
 
 while IFS= read -r case_path; do
-  if should_skip_case "$case_path"; then
+  if should_skip_diff_case "$case_path" "$FORCE_RUN_SKIPPED"; then
     echo "SKIP $case_path (// SKIP-DIFF)"
     SKIPPED=$((SKIPPED + 1))
     if [[ -n "$REPORT_PATH" ]]; then
