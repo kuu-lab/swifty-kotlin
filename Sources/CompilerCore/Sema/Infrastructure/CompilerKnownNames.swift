@@ -352,6 +352,7 @@ package struct KnownCompilerNames {
     let kotlinCollectionsLinkedHashSetFQName: [InternedString]
     let kotlinCollectionsMapFQName: [InternedString]
     let kotlinCollectionsMutableMapFQName: [InternedString]
+    let kotlinCollectionsHashMapFQName: [InternedString]
     let kotlinCollectionsCollectionFQName: [InternedString]
     let kotlinCollectionsMutableCollectionFQName: [InternedString]
     let kotlinEnumsEnumEntriesFQName: [InternedString]
@@ -546,6 +547,7 @@ package struct KnownCompilerNames {
         kotlinCollectionsLinkedHashSetFQName = [kotlin, kotlinCollections, linkedHashSet]
         kotlinCollectionsMapFQName = [kotlin, kotlinCollections, map]
         kotlinCollectionsMutableMapFQName = [kotlin, kotlinCollections, mutableMap]
+        kotlinCollectionsHashMapFQName = [kotlin, kotlinCollections, interner.intern("HashMap")]
         kotlinCollectionsCollectionFQName = [kotlin, kotlinCollections, collection]
         kotlinCollectionsMutableCollectionFQName = [kotlin, kotlinCollections, mutableCollection]
         kotlinEnumsEnumEntriesFQName = [kotlin, interner.intern("enums"), interner.intern("EnumEntries")]
@@ -752,10 +754,13 @@ package struct KnownCompilerNames {
         symbol.name == map || symbol.name == mutableMap
             || symbolMatches(symbol, fqName: kotlinCollectionsMapFQName)
             || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
+            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
     }
 
     func isMutableMapSymbol(_ symbol: SemanticSymbol) -> Bool {
-        symbol.name == mutableMap || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
+        symbol.name == mutableMap
+            || symbolMatches(symbol, fqName: kotlinCollectionsMutableMapFQName)
+            || symbolMatches(symbol, fqName: kotlinCollectionsHashMapFQName)
     }
 
     func isMutableSetSymbol(_ symbol: SemanticSymbol) -> Bool {

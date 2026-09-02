@@ -42,15 +42,73 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64) = {
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
     let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
+    let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
-    return (mapID, mutableMapID)
+    runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)
+    return (mapID, mutableMapID, hashMapID)
 }()
 
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
+let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
+
+private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Collection"
+)
+private let runtimeMapSizeInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.Map"
+)
+// These slots are the generated interface property getter slots in the current
+// bundled layout: Collection.size follows six inherited vtable entries, while
+// Map.size is the first property after two vtable entries.
+private let runtimeCollectionSizeGetterSlot = 6
+private let runtimeMapSizeGetterSlot = 2
+
+/// Source-defined Collection/Map implementations expose `size` through the
+/// same dynamic interface-property getter table used by ordinary Kotlin code.
+/// Built-in list/set/map boxes continue to use their direct fast paths.
+@inline(__always)
+func runtimeSourceCollectionSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeCollectionSizeInterfaceTypeID),
+        runtimeCollectionSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Collection.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
+
+@inline(__always)
+func runtimeSourceMapSize(_ rawValue: Int) -> Int? {
+    let fnPtr = kk_itable_lookup_dynamic(
+        rawValue,
+        Int(runtimeMapSizeInterfaceTypeID),
+        runtimeMapSizeGetterSlot
+    )
+    guard fnPtr != 0 else { return nil }
+    let fn = unsafeBitCast(
+        fnPtr,
+        to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self
+    )
+    var thrown = 0
+    let result = fn(rawValue, &thrown)
+    if thrown != 0 {
+        runtimeStructuredPanic("Map.size dispatch threw exception handle \(thrown)")
+    }
+    return result
+}
 
 @inline(__always)
 func runtimeMapEntryNew(key: Int, value: Int) -> Int {
@@ -628,8 +686,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
         let rhsElems = rhsSet.elements
         guard lhsElems.count == rhsElems.count else { return false }
         for elem in lhsElems {
-            // swiftlint:disable:next for_where
-            if !rhsElems.contains(where: { runtimeValuesEqual($0, elem) }) {
+            if !rhsSet.contains(rawValue: elem) {
                 return false
             }
         }
@@ -640,10 +697,13 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     {
         guard lhsMap.keys.count == rhsMap.keys.count else { return false }
         for (i, lhsKey) in lhsMap.keys.enumerated() {
-            guard let rhsIdx = rhsMap.keys.firstIndex(where: { runtimeValuesEqual($0, lhsKey) }) else {
+            guard let rhsIdx = rhsMap.index(ofRawKey: lhsKey),
+                  let lhsValue = lhsMap.rawValue(at: i),
+                  let rhsValue = rhsMap.rawValue(at: rhsIdx)
+            else {
                 return false
             }
-            if !runtimeValuesEqual(lhsMap.values[i], rhsMap.values[rhsIdx]) {
+            if !runtimeValuesEqual(lhsValue, rhsValue) {
                 return false
             }
         }

@@ -43,7 +43,6 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
     }
 }
 
-
 /**
  * Returns `true` if map has at least one entry.
  */
@@ -70,6 +69,13 @@ public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean):
         if (!predicate(entry)) return false
     }
     return true
+}
+
+/**
+ * Returns `true` if the map has no entries.
+ */
+public fun <K, V> Map<out K, V>.none(): Boolean {
+    return __kkMapIsEmpty(this)
 }
 
 /**
@@ -171,7 +177,6 @@ public inline fun <K, V> Map<K, V>.filter(predicate: (Map.Entry<K, V>) -> Boolea
     }
     return result as Map<K, V>
 }
-
 
 /**
  * Returns a map containing all entries not matching the given [predicate].
@@ -683,5 +688,25 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     for (entry in this.entries) {
         if (entry.key !in keySet) result[entry.key] = entry.value
     }
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Sequence<K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
     return result as Map<K, V>
 }

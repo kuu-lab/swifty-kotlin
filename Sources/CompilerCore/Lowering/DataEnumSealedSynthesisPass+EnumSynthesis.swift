@@ -31,13 +31,28 @@ extension DataEnumSealedSynthesisPass {
         }
         let intType = sema.types.make(.primitive(.int, .nonNull))
 
-        // values() returns Array<T>, represented as anyType at the erased level
-        let returnType = sema.types.anyType
+        // Keep the public Kotlin signature as Array<Enum> in Sema and metadata;
+        // the runtime array storage remains erased in the generated body.
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: owner.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let arrayFQName = [interner.intern("kotlin"), interner.intern("Array")]
+        let returnType: TypeID = if let arraySymbol = sema.symbols.lookup(fqName: arrayFQName) {
+            sema.types.make(.classType(ClassType(
+                classSymbol: arraySymbol,
+                args: [.invariant(enumType)],
+                nullability: .nonNull
+            )))
+        } else {
+            sema.types.anyType
+        }
 
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body: [KIRInstruction] = []
-        let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+        let (arrayExpr, countExpr, _) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: owner.id,
             entries: entries,
             intType: intType,
@@ -121,13 +136,32 @@ extension DataEnumSealedSynthesisPass {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let getterName = interner.intern("entries$get")
 
-        // entries getter returns EnumEntries<T> (List), represented as anyType at the erased level
-        let returnType = sema.types.anyType
+        // Preserve EnumEntries<Enum> for the public getter signature. Only the
+        // generated runtime call itself uses erased collection storage.
+        let enumType = sema.types.make(.classType(ClassType(
+            classSymbol: enumSymbol.id,
+            args: [],
+            nullability: .nonNull
+        )))
+        let enumEntriesFQName = [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries")
+        ]
+        let returnType: TypeID = if let enumEntriesSymbol = sema.symbols.lookup(fqName: enumEntriesFQName) {
+            sema.types.make(.classType(ClassType(
+                classSymbol: enumEntriesSymbol,
+                args: [.invariant(enumType)],
+                nullability: .nonNull
+            )))
+        } else {
+            sema.types.anyType
+        }
 
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
         var body: [KIRInstruction] = []
-        let (arrayExpr, countExpr) = appendEnumOrdinalArrayCreation(
+        let (arrayExpr, countExpr, classIDExpr) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: enumSymbol.id,
             entries: entries,
             intType: intType,
@@ -136,14 +170,6 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             interner: interner
         )
-        let classID = RuntimeTypeCheckToken.stableNominalTypeID(
-            symbol: enumSymbol.id,
-            symbols: sema.symbols,
-            interner: interner
-        )
-        let classIDExpr = module.arena.appendExpr(.intLiteral(classID), type: intType)
-        body.append(.constValue(result: classIDExpr, value: .intLiteral(classID)))
-
         // Cache the per-enum list so `Color.entries` and `enumEntries<Color>()`
         // have the same stable identity, matching Kotlin's EnumEntries contract.
         let listExpr = module.arena.appendTemporary(type: returnType
@@ -179,7 +205,7 @@ extension DataEnumSealedSynthesisPass {
         module: KIRModule,
         sema: SemaModule,
         interner: StringInterner
-    ) -> (array: KIRExprID, count: KIRExprID) {
+    ) -> (array: KIRExprID, count: KIRExprID, classID: KIRExprID) {
         let countExpr = module.arena.appendTemporary(type: intType
         )
         body.append(.constValue(result: countExpr, value: .intLiteral(Int64(entries.count))))
@@ -241,7 +267,7 @@ extension DataEnumSealedSynthesisPass {
             ))
         }
 
-        return (arrayExpr, countExpr)
+        return (arrayExpr, countExpr, classIDExpr)
     }
 
     /// Synthesizes `$enumOrdinalToName$<encodedFqName>(ordinal: Int): String` for (valueOf result).name.
@@ -348,7 +374,7 @@ extension DataEnumSealedSynthesisPass {
     func appendSyntheticEnumValueOfIfNeeded(
         name: InternedString,
         owner: SemanticSymbol,
-        enumName: InternedString,
+        enumName: String,
         enumType: TypeID,
         entries: [SemanticSymbol],
         module: KIRModule,
@@ -435,8 +461,7 @@ extension DataEnumSealedSynthesisPass {
 
         // No match – build "ClassName." + name and call throw helper.
         // Kotlin throws: IllegalArgumentException: No enum constant ClassName.value
-        let classNameStr = interner.resolve(enumName)
-        let prefixInterned = interner.intern("\(classNameStr).")
+        let prefixInterned = interner.intern("\(enumName).")
         let prefixExpr = module.arena.appendExpr(
             .stringLiteral(prefixInterned),
             type: stringType

@@ -24,8 +24,8 @@ expr e@8:41 double(6.0) type=Double
 expr e@8:12 call callee=e@8:12#1 args=[_:e@8:26,_:e@8:33,_:e@8:41] type=kotlin.DoubleArray call=kotlin.doubleArrayOf
 expr e@8:5 return value=e@8:12 type=Nothing
 expr e@12:12 name(value) type=Double ref=golden.sema.convertDoubleToUInt.$0.value
-expr e@12:12#1 memberCall recv=e@12:12 callee=toUInt args=[] type=UInt call=kotlin.toUInt#1
+expr e@12:12#1 memberCall recv=e@12:12 callee=toUInt args=[] type=UInt call=kotlin.toUInt#0
 expr e@12:5 return value=e@12:12#1 type=Nothing
 expr e@16:12 name(value) type=Double ref=golden.sema.convertDoubleToULong.$1.value
-expr e@16:12#1 memberCall recv=e@16:12 callee=toULong args=[] type=ULong call=kotlin.toULong#1
+expr e@16:12#1 memberCall recv=e@16:12 callee=toULong args=[] type=ULong call=kotlin.toULong#0
 expr e@16:5 return value=e@16:12#1 type=Nothing

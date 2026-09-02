@@ -65,7 +65,24 @@ extension OverloadResolver {
         let varsToSolve = usedTypeVariables(from: constraints)
         guard !varsToSolve.isEmpty else { return [:] }
         let solution = ConstraintSolver().solve(vars: varsToSolve, constraints: constraints, typeSystem: typeSystem)
-        return solution.isSuccess ? solution.substitution : [:]
+        guard solution.isSuccess else { return [:] }
+
+        // An upper bound alone is not a usable lambda context. For example,
+        // Comparator<Any> passed to Comparator<in R> only establishes R <: Any;
+        // the trailing selector still has to infer R from its return type. If
+        // this helper substituted Any eagerly, the selector would be checked as
+        // (T) -> Any and its concrete return type would be lost before the main
+        // call solver ran. Keep substitutions that have a concrete lower bound,
+        // while leaving upper-only variables unresolved for the lambda pass.
+        let lowerBoundedVariables: Set<TypeVarID> = Set(constraints.compactMap { constraint in
+            guard case .type = constraint.left,
+                  case let .variable(variable) = constraint.right
+            else {
+                return nil
+            }
+            return variable
+        })
+        return solution.substitution.filter { lowerBoundedVariables.contains($0.key) }
     }
 
     public func resolveCall(
@@ -234,6 +251,33 @@ extension OverloadResolver {
                         blameRange: call.range
                     )
                 )
+            }
+        }
+
+        // Upper bounds can relate two function type parameters (for example
+        // `where C : Collection<*>, C : R`). Add those relationships to the
+        // inference graph before solving so a receiver lower bound can widen
+        // the result type as required by Kotlin's self-type extensions.
+        for (index, typeParamSymbol) in signature.typeParameterSymbols.enumerated() {
+            guard index < signature.typeParameterUpperBoundsList.count else {
+                continue
+            }
+            let signatureBounds = signature.typeParameterUpperBoundsList[index]
+            let symbolBounds = ctx.symbols.typeParameterUpperBounds(for: typeParamSymbol)
+            let upperBounds = signatureBounds + symbolBounds.filter { !signatureBounds.contains($0) }
+            for upperBound in upperBounds {
+                guard case let .typeParam(boundTypeParam) = ctx.types.kind(of: upperBound),
+                      let typeParamVariable = typeVarBySymbol[typeParamSymbol],
+                      let boundTypeParamVariable = typeVarBySymbol[boundTypeParam.symbol]
+                else {
+                    continue
+                }
+                constraints.append(VariableConstraint(
+                    kind: .subtype,
+                    left: .variable(typeParamVariable),
+                    right: .variable(boundTypeParamVariable),
+                    blameRange: call.range
+                ))
             }
         }
 

@@ -44,6 +44,26 @@ struct MemberRuntimeDispatchTests {
         }
     }
 
+    @Test func testUIntRangeHOFDispatchDefersToBundledSource() {
+        let sourceBackedMembers: [(String, Int)] = [
+            ("forEach", 1),
+            ("reduce", 1), ("reduceIndexed", 1), ("fold", 2), ("foldIndexed", 2),
+            ("find", 1), ("findLast", 1),
+            ("first", 1), ("firstOrNull", 1), ("last", 1), ("lastOrNull", 1),
+            ("any", 1), ("all", 1), ("none", 1),
+        ]
+        for member in sourceBackedMembers {
+            let key = MemberDispatchKey(receiverKind: .uintRange, memberName: member.0, arity: member.1)
+            #expect(
+                MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == nil,
+                "UIntRange.\(member.0) should be source-backed after KSP-1526"
+            )
+        }
+
+        let uintProgressionKey = MemberDispatchKey(receiverKind: .uintProgression, memberName: "reduce", arity: 1)
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintProgressionKey) == "kk_uint_range_reduce")
+    }
+
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),
