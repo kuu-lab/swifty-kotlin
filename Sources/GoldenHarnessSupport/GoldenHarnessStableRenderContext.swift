@@ -38,13 +38,32 @@ final class StableRenderContext {
             fqGroups[fq, default: []].append(symbol)
         }
 
+        var stableTypeParameterFQ: [Int32: String] = [:]
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .typeParameter {
+            if let fq = fqMap[symbol.id.rawValue] {
+                stableTypeParameterFQ[symbol.id.rawValue] = Self.stabilizeTypeParameterFQName(fq)
+            }
+        }
+
         self.symbolFQ = fqMap
 
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
-            let sorted = symbols.sorted { a, b in
-                Self.overloadSortKey(a, sema: sema, fqMap: fqMap) < Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
-            }
+            let sorted = symbols.enumerated().sorted { lhs, rhs in
+                let lhsKey = Self.overloadSortKey(
+                    lhs.element,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                let rhsKey = Self.overloadSortKey(
+                    rhs.element,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                return lhsKey == rhsKey ? lhs.offset < rhs.offset : lhsKey < rhsKey
+            }.map(\.element)
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"
             }
@@ -279,26 +298,24 @@ final class StableRenderContext {
     private static func overloadSortKey(
         _ symbol: SemanticSymbol,
         sema: SemaModule,
-        fqMap: [Int32: String]
+        fqMap: [Int32: String],
+        stableTypeParameterFQ: [Int32: String]
     ) -> String {
         guard let sig = sema.symbols.functionSignature(for: symbol.id) else {
             return ""
         }
-        let typeParameterOrdinals = Dictionary(
-            uniqueKeysWithValues: sig.typeParameterSymbols.enumerated().map { ($0.element.rawValue, $0.offset) }
-        )
         let recv = sig.receiverType.map {
             stabilizeTypeRefsStatic(
                 sema.types.renderType($0),
                 fqMap: fqMap,
-                typeParameterOrdinals: typeParameterOrdinals
+                stableTypeParameterFQ: stableTypeParameterFQ
             )
         } ?? "_"
         let params = sig.parameterTypes.map {
             stabilizeTypeRefsStatic(
                 sema.types.renderType($0),
                 fqMap: fqMap,
-                typeParameterOrdinals: typeParameterOrdinals
+                stableTypeParameterFQ: stableTypeParameterFQ
             )
         }
         return "\(recv)|\(params.joined(separator: ","))"
@@ -307,7 +324,7 @@ final class StableRenderContext {
     private static func stabilizeTypeRefsStatic(
         _ text: String,
         fqMap: [Int32: String],
-        typeParameterOrdinals: [Int32: Int]
+        stableTypeParameterFQ: [Int32: String]
     ) -> String {
         let nsText = text as NSString
         let range = NSRange(location: 0, length: nsText.length)
@@ -321,13 +338,39 @@ final class StableRenderContext {
                   let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
             let prefix = nsText.substring(with: match.range(at: 1))
+            let stableFQ: String?
             if prefix == "T#" {
-                let stableName = typeParameterOrdinals[rawID].map { "T\($0)" } ?? "T"
-                mutable.replaceCharacters(in: match.range, with: stableName)
-            } else if let fq = fqMap[rawID] {
-                mutable.replaceCharacters(in: match.range, with: fq)
+                stableFQ = stableTypeParameterFQ[rawID] ?? fqMap[rawID]
+            } else {
+                stableFQ = fqMap[rawID]
             }
+            guard let stableFQ else {
+                continue
+            }
+            mutable.replaceCharacters(in: match.range, with: stableFQ)
         }
         return mutable as String
+    }
+
+    private static func stabilizeTypeParameterFQName(_ fq: String) -> String {
+        let components = fq.split(separator: ".", omittingEmptySubsequences: false)
+        return components.map { component in
+            let characters = Array(component)
+            guard characters.first == "$" else { return String(component) }
+
+            var digitStart = 1
+            while digitStart < characters.count, characters[digitStart].isLetter {
+                digitStart += 1
+            }
+            guard digitStart < characters.count,
+                  characters[digitStart...].allSatisfy(\.isNumber),
+                  let ownerID = Int64(String(characters[digitStart...]))
+            else {
+                return String(component)
+            }
+
+            let prefix = String(characters[..<digitStart])
+            return prefix + String(format: "%010lld", ownerID)
+        }.joined(separator: ".")
     }
 }
