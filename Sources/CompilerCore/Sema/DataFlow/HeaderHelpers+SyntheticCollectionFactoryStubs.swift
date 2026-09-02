@@ -2,9 +2,10 @@
 /// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
 /// bootstrap symbols for the `kotlin.collections` factory functions.
 ///
-/// The collection type aliases (`ArrayList` / `HashSet` / `HashMap` /
-/// `LinkedHashMap`) and the concrete `LinkedHashSet` class that used to be
-/// registered here are declared by `Stdlib/kotlin/collections/CollectionAliases.kt`.
+/// The collection type aliases (`ArrayList` / `HashSet` / `LinkedHashMap`),
+/// the source-backed `HashMap` class, and the concrete `LinkedHashSet` class
+/// that used to be registered here are declared by
+/// `Stdlib/kotlin/collections/CollectionAliases.kt`.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.

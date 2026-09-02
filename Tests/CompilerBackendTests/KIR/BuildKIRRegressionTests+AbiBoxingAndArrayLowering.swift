@@ -104,6 +104,28 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
+    func testBuildKIRKeepsIterableUnzipSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Pair<Int, String>>) {
+            values.unzip()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(containsKotlinCallee("unzip", in: callNames))
+            #expect(!(callNames.contains("kk_sequence_unzip")))
+            #expect(!(callNames.contains("kk_list_unzip")))
+        }
+    }
+
+    @Test
     func testBuildKIRKeepsSequenceAssociateToSourceBacked() throws {
         let source = """
         fun main() {
@@ -176,6 +198,33 @@ struct BuildKIRCodegenRegressionTests {
         }
     }
 
+    /// KSP-998: Iterable.withIndex() returns the source-backed lazy wrapper;
+    /// acquiring its iterator must stay on the throwing Iterable bridge rather
+    /// than the eager List or legacy range bridge.
+    @Test
+    func testBuildKIRLowersIterableWithIndexToLazyIterableIteratorBridge() throws {
+        let source = """
+        fun main(values: Iterable<Int>) {
+            val indexed: Iterable<IndexedValue<Int>> = values.withIndex()
+            indexed.iterator()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(containsKotlinCallee("withIndex", in: callNames))
+            #expect(callNames.contains("kk_iterable_iterator"), "Iterable.iterator() must use the lazy throwing bridge, got: \(callNames)")
+            #expect(!(callNames.contains("kk_list_withIndex")))
+            #expect(!(callNames.contains("kk_range_iterator")))
+        }
+    }
+
     @Test
     func testBuildKIRLowersListZipToPrivateBridge() throws {
         let source = """
@@ -195,6 +244,29 @@ struct BuildKIRCodegenRegressionTests {
             #expect(callNames.contains("__kk_list_zip"))
             #expect(!(callNames.contains("zip")))
             #expect(!(callNames.contains("kk_list_zip")))
+        }
+    }
+
+    @Test
+    func testBuildKIRKeepsIterableZipArrayOverloadsSourceBacked() throws {
+        let source = """
+        fun main(values: Iterable<Int>, other: Array<String>) {
+            values.zip(other)
+            values.zip(other) { left, right -> "$left$right" }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = try makeArtifactCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(callNames.filter { isKotlinCallee($0, named: "zip") }.count == 2)
+            #expect(!(callNames.contains("__kk_list_zip")))
+            #expect(!(callNames.contains("__kk_list_zip_transform")))
         }
     }
 
@@ -667,6 +739,30 @@ struct BuildKIRCodegenRegressionTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             expectArrayRuntimeCallsThrow(body: body, interner: ctx.interner)
+        }
+    }
+
+    @Test
+    func testUShortArrayStorageConstructorUsesSignedArrayViewBridge() throws {
+        let source = """
+        fun main(): Short {
+            val storage = shortArrayOf(1, -1)
+            val values = UShortArray(storage)
+            return values.asShortArray()[1]
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callNames = extractCallees(from: body, interner: ctx.interner)
+            #expect(callNames.contains("__kk_shortArray_asUShortArray"))
+            #expect(callNames.contains("asShortArray"))
+            #expect(!callNames.contains("kk_object_new"))
         }
     }
 

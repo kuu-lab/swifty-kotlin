@@ -2,6 +2,11 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
+
+@KsSymbolName("kk_map_is_empty")
+private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 // MIGRATION-COL-015
 // Map higher-order functions migrated from Swift Runtime
@@ -13,6 +18,23 @@ import kotlin.internal.__valuesEqual
 private external fun <K, V> __kk_map_size_for_any(map: Map<K, V>): Int
 
 /**
+ * Returns `true` if this map is not empty.
+ */
+public inline fun <K, V> Map<out K, V>.isNotEmpty(): Boolean = !__kkMapIsEmpty(this)
+
+/**
+ * Returns `true` if this nullable map is either null or empty.
+ */
+@SinceKotlin("1.3")
+@OptIn(ExperimentalContracts::class)
+public inline fun <K, V> Map<out K, V>?.isNullOrEmpty(): Boolean {
+    contract {
+        returns(false) implies (this != null)
+    }
+    return this == null || __kkMapIsEmpty(this)
+}
+
+/**
  * Performs the given [action] on each entry.
  */
 public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
@@ -20,7 +42,6 @@ public inline fun <K, V> Map<K, V>.forEach(action: (Map.Entry<K, V>) -> Unit) {
         action(entry)
     }
 }
-
 
 /**
  * Returns `true` if map has at least one entry.
@@ -51,6 +72,13 @@ public inline fun <K, V> Map<K, V>.all(predicate: (Map.Entry<K, V>) -> Boolean):
 }
 
 /**
+ * Returns `true` if the map has no entries.
+ */
+public fun <K, V> Map<out K, V>.none(): Boolean {
+    return __kkMapIsEmpty(this)
+}
+
+/**
  * Returns `true` if no entries match the given [predicate].
  */
 public inline fun <K, V> Map<K, V>.none(predicate: (Map.Entry<K, V>) -> Boolean): Boolean {
@@ -69,6 +97,34 @@ public inline fun <K, V> Map<K, V>.count(predicate: (Map.Entry<K, V>) -> Boolean
         if (predicate(entry)) count++
     }
     return count
+}
+
+/**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or throws [NoSuchElementException] if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOf(
+    transform: (Map.Entry<K, V>) -> R?
+): R {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    throw NoSuchElementException("No element of the map was transformed to a non-null value.")
+}
+
+/**
+ * Returns the first non-null value produced by [transform] for the entries of this map,
+ * or `null` if no non-null value was produced.
+ */
+public inline fun <K, V, R : Any> Map<out K, V>.firstNotNullOfOrNull(
+    transform: (Map.Entry<K, V>) -> R?
+): R? {
+    for (entry in this.entries) {
+        val result = transform(entry)
+        if (result != null) return result
+    }
+    return null
 }
 
 /**
@@ -188,12 +244,12 @@ public inline fun <K, V, R> Map<K, V>.mapValues(transform: (Map.Entry<K, V>) -> 
  * Populates the given [destination] map with entries having the keys obtained by applying
  * the [transform] function to each entry of the original map.
  */
-public inline fun <K, V, R> Map<K, V>.mapKeysTo(
-    destination: MutableMap<R, V>,
+public inline fun <K, V, R, M : MutableMap<in R, in V>> Map<out K, V>.mapKeysTo(
+    destination: M,
     transform: (Map.Entry<K, V>) -> R
-): MutableMap<R, V> {
+): M {
     for (entry in this.entries) {
-        destination[transform(entry)] = entry.value
+        destination.put(transform(entry), entry.value)
     }
     return destination
 }
@@ -202,12 +258,41 @@ public inline fun <K, V, R> Map<K, V>.mapKeysTo(
  * Populates the given [destination] map with entries having the values obtained by applying
  * the [transform] function to each entry of the original map.
  */
-public inline fun <K, V, R> Map<K, V>.mapValuesTo(
-    destination: MutableMap<K, R>,
+public inline fun <K, V, R, M : MutableMap<in K, in R>> Map<out K, V>.mapValuesTo(
+    destination: M,
     transform: (Map.Entry<K, V>) -> R
-): MutableMap<K, R> {
+): M {
     for (entry in this.entries) {
-        destination[entry.key] = transform(entry)
+        destination.put(entry.key, transform(entry))
+    }
+    return destination
+}
+
+/**
+ * Applies the given [transform] function to each entry of the original map
+ * and appends the results to the given [destination].
+ */
+public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.mapTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> R
+): C {
+    for (entry in this.entries) {
+        destination.add(transform(entry))
+    }
+    return destination
+}
+
+/**
+ * Applies the given [transform] function to each entry of the original map
+ * and appends only the non-null results to the given [destination].
+ */
+public inline fun <K, V, R : Any, C : MutableCollection<in R>> Map<out K, V>.mapNotNullTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> R?
+): C {
+    for (entry in this.entries) {
+        val value = transform(entry)
+        if (value != null) destination.add(value)
     }
     return destination
 }
@@ -632,5 +717,25 @@ public inline operator fun <K, V> Map<K, V>.minus(keys: Iterable<K>): Map<K, V> 
     for (entry in this.entries) {
         if (entry.key !in keySet) result[entry.key] = entry.value
     }
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Array<out K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
+    return result as Map<K, V>
+}
+
+/**
+ * Returns a map containing all entries of the original map except those with keys contained in [keys].
+ */
+@Suppress("UNCHECKED_CAST")
+public operator fun <K, V> Map<out K, V>.minus(keys: Sequence<K>): Map<K, V> {
+    val result = this.toMutableMap()
+    for (key in keys) result.remove(key)
     return result as Map<K, V>
 }

@@ -59,5 +59,5 @@ expr e@17:5 localDecl ls mutable=0 type=_ init=e@17:14#1 type=Unit ref=__local_1
 expr e@19:13 int(100) type=Int
 expr e@19:5 localDecl i mutable=0 type=_ init=e@19:13 type=Unit ref=__local_14.i
 expr e@20:14 name(i) type=Int ref=__local_14.i
-expr e@20:14#1 memberCall recv=e@20:14 callee=toDouble args=[] type=Double
+expr e@20:14#1 memberCall recv=e@20:14 callee=toDouble args=[] type=Double call=kotlin.toDouble#1
 expr e@20:5 localDecl id mutable=0 type=_ init=e@20:14#1 type=Unit ref=__local_15.id

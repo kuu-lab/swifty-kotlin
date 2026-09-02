@@ -1,3 +1,58 @@
+private func typeArgInnerType(_ arg: TypeArg) -> TypeID? {
+    switch arg {
+    case let .invariant(type), let .out(type), let .in(type):
+        return type
+    case .star:
+        return nil
+    }
+}
+
+private func comparableArgument(of subtype: TypeID, typeSystem: TypeSystem) -> TypeID? {
+    let nonNullSubtype = typeSystem.makeNonNullable(subtype)
+    switch typeSystem.kind(of: nonNullSubtype) {
+    case .primitive, .stringStruct:
+        return nonNullSubtype
+    case let .classType(classType):
+        guard let comparableSymbol = typeSystem.comparableInterfaceSymbol,
+              let supertypeArgs = typeSystem.liftedNominalSupertypeArgs(
+                  from: classType.classSymbol,
+                  childArgs: classType.args,
+                  to: comparableSymbol
+              ),
+              let comparableArg = supertypeArgs.first
+        else {
+            return nil
+        }
+        return typeArgInnerType(comparableArg)
+    case let .typeParam(typeParam):
+        guard let symbolTable = typeSystem.symbolTable,
+              let comparableSymbol = typeSystem.comparableInterfaceSymbol
+        else {
+            return nil
+        }
+        for upperBound in symbolTable.typeParameterUpperBounds(for: typeParam.symbol) {
+            guard case let .classType(boundClass) = typeSystem.kind(of: upperBound),
+                  boundClass.classSymbol == comparableSymbol,
+                  let comparableArg = boundClass.args.first,
+                  let argument = typeArgInnerType(comparableArg)
+            else {
+                continue
+            }
+            return argument
+        }
+        return nil
+    case let .intersection(parts):
+        for part in parts {
+            if let argument = comparableArgument(of: part, typeSystem: typeSystem) {
+                return argument
+            }
+        }
+        return nil
+    default:
+        return nil
+    }
+}
+
 extension OverloadResolver {
     func buildParameterMapping(
         signature: FunctionSignature,
@@ -381,6 +436,28 @@ extension OverloadResolver {
             if !result.isEmpty {
                 return result
             }
+        }
+
+        // Comparable is a compiler-backed conformance for primitive values and
+        // type parameters whose upper bound is Comparable<Self>. Those receivers
+        // do not always have a classType that the generic decomposition below can
+        // lift, so recover the concrete Comparable argument before solving the
+        // member's class type parameter.
+        if case let .classType(superClass) = supertypeKind,
+           superClass.classSymbol == typeSystem.comparableInterfaceSymbol,
+           superClass.args.count == 1,
+           let superArgument = typeArgInnerType(superClass.args[0]),
+           containsTypeVariable(superArgument, typeVarBySymbol: typeVarBySymbol, typeSystem: typeSystem),
+           let actualArgument = comparableArgument(of: subtype, typeSystem: typeSystem)
+        {
+            return decomposeSubtypeConstraintImpl(
+                subtype: actualArgument,
+                supertype: superArgument,
+                typeVarBySymbol: typeVarBySymbol,
+                typeSystem: typeSystem,
+                blameRange: blameRange,
+                depth: depth + 1
+            )
         }
 
         // Case 2: supertype is a class type with type args containing type variables.

@@ -190,10 +190,15 @@ final class ExprTypeChecker {
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
                 // the local-declaration rule in LocalDeclTypeChecker.
-                let returnsRangeExpr = sema.bindings.isRangeExpr(value)
-                    && (expectedType.map {
-                        driver.helpers.isRangeLikeType($0, sema: sema, interner: interner)
-                    } ?? false)
+                let returnsRangeExpr = expectedType.map {
+                    driver.helpers.rangeExprMatchesDeclaredElementType(
+                        bodyExprID: value,
+                        bodyType: resolved,
+                        declaredType: $0,
+                        sema: sema,
+                        interner: interner
+                    )
+                } ?? false
                 if let expectedType, !returnsRangeExpr {
                     driver.emitSubtypeConstraint(
                         left: resolved,

@@ -273,30 +273,6 @@ public func kk_ushort_to_char(_ value: Int) -> Int {
     value
 }
 
-@_cdecl("kk_char_to_int")
-public func kk_char_to_int(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_long")
-public func kk_char_to_long(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_uint")
-public func kk_char_to_uint(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
-@_cdecl("kk_char_to_ulong")
-public func kk_char_to_ulong(_ value: Int) -> Int {
-    // Char is stored as Int, so this is identity
-    value
-}
-
 // MARK: - Additional Unsigned Conversions (STDLIB-PRIM-002)
 
 
