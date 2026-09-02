@@ -74,88 +74,14 @@ public func __kk_arraydeque_size(_ dequeRaw: Int) -> Int {
 
 // MARK: - Array utility functions (STDLIB-089)
 
-@_cdecl("kk_array_copyOf")
-public func kk_array_copyOf(_ arrayRaw: Int) -> Int {
+@_cdecl("__kk_array_copyOf")
+public func __kk_array_copyOf(_ arrayRaw: Int) -> Int {
     guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf")
+        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in __kk_array_copyOf")
     }
     let box = RuntimeArrayBox(length: array.elements.count)
     for (i, elem) in array.elements.enumerated() {
         box.elements[i] = elem
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOf_newSize")
-public func kk_array_copyOf_newSize(_ arrayRaw: Int, _ newSize: Int) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf_newSize")
-    }
-    let targetSize = max(0, newSize)
-    let box = RuntimeArrayBox(length: targetSize)
-    let copiedCount = min(array.elements.count, targetSize)
-    for i in 0 ..< copiedCount {
-        box.elements[i] = array.elements[i]
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOf_newSize_init")
-public func kk_array_copyOf_newSize_init(
-    _ arrayRaw: Int,
-    _ newSize: Int,
-    _ fnPtr: Int,
-    _ closureRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOf_newSize_init")
-    }
-    let targetSize = max(0, newSize)
-    let box = RuntimeArrayBox(length: targetSize)
-    let copiedCount = min(array.elements.count, targetSize)
-    for i in 0 ..< copiedCount {
-        box.elements[i] = array.elements[i]
-    }
-    if copiedCount < targetSize {
-        for index in copiedCount ..< targetSize {
-            var thrown = 0
-            let value = runtimeInvokeCollectionLambda1(
-                fnPtr: fnPtr,
-                closureRaw: closureRaw,
-                value: index,
-                outThrown: &thrown
-            )
-            if thrown != 0 {
-                return handleCollectionLambdaThrow(thrown, outThrown)
-            }
-            box.elements[index] = maybeUnbox(value)
-        }
-    }
-    return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyOfRange")
-public func kk_array_copyOfRange(_ arrayRaw: Int, _ fromIndex: Int, _ toIndex: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    guard let array = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyOfRange")
-    }
-    let size = array.elements.count
-    guard fromIndex <= toIndex else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "fromIndex (\(fromIndex)) > toIndex (\(toIndex)).")
-        return 0
-    }
-    guard fromIndex >= 0, toIndex <= size else {
-        outThrown?.pointee = runtimeAllocateThrowable(
-            message: "Array index out of bounds: fromIndex=\(fromIndex), toIndex=\(toIndex), size=\(size).")
-        return 0
-    }
-    let count = toIndex - fromIndex
-    let box = RuntimeArrayBox(length: count)
-    for i in 0 ..< count {
-        box.elements[i] = array.elements[fromIndex + i]
     }
     return registerRuntimeObject(box)
 }
@@ -170,37 +96,6 @@ public func kk_array_reversedArray(_ arrayRaw: Int) -> Int {
         box.elements[index] = element
     }
     return registerRuntimeObject(box)
-}
-
-@_cdecl("kk_array_copyInto")
-public func kk_array_copyInto(
-    _ arrayRaw: Int,
-    _ destinationRaw: Int,
-    _ destinationOffset: Int,
-    _ startIndex: Int,
-    _ endIndex: Int
-) -> Int {
-    guard let source = runtimeArrayBox(from: arrayRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid array handle in kk_array_copyInto")
-    }
-    guard let destination = runtimeArrayBox(from: destinationRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid destination handle in kk_array_copyInto")
-    }
-
-    let sourceSize = source.elements.count
-    let start = max(0, min(startIndex, sourceSize))
-    let end = max(start, min(endIndex, sourceSize))
-    let destinationStart = max(0, min(destinationOffset, destination.elements.count))
-    let count = min(end - start, destination.elements.count - destinationStart)
-    guard count > 0 else {
-        return destinationRaw
-    }
-
-    let copied = Array(source.elements[start ..< start + count])
-    for index in 0 ..< count {
-        destination.elements[destinationStart + index] = copied[index]
-    }
-    return destinationRaw
 }
 
 private func runtimeArrayFromElements(_ elements: [Int]) -> Int {

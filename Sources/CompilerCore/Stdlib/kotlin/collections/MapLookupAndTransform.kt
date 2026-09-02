@@ -56,6 +56,9 @@ public fun <K, V> Map<K, V>.values(): Collection<V> {
     return result
 }
 
+// Kotlin 2.3.10 defines Map.contains as the key-membership operator.
+public inline operator fun <K, V> Map<out K, V>.contains(key: K): Boolean = containsKey(key)
+
 public fun <K, V> Map<K, V>.containsKey(key: K): Boolean {
     for (entry in this.entries) {
         if (entry.key == key) return true

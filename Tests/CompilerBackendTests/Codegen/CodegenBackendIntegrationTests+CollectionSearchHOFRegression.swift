@@ -29,6 +29,32 @@ struct CodegenBackendCollectionSearchHOFRegressionTests {
         )
     }
 
+    // KSP-973: generic Iterable.first-family calls must use bundled source implementations.
+    @Test
+    func codegenIterableFirstFamilyUsesSourceImplementation() throws {
+        let source = """
+        fun describe(values: Iterable<Int>): String {
+            val first = values.first()
+            val firstMatching = values.first { it > 1 }
+            val firstOrNull = values.firstOrNull()
+            val firstMatchingOrNull = values.firstOrNull { it > 10 }
+            val firstNotNull = values.firstNotNullOf { if (it > 1) "hit" else null }
+            val firstNotNullOrNull = values.firstNotNullOfOrNull { if (it > 10) "hit" else null }
+            return "$first|$firstMatching|$firstOrNull|$firstMatchingOrNull|$firstNotNull|$firstNotNullOrNull"
+        }
+
+        fun main() {
+            println(describe(listOf(1, 2, 3)))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "IterableFirstFamilySource",
+            expected: "1|2|1|null|hit|null\n"
+        )
+    }
+
     @Test
     func codegenArrayContainsUsesSourceImplementation() throws {
         let source = """

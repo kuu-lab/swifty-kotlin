@@ -102,6 +102,28 @@ extension DataFlowSemaPhase {
             {
                 superSymbols.append(annotationSymbol)
             }
+            // Enum classes implicitly extend `kotlin.Enum<ThisEnum>`. The
+            // generated enum lowering registers the runtime edge later, but
+            // source-backed Comparable member lookup must see this conformance
+            // during Sema as well (e.g. `Direction.NORTH.compareTo(...)`).
+            if symbolInfo.kind == .enumClass,
+               let enumBaseSymbol = symbols.lookup(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("Enum"),
+               ]),
+               symbol != enumBaseSymbol,
+               !superSymbols.contains(enumBaseSymbol)
+            {
+                let enumType = types.make(.classType(ClassType(
+                    classSymbol: symbol,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                let enumTypeArg: [TypeArg] = [.invariant(enumType)]
+                symbols.setSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
+                types.setNominalSupertypeTypeArgs(enumTypeArg, for: symbol, supertype: enumBaseSymbol)
+                superSymbols.append(enumBaseSymbol)
+            }
             // Add implicit kotlin.Any for classes/objects/enums that have no
             // class supertype yet (they may still implement interfaces).
             if symbolInfo.kind == .class || symbolInfo.kind == .object
@@ -926,6 +948,20 @@ extension DataFlowSemaPhase {
         guard symbolInfo.kind == .class || symbolInfo.kind == .object,
               !symbolInfo.flags.contains(.abstractType)
         else {
+            return
+        }
+
+        // BUG-166/KSP-711: bundled StringBuilder declares no source-level
+        // supertypes. Its Appendable/CharSequence conformance is patched onto
+        // the source-backed class after headers are collected, so its methods
+        // cannot carry `override` modifiers and must not be rejected as
+        // missing implementations here. OpenFinalOverride applies the same
+        // narrowly scoped exception to modifier validation.
+        if symbolInfo.fqName == [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("StringBuilder"),
+        ] {
             return
         }
 
