@@ -17,8 +17,7 @@ public interface Lazy<out T> {
     public fun isInitialized(): Boolean
 }
 
-@kotlin.internal.InlineOnly
-public inline operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T = value
+public operator fun <T> Lazy<T>.getValue(thisRef: Any?, property: KProperty<*>): T = value
 
 @KsSymbolName("__kk_lazy_sync_lock")
 internal external fun __lazySyncLock(lock: Any): Unit
