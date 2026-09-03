@@ -68,7 +68,7 @@ public fun CharSequence.chunked(size: Int): List<String> {
 }
 
 public fun <R> CharSequence.chunked(size: Int, transform: (CharSequence) -> R): List<R> {
-    require(size > 0) { "size $size must be greater than zero." }
+    require(size > 0) { "size must be positive, but was $size" }
     val length = this.length
     val result = ArrayList<R>()
     var index = 0
