@@ -439,12 +439,13 @@
   - 呼び出し元: `HeaderHelpers.swift:1241`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:201`（`name: "FileIO"`）、`HeaderHelpers+SyntheticFileTreeWalkStubs.swift` 内のコメント参照を整理
   - 連動整理: bundled `Stdlib/kotlin/io/FileIO.kt`（および `FileStreamExtensions.kt`/`FileTraversal.kt`）の出番確認、Runtime `Sources/Runtime/RuntimeFileIO.swift`（`kk_file_*`/`kk_files_*` 等）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`
   - テスト影響: `Tests/CompilerCoreTests/GoldenCases/Sema/file_*.golden`・`file_tree_walk.golden`、`Tests/CompilerBackendTests/Codegen/*File*` テスト群、`Tests/RuntimeTests/RuntimeFileTreeWalkTests.swift`、`Scripts/diff_cases/file_*.kt` 等の整理
-- [ ] CLEANUP-STUB-110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift` を削除する
+- [x] CLEANUP-STUB-110: `HeaderHelpers+SyntheticFilesUtilityStubs.swift` を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticFilesUtilityStubs.swift`（520行）
   - 削除内容: `registerSyntheticFilesUtilityStubs(...)` および `java.nio.file.Files` singleton・`createFile`/`delete`/`copy`/`move`/`createDirectory`/`createDirectories`/`size`/`getLastModifiedTime`/`isRegularFile`/`isDirectory`/`exists`/`walk`/`list`/`newDirectoryStream`/`createTempFile`/`createTempDirectory` 等の登録を削除
-  - 呼び出し元: `HeaderHelpers.swift:1246`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift:215`（`name: "FilesUtility"`）を削除
-  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `kk_files_*`（48件）、`Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`/`RuntimeABISpec+Path.swift` 該当 ABI
-  - テスト影響: diff case `files_utility.kt`、`file_isDirectory_test.kt` 等の整理
+  - 呼び出し元: `HeaderHelpers.swift`、`HeaderHelpers+SyntheticBucketedStubRegistry.swift`（`name: "FilesUtility"`）を削除
+  - 連動整理: Runtime `Sources/Runtime/RuntimeFileIO.swift` 内 `__kk_files_*` 16件、`Sources/RuntimeABI/RuntimeABISpec+ABIParity.swift` の対応 parity、diff case `files_utility.kt` を削除。Path が共有する `RuntimeFileTimeBox`/`__kk_fileTime_toMillis` と `FileTime.toMillis` は保持
+  - テスト影響: `file_isDirectory_test.kt` など `java.io.File` の FileIO ケースは CLEANUP-STUB-107 の対象として保持
+  - 完了 (2026-09-03): `java.nio.file.Files` は実在する JDK API のため fiction ではなく、明示された target-out cleanup として全層を整理
 - [ ] CLEANUP-STUB-115: `HeaderHelpers+SyntheticPathStubs.swift`（本体）を削除する
   - 対象ファイル: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticPathStubs.swift`（2102行）
   - 削除内容: `registerSyntheticPathStubs(...)` および `kotlin.io.path.Path` クラス・companion `createTempFile`/`createTempDirectory`/`list`/`walk`/`readBytes`/`readText`/`writeText`/`writeBytes`/`copyTo`/`resolve`/`parent`/`fileName`/`extension` 等の登録を削除
