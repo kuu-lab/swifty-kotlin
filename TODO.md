@@ -847,13 +847,14 @@
   - 未実装シンボル一覧:
     - `kotlin.annotation.Repeatable.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-923: kotlin.annotation.Retention top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-923: kotlin.annotation.Retention top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.annotation.Retention` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/Retention/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_annotation_Retention_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_annotation_Retention_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_annotation_Retention_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-09-03）: merged PR #6142（commit `32945a5299e90365a29c39828388a4d54f3e13a8`）で `kotlin.annotation.Retention` を bundled source-backed 宣言へ移行済み。現行 `Sources/CompilerCore/Stdlib/kotlin/annotation/Stdlib.kt:42-44` は Kotlin 2.3.10 の `Retention(value: AnnotationRetention = AnnotationRetention.RUNTIME)` と一致し、`KotlinAnnotationAPIInventoryTests` の value 型・RUNTIME default・constructor default flag 検証で実装を固定している。既存 `stdlib_kotlin_annotation_n_n.kt` の `@Retention()`、diff ケースの `@Retention` が default 呼び出しをカバーし、focused inventory 31/31、annotation Sema 15/15、Golden、diff 1/1、Runtime ABI link 4/4 が pass。対象専用の runtime/ABI bridge や name-string 特例の追加・重複変更は不要。
   - 未実装シンボル一覧:
     - `kotlin.annotation.Retention.<init>` — constructor (AnnotationRetention)  -- `constructor <init>(kotlin.annotation/AnnotationRetention = ...)`
 
