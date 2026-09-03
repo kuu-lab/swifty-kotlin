@@ -653,13 +653,15 @@
   - 未実装シンボル一覧:
     - `kotlin.Comparable.compareTo` — fun Comparable.compareTo(): Int  -- `abstract fun compareTo(#A): kotlin/Int`
 
-- [ ] KSP-826: kotlin.DeepRecursiveScope.DeepRecursiveFunction の未実装 stdlib API を実装する（2 件）
+- [x] KSP-826: kotlin.DeepRecursiveScope.DeepRecursiveFunction の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.DeepRecursiveScope` / receiver `DeepRecursiveFunction`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeepRecursiveScope/DeepRecursiveFunction.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了: bundled `DeepRecursive.kt` に `DeepRecursiveFunction` receiver の member-extension `callRecursive`（suspend、既存 `__kk_deep_recursive_function_callRecursive` bridge）と、`DeepRecursiveScope` 内での deprecated `invoke`（`Nothing`、`DeprecationLevel.ERROR`）を追加。既存の scope member API（KSP-827）は変更せず、共有 runtime/ABI bridge も保持した。
+  - 回帰: 専用 Sema Golden、`DeepRecursive` focused Sema/source-ownership/signature tests、既存 backend tests、`stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` の kotlinc diff、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` を pass。
   - 未実装シンボル一覧:
     - `kotlin.DeepRecursiveScope.callRecursive` — fun DeepRecursiveFunction.callRecursive(): #B1  -- `abstract suspend fun <#A1: kotlin/Any?, #B1: kotlin/Any?> (kotlin/DeepRecursiveFunction<#A1, #B1>).callRecursive(#A1): #B1`
     - `kotlin.DeepRecursiveScope.invoke` — fun DeepRecursiveFunction.invoke(Any): Nothing  -- `final fun (kotlin/DeepRecursiveFunction<*, *>).invoke(kotlin/Any?): kotlin/Nothing`
