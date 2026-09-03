@@ -673,6 +673,10 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
     if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
         return iterableRaw
     }
+    if runtimeSequenceBox(from: iterableRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
     if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
         return kk_list_iterator(iterableRaw)
     }
@@ -697,7 +701,8 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
 }
 
 @_cdecl("kk_range_iterator")
-public func kk_range_iterator(_ rangeRaw: Int) -> Int {
+public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -727,46 +732,10 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
     // — the same shape `runtimeTraverseSourceSequenceObject` uses for
     // `Sequence` — instead of treating the object as an invalid range.
-    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw) {
-        return sourceIterator
-    }
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        return 0
-    }
-    return registerRuntimeObject(
-        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
-    )
-}
-
-/// Throwing counterpart of `kk_range_iterator` for dynamic Iterable loops.
-/// Source-defined `iterator()` implementations use the Kotlin outThrown ABI,
-/// so the loop must be able to propagate that exception to its enclosing call.
-@_cdecl("kk_range_iterator_throwing")
-public func kk_range_iterator_throwing(
-    _ rangeRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
-        return rangeRaw
-    }
-    if runtimeSequenceBox(from: rangeRaw) != nil {
-        let elements = runtimeSequenceSourceElementsOrPanic(from: rangeRaw, caller: #function)
-        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
-    }
-    if runtimeListBox(from: rangeRaw) != nil {
-        return kk_list_iterator(rangeRaw)
-    }
-    if runtimeSetBox(from: rangeRaw) != nil {
-        return kk_list_iterator(rangeRaw)
-    }
-    if let arrayBox = runtimeArrayBox(from: rangeRaw), type(of: arrayBox) == RuntimeArrayBox.self {
-        return kk_list_iterator(rangeRaw)
-    }
     if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
         return sourceIterator
     }
-    if outThrown?.pointee != 0 {
+    if let outThrown, outThrown.pointee != 0 {
         return 0
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
@@ -932,16 +901,6 @@ private func runtimeObjectIteratorMethodCall(
         return 0
     }
     return result
-}
-
-@_cdecl("kk_iterator_hasNext_throwing")
-public func kk_iterator_hasNext_throwing(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_iterator_hasNext(iterRaw, outThrown)
-}
-
-@_cdecl("kk_iterator_next_throwing")
-public func kk_iterator_next_throwing(_ iterRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    return kk_iterator_next(iterRaw, outThrown)
 }
 
 // MARK: - IntRange properties (STDLIB-092)

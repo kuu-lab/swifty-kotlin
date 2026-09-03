@@ -1187,6 +1187,135 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
+    func testIterableIndexFamilyResolvesToSourceBackedWithoutHijackingList() throws {
+        let source = """
+        class OneShot<T> : Iterable<T> {
+            override fun iterator(): Iterator<T> = emptyList<T>().iterator()
+        }
+
+        fun probe(
+            values: Iterable<Int>,
+            nullable: Iterable<String?>,
+            custom: OneShot<Int>,
+            list: List<Int>
+        ) {
+            values.indexOf(1)
+            nullable.indexOf(null)
+            custom.indexOfFirst { it > 0 }
+            values.indexOfFirst { it > 0 }
+            values.indexOfLast { it > 0 }
+            list.indexOf(1)
+            list.indexOfFirst { it > 0 }
+            list.indexOfLast { it > 0 }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected Iterable.index-family to type-check cleanly, got: \(diagnosticSummary)")
+
+            let sema = try #require(ctx.sema)
+            for memberName in ["indexOf", "indexOfFirst", "indexOfLast"] {
+                let iterableSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                    named: memberName,
+                    sema: sema,
+                    interner: ctx.interner
+                ))
+                #expect(sema.symbols.externalLinkName(for: iterableSymbol) == nil)
+                #expect(sema.symbols.isSourceBackedSymbol(iterableSymbol))
+                let declarationRange = try #require(sema.symbols.symbol(iterableSymbol)?.declSite)
+                let declarationSource = ctx.sourceManager.slice(declarationRange)
+                // Reaching Int.MAX_VALUE requires 2^31 iterator elements, so
+                // lock the overflow guard ordering at the bundled source boundary.
+                #expect(
+                    declarationSource.contains("if (index < 0)"),
+                    "Expected Iterable.\(memberName) to check overflow after counter wrap"
+                )
+                #expect(
+                    !declarationSource.contains("index == Int.MAX_VALUE"),
+                    "Iterable.\(memberName) must evaluate the Int.MAX_VALUE candidate before throwing"
+                )
+                let iterableCallCount = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == iterableSymbol }
+                    .count
+                #expect(iterableCallCount > 0, "Expected Iterable.\(memberName) to bind to its source declaration")
+
+                let listSymbol = try #require(listBackedFunctionSymbol(
+                    memberName: memberName,
+                    sema: sema,
+                    interner: ctx.interner,
+                    sourceManager: ctx.sourceManager
+                ))
+                let listCallCount = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == listSymbol }
+                    .count
+                #expect(listCallCount > 0, "Expected List.\(memberName) to retain its existing source declaration")
+            }
+        }
+    }
+
+    @Test
+    func testIterableFilterFamilyResolvesToSourceBacked() throws {
+        let source = """
+        fun filterFamily(values: Iterable<Any?>, nullable: Iterable<String?>) {
+            values.filter { it != null }
+            values.filterIndexed { index, _ -> index % 2 == 0 }
+
+            val indexedDestination = mutableListOf<Any?>()
+            values.filterIndexedTo(indexedDestination) { index, _ -> index % 2 == 0 }
+
+            values.filterIsInstance<String>()
+            val instanceDestination = mutableListOf<String>()
+            values.filterIsInstanceTo(instanceDestination)
+
+            values.filterNot { it == null }
+            nullable.filterNotNull()
+
+            val notNullDestination = mutableListOf<String>()
+            nullable.filterNotNullTo(notNullDestination)
+
+            val notDestination = mutableListOf<Any?>()
+            values.filterNotTo(notDestination) { it == null }
+
+            val destination = mutableListOf<Any?>()
+            values.filterTo(destination) { it != null }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+            let diagnosticSummary = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected Iterable.filter-family to type-check cleanly, got: \(diagnosticSummary)")
+
+            let sema = try #require(ctx.sema)
+            for memberName in [
+                "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance", "filterIsInstanceTo",
+                "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+            ] {
+                let memberSymbol = try #require(sourceBackedIterableExtensionSymbol(
+                    named: memberName,
+                    sema: sema,
+                    interner: ctx.interner
+                ))
+                #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
+                #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+                let callCount = sema.bindings.callBindings.values
+                    .filter { $0.chosenCallee == memberSymbol }
+                    .count
+                #expect(callCount > 0, "Expected Iterable.\(memberName) call to bind to its source declaration")
+            }
+        }
+    }
+
+    @Test
     func testRangeInitializerOnlyWidensToPlainIterableAnnotation() throws {
         let validSource = """
         fun valid() {
@@ -2561,7 +2690,9 @@ struct ListSyntheticMemberLinkTests {
             let mutableListIteratorSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName))
             let mutableListIteratorInfo = try #require(sema.symbols.symbol(mutableListIteratorSymbol))
             #expect(mutableListIteratorInfo.kind == .interface)
-            #expect(mutableListIteratorInfo.flags.contains(.synthetic))
+            // KSP-945: the nominal interface is source-backed; mutation members
+            // remain compiler residuals until their separate migration lands.
+            #expect(!mutableListIteratorInfo.flags.contains(.synthetic))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.invariant])
 
             let directSupertypes = sema.symbols.directSupertypes(for: mutableListIteratorSymbol)
@@ -2669,6 +2800,63 @@ struct ListSyntheticMemberLinkTests {
             try runSema(ctx)
 
             #expect(!(ctx.diagnostics.hasError), "Expected MutableListIterator surface to resolve from MutableList: \(ctx.diagnostics.diagnostics.map(\.message))")
+        }
+    }
+
+    @Test
+    func testMutableListIteratorTypeParameterIsInvariantForMutation() throws {
+        let source = """
+        fun acceptAny(iterator: MutableListIterator<Any>) {
+            iterator.add(1)
+            iterator.set(2)
+        }
+
+        fun probe(iterator: MutableListIterator<String>) {
+            acceptAny(iterator)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(ctx.diagnostics.hasError, "Expected MutableListIterator<String> to remain invariant when mutation consumes T")
+        }
+    }
+
+    @Test
+    func testCustomMutableListIteratorImplementationResolves() throws {
+        let source = """
+        class ProbeMutableListIterator : MutableListIterator<Int> {
+            override fun hasNext(): Boolean = false
+            override fun next(): Int = 0
+            override fun hasPrevious(): Boolean = false
+            override fun previous(): Int = 0
+            override fun nextIndex(): Int = 0
+            override fun previousIndex(): Int = 0
+            override fun add(element: Int) {}
+            override fun set(element: Int) {}
+            override fun remove() {}
+        }
+
+        fun probe(iterator: MutableListIterator<Int>) {
+            iterator.add(1)
+            iterator.set(2)
+            iterator.remove()
+            iterator.hasNext()
+            iterator.next()
+            iterator.hasPrevious()
+            iterator.previous()
+            iterator.nextIndex()
+            iterator.previousIndex()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            #expect(!(ctx.diagnostics.hasError), "Expected custom MutableListIterator implementation to resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
         }
     }
 

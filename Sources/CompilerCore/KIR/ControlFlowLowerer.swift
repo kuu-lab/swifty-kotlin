@@ -905,14 +905,12 @@ final class ControlFlowLowerer {
         instructions.append(.label(continueLabel))
 
         let hasNextID = arena.appendTemporary(type: boolType)
-        instructions.append(.call(
-            symbol: nil,
-            callee: interner.intern("kk_iterator_hasNext_throwing"),
-            arguments: [iteratorID],
+        emitThrowingCall(
+            callee: interner.intern("kk_iterator_hasNext"),
+            arg: iteratorID,
             result: hasNextID,
-            canThrow: true,
-            thrownResult: nil
-        ))
+            into: &instructions
+        )
         let falseID = arena.appendExpr(.boolLiteral(false), type: boolType)
         instructions.append(.constValue(result: falseID, value: .boolLiteral(false)))
         instructions.append(.jumpIfEqual(lhs: hasNextID, rhs: falseID, target: breakLabel))
@@ -929,14 +927,12 @@ final class ControlFlowLowerer {
             requireNonNull: true
         ) {
             let boxedID = arena.appendTemporary(type: sema.types.anyType)
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_iterator_next_throwing"),
-                arguments: [iteratorID],
+            emitThrowingCall(
+                callee: interner.intern("kk_iterator_next"),
+                arg: iteratorID,
                 result: boxedID,
-                canThrow: true,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
             emitNonThrowingCall(
                 callee: unboxCallee,
                 arg: boxedID,
@@ -944,14 +940,12 @@ final class ControlFlowLowerer {
                 into: &instructions
             )
         } else {
-            instructions.append(.call(
-                symbol: nil,
-                callee: interner.intern("kk_iterator_next_throwing"),
-                arguments: [iteratorID],
+            emitThrowingCall(
+                callee: interner.intern("kk_iterator_next"),
+                arg: iteratorID,
                 result: nextValueID,
-                canThrow: true,
-                thrownResult: nil
-            ))
+                into: &instructions
+            )
         }
         if let loopVariableSymbol {
             driver.ctx.setLocalValue(nextValueID, for: loopVariableSymbol)
@@ -2373,7 +2367,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern("kk_range_iterator"),
                 arguments: [iterableID],
                 result: iteratorID,
-                canThrow: false,
+                canThrow: true,
                 thrownResult: nil
             ))
         }
@@ -2407,7 +2401,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }
@@ -2441,7 +2435,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }

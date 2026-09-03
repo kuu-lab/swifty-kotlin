@@ -403,12 +403,19 @@ final class RuntimeListBox {
     }
 
     private var storage: Storage
+    private(set) var isReadOnly = false
 
     init(elements: [Int]) {
         storage = .direct(elements.map { RuntimeValue(raw: $0) })
     }
 
     init(values: [RuntimeValue]) {
+        storage = .direct(values)
+    }
+
+    init(capacity: Int) {
+        var values: [RuntimeValue] = []
+        values.reserveCapacity(max(0, capacity))
         storage = .direct(values)
     }
 
@@ -432,6 +439,7 @@ final class RuntimeListBox {
             }
         }
         set {
+            guard !isReadOnly else { return }
             switch storage {
             case .direct:
                 storage = .direct(newValue)
@@ -441,6 +449,10 @@ final class RuntimeListBox {
                 base.values = newValue
             }
         }
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 
     var elements: [Int] {
@@ -458,12 +470,14 @@ final class RuntimeListBox {
 final class RuntimeSetBox {
     private var storage: [RuntimeValue]
     private var index: [RuntimeElementKey: Int]
+    private(set) var isReadOnly = false
 
     var values: [RuntimeValue] {
         get {
             storage
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue
             rebuildIndex()
         }
@@ -474,6 +488,7 @@ final class RuntimeSetBox {
             storage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue.map { RuntimeValue(raw: $0) }
             rebuildIndex()
         }
@@ -558,6 +573,17 @@ final class RuntimeSetBox {
             }
         }
     }
+
+    init(capacity: Int) {
+        self.storage = []
+        self.index = [:]
+        self.storage.reserveCapacity(max(0, capacity))
+        self.index.reserveCapacity(max(0, capacity))
+    }
+
+    func freeze() {
+        isReadOnly = true
+    }
 }
 
 /// Runtime box for `mapOf(...)` / `mutableMapOf(...)`.
@@ -568,12 +594,14 @@ final class RuntimeMapBox {
     private var keyIndex: [RuntimeElementKey: Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
+    private(set) var isReadOnly = false
 
     var keyValues: [RuntimeValue] {
         get {
             keyStorage
         }
         set {
+            guard !isReadOnly else { return }
             keyStorage = newValue
             rebuildKeyIndex()
         }
@@ -584,6 +612,7 @@ final class RuntimeMapBox {
             valueStorage
         }
         set {
+            guard !isReadOnly else { return }
             valueStorage = newValue
         }
     }
@@ -593,6 +622,7 @@ final class RuntimeMapBox {
             keyStorage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             keyStorage = newValue.map { RuntimeValue(raw: $0) }
             rebuildKeyIndex()
         }
@@ -603,6 +633,7 @@ final class RuntimeMapBox {
             valueStorage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             valueStorage = newValue.map { RuntimeValue(raw: $0) }
         }
     }
@@ -693,6 +724,21 @@ final class RuntimeMapBox {
                 keyIndex[runtimeKey] = offset
             }
         }
+    }
+
+    init(capacity: Int, defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.keyIndex = [:]
+        self.keyStorage.reserveCapacity(max(0, capacity))
+        self.valueStorage.reserveCapacity(max(0, capacity))
+        self.keyIndex.reserveCapacity(max(0, capacity))
+        self.defaultValueFnPtr = defaultValueFnPtr
+        self.defaultValueClosureRaw = defaultValueClosureRaw
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
@@ -822,12 +868,25 @@ final class RuntimeIndexingIteratorBox {
 
 /// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
-    let elements: [Int]
+    var elements: [Int]
     var index: Int
+    let removeAction: ((Int) -> Void)?
 
-    init(elements: [Int]) {
+    init(elements: [Int], removeAction: ((Int) -> Void)? = nil) {
         self.elements = elements
         index = 0
+        self.removeAction = removeAction
+    }
+
+    func removeLastReturned() -> Bool {
+        guard index > 0, index <= elements.count else {
+            return false
+        }
+        let removedIndex = index - 1
+        elements.remove(at: removedIndex)
+        index = removedIndex
+        removeAction?(removedIndex)
+        return true
     }
 }
 

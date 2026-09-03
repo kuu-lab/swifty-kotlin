@@ -171,7 +171,17 @@ struct BundledDeclarationIndex: Sendable {
             if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
-            guard contains(key), reported.insert(key).inserted else { continue }
+            guard contains(key) else { continue }
+            if Self.isSyntheticMutableListCollectionOverload(
+                symbol.id,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
+            guard reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
             let memberDisplay = interner.resolve(key.name)
@@ -294,6 +304,36 @@ struct BundledDeclarationIndex: Sendable {
             }
             return false
         }
+    }
+
+    private static func isSyntheticMutableListCollectionOverload(
+        _ symbolID: SymbolID,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let mutableListFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+        guard key.ownerFQName == mutableListFQName,
+              key.arity == 1,
+              interner.resolve(key.name) == "removeAll" || interner.resolve(key.name) == "retainAll",
+              let signature = symbols.functionSignature(for: symbolID),
+              let parameterType = signature.parameterTypes.first,
+              case let .classType(parameterClass) = types.kind(of: types.makeNonNullable(parameterType)),
+              let parameterSymbol = symbols.symbol(parameterClass.classSymbol)
+        else {
+            return false
+        }
+        let collectionFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]
+        return parameterSymbol.fqName == collectionFQName
     }
 
     private static func hasSourceBackedFunctionOverlap(
@@ -631,7 +671,7 @@ struct BundledDeclarationIndex: Sendable {
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
         // Aliasing List member implementations to Iterable suppresses synthetic
-        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
         let nonAliasedZeroArgNames = Set([
@@ -641,6 +681,7 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("first"),
             interner.intern("last"),
             interner.intern("single"),
+            interner.intern("singleOrNull"),
         ])
         // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
         // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with

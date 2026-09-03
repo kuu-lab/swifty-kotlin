@@ -118,6 +118,40 @@ struct GoldenHarnessPersistenceTests {
     }
 
     @Test
+    func overloadSortKeysUseNumericGenericOwnerIDs() {
+        let lowerOwner = "kotlin.sequences.Sequence<kotlin.collections.any.$9999.T>|"
+        let higherOwner = """
+        kotlin.sequences.Sequence<kotlin.collections.any.$10001.T>|\
+        (kotlin.collections.any.$10001.T) -> Boolean
+        """
+
+        #expect(
+            StableRenderContext.overloadSortKeyPrecedes(
+                lowerOwner,
+                lhsSymbolID: 9_999,
+                higherOwner,
+                rhsSymbolID: 10_001
+            )
+        )
+        #expect(
+            !StableRenderContext.overloadSortKeyPrecedes(
+                higherOwner,
+                lhsSymbolID: 10_001,
+                lowerOwner,
+                rhsSymbolID: 9_999
+            )
+        )
+        #expect(
+            StableRenderContext.overloadSortKeyPrecedes(
+                lowerOwner,
+                lhsSymbolID: 32,
+                lowerOwner,
+                rhsSymbolID: 33
+            )
+        )
+    }
+
+    @Test
     func batchSubprocessReturnsOneResultPerSourceInOrder() throws {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
