@@ -301,7 +301,7 @@
   - diff: `list_sorted*.kt` 既存 + `shuffled(Random(7))` 決定値ケース（KSP-CAP-011 の非回帰確認）、`sum` の Int/Long/Double ケース
   - 前提: KSP-685, KSP-1510
 
-- [ ] KSP-1516: Array の `sliceArray`/`reversedArray`/`asList`/`toTypedArray` を Kotlin 化する
+- [x] KSP-1516: Array の `sliceArray`/`reversedArray`/`asList`/`toTypedArray` を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（slice/reverse/view 系）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ArrayConversions.kt` 追記
   - 削除/降格 kk_*: `kk_array_sliceArray_iterable`, `kk_array_sliceArray_range`, `kk_array_reversedArray`, `kk_*Array_asList`, 着手時 `rg -o '@_cdecl\("kk_[a-zA-Z]*Array_toTypedArray"\)' Sources/Runtime`

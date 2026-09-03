@@ -39,6 +39,30 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
         }
 
+        // KSP-1516: array conversion members are bundled Kotlin source. Keep
+        // the selected declaration so its source body is emitted instead of
+        // the removed synthetic runtime shortcuts.
+        if callee == lookup.sliceArrayName
+            || callee == lookup.reversedArrayName
+            || callee == lookup.asListName
+            || callee == lookup.toTypedArrayName,
+           let symbol,
+           let sema = context.sema,
+           sema.symbols.isSourceBackedSymbol(symbol),
+           let receiverType = context.module.arena.exprType(receiver),
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               receiverType,
+               sema: sema
+           )
+        {
+            let sourceBackedArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
+            ]
+            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
+        }
+
         guard callee == lookup.foldName
             || callee == lookup.foldRightName
             || callee == lookup.reduceName

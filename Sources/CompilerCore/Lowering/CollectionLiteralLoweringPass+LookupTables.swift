@@ -289,6 +289,9 @@ struct CollectionLiteralLookupTables {
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
     var toMutableListName: InternedString { arrayLookup.toMutableListName }
     var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
+    var sliceArrayName: InternedString { arrayLookup.sliceArrayName }
+    var reversedArrayName: InternedString { arrayLookup.reversedArrayName }
+    var asListName: InternedString { arrayLookup.asListName }
     var copyOfName: InternedString { arrayLookup.copyOfName }
     var copyOfRangeName: InternedString { arrayLookup.copyOfRangeName }
     var fillName: InternedString { arrayLookup.fillName }

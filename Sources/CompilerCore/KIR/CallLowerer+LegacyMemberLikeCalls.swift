@@ -247,6 +247,26 @@ extension CallLowerer {
             ]
             return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
+        // KSP-1516: selected Array/primitive-array conversion declarations are
+        // ordinary bundled Kotlin calls, not legacy runtime shortcuts.
+        let isSourceBackedArrayConversionCall: Bool = {
+            let memberName = interner.resolve(calleeName)
+            guard ["sliceArray", "reversedArray", "asList", "toTypedArray"].contains(memberName),
+                  let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            return isConcreteArrayLikeType(
+                sema.types.makeNonNullable(receiverType),
+                sema: sema,
+                interner: interner
+            )
+        }()
         let shouldAdaptCollectionHOFArguments: Bool = {
             guard isCollectionHOFCallee(calleeName, interner: interner) else {
                 return false
@@ -1884,7 +1904,7 @@ extension CallLowerer {
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":
-                    "__kk_array_copyOf"
+                    isSourceBackedArrayConversionCall ? nil : "__kk_array_copyOf"
                 case "copyOf":
                     isSourceBackedArrayCopyCall ? nil : "__kk_array_copyOf"
                 case "concatToString":
