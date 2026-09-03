@@ -25,7 +25,7 @@ expr e@6:27 name(UInt) type=kotlin.UInt.Companion ref=kotlin.UInt#0
 expr e@6:27#1 memberCall recv=e@6:27 callee=SIZE_BITS args=[] type=Int call=kotlin.SIZE_BITS.$get#4
 expr e@6:5 localDecl directBits mutable=0 type=Int init=e@6:27#1 type=Unit ref=__local_2.directBits
 expr e@7:28 name(UInt) type=kotlin.UInt.Companion ref=kotlin.UInt#0
-expr e@7:28#1 memberCall recv=e@7:28 callee=SIZE_BYTES.$get#4
+expr e@7:28#1 memberCall recv=e@7:28 callee=SIZE_BYTES args=[] type=Int call=kotlin.SIZE_BYTES.$get#4
 expr e@7:5 localDecl directBytes mutable=0 type=Int init=e@7:28#1 type=Unit ref=__local_3.directBytes
 expr e@8:29 name(UInt) type=kotlin.UInt ref=kotlin.UInt#0
 expr e@8:29#1 memberCall recv=e@8:29 callee=Companion args=[] type=kotlin.UInt.Companion ref=kotlin.UInt.Companion
@@ -41,7 +41,7 @@ expr e@10:29#2 memberCall recv=e@10:29#1 callee=SIZE_BITS args=[] type=Int call=
 expr e@10:5 localDecl receiverBits mutable=0 type=Int init=e@10:29#2 type=Unit ref=__local_6.receiverBits
 expr e@11:30 name(UInt) type=kotlin.UInt ref=kotlin.UInt#0
 expr e@11:30#1 memberCall recv=e@11:30 callee=Companion args=[] type=kotlin.UInt.Companion ref=kotlin.UInt.Companion
-expr e@11:30#2 memberCall recv=e@11:30#1 callee=SIZE_BYTES.$get#4
+expr e@11:30#2 memberCall recv=e@11:30#1 callee=SIZE_BYTES args=[] type=Int call=kotlin.SIZE_BYTES.$get#4
 expr e@11:5 localDecl receiverBytes mutable=0 type=Int init=e@11:30#2 type=Unit ref=__local_7.receiverBytes
 expr e@12:25 name(UInt) type=kotlin.UInt.Companion ref=kotlin.UInt#0
 expr e@12:25#1 memberCall recv=e@12:25 callee=MAX_VALUE args=[] type=UInt call=kotlin.MAX_VALUE.$get#4
