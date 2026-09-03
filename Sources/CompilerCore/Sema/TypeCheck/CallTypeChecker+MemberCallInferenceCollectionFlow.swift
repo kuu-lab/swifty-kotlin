@@ -3831,7 +3831,10 @@ extension CallTypeChecker {
                     nil
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                if isMapReceiver, calleeStr == "minWith" || calleeStr == "minWithOrNull" {
+                if isMapReceiver,
+                   calleeStr == "maxWith" || calleeStr == "minWith"
+                       || calleeStr == "maxWithOrNull" || calleeStr == "minWithOrNull"
+                {
                     _ = bindBundledMapSourceFunction()
                 } else if !isSequenceReceiver, bindBundledListSourceFunction(typeArguments: [collectionElementType]) {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
@@ -3878,7 +3881,10 @@ extension CallTypeChecker {
                     nil
                 }
                 _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: comparatorExpectedType)
-                if isMapReceiver, calleeStr == "minOfWith" || calleeStr == "minOfWithOrNull" {
+                if isMapReceiver,
+                   calleeStr == "maxOfWith" || calleeStr == "minOfWith"
+                       || calleeStr == "maxOfWithOrNull" || calleeStr == "minOfWithOrNull"
+                {
                     if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorResultType) {
                         if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                             sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
@@ -4400,7 +4406,7 @@ extension CallTypeChecker {
                 if (calleeStr == "maxByOrNull" || calleeStr == "minByOrNull"), isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType, selectorType]
                 }
-                if isMapReceiver, calleeStr == "minBy" {
+                if isMapReceiver, calleeStr == "maxBy" || calleeStr == "minBy" {
                     if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType),
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
@@ -4437,7 +4443,7 @@ extension CallTypeChecker {
                 } else {
                     sema.types.anyType
                 }
-                if isMapReceiver, calleeStr == "minOf" {
+                if isMapReceiver, calleeStr == "maxOf" || calleeStr == "minOf" {
                     if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType),
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
@@ -4516,7 +4522,7 @@ extension CallTypeChecker {
                     }
                 }
                 resultType = sema.types.makeNullable(selectorType)
-                if isMapReceiver, calleeStr == "minOfOrNull" {
+                if isMapReceiver, calleeStr == "maxOfOrNull" || calleeStr == "minOfOrNull" {
                     if bindBundledMapSourceFunction(matchingLambdaReturnType: selectorType),
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
