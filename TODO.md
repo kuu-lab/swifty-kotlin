@@ -2863,7 +2863,7 @@
     - `kotlin.experimental.ExperimentalObjCRefinement` — class kotlin.experimental.ExperimentalObjCRefinement  -- `open annotation class kotlin.experimental/ExperimentalObjCRefinement : kotlin/Annotation {`
     - `kotlin.experimental.ExperimentalTypeInference` — class kotlin.experimental.ExperimentalTypeInference  -- `open annotation class kotlin.experimental/ExperimentalTypeInference : kotlin/Annotation {`
 
-- [ ] KSP-1162: kotlin.experimental.ExperimentalTypeInference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1162: kotlin.experimental.ExperimentalTypeInference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalTypeInference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/experimental/ExperimentalTypeInference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
