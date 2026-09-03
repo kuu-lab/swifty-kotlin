@@ -2902,7 +2902,7 @@
     - `kotlin.io.encoding.Base64.Default.Pem` — val Default.Pem: Base64  -- `final val Pem`
     - `kotlin.io.encoding.Base64.Default.UrlSafe` — val Default.UrlSafe: Base64  -- `final val UrlSafe`
 
-- [ ] KSP-1168: kotlin.io.encoding.Base64.PaddingOption.PaddingOption の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1168: kotlin.io.encoding.Base64.PaddingOption.PaddingOption の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.io.encoding.Base64.PaddingOption` / receiver `PaddingOption`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64/PaddingOption/PaddingOption.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
