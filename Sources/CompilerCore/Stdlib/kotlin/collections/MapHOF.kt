@@ -191,6 +191,34 @@ public inline fun <K, V, R> Map<K, V>.flatMap(transform: (Map.Entry<K, V>) -> It
     return result
 }
 
+@IgnorableReturnValue
+public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.flatMapTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> Iterable<R>
+): C {
+    for (entry in this.entries) {
+        val list = transform(entry)
+        destination.addAll(list)
+    }
+    return destination
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapSequenceTo")
+@IgnorableReturnValue
+public inline fun <K, V, R, C : MutableCollection<in R>> Map<out K, V>.flatMapTo(
+    destination: C,
+    transform: (Map.Entry<K, V>) -> Sequence<R>
+): C {
+    for (entry in this.entries) {
+        val list = transform(entry)
+        destination.addAll(list)
+    }
+    return destination
+}
+
 /**
  * Returns a map containing all entries matching the given [predicate].
  */
