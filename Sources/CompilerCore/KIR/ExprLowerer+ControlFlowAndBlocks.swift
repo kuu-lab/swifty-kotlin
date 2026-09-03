@@ -186,6 +186,30 @@ extension ExprLowerer {
                 let receiverMayBeCollection = resolveClassTypeSymbol(nonNullReceiverType, sema: sema)
                     .map { KnownCompilerNames(interner: interner).isCollectionLikeSymbol($0.symbol) }
                     ?? true
+                // Abstract class properties have no usable declaration-local
+                // field value. Resolve them through the class vtable before
+                // collection shortcuts or the stored-field fallback below.
+                if let propertySymbol = sema.bindings.identifierSymbols[exprID],
+                   let (accessorSymbol, dispatch) = driver.callLowerer.tryResolvePropertyAccessorVirtualDispatch(
+                       propertySymbol: propertySymbol,
+                       receiverExpr: exprID,
+                       accessorKind: .getter,
+                       ast: ast,
+                       sema: sema
+                   )
+                {
+                    instructions.append(.virtualCall(
+                        symbol: accessorSymbol,
+                        callee: interner.intern("get"),
+                        receiver: receiverExprID,
+                        arguments: [],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil,
+                        dispatch: dispatch
+                    ))
+                    return result
+                }
 
                 // A user-declared member with a custom getter shadows the built-in
                 // collection shortcuts below: `size` / `isEmpty` inside a class that
@@ -2672,4 +2696,5 @@ extension ExprLowerer {
         }
         return false
     }
+
 }

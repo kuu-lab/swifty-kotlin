@@ -422,7 +422,6 @@ public func kk_map_has_default(_ mapRaw: Int) -> Int {
     }
     return map.defaultValueFnPtr == 0 ? 0 : 1
 }
-
 @_cdecl("__kk_map_withDefault")
 public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
@@ -437,8 +436,34 @@ public func kk_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -
         keys: map.keys,
         values: map.values,
         defaultValueFnPtr: fnPtr,
-        defaultValueClosureRaw: closureRaw
+        defaultValueClosureRaw: closureRaw,
+        backingMap: map
     ))
+}
+
+@_cdecl("__kk_mutable_map_withDefault")
+public func kk_mutable_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return registerRuntimeObject(
+            RuntimeMapBox(
+                keys: [],
+                values: [],
+                defaultValueFnPtr: fnPtr,
+                defaultValueClosureRaw: closureRaw
+            ),
+            typeID: mutableMapRuntimeTypeID
+        )
+    }
+    return registerRuntimeObject(
+        RuntimeMapBox(
+            keys: map.keys,
+            values: map.values,
+            defaultValueFnPtr: fnPtr,
+            defaultValueClosureRaw: closureRaw,
+            backingMap: map
+        ),
+        typeID: mutableMapRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_map_is_empty")
@@ -493,6 +518,67 @@ public func kk_map_iterator_next(_ iterRaw: Int) -> Int {
     let key = iter.keys[iter.index]
     iter.index += 1
     return key
+}
+
+@_cdecl("__kk_mutable_map_iterator")
+public func kk_mutable_map_iterator(_ mapRaw: Int) -> Int {
+    let keys = runtimeMapBox(from: mapRaw)?.keys ?? []
+    return registerRuntimeObject(RuntimeMutableMapIteratorBox(mapRaw: mapRaw, keys: keys))
+}
+
+@_cdecl("__kk_mutable_map_iterator_hasNext")
+public func kk_mutable_map_iterator_hasNext(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeMutableMapIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.index < iter.keys.count ? 1 : 0
+}
+
+@_cdecl("__kk_mutable_map_iterator_next")
+public func kk_mutable_map_iterator_next(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
+          iter.index < iter.keys.count
+    else {
+        return runtimeNullSentinelInt
+    }
+    let key = iter.keys[iter.index]
+    iter.index += 1
+    iter.lastKey = key
+    return runtimeMutableMapEntryNew(
+        mapRaw: iter.mapRaw,
+        key: key,
+        value: kk_map_get(iter.mapRaw, key)
+    )
+}
+
+@_cdecl("__kk_mutable_map_iterator_remove")
+public func kk_mutable_map_iterator_remove(
+    _ iterRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let iter = runtimeMutableMapIteratorBox(from: iterRaw),
+          let key = iter.lastKey
+    else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: nil))
+        return runtimeExceptionCaughtSentinel
+    }
+    _ = kk_mutable_map_remove(iter.mapRaw, key)
+    iter.lastKey = nil
+    return 0
+}
+
+@_cdecl("__kk_mutable_map_entry_setValue")
+public func kk_mutable_map_entry_setValue(_ entryRaw: Int, _ value: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: entryRaw),
+          let pairBox = tryCast(pointer, to: RuntimePairBox.self),
+          pairBox.mutableMapRaw != 0
+    else {
+        return runtimeNullSentinelInt
+    }
+    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, nil)
+    pairBox.secondValue = RuntimeValue(raw: value)
+    return previous
 }
 
 @_cdecl("kk_map_to_string")

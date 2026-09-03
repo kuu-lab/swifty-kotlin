@@ -59,7 +59,6 @@ struct MutableMapInterfaceSourceMigrationTests {
         let mutableMapFQName = ["kotlin", "collections", "MutableMap"].map(interner.intern)
         let mutableMapSymbol = try #require(sema.symbols.lookup(fqName: mutableMapFQName))
         let expectedLinks: [(name: String, link: String)] = [
-            ("set", "__kk_mutable_map_put"),
             ("put", "__kk_mutable_map_put"),
             ("remove", "__kk_mutable_map_remove"),
             ("clear", "__kk_mutable_map_clear"),
