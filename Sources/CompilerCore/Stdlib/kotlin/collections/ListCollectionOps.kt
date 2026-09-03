@@ -3,6 +3,7 @@ package kotlin.collections
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
 import kotlin.experimental.ExperimentalTypeInference
+import kotlin.sequences.Sequence
 
 // KSP-428
 // List collection operations and numeric helpers migrated from the Swift
@@ -23,6 +24,20 @@ public operator fun <T> Iterable<T>.plus(element: T): List<T> {
 }
 
 public operator fun <T> Iterable<T>.plus(elements: Iterable<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (element in elements) result.add(element)
+    return result
+}
+
+public operator fun <T> Iterable<T>.plus(elements: Array<out T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (element in elements) result.add(element)
+    return result
+}
+
+public operator fun <T> Iterable<T>.plus(elements: Sequence<T>): List<T> {
     val result = mutableListOf<T>()
     for (item in this) result.add(item)
     for (element in elements) result.add(element)
