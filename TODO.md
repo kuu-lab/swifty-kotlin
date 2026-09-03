@@ -277,12 +277,9 @@
   - diff: `mutable_list_sort*.kt` 既存 + `shuffle(Random(7))` 決定性ケース、`sortBy`/`sortByDescending` 単独ケース
   - 前提: KSP-426, KSP-685, KSP-705, KSP-1503
 
-- [ ] KSP-1507: `List<E>` の Comparator 消費系（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`/`sortedWith`/`sortedByDescending`）を Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListAggregateMembers.swift`（`registerWithComparator` 経路）
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListExtremaHOF.kt` / `ListSortingHOF.kt` 追記
-  - 削除/降格 kk_*: `kk_list_maxWith`, `kk_list_maxWithOrNull`, `kk_list_minWith`, `kk_list_minWithOrNull`（`RuntimeCollectionHOFMaxMin.swift`。KSP-461 の注記どおり削除は List 側の担当）, `kk_list_sortedWith`, `kk_list_sortedByDescending`。Comparator 呼び出しは `__kk_compare_with_comparator`
-  - 手順: T
-  - diff: `list_sorted_with.kt`/`list_max_with*.kt` 既存 + `compareBy` 併用ケース
+- [x] KSP-1507: `List<E>` の Comparator 消費系（`maxWith`/`maxWithOrNull`/`minWith`/`minWithOrNull`/`sortedWith`/`sortedByDescending`）を Kotlin 化する
+  - 完了根拠: merged PR #5769（commit `7a8e6aa12`）で6 APIの bundled Kotlin source-backed 経路が現行 master に入り、対象 `kk_list_*` の production Runtime export は残っていない（RuntimeABI spec、CompilerCore fallback、test-only compatibility shim は意図的残存）。Kotlin 2.3.10 の契約監査で `Comparator<in T>` と nullable selector 対応を補正し、`sortedByDescending` の null 順序と安定性を source 実装へ反映した。
+  - 回帰: `CodegenBackendListSortedByDescendingTests` に反変 `Comparator<Any>` と nullable selector を含む6 APIの実行ケースを追加。`Scripts/diff_cases/list_comparator_consumers.kt` で kotlinc 比較を固定し、既存の List source/link、empty OrNull、Comparator/compareBy、sort stability 回帰も対象。
   - 前提: KSP-461, KSP-684
 
 - [ ] KSP-1509: `List<E>` の `random`/`randomOrNull` を Kotlin 化し `HeaderHelpers+SyntheticListAggregateMembers.swift` を削除する

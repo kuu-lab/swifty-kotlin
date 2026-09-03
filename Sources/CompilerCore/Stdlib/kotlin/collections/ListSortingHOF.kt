@@ -1,5 +1,6 @@
 package kotlin.collections
 
+import kotlin.comparisons.compareValues
 import kotlin.internal.KsSymbolName
 import kotlin.random.Random
 
@@ -46,15 +47,15 @@ public inline fun <T, R : Comparable<R>> List<T>.sortedBy(selector: (T) -> R): L
     return result
 }
 
-public inline fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R): List<T> {
+public inline fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T) -> R?): List<T> {
     val result = mutableListOf<T>()
-    val keys = mutableListOf<R>()
+    val keys = mutableListOf<R?>()
     var i = 0
     while (i < size) {
         val element = this[i]
         val key = selector(element)
         var insertAt = keys.size
-        while (insertAt > 0 && keys[insertAt - 1].compareTo(key) < 0) {
+        while (insertAt > 0 && compareValues(keys[insertAt - 1], key) < 0) {
             insertAt--
         }
         keys.add(insertAt, key)
@@ -64,7 +65,7 @@ public inline fun <T, R : Comparable<R>> List<T>.sortedByDescending(selector: (T
     return result
 }
 
-public inline fun <T> List<T>.sortedWith(comparator: Comparator<T>): List<T> {
+public inline fun <T> List<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     val result = mutableListOf<T>()
     var i = 0
     while (i < size) {
