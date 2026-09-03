@@ -28,7 +28,7 @@ symbol fq=kotlin.collections.MutableMap.MutableEntry kind=interface vis=public f
 symbol fq=kotlin.collections.MutableMap.V kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableMap.entries kind=property vis=public flags=synthetic type=kotlin.collections.MutableSet<kotlin.collections.MutableMap.MutableEntry<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V>>
 symbol fq=kotlin.collections.MutableMap.putAll kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableMap<kotlin.collections.MutableMap.K, kotlin.collections.MutableMap.V> params=[kotlin.collections.Map<out kotlin.collections.MutableMap.K, out kotlin.collections.MutableMap.V>] ret=Unit
-symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableSet kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 symbol fq=processLinkedMap kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableMap<String, Int>] ret=Unit
