@@ -587,10 +587,6 @@ extension ListSyntheticMemberLinkTests {
                 ("removeAll", 1, "__kk_mutable_list_removeAll"),
                 ("retainAll", 1, "__kk_mutable_list_retainAll"),
                 ("removeAt", 1, "__kk_mutable_list_removeAt"),
-                ("removeFirst", 0, "__kk_mutable_list_removeFirst"),
-                ("removeFirstOrNull", 0, "__kk_mutable_list_removeFirstOrNull"),
-                ("removeLast", 0, "__kk_mutable_list_removeLast"),
-                ("removeLastOrNull", 0, "__kk_mutable_list_removeLastOrNull"),
                 ("clear", 0, "__kk_mutable_list_clear"),
             ]
 
@@ -601,6 +597,22 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
+            }
+
+            let sourceBackedMembers: [(String, Int)] = [
+                ("removeFirst", 0),
+                ("removeFirstOrNull", 0),
+                ("removeLast", 0),
+                ("removeLastOrNull", 0),
+            ]
+            for (memberName, argumentCount) in sourceBackedMembers {
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected \(memberName)/\(argumentCount) to remain source-backed")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(memberName)/\(argumentCount) to resolve to bundled source")
             }
         }
     }
@@ -923,6 +935,7 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
             let expectedExternalLinks = [
                 "addAll": "__kk_mutable_list_addAll",
@@ -931,12 +944,11 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, range) = expr,
-                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
-                    else {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
                         return false
                     }
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
@@ -1726,6 +1738,61 @@ extension ListSyntheticMemberLinkTests {
                 let symbolID = try #require(sema.symbols.lookup(fqName: memberFQ))
                 #expect(sema.symbols.externalLinkName(for: symbolID) == expectedExternal, "Expected \(memberName) to have external link \(expectedExternal)")
             }
+        }
+    }
+
+    @Test
+    func testMapCountOverloadsAreBundledSourceBacked() throws {
+        try withTemporaryFile(contents: "fun noop() {}") { _ in
+            let ctx = try sharedListSemaContext()
+            let sema = try #require(ctx.sema)
+            let interner = ctx.interner
+            let packageFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+            ]
+            let mapFQName = packageFQName + [interner.intern("Map")]
+
+            func bundledMapCountSymbols(arity: Int) -> [SymbolID] {
+                sema.symbols.lookupAll(fqName: packageFQName + [interner.intern("count")]).filter { symbolID in
+                    guard let symbol = sema.symbols.symbol(symbolID),
+                          symbol.kind == .function,
+                          !symbol.flags.contains(.synthetic),
+                          let fileID = sema.symbols.sourceFileID(for: symbolID),
+                          let signature = sema.symbols.functionSignature(for: symbolID),
+                          signature.parameterTypes.count == arity,
+                          let receiverType = signature.receiverType,
+                          case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
+                          sema.symbols.symbol(receiverClassType.classSymbol)?.fqName == mapFQName
+                    else {
+                        return false
+                    }
+                    return ctx.sourceManager.path(of: fileID).hasPrefix("__bundled_")
+                }
+            }
+
+            let noArg = bundledMapCountSymbols(arity: 0)
+            #expect(!noArg.isEmpty, "Expected bundled Kotlin source for Map.count()")
+            #expect(noArg.allSatisfy { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID) else { return false }
+                return symbol.flags.contains(.inlineFunction)
+                    && sema.symbols.externalLinkName(for: symbolID) == nil
+            })
+
+            let predicate = bundledMapCountSymbols(arity: 1)
+            #expect(!predicate.isEmpty, "Expected bundled Kotlin source for Map.count(predicate)")
+            #expect(predicate.allSatisfy { sema.symbols.externalLinkName(for: $0) == nil })
+
+            let syntheticNoArg = sema.symbols.lookupAll(fqName: mapFQName + [interner.intern("count")]).filter { symbolID in
+                guard let symbol = sema.symbols.symbol(symbolID),
+                      symbol.flags.contains(.synthetic),
+                      let signature = sema.symbols.functionSignature(for: symbolID)
+                else {
+                    return false
+                }
+                return signature.parameterTypes.isEmpty
+            }
+            #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic kk_map_size overload")
         }
     }
 

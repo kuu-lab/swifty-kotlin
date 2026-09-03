@@ -28,16 +28,22 @@ extension CallLowerer {
     }
 
     /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435 and KSP-632. A call bound to one of those
+    /// bundled Kotlin source in KSP-435, KSP-632, and KSP-983. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull", "minus", "minusElement", "plusElement",
+        "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
+        "minus", "minusElement", "plus", "plusElement", "random", "randomOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
-        "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
-        "shuffled",
-        "distinct", "distinctBy", "count",
+        "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
+        "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
+        "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
+        "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
+        "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+        "indexOf", "indexOfFirst", "indexOfLast",
+        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
+        "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -141,7 +147,27 @@ extension CallLowerer {
             else {
                 return false
             }
-            if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
+            let memberName = interner.resolve(calleeName)
+            if memberName == "plus" {
+                // `plus` is shared by collections, sequences, maps, and other
+                // receivers. Only the source declaration whose extension
+                // receiver is Iterable belongs to this source-backed path.
+                guard let signature = sema.symbols.functionSignature(for: chosenCallee),
+                      let declaredReceiver = signature.receiverType,
+                      let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
+                          sema.types.makeNonNullable(declaredReceiver),
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return declaredReceiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }
+            if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
             }
             if interner.resolve(calleeName) == "zip" {
@@ -699,12 +725,32 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if nonNullReceiverType == intType || nonNullReceiverType == longType {
                 if args.isEmpty {
+                    let stringReceiverID: KIRExprID
+                    if nonNullReceiverType == longType {
+                        // kk_any_to_string treats the raw null sentinel as null.
+                        // Long.MIN_VALUE has the same representation, so box a
+                        // Long receiver before generic stringification; the
+                        // non-null variant preserves the value at that boundary.
+                        stringReceiverID = boxValueForAnySlot(
+                            loweredReceiverID,
+                            sourceType: receiverType,
+                            types: sema.types,
+                            symbols: sema.symbols,
+                            interner: interner,
+                            arena: arena,
+                            resultType: sema.types.anyType,
+                            requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                            into: &instructions
+                        )
+                    } else {
+                        stringReceiverID = loweredReceiverID
+                    }
                     let tagID = arena.appendExpr(.intLiteral(1), type: intType)
                     instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_any_to_string"),
-                        arguments: [loweredReceiverID, tagID],
+                        arguments: [stringReceiverID, tagID],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -991,8 +1037,44 @@ extension CallLowerer {
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
-            if sema.bindings.callBindings[exprID] == nil,
-               calleeStr == "isNullOrEmpty"
+            // A source-backed Collection<T>?.isNullOrEmpty() declaration may
+            // be selected once the Collection surface is bundled from Kotlin
+            // source, but concrete collection receivers still need their
+            // type-specific non-throwing isEmpty bridge here.
+            let isSourceBackedCollectionIsNullOrEmpty: Bool = {
+                guard calleeStr == "isNullOrEmpty",
+                      let chosenCallee = chosenCalleeForArgumentAdaptation,
+                      let symbol = sema.symbols.symbol(chosenCallee),
+                      sema.symbols.isSourceBackedSymbol(chosenCallee),
+                      symbol.fqName == [
+                          interner.intern("kotlin"),
+                          interner.intern("collections"),
+                          calleeName,
+                      ]
+                else {
+                    return false
+                }
+                // `kotlin.collections.isNullOrEmpty` is overloaded per receiver
+                // (Collection, Map, ...); the bare package+name FQN above can't
+                // tell those apart since extension receivers aren't part of it.
+                // Map's own isNullOrEmpty is also source-backed and must keep
+                // calling through its Kotlin declaration (which owns the
+                // private kk_map_is_empty helper), so only take the
+                // runtime-bridge fast path when the chosen overload's own
+                // receiver is actually Collection<T>.
+                guard let signatureReceiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiverType, sema: sema)
+                else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Collection"),
+                ]
+            }()
+            if calleeStr == "isNullOrEmpty",
+               (sema.bindings.callBindings[exprID] == nil || isSourceBackedCollectionIsNullOrEmpty)
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(

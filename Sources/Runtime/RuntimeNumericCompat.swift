@@ -303,6 +303,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     // instances compared with `==` reported equal but had different
     // (pointer-derived) hashCode()s, breaking the hashCode/equals contract.
     if let objBox = tryCast(pointer, to: RuntimeObjectBox.self) {
+        if let setBox = objBox.backingSetBox {
+            // Some mutable set implementations use a RuntimeObjectBox shell
+            // with a RuntimeSetBox backing store; preserve the same Set hash
+            // contract for that representation.
+            return setBox.values.reduce(0) { hash, element in
+                hash &+ kk_any_hashCode(element.legacyRawValue, 0)
+            }
+        }
         var hash = Int(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
             // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
@@ -418,7 +426,10 @@ public func kk_any_equals(_ lhs: Int, _ lhsTag: Int, _ rhs: Int, _ rhsTag: Int) 
 /// tag=1 (object pointer, non-primitive).
 @_cdecl("kk_any_member_to_string")
 public func kk_any_member_to_string(_ raw: Int) -> UnsafeMutableRawPointer {
-    if let throwableMethod = runtimeThrowableVtableMethodRaw(raw, slot: 0) {
+    if let throwableMethod = runtimeThrowableVtableMethodRaw(
+        raw,
+        slot: RuntimeThrowableVtableSlot.toString
+    ) {
         let method = unsafeBitCast(
             throwableMethod,
             to: (@convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int).self

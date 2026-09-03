@@ -11,7 +11,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
         iterableInterfaceSymbol: SymbolID,
-        bundledIndex: BundledDeclarationIndex = .empty
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> SymbolID {
         let collectionName = interner.intern("Collection")
         let collectionFQName = kotlinCollectionsPkg + [collectionName]
@@ -63,6 +64,25 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = collectionFQName + [memberName]
+            // Keep runtime-linked placeholders for Collection's native interface
+            // members so bundled declarations can claim them without losing ABI
+            // links. The migrated random APIs are extensions in Collections.kt;
+            // leave those to source-backed resolution instead of retaining the
+            // legacy synthetic bridge.
+            let isMigratedExtension = name == "random" || name == "randomOrNull"
+            if isMigratedExtension && bundledIndex.contains(
+                ownerFQName: collectionFQName,
+                name: memberName,
+                arity: parameterTypes.count
+            ) {
+                skipStats?.recordSkip(
+                    ownerFQName: collectionFQName,
+                    name: memberName,
+                    arity: parameterTypes.count,
+                    interner: interner
+                )
+                return
+            }
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
@@ -646,6 +666,7 @@ extension DataFlowSemaPhase {
                     receiverType: iterableReceiverType,
                     parameterTypes: [],
                     returnType: iteratorReturnType,
+                    canThrow: true,
                     typeParameterSymbols: [typeParamSymbol],
                     classTypeParameterCount: 1
                 ),

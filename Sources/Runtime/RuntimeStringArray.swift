@@ -22,6 +22,13 @@ private let runtimeThrowableToStringVtableMethod: @convention(c) (Int, UnsafeMut
 private let runtimeThrowableStackTraceVtableMethod: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int =
     __kk_throwable_rawStackFrames
 
+// Keep these slots aligned with the bundled Throwable layout. The native
+// getStackTraceAddresses extension occupies slot 2, so toString is slot 1.
+enum RuntimeThrowableVtableSlot {
+    static let getStackTrace = 0
+    static let toString = 1
+}
+
 func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
     guard runtimeIsThrowableRaw(receiver) else {
         return nil
@@ -37,17 +44,20 @@ func runtimeThrowableVtableMethodRaw(_ receiver: Int, slot: Int) -> Int? {
         }
     }
     switch slot {
-    case 0:
-        return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
-    case 3:
+    case RuntimeThrowableVtableSlot.getStackTrace:
         return unsafeBitCast(runtimeThrowableStackTraceVtableMethod, to: Int.self)
+    case RuntimeThrowableVtableSlot.toString:
+        return unsafeBitCast(runtimeThrowableToStringVtableMethod, to: Int.self)
     default:
         return nil
     }
 }
 
 func runtimeThrowableToString(_ receiver: Int) -> String? {
-    guard let methodRaw = runtimeThrowableVtableMethodRaw(receiver, slot: 0) else {
+    guard let methodRaw = runtimeThrowableVtableMethodRaw(
+        receiver,
+        slot: RuntimeThrowableVtableSlot.toString
+    ) else {
         return nil
     }
     let method = unsafeBitCast(

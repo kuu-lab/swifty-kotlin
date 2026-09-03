@@ -160,16 +160,71 @@ public func kk_list_is_empty(_ listRaw: Int) -> Int {
 
 @_cdecl("kk_list_iterator")
 public func kk_list_iterator(_ listRaw: Int) -> Int {
-    let elements: [Int] = if let list = runtimeListBox(from: listRaw) {
-        list.elements
-    } else if let set = runtimeSetBox(from: listRaw) {
-        set.elements
-    } else if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
-        array.elements
-    } else {
-        []
+    if let list = runtimeListBox(from: listRaw) {
+        let raw = registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: list.elements,
+                removeAction: { index in
+                    guard list.elements.indices.contains(index) else { return }
+                    list.elements.remove(at: index)
+                }
+            )
+        )
+        registerListIteratorItable(raw: raw)
+        return raw
     }
-    return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    if let set = runtimeSetBox(from: listRaw) {
+        let raw = registerRuntimeObject(
+            RuntimeListIteratorBox(
+                elements: set.elements,
+                removeAction: { index in
+                    guard set.elements.indices.contains(index) else { return }
+                    set.elements.remove(at: index)
+                }
+            )
+        )
+        registerListIteratorItable(raw: raw)
+        return raw
+    }
+    if let array = runtimeArrayBox(from: listRaw), type(of: array) == RuntimeArrayBox.self {
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: array.elements))
+        registerListIteratorItable(raw: raw)
+        return raw
+    }
+    let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+    registerListIteratorItable(raw: raw)
+    return raw
+}
+
+/// Backs both `List.listIterator(index)` and `MutableList.listIterator(index)`
+/// (Sema registers the same external link name for both, matching the
+/// zero-arg `kk_list_iterator` convention above): a list iterator positioned
+/// so the next `next()` call returns the element at `index`.
+@_cdecl("kk_list_iterator_at")
+public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
+        registerListIteratorItable(raw: raw)
+        return raw
+    }
+    guard (0...list.elements.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
+            message: "Index: \(index), Size: \(list.elements.count)"
+        )
+        return 0
+    }
+    let iter = RuntimeListIteratorBox(
+        elements: list.elements,
+        removeAction: { removedIndex in
+            guard list.elements.indices.contains(removedIndex) else { return }
+            list.elements.remove(at: removedIndex)
+        }
+    )
+    iter.index = index
+    let raw = registerRuntimeObject(iter)
+    registerListIteratorItable(raw: raw)
+    return raw
 }
 
 @_cdecl("kk_list_iterator_hasNext")
@@ -193,12 +248,20 @@ public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
     return value
 }
 
+func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    _ = iter.removeLastReturned()
+    return 0
+}
+
 /// Whether the iterator has a valid previous element.
 /// The invariant maintained by `kk_list_iterator_next` guarantees
 /// `index` is always in `0...elements.count`, but we defensively
 /// also check the upper bound so that a corrupted/invalid index
 /// cannot lead to an out-of-bounds access in `previous()`.
-private func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
+func listIteratorCanGoBack(_ iter: RuntimeListIteratorBox) -> Bool {
     iter.index > 0 && iter.index <= iter.elements.count
 }
 
@@ -222,6 +285,22 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     // This matches the standard ListIterator behavior
     iter.index -= 1
     return iter.elements[iter.index]
+}
+
+@_cdecl("kk_list_iterator_nextIndex")
+public func kk_list_iterator_nextIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return 0
+    }
+    return iter.index
+}
+
+@_cdecl("kk_list_iterator_previousIndex")
+public func kk_list_iterator_previousIndex(_ iterRaw: Int) -> Int {
+    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
+        return -1
+    }
+    return iter.index - 1
 }
 
 @_cdecl("kk_list_to_string")
@@ -395,8 +474,17 @@ private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], 
 }
 
 @_cdecl("__kk_mutable_list_add")
-public func kk_mutable_list_add(_ listRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_list_add(
+    _ listRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let list = runtimeListBox(from: listRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !list.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     var values = list.values
@@ -514,6 +602,31 @@ public func kk_mutable_list_add_at(_ listRaw: Int, _ index: Int, _ element: Int,
     values.insert(runtimeMutableListInsertedValue(for: values, rawValue: element), at: index)
     list.values = values
     return 0
+}
+
+@_cdecl("__kk_mutable_list_addAll_at")
+public func kk_mutable_list_addAll_at(
+    _ listRaw: Int,
+    _ index: Int,
+    _ collectionRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let list = runtimeListBox(from: listRaw) else {
+        outThrown?.pointee = runtimeAllocateThrowable(message: "MutableList reference is null.")
+        return 0
+    }
+    guard (0...list.elements.count).contains(index) else {
+        outThrown?.pointee = runtimeAllocateThrowable(
+            message: "MutableList index \(index) out of bounds for length \(list.elements.count)."
+        )
+        return 0
+    }
+    guard let newElements = runtimeCollectionOrArrayElements(from: collectionRaw), !newElements.isEmpty else {
+        return kk_box_bool(0)
+    }
+    list.elements.insert(contentsOf: newElements, at: index)
+    return kk_box_bool(1)
 }
 
 @_cdecl("__kk_mutable_list_set")
