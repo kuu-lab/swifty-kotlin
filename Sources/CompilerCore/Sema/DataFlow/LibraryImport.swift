@@ -207,11 +207,14 @@ extension DataFlowSemaPhase {
             let moduleFQN = symbols.moduleFQN(for: binding.symbol)
             for length in 1 ..< fq.count {
                 let prefix = Array(fq.prefix(length))
-                // Constructor/value-parameter FQ names contain their nominal
-                // owner and `<init>` as prefixes. Do not create synthetic
-                // packages over an already-defined class or callable, because
-                // that makes imported constructor ownership ambiguous.
-                if symbols.lookupAll(fqName: prefix).contains(where: { id in
+                // Constructors are named below their nominal owner (for
+                // example, `pkg.Type.<init>`). Keep that owner path nominal
+                // when it already exists; package-level functions may legally
+                // share the same FQ-name prefix as a class and still require
+                // a package symbol for import resolution.
+                if binding.record.kind == .constructor,
+                   prefix == Array(fq.dropLast()),
+                   symbols.lookupAll(fqName: prefix).contains(where: { id in
                     symbols.symbol(id)?.kind != .package
                 }) {
                     continue
