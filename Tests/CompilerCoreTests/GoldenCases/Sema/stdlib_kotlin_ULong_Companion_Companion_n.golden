@@ -27,7 +27,7 @@ expr e@6:27 name(ULong) type=kotlin.ULong.Companion ref=kotlin.ULong#0
 expr e@6:27#1 memberCall recv=e@6:27 callee=SIZE_BITS args=[] type=Int call=kotlin.SIZE_BITS.$get#4
 expr e@6:5 localDecl directBits mutable=0 type=Int init=e@6:27#1 type=Unit ref=__local_2.directBits
 expr e@7:28 name(ULong) type=kotlin.ULong.Companion ref=kotlin.ULong#0
-expr e@7:28#1 memberCall recv=e@7:28 callee=SIZE_BYTES.$get#4
+expr e@7:28#1 memberCall recv=e@7:28 callee=SIZE_BYTES args=[] type=Int call=kotlin.SIZE_BYTES.$get#4
 expr e@7:5 localDecl directBytes mutable=0 type=Int init=e@7:28#1 type=Unit ref=__local_3.directBytes
 expr e@8:30 name(ULong) type=kotlin.ULong ref=kotlin.ULong#0
 expr e@8:30#1 memberCall recv=e@8:30 callee=Companion args=[] type=kotlin.ULong.Companion ref=kotlin.ULong.Companion
