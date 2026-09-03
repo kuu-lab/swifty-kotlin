@@ -21,6 +21,9 @@ package struct MetadataRecord {
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
     let typeSignature: String?
+    /// Upper-bound type signatures for callable type parameters, in declaration order.
+    /// Empty entries preserve alignment when only a later type parameter is bounded.
+    package let typeParameterUpperBoundsSignatures: [[String]]
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
@@ -127,6 +130,7 @@ package struct MetadataRecord {
         isOperator: Bool = false,
         isOverride: Bool = false,
         typeSignature: String? = nil,
+        typeParameterUpperBoundsSignatures: [[String]] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -177,6 +181,7 @@ package struct MetadataRecord {
         self.isOperator = isOperator
         self.isOverride = isOverride
         self.typeSignature = typeSignature
+        self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -725,6 +730,7 @@ package final class MetadataEncoder {
         var isOperator = false
         var isOverride = false
         var typeSignature: String?
+        var typeParameterUpperBoundsSignatures: [[String]] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -759,6 +765,17 @@ package final class MetadataEncoder {
                 nameResolver: { interner.resolve($0) },
                 unboxValueClasses: false
             )
+            typeParameterUpperBoundsSignatures = signature.typeParameterUpperBoundsList.map { bounds in
+                bounds.map {
+                    metadataTypeSignature(
+                        $0,
+                        symbols: symbols,
+                        types: types,
+                        mangler: mangler,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                }
+            }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             if signature.valueParameterHasDefaultValues.contains(true) {
                 let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
@@ -999,6 +1016,7 @@ package final class MetadataEncoder {
             isOperator: isOperator,
             isOverride: isOverride,
             typeSignature: typeSignature,
+            typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -1200,6 +1218,11 @@ package final class MetadataEncoder {
                 }
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
+                }
+                if record.typeParameterUpperBoundsSignatures.contains(where: { !$0.isEmpty }),
+                   let encodedBounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures)
+                {
+                    fields.append("typeBounds=\(encodedBounds)")
                 }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
@@ -1485,6 +1508,27 @@ package final class MetadataEncoder {
     }
 }
 
+private func encodeMetadataTypeParameterUpperBounds(_ bounds: [[String]]) -> String? {
+    let encodedGroups = bounds.map { group in
+        group.map { Data($0.utf8).base64EncodedString() }.joined(separator: ",")
+    }
+    return encodedGroups.isEmpty ? nil : encodedGroups.joined(separator: "|")
+}
+
+private func decodeMetadataTypeParameterUpperBounds(_ value: String) -> [[String]] {
+    value.split(separator: "|", omittingEmptySubsequences: false).map { group in
+        guard !group.isEmpty else { return [] }
+        return group.split(separator: ",", omittingEmptySubsequences: false).compactMap { encoded in
+            guard let data = Data(base64Encoded: String(encoded)),
+                  let decoded = String(data: data, encoding: .utf8)
+            else {
+                return nil
+            }
+            return decoded
+        }
+    }
+}
+
 // MARK: - MetadataDecoder (Import)
 
 /// Decodes the text-based metadata format into `[MetadataRecord]`.
@@ -1539,6 +1583,7 @@ final class MetadataDecoder {
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
+                typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1635,6 +1680,7 @@ final class MetadataDecoder {
         var nominalSupertypeSignatures: [String] = []
         var constValueLiteral: String?
         var nominalTypeParameters: String?
+        var typeParameterUpperBoundsSignatures: [[String]] = []
         var schemaVersion: String?
     }
 
@@ -1670,6 +1716,8 @@ final class MetadataDecoder {
             record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":
             record.typeSignature = value.isEmpty ? nil : value
+        case "typeBounds":
+            record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":

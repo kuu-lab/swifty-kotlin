@@ -7,4 +7,4 @@ file fmaxof_double_3args package=golden.sema
 expr e@3:72 name(a) type=Double ref=golden.sema.threeArgMaxDouble.$0.a
 expr e@3:75 name(b) type=Double ref=golden.sema.threeArgMaxDouble.$0.b
 expr e@3:78 name(c) type=Double ref=golden.sema.threeArgMaxDouble.$0.c
-expr e@3:66 call callee=e@3:66#1 args=[_:e@3:72,_:e@3:75,_:e@3:78] type=Double call=kotlin.comparisons.maxOf#2
+expr e@3:66 call callee=e@3:66#1 args=[_:e@3:72,_:e@3:75,_:e@3:78] type=Double call=kotlin.comparisons.maxOf#5

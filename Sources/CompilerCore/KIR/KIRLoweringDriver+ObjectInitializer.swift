@@ -104,8 +104,13 @@ extension KIRLoweringDriver {
                         thrownResult: nil
                     ))
 
-                    // Walk the interface's vtableSlots to find each method that needs registration.
-                    for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots.sorted(by: { $0.value < $1.value }) {
+                    // Walk the interface methods to find each method that needs registration.
+                    for (methodSymbol, methodSlotInt) in kirItableMethodEntries(
+                        for: interfaceSymbol,
+                        interfaceLayout: interfaceLayout,
+                        sema: sema,
+                        interner: interner
+                    ) {
                         let methodSlot = Int64(methodSlotInt)
                         // Find the override in the object's member functions.
                         let implementationSymbol = kirFindOverrideMethod(
