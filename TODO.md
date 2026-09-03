@@ -5495,7 +5495,7 @@
     - `kotlin.text.MatchGroup.toString` — fun MatchGroup.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.MatchGroup.value` — val MatchGroup.value: String  -- `final val value`
 
-- [ ] KSP-1432: kotlin.text.MatchNamedGroupCollection.MatchNamedGroupCollection の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1432: kotlin.text.MatchNamedGroupCollection.MatchNamedGroupCollection の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.MatchNamedGroupCollection` / receiver `MatchNamedGroupCollection`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchNamedGroupCollection/MatchNamedGroupCollection.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5504,6 +5504,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.MatchNamedGroupCollection.get` — fun MatchNamedGroupCollection.get(String): MatchGroup  -- `abstract fun get(kotlin/String): kotlin.text/MatchGroup?`
+  - 完了根拠: Kotlin source-backed interface、MatchGroupCollection の interface 階層、undefined name の例外判定、Sema/Golden/Codegen/Runtime 回帰を実装・検証済み。
 
 - [ ] KSP-1433: kotlin.text.MatchResult top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.MatchResult` / top-level
