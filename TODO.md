@@ -1238,7 +1238,7 @@
     - `kotlin.collections.none` — fun Iterable.none(): Boolean  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/none(): kotlin/Boolean`
     - `kotlin.collections.none` — fun Iterable.none(Function1): Boolean  -- `final inline fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/none(kotlin/Function1<#A, kotlin/Boolean>): kotlin/Boolean`
 
-- [ ] KSP-988: kotlin.collections.Iterable.plus-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-988: kotlin.collections.Iterable.plus-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `plus`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/ListCollectionOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1248,6 +1248,8 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.plus` — fun Iterable.plus(Sequence): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/plus(kotlin.sequences/Sequence<#A>): kotlin.collections/List<#A>`
     - `kotlin.collections.plus` — fun Iterable.plus(Array): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/plus(kotlin/Array<out #A>): kotlin.collections/List<#A>`
+  - 完了（2026-08-23）: `ListCollectionOps.kt` に `Iterable<T>.plus(Sequence<T>)` / `Iterable<T>.plus(Array<out T>)` を source-backed 実装。receiver 全件→RHS 全件の fresh List、Sequence の eager 1回消費、順序・重複・null・empty・generic/variance・配列独立性を回帰固定。`plus(element)` の primitive誤推論を最小修正し、既存 Iterable overload と Sequence.plus の lowering ownership を維持。
+  - 検証: 対象 Sema Golden shard 1/1、focused KIR、Collection plus backend、Kotlin 2.3.10 との対象 diff 1/1、直接 kswiftc 実行、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` が pass（全体 Golden/diff は未実行）。
 
 - [ ] KSP-1001: kotlin.collections.List の未実装 stdlib API を実装する（28 件）
   - 対象: `kotlin.collections` / receiver `List`

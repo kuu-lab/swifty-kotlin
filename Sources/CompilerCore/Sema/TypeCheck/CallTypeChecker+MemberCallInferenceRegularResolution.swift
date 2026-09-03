@@ -1697,7 +1697,11 @@ extension CallTypeChecker {
                    writeForbiddenSymbols: varianceResult.writeForbiddenSymbols
                )
             {
-                let paramType = sema.types.renderType(signature.parameterTypes[violatingParamIndex])
+                let paramType = sema.types.displayName(
+                    of: signature.parameterTypes[violatingParamIndex],
+                    symbols: sema.symbols,
+                    interner: interner
+                )
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
                     "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
