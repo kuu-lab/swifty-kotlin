@@ -2913,7 +2913,7 @@
     - `kotlin.io.encoding.Base64.PaddingOption.valueOf` — fun PaddingOption.valueOf(String): PaddingOption  -- `final fun valueOf(kotlin/String): kotlin.io.encoding/Base64.PaddingOption`
     - `kotlin.io.encoding.Base64.PaddingOption.values` — fun PaddingOption.values(): Array  -- `final fun values(): kotlin/Array<kotlin.io.encoding/Base64.PaddingOption>`
 
-- [ ] KSP-1169: kotlin.io.encoding.ExperimentalEncodingApi top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1169: kotlin.io.encoding.ExperimentalEncodingApi top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.io.encoding.ExperimentalEncodingApi` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/ExperimentalEncodingApi/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2922,6 +2922,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.io.encoding.ExperimentalEncodingApi.<init>` — constructor ()  -- `constructor <init>()`
+  - 完了根拠: merged PR #6244 (`5655bc3600d77f1b3e3c3c216bac2085b834be85`) の KSP-1164 で `ExperimentalEncodingApi.kt` を Kotlin 2.3.10 の公式 source/ABI 契約へ対応済み。上記 `<init>()` は annotation class の言語レベルの implicit constructor listing であり、Kotlin 2.3.10 JVM ABI の `ExperimentalEncodingApi.class` は methods/fields 0 件のため、新規 runtime/ABI/bridge 実装は不要。`ExperimentalEncodingApiSourceTests` 2/2、`ExperimentalMarkerStubTests` 47/47、対象 Sema Golden、Kotlin 2.3.10 `diff_kotlinc` 1/1、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` で確認済み。
 
 - [ ] KSP-1171: kotlin.math.PI-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.math` / top-level / family `PI`
