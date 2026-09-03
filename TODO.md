@@ -791,13 +791,14 @@
     - `kotlin.ULong.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.ULong.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-911: kotlin.ULongArray top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-911: kotlin.ULongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ULongArray` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULongArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ULongArray_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ULongArray_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ULongArray_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `ULongArray(Int)` はmerged PR #5914（commit `d44aa6b67`）の既存primitive-array special callと`kk_array_new_checked`で実装済みのため重複実装せず、専用Golden/KIR/Backend/diffで0長・0初期値・負サイズ例外を固定した。Kotlin本家の`ULongArray(LongArray)`は`@PublishedApi internal`のshared-storage constructorであるため、`ULongArray.kt`に`LongArray.asULongArray()`へ委譲する同visibilityのsource-backed実装を追加し、stdlib consumer metadataから除外した。既存のsigned/unsigned view bridgeとRuntime ABIはshared backing/bit-pattern経路として利用中のため保持した。
   - 未実装シンボル一覧:
     - `kotlin.ULongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.ULongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
