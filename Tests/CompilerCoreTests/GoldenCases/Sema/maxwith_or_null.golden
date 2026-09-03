@@ -12,7 +12,7 @@ file fmaxwith_or_null package=golden.sema
   decl golden.sema.maxFromSequence fun maxFromSequence sym=golden.sema.maxFromSequence
 expr e@5:62 name(xs) type=kotlin.collections.List<Int> ref=golden.sema.maxFromList.$0.xs
 expr e@5:79 name(cmp) type=kotlin.Comparator<Int> ref=golden.sema.maxFromList.$0.cmp
-expr e@5:62#1 memberCall recv=e@5:62 callee=maxWithOrNull args=[_:e@5:79] type=Int? call=kotlin.collections.maxWithOrNull#0 targs=[Int]
+expr e@5:62#1 memberCall recv=e@5:62 callee=maxWithOrNull args=[_:e@5:79] type=Int? call=kotlin.collections.maxWithOrNull#1 targs=[Int]
 expr e@6:70 name(xs) type=kotlin.sequences.Sequence<Int> ref=golden.sema.maxFromSequence.$1.xs
 expr e@6:87 name(cmp) type=kotlin.Comparator<Int> ref=golden.sema.maxFromSequence.$1.cmp
-expr e@6:70#1 memberCall recv=e@6:70 callee=maxWithOrNull args=[_:e@6:87] type=Int? call=kotlin.collections.maxWithOrNull#1 targs=[Int]
+expr e@6:70#1 memberCall recv=e@6:70 callee=maxWithOrNull args=[_:e@6:87] type=Int? call=kotlin.collections.maxWithOrNull#3 targs=[Int]

@@ -380,7 +380,11 @@ extension DataFlowSemaPhase {
         )
     }
 
-    /// Register `kotlin.collections.AbstractMutableSet<E>` surface (STDLIB-COL-ABSTRACT-008).
+    /// Register the fallback `kotlin.collections.AbstractMutableSet<E>` surface.
+    ///
+    /// KSP-931: the bundled declaration in
+    /// `Stdlib/kotlin/collections/AbstractMutableSet.kt` reuses this shell on
+    /// bundle load. The shell remains for non-bundled and precompiled contexts.
     func registerSyntheticAbstractMutableSetStub(
         symbols: SymbolTable,
         types: TypeSystem,

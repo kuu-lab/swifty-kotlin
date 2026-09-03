@@ -174,9 +174,9 @@ extension DataFlowSemaPhase {
         )
         registerMember(name: "shuffled", parameterTypes: [], externalLinkName: "kk_list_shuffled")
 
-        // shuffled(random: Random) overload (STDLIB-531)
-        // Requires kotlin.random.Random to be registered first (via
-        // registerSyntheticRandomStubs which runs before collection stubs).
+        // The bundled ListSortingHOF.kt source owns this overload when the
+        // bundled stdlib is present. Keep the synthetic fallback for
+        // precompiled/no-source contexts where Random is already available.
         do {
             let shuffledRandomName = interner.intern("shuffled")
             let shuffledRandomFQName = listFQName + [shuffledRandomName]
@@ -195,8 +195,6 @@ extension DataFlowSemaPhase {
                     parameterTypes: [randomParamType],
                     externalLinkName: "kk_list_shuffled_random"
                 )
-            } else {
-                assertionFailure("kotlin.random.Random must be registered before collection stubs")
             }
         }
 

@@ -110,7 +110,7 @@ extension BuildASTPhase {
                 ) {
                     // Skip annotations that had an invalid (property) use-site target —
                     // those belong to property declarations, not enum entries.
-                    if !parsed.hadInvalidUseSiteTarget {
+                    if parsed.invalidUseSiteTargetRange == nil {
                         annotations.append(parsed.annotation)
                     }
                     annotIndex = parsed.nextIndex
@@ -570,52 +570,20 @@ extension BuildASTPhase {
         interner: StringInterner,
         astArena: ASTArena
     ) -> ExprID? {
-        let headTokens = propertyHeadTokens(from: nodeID, in: arena)
-        guard !headTokens.isEmpty else {
-            return nil
-        }
-
-        var initialByIndex: Int?
-        var depth = BracketDepth()
-        for (index, token) in headTokens.enumerated() {
-            if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
-                initialByIndex = index
-                break
-            }
-            depth.track(token.kind)
-        }
-
-        guard let initialByIndex else {
-            return nil
-        }
-
-        // A lazy factory's trailing lambda is part of its source-level call
-        // signature. Keep it in the delegate expression so overload
-        // resolution sees the required initializer parameter. The other
-        // stdlib delegate factories intentionally keep their callbacks in
-        // PropertyDecl.delegateBody because their lowering path consumes the
-        // initial value and callback separately.
-        let lazyName = interner.intern("lazy")
-        let isLazyFactory = headTokens.dropFirst(initialByIndex + 1).first.map { token in
-            if case let .identifier(name) = token.kind {
-                return name == lazyName
-            }
-            if case let .backtickedIdentifier(name) = token.kind {
-                return name == lazyName
-            }
-            return false
-        } ?? false
+        // A delegate expression follows the same call grammar as any other
+        // initializer.  In particular, a trailing lambda is the final call
+        // argument and must participate in overload resolution and inference.
         let tokens = propertyHeadTokens(
             from: nodeID,
             in: arena,
-            includingTrailingLambdaTokens: isLazyFactory
+            includingTrailingLambdaTokens: true
         )
         guard !tokens.isEmpty else {
             return nil
         }
 
         var byIndex: Int?
-        depth = BracketDepth()
+        var depth = BracketDepth()
         for (index, token) in tokens.enumerated() {
             if case .softKeyword(.by) = token.kind, depth.isAtTopLevel {
                 byIndex = index
@@ -630,10 +598,10 @@ extension BuildASTPhase {
         guard start < tokens.count else {
             return nil
         }
-        // The trailing lambda of a source-backed `lazy` factory is included in
-        // these tokens so that its initializer participates in overload
-        // resolution. Remove only declaration-level semicolons; semicolons in
-        // the lambda body must remain available to the block parser.
+        // The trailing lambda is included in these tokens so that it
+        // participates in ordinary call parsing, overload resolution, and
+        // type inference. Remove only declaration-level semicolons; semicolons
+        // in the lambda body must remain available to the block parser.
         let exprTokens = filterTopLevelSemicolons(tokens[start...])
         guard !exprTokens.isEmpty else {
             return nil

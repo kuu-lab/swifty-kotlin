@@ -137,6 +137,7 @@ extension CallLowerer {
             }
             return emitMapFactoryCall(
                 loweredArgIDs: loweredArgIDs,
+                args: args,
                 spreadFlags: args.map(\.isSpread),
                 result: result,
                 sema: sema,
@@ -160,6 +161,7 @@ extension CallLowerer {
             }
             return emitMapFactoryCall(
                 loweredArgIDs: loweredArgIDs,
+                args: args,
                 spreadFlags: args.map(\.isSpread),
                 result: result,
                 sema: sema,
@@ -235,7 +237,7 @@ extension CallLowerer {
         if args.contains(where: \.isSpread) {
             let count = arena.appendTemporary(type: intType)
             emitNonThrowingCall(
-                callee: interner.intern("kk_array_size"),
+                callee: interner.intern("__kk_array_size"),
                 arg: array,
                 result: count,
                 into: &instructions
@@ -300,6 +302,7 @@ extension CallLowerer {
 
     private func emitMapFactoryCall(
         loweredArgIDs: [KIRExprID],
+        args: [CallArgument],
         spreadFlags: [Bool],
         result: KIRExprID,
         sema: SemaModule,
@@ -307,8 +310,24 @@ extension CallLowerer {
         interner: StringInterner,
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
-        guard !spreadFlags.contains(true) else {
-            return nil
+        if spreadFlags.contains(true) {
+            let packed = emitPackedCollectionFactoryArguments(
+                args: args,
+                loweredArgIDs: loweredArgIDs,
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            emitRuntimeCollectionFactory(
+                "__kk_map_of_pairs",
+                array: packed.array,
+                count: packed.count,
+                result: result,
+                interner: interner,
+                instructions: &instructions
+            )
+            return result
         }
 
         let intType = sema.types.intType

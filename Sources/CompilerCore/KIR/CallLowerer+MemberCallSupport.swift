@@ -7,15 +7,21 @@ struct MemberCallReceiver {
 /// Tag scheme shared by every `kk_any_to_string`/`kk_any_hashCode`/`kk_any_equals`
 /// call site (Any-fallback member calls, string concatenation/interpolation,
 /// data class `toString()` synthesis, `println(dataClass)` rewriting, ...):
-/// 1=default (Int/Long/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
-/// 6=Double, 7=ULong. ULong spans the full 64 bits, so kk_any_to_string must
-/// reinterpret it as unsigned (tag 1 would print the signed reinterpretation,
-/// or even "null" for values whose bit pattern equals Int.min). UInt/UByte/
-/// UShort stay on the default tag: they are always zero-extended into this
-/// container, so tag 1's signed decimal rendering already matches their
-/// unsigned value. This is a free function (not a `CallLowerer` method) so
-/// every lowering pass that stringifies an arbitrary Any-typed value can
-/// share the exact same tag computation instead of drifting out of sync.
+/// 1=default (Int/erased Any), 2=Boolean, 3=String, 4=Char, 5=Float,
+/// 6=Double, 7=ULong, 8=Long. ULong spans the full 64 bits, so kk_any_to_string
+/// must reinterpret it as unsigned (tag 1 would print the signed
+/// reinterpretation, or even "null" for values whose bit pattern equals
+/// Int.min). UInt/UByte/UShort stay on the default tag: they are always
+/// zero-extended into this container, so tag 1's signed decimal rendering
+/// already matches their unsigned value. Long gets its own tag (distinct from
+/// the default) solely so `kk_any_hashCode` can apply the `(this xor (this
+/// ushr 32)).toInt()` formula to unboxed Long receivers; `kk_any_to_string`
+/// and `kk_any_equals` treat tag 8 exactly like tag 1 (Long's raw 64-bit slot
+/// value already prints/compares correctly without reinterpretation), so this
+/// addition changes no other call site's behavior. This is a free function
+/// (not a `CallLowerer` method) so every lowering pass that stringifies an
+/// arbitrary Any-typed value can share the exact same tag computation instead
+/// of drifting out of sync.
 func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
     switch sema.types.kind(of: sema.types.makeNonNullable(type)) {
     case .primitive(.boolean, _):
@@ -30,6 +36,8 @@ func computeAnyFallbackTag(for type: TypeID, sema: SemaModule) -> Int64 {
         6
     case .primitive(.ulong, _):
         7
+    case .primitive(.long, _):
+        8
     default:
         1
     }
@@ -93,11 +101,24 @@ func resolveClassOwnToStringCallee(
     sema: SemaModule,
     interner: StringInterner
 ) -> (callee: InternedString, symbol: SymbolID)? {
-    guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
-        return nil
-    }
     let toStringName = interner.intern("toString")
-    let toStringFQName = classSymbol.fqName + [toStringName]
+    let toStringFQName: [InternedString]
+    if case .unit = sema.types.kind(of: sema.types.makeNonNullable(type)) {
+        // Unit has the builtin value representation, so it has no classType
+        // symbol to resolve. Its source-backed object member is still the
+        // authoritative implementation for direct and statically-known calls.
+        guard let unitClassSymbol = sema.types.unitClassSymbol,
+              let unitSymbol = sema.symbols.symbol(unitClassSymbol)
+        else {
+            return nil
+        }
+        toStringFQName = unitSymbol.fqName + [toStringName]
+    } else {
+        guard let (_, classSymbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return nil
+        }
+        toStringFQName = classSymbol.fqName + [toStringName]
+    }
     let toStringSymbolID: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
         guard let sym = sema.symbols.symbol(id), sym.kind == .function else { return false }
         let sig = sema.symbols.functionSignature(for: id)
@@ -237,6 +258,16 @@ extension CallLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
+        let isUnit: Bool = if case .unit = sema.types.kind(of: sema.types.makeNonNullable(valueType)) {
+            true
+        } else {
+            false
+        }
+        // Unit has no nullable TypeKind variant, but a safe call returning Unit
+        // still carries the null sentinel at runtime. Keep the null guard for
+        // Unit values so string interpolation does not invoke Unit.toString()
+        // on that sentinel.
+        let needsNullGuard = isNullable || isUnit
         // A statically enum-typed value is represented as its bare ordinal, so
         // `kk_any_to_string` would render the number. The enum class's
         // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
@@ -259,22 +290,35 @@ extension CallLowerer {
         // non-nullable value class — its raw unboxed underlying primitive.
         // Neither representation carries enough information for the generic
         // kk_any_to_string tag path below to recover the class's own
-        // toString(): a heap pointer this renderer doesn't recognize prints as
-        // "<object 0x...>", and a value class's raw primitive prints as if it
-        // were an ordinary Int/Long. Call the class's own (user-defined or
-        // synthesized) toString() directly instead, same as
-        // ConsolePrintLoweringPass already does for println/print.
+        // toString(). Use the shared resolver so data-class synthesis and this
+        // string-conversion funnel agree on the selected symbol. When the
+        // receiver is open/interface-typed, preserve virtual dispatch so a
+        // derived override is selected at runtime.
         if let classToString = resolveClassOwnToStringCallee(for: valueType, sema: sema, interner: interner) {
             let converted = arena.appendTemporary(type: stringType)
-            guard isNullable else {
-                instructions.append(.call(
+            func emitToStringCall(into result: KIRExprID) -> KIRInstruction {
+                tryEmitVirtualDispatch(
+                    chosenCallee: classToString.symbol,
+                    calleeName: classToString.callee,
+                    receiverExpr: nil,
+                    loweredReceiverID: valueID,
+                    isSuperCall: false,
+                    finalArguments: [],
+                    result: result,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner
+                ) ?? .call(
                     symbol: classToString.symbol,
                     callee: classToString.callee,
                     arguments: [valueID],
-                    result: converted,
+                    result: result,
                     canThrow: false,
                     thrownResult: nil
-                ))
+                )
+            }
+            guard needsNullGuard else {
+                instructions.append(emitToStringCall(into: converted))
                 return converted
             }
             let nonNullLabel = driver.ctx.makeLoopLabel()
@@ -287,14 +331,7 @@ extension CallLowerer {
             instructions.append(.jump(endLabel))
             instructions.append(.label(nonNullLabel))
             let innerConverted = arena.appendTemporary(type: stringType)
-            instructions.append(.call(
-                symbol: classToString.symbol,
-                callee: classToString.callee,
-                arguments: [valueID],
-                result: innerConverted,
-                canThrow: false,
-                thrownResult: nil
-            ))
+            instructions.append(emitToStringCall(into: innerConverted))
             instructions.append(.copy(from: innerConverted, to: converted))
             instructions.append(.label(endLabel))
             return converted
@@ -428,7 +465,7 @@ extension CallLowerer {
         "maxOfWith", "maxOfWithOrNull", "minOfWith", "minOfWithOrNull",
         "sort", "sortWith", "sortBy", "sortByDescending",
         "onEach", "onEachIndexed",
-        "copyOf", "copyOfRange", "fill",
+        "fill",
         "firstOrNull", "lastOrNull", "singleOrNull",
         "addAll", "removeAll", "retainAll",
         "intersect", "union", "subtract",

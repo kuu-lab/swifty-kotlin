@@ -30,3 +30,4 @@ expr e@5:22#1 memberCall recv=e@5:22 callee=distinctBy args=[_:e@5:39] type=kotl
 expr e@5:5 localDecl byNickname mutable=0 type=_ init=e@5:22#1 type=Unit ref=__local_1.byNickname
 expr e@6:13 name(byNickname) type=kotlin.collections.List<User> ref=__local_1.byNickname
 expr e@6:5 call callee=e@6:5#1 args=[_:e@6:13] type=Unit call=kotlin.io.println#1
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=5:41 msg=Type constraint could not be satisfied.

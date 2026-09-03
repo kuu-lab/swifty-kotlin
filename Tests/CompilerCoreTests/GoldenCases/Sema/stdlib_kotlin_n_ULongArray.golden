@@ -14,5 +14,5 @@ expr e@4:32 lambda params=[] body=e@4:35#2 label=ULongArray type=(Int) -> ULong
 expr e@4:18 call callee=e@4:18#1 args=[_:e@4:29,_:e@4:32] type=kotlin.ULongArray call=kotlin.ULongArray#1
 expr e@4:5 localDecl values mutable=0 type=_ init=e@4:18 type=Unit ref=__local_0.values
 expr e@5:13 name(values) type=kotlin.ULongArray ref=__local_0.values
-expr e@5:13#1 memberCall recv=e@5:13 callee=toList args=[] type=kotlin.collections.List<ULong> call=kotlin.ULongArray.toList
+expr e@5:13#1 memberCall recv=e@5:13 callee=toList args=[] type=kotlin.collections.List<ULong> call=kotlin.collections.toList#11
 expr e@5:5 call callee=e@5:5#1 args=[_:e@5:13#1] type=Unit call=kotlin.io.println#1

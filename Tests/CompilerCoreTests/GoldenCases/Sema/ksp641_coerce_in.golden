@@ -4,8 +4,6 @@ symbol fq=Score.<init>.$0.value kind=valueParameter vis=private flags=_
 symbol fq=Score.compareTo.$1.other kind=valueParameter vis=private flags=_
 symbol fq=Score.value kind=property vis=public flags=_ type=Int
 symbol fq=kotlin.Comparable kind=interface vis=public flags=_
-symbol fq=kotlin.Comparable.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.Comparable.compareTo kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.Comparable.T params=[kotlin.Comparable.T] ret=Int
 symbol fq=kotlin.ranges.ClosedFloatingPointRange kind=interface vis=public flags=_
 symbol fq=main kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fksp641_coerce_in package=_

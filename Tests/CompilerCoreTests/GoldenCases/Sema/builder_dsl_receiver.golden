@@ -9,9 +9,9 @@ file fbuilder_dsl_receiver package=golden.sema
   decl golden.sema.useBuildListReceiverThis fun useBuildListReceiverThis sym=golden.sema.useBuildListReceiverThis
 expr e@4:5 this type=kotlin.text.StringBuilder
 expr e@4:17 string(a) type=String
-expr e@4:5#1 memberCall recv=e@4:5 callee=append args=[_:e@4:17] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
+expr e@4:5#1 memberCall recv=e@4:5 callee=append args=[_:e@4:17] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#10
 expr e@5:12 string(b) type=String
-expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#7
+expr e@5:5 call callee=e@5:5#1 args=[_:e@5:12] type=kotlin.text.StringBuilder call=kotlin.text.StringBuilder.append#10
 expr e@4:5#2 blockExpr stmts=[e@4:5#1] trailing=e@5:5 type=kotlin.text.StringBuilder
 expr e@3:56 lambda params=[] body=e@4:5#2 label=buildString type=kotlin.text.StringBuilder.() -> Unit
 expr e@3:44 call callee=e@3:44#1 args=[_:e@3:56] type=String call=kotlin.text.buildString#1

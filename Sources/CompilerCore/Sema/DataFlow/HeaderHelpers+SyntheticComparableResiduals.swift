@@ -40,31 +40,6 @@ extension DataFlowSemaPhase {
         types.comparableInterfaceSymbol = comparableSymbol
         types.setNominalTypeParameterVariances([.in], for: comparableSymbol)
 
-        let tParamName = interner.intern("T")
-        let tParamFQName = comparableFQName + [tParamName]
-        let tParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: tParamFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: tParamName,
-                fqName: tParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        let tParamType = types.make(.typeParam(TypeParamType(
-            symbol: tParamSymbol, nullability: .nonNull
-        )))
-
-        registerComparableCompareToOperator(
-            symbols: symbols, types: types, interner: interner,
-            comparableFQName: comparableFQName,
-            comparableSymbol: comparableSymbol,
-            tParamSymbol: tParamSymbol,
-            tParamType: tParamType
-        )
         registerOpenEndRangeComparableUpperBound(
             comparableSymbol: comparableSymbol,
             symbols: symbols,

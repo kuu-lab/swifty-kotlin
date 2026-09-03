@@ -418,6 +418,26 @@ extension TypeSystem {
                 return false
             }
 
+        case let (.classType(leftClass), .kClassType(rightKClass)):
+            guard let kClassSymbol = kClassInterfaceSymbol,
+                  nullabilitySubtype(leftClass.nullability, rightKClass.nullability)
+            else {
+                return false
+            }
+            if leftClass.classSymbol == kClassSymbol {
+                if leftClass.args.isEmpty { return isSubtype(anyType, rightKClass.argument) }
+                guard leftClass.args.count == 1 else { return false }
+                switch leftClass.args[0] {
+                case .star:
+                    return isSubtype(anyType, rightKClass.argument)
+                case let .out(type), let .invariant(type):
+                    return isSubtype(type, rightKClass.argument)
+                case let .in(type):
+                    return isSubtype(type, rightKClass.argument)
+                }
+            }
+            return false
+
         default:
             return false
         }
@@ -466,6 +486,11 @@ extension TypeSystem {
             return hasNothing ? nothingType : errorType
         }
         let result: TypeID = if filtered.dropFirst().allSatisfy({ $0 == first }) {
+            first
+        } else if case .typeParam = kind(of: first),
+                  filtered.dropFirst().allSatisfy({ isSubtype($0, first) }) {
+            // Preserve a declared common supertype such as `R` when a
+            // self-type extension combines it with a bounded receiver `C`.
             first
         } else if let kClassLub = lubKClassTypes(filtered) {
             kClassLub

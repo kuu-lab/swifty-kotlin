@@ -1,6 +1,6 @@
 
-/// Synthetic Comparable helpers retained after the KSP-697 nominal shell migration:
-/// Comparable<in T> sub-helpers (compareTo operator, primitive compatibility, null-safe extensions).
+/// Synthetic Comparable helpers retained after the KSP-697 nominal shell migration.
+/// Comparable<in T> sub-helpers (primitive compatibility and null-safe extensions).
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
@@ -32,9 +32,10 @@ extension DataFlowSemaPhase {
             symbols.setSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
             types.setNominalSupertypeTypeArgs([.in(primitiveType)], for: primitiveSymbol, supertype: comparableSymbol)
 
-            // KSP-853: Int is a compiler primitive, so retain only the
-            // synthetic Companion anchor needed by source-backed extensions.
-            if typeName == "Int" {
+            // KSP-853/KSP-904/KSP-910/KSP-913: Int, UByte, ULong, and UShort
+            // are compiler primitives, so retain only the synthetic Companion
+            // anchors needed by source-backed extensions.
+            if typeName == "Int" || typeName == "UByte" || typeName == "ULong" || typeName == "UShort" {
                 ensureSyntheticPrimitiveCompanionSymbol(
                     ownerSymbol: primitiveSymbol,
                     symbols: symbols,
@@ -75,42 +76,6 @@ extension DataFlowSemaPhase {
         )
         symbols.setParentSymbol(ownerSymbol, for: companionSymbol)
         symbols.setCompanionObjectSymbol(companionSymbol, for: ownerSymbol)
-    }
-
-    /// Register `operator fun compareTo(other: T): Int` on the Comparable interface.
-    func registerComparableCompareToOperator(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        comparableFQName: [InternedString],
-        comparableSymbol: SymbolID,
-        tParamSymbol: SymbolID,
-        tParamType: TypeID
-    ) {
-        let compareToName = interner.intern("compareTo")
-        let compareToFQName = comparableFQName + [compareToName]
-        guard symbols.lookup(fqName: compareToFQName) == nil else { return }
-        let receiverType = tParamType
-        let compareToSymbol = symbols.define(
-            kind: .function,
-            name: compareToName,
-            fqName: compareToFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(comparableSymbol, for: compareToSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [tParamType],
-                returnType: types.intType,
-                typeParameterSymbols: [tParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: compareToSymbol
-        )
-
     }
 
     /// Register null-safe comparison extensions for Comparable types.

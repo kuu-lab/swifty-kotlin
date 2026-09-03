@@ -21,6 +21,9 @@ package struct MetadataRecord {
     /// Whether the member overrides a supertype member (`override` keyword).
     package let isOverride: Bool
     let typeSignature: String?
+    /// Upper-bound type signatures for callable type parameters, in declaration order.
+    /// Empty entries preserve alignment when only a later type parameter is bounded.
+    package let typeParameterUpperBoundsSignatures: [[String]]
     /// Per-parameter vararg flags for function/constructor signatures.
     package let valueParameterIsVararg: [Bool]
     /// Per-parameter flags indicating whether a function-type argument may
@@ -127,6 +130,7 @@ package struct MetadataRecord {
         isOperator: Bool = false,
         isOverride: Bool = false,
         typeSignature: String? = nil,
+        typeParameterUpperBoundsSignatures: [[String]] = [],
         valueParameterIsVararg: [Bool] = [],
         valueParameterAllowsNonLocalReturn: [Bool] = [],
         valueParameterHasDefaultValues: [Bool] = [],
@@ -177,6 +181,7 @@ package struct MetadataRecord {
         self.isOperator = isOperator
         self.isOverride = isOverride
         self.typeSignature = typeSignature
+        self.typeParameterUpperBoundsSignatures = typeParameterUpperBoundsSignatures
         self.valueParameterIsVararg = valueParameterIsVararg
         self.valueParameterAllowsNonLocalReturn = valueParameterAllowsNonLocalReturn
         self.valueParameterHasDefaultValues = valueParameterHasDefaultValues
@@ -320,6 +325,27 @@ package final class MetadataEncoder {
                 }
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
+                }
+                // KSP-911: ULongArray(LongArray) is an internal storage
+                // constructor. Keep it in the stdlib object for source-backed
+                // implementation calls, but do not export it to consumers.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
+                // KSP-908: UIntArray(IntArray) is an internal storage
+                // constructor. It must remain in the stdlib object for
+                // source-backed implementation calls, but must not be
+                // imported as a public overload by consumer modules.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "UIntArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
                 }
                 // STDLIB-SHARED-016: Compiler-generated enum static helpers
                 // (values/valueOf/entries) for non-public enum classes are not part
@@ -635,6 +661,20 @@ package final class MetadataEncoder {
             return superFQNames.isEmpty ? nil : superFQNames.joined(separator: ",")
         }()
 
+        let valueClassUnderlyingTypeSig: String?
+        if symbol.flags.contains(.valueType),
+           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
+        {
+            valueClassUnderlyingTypeSig = mangler.encodeType(
+                underlyingType,
+                symbols: symbols,
+                types: types,
+                nameResolver: { interner.resolve($0) }
+            )
+        } else {
+            valueClassUnderlyingTypeSig = nil
+        }
+
         if metadataAnchorOnly {
             // Synthetic nominal anchors need their declared layout sizes as
             // consumer-side synthesis hints. Do not serialize partial slot maps:
@@ -660,6 +700,7 @@ package final class MetadataEncoder {
                     isSealedClass: symbol.flags.contains(.sealedType),
                     isFunInterface: symbol.flags.contains(.funInterface),
                     isValueClass: symbol.flags.contains(.valueType),
+                    valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                     isExpect: symbol.flags.contains(.expectDeclaration),
                     isActual: symbol.flags.contains(.actualDeclaration)
                 )
@@ -677,6 +718,7 @@ package final class MetadataEncoder {
                 isSealedClass: symbol.flags.contains(.sealedType),
                 isFunInterface: symbol.flags.contains(.funInterface),
                 isValueClass: symbol.flags.contains(.valueType),
+                valueClassUnderlyingTypeSig: valueClassUnderlyingTypeSig,
                 isExpect: symbol.flags.contains(.expectDeclaration),
                 isActual: symbol.flags.contains(.actualDeclaration)
             )
@@ -688,6 +730,7 @@ package final class MetadataEncoder {
         var isOperator = false
         var isOverride = false
         var typeSignature: String?
+        var typeParameterUpperBoundsSignatures: [[String]] = []
         var valueParameterIsVararg: [Bool] = []
         var valueParameterAllowsNonLocalReturn: [Bool] = []
         var valueParameterHasDefaultValues: [Bool] = []
@@ -722,6 +765,17 @@ package final class MetadataEncoder {
                 nameResolver: { interner.resolve($0) },
                 unboxValueClasses: false
             )
+            typeParameterUpperBoundsSignatures = signature.typeParameterUpperBoundsList.map { bounds in
+                bounds.map {
+                    metadataTypeSignature(
+                        $0,
+                        symbols: symbols,
+                        types: types,
+                        mangler: mangler,
+                        nameResolver: { interner.resolve($0) }
+                    )
+                }
+            }
             externalLinkName = functionLinkNames[symbol.id] ?? symbols.externalLinkName(for: symbol.id)
             if signature.valueParameterHasDefaultValues.contains(true) {
                 let stubSymbol = SyntheticSymbolScheme.defaultStubSymbol(for: symbol.id)
@@ -806,6 +860,18 @@ package final class MetadataEncoder {
             let hasCustomGetter = symbols.propertyHasCustomGetter(for: symbol.id)
                 || symbols.extensionPropertyGetterAccessor(for: symbol.id) != nil
                 || enumEntriesGetterSymbol != nil
+            // Runtime-backed properties can be declared in bundled source
+            // without a Kotlin getter body (for example Collection.size). The
+            // property symbol's external link must still cross the library
+            // boundary as a synthetic getter link; otherwise consumers restore
+            // the property as an itable getter and runtime collection boxes
+            // cannot satisfy the dispatch.
+            if !hasCustomGetter,
+               let propertyLink = symbols.externalLinkName(for: symbol.id),
+               !propertyLink.isEmpty
+            {
+                propertyGetterExternalLinkName = propertyLink
+            }
             if hasCustomGetter,
                let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
@@ -922,24 +988,10 @@ package final class MetadataEncoder {
         let isFunInterface = symbol.flags.contains(.funInterface)
         let isExpect = symbol.flags.contains(.expectDeclaration)
         let isActual = symbol.flags.contains(.actualDeclaration)
-        let rawIsValueClass = symbol.flags.contains(.valueType)
-
-        var valueClassUnderlyingTypeSig: String?
-        if rawIsValueClass,
-           let underlyingType = symbols.valueClassUnderlyingType(for: symbol.id)
-        {
-            valueClassUnderlyingTypeSig = mangler.encodeType(
-                underlyingType,
-                symbols: symbols,
-                types: types,
-                nameResolver: { interner.resolve($0) }
-            )
-        }
-
         // Serialize isValueClass independently of whether the underlying type was found.
         // Even if underlying type extraction fails, mark it as a value class so importers
         // can identify it correctly; valueClassUnderlyingTypeSig may be nil in that case.
-        let isValueClass = rawIsValueClass
+        let isValueClass = symbol.flags.contains(.valueType)
 
         let annotationEntries = symbols.annotations(for: symbol.id)
 
@@ -964,6 +1016,7 @@ package final class MetadataEncoder {
             isOperator: isOperator,
             isOverride: isOverride,
             typeSignature: typeSignature,
+            typeParameterUpperBoundsSignatures: typeParameterUpperBoundsSignatures,
             valueParameterIsVararg: valueParameterIsVararg,
             valueParameterAllowsNonLocalReturn: valueParameterAllowsNonLocalReturn,
             valueParameterHasDefaultValues: valueParameterHasDefaultValues,
@@ -1166,6 +1219,11 @@ package final class MetadataEncoder {
                 if let sig = record.typeSignature {
                     fields.append("sig=\(sig)")
                 }
+                if record.typeParameterUpperBoundsSignatures.contains(where: { !$0.isEmpty }),
+                   let encodedBounds = encodeMetadataTypeParameterUpperBounds(record.typeParameterUpperBoundsSignatures)
+                {
+                    fields.append("typeBounds=\(encodedBounds)")
+                }
                 if let linkName = record.defaultStubExternalLinkName, !linkName.isEmpty {
                     fields.append("defaultLink=\(linkName)")
                 }
@@ -1349,6 +1407,17 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
+            if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID),
+               let property = symbols.symbol(decoded.property)
+            {
+                if let includedSymbolIDs, !includedSymbolIDs.contains(property.id) {
+                    return nil
+                }
+                let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard !fqName.isEmpty else { return nil }
+                let prefix = decoded.kind == .getter ? "pget:" : "pset:"
+                return ("\(prefix)\(fqName)", slot)
+            }
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
                 return nil
             }
@@ -1450,6 +1519,27 @@ package final class MetadataEncoder {
     }
 }
 
+private func encodeMetadataTypeParameterUpperBounds(_ bounds: [[String]]) -> String? {
+    let encodedGroups = bounds.map { group in
+        group.map { Data($0.utf8).base64EncodedString() }.joined(separator: ",")
+    }
+    return encodedGroups.isEmpty ? nil : encodedGroups.joined(separator: "|")
+}
+
+private func decodeMetadataTypeParameterUpperBounds(_ value: String) -> [[String]] {
+    value.split(separator: "|", omittingEmptySubsequences: false).map { group in
+        guard !group.isEmpty else { return [] }
+        return group.split(separator: ",", omittingEmptySubsequences: false).compactMap { encoded in
+            guard let data = Data(base64Encoded: String(encoded)),
+                  let decoded = String(data: data, encoding: .utf8)
+            else {
+                return nil
+            }
+            return decoded
+        }
+    }
+}
+
 // MARK: - MetadataDecoder (Import)
 
 /// Decodes the text-based metadata format into `[MetadataRecord]`.
@@ -1504,6 +1594,7 @@ final class MetadataDecoder {
                 isOperator: rec.isOperator,
                 isOverride: rec.isOverride,
                 typeSignature: rec.typeSignature,
+                typeParameterUpperBoundsSignatures: rec.typeParameterUpperBoundsSignatures,
                 valueParameterIsVararg: rec.valueParameterIsVararg,
                 valueParameterAllowsNonLocalReturn: rec.valueParameterAllowsNonLocalReturn,
                 valueParameterHasDefaultValues: rec.valueParameterHasDefaultValues,
@@ -1600,6 +1691,7 @@ final class MetadataDecoder {
         var nominalSupertypeSignatures: [String] = []
         var constValueLiteral: String?
         var nominalTypeParameters: String?
+        var typeParameterUpperBoundsSignatures: [[String]] = []
         var schemaVersion: String?
     }
 
@@ -1635,6 +1727,8 @@ final class MetadataDecoder {
             record.defaultStubExternalLinkName = value.isEmpty ? nil : value
         case "sig":
             record.typeSignature = value.isEmpty ? nil : value
+        case "typeBounds":
+            record.typeParameterUpperBoundsSignatures = decodeMetadataTypeParameterUpperBounds(value)
         case "link":
             record.externalLinkName = value.isEmpty ? nil : value
         case "fields":

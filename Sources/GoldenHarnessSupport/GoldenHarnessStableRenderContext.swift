@@ -38,12 +38,36 @@ final class StableRenderContext {
             fqGroups[fq, default: []].append(symbol)
         }
 
+        var stableTypeParameterFQ: [Int32: String] = [:]
+        for symbol in sema.symbols.allSymbols() where symbol.kind == .typeParameter {
+            if let fq = fqMap[symbol.id.rawValue] {
+                stableTypeParameterFQ[symbol.id.rawValue] = Self.stabilizeTypeParameterFQName(fq)
+            }
+        }
+
         self.symbolFQ = fqMap
 
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
-            let sorted = symbols.sorted { a, b in
-                Self.overloadSortKey(a, sema: sema, fqMap: fqMap) < Self.overloadSortKey(b, sema: sema, fqMap: fqMap)
+            let sorted = symbols.sorted { lhs, rhs in
+                let lhsKey = Self.overloadSortKey(
+                    lhs,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                let rhsKey = Self.overloadSortKey(
+                    rhs,
+                    sema: sema,
+                    fqMap: fqMap,
+                    stableTypeParameterFQ: stableTypeParameterFQ
+                )
+                return Self.overloadSortKeyPrecedes(
+                    lhsKey,
+                    lhsSymbolID: lhs.id.rawValue,
+                    rhsKey,
+                    rhsSymbolID: rhs.id.rawValue
+                )
             }
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"
@@ -264,6 +288,10 @@ final class StableRenderContext {
             for p in ft.params { collectTypeSymbols(p, into: &queue) }
             collectTypeSymbols(ft.returnType, into: &queue)
         case let .kClassType(kc):
+            if let kClassSymbol = sema.types.kClassInterfaceSymbol,
+               requiredSymbols.insert(kClassSymbol.rawValue).inserted {
+                queue.append(kClassSymbol.rawValue)
+            }
             collectTypeSymbols(kc.argument, into: &queue)
         case let .intersection(parts):
             for part in parts { collectTypeSymbols(part, into: &queue) }
@@ -275,17 +303,55 @@ final class StableRenderContext {
     private static func overloadSortKey(
         _ symbol: SemanticSymbol,
         sema: SemaModule,
-        fqMap: [Int32: String]
+        fqMap: [Int32: String],
+        stableTypeParameterFQ: [Int32: String]
     ) -> String {
         guard let sig = sema.symbols.functionSignature(for: symbol.id) else {
             return ""
         }
-        let recv = sig.receiverType.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) } ?? "_"
-        let params = sig.parameterTypes.map { stabilizeTypeRefsStatic(sema.types.renderType($0), fqMap: fqMap) }
+        let recv = sig.receiverType.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                stableTypeParameterFQ: stableTypeParameterFQ
+            )
+        } ?? "_"
+        let params = sig.parameterTypes.map {
+            stabilizeTypeRefsStatic(
+                sema.types.renderType($0),
+                fqMap: fqMap,
+                stableTypeParameterFQ: stableTypeParameterFQ
+            )
+        }
         return "\(recv)|\(params.joined(separator: ","))"
     }
 
-    private static func stabilizeTypeRefsStatic(_ text: String, fqMap: [Int32: String]) -> String {
+    /// Orders overload keys numerically because generated generic-owner names
+    /// contain unpadded symbol IDs such as `$9999` and `$10001`.
+    static func overloadSortKeyPrecedes(
+        _ lhsKey: String,
+        lhsSymbolID: Int32,
+        _ rhsKey: String,
+        rhsSymbolID: Int32
+    ) -> Bool {
+        switch lhsKey.compare(rhsKey, options: .numeric) {
+        case .orderedAscending:
+            return true
+        case .orderedDescending:
+            return false
+        case .orderedSame:
+            if lhsKey != rhsKey {
+                return lhsKey < rhsKey
+            }
+            return lhsSymbolID < rhsSymbolID
+        }
+    }
+
+    private static func stabilizeTypeRefsStatic(
+        _ text: String,
+        fqMap: [Int32: String],
+        stableTypeParameterFQ: [Int32: String]
+    ) -> String {
         let nsText = text as NSString
         let range = NSRange(location: 0, length: nsText.length)
         let matches = typeRefRegex.matches(in: text, range: range)
@@ -295,11 +361,42 @@ final class StableRenderContext {
         for match in matches.reversed() {
             let idRange = match.range(at: 2)
             guard idRange.location != NSNotFound,
-                  let rawID = Int32(nsText.substring(with: idRange)),
-                  let fq = fqMap[rawID]
+                  let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
-            mutable.replaceCharacters(in: match.range, with: fq)
+            let prefix = nsText.substring(with: match.range(at: 1))
+            let stableFQ: String?
+            if prefix == "T#" {
+                stableFQ = stableTypeParameterFQ[rawID] ?? fqMap[rawID]
+            } else {
+                stableFQ = fqMap[rawID]
+            }
+            guard let stableFQ else {
+                continue
+            }
+            mutable.replaceCharacters(in: match.range, with: stableFQ)
         }
         return mutable as String
+    }
+
+    private static func stabilizeTypeParameterFQName(_ fq: String) -> String {
+        let components = fq.split(separator: ".", omittingEmptySubsequences: false)
+        return components.map { component in
+            let characters = Array(component)
+            guard characters.first == "$" else { return String(component) }
+
+            var digitStart = 1
+            while digitStart < characters.count, characters[digitStart].isLetter {
+                digitStart += 1
+            }
+            guard digitStart < characters.count,
+                  characters[digitStart...].allSatisfy(\.isNumber),
+                  let ownerID = Int64(String(characters[digitStart...]))
+            else {
+                return String(component)
+            }
+
+            let prefix = String(characters[..<digitStart])
+            return prefix + String(format: "%010lld", ownerID)
+        }.joined(separator: ".")
     }
 }

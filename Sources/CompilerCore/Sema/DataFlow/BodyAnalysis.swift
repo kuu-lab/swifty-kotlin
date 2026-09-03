@@ -168,6 +168,38 @@ extension DataFlowSemaPhase {
                     // underlying type is not yet available (e.g. unresolved RHS,
                     // imported alias without signature metadata).
                 }
+                if resolved.id == types.kClassInterfaceSymbol
+                    || resolved.fqName == [interner.intern("kotlin"), interner.intern("reflect"), interner.intern("KClass")]
+                {
+                    // Preserve star and contravariant KClass projections in the
+                    // nominal representation. A covariant projection is
+                    // equivalent to the dedicated KClass<T> representation.
+                    if let firstArg = resolvedArgs.first {
+                        switch firstArg {
+                        case .star, .in:
+                            return types.make(.classType(ClassType(
+                                classSymbol: resolved.id,
+                                args: resolvedArgs,
+                                nullability: nullability
+                            )))
+                        case .invariant, .out:
+                            break
+                        }
+                    }
+                    let argumentType: TypeID = if let firstArg = resolvedArgs.first {
+                        switch firstArg {
+                        case let .invariant(t):
+                            t
+                        case .star:
+                            types.anyType
+                        case let .out(t), let .in(t):
+                            t
+                        }
+                    } else {
+                        types.anyType
+                    }
+                    return types.makeKClassType(argument: argumentType, nullability: nullability)
+                }
                 return types.make(.classType(ClassType(classSymbol: resolved.id, args: resolvedArgs, nullability: nullability)))
             }
             if candidates.isEmpty,
@@ -925,7 +957,7 @@ extension DataFlowSemaPhase {
             rootClassSymbol = types.stringClassSymbol
         } else if first == interner.intern("Any") {
             rootClassSymbol = types.anyClassSymbol
-        } else if first == interner.intern("Long") {
+        } else if first == interner.intern("Long") || first == interner.intern("Short") {
             let kotlinFQName = [interner.intern("kotlin"), first]
             rootClassSymbol = symbols.lookupAll(fqName: kotlinFQName).first(where: { symbolID in
                 guard let symbol = symbols.symbol(symbolID) else { return false }

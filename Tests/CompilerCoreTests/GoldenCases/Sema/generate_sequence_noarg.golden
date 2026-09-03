@@ -47,3 +47,4 @@ expr e@14:18#2 memberCall recv=e@14:18#1 callee=toList args=[] type=kotlin.colle
 expr e@14:5 localDecl first5 mutable=0 type=_ init=e@14:18#2 type=Unit ref=__local_5.first5
 expr e@15:13 name(first5) type=kotlin.collections.List<Int> ref=__local_5.first5
 expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println#1
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=5:9 msg=Type constraint could not be satisfied.

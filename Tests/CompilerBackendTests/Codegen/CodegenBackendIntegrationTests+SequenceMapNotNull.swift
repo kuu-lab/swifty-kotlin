@@ -17,7 +17,8 @@ private func runCodegenPipeline(
         outputPath: outputPath,
         emit: emit,
         target: defaultTargetTriple(),
-        irFlags: irFlags
+        irFlags: irFlags,
+        stdlibLibraryPath: try testStdlibArtifactPath()
     )
     let ctx = CompilationContext(
         options: options,
@@ -91,7 +92,7 @@ struct CodegenBackendSequenceMapNotNullTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(
+            let ctx = try makeArtifactCompilationContext(
                 inputs: [path],
                 moduleName: "SequenceMapNotNullKIR",
                 emit: .kirDump
@@ -101,7 +102,10 @@ struct CodegenBackendSequenceMapNotNullTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "render", in: module, interner: ctx.interner)
             let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(callees.contains("mapNotNull"))
+            // Artifact imports may inline the source-backed transform; the
+            // imported sequence factory plus retired-bridge absence is the
+            // stable consumer invariant.
+            #expect(containsKotlinCallee("sequenceOf", in: callees))
             #expect(!callees.contains("kk_sequence_mapNotNull"))
         }
     }

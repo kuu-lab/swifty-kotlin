@@ -125,8 +125,9 @@ struct RuntimeValue {
 class RuntimeThrowableBox {
     let message: String?
     var cause: Int
+    let stackTraceAddresses: [Int]
     /// Suppressed exceptions (STDLIB-EXCEPT-105).
-    /// Stores raw Int pointers to other runtime Throwable objects.
+    /// Stores raw Int pointers to other RuntimeThrowableBox instances.
     var suppressed: [Int] = []
 
     var exceptionFQName: String {
@@ -144,6 +145,7 @@ class RuntimeThrowableBox {
     init(message: String?, cause: Int = 0) {
         self.message = message
         self.cause = cause
+        self.stackTraceAddresses = runtimeCurrentStackTraceAddresses()
     }
 }
 
@@ -243,6 +245,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?
     var throwableCause: Int
+    var throwableStackTraceAddresses: [Int]?
     var throwableSuppressed: [Int]
 
     init(length: Int, classID: Int64) {
@@ -250,14 +253,19 @@ final class RuntimeObjectBox: RuntimeArrayBox {
         self.backingSetBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0
+        self.throwableStackTraceAddresses = nil
         self.throwableSuppressed = []
         super.init(length: length)
     }
 }
 
 final class RuntimePairBox {
-    let firstValue: RuntimeValue
-    let secondValue: RuntimeValue
+    var firstValue: RuntimeValue
+    var secondValue: RuntimeValue
+    // MutableMap.MutableEntry pairs retain the destination map so entry.value
+    // and setValue() observe subsequent mutations through the live view.
+    var mutableMapRaw: Int = 0
+    var mutableMapKey: Int = 0
 
     var first: Int { firstValue.legacyRawValue }
     var second: Int { secondValue.legacyRawValue }
@@ -274,14 +282,18 @@ final class RuntimePairBox {
 }
 
 final class RuntimeTripleBox {
-    let first: Int
-    let second: Int
-    let third: Int
+    let firstValue: RuntimeValue
+    let secondValue: RuntimeValue
+    let thirdValue: RuntimeValue
+
+    var first: Int { firstValue.legacyRawValue }
+    var second: Int { secondValue.legacyRawValue }
+    var third: Int { thirdValue.legacyRawValue }
 
     init(first: Int, second: Int, third: Int) {
-        self.first = first
-        self.second = second
-        self.third = third
+        self.firstValue = RuntimeValue(raw: first)
+        self.secondValue = RuntimeValue(raw: second)
+        self.thirdValue = RuntimeValue(raw: third)
     }
 }
 
@@ -309,6 +321,11 @@ final class RuntimeBoolBox {
         self.value = value
     }
 }
+
+/// Boxed Kotlin Unit for Any-erased storage. Direct Unit values remain the
+/// compiler's raw zero representation; this box is used only at reference
+/// boundaries where Any must retain the value's runtime identity.
+final class RuntimeUnitBox {}
 
 final class RuntimeLongBox {
     let value: Int
@@ -390,12 +407,19 @@ final class RuntimeListBox {
     }
 
     private var storage: Storage
+    private(set) var isReadOnly = false
 
     init(elements: [Int]) {
         storage = .direct(elements.map { RuntimeValue(raw: $0) })
     }
 
     init(values: [RuntimeValue]) {
+        storage = .direct(values)
+    }
+
+    init(capacity: Int) {
+        var values: [RuntimeValue] = []
+        values.reserveCapacity(max(0, capacity))
         storage = .direct(values)
     }
 
@@ -419,6 +443,7 @@ final class RuntimeListBox {
             }
         }
         set {
+            guard !isReadOnly else { return }
             switch storage {
             case .direct:
                 storage = .direct(newValue)
@@ -428,6 +453,10 @@ final class RuntimeListBox {
                 base.values = newValue
             }
         }
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 
     var elements: [Int] {
@@ -444,13 +473,17 @@ final class RuntimeListBox {
 /// Stores unique elements in insertion order as runtime values.
 final class RuntimeSetBox {
     private var storage: [RuntimeValue]
+    private var index: [RuntimeElementKey: Int]
+    private(set) var isReadOnly = false
 
     var values: [RuntimeValue] {
         get {
             storage
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue
+            rebuildIndex()
         }
     }
 
@@ -459,16 +492,101 @@ final class RuntimeSetBox {
             storage.map(\.legacyRawValue)
         }
         set {
+            guard !isReadOnly else { return }
             storage = newValue.map { RuntimeValue(raw: $0) }
+            rebuildIndex()
         }
     }
 
     init(elements: [Int]) {
         self.storage = elements.map { RuntimeValue(raw: $0) }
+        self.index = [:]
+        rebuildIndex()
     }
 
     init(values: [RuntimeValue]) {
         self.storage = values
+        self.index = [:]
+        rebuildIndex()
+    }
+
+    var count: Int {
+        storage.count
+    }
+
+    var isEmpty: Bool {
+        storage.isEmpty
+    }
+
+    func contains(rawValue: Int) -> Bool {
+        return index[RuntimeElementKey(value: rawValue)] != nil
+    }
+
+    @discardableResult
+    func insert(rawValue: Int) -> Bool {
+        let key = RuntimeElementKey(value: rawValue)
+        guard index[key] == nil else {
+            return false
+        }
+        let newIndex = storage.count
+        storage.append(RuntimeValue(raw: rawValue))
+        index[key] = newIndex
+        return true
+    }
+
+    @discardableResult
+    func remove(rawValue: Int) -> Bool {
+        guard let index = index[RuntimeElementKey(value: rawValue)] else {
+            return false
+        }
+        storage.remove(at: index)
+        rebuildIndex()
+        return true
+    }
+
+    @discardableResult
+    func removeAll(keepingCapacity: Bool = false) -> Bool {
+        guard !storage.isEmpty else {
+            return false
+        }
+        storage.removeAll(keepingCapacity: keepingCapacity)
+        index.removeAll(keepingCapacity: keepingCapacity)
+        return true
+    }
+
+    @discardableResult
+    func removeAll(where shouldRemove: (RuntimeValue) throws -> Bool) rethrows -> Bool {
+        let originalCount = storage.count
+        try storage.removeAll(where: shouldRemove)
+        guard storage.count != originalCount else {
+            return false
+        }
+        rebuildIndex()
+        return true
+    }
+
+    private func rebuildIndex() {
+        index.removeAll(keepingCapacity: true)
+        index.reserveCapacity(storage.count)
+        for (offset, value) in storage.enumerated() {
+            let key = RuntimeElementKey(value: value.legacyRawValue)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if index[key] == nil {
+                index[key] = offset
+            }
+        }
+    }
+
+    init(capacity: Int) {
+        self.storage = []
+        self.index = [:]
+        self.storage.reserveCapacity(max(0, capacity))
+        self.index.reserveCapacity(max(0, capacity))
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
@@ -477,50 +595,192 @@ final class RuntimeSetBox {
 final class RuntimeMapBox {
     private var keyStorage: [RuntimeValue]
     private var valueStorage: [RuntimeValue]
+    private let backingMap: RuntimeMapBox?
+    private var keyIndex: [RuntimeElementKey: Int]
     let defaultValueFnPtr: Int
     let defaultValueClosureRaw: Int
+    private(set) var isReadOnly = false
 
     var keyValues: [RuntimeValue] {
         get {
-            keyStorage
+            backingMap?.keyValues ?? keyStorage
         }
         set {
-            keyStorage = newValue
+            if let backingMap {
+                backingMap.keyValues = newValue
+            } else {
+                guard !isReadOnly else { return }
+                keyStorage = newValue
+                rebuildKeyIndex()
+            }
         }
     }
 
     var entryValues: [RuntimeValue] {
         get {
-            valueStorage
+            backingMap?.entryValues ?? valueStorage
         }
         set {
-            valueStorage = newValue
+            if let backingMap {
+                backingMap.entryValues = newValue
+            } else {
+                guard !isReadOnly else { return }
+                valueStorage = newValue
+            }
         }
     }
 
     var keys: [Int] {
         get {
-            keyStorage.map(\.legacyRawValue)
+            keyValues.map(\.legacyRawValue)
         }
         set {
-            keyStorage = newValue.map { RuntimeValue(raw: $0) }
+            keyValues = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
     var values: [Int] {
         get {
-            valueStorage.map(\.legacyRawValue)
+            entryValues.map(\.legacyRawValue)
         }
         set {
-            valueStorage = newValue.map { RuntimeValue(raw: $0) }
+            entryValues = newValue.map { RuntimeValue(raw: $0) }
         }
     }
 
-    init(keys: [Int], values: [Int], defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+    init(
+        keys: [Int],
+        values: [Int],
+        defaultValueFnPtr: Int = 0,
+        defaultValueClosureRaw: Int = 0,
+        backingMap: RuntimeMapBox? = nil
+    ) {
         self.keyStorage = keys.map { RuntimeValue(raw: $0) }
         self.valueStorage = values.map { RuntimeValue(raw: $0) }
+        self.backingMap = backingMap
+        self.keyIndex = [:]
         self.defaultValueFnPtr = defaultValueFnPtr
         self.defaultValueClosureRaw = defaultValueClosureRaw
+        rebuildKeyIndex()
+    }
+
+    var count: Int {
+        backingMap?.count ?? keyStorage.count
+    }
+
+    var isEmpty: Bool {
+        backingMap?.isEmpty ?? keyStorage.isEmpty
+    }
+
+    func index(ofRawKey key: Int) -> Int? {
+        if let backingMap {
+            return backingMap.index(ofRawKey: key)
+        }
+        return keyIndex[RuntimeElementKey(value: key)]
+    }
+
+    func rawValue(at index: Int) -> Int? {
+        if let backingMap {
+            return backingMap.rawValue(at: index)
+        }
+        guard valueStorage.indices.contains(index) else {
+            return nil
+        }
+        return valueStorage[index].legacyRawValue
+    }
+
+    func updateValue(at index: Int, rawValue: Int) {
+        if let backingMap {
+            backingMap.updateValue(at: index, rawValue: rawValue)
+            return
+        }
+        guard valueStorage.indices.contains(index) else {
+            valueStorage.append(RuntimeValue(raw: rawValue))
+            return
+        }
+        valueStorage[index] = RuntimeValue(raw: rawValue)
+    }
+
+    func appendEntry(key: Int, value: Int) {
+        if let backingMap {
+            backingMap.appendEntry(key: key, value: value)
+            return
+        }
+        let newIndex = keyStorage.count
+        keyStorage.append(RuntimeValue(raw: key))
+        valueStorage.append(RuntimeValue(raw: value))
+        let runtimeKey = RuntimeElementKey(value: key)
+        if keyIndex[runtimeKey] == nil {
+            keyIndex[runtimeKey] = newIndex
+        }
+    }
+
+    @discardableResult
+    func put(key: Int, value: Int) -> Int? {
+        if let backingMap {
+            return backingMap.put(key: key, value: value)
+        }
+        let runtimeKey = RuntimeElementKey(value: key)
+        if let index = keyIndex[runtimeKey] {
+            let previous = rawValue(at: index)
+            updateValue(at: index, rawValue: value)
+            return previous
+        }
+        appendEntry(key: key, value: value)
+        return nil
+    }
+
+    @discardableResult
+    func remove(key: Int) -> Int? {
+        if let backingMap {
+            return backingMap.remove(key: key)
+        }
+        guard let index = index(ofRawKey: key) else {
+            return nil
+        }
+        keyStorage.remove(at: index)
+        let removedValue = valueStorage.indices.contains(index) ? valueStorage.remove(at: index).legacyRawValue : nil
+        rebuildKeyIndex()
+        return removedValue
+    }
+
+    func removeAll() {
+        if let backingMap {
+            backingMap.removeAll()
+            return
+        }
+        keyStorage.removeAll()
+        valueStorage.removeAll()
+        keyIndex.removeAll()
+    }
+
+    private func rebuildKeyIndex() {
+        keyIndex.removeAll(keepingCapacity: true)
+        keyIndex.reserveCapacity(keyStorage.count)
+        for (offset, key) in keyStorage.enumerated() {
+            let runtimeKey = RuntimeElementKey(value: key.legacyRawValue)
+            // Keep the first position for malformed duplicate input, matching
+            // the legacy linear lookup behavior.
+            if keyIndex[runtimeKey] == nil {
+                keyIndex[runtimeKey] = offset
+            }
+        }
+    }
+
+    init(capacity: Int, defaultValueFnPtr: Int = 0, defaultValueClosureRaw: Int = 0) {
+        self.keyStorage = []
+        self.valueStorage = []
+        self.backingMap = nil
+        self.keyIndex = [:]
+        self.keyStorage.reserveCapacity(max(0, capacity))
+        self.valueStorage.reserveCapacity(max(0, capacity))
+        self.keyIndex.reserveCapacity(max(0, capacity))
+        self.defaultValueFnPtr = defaultValueFnPtr
+        self.defaultValueClosureRaw = defaultValueClosureRaw
+    }
+
+    func freeze() {
+        isReadOnly = true
     }
 }
 
@@ -650,12 +910,25 @@ final class RuntimeIndexingIteratorBox {
 
 /// Iterator box for `List` iteration via `for (x in list)`.
 final class RuntimeListIteratorBox {
-    let elements: [Int]
+    var elements: [Int]
     var index: Int
+    let removeAction: ((Int) -> Void)?
 
-    init(elements: [Int]) {
+    init(elements: [Int], removeAction: ((Int) -> Void)? = nil) {
         self.elements = elements
         index = 0
+        self.removeAction = removeAction
+    }
+
+    func removeLastReturned() -> Bool {
+        guard index > 0, index <= elements.count else {
+            return false
+        }
+        let removedIndex = index - 1
+        elements.remove(at: removedIndex)
+        index = removedIndex
+        removeAction?(removedIndex)
+        return true
     }
 }
 
@@ -669,6 +942,21 @@ final class RuntimeMapIteratorBox {
         self.keys = keys
         self.values = values
         index = 0
+    }
+}
+
+/// MutableMap iterator whose entries remain connected to the destination map.
+final class RuntimeMutableMapIteratorBox {
+    let mapRaw: Int
+    let keys: [Int]
+    var index: Int
+    var lastKey: Int?
+
+    init(mapRaw: Int, keys: [Int]) {
+        self.mapRaw = mapRaw
+        self.keys = keys
+        index = 0
+        lastKey = nil
     }
 }
 
@@ -701,7 +989,6 @@ enum SequenceStepKind {
     /// STDLIB-HOF-022: Additional lazy transformation steps
     case mapNotNullStep(fnPtr: Int, closureRaw: Int)
     case filterNotNullStep
-    case filterIsInstanceStep(typeToken: Int)
     case requireNoNullsStep
     case mapIndexedStep(fnPtr: Int, closureRaw: Int)
     case mapIndexedNotNullStep(fnPtr: Int, closureRaw: Int)
@@ -1436,196 +1723,6 @@ final class RuntimeIteratorBuilderBox: @unchecked Sendable {
             box.invokeBuilderLambda()
         }
     }
-}
-
-// MARK: - Stdlib Delegate Types (P5-80)
-
-/// Thread-safety mode for `lazy` delegate.
-enum LazyThreadSafetyMode: Int {
-    case synchronized = 1
-    case none = 0
-    case publication = 2
-}
-
-/// Runtime box for `kotlin.lazy {}` delegate.
-/// Holds an initializer function pointer and caches the computed value.
-final class RuntimeLazyBox {
-    private enum CachedState {
-        case uninitialized
-        case initialized(Int)
-    }
-
-    private let initializerFnPtr: Int
-    private var cachedState: CachedState = .uninitialized
-    private let mode: LazyThreadSafetyMode
-    private let synchronizationLockKey: Int?
-    private let lock = NSLock()
-
-    init(initializerFnPtr: Int, mode: LazyThreadSafetyMode, synchronizationLockKey: Int? = nil) {
-        self.initializerFnPtr = initializerFnPtr
-        self.mode = mode
-        self.synchronizationLockKey = synchronizationLockKey
-    }
-
-    init(initializedValue: Int) {
-        initializerFnPtr = 0
-        cachedState = .initialized(initializedValue)
-        mode = .none
-        synchronizationLockKey = nil
-    }
-
-    func getValue() -> Int {
-        switch mode {
-        case .synchronized:
-            if let synchronizationLockKey {
-                return runtimeWithLock(for: synchronizationLockKey) {
-                    lock.lock()
-                    defer { lock.unlock() }
-                    return getValueLocked()
-                }
-            }
-            lock.lock()
-            defer { lock.unlock() }
-            return getValueLocked()
-        case .publication:
-            return getValuePublication()
-        case .none:
-            return getValueUnsafe()
-        }
-    }
-
-    private func getValueLocked() -> Int {
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            let value = evaluateInitializer()
-            cachedState = .initialized(value)
-            return value
-        }
-    }
-
-    private func getValueUnsafe() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-        let value = evaluateInitializer()
-        cachedState = .initialized(value)
-        return value
-    }
-
-    private func getValuePublication() -> Int {
-        if let cached = cachedValue() {
-            return cached
-        }
-
-        let value = evaluateInitializer()
-        if compareAndSetCachedValue(expected: .uninitialized, update: .initialized(value)) {
-            return value
-        }
-        return cachedValue() ?? value
-    }
-
-    private func cachedValue() -> Int? {
-        lock.lock()
-        defer { lock.unlock() }
-        switch cachedState {
-        case .initialized(let value):
-            return value
-        case .uninitialized:
-            return nil
-        }
-    }
-
-    private func compareAndSetCachedValue(expected: CachedState, update: CachedState) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard cachedStateMatches(expected) else {
-            return false
-        }
-        cachedState = update
-        return true
-    }
-
-    private func cachedStateMatches(_ expected: CachedState) -> Bool {
-        switch (cachedState, expected) {
-        case (.uninitialized, .uninitialized):
-            return true
-        case (.initialized(let current), .initialized(let expected)):
-            return current == expected
-        default:
-            return false
-        }
-    }
-
-    private func evaluateInitializer() -> Int {
-        var thrown = 0
-        // `initializerFnPtr` is either a raw thunk pointer (property-delegate
-        // `by lazy { }`, whose initializer is built as a standalone top-level
-        // function) or a boxed Function0 value (plain `lazy { }` calls, whose
-        // lambda literal goes through the general closure-conversion path and
-        // may capture state). `kk_function_invoke_0` already dispatches on
-        // which of the two it was given -- reuse it instead of assuming the
-        // raw-thunk shape, which crashed for the boxed-closure case.
-        let value = kk_function_invoke_0(initializerFnPtr, &thrown)
-        if thrown != 0 {
-            fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: lazy initializer threw")
-        }
-        return value
-    }
-
-    var isInitialized: Bool {
-        switch mode {
-        case .synchronized:
-            lock.lock()
-            defer { lock.unlock() }
-            return cachedStateIsInitialized()
-        case .publication:
-            return cachedValue() != nil
-        case .none:
-            return cachedStateIsInitialized()
-        }
-    }
-
-    private func cachedStateIsInitialized() -> Bool {
-        switch cachedState {
-        case .initialized:
-            return true
-        case .uninitialized:
-            return false
-        }
-    }
-}
-
-/// Runtime box for `Delegates.observable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback after each set.
-final class RuntimeObservableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.vetoable(initialValue) { ... }` delegate.
-/// Stores a mutable value and invokes a callback before each set;
-/// the callback returns non-zero to accept the change, zero to veto.
-final class RuntimeVetoableBox {
-    var currentValue: Int
-    let callbackFnPtr: Int
-
-    init(initialValue: Int, callbackFnPtr: Int) {
-        currentValue = initialValue
-        self.callbackFnPtr = callbackFnPtr
-    }
-}
-
-/// Runtime box for `Delegates.notNull<T>()` delegate.
-/// Throws `IllegalStateException` if accessed before being assigned.
-final class RuntimeNotNullBox {
-    var currentValue: Int?
 }
 
 /// Runtime reflection metadata record stored in the global registry.
@@ -2491,11 +2588,14 @@ extension RuntimeArrayBox: RuntimeChildReferenceProviding {
 extension RuntimePairBox: RuntimeChildReferenceProviding {
     var childRefs: [Int] {
         [firstValue, secondValue].compactMap(\.childReferenceRawValue)
+            + (mutableMapRaw == 0 ? [] : [mutableMapRaw])
     }
 }
 
 extension RuntimeTripleBox: RuntimeChildReferenceProviding {
-    var childRefs: [Int] { [first, second, third] }
+    var childRefs: [Int] {
+        [firstValue, secondValue, thirdValue].compactMap(\.childReferenceRawValue)
+    }
 }
 
 extension RuntimeListBox: RuntimeChildReferenceProviding {
@@ -2511,6 +2611,10 @@ extension RuntimeMapBox: RuntimeChildReferenceProviding {
         keyValues.compactMap(\.childReferenceRawValue)
             + entryValues.compactMap(\.childReferenceRawValue)
     }
+}
+
+extension RuntimeMutableMapIteratorBox: RuntimeChildReferenceProviding {
+    var childRefs: [Int] { mapRaw == 0 ? [] : [mapRaw] }
 }
 
 extension RuntimeArrayDequeBox: RuntimeChildReferenceProviding {

@@ -176,10 +176,10 @@ extension DataFlowSemaPhase {
         let reusableSyntheticSymbol = reusableSyntheticDeclarationSymbol(
             kind: declaration.kind,
             fqName: fqName,
+            declarationFlags: declaration.flags,
             file: file,
             sourceManager: sourceManager,
-            symbols: symbols,
-            interner: interner
+            symbols: symbols
         )
         if reusableSyntheticSymbol == nil {
             checkAndReportDuplicateDeclaration(
@@ -323,6 +323,214 @@ extension DataFlowSemaPhase {
                     flags: [.synthetic]
                 )
             }
+        }
+    }
+
+    /// KSP-711: forward-declares `Charset` and `Charsets` from
+    /// `StringEncoding.kt` before synthetic FileIO bridges are registered.
+    /// Their source symbols must be available while bridge signatures are
+    /// constructed; `collectAllHeaders` later fills in the complete headers.
+    func predeclareBundledStringEncodingHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let charsetFQName = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("Charset"),
+        ]
+        guard symbols.lookup(fqName: charsetFQName) == nil else { return }
+
+        for file in ast.sortedFiles
+            where sourceManager.path(of: file.fileID) == "__bundled_kotlin/text/StringEncoding.kt"
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+        if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
+            // Keep the source file association for metadata and declaration
+            // binding, while retaining the historical compatibility-shell
+            // visibility used by semantic inventory goldens. The normal header
+            // pass still fills the source-backed declaration details.
+            symbols.setDeclSite(nil, for: charsetSymbol)
+        }
+    }
+
+    /// KSP-918: forward-declare the six `kotlin.annotation` core declarations
+    /// before synthetic annotation bootstrap runs. Their source declarations
+    /// refer to one another through `@Target`, `@Retention`, and
+    /// `@MustBeDocumented`, so the symbols must exist before annotations are
+    /// registered on the first source header.
+    func predeclareBundledAnnotationHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("annotation")]
+        let coreNames: Set<InternedString> = [
+            interner.intern("AnnotationRetention"),
+            interner.intern("AnnotationTarget"),
+            interner.intern("MustBeDocumented"),
+            interner.intern("Repeatable"),
+            interner.intern("Retention"),
+            interner.intern("Target"),
+        ]
+
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresCoreType = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case let .classDecl(classDecl):
+                    return coreNames.contains(classDecl.name)
+                case let .interfaceDecl(interfaceDecl):
+                    return coreNames.contains(interfaceDecl.name)
+                case let .objectDecl(objectDecl):
+                    return coreNames.contains(objectDecl.name)
+                case let .typeAliasDecl(typeAliasDecl):
+                    return coreNames.contains(typeAliasDecl.name)
+                default:
+                    return false
+                }
+            }
+            guard declaresCoreType, let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1522: forward-declares the source-backed `kotlin.random.Random` and
+    /// `java.util.Random` nominal types before synthetic collection and Sequence
+    /// members resolve their parameter types. `JavaRandomInterop.kt` can also be
+    /// collected before `JavaUtilRandom.kt`, so both owners must be available in
+    /// the same early pass.
+    func predeclareBundledRandomHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let targets: [([InternedString], InternedString)] = [
+            (
+                [interner.intern("kotlin"), interner.intern("random")],
+                interner.intern("Random")
+            ),
+            (
+                [interner.intern("java"), interner.intern("util")],
+                interner.intern("Random")
+            ),
+        ]
+        for (packageFQName, targetName) in targets {
+            for file in ast.sortedFiles where file.packageFQName == packageFQName {
+                let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                    guard let decl = ast.arena.decl(declID) else { return false }
+                    switch decl {
+                    case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                        return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                    case .funDecl, .propertyDecl, .enumEntryDecl:
+                        return false
+                    }
+                }
+                guard declaresTargetNominal,
+                      let fileScope = fileScopes[file.fileID.rawValue]
+                else { continue }
+                predeclareNominalTypeHeaders(
+                    file: file, ast: ast, symbols: symbols, scope: fileScope,
+                    sourceManager: sourceManager, diagnostics: diagnostics,
+                    interner: interner, into: &predeclared
+                )
+            }
+        }
+    }
+
+    /// KSP-1210: forward-declares the source-backed Native OsFamily enum before
+    /// Platform.osFamily's retained runtime bridge resolves its property type.
+    func predeclareBundledOsFamilyHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("native")]
+        let targetName = interner.intern("OsFamily")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTargetNominal,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1334: forward-declares the source-backed KTypeProjection nominal
+    /// before reflection synthetic stubs resolve its property owner.
+    func predeclareBundledKTypeProjectionHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
+        let targetName = interner.intern("KTypeProjection")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
         }
     }
 
@@ -834,7 +1042,20 @@ extension DataFlowSemaPhase {
             }
 
         case let .objectDecl(objectDecl):
-            let objectType = types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
+            // Unit keeps its builtin value representation, but its source-backed
+            // object symbol must remain available for ordinary member dispatch.
+            let builtinNames = BuiltinTypeNames(interner: interner)
+            let isUnitObject = package == [interner.intern("kotlin")] && declaration.name == builtinNames.unit
+            if isUnitObject {
+                types.unitClassSymbol = symbol
+            }
+            // Unit's value representation is a builtin type, but its member
+            // declarations are source-backed. Use the builtin type as the
+            // member receiver so normal overload resolution accepts Unit
+            // values without a name-based dispatch exception.
+            let objectType = isUnitObject
+                ? unitType
+                : types.make(.classType(ClassType(classSymbol: symbol, args: [], nullability: .nonNull)))
             let objectScope = ClassMemberScope(
                 parent: scope,
                 symbols: symbols,
@@ -981,7 +1202,10 @@ extension DataFlowSemaPhase {
             // through the kk_* ABI entry.
             if declaration.visibility != .private,
                let receiverType,
-               case let .classType(receiverClassType) = types.kind(of: types.makeNonNullable(receiverType)),
+               let receiverSymbol = BundledDeclarationIndex.receiverOwnerSymbol(
+                   for: receiverType,
+                   types: types
+               ),
                let semanticSymbol = symbols.symbol(symbol),
                let key = BundledDeclarationIndex.memberKey(
                    for: semanticSymbol,
@@ -991,7 +1215,7 @@ extension DataFlowSemaPhase {
                    interner: interner
                ),
                !BundledDeclarationIndex.isRuntimeBackedSyntheticRetainedOverlap(key, interner: interner) {
-                symbols.setParentSymbol(receiverClassType.classSymbol, for: symbol)
+                symbols.setParentSymbol(receiverSymbol, for: symbol)
 
                 // KSP-443: Runtime-linked bundled extension functions are registered
                 // under their declaring package FQ, but synthetic-member-link tests
@@ -1001,13 +1225,13 @@ extension DataFlowSemaPhase {
                 // kotlin.sequences.Sequence.toHashSet resolve to kk_sequence_toHashSet.
                 if let externalLinkName = symbols.externalLinkName(for: symbol),
                    !externalLinkName.isEmpty,
-                   let ownerSymbol = symbols.symbol(receiverClassType.classSymbol),
+                   let ownerSymbol = symbols.symbol(receiverSymbol),
                    let signature = symbols.functionSignature(for: symbol) {
                     let memberFQName = ownerSymbol.fqName + [semanticSymbol.name]
                     let alreadyExists = symbols.lookupAll(fqName: memberFQName).contains { existingID in
                         guard existingID != symbol,
                               let existingSig = symbols.functionSignature(for: existingID),
-                              symbols.parentSymbol(for: existingID) == receiverClassType.classSymbol
+                              symbols.parentSymbol(for: existingID) == receiverSymbol
                         else {
                             return false
                         }
@@ -1024,7 +1248,7 @@ extension DataFlowSemaPhase {
                             visibility: semanticSymbol.visibility,
                             flags: aliasFlags
                         )
-                        symbols.setParentSymbol(receiverClassType.classSymbol, for: aliasSymbol)
+                        symbols.setParentSymbol(receiverSymbol, for: aliasSymbol)
                         symbols.setFunctionSignature(signature, for: aliasSymbol)
                         symbols.setExternalLinkName(externalLinkName, for: aliasSymbol)
                     }
@@ -1210,23 +1434,29 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// Returns the predeclared synthetic nominal that a bundled source
+    /// declaration takes over, if one exists. Early synthetic stub passes
+    /// register nominal placeholders (e.g. `kotlin.Comparator`) so other stubs
+    /// can reference the type before bundled header collection runs; the
+    /// bundled declaration then claims that placeholder instead of defining a
+    /// duplicate symbol. User sources never claim placeholders — a same-name
+    /// collision there must still surface as KSWIFTK-SEMA-0001.
     func reusableSyntheticDeclarationSymbol(
         kind: SymbolKind,
         fqName: [InternedString],
+        declarationFlags: SymbolFlags,
         file: ASTFile,
         sourceManager: SourceManager,
-        symbols: SymbolTable,
-        interner: StringInterner
+        symbols: SymbolTable
     ) -> SymbolID? {
         guard kind == .class || kind == .interface || kind == .object || kind == .enumClass else { return nil }
-        let reusableKeys = reusableSyntheticSourceDeclarationKeys(
-            for: file,
-            sourceManager: sourceManager,
-            interner: interner
-        )
-        guard reusableKeys.contains(fqName) else {
-            return nil
-        }
+        guard sourceManager.path(of: file.fileID).hasPrefix("__bundled_") else { return nil }
+        // expect/actual declarations keep the coexistence path that
+        // checkAndReportDuplicateDeclaration already grants them over
+        // synthetic-only collisions, instead of claiming the placeholder.
+        guard !declarationFlags.contains(.expectDeclaration),
+              !declarationFlags.contains(.actualDeclaration)
+        else { return nil }
         return symbols.lookupAll(fqName: fqName).first { symbolID in
             guard let symbol = symbols.symbol(symbolID) else { return false }
             return symbol.kind == kind && symbol.flags.contains(.synthetic)
@@ -1242,8 +1472,10 @@ extension DataFlowSemaPhase {
         // KSP-683 needs the migrated Duration nominals to remain source-backed
         // for their value-class and enum metadata.
         let resolvedFQName = fqName.map(interner.resolve)
-        return resolvedFQName == ["kotlin", "time", "Duration"]
+        return resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+            || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
     }
 
     /// The fully-qualified names a bundled source file is allowed to claim from
