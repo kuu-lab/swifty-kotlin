@@ -69,6 +69,112 @@ struct StdlibArtifactRegressionTests {
     }
     """
 
+    /// KSP-1165: a named companion object must remain an exact nested type when
+    /// the stdlib is consumed through a precompiled artifact.
+    @Test
+    func testBase64NamedCompanionTypeThroughPrecompiledStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+        let source = """
+        import kotlin.io.encoding.Base64
+        import kotlin.io.encoding.ExperimentalEncodingApi
+
+        @OptIn(ExperimentalEncodingApi::class)
+        fun main() {
+            val default: Base64.Default = Base64.Default
+            val padding: Base64.PaddingOption = Base64.PaddingOption.ABSENT
+        }
+        """
+        try withTemporaryFile(contents: source) { userPath in
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "Base64NestedArtifact",
+                emit: .kirDump,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
+        }
+    }
+
+    /// Devin review: a regular nested object must use its own initializer
+    /// linkage decision, even when its enclosing class has a companion.
+    @Test
+    func testRegularNestedObjectDoesNotUseParentCompanionInitializerForGlobalLinkage() throws {
+        let source = """
+        open class Base {
+            open fun value(): Int = 0
+        }
+
+        class ContainerWithNestedObject {
+            companion object {
+                val companionMarker: Int = 1
+            }
+
+            object Nested : Base() {
+                override fun value(): Int = 42
+            }
+        }
+        """
+        try withTemporaryFile(contents: source) { sourcePath in
+            let ctx = makeCompilationContext(inputs: [sourcePath])
+            try runSema(ctx)
+            let sema = try #require(ctx.sema)
+            let nestedFQName = [
+                "ContainerWithNestedObject", "Nested"
+            ].map(ctx.interner.intern)
+            let parentFQName = ["ContainerWithNestedObject"].map(ctx.interner.intern)
+            let nestedSymbol = try #require(sema.symbols.lookup(fqName: nestedFQName))
+            let parentSymbol = try #require(sema.symbols.lookup(fqName: parentFQName))
+            let nestedLayout = try #require(sema.symbols.nominalLayout(for: nestedSymbol))
+            #expect(nestedLayout.vtableSize > 0)
+            #expect(sema.symbols.companionObjectSymbol(for: parentSymbol) != nestedSymbol)
+
+            let initializerName = ctx.interner.intern("__test_companion_init")
+            let initializer = sema.symbols.define(
+                kind: .function,
+                name: initializerName,
+                fqName: parentFQName + [initializerName],
+                declSite: nil,
+                visibility: .public
+            )
+            sema.symbols.setCompanionObjectInitializerSymbol(initializer, for: parentSymbol)
+
+            #expect(
+                NativeEmitter.shouldUseWeakImportedObjectGlobalReference(
+                    for: nestedSymbol,
+                    symbols: sema.symbols
+                )
+            )
+
+            let objectInitializerName = ctx.interner.intern("__test_object_init")
+            let objectInitializer = sema.symbols.define(
+                kind: .function,
+                name: objectInitializerName,
+                fqName: nestedFQName + [objectInitializerName],
+                declSite: nil,
+                visibility: .public
+            )
+            sema.symbols.setObjectInitializerSymbol(objectInitializer, for: nestedSymbol)
+            #expect(
+                !NativeEmitter.shouldUseWeakImportedObjectGlobalReference(
+                    for: nestedSymbol,
+                    symbols: sema.symbols
+                )
+            )
+
+            let companionSymbol = try #require(
+                sema.symbols.companionObjectSymbol(for: parentSymbol)
+            )
+            #expect(
+                !NativeEmitter.shouldUseWeakImportedObjectGlobalReference(
+                    for: companionSymbol,
+                    symbols: sema.symbols
+                )
+            )
+        }
+    }
+
     /// BUG-200: bundled source and precompiled stdlib metadata must agree on
     /// abstract member modality and on the owner's type argument in overrides.
     @Test
@@ -673,6 +779,67 @@ struct StdlibArtifactRegressionTests {
             let normalizedStdout = result.stdout
                 .replacingOccurrences(of: "\r\n", with: "\n")
             #expect(normalizedStdout == "s.isSuccess=true s.isFailure=false\nf.isSuccess=false f.isFailure=true\n")
+        }
+    }
+
+    /// Imported runtime-backed interface getters retain a direct external link
+    /// in the shared artifact. They must not be redirected to an itable property
+    /// slot that the runtime collection boxes do not register.
+    @Test
+    func testImportedCollectionSizeGetterUsesDirectBridge() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun collectionSize(values: Collection<Int>): Int = values.size
+
+        fun main() {
+            println(collectionSize(listOf(1, 2, 3)))
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "ImportedCollectionSizeGetter",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            let body = try findKIRFunctionBody(
+                named: "collectionSize",
+                in: module,
+                interner: ctx.interner
+            )
+            let directGetterLinks = body.compactMap { instruction -> String? in
+                guard case let .call(symbol, _, _, _, _, _, _, _) = instruction,
+                      let symbol
+                else {
+                    return nil
+                }
+                return sema.symbols.externalLinkName(for: symbol)
+            }
+            #expect(directGetterLinks.contains("__kk_collection_size"))
+            #expect(!body.contains { instruction in
+                guard case .virtualCall = instruction else { return false }
+                return true
+            })
+
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "3\n")
         }
     }
 
@@ -1620,6 +1787,45 @@ struct StdlibArtifactRegressionTests {
                 8
 
                 """)
+        }
+    }
+
+    /// KSP-1022: an imported non-inline range iterator must not be redirected
+    /// by InlineLoweringPass to the same-named MutableMap inline extension.
+    /// The name fallback is only valid when the call has no known semantic
+    /// symbol; artifact consumers otherwise lose the receiver-specific binding.
+    @Test
+    func testRangeHOFDoesNotUseSameNamedMutableMapIteratorFromArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        fun main() {
+            println((1..5).reduce { acc, value -> acc + value })
+            println((1..5).reduceIndexed { index, acc, value -> acc + index * value })
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "KSP1022RangeArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            #expect(normalizedStdout == "15\n41\n")
         }
     }
 }

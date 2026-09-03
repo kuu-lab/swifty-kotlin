@@ -4,12 +4,12 @@ private enum RuntimePlatformOsFamily: Int {
     case unknown = 0
     case macosx = 1
     case ios = 2
-    case tvos = 3
-    case watchos = 4
-    case linux = 5
-    case windows = 6
-    case android = 7
-    case wasm = 8
+    case linux = 3
+    case windows = 4
+    case android = 5
+    case wasm = 6
+    case tvos = 7
+    case watchos = 8
 }
 
 private enum RuntimePlatformCpuArchitecture: Int {
@@ -84,17 +84,11 @@ private let runtimePlatformCpuArchitecture: RuntimePlatformCpuArchitecture = {
 #endif
 }()
 
-private let runtimePlatformMemoryModel: RuntimePlatformMemoryModel = {
-#if KSWIFTK_MEMORY_MODEL_STRICT
-    .strict
-#elseif KSWIFTK_MEMORY_MODEL_RELAXED
-    .relaxed
-#else
-    .experimental
-#endif
-}()
+// Kotlin 2.3.10 exposes only EXPERIMENTAL at runtime.
+private let runtimePlatformMemoryModel: RuntimePlatformMemoryModel = .experimental
 
 private let runtimePlatformIsDebugBinary: Bool = _isDebugAssertConfiguration()
+private nonisolated(unsafe) var runtimePlatformMemoryLeakCheckerActive = runtimePlatformIsDebugBinary
 
 // Cache boxed ordinals once at startup to avoid heap allocation on every access.
 private let runtimePlatformOsFamilyBoxed: Int = kk_box_int(runtimePlatformOsFamily.rawValue)
@@ -141,4 +135,43 @@ public func kk_platform_memoryModel(_ platformRaw: Int) -> Int {
 public func kk_platform_isDebugBinary(_ platformRaw: Int) -> Int {
     _ = platformRaw
     return runtimePlatformIsDebugBinary ? 1 : 0
+}
+
+@_cdecl("kk_platform_programName")
+public func kk_platform_programName(_ platformRaw: Int) -> Int {
+    _ = platformRaw
+    guard let programName = CommandLine.arguments.first else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: programName.withCString { cstr in
+        cstr.withMemoryRebound(to: UInt8.self, capacity: programName.utf8.count) { pointer in
+            kk_string_from_utf8(pointer, Int32(programName.utf8.count))
+        }
+    })
+}
+
+@_cdecl("kk_platform_isMemoryLeakCheckerActive_load")
+public func kk_platform_isMemoryLeakCheckerActive_load(_ platformRaw: Int) -> Int {
+    _ = platformRaw
+    return runtimePlatformMemoryLeakCheckerActive ? 1 : 0
+}
+
+@_cdecl("kk_platform_isMemoryLeakCheckerActive_store")
+public func kk_platform_isMemoryLeakCheckerActive_store(_ platformRaw: Int, _ value: Int) -> Int {
+    _ = platformRaw
+    runtimePlatformMemoryLeakCheckerActive = value != 0
+    return 0
+}
+
+@_cdecl("kk_platform_getAvailableProcessorsEnv")
+public func kk_platform_getAvailableProcessorsEnv(_ platformRaw: Int) -> Int {
+    _ = platformRaw
+    guard let value = ProcessInfo.processInfo.environment["KOTLIN_NATIVE_AVAILABLE_PROCESSORS"] else {
+        return runtimeNullSentinelInt
+    }
+    return Int(bitPattern: value.withCString { cstr in
+        cstr.withMemoryRebound(to: UInt8.self, capacity: value.utf8.count) { pointer in
+            kk_string_from_utf8(pointer, Int32(value.utf8.count))
+        }
+    })
 }

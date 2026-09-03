@@ -1062,6 +1062,21 @@ struct RuntimeCollectionHOFTests {
     }
 
     @Test
+    func testMapOfPairsNormalizesLinkedFactorySpreadEntries() {
+        // KSP-954: linkedMapOf(*pairs) lowers to __kk_map_of_pairs with the
+        // spread varargs packed into a single Pair array.
+        let pairs = makeArray([
+            kk_pair_new(1, 10),
+            kk_pair_new(2, 20),
+            kk_pair_new(1, 30),
+        ])
+        let map = kk_map_of_pairs(pairs, 3)
+
+        #expect(mapKeys(map) == [1, 2])
+        #expect(mapValues(map) == [30, 20])
+    }
+
+    @Test
     func testMapPlusNormalizesMismatchedEntriesBeforeUpdate() {
         let corruptedMap = registerRuntimeObject(RuntimeMapBox(keys: [1, 2, 3], values: [10, 20]))
         let updated = kk_map_plus(corruptedMap, kk_pair_new(3, 99))
@@ -1173,7 +1188,7 @@ struct RuntimeCollectionHOFTests {
         let collectionCopy = kk_collection_toMutableList(listSource)
 
         #expect(listElements(collectionCopy) == [1, 2, 3])
-        #expect(kk_unbox_bool(kk_mutable_list_add(collectionCopy, 4)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_list_add(collectionCopy, 4, nil)) == 1)
         #expect(listElements(listSource) == [1, 2, 3])
         #expect(listElements(collectionCopy) == [1, 2, 3, 4])
 
@@ -1181,7 +1196,7 @@ struct RuntimeCollectionHOFTests {
         let iterableCopy = kk_collection_toMutableList(setSource)
 
         #expect(listElements(iterableCopy) == [3, 1, 2])
-        #expect(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_list_add(iterableCopy, 9, nil)) == 1)
         #expect(setElements(setSource) == [3, 1, 2])
         #expect(listElements(iterableCopy) == [3, 1, 2, 9])
     }
@@ -1192,7 +1207,7 @@ struct RuntimeCollectionHOFTests {
         let listCopy = kk_iterable_toMutableSet(listSource)
 
         #expect(setElements(listCopy) == [3, 1, 2])
-        #expect(kk_unbox_bool(kk_mutable_set_add(listCopy, 9)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_set_add(listCopy, 9, nil)) == 1)
         #expect(listElements(listSource) == [3, 1, 2, 1])
         #expect(setElements(listCopy) == [3, 1, 2, 9])
 
@@ -1200,7 +1215,7 @@ struct RuntimeCollectionHOFTests {
         let setCopy = kk_iterable_toMutableSet(setSource)
 
         #expect(setElements(setCopy) == [2, 3, 1])
-        #expect(kk_unbox_bool(kk_mutable_set_add(setCopy, 4)) == 1)
+        #expect(kk_unbox_bool(kk_mutable_set_add(setCopy, 4, nil)) == 1)
         #expect(setElements(setSource) == [2, 3, 2, 1])
         #expect(setElements(setCopy) == [2, 3, 1, 4])
     }

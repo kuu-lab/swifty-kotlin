@@ -157,7 +157,7 @@ extension CallTypeChecker {
                let receiverSymbol = sema.symbols.symbol(receiverSymbolID)
             {
                 switch receiverSymbol.kind {
-                case .class, .interface, .enumClass:
+                case .class, .interface, .enumClass, .annotationClass:
                     return receiverSymbolID
                 default:
                     break
@@ -169,7 +169,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .interface, .enumClass:
+                    case .class, .interface, .enumClass, .annotationClass:
                         return true
                     default:
                         return false
@@ -449,7 +449,7 @@ extension CallTypeChecker {
                     return false
                 }
                 switch symbol.kind {
-                case .class, .enumClass, .object:
+                case .class, .enumClass, .object, .annotationClass:
                     return true
                 default:
                     return false
@@ -464,7 +464,7 @@ extension CallTypeChecker {
                         return false
                     }
                     switch symbol.kind {
-                    case .class, .enumClass, .object:
+                    case .class, .enumClass, .object, .annotationClass:
                         return true
                     default:
                         return false
@@ -474,22 +474,25 @@ extension CallTypeChecker {
                     nestedOwnerSymbols = shortNameNestedOwners
                 }
             }
-            // `Owner.Nested` and `Owner.Nested()` parse to the identical
-            // zero-arg `.memberCall` node — there is no AST signal for
-            // whether call syntax was written. This is only unambiguous when
+            // `Owner.Nested` and `Owner.Nested()` share the same zero-arg
+            // `.memberCall` shape, but the AST arena records whether parentheses
+            // were written. This is mostly unambiguous when
             // no valid constructor-call reading could exist in the first
             // place: enum class constructors are always implicitly private
             // (never callable from outside the enum body) and `object`
             // declarations have no constructor at all, so a nested enum/object
             // reference must be the bare type/nested-owner (needed e.g. for
             // `Owner.Nested.ENTRY`, where `Nested` is the receiver of a
-            // further static member access). A nested `class`, in contrast,
-            // may have a genuine public zero-arg constructor (e.g.
+            // further static member access). A parenthesis-less nested annotation
+            // class is likewise a qualifier, while an explicit call must continue
+            // through constructor resolution. A nested `class`, in
+            // contrast, may have a genuine public zero-arg constructor (e.g.
             // `Outer.Builder()`), so it falls through to constructor
             // resolution below, preserving the pre-existing behavior.
             if args.isEmpty, let nestedOwner = nestedOwnerSymbols.first,
                let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
                nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+                   || (nestedOwnerKind == .annotationClass && !ast.arena.isExplicitCall(id))
             {
                 let nestedType = sema.types.make(.classType(ClassType(
                     classSymbol: nestedOwner,
@@ -590,6 +593,7 @@ extension CallTypeChecker {
 
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                receiverType: memberLookupType,
@@ -618,6 +622,7 @@ extension CallTypeChecker {
         }
         if !isClassNameReceiver,
            args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let extensionPropertyType = resolveExtensionPropertyGetter(
                id: id,
                calleeName: calleeName,
@@ -636,7 +641,7 @@ extension CallTypeChecker {
         // as the implicit receiver when resolving the call.
         var companionReceiverType: TypeID?
 
-        let allCandidates: [SymbolID]
+        var allCandidates: [SymbolID]
         if isClassNameReceiver {
             // Class-name receiver: only companion members are valid targets.
             // Skip collectMemberFunctionCandidates which would find instance
@@ -810,8 +815,70 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
+            var mutableMapPutAllSourceCandidates: [SymbolID] = []
+            if interner.resolve(calleeName) == "putAll",
+               ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
+               args.count == 1,
+               let argumentType = argTypes.first,
+               !ReceiverClassifier(sema: sema, interner: interner).isMapLikeCollectionType(argumentType)
+            {
+                let argumentExpr = args[0].expr
+                let isArrayArgument = ReceiverClassifier(sema: sema, interner: interner)
+                    .isArrayLikeReceiver(receiverID: argumentExpr)
+                let isSequenceArgument = ReceiverClassifier(sema: sema, interner: interner)
+                    .isSequenceLikeType(argumentType)
+                mutableMapPutAllSourceCandidates = sema.symbols.lookupAll(fqName: [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    calleeName,
+                ]).filter { candidate in
+                    guard let candidateSymbol = sema.symbols.symbol(candidate),
+                          candidateSymbol.kind == .function,
+                          (!candidateSymbol.flags.contains(.synthetic)
+                              || sema.symbols.isSourceBackedSymbol(candidate)),
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          let receiver = signature.receiverType,
+                          signature.parameterTypes.count == 1,
+                          let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                          let receiverInfo = sema.symbols.symbol(receiverSymbol),
+                          let parameterSymbol = driver.helpers.nominalSymbol(
+                              of: signature.parameterTypes[0], types: sema.types
+                          ),
+                          let parameterInfo = sema.symbols.symbol(parameterSymbol)
+                    else {
+                        return false
+                    }
+                    guard receiverInfo.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("MutableMap"),
+                    ] else {
+                        return false
+                    }
+                    if isArrayArgument {
+                        return parameterInfo.fqName == [
+                            interner.intern("kotlin"),
+                            interner.intern("Array"),
+                        ]
+                    }
+                    if isSequenceArgument {
+                        return parameterInfo.fqName == [
+                            interner.intern("kotlin"),
+                            interner.intern("sequences"),
+                            interner.intern("Sequence"),
+                        ]
+                    }
+                    return parameterInfo.fqName == [
+                        interner.intern("kotlin"),
+                        interner.intern("collections"),
+                        interner.intern("Iterable"),
+                    ]
+                }
+            }
             let memberCandidates: [SymbolID]
-            if !primitiveArraySourceCandidates.isEmpty {
+            if !mutableMapPutAllSourceCandidates.isEmpty {
+                memberCandidates = mutableMapPutAllSourceCandidates
+            } else if !primitiveArraySourceCandidates.isEmpty {
                 // Primitive-array HOFs are bundled Kotlin extensions. Prefer the
                 // exact source receiver over synthetic member stubs, including
                 // joinToString(transform), whose legacy stub shares the same name.
@@ -963,6 +1030,95 @@ extension CallTypeChecker {
                 }
             }
         }
+        // MutableMap.remove(key) has a source-backed projected-key overload in
+        // addition to the retained interface member. Prefer the Kotlin source
+        // declaration for ordinary MutableMap receiver calls while preserving
+        // the synthetic member for interface and lowering bridges.
+        if interner.resolve(calleeName) == "remove",
+           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
+           args.count == 1
+        {
+            let mutableMapRemoveCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let candidateSymbol = sema.symbols.symbol(candidate),
+                      candidateSymbol.kind == .function,
+                      (!candidateSymbol.flags.contains(.synthetic)
+                          || sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let receiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("MutableMap"),
+                ]
+            }
+            if !mutableMapRemoveCandidates.isEmpty {
+                allCandidates = mutableMapRemoveCandidates
+            }
+        }
+        // A mutable map has a source-backed iterator overload whose return type
+        // is MutableIterator<MutableMap.MutableEntry<K, V>>. If the inherited
+        // synthetic collection surface won the initial lookup, prefer the
+        // exact bundled extension before ordinary overload resolution.
+        if interner.resolve(calleeName) == "iterator",
+           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
+        {
+            let mutableMapIteratorCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("MutableMap"),
+                ]
+            }
+            if !mutableMapIteratorCandidates.isEmpty {
+                allCandidates = mutableMapIteratorCandidates
+            }
+        }
+        // `MutableMap.getValue(key)` is the read-only Map extension. The
+        // MutableMap delegated accessor has the same short name but requires
+        // `(thisRef, KProperty<*>)`; keep that two-argument delegate surface
+        // out of ordinary one-argument member calls.
+        if interner.resolve(calleeName) == "getValue",
+           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType),
+           args.count == 1
+        {
+            let mapGetValueCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let candidateSymbol = sema.symbols.symbol(candidate),
+                      candidateSymbol.kind == .function,
+                      (!candidateSymbol.flags.contains(.synthetic)
+                          || sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let receiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Map"),
+                ]
+            }
+            if !mapGetValueCandidates.isEmpty {
+                allCandidates = mapGetValueCandidates
+            }
+        }
+
         let isNullLiteralReceiver = if case let .nameRef(name, _) = ast.arena.expr(receiverID) {
             name == KnownCompilerNames(interner: interner).null
         } else {
@@ -1037,7 +1193,39 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
-        var candidates = visible
+        var candidates = preferMostSpecificMemberReceiverCandidates(
+            visible,
+            receiverType: lookupReceiverType,
+            argumentTypes: argTypes,
+            sema: sema,
+            interner: interner
+        )
+        // Kotlin selects MutableMap.withDefault over the less-specific
+        // Map.withDefault extension for a MutableMap receiver. Resolve this
+        // subtype preference before trailing-lambda overload inference sees
+        // two otherwise identical function shapes.
+        if interner.resolve(calleeName) == "withDefault",
+           ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(lookupReceiverType)
+        {
+            let mutableMapCandidates = candidates.filter { candidate in
+                guard sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      let receiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let symbol = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return symbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("MutableMap"),
+                ]
+            }
+            if !mutableMapCandidates.isEmpty {
+                candidates = mutableMapCandidates
+            }
+        }
         if interner.resolve(calleeName) == "coerceIn",
            !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
@@ -1084,6 +1272,22 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "toList" {
             candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "take" {
+            candidates = preferListTakeCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "unzip" {
+            candidates = preferListUnzipCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
                 sema: sema,
@@ -1209,9 +1413,11 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
+        let isMutableMapIteratorSource = memberNameText == "iterator"
+            && ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
         // KSP-687 resolves Array.joinToString through the dedicated primitive
         // and generic-array source candidates. KSP-429's broad trailing-lambda
         // gate is for List/Iterable source calls; applying it to Array receivers
@@ -1220,6 +1426,7 @@ extension CallTypeChecker {
             && isArrayLikeReceiver(receiverID: receiverID, sema: sema, interner: interner)
         let isSourceBackedMemberName = sourceBackedCollectionMemberNames.contains(memberNameText)
             || (sourceBackedTrailingLambdaMemberNames.contains(memberNameText) && !isArrayJoinToString)
+            || isMutableMapIteratorSource
         let hasSourceBackedCandidate = isSourceBackedMemberName
             && (!sourceBackedCollectionMemberNames.contains(memberNameText) || !hasTrailingLambdaArg)
             && candidates.contains { candidateID in
@@ -1639,7 +1846,11 @@ extension CallTypeChecker {
                    writeForbiddenSymbols: varianceResult.writeForbiddenSymbols
                )
             {
-                let paramType = sema.types.renderType(signature.parameterTypes[violatingParamIndex])
+                let paramType = sema.types.displayName(
+                    of: signature.parameterTypes[violatingParamIndex],
+                    symbols: sema.symbols,
+                    interner: interner
+                )
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
                     "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",
@@ -1836,7 +2047,8 @@ extension CallTypeChecker {
     ) -> Bool {
         switch interner.resolve(calleeName) {
         case "contains", "isEmpty", "iterator",
-             "toList", "forEach", "map", "filter",
+             "toList", "forEach", "map", "mapIndexed", "mapNotNull",
+             "filter", "filterIndexed", "filterNot",
              "take", "drop", "sorted", "average", "random", "randomOrNull":
             return true
         default:

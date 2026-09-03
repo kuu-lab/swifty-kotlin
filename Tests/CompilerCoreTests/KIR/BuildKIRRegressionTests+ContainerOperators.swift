@@ -232,13 +232,19 @@ extension BuildKIRRegressionTests {
         }
     }
 
-    // BUG-198: a built-in signed range keeps KSP-452's source iterator semantics,
-    // but the hot `for-in` loop uses the dedicated runtime fast path.
-    @Test func testBuildKIRLowersBuiltInRangeForLoopThroughFastRuntimePath() throws {
+    // ARCH-012: IntRange uses an induction variable, while other signed range
+    // shapes retain the BUG-198 runtime iterator path.
+    @Test func testBuildKIRLowersIntRangeForLoopThroughInductionVariablePath() throws {
         let source = """
         fun sumInts(): Int {
             var sum = 0
             for (i in 1..10) { sum += i }
+            return sum
+        }
+
+        fun sumTyped(range: IntRange): Int {
+            var sum = 0
+            for (i in range) { sum += i }
             return sum
         }
 
@@ -266,13 +272,29 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            for functionName in ["sumInts", "sumProgression", "sumLongs", "sumChars"] {
+            for functionName in ["sumInts", "sumTyped", "sumProgression", "sumLongs", "sumChars"] {
                 let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
                 let callees = extractCallees(from: body, interner: ctx.interner)
 
-                #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
-                #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                if functionName == "sumInts" {
+                    #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
+                    #expect(!callees.contains("__kk_range_first"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                    #expect(!callees.contains("__kk_range_last"), "\(functionName): direct range should not load a range object bound, got: \(callees)")
+                    #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                } else if functionName == "sumTyped" {
+                    #expect(!callees.contains("kk_range_for_in_iterator"), "\(functionName): induction loop must not allocate a runtime iterator, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_hasNext"), "\(functionName): induction loop must not call hasNext, got: \(callees)")
+                    #expect(!callees.contains("kk_range_for_in_next"), "\(functionName): induction loop must not call next, got: \(callees)")
+                    #expect(callees.contains("__kk_range_first"), "\(functionName): expected one-time first-bound load, got: \(callees)")
+                    #expect(callees.contains("__kk_range_last"), "\(functionName): expected one-time last-bound load, got: \(callees)")
+                    #expect(callees.contains("__kk_int_range_induction_le"), "\(functionName): expected native induction comparison, got: \(callees)")
+                } else {
+                    #expect(callees.contains("kk_range_for_in_iterator"), "\(functionName): expected range fast-path iterator, got: \(callees)")
+                    #expect(callees.contains("kk_range_for_in_hasNext"), "\(functionName): expected range fast-path hasNext, got: \(callees)")
+                    #expect(callees.contains("kk_range_for_in_next"), "\(functionName): expected range fast-path next, got: \(callees)")
+                }
                 #expect(!callees.contains("iterator"), "\(functionName): for-in must not allocate the generic source iterator, got: \(callees)")
                 #expect(!callees.contains("kk_iterator_hasNext"), "\(functionName): for-in must not use generic hasNext dispatch, got: \(callees)")
                 #expect(!callees.contains("kk_iterator_next"), "\(functionName): for-in must not use generic next dispatch, got: \(callees)")
@@ -280,6 +302,49 @@ extension BuildKIRRegressionTests {
                 #expect(!callees.contains("kk_range_hasNext"), "\(functionName): range loop must not use kk_range_hasNext, got: \(callees)")
                 #expect(!callees.contains("kk_range_next"), "\(functionName): range loop must not use kk_range_next, got: \(callees)")
             }
+        }
+    }
+
+    // KSP-996 review regression: generic iterator bridges have a trailing
+    // outThrown ABI channel, so their KIR calls must be marked throwing.
+    @Test
+    func testBuildKIRMarksDynamicIterableBridgeCallsAsThrowing() throws {
+        let source = """
+        fun sumAll(xs: Iterable<Int>): Int {
+            try {
+                var sum = 0
+                for (x in xs) { sum += x }
+                return sum
+            } catch (e: IllegalStateException) {
+                return -1
+            }
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "sumAll", in: module, interner: ctx.interner)
+            let expectedNames: Set<String> = [
+                "kk_iterable_iterator",
+                "kk_iterator_hasNext",
+                "kk_iterator_next",
+            ]
+            let bridgeCalls: [(name: String, canThrow: Bool, hasThrownResult: Bool)] = body.compactMap { instruction in
+                guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instruction else {
+                    return nil
+                }
+                let name = ctx.interner.resolve(callee)
+                guard expectedNames.contains(name) else {
+                    return nil
+                }
+                return (name, canThrow, thrownResult != nil)
+            }
+
+            #expect(Set(bridgeCalls.map { $0.name }) == expectedNames, "Unexpected iterator bridge calls: \(bridgeCalls)")
+            #expect(bridgeCalls.allSatisfy { $0.canThrow && $0.hasThrownResult }, "Iterator bridge calls must carry the throwing channel: \(bridgeCalls)")
         }
     }
 }

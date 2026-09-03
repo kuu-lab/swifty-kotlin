@@ -9,6 +9,8 @@ extension CallTypeChecker {
         "reduce", "reduceIndexed", "reduceOrNull", "fold", "foldIndexed",
         "find", "findLast", "first", "firstOrNull", "last", "lastOrNull",
         "any", "all", "none", "count", "joinToString",
+        "contentEquals", "contentHashCode", "contentToString",
+        "copyOf", "copyOfRange", "copyInto",
     ]
 
     /// Finds the exact primitive-array source overload before the default-import
@@ -156,7 +158,7 @@ extension CallTypeChecker {
     func isSupportedArrayMember(_ memberName: String) -> Bool {
         let arrayMembers: Set = [
             "toList", "toMutableList",
-            "copyOf", "copyOfRange", "fill",
+            "copyOf", "copyOfRange", "copyInto", "fill",
             "size", "get", "contains", "isEmpty",
             "concatToString",
         ]
@@ -173,6 +175,8 @@ extension CallTypeChecker {
             argCount == 1
         case "copyOfRange":
             argCount == 2
+        case "copyInto":
+            (1...4).contains(argCount)
         default:
             true
         }

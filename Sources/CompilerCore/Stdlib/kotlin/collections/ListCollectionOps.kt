@@ -2,6 +2,8 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 import kotlin.internal.__valuesEqual
+import kotlin.experimental.ExperimentalTypeInference
+import kotlin.sequences.Sequence
 
 // KSP-428
 // List collection operations and numeric helpers migrated from the Swift
@@ -28,6 +30,20 @@ public operator fun <T> Iterable<T>.plus(elements: Iterable<T>): List<T> {
     return result
 }
 
+public operator fun <T> Iterable<T>.plus(elements: Array<out T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (element in elements) result.add(element)
+    return result
+}
+
+public operator fun <T> Iterable<T>.plus(elements: Sequence<T>): List<T> {
+    val result = mutableListOf<T>()
+    for (item in this) result.add(item)
+    for (element in elements) result.add(element)
+    return result
+}
+
 public operator fun <T> Iterable<T>.minus(element: T): List<T> {
     val result = mutableListOf<T>()
     var removed = false
@@ -45,6 +61,26 @@ public operator fun <T> Iterable<T>.minus(elements: Iterable<T>): List<T> {
     val result = mutableListOf<T>()
     for (item in this) {
         if (!listIterableContains(elements, item)) result.add(item)
+    }
+    return result
+}
+
+public operator fun <T> Iterable<T>.minus(elements: Array<out T>): List<T> {
+    if (elements.isEmpty()) return this.toList()
+    val other = elements.toList()
+    val result = mutableListOf<T>()
+    for (item in this) {
+        if (!listIterableContains(other, item)) result.add(item)
+    }
+    return result
+}
+
+public operator fun <T> Iterable<T>.minus(elements: Sequence<T>): List<T> {
+    val other = elements.toList()
+    if (other.isEmpty()) return this.toList()
+    val result = mutableListOf<T>()
+    for (item in this) {
+        if (!listIterableContains(other, item)) result.add(item)
     }
     return result
 }
@@ -88,6 +124,110 @@ public fun <T, K> Iterable<T>.distinctBy(selector: (T) -> K): List<T> {
         if (seen.add(selector(element))) result.add(element)
     }
     return result
+}
+
+// JVM-only @JvmName aliases are intentionally omitted: KSwiftK targets Native,
+// where overload identity is represented by the full Kotlin signature/mangler.
+
+public fun Iterable<Byte>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<Double>.sum(): Double {
+    var sum = 0.0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<Float>.sum(): Float {
+    var sum = 0.0f
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<Int>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<Long>.sum(): Long {
+    var sum = 0L
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<Short>.sum(): Int {
+    var sum = 0
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<UByte>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<UInt>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<ULong>.sum(): ULong {
+    var sum = 0uL
+    for (element in this) sum += element
+    return sum
+}
+
+public fun Iterable<UShort>.sum(): UInt {
+    var sum = 0u
+    for (element in this) sum += element
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.sumOf(selector: (T) -> Double): Double {
+    var sum = 0.0
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.4")
+public inline fun <T> Iterable<T>.sumOf(selector: (T) -> Int): Int {
+    var sum = 0
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.sumOf(selector: (T) -> Long): Long {
+    var sum = 0L
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+public inline fun <T> Iterable<T>.sumOf(selector: (T) -> UInt): UInt {
+    var sum = 0u
+    for (element in this) sum += selector(element)
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.sumOf(selector: (T) -> ULong): ULong {
+    var sum = 0uL
+    for (element in this) sum += selector(element)
+    return sum
 }
 
 public fun List<Int>.sum(): Int {

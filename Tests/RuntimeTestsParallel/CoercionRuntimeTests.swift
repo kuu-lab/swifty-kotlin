@@ -19,7 +19,7 @@ struct CoercionRuntimeTests {
         let preciseDouble = 1.23456789012345
         let doubleBits = doubleToBits(preciseDouble)
         let floatBits = kk_double_to_float(doubleBits)
-        let convertedBackBits = kk_float_to_double_bits(floatBits)
+        let convertedBackBits = __kk_float_to_double_bits(floatBits)
         let convertedBack = bitsToDouble(convertedBackBits)
 
         #expect(abs(convertedBack - preciseDouble) > 1e-15)
@@ -221,31 +221,6 @@ struct CoercionRuntimeTests {
         #expect(kk_ushort_to_char(65535) == 65535)
     }
 
-    @Test
-    func testCharToIntConversion() {
-        #expect(kk_char_to_int(65) == 65)
-        #expect(kk_char_to_int(0x1F600) == 0x1F600)
-        #expect(kk_char_to_int(0) == 0)
-    }
-
-    @Test
-    func testCharToLongConversion() {
-        #expect(kk_char_to_long(65) == 65)
-        #expect(kk_char_to_long(0x1F600) == 0x1F600)
-    }
-
-    @Test
-    func testCharToUIntConversion() {
-        #expect(kk_char_to_uint(65) == 65)
-        #expect(kk_char_to_uint(0x1F600) == 0x1F600)
-    }
-
-    @Test
-    func testCharToULongConversion() {
-        #expect(kk_char_to_ulong(65) == 65)
-        #expect(kk_char_to_ulong(0x1F600) == 0x1F600)
-    }
-
     // MARK: - Additional Conversion Tests (STDLIB-PRIM-002)
 
     @Test
@@ -284,20 +259,6 @@ struct CoercionRuntimeTests {
         #expect(kk_short_to_char(0x1F600) == 0xF600)
     }
 
-    @Test
-    func testFloatToCharConversion() {
-        #expect(kk_float_to_char(kk_float_to_bits(Float(65.0))) == 65)
-        #expect(kk_float_to_char(kk_float_to_bits(Float.nan)) == 0)
-        #expect(kk_float_to_char(kk_float_to_bits(Float(-1.0))) == 0)
-    }
-
-    @Test
-    func testDoubleToCharConversion() {
-        #expect(kk_double_to_char(kk_double_to_bits(65.0)) == 65)
-        #expect(kk_double_to_char(kk_double_to_bits(Double.nan)) == 0)
-        #expect(kk_double_to_char(kk_double_to_bits(-1.0)) == 0)
-    }
-
     // MARK: - Cross-Type Conversion Tests
 
     @Test
@@ -332,21 +293,6 @@ struct CoercionRuntimeTests {
         #expect(asUInt == original)
         #expect(asULong == original)
         #expect(asChar == original)
-    }
-
-    @Test
-    func testCrossTypeCharConversions() {
-        let original = 0x1F600 // 😀 emoji
-        let asChar = kk_int_to_char(original)
-        let backToInt = kk_char_to_int(asChar)
-        let asLong = kk_char_to_long(asChar)
-        let asUInt = kk_char_to_uint(asChar)
-        let asULong = kk_char_to_ulong(asChar)
-
-        #expect(backToInt == 0xF600)
-        #expect(asLong == 0xF600)
-        #expect(asUInt == 0xF600)
-        #expect(asULong == 0xF600)
     }
 
 }

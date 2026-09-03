@@ -9,43 +9,6 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex
     ) {
         let anyType = types.anyType
-        let knownNames = KnownCompilerNames(interner: interner)
-
-        let rootLazyInterfaceSymbol = ensureInterfaceSymbol(
-            named: "Lazy", in: kotlinPkg, symbols: symbols, interner: interner
-        )
-        let rootLazyTypeParamName = interner.intern("T")
-        let rootLazyFQName = kotlinPkg + [interner.intern("Lazy")]
-        let rootLazyTypeParamSymbol = symbols.lookup(fqName: rootLazyFQName + [rootLazyTypeParamName]) ?? {
-            let symbol = symbols.define(
-                kind: .typeParameter,
-                name: rootLazyTypeParamName,
-                fqName: rootLazyFQName + [rootLazyTypeParamName],
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            symbols.setParentSymbol(rootLazyInterfaceSymbol, for: symbol)
-            return symbol
-        }()
-        types.setNominalTypeParameterSymbols([rootLazyTypeParamSymbol], for: rootLazyInterfaceSymbol)
-        types.setNominalTypeParameterVariances([.out], for: rootLazyInterfaceSymbol)
-        // ObservableProperty and Delegates remain synthetic until KSP-681, so
-        // they need a nominal ReadWriteProperty anchor during the pre-source
-        // synthetic registration pass. Interfaces.kt reuses this shell when
-        // bundled source headers are collected later.
-        let rwPropertySymbol = ensureInterfaceSymbol(
-            named: "ReadWriteProperty", in: kotlinPropertiesPkg, symbols: symbols, interner: interner
-        )
-        registerPropertyDelegateInterfaceTypeParameters(
-            ownerSymbol: rwPropertySymbol,
-            ownerPackage: kotlinPropertiesPkg,
-            ownerName: "ReadWriteProperty",
-            variances: [.in, .invariant],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
 
         // Register kotlin.reflect.KProperty<out V> interface stub so that
         // `import kotlin.reflect.KProperty` and `KProperty<*>` type references resolve.
@@ -55,6 +18,7 @@ extension DataFlowSemaPhase {
         registerAssociatedObjectKeyAnnotation(
             kotlinReflectPkg: kotlinReflectPkg,
             symbols: symbols,
+            types: types,
             interner: interner
         )
         registerFindAssociatedObjectFunction(
@@ -77,15 +41,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner,
             kotlinReflectPkg: kotlinReflectPkg
-        )
-
-        registerObservablePropertyStub(
-            kotlinPropertiesPkg: kotlinPropertiesPkg,
-            readWritePropertySymbol: rwPropertySymbol,
-            kPropertySymbol: kPropertySymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
         )
 
         // Register `name` property on KProperty (inherited from KCallable).
@@ -281,433 +236,6 @@ extension DataFlowSemaPhase {
                 symbols.setPropertyType(anyType, for: paramsSymbol)
             }
         }
-
-        let delegatesName = interner.intern("Delegates")
-        let delegatesFQName = kotlinPropertiesPkg + [delegatesName]
-        let delegatesSymbol: SymbolID = if let existing = symbols.lookup(fqName: delegatesFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .object, name: delegatesName, fqName: delegatesFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-        }
-        let delegatesType = types.make(.classType(ClassType(
-            classSymbol: delegatesSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(delegatesType, for: delegatesSymbol)
-
-        guard let ownerSym = symbols.symbol(delegatesSymbol) else { return }
-
-        // `observable`/`vetoable`/`notNull` are declared generic in `T` and
-        // return `ReadWriteProperty<Any?, T>`, so that the delegated property's
-        // type can be recovered from the factory's return type (BUG-147). The
-        // callback parameter must be part of the signature as well: a call with
-        // a trailing lambda is resolved with two arguments inside a function
-        // body, so a one-parameter stub made every local
-        // `by Delegates.observable(v) { ... }` fail overload resolution.
-        for memberName in ["observable", "vetoable"] {
-            let internedName = interner.intern(memberName)
-            let fqName = ownerSym.fqName + [internedName]
-            guard symbols.lookup(fqName: fqName) == nil else { continue }
-            let funcSymbol = symbols.define(
-                kind: .function, name: internedName, fqName: fqName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(delegatesSymbol, for: funcSymbol)
-            let valueTypeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: fqName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(funcSymbol, for: valueTypeParamSymbol)
-            let valueType = types.make(.typeParam(TypeParamType(
-                symbol: valueTypeParamSymbol, nullability: .nonNull
-            )))
-            let onChangeType = types.make(.functionType(FunctionType(
-                params: [anyType, valueType, valueType],
-                returnType: memberName == "vetoable" ? types.booleanType : types.unitType,
-                isSuspend: false,
-                nullability: .nonNull
-            )))
-            let parameterSymbols = ["initialValue", "onChange"].map { paramName in
-                let paramSymbol = symbols.define(
-                    kind: .valueParameter,
-                    name: interner.intern(paramName),
-                    fqName: fqName + [interner.intern(paramName)],
-                    declSite: nil,
-                    visibility: .private,
-                    flags: [.synthetic]
-                )
-                symbols.setParentSymbol(funcSymbol, for: paramSymbol)
-                return paramSymbol
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: delegatesType,
-                    parameterTypes: [valueType, onChangeType],
-                    returnType: readWriteDelegateType(
-                        of: valueType, rwPropertySymbol: rwPropertySymbol, types: types
-                    ),
-                    valueParameterSymbols: parameterSymbols,
-                    // The callback is modelled as defaulted so the factory also
-                    // resolves where the trailing lambda is not counted as an
-                    // argument (property-delegate position).
-                    valueParameterHasDefaultValues: [false, true],
-                    valueParameterIsVararg: [false, false],
-                    typeParameterSymbols: [valueTypeParamSymbol]
-                ),
-                for: funcSymbol
-            )
-        }
-
-        let notNullName = knownNames.notNull
-        let notNullFQName = ownerSym.fqName + [notNullName]
-        if symbols.lookup(fqName: notNullFQName) == nil {
-            let notNullSymbol = symbols.define(
-                kind: .function, name: notNullName, fqName: notNullFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(delegatesSymbol, for: notNullSymbol)
-            let valueTypeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: interner.intern("T"),
-                fqName: notNullFQName + [interner.intern("T")],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(notNullSymbol, for: valueTypeParamSymbol)
-            let valueType = types.make(.typeParam(TypeParamType(
-                symbol: valueTypeParamSymbol, nullability: .nonNull
-            )))
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: delegatesType,
-                    parameterTypes: [],
-                    returnType: readWriteDelegateType(
-                        of: valueType, rwPropertySymbol: rwPropertySymbol, types: types
-                    ),
-                    typeParameterSymbols: [valueTypeParamSymbol]
-                ),
-                for: notNullSymbol
-            )
-        }
-
-
-    }
-
-    /// `ReadWriteProperty<Any?, valueType>` — the delegate type the
-    /// `kotlin.properties.Delegates` factories are declared to return.
-    private func readWriteDelegateType(
-        of valueType: TypeID,
-        rwPropertySymbol: SymbolID,
-        types: TypeSystem
-    ) -> TypeID {
-        types.make(.classType(ClassType(
-            classSymbol: rwPropertySymbol,
-            args: [.in(types.makeNullable(types.anyType)), .invariant(valueType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func registerPropertyDelegateInterfaceTypeParameters(
-        ownerSymbol: SymbolID,
-        ownerPackage: [InternedString],
-        ownerName: String,
-        variances: [TypeVariance],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let ownerName = interner.intern(ownerName)
-        let ownerFQName = ownerPackage + [ownerName]
-        let typeParamNames = ["T", "V"].map { interner.intern($0) }
-        let typeParamSymbols = typeParamNames.map { name in
-            let fqName = ownerFQName + [name]
-            if let existing = symbols.lookup(fqName: fqName) {
-                return existing
-            }
-            let symbol = symbols.define(
-                kind: .typeParameter,
-                name: name,
-                fqName: fqName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ownerSymbol, for: symbol)
-            return symbol
-        }
-        // Imported stdlib metadata has already restored the nominal type
-        // parameters and the signatures of its members refer to those exact
-        // symbols. Do not replace them with the residual synthetic shell's
-        // parameters: doing so breaks generic override substitution when a
-        // consumer imports the bundled stdlib artifact.
-        let hasImportedTypeParameters = symbols.symbol(ownerSymbol)?.flags.contains(.importedLibrary) == true
-            && types.nominalTypeParameterSymbols(for: ownerSymbol).count == typeParamSymbols.count
-        if !hasImportedTypeParameters {
-            types.setNominalTypeParameterSymbols(typeParamSymbols, for: ownerSymbol)
-            types.setNominalTypeParameterVariances(variances, for: ownerSymbol)
-        }
-    }
-
-    private func registerObservablePropertyStub(
-        kotlinPropertiesPkg: [InternedString],
-        readWritePropertySymbol: SymbolID,
-        kPropertySymbol: SymbolID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let observableName = interner.intern("ObservableProperty")
-        let observableFQName = kotlinPropertiesPkg + [observableName]
-        let observableSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: observableFQName) {
-            observableSymbol = existing
-            symbols.insertFlags([.abstractType, .synthetic], for: existing)
-        } else {
-            observableSymbol = symbols.define(
-                kind: .class,
-                name: observableName,
-                fqName: observableFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .abstractType]
-            )
-            if let packageSymbol = symbols.lookup(fqName: kotlinPropertiesPkg), packageSymbol != .invalid {
-                symbols.setParentSymbol(packageSymbol, for: observableSymbol)
-            }
-        }
-
-        let vName = interner.intern("V")
-        let vFQName = observableFQName + [vName]
-        let vSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: vFQName) {
-            vSymbol = existing
-        } else {
-            vSymbol = symbols.define(
-                kind: .typeParameter,
-                name: vName,
-                fqName: vFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(observableSymbol, for: vSymbol)
-        }
-
-        types.setNominalTypeParameterSymbols([vSymbol], for: observableSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: observableSymbol)
-
-        let vType = types.make(.typeParam(TypeParamType(symbol: vSymbol, nullability: .nonNull)))
-        let observableType = types.make(.classType(ClassType(
-            classSymbol: observableSymbol,
-            args: [.invariant(vType)],
-            nullability: .nonNull
-        )))
-        let nullableAny = types.makeNullable(types.anyType)
-        let kPropertyType = types.make(.classType(ClassType(
-            classSymbol: kPropertySymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
-
-        symbols.setDirectSupertypes([readWritePropertySymbol], for: observableSymbol)
-        types.setNominalDirectSupertypes([readWritePropertySymbol], for: observableSymbol)
-        let readWriteArgs: [TypeArg] = [.in(nullableAny), .invariant(vType)]
-        symbols.setSupertypeTypeArgs(readWriteArgs, for: observableSymbol, supertype: readWritePropertySymbol)
-        types.setNominalSupertypeTypeArgs(readWriteArgs, for: observableSymbol, supertype: readWritePropertySymbol)
-
-        registerObservablePropertyConstructor(
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            valueType: vType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerObservablePropertyFunction(
-            named: "beforeChange",
-            visibility: .protected,
-            flags: [.synthetic, .openType],
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            parameterNames: ["property", "oldValue", "newValue"],
-            parameterTypes: [kPropertyType, vType, vType],
-            returnType: types.booleanType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerObservablePropertyFunction(
-            named: "afterChange",
-            visibility: .protected,
-            flags: [.synthetic, .openType],
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            parameterNames: ["property", "oldValue", "newValue"],
-            parameterTypes: [kPropertyType, vType, vType],
-            returnType: types.unitType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerObservablePropertyFunction(
-            named: "getValue",
-            flags: [.synthetic, .operatorFunction, .overrideMember, .openType],
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            parameterNames: ["thisRef", "property"],
-            parameterTypes: [nullableAny, kPropertyType],
-            returnType: vType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerObservablePropertyFunction(
-            named: "setValue",
-            flags: [.synthetic, .operatorFunction, .overrideMember, .openType],
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            parameterNames: ["thisRef", "property", "value"],
-            parameterTypes: [nullableAny, kPropertyType, vType],
-            returnType: types.unitType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-        registerObservablePropertyFunction(
-            named: "toString",
-            flags: [.synthetic, .overrideMember, .openType],
-            ownerSymbol: observableSymbol,
-            ownerFQName: observableFQName,
-            ownerType: observableType,
-            parameterNames: [],
-            parameterTypes: [],
-            returnType: types.stringType,
-            typeParameterSymbol: vSymbol,
-            symbols: symbols,
-            interner: interner
-        )
-    }
-
-    private func registerObservablePropertyConstructor(
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        valueType: TypeID,
-        typeParameterSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let initName = interner.intern("<init>")
-        let initFQName = ownerFQName + [initName]
-        if symbols.lookup(fqName: initFQName) != nil {
-            return
-        }
-        let constructorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: initFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: constructorSymbol)
-
-        let parameterName = interner.intern("initialValue")
-        let parameterSymbol = symbols.define(
-            kind: .valueParameter,
-            name: parameterName,
-            fqName: initFQName + [parameterName],
-            declSite: nil,
-            visibility: .private,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(constructorSymbol, for: parameterSymbol)
-        symbols.setPropertyType(valueType, for: parameterSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: [valueType],
-                returnType: ownerType,
-                valueParameterSymbols: [parameterSymbol],
-                valueParameterHasDefaultValues: [false],
-                valueParameterIsVararg: [false],
-                typeParameterSymbols: [typeParameterSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: constructorSymbol
-        )
-    }
-
-    private func registerObservablePropertyFunction(
-        named name: String,
-        visibility: Visibility = .public,
-        flags: SymbolFlags,
-        ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
-        ownerType: TypeID,
-        parameterNames: [String],
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        typeParameterSymbol: SymbolID,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern(name)
-        let functionFQName = ownerFQName + [functionName]
-        if symbols.lookup(fqName: functionFQName) != nil {
-            return
-        }
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: visibility,
-            flags: flags
-        )
-        symbols.setParentSymbol(ownerSymbol, for: functionSymbol)
-
-        var parameterSymbols: [SymbolID] = []
-        for (parameterNameText, parameterType) in zip(parameterNames, parameterTypes) {
-            let parameterName = interner.intern(parameterNameText)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: functionFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(functionSymbol, for: parameterSymbol)
-            symbols.setPropertyType(parameterType, for: parameterSymbol)
-            parameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: ownerType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: parameterSymbols.count),
-                typeParameterSymbols: [typeParameterSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: functionSymbol
-        )
     }
 
     // STDLIB-REFLECT-TYPE-009: Register KMutableProperty<V> as a mutable KProperty surface.
@@ -1961,11 +1489,36 @@ extension DataFlowSemaPhase {
     private func registerAssociatedObjectKeyAnnotation(
         kotlinReflectPkg: [InternedString],
         symbols: SymbolTable,
+        types: TypeSystem,
         interner: StringInterner
     ) {
         let symbol = ensureAnnotationClassSymbol(
             named: "AssociatedObjectKey", in: kotlinReflectPkg, symbols: symbols, interner: interner
         )
+        let annotationType = types.make(.classType(ClassType(
+            classSymbol: symbol,
+            args: [],
+            nullability: .nonNull
+        )))
+        let constructorName = interner.intern("<init>")
+        let annotationFQName = symbols.symbol(symbol)?.fqName
+            ?? (kotlinReflectPkg + [interner.intern("AssociatedObjectKey")])
+        let constructorFQName = annotationFQName + [constructorName]
+        if symbols.lookupAll(fqName: constructorFQName).isEmpty {
+            let constructor = symbols.define(
+                kind: .constructor,
+                name: constructorName,
+                fqName: constructorFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(symbol, for: constructor)
+            symbols.setFunctionSignature(FunctionSignature(
+                parameterTypes: [],
+                returnType: annotationType
+            ), for: constructor)
+        }
         let targetRecord = MetadataAnnotationRecord(
             annotationFQName: "kotlin.annotation.Target",
             arguments: ["AnnotationTarget.ANNOTATION_CLASS"]

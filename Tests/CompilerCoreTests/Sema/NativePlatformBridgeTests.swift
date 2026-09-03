@@ -3,8 +3,8 @@
 import Testing
 
 /// STDLIB-NATIVE-PLATFORM-002: Sema-level tests verifying that
-/// Platform, OsFamily, CpuArchitecture, and MemoryModel are visible and correctly
-/// bridged from a common expect declaration to a native actual declaration.
+/// Platform, OsFamily, CpuArchitecture, and MemoryModel are visible with the
+/// source-backed Platform surface and current nominal enum types.
 /// No runtime edits are made; these tests exercise the symbol-table and
 /// type-checker layers only.
 @Suite
@@ -118,7 +118,7 @@ struct NativePlatformBridgeTests {
                 ]
                 let symbol = try #require(
                     sema.symbols.lookup(fqName: fqName).flatMap { sema.symbols.symbol($0) },
-                    "kotlin.native.OsFamily must be registered as a synthetic enum class"
+                    "kotlin.native.OsFamily must be registered as an enum class"
                 )
                 #expect(symbol.kind == .enumClass)
             }
@@ -131,8 +131,8 @@ struct NativePlatformBridgeTests {
                     interner.intern("native"),
                     interner.intern("OsFamily"),
                 ]
-                let expectedEntries = ["UNKNOWN", "MACOSX", "IOS", "TVOS", "WATCHOS",
-                                       "LINUX", "WINDOWS", "ANDROID", "WASM"]
+                let expectedEntries = ["UNKNOWN", "MACOSX", "IOS", "LINUX", "WINDOWS",
+                                       "ANDROID", "WASM", "TVOS", "WATCHOS"]
                 for entry in expectedEntries {
                     let entryFQName = baseFQName + [interner.intern(entry)]
                     let sym = sema.symbols.lookup(fqName: entryFQName).flatMap { sema.symbols.symbol($0) }
@@ -262,7 +262,7 @@ struct NativePlatformBridgeTests {
                 #expect(symbol?.kind == .property)
             }
 
-            // testPlatformMemoryModelPropertyIsVisibleAndLinked
+            // testPlatformMemoryModelPropertyIsVisibleAsTheCurrentConstant
             do {
                 let sema = try #require(ctx.sema)
                 let fqName = [
@@ -276,7 +276,10 @@ struct NativePlatformBridgeTests {
                     "Platform.memoryModel must be registered as a property"
                 )
                 #expect(sema.symbols.symbol(propertySymbol)?.kind == .property)
-                #expect(sema.symbols.externalLinkName(for: propertySymbol) == "kk_platform_memoryModel")
+                // Kotlin 2.3.10 defines this property as MemoryModel.EXPERIMENTAL;
+                // the legacy runtime entry remains ABI-compatible but is not the
+                // source-backed property's lowering target.
+                #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
 
                 let propertyType = try #require(sema.symbols.propertyType(for: propertySymbol))
                 guard case .classType(let classType) = sema.types.kind(of: propertyType) else {

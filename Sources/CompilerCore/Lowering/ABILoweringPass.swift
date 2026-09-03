@@ -111,6 +111,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
 
+        // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
+        // generic and primitive arrays without a Sema function signature. Keep
+        // its result on the same ABI normalization path as other erased
+        // collection results so conditions compare the unboxed Boolean.
+        let boxedBooleanReturnCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_array_is_empty"),
+        ]
+
         // __kk_op_rangeUntil backs the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
@@ -290,11 +298,21 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     continue
                 }
 
-                // Synthetic property accessor symbols are always non-throwing.
-                // Preserve historical classification via SyntheticSymbolScheme.
+                // Most synthetic property accessors are field/property plumbing
+                // and historically have no throwing ABI. Delegated properties
+                // are different: their accessor invokes delegate getValue or
+                // setValue, which can throw (e.g. Delegates.notNull()).
                 let isSyntheticAccessor: Bool = {
                     guard let s = callSymbol else { return false }
                     return SyntheticSymbolScheme.isLikelySyntheticPropertyAccessor(s)
+                }()
+                let isDelegatedAccessor: Bool = {
+                    guard isSyntheticAccessor,
+                          let s = callSymbol,
+                          let syms = symbols
+                    else { return false }
+                    let propertySymbol = SyntheticSymbolScheme.originalPropertySymbolFromAccessor(s)
+                    return syms.delegateStorageSymbol(for: propertySymbol) != nil
                 }()
                 // ABI-001: For synthetic setter accessor calls whose callee is still
                 // "set", derive the actual runtime store function name from the getter
@@ -329,6 +347,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                 // This avoids brittle string-prefix coupling between passes.
                 let isClosureRelatedCallee = module.nonThrowingClosureCallees.contains(effectiveCallee)
                 let canThrow = isExplicitlyThrowing
+                    || isDelegatedAccessor
                     || (!isSyntheticAccessor
                         && !isClosureRelatedCallee
                         && !nonThrowingCalleeSet.contains(effectiveCallee))
@@ -493,6 +512,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             symbols: symbols,
                             interner: ctx.interner
                         ))
+                    || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,
                    needsErasedResultUnbox,
                    let result, let types,

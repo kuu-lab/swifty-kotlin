@@ -7,6 +7,9 @@ package kotlin.native
     AnnotationTarget.FUNCTION
 )
 @kotlin.annotation.Retention(AnnotationRetention.BINARY)
+@kotlin.annotation.MustBeDocumented
+@kotlin.experimental.ExperimentalObjCName
+@kotlin.SinceKotlin("1.8")
 public annotation class ObjCName(
     val name: String = "",
     val swiftName: String = "",
