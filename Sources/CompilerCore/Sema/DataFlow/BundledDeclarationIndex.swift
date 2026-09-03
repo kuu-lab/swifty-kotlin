@@ -171,7 +171,17 @@ struct BundledDeclarationIndex: Sendable {
             if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
-            guard contains(key), reported.insert(key).inserted else { continue }
+            guard contains(key) else { continue }
+            if Self.isSyntheticMutableListCollectionOverload(
+                symbol.id,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
+            guard reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
             let memberDisplay = interner.resolve(key.name)
@@ -296,6 +306,36 @@ struct BundledDeclarationIndex: Sendable {
         }
     }
 
+    private static func isSyntheticMutableListCollectionOverload(
+        _ symbolID: SymbolID,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let mutableListFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+        guard key.ownerFQName == mutableListFQName,
+              key.arity == 1,
+              interner.resolve(key.name) == "removeAll" || interner.resolve(key.name) == "retainAll",
+              let signature = symbols.functionSignature(for: symbolID),
+              let parameterType = signature.parameterTypes.first,
+              case let .classType(parameterClass) = types.kind(of: types.makeNonNullable(parameterType)),
+              let parameterSymbol = symbols.symbol(parameterClass.classSymbol)
+        else {
+            return false
+        }
+        let collectionFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]
+        return parameterSymbol.fqName == collectionFQName
+    }
+
     private static func hasSourceBackedFunctionOverlap(
         _ symbol: SemanticSymbol,
         key: BundledMemberKey,
@@ -342,6 +382,15 @@ struct BundledDeclarationIndex: Sendable {
         }
         if ownerFQName == ["kotlin", "sequences", "Sequence"] {
             return isRuntimeBackedSequenceSyntheticRetainedOverlap(key, interner: interner)
+        }
+        if ownerFQName == ["kotlin", "collections", "MutableMap"] {
+            // Kotlin 2.3.10 keeps MutableMap.putAll(Map) and MutableMap.remove
+            // as members while also declaring source-backed overloads. The
+            // bundled index records arity but not parameter types, so these
+            // retained bridges are intentional overload collisions rather than
+            // missed KSP-002 skips.
+            let name = interner.resolve(key.name)
+            return (name == "putAll" || name == "remove") && key.arity == 1
         }
         if ownerFQName == ["kotlin", "comparisons"] {
             return isRuntimeBackedComparisonsSyntheticRetainedOverlap(key, interner: interner)

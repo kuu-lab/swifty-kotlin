@@ -135,6 +135,28 @@ struct ReceiverClassifier {
         return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
     }
 
+    /// KSP-979: Recognize a statically Iterable value and user-defined nominal
+    /// subtypes for the source-backed Iterable index family. Keep the existing
+    /// exact-name classifier unchanged so other collection fast paths do not
+    /// gain new receivers as a side effect.
+    func isNominalIterableType(_ type: TypeID) -> Bool {
+        guard let (classType, symbol) = resolveClassTypeSymbol(type, sema: sema) else {
+            return false
+        }
+        let iterableFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Iterable"),
+        ]
+        if symbol.name == interner.intern("Iterable") || symbol.fqName == iterableFQName {
+            return true
+        }
+        guard let iterableSymbol = sema.symbols.lookup(fqName: iterableFQName) else {
+            return false
+        }
+        return sema.types.isNominalSubtypeSymbol(classType.classSymbol, of: iterableSymbol)
+    }
+
     /// BUG-167: True for the `kotlin.collections` iterable *interfaces*, whose
     /// `iterator()` exists only as a synthetic stub (so Sema binds no loop
     /// iteration operators) and whose concrete iterator is only known at

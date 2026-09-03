@@ -326,6 +326,16 @@ package final class MetadataEncoder {
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
+                // KSP-911: ULongArray(LongArray) is an internal storage
+                // constructor. Keep it in the stdlib object for source-backed
+                // implementation calls, but do not export it to consumers.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
                 // KSP-908: UIntArray(IntArray) is an internal storage
                 // constructor. It must remain in the stdlib object for
                 // source-backed implementation calls, but must not be
@@ -1397,6 +1407,17 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
+            if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID),
+               let property = symbols.symbol(decoded.property)
+            {
+                if let includedSymbolIDs, !includedSymbolIDs.contains(property.id) {
+                    return nil
+                }
+                let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard !fqName.isEmpty else { return nil }
+                let prefix = decoded.kind == .getter ? "pget:" : "pset:"
+                return ("\(prefix)\(fqName)", slot)
+            }
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
                 return nil
             }

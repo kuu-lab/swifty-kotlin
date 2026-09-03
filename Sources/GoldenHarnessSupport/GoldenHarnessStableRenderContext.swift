@@ -49,22 +49,26 @@ final class StableRenderContext {
 
         var suffixes: [Int32: String] = [:]
         for (_, symbols) in fqGroups where symbols.count > 1 {
-            let sorted = symbols.enumerated().sorted { lhs, rhs in
+            let sorted = symbols.sorted { lhs, rhs in
                 let lhsKey = Self.overloadSortKey(
-                    lhs.element,
+                    lhs,
                     sema: sema,
                     fqMap: fqMap,
                     stableTypeParameterFQ: stableTypeParameterFQ
                 )
                 let rhsKey = Self.overloadSortKey(
-                    rhs.element,
+                    rhs,
                     sema: sema,
                     fqMap: fqMap,
                     stableTypeParameterFQ: stableTypeParameterFQ
                 )
-                let cmp = lhsKey.compare(rhsKey, options: .numeric)
-                return cmp == .orderedSame ? lhs.offset < rhs.offset : cmp == .orderedAscending
-            }.map(\.element)
+                return Self.overloadSortKeyPrecedes(
+                    lhsKey,
+                    lhsSymbolID: lhs.id.rawValue,
+                    rhsKey,
+                    rhsSymbolID: rhs.id.rawValue
+                )
+            }
             for (idx, sym) in sorted.enumerated() {
                 suffixes[sym.id.rawValue] = "#\(idx)"
             }
@@ -320,6 +324,27 @@ final class StableRenderContext {
             )
         }
         return "\(recv)|\(params.joined(separator: ","))"
+    }
+
+    /// Orders overload keys numerically because generated generic-owner names
+    /// contain unpadded symbol IDs such as `$9999` and `$10001`.
+    static func overloadSortKeyPrecedes(
+        _ lhsKey: String,
+        lhsSymbolID: Int32,
+        _ rhsKey: String,
+        rhsSymbolID: Int32
+    ) -> Bool {
+        switch lhsKey.compare(rhsKey, options: .numeric) {
+        case .orderedAscending:
+            return true
+        case .orderedDescending:
+            return false
+        case .orderedSame:
+            if lhsKey != rhsKey {
+                return lhsKey < rhsKey
+            }
+            return lhsSymbolID < rhsSymbolID
+        }
     }
 
     private static func stabilizeTypeRefsStatic(
