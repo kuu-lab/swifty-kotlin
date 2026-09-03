@@ -68,7 +68,7 @@ fun main() {
         println("$key=$value")
     }
 
-    processLinkedMap(lhm2)
+    processLinkedMap(lhm)
 
     val created = createLinkedMap()
     created[1] = "one"
