@@ -408,8 +408,7 @@ struct BundledDeclarationIndex: Sendable {
 
         return symbols.allSymbols().contains { candidate in
             guard candidate.kind == .function,
-                  !candidate.flags.contains(.synthetic),
-                  candidate.declSite != nil,
+                  symbols.isSourceBackedSymbol(candidate.id),
                   candidate.name == key.name,
                   let candidateKey = memberKey(
                       for: candidate,

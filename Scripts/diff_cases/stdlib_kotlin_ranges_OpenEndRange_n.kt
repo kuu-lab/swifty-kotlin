@@ -53,4 +53,7 @@ fun main() {
     val longRange: OpenEndRange<Long> = 1L..<5L
     println(intRangeCrossTypeContains(intRange))
     println(longRangeCrossTypeContains(longRange))
+    // Exercise the representation-preserving Byte -> Short lowering used by
+    // the OpenEndRange<Short>.contains(Byte) implementation.
+    println(4.toByte().toShort())
 }
