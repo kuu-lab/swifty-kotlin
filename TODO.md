@@ -413,7 +413,9 @@
   - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
   - 前提: KSP-1531, KSP-1532
 
-- [ ] KSP-1537: `Long` の数値変換メンバを Kotlin 化する
+- [x] KSP-1537: `Long` の数値変換メンバを Kotlin 化する
+  - 完了記録（2026-09-04）: Kotlin 2.3.10 の `Long.toChar()` 契約を `Numbers.kt` の `toInt().toChar()` 実装へ移し、`kk_long_to_char` の synthetic 登録・primitive lowering・Runtime/RuntimeABI 所有を除去した。`toByte`/`toDouble`/`toFloat`/`toInt`/`toShort`/`toUByte`/`toUInt`/`toULong`/`toUShort` の9件は compiler intrinsic/runtime owner として残した。
+  - 回帰: `LongConversionMemberCallTests`、`CodegenBackendNumericBoundariesTests.testNumericBoundaryLongSourceBackedCharAndConversions`、`Scripts/diff_cases/numeric_conversions_reverse.kt`、`ABIMismatchTests.longToCharBridgeABIIsRemoved`。
   - 対象: KSP-1531 で (b) と判定した Long 受け手1件（`Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCoercionStubs.swift` の残余）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記
   - 削除/降格 kk_*: `kk_long_to_char`（(c) の9件は compiler intrinsic owner として残す）
