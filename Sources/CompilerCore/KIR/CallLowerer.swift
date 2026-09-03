@@ -1105,6 +1105,15 @@ final class CallLowerer {
             let loweredCalleeName: InternedString = if let callableInvokeCallee {
                 callableInvokeCallee
             } else if let chosen,
+                      let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+                          chosenCallee: chosen,
+                          calleeName: sourceCalleeName,
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                sequenceBuilderCallee
+            } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
             {
