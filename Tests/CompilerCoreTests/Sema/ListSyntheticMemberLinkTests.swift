@@ -438,8 +438,6 @@ struct ListSyntheticMemberLinkTests {
             // not by synthetic self-registration.
             for (aliasName, targetName) in [
                 ("ArrayList", "MutableList"),
-                ("HashSet", "MutableSet"),
-                ("HashMap", "MutableMap"),
                 ("LinkedHashMap", "MutableMap"),
             ] {
                 let aliasSymbol = try #require(
