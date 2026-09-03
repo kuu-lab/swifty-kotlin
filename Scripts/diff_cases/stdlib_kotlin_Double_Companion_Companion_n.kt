@@ -1,0 +1,16 @@
+fun main() {
+    println(Double.MIN_VALUE)
+    println(Double.MAX_VALUE)
+    println(Double.POSITIVE_INFINITY)
+    println(Double.NEGATIVE_INFINITY)
+    println(Double.NaN)
+    println(Double.SIZE_BYTES)
+    println(Double.SIZE_BITS)
+    println(Double.Companion.MIN_VALUE)
+    println(Double.Companion.MAX_VALUE)
+    println(Double.Companion.POSITIVE_INFINITY)
+    println(Double.Companion.NEGATIVE_INFINITY)
+    println(Double.Companion.NaN)
+    println(Double.Companion.SIZE_BYTES)
+    println(Double.Companion.SIZE_BITS)
+}
