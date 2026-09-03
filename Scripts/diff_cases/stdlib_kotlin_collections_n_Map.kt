@@ -1,23 +1,18 @@
-// KSP-941: source-backed Map shell and read-only query semantics.
-abstract class CustomMap : Map<String, Int>
+fun singletonPair(): Pair<String?, Int?> {
+    println("pair")
+    return Pair<String?, Int?>(null, null)
+}
 
 fun main() {
-    val values: Map<String, Int?> = mapOf(
-        "present" to 7,
-        "nullable" to null
-    )
+    val singleton = mapOf(singletonPair())
+    val equivalent = mapOf<String?, Int?>(Pair<String?, Int?>(null, null))
 
-    println(values["present"] ?: -1)
-    println(values["nullable"] ?: -2)
-    println(values["missing"] ?: -3)
-    println(values.containsKey("nullable"))
-    println(values.containsKey("missing"))
-    println(values.containsValue(null))
-    println(values.keys.sorted())
-    println(values.values.toList().map { it ?: -4 }.sorted())
-    println(values.entries.map { "${it.key}:${it.value ?: -5}" }.sorted())
-    println(if (values is Map<*, *>) "map" else "other")
-
-    val widened: Map<String, Number?> = values
-    println(widened["present"] ?: -6)
+    println(singleton)
+    println(singleton.size)
+    println(singleton.containsKey(null))
+    println(singleton[null] == null)
+    println(singleton == equivalent)
+    println(singleton.entries.first().key == null)
+    println(singleton.entries.first().value == null)
+    println(singleton.entries.map { "${it.key}:${it.value}" })
 }
