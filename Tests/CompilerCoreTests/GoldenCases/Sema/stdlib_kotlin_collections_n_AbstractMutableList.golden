@@ -27,7 +27,7 @@ symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|o
 symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int,kotlin.collections.MutableList.E] ret=Unit
-symbol fq=kotlin.collections.MutableList.listIterator kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[] ret=kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E> type=() -> kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E>
+symbol fq=kotlin.collections.MutableList.listIterator#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[] ret=kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E> type=() -> kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E>
 symbol fq=kotlin.collections.MutableList.removeAt kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int] ret=kotlin.collections.MutableList.E
 symbol fq=kotlin.collections.MutableList.set kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[Int,kotlin.collections.MutableList.E] ret=kotlin.collections.MutableList.E
 symbol fq=kotlin.collections.MutableListIterator kind=interface vis=public flags=_
@@ -94,11 +94,11 @@ expr e@45:20 int(0) type=Int
 expr e@45:23 int(0) type=Int
 expr e@45:5#1 memberCall recv=e@45:5 callee=subList args=[_:e@45:20,_:e@45:23] type=kotlin.collections.List<Int> call=kotlin.collections.subList
 expr e@46:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable
-expr e@46:5#1 memberCall recv=e@46:5 callee=listIterator args=[] type=kotlin.collections.MutableListIterator<Int> call=kotlin.collections.MutableList.listIterator targs=[Int]
+expr e@46:5#1 memberCall recv=e@46:5 callee=listIterator args=[] type=kotlin.collections.MutableListIterator<Int> call=kotlin.collections.MutableList.listIterator#0 targs=[Int]
 expr e@47:5 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable
 expr e@47:23 int(0) type=Int
 expr e@47:26 int(0) type=Int
-expr e@47:5#1 memberCall recv=e@47:5 callee=subList args=[_:e@47:23,_:e@47:26] type=kotlin.collections.List<Int> call=kotlin.collections.subList
+expr e@47:5#1 memberCall recv=e@47:5 callee=subList args=[_:e@47:23,_:e@47:26] type=kotlin.collections.MutableList<Int> call=kotlin.collections.subList
 expr e@48:23 name(asList) type=kotlin.collections.List<Int> ref=__local_1.asList
 expr e@48:12 call callee=e@48:12#1 args=[_:e@48:23] type=Int call=golden.sema.acceptList
 expr e@48:51 name(asMutable) type=kotlin.collections.MutableList<Int> ref=__local_2.asMutable

@@ -39,9 +39,9 @@ extension CallLowerer {
         "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
         "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
         "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
-        "distinct", "distinctBy", "shuffled",
         "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
         "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+        "indexOf", "indexOfFirst", "indexOfLast",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
