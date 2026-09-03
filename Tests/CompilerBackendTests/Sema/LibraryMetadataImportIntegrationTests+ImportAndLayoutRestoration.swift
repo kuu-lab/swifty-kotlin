@@ -159,6 +159,52 @@ extension LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testLibraryImportRestoresPropertyAccessorVtableSlots() throws {
+        let records = [
+            MetadataRecord(
+                kind: .class,
+                mangledName: "_",
+                fqName: "ext.AbstractBox",
+                declaredVtableSize: 1,
+                vtableSlots: "v2:pget:ext.AbstractBox.value@0"
+            ),
+            MetadataRecord(
+                kind: .property,
+                mangledName: "_",
+                fqName: "ext.AbstractBox.value",
+                typeSignature: "I"
+            ),
+        ]
+        try withKklibFixture(moduleName: "ExtPropertyLayout", records: records) { libDirPath in
+            try withTemporaryFile(contents: "fun main() = 0") { path in
+                let ctx = makeCompilationContext(
+                    inputs: [path],
+                    moduleName: "PropertyLayoutImport",
+                    emit: .kirDump,
+                    searchPaths: [libDirPath]
+                )
+                try runToKIR(ctx)
+
+                let sema = try #require(ctx.sema)
+                let ext = ctx.interner.intern("ext")
+                let abstractBox = ctx.interner.intern("AbstractBox")
+                let value = ctx.interner.intern("value")
+                let classSymbol = try #require(
+                    sema.symbols.lookupAll(fqName: [ext, abstractBox]).first
+                )
+                let propertySymbol = try #require(
+                    sema.symbols.lookupAll(fqName: [ext, abstractBox, value]).first
+                )
+                let layout = try #require(sema.symbols.nominalLayout(for: classSymbol))
+                let getterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+
+                #expect(layout.vtableSlots[getterSymbol] == 0)
+                #expect(layout.vtableSize == 1)
+            }
+        }
+    }
+
+    @Test
     func testLibraryImportReportsMetadataInconsistencyDiagnostics() throws {
         let metadata = """
         symbols=2

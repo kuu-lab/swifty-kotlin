@@ -191,6 +191,19 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
         registerListIteratorItable(raw: raw)
         return raw
     }
+    // BUG-231: `listRaw` is none of the native runtime boxes above when it is
+    // a hand-written class implementing List/Set/MutableList/MutableSet
+    // directly (Sema resolves their `iterator()` to this fast-path bridge —
+    // see ControlFlowLowerer.concreteListIteratorFastPath's doc comment —
+    // since List/Set are deliberately excluded from the generic dynamic-
+    // dispatch iterator path). Without this fallback the object's own
+    // `iterator()` override is silently skipped in favor of an iterator over
+    // zero elements. Dispatch through the source `Iterable.iterator()` itable
+    // slot, the same bridge `kk_iterable_iterator`/`kk_range_iterator` use for
+    // the shapes they already handle.
+    if let sourceIterator = runtimeSourceIterableIterator(listRaw) {
+        return sourceIterator
+    }
     let raw = registerRuntimeObject(RuntimeListIteratorBox(elements: []))
     registerListIteratorItable(raw: raw)
     return raw
@@ -230,7 +243,12 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
 @_cdecl("kk_list_iterator_hasNext")
 public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-        return 0
+        // BUG-231: `iterRaw` came from the source-iterator fallback in
+        // `kk_list_iterator` above rather than a native `RuntimeListIteratorBox`
+        // (e.g. the user's `iterator()` returned its own Iterator object, not
+        // one backed by a native list/set). Fall back to the generic
+        // kk_iterator_* dispatcher, which knows how to drive it via itable.
+        return kk_iterator_hasNext(iterRaw)
     }
     return iter.index < iter.elements.count ? 1 : 0
 }
@@ -238,7 +256,8 @@ public func kk_list_iterator_hasNext(_ iterRaw: Int) -> Int {
 @_cdecl("kk_list_iterator_next")
 public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
     guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-        return 0
+        // BUG-231: see kk_list_iterator_hasNext above.
+        return kk_iterator_next(iterRaw)
     }
     guard iter.index < iter.elements.count else {
         return 0

@@ -115,6 +115,14 @@ public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination
     return destination
 }
 
+public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        for (nestedElement in element) result.add(nestedElement)
+    }
+    return result
+}
+
 // KSP-974: Iterable flat-map transformations are source-backed. Keep the
 // Iterable and Sequence inner-result overloads distinct so lambda-return-type
 // overload resolution selects the same public API as the Kotlin stdlib.

@@ -91,6 +91,9 @@ public func kk_pair_first(_ pairRaw: Int) -> Int {
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_pair_first")
     }
+    if pairBox.mutableMapRaw != 0 {
+        return pairBox.mutableMapKey
+    }
     return pairBox.first
 }
 
@@ -108,6 +111,9 @@ public func kk_pair_second(_ pairRaw: Int) -> Int {
           let pairBox = tryCast(pointer, to: RuntimePairBox.self)
     else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid Pair handle in __kk_pair_second")
+    }
+    if pairBox.mutableMapRaw != 0 {
+        return kk_map_get(pairBox.mutableMapRaw, pairBox.mutableMapKey)
     }
     return pairBox.second
 }
