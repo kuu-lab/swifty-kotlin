@@ -63,8 +63,7 @@ internal fun <T> startCoroutineUninterceptedOrReturnFallback(
     function: suspend () -> T,
     completion: Continuation<T>
 ): Any? {
-    val wrapper: suspend () -> T = { function() }
-    return (wrapper as Function1<Continuation<T>, Any?>).invoke(completion)
+    return (function as Function1<Continuation<T>, Any?>).invoke(completion)
 }
 
 /** Receiver-bearing fallback for [startCoroutineUninterceptedOrReturnFallback]. */
@@ -75,8 +74,7 @@ internal fun <R, T> startCoroutineUninterceptedOrReturnFallback(
     receiver: R,
     completion: Continuation<T>
 ): Any? {
-    val wrapper: suspend R.() -> T = { this.function() }
-    return (wrapper as Function2<Any?, Any?, Any?>).invoke(receiver, completion)
+    return (function as Function2<Any?, Any?, Any?>).invoke(receiver, completion)
 }
 
 /**
