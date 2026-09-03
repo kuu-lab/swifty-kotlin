@@ -111,6 +111,14 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
         // unboxing a raw `DoubleArray` element would corrupt values such as -0.0.
         let genericArrayGetCallee = ctx.interner.intern("kk_array_get")
 
+        // `kk_array_is_empty` returns a boxed Boolean but is emitted for both
+        // generic and primitive arrays without a Sema function signature. Keep
+        // its result on the same ABI normalization path as other erased
+        // collection results so conditions compare the unboxed Boolean.
+        let boxedBooleanReturnCallees: Set<InternedString> = [
+            ctx.interner.intern("kk_array_is_empty"),
+        ]
+
         // __kk_op_rangeUntil backs the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
@@ -504,6 +512,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                             symbols: symbols,
                             interner: ctx.interner
                         ))
+                    || boxedBooleanReturnCallees.contains(effectiveCallee)
                 if effectiveUnbox == nil,
                    needsErasedResultUnbox,
                    let result, let types,
