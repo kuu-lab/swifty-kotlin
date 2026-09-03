@@ -1042,7 +1042,13 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
-        var candidates = visible
+        var candidates = preferMostSpecificMemberReceiverCandidates(
+            visible,
+            receiverType: lookupReceiverType,
+            argumentTypes: argTypes,
+            sema: sema,
+            interner: interner
+        )
         if interner.resolve(calleeName) == "coerceIn",
            !args.contains(where: { sema.bindings.isFloatingPointRangeExpr($0.expr) })
         {
@@ -1089,6 +1095,14 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "toList" {
             candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "take" {
+            candidates = preferListTakeCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
                 sema: sema,
@@ -1222,7 +1236,7 @@ extension CallTypeChecker {
         // STDLIB-pipeline §5 / KSP-441: Source-backed Sequence transforms
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
-        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement"]
+        let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average"]
         let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
         let memberNameText = interner.resolve(calleeName)
         // KSP-687 resolves Array.joinToString through the dedicated primitive
@@ -1652,7 +1666,11 @@ extension CallTypeChecker {
                    writeForbiddenSymbols: varianceResult.writeForbiddenSymbols
                )
             {
-                let paramType = sema.types.renderType(signature.parameterTypes[violatingParamIndex])
+                let paramType = sema.types.displayName(
+                    of: signature.parameterTypes[violatingParamIndex],
+                    symbols: sema.symbols,
+                    interner: interner
+                )
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-VAR-OUT",
                     "A type projection on the receiver prevents calling '\(interner.resolve(calleeName))' because the type parameter appears in an 'in' position (parameter type '\(paramType)').",

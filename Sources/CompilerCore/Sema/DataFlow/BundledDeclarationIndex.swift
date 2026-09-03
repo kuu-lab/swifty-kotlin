@@ -118,6 +118,13 @@ struct BundledDeclarationIndex: Sendable {
             guard symbol.flags.contains(.synthetic) else { continue }
             guard !symbol.flags.contains(.importedLibrary) else { continue }
             guard symbol.kind == .function || symbol.kind == .property else { continue }
+            // Header collection represents source-declared property accessors as
+            // synthetic function symbols. They are implementation details of the
+            // source property, not residual stdlib stubs that a KSP-002 guard
+            // should have skipped.
+            guard !Self.isSyntheticPropertyAccessor(symbol, symbols: symbols) else {
+                continue
+            }
             guard let key = Self.memberKey(
                 for: symbol,
                 symbolID: symbol.id,
@@ -135,6 +142,20 @@ struct BundledDeclarationIndex: Sendable {
             guard !Self.isSyntheticAliasForSourceBackedMember(symbol, symbols: symbols) else {
                 continue
             }
+            // KSP-1019: MutableCollection keeps its interface members for
+            // member-priority dispatch while the same names also have
+            // source-backed top-level extensions. The arity-only index cannot
+            // distinguish those two declarations, so this is an intentional
+            // overlap when the exact receiver owner has a source declaration.
+            if Self.isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
+                symbol,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
             // joinTo/joinToString transform overloads intentionally share arity
             // with the non-transform default. The bundled-index key only tracks
             // arity, so suppress the warning when the synthetic stub carries a
@@ -150,7 +171,17 @@ struct BundledDeclarationIndex: Sendable {
             if Self.hasSourceBackedFunctionOverlap(symbol, key: key, symbols: symbols, types: types, interner: interner) {
                 continue
             }
-            guard contains(key), reported.insert(key).inserted else { continue }
+            guard contains(key) else { continue }
+            if Self.isSyntheticMutableListCollectionOverload(
+                symbol.id,
+                key: key,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            ) {
+                continue
+            }
+            guard reported.insert(key).inserted else { continue }
 
             let ownerDisplay = key.ownerFQName.map { interner.resolve($0) }.joined(separator: ".")
             let memberDisplay = interner.resolve(key.name)
@@ -159,6 +190,61 @@ struct BundledDeclarationIndex: Sendable {
                 "Synthetic stub '\(memberDisplay)' on '\(ownerDisplay)' (arity \(key.arity)) duplicates bundled stdlib declaration; KSP-002 skip guard missed.",
                 range: nil
             )
+        }
+    }
+
+    private static func isSyntheticPropertyAccessor(
+        _ symbol: SemanticSymbol,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard symbol.kind == .function,
+              let propertySymbol = symbols.parentSymbol(for: symbol.id),
+              symbols.symbol(propertySymbol)?.kind == .property
+        else {
+            return false
+        }
+
+        return symbols.extensionPropertyGetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.extensionPropertySetterAccessor(for: propertySymbol) == symbol.id
+            || symbols.accessorOwnerProperty(for: symbol.id) == propertySymbol
+    }
+
+    private static func isSyntheticOverlapWithSourceBackedMutableCollectionExtension(
+        _ symbol: SemanticSymbol,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let kotlinCollections = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+        ]
+        let mutableCollection = kotlinCollections + [interner.intern("MutableCollection")]
+        guard key.ownerFQName == mutableCollection,
+              ["addAll", "remove", "removeAll", "retainAll"].contains(interner.resolve(symbol.name))
+        else {
+            return false
+        }
+
+        let sourceFunctionFQName = kotlinCollections + [symbol.name]
+        return symbols.allSymbols().contains { candidate in
+            guard candidate.kind == .function,
+                  (!candidate.flags.contains(.synthetic) || candidate.flags.contains(.importedLibrary)),
+                  candidate.name == symbol.name,
+                  candidate.fqName == sourceFunctionFQName,
+                  let signature = symbols.functionSignature(for: candidate.id),
+                  let receiverType = signature.receiverType,
+                  let receiverOwner = receiverOwnerFQName(
+                      for: receiverType,
+                      symbols: symbols,
+                      types: types,
+                      interner: interner
+                  )
+            else {
+                return false
+            }
+            return receiverOwner == mutableCollection
         }
     }
 
@@ -218,6 +304,36 @@ struct BundledDeclarationIndex: Sendable {
             }
             return false
         }
+    }
+
+    private static func isSyntheticMutableListCollectionOverload(
+        _ symbolID: SymbolID,
+        key: BundledMemberKey,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) -> Bool {
+        let mutableListFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("MutableList"),
+        ]
+        guard key.ownerFQName == mutableListFQName,
+              key.arity == 1,
+              interner.resolve(key.name) == "removeAll" || interner.resolve(key.name) == "retainAll",
+              let signature = symbols.functionSignature(for: symbolID),
+              let parameterType = signature.parameterTypes.first,
+              case let .classType(parameterClass) = types.kind(of: types.makeNonNullable(parameterType)),
+              let parameterSymbol = symbols.symbol(parameterClass.classSymbol)
+        else {
+            return false
+        }
+        let collectionFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Collection"),
+        ]
+        return parameterSymbol.fqName == collectionFQName
     }
 
     private static func hasSourceBackedFunctionOverlap(
@@ -555,7 +671,7 @@ struct BundledDeclarationIndex: Sendable {
         let listOwnerFQName = [kotlin, collections, interner.intern("List")]
         let iterableOwnerFQName = [kotlin, collections, interner.intern("Iterable")]
         // Aliasing List member implementations to Iterable suppresses synthetic
-        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single)
+        // Iterable stubs. List zero-arg accessors (any/none/count/first/last/single/singleOrNull)
         // require a concrete Collection with a size/indices contract; they cannot
         // be served by the List source for an Iterable receiver.
         let nonAliasedZeroArgNames = Set([
@@ -565,6 +681,7 @@ struct BundledDeclarationIndex: Sendable {
             interner.intern("first"),
             interner.intern("last"),
             interner.intern("single"),
+            interner.intern("singleOrNull"),
         ])
         // ListAggregateHOF.kt's fold/reduce/scan family (Sources/CompilerCore/
         // Stdlib/kotlin/collections/ListAggregateHOF.kt) is implemented with

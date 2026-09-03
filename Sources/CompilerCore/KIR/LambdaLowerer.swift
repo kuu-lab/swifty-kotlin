@@ -1031,8 +1031,17 @@ final class LambdaLowerer {
         ))
         let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: sema.types.intType)
         instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
-        let methodFnExpr = arena.appendExpr(.symbolRef(methodSymbol), type: sema.types.intType)
-        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(methodSymbol)))
+        let registeredMethodSymbol = itableBridgeSymbolForMethod(
+            interfaceMethod: samMethod.symbol,
+            implementation: methodSymbol,
+            nominalSymbol: wrapperSymbol,
+            driver: driver,
+            arena: arena,
+            sema: sema,
+            interner: interner
+        )
+        let methodFnExpr = arena.appendExpr(.symbolRef(registeredMethodSymbol), type: sema.types.intType)
+        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(registeredMethodSymbol)))
         let registerMethodResult = arena.appendTemporary(type: sema.types.intType)
         instructions.append(.call(
             symbol: nil,

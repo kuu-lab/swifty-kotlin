@@ -1,5 +1,14 @@
 package kotlin.collections
 
+/**
+ * A read-only collection of unique elements.
+ *
+ * The compiler reuses the compatibility shell for the residual `contains`
+ * and `isEmpty` runtime members while this declaration owns Set's nominal
+ * source surface.
+ */
+public interface Set<out E> : Collection<E>
+
 // Set HOF implementations migrated from Swift Runtime
 // MIGRATION-COL-013
 
@@ -212,6 +221,131 @@ public fun <T> Set<T>.containsAll(elements: Collection<out T>): Boolean {
 }
 
 // --- Set operations ----------------------------------------------------------
+
+/**
+ * Returns a fresh set containing all elements of the original set except the
+ * first occurrence of [element].
+ */
+public operator fun <T> Set<T>.minus(element: T): Set<T> {
+    val result = mutableSetOf<T>()
+    var removed = false
+    for (item in this) {
+        if (!removed && item == element) {
+            removed = true
+        } else {
+            result.add(item)
+        }
+    }
+    return result
+}
+
+/**
+ * Returns a fresh set containing all elements of this set except elements in
+ * [elements].
+ */
+public operator fun <T> Set<T>.minus(elements: Iterable<T>): Set<T> {
+    if (isEmpty()) return toSet()
+
+    val excluded = mutableSetOf<T>()
+    for (element in elements) {
+        excluded.add(element)
+    }
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        if (!excluded.contains(item)) result.add(item)
+    }
+    return result
+}
+
+/**
+ * Returns a fresh set containing all elements of this set except elements in
+ * the one-shot [elements] sequence.
+ */
+public operator fun <T> Set<T>.minus(elements: Sequence<T>): Set<T> {
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    for (element in elements) {
+        result.remove(element)
+    }
+    return result
+}
+
+/**
+ * Returns a fresh set containing all elements of this set except elements in
+ * [elements].
+ */
+public operator fun <T> Set<T>.minus(elements: Array<out T>): Set<T> {
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    for (element in elements) {
+        result.remove(element)
+    }
+    return result
+}
+
+/** Returns [minus] with a single element argument. */
+public inline fun <T> Set<T>.minusElement(element: T): Set<T> = minus(element)
+
+/** Returns this set, or a shared empty set when the receiver is `null`. */
+public inline fun <T> Set<T>?.orEmpty(): Set<T> = this ?: emptySet()
+
+/**
+ * Returns a fresh set containing this set and [element], if it is not already
+ * present.
+ */
+public operator fun <T> Set<T>.plus(element: T): Set<T> {
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    result.add(element)
+    return result
+}
+
+/** Returns a fresh set containing this set and the distinct [elements]. */
+public operator fun <T> Set<T>.plus(elements: Iterable<T>): Set<T> {
+    if (elements is Collection<*> && elements.isEmpty()) return toSet()
+
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    for (element in elements) {
+        result.add(element)
+    }
+    return result
+}
+
+/** Returns a fresh set containing this set and the one-shot [elements] sequence. */
+public operator fun <T> Set<T>.plus(elements: Sequence<T>): Set<T> {
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    for (element in elements) {
+        result.add(element)
+    }
+    return result
+}
+
+/** Returns a fresh set containing this set and the distinct [elements]. */
+public operator fun <T> Set<T>.plus(elements: Array<out T>): Set<T> {
+    val result = mutableSetOf<T>()
+    for (item in this) {
+        result.add(item)
+    }
+    for (element in elements) {
+        result.add(element)
+    }
+    return result
+}
+
+/** Returns [plus] with a single element argument. */
+public inline fun <T> Set<T>.plusElement(element: T): Set<T> = plus(element)
 
 /**
  * Returns a set containing all elements that are contained by both this set and [other].

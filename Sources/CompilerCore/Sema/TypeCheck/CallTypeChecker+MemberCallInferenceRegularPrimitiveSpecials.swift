@@ -70,9 +70,17 @@ extension CallTypeChecker {
             }
             // Use non-nullable RHS for arithmetic promotion checks
             let rhsType = sema.types.makeNonNullable(rawRhsType)
+            let isNumericReceiver = isPrimitiveReceiver
+                || receiverForCheck == floatType
+                || receiverForCheck == doubleType
+                || receiverForCheck == charType
             switch interner.resolve(calleeName) {
             case "plus":
-                let resultType: TypeID? = if receiverForCheck == charType && rawRhsType == intType {
+                // Collection plus(element) must reach overload resolution instead of
+                // being mistaken for primitive arithmetic based only on the RHS type.
+                let resultType: TypeID? = if !isNumericReceiver {
+                    nil
+                } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
                 } else if receiverForCheck == doubleType || rhsType == doubleType {
                     doubleType
@@ -99,7 +107,10 @@ extension CallTypeChecker {
                     return finalType
                 }
             case "minus":
-                let resultType: TypeID? = if receiverForCheck == charType && rawRhsType == charType {
+                // Collection minus(element) must reach overload resolution just like plus(element).
+                let resultType: TypeID? = if !isNumericReceiver {
+                    nil
+                } else if receiverForCheck == charType && rawRhsType == charType {
                     intType
                 } else if receiverForCheck == charType && rawRhsType == intType {
                     charType
@@ -291,9 +302,9 @@ extension CallTypeChecker {
                 : lookupReceiverType
             let calleeStr = interner.resolve(calleeName)
             let (targetType, matches): (TypeID, Bool) = switch calleeStr {
-            case "toInt": (intType, receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toInt": (intType, receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toUInt": (uintType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == byteType || receiverForCheck == shortType)
-            case "toLong": (longType, receiverForCheck == intType || receiverForCheck == uintType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == longType || receiverForCheck == ulongType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == sema.types.charType || receiverForCheck == byteType || receiverForCheck == shortType)
+            case "toLong": (longType, receiverForCheck == intType || receiverForCheck == uintType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == longType || receiverForCheck == ulongType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toULong": (ulongType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toFloat": (floatType, receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == doubleType || receiverForCheck == floatType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             case "toDouble": (doubleType, receiverForCheck == longType || receiverForCheck == floatType || receiverForCheck == doubleType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)

@@ -13,4 +13,26 @@ fun main() {
         print("${iter.previous()} ")
     }
     println()
+
+    // listIterator(index) starts the cursor at the given position.
+    val fromMiddle: ListIterator<Int> = list.listIterator(1)
+    print("${fromMiddle.next()} ")
+    print("${fromMiddle.next()} ")
+    println()
+
+    // MutableList.iterator() must be assignable to MutableIterator (covariant
+    // override), and remove() through it must mutate the backing list.
+    val mutable = mutableListOf(1, 2, 3, 4)
+    val mutIter: MutableIterator<Int> = mutable.iterator()
+    while (mutIter.hasNext()) {
+        if (mutIter.next() % 2 == 0) {
+            mutIter.remove()
+        }
+    }
+    println(mutable)
+
+    // MutableList.listIterator(index) must be assignable to MutableListIterator.
+    val mutableFromMiddle: MutableListIterator<Int> = mutable.listIterator(1)
+    print("${mutableFromMiddle.next()} ")
+    println()
 }
