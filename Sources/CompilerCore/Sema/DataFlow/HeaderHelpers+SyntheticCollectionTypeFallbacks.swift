@@ -666,6 +666,7 @@ extension DataFlowSemaPhase {
                     receiverType: iterableReceiverType,
                     parameterTypes: [],
                     returnType: iteratorReturnType,
+                    canThrow: true,
                     typeParameterSymbols: [typeParamSymbol],
                     classTypeParameterCount: 1
                 ),

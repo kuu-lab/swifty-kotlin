@@ -258,6 +258,16 @@ extension CallLowerer {
         let intType = sema.types.make(.primitive(.int, .nonNull))
         let stringType = sema.types.stringType
         let isNullable = sema.types.makeNonNullable(valueType) != valueType
+        let isUnit: Bool = if case .unit = sema.types.kind(of: sema.types.makeNonNullable(valueType)) {
+            true
+        } else {
+            false
+        }
+        // Unit has no nullable TypeKind variant, but a safe call returning Unit
+        // still carries the null sentinel at runtime. Keep the null guard for
+        // Unit values so string interpolation does not invoke Unit.toString()
+        // on that sentinel.
+        let needsNullGuard = isNullable || isUnit
         // A statically enum-typed value is represented as its bare ordinal, so
         // `kk_any_to_string` would render the number. The enum class's
         // `$enumOrdinalToName$<encodedFqName>` helper maps it back to the entry name —
@@ -307,7 +317,7 @@ extension CallLowerer {
                     thrownResult: nil
                 )
             }
-            guard isNullable else {
+            guard needsNullGuard else {
                 instructions.append(emitToStringCall(into: converted))
                 return converted
             }

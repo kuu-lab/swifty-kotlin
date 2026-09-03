@@ -326,6 +326,16 @@ package final class MetadataEncoder {
                 if symbol.kind == .package {
                     return !symbols.annotations(for: symbol.id).isEmpty
                 }
+                // KSP-911: ULongArray(LongArray) is an internal storage
+                // constructor. Keep it in the stdlib object for source-backed
+                // implementation calls, but do not export it to consumers.
+                if includeNonPublic,
+                   symbol.kind == .function,
+                   symbol.fqName.map({ interner.resolve($0) }) == ["kotlin", "ULongArray"],
+                   symbols.functionSignature(for: symbol.id)?.parameterTypes.count == 1
+                {
+                    return false
+                }
                 // KSP-908: UIntArray(IntArray) is an internal storage
                 // constructor. It must remain in the stdlib object for
                 // source-backed implementation calls, but must not be
@@ -1397,69 +1407,55 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
-            // BUG-227 stores class property accessor slots under synthetic
-            // getter/setter IDs, while the metadata format names the owning
-            // property. Only the getter has a representation in this format;
-            // setter slots are intentionally skipped until the format carries
-            // an accessor-kind discriminator.
-            let decodedAccessor = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID)
-            if let decodedAccessor, decodedAccessor.kind != .getter {
+            if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID),
+               let property = symbols.symbol(decoded.property)
+            {
+                let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard !fqName.isEmpty else { return nil }
+                let prefix = decoded.kind == .getter ? "pget:" : "pset:"
+                return ("\(prefix)\(fqName)", slot)
+            }
+            if let property = symbols.symbol(symbolID), property.kind == .property {
+                let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard !fqName.isEmpty else { return nil }
+                return ("pget:\(fqName)", slot)
+            }
+            guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
                 return nil
             }
-            let serializedSymbolID = decodedAccessor?.property ?? symbolID
-            guard let symbol = symbols.symbol(serializedSymbolID),
-                  symbol.kind == .function || symbol.kind == .property
-            else {
-                return nil
-            }
-            let isProperty = decodedAccessor != nil || symbol.kind == .property
             // Vtable layout must survive the round-trip even for methods that are
             // private or synthetic (e.g. Any.toString/hashCode/equals, internal
             // helpers like Random.stepXorWow).  The consumer resolves each entry
             // by FQ name/arity/type-signature so that overloaded methods with the
             // same arity map to the correct slot.
-            if isNonPublicEnumStaticHelper(symbolID: serializedSymbolID, symbols: symbols, interner: interner) {
+            if isNonPublicEnumStaticHelper(symbolID: symbolID, symbols: symbols, interner: interner) {
                 return nil
             }
-            // Property getter slots may be owned by protected abstract
-            // declarations (for example AbstractMap.entries). The bundled
-            // source declaration recreates that property in the consumer, so
-            // retain its layout entry even when the property record itself is
-            // not part of the public metadata export.
-            if let includedSymbolIDs, !includedSymbolIDs.contains(serializedSymbolID), !isProperty {
+            if let includedSymbolIDs, !includedSymbolIDs.contains(symbolID) {
                 return nil
             }
             let fqName = symbol.fqName.map { interner.resolve($0) }.joined(separator: ".")
             guard !fqName.isEmpty else {
                 return nil
             }
-            let signature = symbols.functionSignature(for: serializedSymbolID)
+            let signature = symbols.functionSignature(for: symbolID)
             let arity = signature?.parameterTypes.count ?? 0
             let isSuspend = signature?.isSuspend ?? false
             let typeSignature: String? = if let mangler, let types {
-                if isProperty, let propertyType = symbols.propertyType(for: serializedSymbolID) {
-                    mangler.encodeType(
-                        propertyType,
-                        symbols: symbols,
-                        types: types,
-                        nameResolver: { interner.resolve($0) }
-                    )
-                } else {
-                    mangler.mangledSignature(
-                        for: symbol,
-                        symbols: symbols,
-                        types: types,
-                        nameResolver: { interner.resolve($0) }
-                    )
-                }
+                mangler.mangledSignature(
+                    for: symbol,
+                    symbols: symbols,
+                    types: types,
+                    nameResolver: { interner.resolve($0) }
+                )
             } else {
                 nil
             }
             let key: String
             if let typeSignature, !typeSignature.isEmpty {
-                key = "\(isProperty ? "property:" : "")\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)#\(typeSignature)"
             } else {
-                key = "\(isProperty ? "property:" : "")\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
+                key = "\(fqName)#\(arity)#\(isSuspend ? 1 : 0)"
             }
             return (key, slot)
         }

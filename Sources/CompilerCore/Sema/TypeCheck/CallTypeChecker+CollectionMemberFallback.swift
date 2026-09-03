@@ -282,6 +282,9 @@ extension CallTypeChecker {
         if memberName == "addAll", args.count == 1 {
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
         }
+        if memberName == "putAll", args.count == 1 {
+            _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+        }
 
         if isCollectionReturningMember(
             calleeName,
@@ -450,6 +453,14 @@ extension CallTypeChecker {
             isListReceiver: isListReceiver,
             isSetReceiver: isSetReceiver,
             isSequenceReceiver: isSequenceReceiver,
+            // Real Kotlin declares a covariant `iterator(): MutableIterator<E>`
+            // override on MutableIterable/MutableCollection (inherited by
+            // MutableList/MutableSet) and `subList(...): MutableList<E>` on
+            // MutableList. This fallback binds ahead of the normal overload
+            // resolver for these well-known members (see the `!hasSourceBackedCandidate`
+            // short-circuit in CallTypeChecker+MemberCallInferenceRegularResolution.swift),
+            // so it must report the mutable-aware type itself.
+            isMutableReceiver: isMutableCollectionReceiverFlag || isMutableListReceiver || isMutableSetReceiver,
             args: args,
             ctx: ctx,
             sema: sema,
@@ -802,6 +813,102 @@ extension CallTypeChecker {
     ) -> SymbolID? {
         let receiverType = sema.bindings.exprTypes[receiverID] ?? sema.types.anyType
         let receiverClassifier = ReceiverClassifier(sema: sema, interner: interner)
+        // MutableMap contributes both the delegated `getValue` accessor and
+        // the read-only Map `getValue(key)` extension. Resolve the latter
+        // before the collection fallback's owner walk can select the delegate
+        // accessor by short name.
+        if interner.resolve(memberName) == "getValue",
+           argCount == 1,
+           receiverClassifier.isMutableMapType(receiverType)
+        {
+            let mapGetValueFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                memberName,
+            ]
+            if let chosen = sema.symbols.lookupAll(fqName: mapGetValueFQName).first(where: { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let receiver = signature.receiverType,
+                      let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                      let receiverInfo = sema.symbols.symbol(receiverSymbol)
+                else {
+                    return false
+                }
+                return receiverInfo.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Map"),
+                ]
+            }) {
+                return chosen
+            }
+        }
+        // MutableMap.putAll(Map) is a member surface; the Iterable/Sequence/
+        // Array overloads are source-backed extensions. Keep the member path
+        // for Map arguments and choose the exact source parameter otherwise.
+        if interner.resolve(memberName) == "putAll",
+           argCount == 1,
+           receiverClassifier.isMutableMapType(receiverType),
+           let firstArgExpr = argExprs.first,
+           let firstArgType = sema.bindings.exprTypes[firstArgExpr],
+           !receiverClassifier.isMapLikeCollectionType(firstArgType)
+        {
+            let isArrayArgument = receiverClassifier.isArrayLikeReceiver(receiverID: firstArgExpr)
+            let isSequenceArgument = receiverClassifier.isSequenceLikeType(firstArgType)
+            if let chosen = sema.symbols.lookupAll(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   memberName,
+               ]).first(where: { candidate in
+                   guard let symbol = sema.symbols.symbol(candidate),
+                         symbol.kind == .function,
+                         (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
+                         let signature = sema.symbols.functionSignature(for: candidate),
+                         signature.parameterTypes.count == 1,
+                         let receiver = signature.receiverType,
+                         let receiverSymbol = driver.helpers.nominalSymbol(of: receiver, types: sema.types),
+                         let receiverInfo = sema.symbols.symbol(receiverSymbol),
+                         let parameterSymbol = driver.helpers.nominalSymbol(
+                             of: signature.parameterTypes[0], types: sema.types
+                         ),
+                         let parameterInfo = sema.symbols.symbol(parameterSymbol)
+                   else {
+                       return false
+                   }
+                   guard receiverInfo.fqName == [
+                       interner.intern("kotlin"),
+                       interner.intern("collections"),
+                       interner.intern("MutableMap"),
+                   ] else {
+                       return false
+                   }
+                   if isArrayArgument {
+                       return parameterInfo.fqName == [
+                           interner.intern("kotlin"),
+                           interner.intern("Array"),
+                       ]
+                   }
+                   if isSequenceArgument {
+                       return parameterInfo.fqName == [
+                           interner.intern("kotlin"),
+                           interner.intern("sequences"),
+                           interner.intern("Sequence"),
+                       ]
+                   }
+                   return parameterInfo.fqName == [
+                       interner.intern("kotlin"),
+                       interner.intern("collections"),
+                       interner.intern("Iterable"),
+                   ]
+               })
+            {
+                return chosen
+            }
+        }
         let roots = driver.helpers.allNominalSymbols(
             of: sema.types.makeNonNullable(receiverType),
             types: sema.types,
@@ -1536,6 +1643,7 @@ extension CallTypeChecker {
         isListReceiver: Bool,
         isSetReceiver: Bool,
         isSequenceReceiver: Bool = false,
+        isMutableReceiver: Bool = false,
         args: [CallArgument],
         ctx: TypeInferenceContext,
         sema: SemaModule,
@@ -1957,8 +2065,19 @@ extension CallTypeChecker {
             )
         }
 
+        // MutableList<E>.subList(...): MutableList<E> overrides List<E>.subList(...): List<E>.
+        if memberName == interner.intern("subList"),
+           let subListOwnerSymbol = sema.symbols.lookupByShortName(
+               interner.intern(isMutableReceiver ? "MutableList" : "List")
+           ).first
+        {
+            return sema.types.make(.classType(ClassType(
+                classSymbol: subListOwnerSymbol,
+                args: [.invariant(receiverElementType)],
+                nullability: .nonNull
+            )))
+        }
         if memberName == interner.intern("toList")
-            || memberName == interner.intern("subList")
             || memberName == interner.intern("slice")
             || memberName == interner.intern("minusElement"),
            let listSymbol = sema.symbols.lookupByShortName(interner.intern("List")).first
@@ -2403,19 +2522,34 @@ extension CallTypeChecker {
             )))
         }
 
-        // iterator(): returns Iterator<E>
-        if memberName == interner.intern("iterator"),
-           let iteratorSymbol = sema.symbols.lookup(fqName: [
-               interner.intern("kotlin"),
-               interner.intern("collections"),
-               interner.intern("Iterator"),
-           ])
-        {
-            return sema.types.make(.classType(ClassType(
-                classSymbol: iteratorSymbol,
-                args: [.out(receiverElementType)],
-                nullability: .nonNull
-            )))
+        // iterator(): returns MutableIterator<E> for Mutable{Collection,List,Set}
+        // receivers (real Kotlin's covariant MutableIterable override), Iterator<E>
+        // otherwise.
+        if memberName == interner.intern("iterator") {
+            if isMutableReceiver,
+               let mutableIteratorSymbol = sema.symbols.lookup(fqName: [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   interner.intern("MutableIterator"),
+               ])
+            {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: mutableIteratorSymbol,
+                    args: [.out(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            }
+            if let iteratorSymbol = sema.symbols.lookup(fqName: [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("Iterator"),
+            ]) {
+                return sema.types.make(.classType(ClassType(
+                    classSymbol: iteratorSymbol,
+                    args: [.out(receiverElementType)],
+                    nullability: .nonNull
+                )))
+            }
         }
 
         if isSequenceReceiver,

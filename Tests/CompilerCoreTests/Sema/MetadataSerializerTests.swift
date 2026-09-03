@@ -489,7 +489,7 @@ struct MetadataSerializerTests {
             types: types
         )
 
-        #expect(serialized == "v2:property:demo.Box.value#0#0#I@3")
+        #expect(serialized == "v2:pget:demo.Box.value@3")
     }
 
     @Test func testSerializeMultipleRecords() {
