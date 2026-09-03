@@ -60,7 +60,7 @@ expr e@24:13#1 memberCall recv=e@24:13 callee=containsValue args=[_:e@24:30] typ
 expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#1] type=Unit call=kotlin.io.println#1
 expr e@25:5 name(hm) type=kotlin.collections.HashMap<String, Int> ref=__local_0.hm
 expr e@25:15 string(y) type=String
-expr e@25:5#1 memberCall recv=e@25:5 callee=remove args=[_:e@25:15] type=Int? call=kotlin.collections.remove#1 targs=[String,Int]
+expr e@25:5#1 memberCall recv=e@25:5 callee=remove args=[_:e@25:15] type=Int? call=kotlin.collections.remove#2 targs=[String,Int]
 expr e@26:13 name(hm) type=kotlin.collections.HashMap<String, Int> ref=__local_0.hm
 expr e@26:13#1 memberCall recv=e@26:13 callee=size args=[] type=Int
 expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13#1] type=Unit call=kotlin.io.println#1

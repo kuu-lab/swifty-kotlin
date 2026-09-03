@@ -18,9 +18,8 @@ symbol fq=kotlin.collections.Map.Entry.key kind=function vis=public flags=synthe
 symbol fq=kotlin.collections.Map.K kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Map<kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[kotlin.collections.Map.K] ret=kotlin.collections.Map.V?
-symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.MutableIterator kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableIterator.T kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.MutableIterator.remove kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableIterator<out kotlin.collections.MutableIterator.T> params=[] ret=Unit type=() -> Unit
 symbol fq=kotlin.collections.MutableMap kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableMap.MutableEntry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.MutableMap.MutableEntry.K kind=typeParameter vis=private flags=_
@@ -51,20 +50,20 @@ expr e@4:37 lambda params=[] body=e@4:39 label=getOrPut type=() -> Int?
 expr e@4:13#1 memberCall recv=e@4:13 callee=getOrPut args=[_:e@4:26,_:e@4:37] type=Int? call=kotlin.collections.getOrPut
 expr e@4:5 call callee=e@4:5#1 args=[_:e@4:13#1] type=Unit call=kotlin.io.println#1
 expr e@5:12 string(a) type=String
-expr e@5:5 compoundAssign(minusAssign) name=map value=e@5:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#0 targs=[String,Int?]
+expr e@5:5 compoundAssign(minusAssign) name=map value=e@5:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#4 targs=[String,Int?]
 expr e@6:19 string(missing) type=String
 expr e@6:12 call callee=e@6:12#1 args=[_:e@6:19] type=kotlin.collections.List<out String> call=kotlin.collections.listOf#1 targs=[String]
-expr e@6:5 compoundAssign(minusAssign) name=map value=e@6:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#1 targs=[String,Int?]
+expr e@6:5 compoundAssign(minusAssign) name=map value=e@6:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#5 targs=[String,Int?]
 expr e@7:23 string(none) type=String
 expr e@7:12 call callee=e@7:12#1 args=[_:e@7:23] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf targs=[String]
-expr e@7:5 compoundAssign(minusAssign) name=map value=e@7:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#2 targs=[String,Int?]
+expr e@7:5 compoundAssign(minusAssign) name=map value=e@7:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#6 targs=[String,Int?]
 expr e@8:20 string(none2) type=String
 expr e@8:12 call callee=e@8:12#1 args=[_:e@8:20] type=kotlin.Array<String> call=kotlin.arrayOf targs=[String]
-expr e@8:5 compoundAssign(minusAssign) name=map value=e@8:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#3 targs=[String,Int?]
+expr e@8:5 compoundAssign(minusAssign) name=map value=e@8:12 type=Unit ref=__local_0.map call=kotlin.collections.minusAssign#7 targs=[String,Int?]
 expr e@9:13 string(x) type=String
 expr e@9:20 int(10) type=Int
 expr e@9:13#1 memberCall recv=e@9:13 callee=to args=[_:e@9:20] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
-expr e@9:5 compoundAssign(plusAssign) name=map value=e@9:13#1 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#0 targs=[String,Int]
+expr e@9:5 compoundAssign(plusAssign) name=map value=e@9:13#1 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#4 targs=[String,Int]
 expr e@10:19 string(x) type=String
 expr e@10:26 int(11) type=Int
 expr e@10:19#1 memberCall recv=e@10:19 callee=to args=[_:e@10:26] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
@@ -72,7 +71,7 @@ expr e@10:30 string(y) type=String
 expr e@10:37 int(12) type=Int
 expr e@10:30#1 memberCall recv=e@10:30 callee=to args=[_:e@10:37] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@10:12 call callee=e@10:12#1 args=[_:e@10:19#1,_:e@10:30#1] type=kotlin.collections.List<out kotlin.Pair<String, Int>> call=kotlin.collections.listOf#1 targs=[kotlin.Pair<String, Int>]
-expr e@10:5 compoundAssign(plusAssign) name=map value=e@10:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#1 targs=[String,Int]
+expr e@10:5 compoundAssign(plusAssign) name=map value=e@10:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#5 targs=[String,Int]
 expr e@11:23 string(y) type=String
 expr e@11:30 int(13) type=Int
 expr e@11:23#1 memberCall recv=e@11:23 callee=to args=[_:e@11:30] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
@@ -80,7 +79,7 @@ expr e@11:34 string(z) type=String
 expr e@11:41 int(14) type=Int
 expr e@11:34#1 memberCall recv=e@11:34 callee=to args=[_:e@11:41] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@11:12 call callee=e@11:12#1 args=[_:e@11:23#1,_:e@11:34#1] type=kotlin.sequences.Sequence<kotlin.Pair<String, Int>> call=kotlin.sequences.sequenceOf targs=[kotlin.Pair<String, Int>]
-expr e@11:5 compoundAssign(plusAssign) name=map value=e@11:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#2 targs=[String,Int]
+expr e@11:5 compoundAssign(plusAssign) name=map value=e@11:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#6 targs=[String,Int]
 expr e@12:20 string(z) type=String
 expr e@12:27 int(15) type=Int
 expr e@12:20#1 memberCall recv=e@12:20 callee=to args=[_:e@12:27] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
@@ -88,7 +87,7 @@ expr e@12:31 string(w) type=String
 expr e@12:38 int(16) type=Int
 expr e@12:31#1 memberCall recv=e@12:31 callee=to args=[_:e@12:38] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@12:12 call callee=e@12:12#1 args=[_:e@12:20#1,_:e@12:31#1] type=kotlin.Array<kotlin.Pair<String, Int>> call=kotlin.arrayOf targs=[kotlin.Pair<String, Int>]
-expr e@12:5 compoundAssign(plusAssign) name=map value=e@12:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#3 targs=[String,Int]
+expr e@12:5 compoundAssign(plusAssign) name=map value=e@12:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#7 targs=[String,Int]
 expr e@13:18 string(w) type=String
 expr e@13:25 int(17) type=Int
 expr e@13:18#1 memberCall recv=e@13:18 callee=to args=[_:e@13:25] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
@@ -96,7 +95,7 @@ expr e@13:29 string(v) type=String
 expr e@13:36 int(18) type=Int
 expr e@13:29#1 memberCall recv=e@13:29 callee=to args=[_:e@13:36] type=kotlin.Pair<String, Int> call=kotlin.to targs=[String,Int]
 expr e@13:12 call callee=e@13:12#1 args=[_:e@13:18#1,_:e@13:29#1] type=kotlin.collections.Map<String, Int> call=kotlin.collections.mapOf#2 targs=[String,Int]
-expr e@13:5 compoundAssign(plusAssign) name=map value=e@13:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#4 targs=[String,Int]
+expr e@13:5 compoundAssign(plusAssign) name=map value=e@13:12 type=Unit ref=__local_0.map call=kotlin.collections.plusAssign#8 targs=[String,Int]
 expr e@14:5 name(map) type=kotlin.collections.MutableMap<String, Int?> ref=__local_0.map
 expr e@14:23 string(v) type=String
 expr e@14:30 int(19) type=Int
@@ -130,11 +129,11 @@ expr e@17:18 int(25) type=Int
 expr e@17:5#1 indexedAssign receiver=e@17:5 indices=[e@17:9] value=e@17:18 type=Unit call=kotlin.collections.set targs=[String,Int?]
 expr e@18:13 name(map) type=kotlin.collections.MutableMap<String, Int?> ref=__local_0.map
 expr e@18:24 string(nullable) type=String
-expr e@18:13#1 memberCall recv=e@18:13 callee=remove args=[_:e@18:24] type=Int? call=kotlin.collections.remove targs=[String,Int?]
+expr e@18:13#1 memberCall recv=e@18:13 callee=remove args=[_:e@18:24] type=Int? call=kotlin.collections.remove#2 targs=[String,Int?]
 expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13#1] type=Unit call=kotlin.io.println#1
 expr e@19:13 name(map) type=kotlin.collections.MutableMap<String, Int?> ref=__local_0.map
 expr e@19:24 string(absent) type=String
-expr e@19:13#1 memberCall recv=e@19:13 callee=remove args=[_:e@19:24] type=Int? call=kotlin.collections.remove targs=[String,Int?]
+expr e@19:13#1 memberCall recv=e@19:13 callee=remove args=[_:e@19:24] type=Int? call=kotlin.collections.remove#2 targs=[String,Int?]
 expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13#1] type=Unit call=kotlin.io.println#1
 expr e@20:49 call callee=e@20:49#1 args=[] type=kotlin.collections.MutableMap<String, Int> call=kotlin.collections.mutableMapOf#0 targs=[String,Int]
 expr e@20:5 localDecl delegatedMap mutable=0 type=MutableMap<String,Int> init=e@20:49 type=Unit ref=__local_1.delegatedMap
@@ -168,7 +167,7 @@ expr e@27:17 string(wrapper) type=String
 expr e@27:13#1 indexedAccess receiver=e@27:13 indices=[e@27:17] type=Int? call=kotlin.collections.Map.get targs=[String,Int?]
 expr e@27:5 call callee=e@27:5#1 args=[_:e@27:13#1] type=Unit call=kotlin.io.println#1
 expr e@28:20 name(map) type=kotlin.collections.MutableMap<String, Int?> ref=__local_0.map
-expr e@28:20#1 memberCall recv=e@28:20 callee=iterator args=[] type=kotlin.collections.MutableIterator<kotlin.collections.MutableMap.MutableEntry<String, Int?>> call=kotlin.collections.iterator targs=[String,Int?]
+expr e@28:20#1 memberCall recv=e@28:20 callee=iterator args=[] type=kotlin.collections.MutableIterator<kotlin.collections.MutableMap.MutableEntry<String, Int?>> call=kotlin.collections.iterator#1 targs=[String,Int?]
 expr e@28:5 localDecl iterator mutable=0 type=_ init=e@28:20#1 type=Unit ref=__local_4.iterator
 expr e@29:9 name(iterator) type=kotlin.collections.MutableIterator<kotlin.collections.MutableMap.MutableEntry<String, Int?>> ref=__local_4.iterator
 expr e@29:9#1 memberCall recv=e@29:9 callee=hasNext args=[] type=Boolean call=kotlin.collections.Iterator.hasNext targs=[kotlin.collections.MutableMap.MutableEntry<String, Int?>]
