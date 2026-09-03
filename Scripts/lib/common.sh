@@ -97,6 +97,91 @@ kswiftk_append_compile_cache_flags() {
     fi
 }
 
+# Extract the major version number from `$1 -version` output (e.g. "21" from
+# both "21.0.2" and legacy "1.8.0_392" schemes). Prints nothing (not even a
+# newline) if the output cannot be parsed; callers must validate with a regex.
+java_major_version() {
+    local java_bin="$1"
+    "$java_bin" -version 2>&1 \
+        | awk -F'"' '/version/ { print $2; exit }' \
+        | awk -F'[.]' '{ print ($1 == "1") ? $2 : $1 }'
+}
+
+# Verify kswiftc/kotlinc/java/timeout are present and, unless $5 is "0", that
+# java reports major version >= 21 (JDK 21 is what CI pins; older JDKs format
+# things like Double/Float.toString() differently and cause spurious diff
+# FAILs). Exits the calling script with status 1 and an actionable message on
+# any failure. $6 is a short label for the gate (used in the JDK message,
+# e.g. "diff gate" / "diagnostic diff gate"); $7 is an optional extra hint
+# line appended after the version-mismatch message.
+require_diff_tooling() {
+    local kswiftc="$1" kotlinc="$2" java_bin="$3" timeout_cmd="$4" require_jdk21="$5" gate_label="$6" extra_hint="${7:-}"
+
+    if ! [[ -x "$kswiftc" ]]; then
+        echo "kswiftc not found or not executable: $kswiftc" >&2
+        exit 1
+    fi
+    if ! command -v "$kotlinc" >/dev/null 2>&1; then
+        echo "kotlinc command not found: $kotlinc" >&2
+        exit 1
+    fi
+    if ! command -v "$java_bin" >/dev/null 2>&1; then
+        echo "java command not found: $java_bin" >&2
+        exit 1
+    fi
+    if ! command -v "$timeout_cmd" >/dev/null 2>&1; then
+        echo "timeout command not found: $timeout_cmd (on macOS: brew install coreutils, or set TIMEOUT)" >&2
+        exit 1
+    fi
+
+    if [[ "$require_jdk21" != "0" ]]; then
+        local java_major
+        java_major="$(java_major_version "$java_bin")"
+        if [[ ! "$java_major" =~ ^[0-9]+$ ]] || (( java_major < 21 )); then
+            echo "java is too old for the $gate_label: $java_bin reports major version '${java_major:-unknown}', need >= 21." >&2
+            if [[ -n "$extra_hint" ]]; then
+                echo "$extra_hint" >&2
+            fi
+            echo "Set JAVA_BIN/JAVA_HOME to a JDK 21+, or DIFF_REQUIRE_JDK21=0 to bypass." >&2
+            exit 1
+        fi
+    fi
+}
+
+# Extract flags from "// <directive>: <flags>" lines in a diff test case file
+# (e.g. // KOTLINC_FLAGS: -Xfoo). Multiple matching lines are joined with a
+# single space; trailing whitespace is trimmed. Prints nothing if absent.
+read_case_directive_flags() {
+    local case_path="$1" directive="$2"
+    { grep -E "^[[:space:]]*//[[:space:]]*${directive}:" "$case_path" 2>/dev/null || true; } \
+        | sed "s/.*${directive}:[[:space:]]*//" | tr '\n' ' ' | sed 's/[[:space:]]*$//'
+}
+
+# True (exit 0) when a diff test case should be skipped: it carries a
+# // SKIP-DIFF or // KSWIFTK_DIFF_IGNORE directive and $2 (the script's
+# --force-run-skipped flag) is not 1.
+should_skip_diff_case() {
+    local case_path="$1" force_run_skipped="${2:-0}"
+    if [[ "$force_run_skipped" -eq 1 ]]; then
+        return 1
+    fi
+    grep -Eq '^[[:space:]]*//[[:space:]]*(KSWIFTK_DIFF_IGNORE|SKIP-DIFF)\b' "$case_path"
+}
+
+# Pick a not-yet-existing artifact directory path for a failed diff case:
+# "$1/$2", or "$1/${2}_1", "$1/${2}_2", ... on collision. Does not create the
+# directory; the caller still owns mkdir/mv. $2 should already be sanitized.
+unique_artifact_destination() {
+    local artifact_root="$1" case_name="$2"
+    local destination="$artifact_root/$case_name"
+    local suffix=1
+    while [[ -e "$destination" ]]; do
+        destination="$artifact_root/${case_name}_$suffix"
+        suffix=$((suffix + 1))
+    done
+    printf '%s' "$destination"
+}
+
 # For swiftbuild (the new Swift Build preview engine in Swift 6.3+), enable the
 # integrated Swift/Clang compilation caches by setting the build-system defaults.
 # This is a separate mechanism from the -Xswiftc -cache-compile-job flags used
@@ -108,5 +193,17 @@ kswiftk_setup_compile_cache_env() {
             export EnableClangCachingByDefault=true
             export EnableSwiftExplicitModulesByDefault=true
         fi
+    fi
+}
+
+# Append the shared --build-system flag (from SWIFT_BUILD_SYSTEM) to the named
+# bash array when set. build_swift_tests.sh, swift_test.sh, and
+# shard_swift_tests.sh must all select the same build system so swiftbuild's
+# per-test-target products and compilation cache are reused across build and
+# test invocations.
+kswiftk_append_build_system_flag() {
+    local -n __flags_array="$1"
+    if [[ -n "${SWIFT_BUILD_SYSTEM:-}" ]]; then
+        __flags_array+=(--build-system "$SWIFT_BUILD_SYSTEM")
     fi
 }

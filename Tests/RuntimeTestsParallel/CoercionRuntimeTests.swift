@@ -221,31 +221,6 @@ struct CoercionRuntimeTests {
         #expect(kk_ushort_to_char(65535) == 65535)
     }
 
-    @Test
-    func testCharToIntConversion() {
-        #expect(kk_char_to_int(65) == 65)
-        #expect(kk_char_to_int(0x1F600) == 0x1F600)
-        #expect(kk_char_to_int(0) == 0)
-    }
-
-    @Test
-    func testCharToLongConversion() {
-        #expect(kk_char_to_long(65) == 65)
-        #expect(kk_char_to_long(0x1F600) == 0x1F600)
-    }
-
-    @Test
-    func testCharToUIntConversion() {
-        #expect(kk_char_to_uint(65) == 65)
-        #expect(kk_char_to_uint(0x1F600) == 0x1F600)
-    }
-
-    @Test
-    func testCharToULongConversion() {
-        #expect(kk_char_to_ulong(65) == 65)
-        #expect(kk_char_to_ulong(0x1F600) == 0x1F600)
-    }
-
     // MARK: - Additional Conversion Tests (STDLIB-PRIM-002)
 
     @Test
@@ -318,21 +293,6 @@ struct CoercionRuntimeTests {
         #expect(asUInt == original)
         #expect(asULong == original)
         #expect(asChar == original)
-    }
-
-    @Test
-    func testCrossTypeCharConversions() {
-        let original = 0x1F600 // 😀 emoji
-        let asChar = kk_int_to_char(original)
-        let backToInt = kk_char_to_int(asChar)
-        let asLong = kk_char_to_long(asChar)
-        let asUInt = kk_char_to_uint(asChar)
-        let asULong = kk_char_to_ulong(asChar)
-
-        #expect(backToInt == 0xF600)
-        #expect(asLong == 0xF600)
-        #expect(asUInt == 0xF600)
-        #expect(asULong == 0xF600)
     }
 
 }

@@ -32,13 +32,13 @@ expr e@10:13#1 memberCall recv=e@10:13 callee=first args=[] type=Int ref=kotlin.
 expr e@10:5 call callee=e@10:5#1 args=[_:e@10:13#1] type=Unit call=kotlin.io.println#1
 expr e@11:13 name(pair) type=kotlin.Pair<Int, String> ref=__local_0.pair
 expr e@11:13#1 memberCall recv=e@11:13 callee=second args=[] type=String ref=kotlin.Pair.second
-expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#1
+expr e@11:5 call callee=e@11:5#1 args=[_:e@11:13#1] type=Unit call=kotlin.io.println#2
 expr e@12:13 name(pair) type=kotlin.Pair<Int, String> ref=__local_0.pair
 expr e@12:13#1 memberCall recv=e@12:13 callee=component1 args=[] type=Int call=kotlin.Pair.component1 targs=[Int,String]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#1] type=Unit call=kotlin.io.println#1
 expr e@13:13 name(pair) type=kotlin.Pair<Int, String> ref=__local_0.pair
 expr e@13:13#1 memberCall recv=e@13:13 callee=component2 args=[] type=String call=kotlin.Pair.component2 targs=[Int,String]
-expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
+expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#2
 expr e@14:13 name(copied) type=kotlin.Pair<Int, String> ref=__local_1.copied
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13] type=Unit call=kotlin.io.println#1
 expr e@15:13 name(firstChanged) type=kotlin.Pair<Int, String> ref=__local_2.firstChanged

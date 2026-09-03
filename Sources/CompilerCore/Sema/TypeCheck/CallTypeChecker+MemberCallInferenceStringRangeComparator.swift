@@ -293,11 +293,12 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             ) {
-                if let lambdaExpr = ast.arena.expr(args[0].expr),
-                   lambdaExpr.isLambdaOrCallableRef
-                {
-                    sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
+                guard let lambdaExpr = ast.arena.expr(args[0].expr),
+                      lambdaExpr.isLambdaOrCallableRef
+                else {
+                    return nil
                 }
+                sema.bindings.markCollectionHOFLambdaExpr(args[0].expr)
                 switch calleeStr {
                 case "thenBy", "thenByDescending":
                     let lambdaExpectedType = sema.types.make(.functionType(FunctionType(

@@ -324,6 +324,24 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
+    func testHashMapConstructorRewrittenToKkHashMapOf() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let (module, declID) = makeModuleWithZeroArgCall(
+            callee: interner.intern("HashMap"),
+            interner: interner,
+            arena: arena
+        )
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("HashMap"), "HashMap should be rewritten")
+        #expect(callees.contains("__kk_hash_map_of"), "HashMap should become __kk_hash_map_of")
+    }
+
+    @Test
     func testEmptyMapRewrittenToKkMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
@@ -942,6 +960,46 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_build_set"), "buildSet should become __kk_build_set")
     }
 
+    @Test
+    func testBuildSetCapacityRewrittenToKkBuildSetWithCapacity() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let arg0 = arena.appendExpr(.temporary(0))
+        let arg1 = arena.appendExpr(.temporary(1))
+        let result = arena.appendExpr(.temporary(2))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("buildSet"),
+                    arguments: [arg0, arg1],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("buildSet"), "buildSet(capacity) should be rewritten")
+        #expect(
+            callees.contains("__kk_build_set_with_capacity"),
+            "buildSet(capacity) should become __kk_build_set_with_capacity"
+        )
+    }
+
     // MARK: - buildMap rewriting (STDLIB-071)
 
     @Test
@@ -957,6 +1015,46 @@ struct CollectionLiteralLoweringTests {
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
         #expect(callees.contains("__kk_build_map"), "buildMap should become __kk_build_map")
+    }
+
+    @Test
+    func testBuildMapCapacityRewrittenToKkBuildMapWithCapacity() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let arg0 = arena.appendExpr(.temporary(0))
+        let arg1 = arena.appendExpr(.temporary(1))
+        let result = arena.appendExpr(.temporary(2))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(
+                    symbol: nil,
+                    callee: interner.intern("buildMap"),
+                    arguments: [arg0, arg1],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("buildMap"), "buildMap(capacity) should be rewritten")
+        #expect(
+            callees.contains("__kk_build_map_with_capacity"),
+            "buildMap(capacity) should become __kk_build_map_with_capacity"
+        )
     }
 
     @Test
@@ -1187,6 +1285,15 @@ struct CollectionLiteralLoweringTests {
         #expect(
             callees.contains("__kk_list_size"),
             "virtualCall(size) on List-typed parameter should be rewritten to __kk_list_size, got: \(callees)"
+        )
+    }
+
+    @Test
+    func testVirtualCallOnListTypedParameterRewritesToKkListIsEmpty() throws {
+        let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "isEmpty")
+        #expect(
+            callees.contains("kk_list_is_empty"),
+            "virtualCall(isEmpty) on List-typed parameter should be rewritten to kk_list_is_empty, got: \(callees)"
         )
     }
 

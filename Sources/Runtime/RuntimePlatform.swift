@@ -4,12 +4,12 @@ private enum RuntimePlatformOsFamily: Int {
     case unknown = 0
     case macosx = 1
     case ios = 2
-    case tvos = 3
-    case watchos = 4
-    case linux = 5
-    case windows = 6
-    case android = 7
-    case wasm = 8
+    case linux = 3
+    case windows = 4
+    case android = 5
+    case wasm = 6
+    case tvos = 7
+    case watchos = 8
 }
 
 private enum RuntimePlatformCpuArchitecture: Int {
