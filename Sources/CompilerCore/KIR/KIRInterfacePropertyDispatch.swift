@@ -10,16 +10,22 @@
 /// (`[vtableSize, vtableSize + propertyCount)`) so they never collide with
 /// method slots and require no change to the persisted `NominalLayout`.
 
+private struct KIRInterfacePropertyGetterSlot {
+    let propertySymbol: SymbolID?
+    let propertyName: InternedString
+    let slot: Int
+}
+
 /// The interface's own instance properties that participate in itable dispatch,
 /// paired with the itable method slot each getter occupies. Ordered by property
 /// name so the dispatch site and the registration site agree even when they are
 /// in different compilation units (a precompiled library registers the getters,
 /// its consumer dispatches through them, and symbol ids differ between the two).
-func kirInterfacePropertyGetterSlots(
+private func kirInterfacePropertyGetterSlots(
     interfaceSymbol: SymbolID,
     sema: SemaModule,
     interner: StringInterner
-) -> [(propertySymbol: SymbolID, slot: Int)] {
+) -> [KIRInterfacePropertyGetterSlot] {
     guard sema.symbols.symbol(interfaceSymbol)?.kind == .interface,
           let interfaceInfo = sema.symbols.symbol(interfaceSymbol),
           let layout = sema.symbols.nominalLayout(for: interfaceSymbol)
@@ -28,8 +34,8 @@ func kirInterfacePropertyGetterSlots(
     }
 
     let base = layout.vtableSize
-    let properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
-        .compactMap { id -> SymbolID? in
+    var properties = sema.symbols.children(ofFQName: interfaceInfo.fqName)
+        .compactMap { id -> (symbol: SymbolID?, name: InternedString)? in
             guard let property = sema.symbols.symbol(id), property.kind == .property else { return nil }
             // Stdlib interface properties bridged to a runtime `kk_*` getter
             // (e.g. `size`, `length`) are read through their external link, not
@@ -40,21 +46,54 @@ func kirInterfacePropertyGetterSlots(
             // Likewise for synthetic runtime members registered on an otherwise
             // Kotlin-declared interface: only declarations that exist in Kotlin
             // (source, or the same declaration imported from a precompiled
-            // library) own an itable getter slot.
-            guard property.declSite != nil || property.flags.contains(.importedLibrary) else {
+            // library) own an itable getter slot. Collection/Map `size` is the
+            // intentional exception: source-backed generic helpers need custom
+            // implementations to remain observable through the existing bridge.
+            let isSyntheticCollectionSize = property.name == interner.intern("size")
+                && (interfaceInfo.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Collection"),
+                ] || interfaceInfo.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Map"),
+                ])
+            guard property.declSite != nil || property.flags.contains(.importedLibrary) || isSyntheticCollectionSize else {
                 return nil
             }
-            return id
+            return (symbol: id, name: property.name)
         }
-        .sorted { lhs, rhs in
-            let lhsName = sema.symbols.symbol(lhs).map { interner.resolve($0.name) } ?? ""
-            let rhsName = sema.symbols.symbol(rhs).map { interner.resolve($0.name) } ?? ""
-            if lhsName != rhsName { return lhsName < rhsName }
-            return lhs.rawValue < rhs.rawValue
-        }
+    let sizeName = interner.intern("size")
+    let isCollectionOrMap = interfaceInfo.fqName == [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern("Collection"),
+    ] || interfaceInfo.fqName == [
+        interner.intern("kotlin"),
+        interner.intern("collections"),
+        interner.intern("Map"),
+    ]
+    // Collection/Map size is currently a synthetic interface surface. Keep a
+    // KIR-only slot when the declaration is absent so source-defined concrete
+    // implementations still participate in dynamic property dispatch without
+    // making every ordinary `map.size` sema reference synthetic.
+    if isCollectionOrMap, !properties.contains(where: { $0.name == sizeName }) {
+        properties.append((symbol: nil, name: sizeName))
+    }
+    properties.sort { lhs, rhs in
+        let lhsName = interner.resolve(lhs.name)
+        let rhsName = interner.resolve(rhs.name)
+        if lhsName != rhsName { return lhsName < rhsName }
+        return (lhs.symbol?.rawValue ?? -1) < (rhs.symbol?.rawValue ?? -1)
+    }
 
     return properties.enumerated().map { index, propertySymbol in
-        (propertySymbol: propertySymbol, slot: base + index)
+        KIRInterfacePropertyGetterSlot(
+            propertySymbol: propertySymbol.symbol,
+            propertyName: propertySymbol.name,
+            slot: base + index
+        )
     }
 }
 
@@ -141,6 +180,28 @@ func kirFindOverridePropertyGetter(
     return nil
 }
 
+private func kirFindOverridePropertyGetter(
+    named propertyName: InternedString,
+    in nominalSymbol: SymbolID,
+    sema: SemaModule
+) -> SymbolID? {
+    guard let ownerSym = sema.symbols.symbol(nominalSymbol) else {
+        return nil
+    }
+    let overrideFQName = ownerSym.fqName + [propertyName]
+    for candidate in sema.symbols.lookupAll(fqName: overrideFQName) {
+        guard let candidateSym = sema.symbols.symbol(candidate),
+              candidateSym.kind == .property,
+              sema.symbols.parentSymbol(for: candidate) == nominalSymbol
+        else {
+            continue
+        }
+        return sema.symbols.extensionPropertyGetterAccessor(for: candidate)
+            ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: candidate)
+    }
+    return nil
+}
+
 /// Registers each implemented interface property getter into the object's
 /// itable, alongside the method registrations emitted for the same interfaces.
 /// The interface itself is already registered by the method-registration pass
@@ -175,16 +236,25 @@ func appendObjectItablePropertyGetterRegistrations(
         let ifaceSlotExpr = arena.appendExpr(.intLiteral(ifaceSlot), type: intType)
         instructions.append(.constValue(result: ifaceSlotExpr, value: .intLiteral(ifaceSlot)))
 
-        for (propertySymbol, slotInt) in getterSlots {
-            guard let implGetter = kirFindOverridePropertyGetter(
-                for: propertySymbol,
-                in: nominalSymbol,
-                sema: sema
-            ) else {
+        for getterSlot in getterSlots {
+            let implGetter: SymbolID? = if let propertySymbol = getterSlot.propertySymbol {
+                kirFindOverridePropertyGetter(
+                    for: propertySymbol,
+                    in: nominalSymbol,
+                    sema: sema
+                )
+            } else {
+                kirFindOverridePropertyGetter(
+                    named: getterSlot.propertyName,
+                    in: nominalSymbol,
+                    sema: sema
+                )
+            }
+            guard let implGetter else {
                 continue
             }
 
-            let methodSlot = Int64(slotInt)
+            let methodSlot = Int64(getterSlot.slot)
             let methodSlotExpr = arena.appendExpr(.intLiteral(methodSlot), type: intType)
             instructions.append(.constValue(result: methodSlotExpr, value: .intLiteral(methodSlot)))
 

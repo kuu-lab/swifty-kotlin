@@ -7,7 +7,7 @@
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` class with `result`, `consume`, `getState` members and the `FutureState` anchor
+///   - `Future<T>` value class with `result`, `consume`, `getState` members and the `FutureState` anchor
 ///   - `@ObsoleteWorkersApi` marker annotation
 ///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
 ///   - `@SharedImmutable` annotation (PROPERTY target)
@@ -1074,7 +1074,7 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Future<T> class with result, consume, getState members.
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Future<T> value class with result, consume, getState members.
 ///
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
@@ -1109,6 +1109,11 @@ extension DataFlowSemaPhase {
             symbols.setParentSymbol(pkgSymbol, for: futureSymbol)
         }
 
+        // Future is a value class over the runtime handle. Its constructor must
+        // preserve the supplied Int instead of allocating a separate object.
+        symbols.insertFlags(.valueType, for: futureSymbol)
+        symbols.setValueClassUnderlyingType(types.intType, for: futureSymbol)
+
         let typeParamName = interner.intern("T")
         let typeParamFQName = futureFQName + [typeParamName]
         let typeParamSymbol: SymbolID
@@ -1136,6 +1141,21 @@ extension DataFlowSemaPhase {
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: futureSymbol)
         types.setNominalTypeParameterVariances([.invariant], for: futureSymbol)
         symbols.setPropertyType(futureType, for: futureSymbol)
+
+        // The runtime creates handles with kk_future_new(); this constructor
+        // wraps an existing handle and therefore has no runtime link.
+        registerNativeConcurrentConstructor(
+            ownerSymbol: futureSymbol,
+            ownerType: futureType,
+            visibility: .internal,
+            annotations: [MetadataAnnotationRecord(annotationFQName: "kotlin.PublishedApi")],
+            parameters: [(name: "id", type: types.intType)],
+            defaultValues: [false],
+            typeParameterSymbols: [typeParamSymbol],
+            classTypeParameterCount: 1,
+            symbols: symbols,
+            interner: interner
+        )
 
         // Future.result: T
         registerNativeConcurrentReadOnlyProperty(

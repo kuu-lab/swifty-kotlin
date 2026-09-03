@@ -57,7 +57,7 @@ struct SequenceInterfaceSyntheticTests {
             ))
             #expect(sema.symbols.symbol(member)?.flags.contains(.operatorFunction) == true)
             #expect(sema.symbols.isSourceBackedSymbol(member))
-            #expect(sema.symbols.externalLinkName(for: member) == nil)
+            #expect(sema.symbols.externalLinkName(for: member) == "kk_iterator_\(memberName)")
         }
 
         let elementType = sema.types.make(.typeParam(TypeParamType(

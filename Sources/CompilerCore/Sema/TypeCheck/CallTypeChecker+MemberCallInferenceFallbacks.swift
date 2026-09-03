@@ -500,11 +500,6 @@ extension CallTypeChecker {
         case ("ULong", "MIN_VALUE"): return (types.ulongType, .ulongLiteral(0))
         case ("ULong", "SIZE_BITS"): return (types.intType, .intLiteral(64))
         case ("ULong", "SIZE_BYTES"): return (types.intType, .intLiteral(8))
-        // UShort (16-bit unsigned)
-        case ("UShort", "MAX_VALUE"): return (types.ushortType, .uintLiteral(UInt64(UInt16.max)))
-        case ("UShort", "MIN_VALUE"): return (types.ushortType, .uintLiteral(0))
-        case ("UShort", "SIZE_BITS"): return (types.intType, .intLiteral(16))
-        case ("UShort", "SIZE_BYTES"): return (types.intType, .intLiteral(2))
         // Float
         case ("Float", "MAX_VALUE"): return (types.floatType, .floatLiteral(Double(Float.greatestFiniteMagnitude)))
         case ("Float", "MIN_VALUE"): return (types.floatType, .floatLiteral(Double(Float.leastNonzeroMagnitude)))
@@ -785,6 +780,71 @@ extension CallTypeChecker {
                 }
                 return true
             })
+        }
+
+        if args.count == 1,
+           ["then", "thenDescending"].contains(calleeStr),
+           let argumentExpr = ctx.ast.arena.expr(args[0].expr),
+           !argumentExpr.isLambdaOrCallableRef
+        {
+            let argumentType = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals)
+            let comparatorFQName = [
+                interner.intern("kotlin"),
+                interner.intern("Comparator"),
+            ]
+            guard let comparatorSymbol = sema.symbols.lookup(fqName: comparatorFQName) else {
+                return nil
+            }
+            let expectedComparatorType = sema.types.make(.classType(ClassType(
+                classSymbol: comparatorSymbol,
+                // Comparator is declaration-site contravariant, so its
+                // invariant instantiation already accepts Comparator<in T>
+                // arguments without double-applying the `in` projection.
+                args: [.invariant(comparatorElementType)],
+                nullability: .nonNull
+            )))
+            guard sema.types.isSubtype(argumentType, expectedComparatorType) else {
+                return nil
+            }
+
+            let fqName = [
+                interner.intern("kotlin"),
+                interner.intern("comparisons"),
+                calleeName,
+            ]
+            guard let chosen = sema.symbols.lookupAll(fqName: fqName).first(where: { candidate in
+                guard let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let parameterType = signature.parameterTypes.first,
+                      resolvedComparatorElementType(
+                          of: parameterType,
+                          sema: sema,
+                          interner: interner
+                      ) != nil,
+                      let receiver = signature.receiverType,
+                      resolvedComparatorElementType(of: receiver, sema: sema, interner: interner) != nil
+                else {
+                    return false
+                }
+                return true
+            }) else {
+                return nil
+            }
+
+            sema.bindings.bindCall(
+                id,
+                binding: CallBinding(
+                    chosenCallee: chosen,
+                    substitutedTypeArguments: [comparatorElementType],
+                    parameterMapping: [0: 0]
+                )
+            )
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+
+            let resultType = sema.types.makeNonNullable(receiverType)
+            let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
         }
 
         if args.count == 2, ["thenBy", "thenByDescending"].contains(calleeStr) {

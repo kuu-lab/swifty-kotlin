@@ -643,6 +643,7 @@ func runtimeSourceIterableIterator(
     _ iterableRaw: Int,
     outThrown: UnsafeMutablePointer<Int>? = nil
 ) -> Int? {
+    outThrown?.pointee = 0
     let fnPtr = kk_itable_lookup_dynamic(iterableRaw, Int(runtimeIterableInterfaceTypeID), 0)
     guard fnPtr != 0 else {
         return nil
@@ -664,8 +665,44 @@ func runtimeSourceIterableIterator(
     return iterRaw
 }
 
+/// KSP-998: Explicit `Iterable.iterator()` calls use a throwing bridge so a
+/// source iterator is acquired lazily and its exception reaches Kotlin catch.
+@_cdecl("kk_iterable_iterator")
+public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
+    outThrown?.pointee = 0
+    if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
+        return iterableRaw
+    }
+    if runtimeSequenceBox(from: iterableRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
+    if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
+        return kk_list_iterator(iterableRaw)
+    }
+    if let arrayBox = runtimeArrayBox(from: iterableRaw), type(of: arrayBox) == RuntimeArrayBox.self {
+        return kk_list_iterator(iterableRaw)
+    }
+    // Preserve the legacy compiler bridge for the old runtime-backed
+    // IndexingIterable representation while source-backed withIndex() uses the
+    // Kotlin IndexingIterable class above.
+    if runtimeIndexingIterableBox(from: iterableRaw) != nil {
+        return kk_indexing_iterable_iterator(iterableRaw)
+    }
+    if let sourceIterator = runtimeSourceIterableIterator(iterableRaw, outThrown: outThrown) {
+        return sourceIterator
+    }
+    guard let range = runtimeRangeBox(from: iterableRaw) else {
+        return 0
+    }
+    return registerRuntimeObject(
+        RuntimeRangeIteratorBox(current: range.first, last: range.last, step: range.step)
+    )
+}
+
 @_cdecl("kk_range_iterator")
-public func kk_range_iterator(_ rangeRaw: Int) -> Int {
+public func kk_range_iterator(_ rangeRaw: Int, _ outThrown: UnsafeMutablePointer<Int>? = nil) -> Int {
+    outThrown?.pointee = 0
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -695,8 +732,11 @@ public func kk_range_iterator(_ rangeRaw: Int) -> Int {
     // dynamically. Dispatch it through the `kotlin.collections.Iterable` itable
     // — the same shape `runtimeTraverseSourceSequenceObject` uses for
     // `Sequence` — instead of treating the object as an invalid range.
-    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw) {
+    if let sourceIterator = runtimeSourceIterableIterator(rangeRaw, outThrown: outThrown) {
         return sourceIterator
+    }
+    if let outThrown, outThrown.pointee != 0 {
+        return 0
     }
     guard let range = runtimeRangeBox(from: rangeRaw) else {
         return 0
