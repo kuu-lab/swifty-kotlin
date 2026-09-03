@@ -7,10 +7,13 @@ extension CallLowerer {
     /// through the getter/setter accessor slot LayoutSynthesis assigned it,
     /// rather than the statically-resolved declaration's own field
     /// offset/accessor — mirroring `resolveVtableDispatchKind`'s identical
-    /// rule for ordinary method calls: only open/abstract/override members
-    /// whose owner currently has known subtypes are eligible, since a
-    /// receiver typed as a leaf (subtype-less) class can never actually hold
-    /// a more-derived override at runtime.
+    /// rule for ordinary method calls: open/override members whose owner
+    /// currently has known subtypes are eligible, since a receiver typed as a
+    /// leaf (subtype-less) class can never actually hold a more-derived
+    /// override at runtime. Abstract members are always eligible because
+    /// their declaration has no concrete field/accessor implementation to
+    /// read directly, including when implementations live outside this
+    /// compilation unit.
     ///
     /// `super`-qualified access is always excluded — `super.p` must keep
     /// reading/writing the syntactically-named class's own implementation,
@@ -34,7 +37,8 @@ extension CallLowerer {
                   || propInfo.flags.contains(.overrideMember),
               let ownerID = sema.symbols.parentSymbol(for: propertySymbol),
               sema.symbols.symbol(ownerID)?.kind == .class,
-              !sema.symbols.directSubtypes(of: ownerID).isEmpty,
+              (propInfo.flags.contains(.abstractType)
+                  || !sema.symbols.directSubtypes(of: ownerID).isEmpty),
               let layout = sema.symbols.nominalLayout(for: ownerID)
         else {
             return nil

@@ -1407,6 +1407,17 @@ package final class MetadataEncoder {
         types: TypeSystem? = nil
     ) -> String {
         let pairs: [(String, Int)] = slots.compactMap { symbolID, slot in
+            if let decoded = SyntheticSymbolScheme.decodedPropertyAccessor(symbolID),
+               let property = symbols.symbol(decoded.property)
+            {
+                if let includedSymbolIDs, !includedSymbolIDs.contains(property.id) {
+                    return nil
+                }
+                let fqName = property.fqName.map { interner.resolve($0) }.joined(separator: ".")
+                guard !fqName.isEmpty else { return nil }
+                let prefix = decoded.kind == .getter ? "pget:" : "pset:"
+                return ("\(prefix)\(fqName)", slot)
+            }
             guard let symbol = symbols.symbol(symbolID), symbol.kind == .function else {
                 return nil
             }
