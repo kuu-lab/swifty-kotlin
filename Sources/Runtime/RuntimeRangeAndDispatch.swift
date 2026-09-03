@@ -673,6 +673,10 @@ public func kk_iterable_iterator(_ iterableRaw: Int, _ outThrown: UnsafeMutableP
     if runtimeIteratorBuilderBox(from: iterableRaw) != nil {
         return iterableRaw
     }
+    if runtimeSequenceBox(from: iterableRaw) != nil {
+        let elements = runtimeSequenceSourceElementsOrPanic(from: iterableRaw, caller: #function)
+        return registerRuntimeObject(RuntimeListIteratorBox(elements: elements))
+    }
     if runtimeListBox(from: iterableRaw) != nil || runtimeSetBox(from: iterableRaw) != nil {
         return kk_list_iterator(iterableRaw)
     }
