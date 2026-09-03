@@ -778,18 +778,38 @@
     - `kotlin.UInt.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
     - `kotlin.UInt.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
 
-- [ ] KSP-910: kotlin.ULong.Companion.Companion の未実装 stdlib API を実装する（4 件）
+- [x] KSP-908: kotlin.UIntArray top-level の未実装 stdlib API を実装する（2 件）
+  - 対象: `kotlin.UIntArray` / top-level
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/UIntArray/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_UIntArray_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_UIntArray_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_UIntArray_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `UIntArray(Int)` は既存のprimitive-array special callと`kk_array_new_checked`で実装済みだったため重複実装せず、専用Sema/KIR/diffで0長・0初期値・負サイズ例外を固定した。#5920（commit `19408145b`）は`UIntArray(Int, (Int) -> UInt)`のsize+initのみであり、今回の所有範囲外。`UIntArray(IntArray)`はKotlin本家でinternal storage constructorのため、`UIntArray.kt`に共有backing storage view (`IntArray.asUIntArray()`)へ委譲する`@PublishedApi internal`実装を追加し、stdlib consumer metadataからは除外した。共有runtime/ABI/view bridgeは利用中のため保持した。
+  - 未実装シンボル一覧:
+    - `kotlin.UIntArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
+    - `kotlin.UIntArray.<init>` — constructor (IntArray)  -- `constructor <init>(kotlin/IntArray)`
+
+- [x] KSP-909: kotlin.ULong top-level の未実装 stdlib API を実装する（1 件）
+  - 対象: `kotlin.ULong` / top-level
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULong/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ULong_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
+  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ULong_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ULong_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
+  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了（2026-08-23）：Kotlin 本家の `internal constructor(Long)` に合わせ、`Sources/CompilerCore/Stdlib/kotlin/ULong/Stdlib.kt` に source-backed internal constructor を追加。既存の Long→ULong numeric conversion、boxing/type token、operator、runtime、ABI 経路は保持し、専用 Sema Golden/diff/Sema 回帰と共有 ULong/KIR/Backend/Runtime 回帰で bit-pattern、型推論、Any boxing、`is ULong`、null-sentinel 境界を検証。
+  - 未実装シンボル一覧:
+    - `kotlin.ULong.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
+
+- [x] KSP-910: kotlin.ULong.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ULong.Companion` / receiver `Companion`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ULong/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ULong_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ULong_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ULong_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.ULong.Companion.MAX_VALUE` — val Companion.MAX_VALUE: ULong  -- `final const val MAX_VALUE`
-    - `kotlin.ULong.Companion.MIN_VALUE` — val Companion.MIN_VALUE: ULong  -- `final const val MIN_VALUE`
-    - `kotlin.ULong.Companion.SIZE_BITS` — val Companion.SIZE_BITS: Int  -- `final const val SIZE_BITS`
-    - `kotlin.ULong.Companion.SIZE_BYTES` — val Companion.SIZE_BYTES: Int  -- `final const val SIZE_BYTES`
+  - 完了確認（2026-08-23）: `Sources/CompilerCore/Stdlib/kotlin/ULong/Companion/Companion.kt` に4 APIをsource-backed `public val` として実装。現行言語制約によりextension `const val` ではなく既存numeric companionと同じpublic getter形式を採用し、Sema Goldenで直接参照・明示Companion receiver・型・2^63境界・算術式・`Any` boxing/`is ULong` を固定。ULong専用のnumeric companion fallbackのみ削除し、共有ULong boxing/runtime/ABIは保持。
+  - 検証: focused Golden shard（更新あり/なし）、`stdlib_kotlin_ULong_Companion_Companion_n.kt` の`diff_kotlinc`、`UnsignedPrimitiveMemberCallTests`、`IntegerNarrowingPassTests`、Bundled stdlib ULong Backend回帰、`RuntimeUnsignedComparisonAndToStringTests`、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` がpass。
 
 - [x] KSP-911: kotlin.ULongArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ULongArray` / top-level
