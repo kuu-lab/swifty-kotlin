@@ -5650,7 +5650,7 @@
     - `kotlin.text.Typography.doubleDagger` — val Typography.doubleDagger: Char  -- `final const val doubleDagger`
     - `kotlin.text.Typography.doublePrime` — val Typography.doublePrime: Char  -- `final const val doublePrime`
 
-- [ ] KSP-1450: kotlin.text.Typography.Typography.ellipsis-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1450: kotlin.text.Typography.Typography.ellipsis-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `ellipsis`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/ellipsis.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5659,6 +5659,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.ellipsis` — val Typography.ellipsis: Char  -- `final const val ellipsis`
+  - 完了根拠（2026-09-03、remote master `cf95db64dac5d4ead0e3529998b9d26b8d2b8848` を GitHub API/raw で再確認）: KSP-711 の merged PR #6048 / commit `9a39776adff70eb419b7effc3ea21fa0a1baa632` が Typography 全定数を source-backed 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/text/Typography.kt:22` に `public const val ellipsis: Char = '\u2026'` があり、`Tests/CompilerCoreTests/Sema/StringSyntheticMemberLinkTests.swift:989-1049` が Typography を non-synthetic source declaration、非 nullable Char、const の char literal U+2026 として検証する。Kotlin 2.3.10 公式 source の `\u2026` および published JVM ABI の `kotlin.text.Typography.ellipsis: C` / constant 8230 と一致し、対象専用の synthetic/runtime/RuntimeABI bridge はない。focused `CompilerCoreTests.StringSyntheticMemberLinkTests`（4 tests）が PASS、`validate_runtime_abi_links.sh`（4 tests）/`check_todo_ids.sh`/`git diff --check` も PASS のため、コード・追加 `.kt`・Golden・diff ケースの重複変更は不要。
 
 - [ ] KSP-1451: kotlin.text.Typography.Typography.euro-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `euro`
