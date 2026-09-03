@@ -5333,9 +5333,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.toCharArray` — fun StringBuilder.toCharArray(CharArray, Int, Int, Int): Unit  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/toCharArray(kotlin/CharArray, kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...)`
 
-- [ ] KSP-1415: kotlin.text.Appendable.Appendable の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1415: kotlin.text.Appendable.Appendable の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.text.Appendable` / receiver `Appendable`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Appendable/Appendable.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Appendable.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_Appendable_Appendable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_Appendable_Appendable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_Appendable_Appendable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -5344,6 +5344,8 @@
     - `kotlin.text.Appendable.append` — fun Appendable.append(Char): Appendable  -- `abstract fun append(kotlin/Char): kotlin.text/Appendable`
     - `kotlin.text.Appendable.append` — fun Appendable.append(CharSequence): Appendable  -- `abstract fun append(kotlin/CharSequence?): kotlin.text/Appendable`
     - `kotlin.text.Appendable.append` — fun Appendable.append(CharSequence, Int, Int): Appendable  -- `abstract fun append(kotlin/CharSequence?, kotlin/Int, kotlin/Int): kotlin.text/Appendable`
+  - 完了根拠（2026-09-03, master `cf95db64`）: 実装は KSP-711 の merged PR #6048（commit `9a39776a`）で先行導入済み。現行 `Appendable.kt` は source-backed interface と3 overloadを宣言し、それぞれ `@KsSymbolName` で `__kk_string_builder_append_char` / `__kk_string_builder_append_obj` / `__kk_string_builder_append_range` に接続している。StringBuilder が通常の object itable を登録しないため direct bridge を残す設計は、`RuntimeStringBuilder.swift`、`RuntimeABISpec+StringBuilder.swift`、KIR の source-backed link routing で一貫している。
+  - 回帰根拠: `StringAppendFunctionTests`、`StringSyntheticMemberLinkTests`、`CodegenBackendStringBuilderEdgeCasesTests` の Appendable overload ケース、および `Scripts/diff_cases/appendable_append_overloads.kt` が現行実装を検証する。
 
 - [ ] KSP-1417: kotlin.text.CharCategory.CharCategory の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text.CharCategory` / receiver `CharCategory`
