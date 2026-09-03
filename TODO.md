@@ -2681,7 +2681,7 @@
     - `kotlin.coroutines.getPolymorphicElement` — fun Element.getPolymorphicElement(Key): #A  -- `final fun <#A: kotlin.coroutines/CoroutineContext.Element> (kotlin.coroutines/CoroutineContext.Element).kotlin.coroutines/getPolymorphicElement(kotlin.coroutines/CoroutineContext.Key<#A>): #A?`
     - `kotlin.coroutines.minusPolymorphicKey` — fun Element.minusPolymorphicKey(Key): CoroutineContext  -- `final fun (kotlin.coroutines/CoroutineContext.Element).kotlin.coroutines/minusPolymorphicKey(kotlin.coroutines/CoroutineContext.Key<*>): kotlin.coroutines/CoroutineContext`
 
-- [ ] KSP-1134: kotlin.coroutines.SuspendFunction0 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1134: kotlin.coroutines.SuspendFunction0 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.coroutines` / receiver `SuspendFunction0`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/SuspendFunction0.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
