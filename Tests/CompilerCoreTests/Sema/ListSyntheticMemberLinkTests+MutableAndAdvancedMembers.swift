@@ -587,10 +587,6 @@ extension ListSyntheticMemberLinkTests {
                 ("removeAll", 1, "__kk_mutable_list_removeAll"),
                 ("retainAll", 1, "__kk_mutable_list_retainAll"),
                 ("removeAt", 1, "__kk_mutable_list_removeAt"),
-                ("removeFirst", 0, "__kk_mutable_list_removeFirst"),
-                ("removeFirstOrNull", 0, "__kk_mutable_list_removeFirstOrNull"),
-                ("removeLast", 0, "__kk_mutable_list_removeLast"),
-                ("removeLastOrNull", 0, "__kk_mutable_list_removeLastOrNull"),
                 ("clear", 0, "__kk_mutable_list_clear"),
             ]
 
@@ -601,6 +597,22 @@ extension ListSyntheticMemberLinkTests {
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
                 #expect(sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName, "Expected \(memberName)/\(argumentCount) to resolve to \(externalLinkName)")
+            }
+
+            let sourceBackedMembers: [(String, Int)] = [
+                ("removeFirst", 0),
+                ("removeFirstOrNull", 0),
+                ("removeLast", 0),
+                ("removeLastOrNull", 0),
+            ]
+            for (memberName, argumentCount) in sourceBackedMembers {
+                let callExpr = try #require(lastExprID(in: ast) { _, expr in
+                    guard case let .memberCall(_, callee, _, valueArgs, _) = expr else { return false }
+                    return ctx.interner.resolve(callee) == memberName && valueArgs.count == argumentCount
+                })
+                let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)
+                #expect(sema.symbols.externalLinkName(for: chosenCallee) == nil, "Expected \(memberName)/\(argumentCount) to remain source-backed")
+                #expect(sema.symbols.isSourceBackedSymbol(chosenCallee), "Expected \(memberName)/\(argumentCount) to resolve to bundled source")
             }
         }
     }
@@ -923,6 +935,7 @@ extension ListSyntheticMemberLinkTests {
 
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
+            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
 
             let expectedExternalLinks = [
                 "addAll": "__kk_mutable_list_addAll",
@@ -931,12 +944,11 @@ extension ListSyntheticMemberLinkTests {
             ]
 
             for (memberName, externalLinkName) in expectedExternalLinks {
-                let callExpr = try #require(firstExprID(in: ast) { _, expr in
-                    guard case let .memberCall(_, callee, _, _, range) = expr,
-                          !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
-                    else {
+                let callExpr = try #require(firstExprID(in: ast) { exprID, expr in
+                    guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
                         return false
                     }
+                    guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                     return ctx.interner.resolve(callee) == memberName
                 })
                 let chosenCallee = try #require(sema.bindings.callBinding(for: callExpr)?.chosenCallee)

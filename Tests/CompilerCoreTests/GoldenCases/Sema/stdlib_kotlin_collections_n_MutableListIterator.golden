@@ -51,3 +51,5 @@ expr e@26:5 name(iterator) type=kotlin.collections.MutableListIterator<Int> ref=
 expr e@26:5#1 memberCall recv=e@26:5 callee=hasPrevious args=[] type=Boolean call=kotlin.collections.ListIterator.hasPrevious targs=[Int]
 expr e@27:5 name(iterator) type=kotlin.collections.MutableListIterator<Int> ref=golden.sema.probe.$3.iterator
 expr e@27:5#1 memberCall recv=e@27:5 callee=previous args=[] type=Int call=kotlin.collections.ListIterator.previous targs=[Int]
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=3:1 msg=Class 'golden.sema.CustomMutableListIterator' must override abstract member 'nextIndex' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=3:1 msg=Class 'golden.sema.CustomMutableListIterator' must override abstract member 'previousIndex' or be declared abstract.

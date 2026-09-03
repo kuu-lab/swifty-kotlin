@@ -39,9 +39,9 @@ extension CallLowerer {
         "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
         "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
         "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
-        "distinct", "distinctBy", "shuffled",
         "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
         "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+        "indexOf", "indexOfFirst", "indexOfLast",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
@@ -147,7 +147,27 @@ extension CallLowerer {
             else {
                 return false
             }
-            if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
+            let memberName = interner.resolve(calleeName)
+            if memberName == "plus" {
+                // `plus` is shared by collections, sequences, maps, and other
+                // receivers. Only the source declaration whose extension
+                // receiver is Iterable belongs to this source-backed path.
+                guard let signature = sema.symbols.functionSignature(for: chosenCallee),
+                      let declaredReceiver = signature.receiverType,
+                      let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
+                          sema.types.makeNonNullable(declaredReceiver),
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return declaredReceiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }
+            if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
             }
             if interner.resolve(calleeName) == "zip" {
