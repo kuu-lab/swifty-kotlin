@@ -108,6 +108,28 @@ struct BundledSyntheticOverlapDiagnosticTests {
     }
 
     @Test
+    func testSourceBackedExtensionPropertyGetterDoesNotWarnAsSyntheticStub() throws {
+        let ctx = makeContextFromSource(
+            """
+            lateinit var value: String
+
+            fun ready(): Boolean = ::value.isInitialized
+            """
+        )
+        try runSema(ctx)
+
+        #expect(!ctx.diagnostics.hasError, "Unexpected errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let overlapDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-SEMA-0102"
+                && $0.message.contains("kotlin.reflect.KProperty0")
+        }
+        #expect(
+            overlapDiagnostics.isEmpty,
+            "Source-backed extension property getter was misclassified as a synthetic stub: \(overlapDiagnostics)"
+        )
+    }
+
+    @Test
     func testNoOverlapWarnings() throws {
         let sources: [String] = [
             """

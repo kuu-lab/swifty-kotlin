@@ -50,11 +50,26 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
+        // extension bridges need the source symbol before synthetic
+        // registration constructs their signatures.
+        predeclareBundledStringEncodingHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1522: bundled collection and interop headers refer to the
         // source-backed Random types while synthetic members are registered.
         // Forward-declare those real nominal headers before the synthetic pass
         // so this ordering does not require placeholder anchors.
         predeclareBundledRandomHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-1210: Platform.osFamily is typed against the source-backed
+        // OsFamily enum before the native platform property stubs are built.
+        predeclareBundledOsFamilyHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -362,6 +377,14 @@ final class DataFlowSemaPhase: CompilerPhase {
         // synthesizeNominalLayouts below, ensures both the constraint solver
         // and itable slot synthesis see the complete supertype list.
         patchSourceBackedStringBuilderSupertypes(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
+        // KSP-944: MutableList's source declaration owns its official
+        // List/MutableCollection edges, while the retained compiler shell
+        // still supplies the MutableIterable residual compatibility edge.
+        patchSourceBackedMutableListSupertypes(
             symbols: symbols,
             types: types,
             interner: ctx.interner
