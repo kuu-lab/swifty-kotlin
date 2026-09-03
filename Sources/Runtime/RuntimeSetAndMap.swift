@@ -149,8 +149,17 @@ public func kk_collection_containsAll(_ collRaw: Int, _ elementsRaw: Int) -> Int
 // MARK: - Mutable Set Operations
 
 @_cdecl("__kk_mutable_set_add")
-public func kk_mutable_set_add(_ setRaw: Int, _ elem: Int) -> Int {
+public func kk_mutable_set_add(
+    _ setRaw: Int,
+    _ elem: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
+        return kk_box_bool(0)
+    }
+    guard !set.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return kk_box_bool(0)
     }
     return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
@@ -298,8 +307,18 @@ public func kk_emptyMap() -> Int {
 }
 
 @_cdecl("__kk_mutable_map_put")
-public func kk_mutable_map_put(_ mapRaw: Int, _ key: Int, _ value: Int) -> Int {
+public func kk_mutable_map_put(
+    _ mapRaw: Int,
+    _ key: Int,
+    _ value: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
     guard let map = runtimeMapBox(from: mapRaw) else {
+        return runtimeNullSentinelInt
+    }
+    guard !map.isReadOnly else {
+        outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
         return runtimeNullSentinelInt
     }
     return map.put(key: key, value: value) ?? runtimeNullSentinelInt
@@ -341,7 +360,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     else {
         return 0
     }
-    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second)
+    _ = kk_mutable_map_put(mapRaw, pairBox.first, pairBox.second, nil)
     return 0
 }
 
@@ -557,7 +576,7 @@ public func kk_mutable_map_entry_setValue(_ entryRaw: Int, _ value: Int) -> Int 
     else {
         return runtimeNullSentinelInt
     }
-    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value)
+    let previous = kk_mutable_map_put(pairBox.mutableMapRaw, pairBox.mutableMapKey, value, nil)
     pairBox.secondValue = RuntimeValue(raw: value)
     return previous
 }

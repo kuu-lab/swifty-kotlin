@@ -103,12 +103,13 @@ public fun <T> Iterable<T>.toMutableSet(): MutableSet<T> {
     return result
 }
 
-public fun <T> Iterable<T>.toHashSet(): MutableSet<T> {
+public fun <T> Iterable<T>.toHashSet(): HashSet<T> {
     val result = mutableSetOf<T>()
     for (element in this) result.add(element)
     return result
 }
 
+@IgnorableReturnValue
 public fun <T, C : MutableCollection<in T>> Iterable<T>.toCollection(destination: C): C {
     for (element in this) destination.add(element)
     return destination
@@ -243,6 +244,30 @@ public inline fun <T, R, C : MutableCollection<in R>> Iterable<T>.flatMapTo(
         while (nestedIterator.hasNext()) destination.add(nestedIterator.next())
     }
     return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> Iterable<Pair<K, V>>.toMap(): Map<K, V> {
+    val result = mutableMapOf<K, V>()
+    for (pair in this) result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+@Suppress("UNCHECKED_CAST")
+public fun <K, V, M : MutableMap<in K, in V>> Iterable<Pair<K, V>>.toMap(destination: M): M {
+    // The bundled MutableMap stub exposes invariant operator parameters; the
+    // official contravariant API permits every K/V write to this destination.
+    val typedDestination = destination as MutableMap<K, V>
+    for (pair in this) typedDestination[pair.first] = pair.second
+    return destination
+}
+
+@Suppress("UNCHECKED_CAST")
+public fun <T> Iterable<T>.toSet(): Set<T> {
+    val result = mutableSetOf<T>()
+    for (element in this) result.add(element)
+    return result as Set<T>
 }
 
 public fun <T> Collection<T>.isNotEmpty(): Boolean = !isEmpty()
@@ -399,6 +424,51 @@ public inline fun <T> Iterable<T>.lastOrNull(predicate: (T) -> Boolean): T? {
     return last
 }
 
+// KSP-970: generic Iterable element access keeps the List fast path while
+// using one iterator traversal for non-List receivers.
+public fun <T> Iterable<T>.elementAt(index: Int): T {
+    if (this is List) {
+        val list = this
+        if (index < 0 || index >= list.size) {
+            throw IndexOutOfBoundsException("Index $index out of bounds for length ${list.size}")
+        }
+        return list[index]
+    }
+    return elementAtOrElse(index) { throw IndexOutOfBoundsException("Collection doesn't contain element at index $index.") }
+}
+
+public fun <T> Iterable<T>.elementAtOrElse(index: Int, defaultValue: (Int) -> T): T {
+    if (this is List) {
+        val list = this
+        if (index >= 0 && index < list.size) return list[index]
+        return defaultValue(index)
+    }
+    if (index < 0) return defaultValue(index)
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return defaultValue(index)
+}
+
+public fun <T> Iterable<T>.elementAtOrNull(index: Int): T? {
+    if (this is List) {
+        val list = this
+        if (index >= 0 && index < list.size) return list[index]
+        return null
+    }
+    if (index < 0) return null
+    val iterator = iterator()
+    var count = 0
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (index == count++) return element
+    }
+    return null
+}
+
 // KSP-701: generic Iterable HOFs formerly registered by the compiler-side
 // synthetic member registry now use bundled Kotlin source bodies.
 public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
@@ -407,6 +477,108 @@ public fun <T> Iterable<T>.filter(predicate: (T) -> Boolean): List<T> {
         if (predicate(element)) result.add(element)
     }
     return result
+}
+
+public inline fun <T> Iterable<T>.find(predicate: (T) -> Boolean): T? {
+    for (element in this) {
+        if (predicate(element)) return element
+    }
+    return null
+}
+
+public inline fun <T> Iterable<T>.findLast(predicate: (T) -> Boolean): T? {
+    var last: T? = null
+    for (element in this) {
+        if (predicate(element)) last = element
+    }
+    return last
+}
+
+// KSP-971: remaining Iterable filter-family APIs use bundled Kotlin source
+// bodies so custom and one-shot Iterable receivers follow the same iteration
+// and destination semantics as the Kotlin standard library.
+public inline fun <T> Iterable<T>.filterIndexed(predicate: (Int, T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) result.add(element)
+        index++
+    }
+    return result
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterIndexedTo(
+    destination: C,
+    predicate: (Int, T) -> Boolean
+): C {
+    var index = 0
+    for (element in this) {
+        if (predicate(index, element)) destination.add(element)
+        index++
+    }
+    return destination
+}
+
+public inline fun <reified R> Iterable<*>.filterIsInstance(): List<R> {
+    val destination = mutableListOf<R>()
+    for (element in this) {
+        if (element is R) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <reified R, C : MutableCollection<in R>> Iterable<*>.filterIsInstanceTo(
+    destination: C
+): C {
+    for (element in this) {
+        if (element is R) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T> Iterable<T>.filterNot(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) result.add(element)
+    }
+    return result
+}
+
+public fun <T : Any> Iterable<T?>.filterNotNull(): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (element != null) result.add(element)
+    }
+    return result
+}
+
+public fun <C : MutableCollection<in T>, T : Any> Iterable<T?>.filterNotNullTo(
+    destination: C
+): C {
+    for (element in this) {
+        if (element != null) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterNotTo(
+    destination: C,
+    predicate: (T) -> Boolean
+): C {
+    for (element in this) {
+        if (!predicate(element)) destination.add(element)
+    }
+    return destination
+}
+
+public inline fun <T, C : MutableCollection<in T>> Iterable<T>.filterTo(
+    destination: C,
+    predicate: (T) -> Boolean
+): C {
+    for (element in this) {
+        if (predicate(element)) destination.add(element)
+    }
+    return destination
 }
 
 public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<List<T>, List<T>> {
@@ -422,6 +594,29 @@ public inline fun <T> Iterable<T>.partition(predicate: (T) -> Boolean): Pair<Lis
     return Pair(first, second)
 }
 
+// KSP-995: source-backed generic Iterable take family.
+public fun <T> Iterable<T>.take(n: Int): List<T> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    if (n == 0) return emptyList()
+
+    val result = mutableListOf<T>()
+    var count = 0
+    for (element in this) {
+        result.add(element)
+        count += 1
+        if (count == n) break
+    }
+    return result
+}
+
+public inline fun <T> Iterable<T>.takeWhile(predicate: (T) -> Boolean): List<T> {
+    val result = mutableListOf<T>()
+    for (element in this) {
+        if (!predicate(element)) break
+        result.add(element)
+    }
+    return result
+}
 public inline fun <S, T : S> Iterable<T>.reduce(operation: (acc: S, T) -> S): S {
     val iterator = iterator()
     if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
@@ -466,6 +661,63 @@ public inline fun <S, T : S> Iterable<T>.reduceIndexedOrNull(operation: (index: 
     return accumulator
 }
 
+// KSP-992: generic Iterable single-family APIs use one iterator and stop as soon
+// as their result is determined. List receivers continue to use ListSearchHOF.kt.
+public fun <T> Iterable<T>.single(): T {
+    when (this) {
+        is List -> return this.single()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) throw NoSuchElementException("Collection is empty.")
+            val single = iterator.next()
+            if (iterator.hasNext()) throw IllegalArgumentException("Collection has more than one element.")
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.single(predicate: (T) -> Boolean): T {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) throw IllegalArgumentException("Collection contains more than one matching element.")
+            single = element
+            found = true
+        }
+    }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    @Suppress("UNCHECKED_CAST")
+    return single as T
+}
+
+public fun <T> Iterable<T>.singleOrNull(): T? {
+    when (this) {
+        is List -> return this.singleOrNull()
+        else -> {
+            val iterator = iterator()
+            if (!iterator.hasNext()) return null
+            val single = iterator.next()
+            if (iterator.hasNext()) return null
+            return single
+        }
+    }
+}
+
+public inline fun <T> Iterable<T>.singleOrNull(predicate: (T) -> Boolean): T? {
+    var single: T? = null
+    var found = false
+    for (element in this) {
+        if (predicate(element)) {
+            if (found) return null
+            single = element
+            found = true
+        }
+    }
+    if (!found) return null
+    return single
+}
+
 public fun <T> Iterable<T>.any(): Boolean {
     for (element in this) return true
     return false
@@ -507,6 +759,41 @@ public inline fun <T> Iterable<T>.count(predicate: (T) -> Boolean): Int {
         }
     }
     return count
+}
+
+// KSP-979: Keep the Iterable index family on the iterator-backed source path.
+// The counter is checked after the previous increment wraps negative, allowing
+// the candidate at Int.MAX_VALUE to be evaluated before the next iteration
+// reports overflow, matching the Kotlin stdlib contract.
+public fun <T> Iterable<T>.indexOf(element: T): Int {
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (element == item) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfFirst(predicate: (T) -> Boolean): Int {
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (predicate(item)) return index
+        index++
+    }
+    return -1
+}
+
+public inline fun <T> Iterable<T>.indexOfLast(predicate: (T) -> Boolean): Int {
+    var lastIndex = -1
+    var index = 0
+    for (item in this) {
+        if (index < 0) throw ArithmeticException("Index overflow has happened.")
+        if (predicate(item)) lastIndex = index
+        index++
+    }
+    return lastIndex
 }
 
 @SinceKotlin("1.5")

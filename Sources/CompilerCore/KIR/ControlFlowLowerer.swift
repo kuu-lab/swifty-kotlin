@@ -905,7 +905,7 @@ final class ControlFlowLowerer {
         instructions.append(.label(continueLabel))
 
         let hasNextID = arena.appendTemporary(type: boolType)
-        emitNonThrowingCall(
+        emitThrowingCall(
             callee: interner.intern("kk_iterator_hasNext"),
             arg: iteratorID,
             result: hasNextID,
@@ -927,7 +927,7 @@ final class ControlFlowLowerer {
             requireNonNull: true
         ) {
             let boxedID = arena.appendTemporary(type: sema.types.anyType)
-            emitNonThrowingCall(
+            emitThrowingCall(
                 callee: interner.intern("kk_iterator_next"),
                 arg: iteratorID,
                 result: boxedID,
@@ -940,7 +940,7 @@ final class ControlFlowLowerer {
                 into: &instructions
             )
         } else {
-            emitNonThrowingCall(
+            emitThrowingCall(
                 callee: interner.intern("kk_iterator_next"),
                 arg: iteratorID,
                 result: nextValueID,
@@ -2367,7 +2367,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern("kk_range_iterator"),
                 arguments: [iterableID],
                 result: iteratorID,
-                canThrow: false,
+                canThrow: true,
                 thrownResult: nil
             ))
         }
@@ -2401,7 +2401,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_hasNext" : "kk_range_hasNext"),
                 arguments: [iteratorID],
                 result: hasNextID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }
@@ -2435,7 +2435,7 @@ final class ControlFlowLowerer {
                 callee: interner.intern(dynamicIterator ? "kk_iterator_next" : "kk_range_next"),
                 arguments: [iteratorID],
                 result: nextValueID,
-                canThrow: false,
+                canThrow: dynamicIterator,
                 thrownResult: nil
             ))
         }

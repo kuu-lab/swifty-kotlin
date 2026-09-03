@@ -1193,7 +1193,13 @@ extension CallTypeChecker {
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
-        var candidates = visible
+        var candidates = preferMostSpecificMemberReceiverCandidates(
+            visible,
+            receiverType: lookupReceiverType,
+            argumentTypes: argTypes,
+            sema: sema,
+            interner: interner
+        )
         // Kotlin selects MutableMap.withDefault over the less-specific
         // Map.withDefault extension for a MutableMap receiver. Resolve this
         // subtype preference before trailing-lambda overload inference sees
@@ -1266,6 +1272,14 @@ extension CallTypeChecker {
         }
         if interner.resolve(calleeName) == "toList" {
             candidates = preferCollectionToListCandidates(
+                candidates,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+        }
+        if interner.resolve(calleeName) == "take" {
+            candidates = preferListTakeCandidates(
                 candidates,
                 receiverType: lookupReceiverType,
                 sema: sema,
