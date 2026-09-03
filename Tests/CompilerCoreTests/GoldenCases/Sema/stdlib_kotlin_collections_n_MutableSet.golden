@@ -82,4 +82,4 @@ expr e@25:9#1 memberCall recv=e@25:9 callee=hashCode args=[] type=Int
 expr e@24:29 blockExpr stmts=[] trailing=e@25:9#1 type=Int
 expr e@24:5 for var=element iterable=e@24:21 body=e@24:29 type=Unit ref=__for_0.element
 expr e@27:5 name(values) type=kotlin.collections.MutableSet<Int> ref=probe.$3.values
-expr e@27:5#1 memberCall recv=e@27:5 callee=iterator args=[] type=kotlin.collections.Iterator<out Int> call=kotlin.collections.MutableIterable.iterator
+expr e@27:5#1 memberCall recv=e@27:5 callee=iterator args=[] type=kotlin.collections.MutableIterator<out Int> call=kotlin.collections.MutableIterable.iterator
