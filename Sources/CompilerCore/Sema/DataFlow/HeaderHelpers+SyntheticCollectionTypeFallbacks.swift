@@ -10,7 +10,9 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner,
         kotlinCollectionsPkg: [InternedString],
-        iterableInterfaceSymbol: SymbolID
+        iterableInterfaceSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> SymbolID {
         let collectionName = interner.intern("Collection")
         let collectionFQName = kotlinCollectionsPkg + [collectionName]
@@ -62,6 +64,25 @@ extension DataFlowSemaPhase {
         ) {
             let memberName = interner.intern(name)
             let memberFQName = collectionFQName + [memberName]
+            // Keep runtime-linked placeholders for Collection's native interface
+            // members so bundled declarations can claim them without losing ABI
+            // links. The migrated random APIs are extensions in Collections.kt;
+            // leave those to source-backed resolution instead of retaining the
+            // legacy synthetic bridge.
+            let isMigratedExtension = name == "random" || name == "randomOrNull"
+            if isMigratedExtension && bundledIndex.contains(
+                ownerFQName: collectionFQName,
+                name: memberName,
+                arity: parameterTypes.count
+            ) {
+                skipStats?.recordSkip(
+                    ownerFQName: collectionFQName,
+                    name: memberName,
+                    arity: parameterTypes.count,
+                    interner: interner
+                )
+                return
+            }
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
@@ -100,6 +121,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(collectionInterfaceSymbol, for: sizeSymbol)
+            symbols.setExternalLinkName("__kk_collection_size", for: sizeSymbol)
             symbols.setPropertyType(types.intType, for: sizeSymbol)
         }
 
@@ -140,6 +162,35 @@ extension DataFlowSemaPhase {
             returnType: types.booleanType,
             flags: [.synthetic, .operatorFunction],
             externalLinkName: "kk_op_contains"
+        )
+
+        let iteratorFQName = kotlinCollectionsPkg + [interner.intern("Iterator")]
+        if let iteratorSymbol = symbols.lookup(fqName: iteratorFQName) {
+            let iteratorReturnType = types.make(.classType(ClassType(
+                classSymbol: iteratorSymbol,
+                args: [.out(typeParamType)],
+                nullability: .nonNull
+            )))
+            defineCollectionFunctionMember(
+                name: "iterator",
+                parameterTypes: [],
+                returnType: iteratorReturnType,
+                flags: [.synthetic, .operatorFunction],
+                externalLinkName: "kk_list_iterator"
+            )
+        }
+
+        let collectionParameterType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(typeParamType)],
+            nullability: .nonNull
+        )))
+        defineCollectionFunctionMember(
+            name: "containsAll",
+            parameterTypes: [collectionParameterType],
+            returnType: types.booleanType,
+            flags: [.synthetic],
+            externalLinkName: "__kk_collection_containsAll"
         )
 
         defineCollectionFunctionMember(
@@ -601,7 +652,9 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic, .operatorFunction]
             )
             symbols.setParentSymbol(iterableInterfaceSymbol, for: iterFnSymbol)
-            symbols.setExternalLinkName("kk_range_iterator", for: iterFnSymbol)
+            // KSP-998: Explicit Iterable.iterator() calls must preserve the
+            // source iterator's thrown channel and remain lazy.
+            symbols.setExternalLinkName("kk_iterable_iterator", for: iterFnSymbol)
             symbols.setPropertyType(types.make(.functionType(FunctionType(
                 params: [],
                 returnType: iteratorReturnType,
@@ -613,6 +666,7 @@ extension DataFlowSemaPhase {
                     receiverType: iterableReceiverType,
                     parameterTypes: [],
                     returnType: iteratorReturnType,
+                    canThrow: true,
                     typeParameterSymbols: [typeParamSymbol],
                     classTypeParameterCount: 1
                 ),

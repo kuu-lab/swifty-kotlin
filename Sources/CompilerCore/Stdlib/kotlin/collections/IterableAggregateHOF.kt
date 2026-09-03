@@ -38,3 +38,31 @@ public inline fun <T, R> Iterable<T>.runningFold(initial: R, operation: (acc: R,
 
 public inline fun <T, R> Iterable<T>.runningFoldIndexed(initial: R, operation: (Int, acc: R, T) -> R): List<R> =
     scanIndexed(initial, operation)
+
+public inline fun <S, T : S> Iterable<T>.runningReduce(operation: (acc: S, T) -> S): List<S> {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return emptyList()
+    var accumulator: S = iterator.next()
+    val result = mutableListOf<S>()
+    result.add(accumulator)
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+        result.add(accumulator)
+    }
+    return result
+}
+
+public inline fun <S, T : S> Iterable<T>.runningReduceIndexed(operation: (index: Int, acc: S, T) -> S): List<S> {
+    val iterator = this.iterator()
+    if (!iterator.hasNext()) return emptyList()
+    var accumulator: S = iterator.next()
+    val result = mutableListOf<S>()
+    result.add(accumulator)
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        result.add(accumulator)
+        index += 1
+    }
+    return result
+}

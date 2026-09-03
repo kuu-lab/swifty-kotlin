@@ -504,12 +504,20 @@ final class InlineLoweringPass: LoweringPass {
             }
 
             // The name fallback only applies to calls whose callee symbol is
-            // unknown here. A call that resolves to a known non-inline function
-            // must not be redirected to a same-named inline overload from an
-            // unrelated receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`).
+            // unknown here. A call with a *known* callee symbol that isn't a
+            // compiled inline/regular function in this module must not be
+            // redirected to a same-named inline overload from an unrelated
+            // receiver type (e.g. `Mutex.withLock` vs `Lock.withLock`, or a
+            // synthetic/runtime-dispatched member such as the generic
+            // `Iterable<T>.iterator()` used inside `reduce` vs an unrelated
+            // bundled `Map<K, V>.iterator()` -- see KSP-1011). A known symbol
+            // that resolves to neither table is exactly as "not ours to
+            // rename" as one resolving to a known non-inline function: its
+            // own resolution (external link / virtual dispatch) still
+            // applies once this pass is done with it.
             let inlineTarget: KIRFunction? = if let symbol, let target = inlineFunctionsBySymbol[symbol] {
                 target
-            } else if let symbol, allFunctionsBySymbol[symbol] != nil {
+            } else if symbol != nil {
                 nil
             } else if let byName = inlineFunctionsByName[callee], byName.count == 1 {
                 byName[0]
@@ -694,6 +702,51 @@ final class InlineLoweringPass: LoweringPass {
         "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
     ]
 
+    /// Imported inline HOF bodies were ABI-lowered before they were serialized.
+    /// Their erased selector results therefore remain boxed when a lowered
+    /// floating-point operator consumes them in the caller.
+    private func unboxErasedArithmeticArgumentsIfNeeded(
+        callee: InternedString,
+        arguments: [KIRExprID],
+        module: KIRModule,
+        ctx: KIRContext,
+        into body: inout [KIRInstruction]
+    ) -> [KIRExprID] {
+        let primitive: PrimitiveType? = switch ctx.interner.resolve(callee) {
+        case "kk_op_fadd", "kk_op_fsub", "kk_op_fmul", "kk_op_fdiv": .float
+        case "kk_op_dadd", "kk_op_dsub", "kk_op_dmul", "kk_op_ddiv": .double
+        default: nil
+        }
+        guard let primitive, let types = ctx.sema?.types else {
+            return arguments
+        }
+        var normalized = arguments
+        for index in arguments.indices {
+            let argument = arguments[index]
+            let isErasedInvokeResult = body.reversed().contains { instruction in
+                guard case let .call(_, invokeCallee, _, callResult, _, _, _, _) = instruction else {
+                    return false
+                }
+                return callResult == argument
+                    && Self.erasedFunctionInvokeCallees.contains(ctx.interner.resolve(invokeCallee))
+            }
+            guard isErasedInvokeResult else { continue }
+            let targetType = module.arena.exprType(argument)
+                ?? types.make(.primitive(primitive, .nonNull))
+            let unboxed = module.arena.appendTemporary(type: targetType)
+            body.append(.call(
+                symbol: nil,
+                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
+                arguments: [argument],
+                result: unboxed,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            normalized[index] = unboxed
+        }
+        return normalized
+    }
+
     /// Box the arguments an inline expansion passes to an erased function-value
     /// invoke: type substitution replaced the callee body's erased slots with
     /// concrete primitives, which the adapter would misread as boxed pointers.
@@ -734,15 +787,34 @@ final class InlineLoweringPass: LoweringPass {
     private func substitutedErasedResultUnboxingCallee(
         originalResult: KIRExprID,
         loweredResult: KIRExprID,
+        expectedType: TypeID?,
         module: KIRModule,
         ctx: KIRContext
     ) -> InternedString? {
-        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx),
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(loweredResult), ctx: ctx)
+        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx) || expectedType != nil,
+              let primitive = nonNullPrimitiveKind(
+                  of: expectedType ?? module.arena.exprType(loweredResult),
+                  ctx: ctx
+              )
         else {
             return nil
         }
         return ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner)
+    }
+
+    private func importedLambdaInvokeReturnType(
+        inlineTarget: KIRFunction,
+        typeSubstitution: InlineTypeSubstitution?,
+        ctx: KIRContext
+    ) -> TypeID? {
+        guard let types = ctx.sema?.types else { return nil }
+        for parameter in inlineTarget.params {
+            guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
+                continue
+            }
+            return substituteInlineType(functionType.returnType, using: typeSubstitution, ctx: ctx)
+        }
+        return nil
     }
 
     /// An imported generic higher-order function: its body was ABI-lowered when
@@ -1291,6 +1363,18 @@ final class InlineLoweringPass: LoweringPass {
                 // meet the invoke into plain primitives; re-erase them.
                 let erasedInvoke = Self.erasedFunctionInvokeCallees
                     .contains(ctx.interner.resolve(callee))
+                let erasedInvokeReturnType = erasedInvoke
+                    ? importedLambdaInvokeReturnType(
+                        inlineTarget: inlineTarget,
+                        typeSubstitution: inlineTypeSubstitution,
+                        ctx: ctx
+                    )
+                    : nil
+                if let erasedInvokeReturnType, let loweredResult {
+                    // Imported inline KIR intentionally omits expression types. Restore
+                    // the lambda result type before unboxing the erased invoke result.
+                    module.arena.setExprType(erasedInvokeReturnType, for: loweredResult)
+                }
                 if erasedInvoke {
                     loweredArgs = boxSubstitutedErasedArguments(
                         originalArguments: args,
@@ -1302,7 +1386,11 @@ final class InlineLoweringPass: LoweringPass {
                 }
                 if erasedInvoke, let result, let loweredResult,
                    let unboxCallee = substitutedErasedResultUnboxingCallee(
-                       originalResult: result, loweredResult: loweredResult, module: module, ctx: ctx
+                       originalResult: result,
+                       loweredResult: loweredResult,
+                       expectedType: erasedInvokeReturnType,
+                       module: module,
+                       ctx: ctx
                    )
                 {
                     let boxedResult = module.arena.appendTemporary(
@@ -1327,11 +1415,20 @@ final class InlineLoweringPass: LoweringPass {
                     ))
                     break
                 }
+                let normalizedArgs = erasedExpansionABI
+                    ? unboxErasedArithmeticArgumentsIfNeeded(
+                        callee: callee,
+                        arguments: loweredArgs,
+                        module: module,
+                        ctx: ctx,
+                        into: &lowered
+                    )
+                    : loweredArgs
                 lowered.append(
                     .call(
                         symbol: symbol,
                         callee: callee,
-                        arguments: loweredArgs,
+                        arguments: normalizedArgs,
                         result: loweredResult,
                         canThrow: canThrow,
                         thrownResult: loweredThrownResult,
@@ -1377,7 +1474,19 @@ final class InlineLoweringPass: LoweringPass {
 
             case let .copy(from, to):
                 let resolvedFrom = resolveAlias(of: from, aliases: localExprMap)
-                var resolvedTo = resolveAlias(of: to, aliases: localExprMap)
+                // A branch-merged slot is written by multiple arms and may be
+                // read after the merge. Give its first write a stable caller
+                // expression so a later call using the same serialized KIR ID
+                // cannot be cloned into a different, branch-local value.
+                var resolvedTo = mergeSlotExprs.contains(to)
+                    ? cloneOrReuseExpr(
+                        to,
+                        localExprMap: &localExprMap,
+                        module: module,
+                        typeSubstitution: inlineTypeSubstitution,
+                        ctx: ctx
+                    )
+                    : resolveAlias(of: to, aliases: localExprMap)
                 if !mergeSlotExprs.contains(to),
                    let fromType = module.arena.exprType(resolvedFrom),
                    shouldRetypeInlineCopyTarget(

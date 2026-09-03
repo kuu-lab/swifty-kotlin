@@ -42,6 +42,14 @@ public fun <K, V> emptyMap(): Map<K, V> = __kk_emptyMap()
 
 public fun <T> listOf(): List<T> = emptyList()
 
+@SinceKotlin("1.9")
+@Suppress("UNCHECKED_CAST")
+public fun <T> listOf(element: T): List<T> {
+    val result: MutableList<T> = __kk_list_of(null, 0)
+    result.add(element)
+    return result as List<T>
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <T> listOf(vararg elements: T): List<T> {
     if (elements.size == 0) return emptyList<T>()
@@ -62,6 +70,9 @@ public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     return result
 }
 
+public fun <T : Any> listOfNotNull(element: T?): List<T> =
+    if (element != null) listOf(element) else emptyList()
+
 public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
     val result: MutableList<T> = __kk_list_of(null, 0)
     for (element in elements) {
@@ -74,11 +85,28 @@ public fun <T : Any> listOfNotNull(vararg elements: T?): List<T> {
 
 public fun <T> setOf(): Set<T> = emptySet()
 
+public fun <T> setOf(element: T): Set<T> {
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    result.add(element)
+    return result
+}
+
 public fun <T> setOf(vararg elements: T): Set<T> {
     if (elements.size == 0) return emptySet<T>()
     val result: MutableSet<T> = __kk_set_of(null, 0)
     for (element in elements) {
         result.add(element)
+    }
+    return result
+}
+
+public fun <T : Any> setOfNotNull(element: T?): Set<T> =
+    if (element != null) setOf(element) else emptySet()
+
+public fun <T : Any> setOfNotNull(vararg elements: T?): Set<T> {
+    val result: MutableSet<T> = __kk_set_of(null, 0)
+    for (element in elements) {
+        if (element != null) result.add(element)
     }
     return result
 }
@@ -97,6 +125,19 @@ public fun <T> mutableSetOf(vararg elements: T): MutableSet<T> {
 
 public fun <K, V> mapOf(): Map<K, V> = emptyMap()
 
+/**
+ * Returns a new read-only map containing only the specified key-value pair.
+ *
+ * Keep this overload distinct from the vararg overload so overload resolution
+ * matches the Kotlin stdlib API while reusing the shared map runtime path.
+ */
+@Suppress("UNCHECKED_CAST")
+public fun <K, V> mapOf(pair: Pair<K, V>): Map<K, V> {
+    val result: MutableMap<K, V> = __kk_map_of(null, null, 1)
+    result[pair.first] = pair.second
+    return result as Map<K, V>
+}
+
 @Suppress("UNCHECKED_CAST")
 public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
     if (pairs.size == 0) return emptyMap<K, V>()
@@ -105,6 +146,14 @@ public fun <K, V> mapOf(vararg pairs: Pair<K, V>): Map<K, V> {
         result[pair.first] = pair.second
     }
     return result as Map<K, V>
+}
+
+@PublishedApi
+internal fun mapCapacity(expectedSize: Int): Int = when {
+    expectedSize < 0 -> expectedSize
+    expectedSize < 3 -> expectedSize + 1
+    expectedSize < (1 shl 30) -> ((expectedSize / 0.75F) + 1.0F).toInt()
+    else -> Int.MAX_VALUE
 }
 
 public fun <K, V> mutableMapOf(): MutableMap<K, V> = __kk_map_of(null, null, 0)

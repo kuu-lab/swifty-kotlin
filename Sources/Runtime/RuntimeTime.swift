@@ -81,15 +81,41 @@ public func kk_time_source_monotonic_mark_now(_ receiver: Int) -> Int {
     kk_time_source_mark_now(receiver)
 }
 
+private let runtimeClockInterfaceTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.time.Clock"
+)
+
+private let runtimeClockNowItableThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = {
+    receiver, outThrown in
+    outThrown?.pointee = 0
+    return kk_clock_now(receiver)
+}
+
+/// `TimeSource.asClock()` creates a Swift runtime box rather than a compiler
+/// generated Kotlin object. Register the Clock itable explicitly so calls to
+/// `Clock.now()` can use the same interface-dispatch path as user-defined
+/// Clock implementations.
+private func runtimeRegisterTimeSourceClockItable(_ raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeClockInterfaceTypeID), 0)
+    _ = kk_object_register_itable_method(
+        raw,
+        0,
+        0,
+        unsafeBitCast(runtimeClockNowItableThunk, to: Int.self)
+    )
+}
+
 @_cdecl("kk_time_source_as_clock")
 public func kk_time_source_as_clock(_ sourceRaw: Int, _ originRaw: Int) -> Int {
     guard let origin = runtimeKotlinInstantBox(from: originRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: kk_time_source_as_clock received invalid Instant handle")
     }
-    return registerRuntimeObject(RuntimeTimeSourceClockBox(
+    let raw = registerRuntimeObject(RuntimeTimeSourceClockBox(
         origin: origin,
         baseUptimeNanoseconds: runtimeMonotonicNowNanoseconds()
     ))
+    runtimeRegisterTimeSourceClockItable(raw)
+    return raw
 }
 
 @_cdecl("__kk_time_source_mark_now")

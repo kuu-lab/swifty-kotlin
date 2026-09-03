@@ -25,6 +25,8 @@ struct ListLookupNames {
     let kkListIteratorNextName: InternedString
     let kkListIteratorHasPreviousName: InternedString
     let kkListIteratorPreviousName: InternedString
+    let kkListIteratorNextIndexName: InternedString
+    let kkListIteratorPreviousIndexName: InternedString
     let kkListToStringName: InternedString
     let kkCollectionToMutableListName: InternedString
     let kkCollectionToArrayListName: InternedString
@@ -87,6 +89,8 @@ struct ListLookupNames {
     let listIteratorMemberName: InternedString
     let hasPreviousName: InternedString
     let previousName: InternedString
+    let nextIndexName: InternedString
+    let previousIndexName: InternedString
     // Common lookup sets
     let listFactoryNames: Set<InternedString>
     let mutableListConstructorNames: Set<InternedString>
@@ -110,6 +114,8 @@ struct ListLookupNames {
         kkListIteratorNextName = interner.intern("kk_list_iterator_next")
         kkListIteratorHasPreviousName = interner.intern("kk_list_iterator_hasPrevious")
         kkListIteratorPreviousName = interner.intern("kk_list_iterator_previous")
+        kkListIteratorNextIndexName = interner.intern("kk_list_iterator_nextIndex")
+        kkListIteratorPreviousIndexName = interner.intern("kk_list_iterator_previousIndex")
         kkListToStringName = interner.intern("kk_list_to_string")
         kkCollectionToMutableListName = interner.intern("__kk_collection_toMutableList")
         kkCollectionToArrayListName = interner.intern("__kk_collection_toArrayList")
@@ -170,6 +176,8 @@ struct ListLookupNames {
         listIteratorMemberName = interner.intern("listIterator")
         hasPreviousName = interner.intern("hasPrevious")
         previousName = interner.intern("previous")
+        nextIndexName = interner.intern("nextIndex")
+        previousIndexName = interner.intern("previousIndex")
         listFactoryNames = [listOfName, mutableListOfName, arrayListOfName, emptyListName, listOfNotNullName]
         mutableListConstructorNames = [arrayListName]
     }

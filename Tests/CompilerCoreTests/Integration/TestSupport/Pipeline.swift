@@ -1,6 +1,6 @@
 @testable import CompilerCore
+@testable import CompilerTestSupport
 import Foundation
-import TestStdlibCache
 
 func makeSemaModule(
     symbols: SymbolTable = SymbolTable(),
@@ -8,19 +8,18 @@ func makeSemaModule(
     bindings: BindingTable = BindingTable(),
     diagnostics: DiagnosticEngine = DiagnosticEngine()
 ) -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
-    let ctx = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
-    return (ctx, symbols, types, StringInterner())
+    CompilerTestSupport.makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
 }
 
 func defaultTargetTriple() -> TargetTriple {
-    TargetTriple.hostDefault()
+    CompilerTestSupport.defaultTargetTriple()
 }
 
+/// CompilerCoreTests default to compiling the bundled stdlib from source
+/// (`allowDefaultStdlibLibrary: false`) because most Core tests inspect KIR
+/// callee names in their original Kotlin source form (e.g. `"map"`), which
+/// only holds when the stdlib is compiled alongside the test input rather
+/// than linked from the precompiled artifact.
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",
@@ -36,51 +35,37 @@ func makeCompilationContext(
     stdlibLibraryPath: String? = nil,
     allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
-    let destination = outputPath ?? FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .path
-    let options = CompilerOptions(
-        moduleName: moduleName,
+    CompilerTestSupport.makeCompilationContext(
         inputs: inputs,
-        outputPath: destination,
+        moduleName: moduleName,
         emit: emit,
+        outputPath: outputPath,
         searchPaths: searchPaths,
-        target: defaultTargetTriple(),
-        frontendFlags: frontendFlags,
         irFlags: irFlags,
+        frontendFlags: frontendFlags,
         includeStdlib: includeStdlib,
+        interner: interner,
+        diagnostics: diagnostics,
         stdlibOnly: stdlibOnly,
         stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
-    return CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: diagnostics ?? DiagnosticEngine(),
-        interner: interner ?? StringInterner()
-    )
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try CompilerTestSupport.runFrontend(ctx)
 }
 
 func runSema(_ ctx: CompilationContext) throws {
-    try runFrontend(ctx)
-    try SemaPhase().run(ctx)
+    try CompilerTestSupport.runSema(ctx)
 }
 
 func runToKIR(_ ctx: CompilationContext) throws {
-    try runSema(ctx)
-    try BuildKIRPhase().run(ctx)
+    try CompilerTestSupport.runToKIR(ctx)
 }
 
 func runToLowering(_ ctx: CompilationContext) throws {
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
+    try CompilerTestSupport.runToLowering(ctx)
 }
 
 func makeContextFromSource(
@@ -89,16 +74,12 @@ func makeContextFromSource(
     emit: EmitMode = .kirDump,
     allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
-    let fakePath = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString + ".kt").path
-    let ctx = makeCompilationContext(
-        inputs: [fakePath],
-        emit: emit,
+    CompilerTestSupport.makeContextFromSource(
+        source,
         frontendFlags: frontendFlags,
+        emit: emit,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
-    _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-    return ctx
 }
 
 func makeContextFromSources(

@@ -1,5 +1,6 @@
 @testable import CompilerCore
 @testable import CompilerBackend
+@testable import CompilerTestSupport
 import Foundation
 import TestStdlibCache
 
@@ -9,18 +10,16 @@ func makeSemaModule(
     bindings: BindingTable = BindingTable(),
     diagnostics: DiagnosticEngine = DiagnosticEngine()
 ) -> (ctx: SemaModule, symbols: SymbolTable, types: TypeSystem, interner: StringInterner) {
-    let ctx = SemaModule(
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        diagnostics: diagnostics
-    )
-    return (ctx, symbols, types, StringInterner())
+    CompilerTestSupport.makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics)
 }
 
+/// Backend tests need the precompiled shared stdlib artifact on disk for most
+/// compilations (codegen/linking exercise the actual object-level stdlib, not
+/// just bundled Kotlin sources), so preparing it is an eager side effect of
+/// resolving the target triple, matching every call path below.
 func defaultTargetTriple() -> TargetTriple {
     TestStdlibCache.shared.prepare()
-    return TargetTriple.hostDefault()
+    return CompilerTestSupport.defaultTargetTriple()
 }
 
 /// Return the prepared stdlib artifact used by tests that inspect imported
@@ -66,6 +65,12 @@ func makeArtifactCompilationContext(
     )
 }
 
+/// CompilerBackendTests default to allowing the precompiled stdlib artifact
+/// (`allowDefaultStdlibLibrary: true`) since most Backend/codegen tests link
+/// the actual object-level stdlib rather than compiling bundled Kotlin
+/// sources. Because of that, KIR callee names seen by these tests are the
+/// precompiled artifact's mangled symbols (e.g. `kk_fn_map_123`, not `map`)
+/// — see `isKotlinCallee`/`containsKotlinCallee` in KIRAndLLVM.swift.
 func makeCompilationContext(
     inputs: [String],
     moduleName: String = "TestModule",
@@ -81,51 +86,63 @@ func makeCompilationContext(
     stdlibLibraryPath: String? = nil,
     allowDefaultStdlibLibrary: Bool = true
 ) -> CompilationContext {
-    let destination = outputPath ?? FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .path
-    let options = CompilerOptions(
-        moduleName: moduleName,
+    TestStdlibCache.shared.prepare()
+    return CompilerTestSupport.makeCompilationContext(
         inputs: inputs,
-        outputPath: destination,
+        moduleName: moduleName,
         emit: emit,
+        outputPath: outputPath,
         searchPaths: searchPaths,
-        target: defaultTargetTriple(),
-        frontendFlags: frontendFlags,
         irFlags: irFlags,
+        frontendFlags: frontendFlags,
         includeStdlib: includeStdlib,
+        interner: interner,
+        diagnostics: diagnostics,
         stdlibOnly: stdlibOnly,
         stdlibLibraryPath: stdlibLibraryPath,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
-    return CompilationContext(
-        options: options,
-        sourceManager: SourceManager(),
-        diagnostics: diagnostics ?? DiagnosticEngine(),
-        interner: interner ?? StringInterner()
-    )
 }
 
 func runFrontend(_ ctx: CompilationContext) throws {
-    try LoadSourcesPhase().run(ctx)
-    try LexPhase().run(ctx)
-    try ParsePhase().run(ctx)
-    try BuildASTPhase().run(ctx)
+    try CompilerTestSupport.runFrontend(ctx)
 }
 
 func runSema(_ ctx: CompilationContext) throws {
-    try runFrontend(ctx)
-    try SemaPhase().run(ctx)
+    try CompilerTestSupport.runSema(ctx)
 }
 
 func runToKIR(_ ctx: CompilationContext) throws {
-    try runSema(ctx)
-    try BuildKIRPhase().run(ctx)
+    try CompilerTestSupport.runToKIR(ctx)
 }
 
 func runToLowering(_ ctx: CompilationContext) throws {
-    try runToKIR(ctx)
-    try LoweringPhase().run(ctx)
+    try CompilerTestSupport.runToLowering(ctx)
+}
+
+/// Compiles `source` into a real ".kklib" library on disk and passes its
+/// directory path to `body`, cleaning up afterward.
+func withCompiledLibrary(
+    source: String,
+    moduleName: String,
+    body: (String) throws -> Void
+) throws {
+    let libraryBase = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString)
+        .path
+    defer { try? FileManager.default.removeItem(atPath: libraryBase + ".kklib") }
+    try withTemporaryFile(contents: source) { path in
+        let ctx = makeCompilationContext(
+            inputs: [path],
+            moduleName: moduleName,
+            emit: .library,
+            outputPath: libraryBase
+        )
+        try runToKIR(ctx)
+        try LoweringPhase().run(ctx)
+        try CodegenPhase().run(ctx)
+    }
+    try body(libraryBase + ".kklib")
 }
 
 func makeContextFromSource(

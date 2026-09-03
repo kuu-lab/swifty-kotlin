@@ -203,6 +203,9 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if lookup.mutableMapConstructorNames.contains(callee) {
+            let constructorCallee = callee == lookup.hashMapName
+                ? lookup.kkHashMapOfName
+                : lookup.kkMapOfName
             // Create an empty mutable map first
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -216,7 +219,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 // 1. Create empty map into the result
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    callee: constructorCallee,
                     arguments: [nullExpr, nullExpr2, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -237,7 +240,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 // 0 args, capacity arg (Int), or unknown arg type → empty map
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    callee: constructorCallee,
                     arguments: [nullExpr, nullExpr2, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -499,8 +502,10 @@ extension CollectionLiteralConstructionLoweringPass {
             let kkCallee: InternedString = switch callee {
             case lookup.buildListName:
                 arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
-            case lookup.buildSetName: lookup.kkBuildSetName
-            case lookup.buildMapName: lookup.kkBuildMapName
+            case lookup.buildSetName:
+                arguments.count == 2 ? lookup.kkBuildSetWithCapacityName : lookup.kkBuildSetName
+            case lookup.buildMapName:
+                arguments.count == 2 ? lookup.kkBuildMapWithCapacityName : lookup.kkBuildMapName
             default: callee
             }
             let builderResult = module.arena.appendTemporary(type: nil

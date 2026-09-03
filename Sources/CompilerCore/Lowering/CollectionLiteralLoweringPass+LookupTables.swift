@@ -70,6 +70,8 @@ struct CollectionLiteralLookupTables {
     var kkListIteratorNextName: InternedString { listLookup.kkListIteratorNextName }
     var kkListIteratorHasPreviousName: InternedString { listLookup.kkListIteratorHasPreviousName }
     var kkListIteratorPreviousName: InternedString { listLookup.kkListIteratorPreviousName }
+    var kkListIteratorNextIndexName: InternedString { listLookup.kkListIteratorNextIndexName }
+    var kkListIteratorPreviousIndexName: InternedString { listLookup.kkListIteratorPreviousIndexName }
     var kkListToStringName: InternedString { listLookup.kkListToStringName }
     var kkCollectionToMutableListName: InternedString { listLookup.kkCollectionToMutableListName }
     var kkCollectionToArrayListName: InternedString { listLookup.kkCollectionToArrayListName }
@@ -129,6 +131,8 @@ struct CollectionLiteralLookupTables {
     var listIteratorMemberName: InternedString { listLookup.listIteratorMemberName }
     var hasPreviousName: InternedString { listLookup.hasPreviousName }
     var previousName: InternedString { listLookup.previousName }
+    var nextIndexName: InternedString { listLookup.nextIndexName }
+    var previousIndexName: InternedString { listLookup.previousIndexName }
     var listFactoryNames: Set<InternedString> { listLookup.listFactoryNames }
     var mutableListConstructorNames: Set<InternedString> { listLookup.mutableListConstructorNames }
 
@@ -164,6 +168,7 @@ struct CollectionLiteralLookupTables {
     var linkedHashMapName: InternedString { mapLookup.linkedHashMapName }
     var kkEmptyMapName: InternedString { mapLookup.kkEmptyMapName }
     var kkMapOfName: InternedString { mapLookup.kkMapOfName }
+    var kkHashMapOfName: InternedString { mapLookup.kkHashMapOfName }
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
@@ -266,6 +271,7 @@ struct CollectionLiteralLookupTables {
     var longArrayOfName: InternedString { arrayLookup.longArrayOfName }
     var shortArrayOfName: InternedString { arrayLookup.shortArrayOfName }
     var byteArrayOfName: InternedString { arrayLookup.byteArrayOfName }
+    var ushortArrayOfName: InternedString { arrayLookup.ushortArrayOfName }
     var uintArrayOfName: InternedString { arrayLookup.uintArrayOfName }
     var doubleArrayOfName: InternedString { arrayLookup.doubleArrayOfName }
     var floatArrayOfName: InternedString { arrayLookup.floatArrayOfName }
@@ -279,9 +285,6 @@ struct CollectionLiteralLookupTables {
     var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
 
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
-    var kkArrayCopyOfNewSizeName: InternedString { arrayLookup.kkArrayCopyOfNewSizeName }
-    var kkArrayCopyOfNewSizeInitName: InternedString { arrayLookup.kkArrayCopyOfNewSizeInitName }
-    var kkArrayCopyOfRangeName: InternedString { arrayLookup.kkArrayCopyOfRangeName }
     var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
@@ -375,7 +378,9 @@ struct CollectionLiteralLookupTables {
     var kkBuildListName: InternedString { builderDSLLookup.kkBuildListName }
     var kkBuildListWithCapacityName: InternedString { builderDSLLookup.kkBuildListWithCapacityName }
     var kkBuildSetName: InternedString { builderDSLLookup.kkBuildSetName }
+    var kkBuildSetWithCapacityName: InternedString { builderDSLLookup.kkBuildSetWithCapacityName }
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
+    var kkBuildMapWithCapacityName: InternedString { builderDSLLookup.kkBuildMapWithCapacityName }
     var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
     var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
     var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }

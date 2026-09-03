@@ -75,6 +75,10 @@ extension CallLowerer {
             guard args.count == 2 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte, .minOfShort:
+            guard args.count == 2 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         case .maxOfInt3, .maxOfLong3:
             guard args.count == 3 else { return nil }
             comparisonOp = .greaterThan
@@ -99,6 +103,10 @@ extension CallLowerer {
             guard args.count == 3 else { return nil }
             comparisonOp = .lessThan
             floatingPointRuntimeCallee = "kk_min_float"
+        case .minOfByte3, .minOfShort3:
+            guard args.count == 3 else { return nil }
+            comparisonOp = .lessThan
+            floatingPointRuntimeCallee = nil
         default:
             return nil
         }
@@ -398,15 +406,17 @@ extension CallLowerer {
     }
 
     /// True for the numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison: the signed primitives (Int/Long/Float/Double,
-    /// which Byte/Short widen into) plus the unsigned primitives. Used by the
-    /// vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
+    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
+    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
         sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.int, .nonNull),
+        case .primitive(.byte, .nonNull),
+             .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),
              .primitive(.double, .nonNull),
