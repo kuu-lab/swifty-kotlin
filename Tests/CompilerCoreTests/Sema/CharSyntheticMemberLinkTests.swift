@@ -50,8 +50,8 @@ struct CharSyntheticMemberLinkTests {
         // lowercaseChar, and titlecaseChar.
         let expected: [String: String] = [
             "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
-            // New numeric conversion functions
-            "toInt": "kk_char_toInt",
+            // New numeric conversion functions (Char numeric conversions are
+            // source-backed in kotlin.Numbers).
             "toDouble": "kk_char_toDouble",
             "toIntOrNull": "kk_char_toIntOrNull",
             "toDoubleOrNull": "kk_char_toDoubleOrNull",
@@ -344,7 +344,6 @@ struct CharSyntheticMemberLinkTests {
 
             let expectedFunctionLinks: [String: String] = [
                 "isIdentifierIgnorable": "kk_char_isIdentifierIgnorable",
-                "toInt": "kk_char_toInt",
                 "toDouble": "kk_char_toDouble",
                 "toIntOrNull": "kk_char_toIntOrNull",
                 "toDoubleOrNull": "kk_char_toDoubleOrNull",
@@ -385,6 +384,56 @@ struct CharSyntheticMemberLinkTests {
                     #expect(sema.symbols.externalLinkName(for: chosenSymbol) == externalLinkName, "Expected \(memberName) to resolve to \(externalLinkName)")
                 }
             }
+        }
+    }
+
+    @Test
+    func testCharNumericConversionsResolveToBundledKotlinSource() throws {
+        let source = """
+        fun probe(ch: Char) {
+            ch.toByte()
+            ch.toShort()
+            ch.toInt()
+            ch.toLong()
+        }
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path])
+            try runSema(ctx)
+
+            let diagnostics = ctx.diagnostics.diagnostics
+                .map { "\($0.code): \($0.message)" }
+                .joined(separator: " | ")
+            #expect(!ctx.diagnostics.hasError, "Expected Char numeric conversions to resolve, got: \(diagnostics)")
+
+            let ast = try #require(ctx.ast)
+            let sema = try #require(ctx.sema)
+            let expectedMembers = Set(["toByte", "toShort", "toInt", "toLong"])
+            var observedMembers = Set<String>()
+
+            for index in ast.arena.exprs.indices {
+                let exprID = ExprID(rawValue: Int32(index))
+                guard case let .memberCall(_, callee, _, args, range) = ast.arena.expr(exprID),
+                      args.isEmpty,
+                      expectedMembers.contains(ctx.interner.resolve(callee)),
+                      !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_"),
+                      let chosenCallee = sema.bindings.callBinding(for: exprID)?.chosenCallee
+                else { continue }
+
+                let memberName = ctx.interner.resolve(callee)
+                observedMembers.insert(memberName)
+                #expect(
+                    sema.symbols.isSourceBackedSymbol(chosenCallee),
+                    "Expected Char.\(memberName) to resolve to bundled Kotlin source"
+                )
+                #expect(
+                    sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                    "Expected Char.\(memberName) to have no public runtime link"
+                )
+            }
+
+            #expect(observedMembers == expectedMembers, "Unexpected Char numeric members: \(observedMembers)")
         }
     }
 

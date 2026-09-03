@@ -107,12 +107,13 @@ final class LocalDeclTypeChecker {
                     }()
                     if rangeExprSatisfiesIterableAnnotation
                         || (initializer.map {
-                            sema.bindings.isRangeExpr($0)
-                                && driver.helpers.isRangeLikeType(
-                                    declaredType,
-                                    sema: sema,
-                                    interner: interner
-                                )
+                            driver.helpers.rangeExprMatchesDeclaredElementType(
+                                bodyExprID: $0,
+                                bodyType: initializerType,
+                                declaredType: declaredType,
+                                sema: sema,
+                                interner: interner
+                            )
                         } ?? false)
                     {
                         // Range expressions keep their runtime representation separate from

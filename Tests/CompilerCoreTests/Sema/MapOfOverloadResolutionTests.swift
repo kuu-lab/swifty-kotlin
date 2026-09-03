@@ -56,5 +56,26 @@ struct MapOfOverloadResolutionTests {
         #expect(multipleBinding.parameterMapping == [0: 0, 1: 0])
         #expect(singleBinding.chosenCallee != multipleBinding.chosenCallee)
     }
+
+    /// Regression: an explicit type argument on the vararg `mapOf<K, V>(...)`
+    /// overload must be treated as authoritative rather than folded into the
+    /// same lub/glb bound pool as the vararg elements' own types. Each `Pair`
+    /// argument here upcasts to `Pair<Any?, Number?>` on its own (`Pair` is
+    /// declared `out A, out B`), but combining the explicit `Number?` bound
+    /// with the elements' actual types (`Int`, `Nothing?`) through `lub()`
+    /// used to widen the candidate to `Any?` and report a spurious
+    /// "Conflicting bounds for type variable" error (KSWIFTK-TYPE-0001).
+    @Test
+    func testExplicitTypeArgsAllowVarargPairUpcast() throws {
+        let ctx = makeContextFromSource("""
+        fun probe() {
+            val projected: Map<Any?, Number?> = mapOf<Any?, Number?>("a" to 1, null to null)
+            println(projected)
+        }
+        """)
+
+        try runSema(ctx)
+        #expect(ctx.diagnostics.diagnostics.filter { $0.severity == .error }.isEmpty)
+    }
 }
 #endif

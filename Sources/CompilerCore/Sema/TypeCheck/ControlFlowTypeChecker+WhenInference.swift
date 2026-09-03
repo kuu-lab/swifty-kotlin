@@ -8,7 +8,8 @@ extension ControlFlowTypeChecker {
         range: SourceRange,
         ctx: TypeInferenceContext,
         locals: inout LocalBindings,
-        expectedType: TypeID?
+        expectedType: TypeID?,
+        isStatementContext: Bool = false
     ) -> TypeID {
         let ast = ctx.ast
         let sema = ctx.sema
@@ -490,7 +491,9 @@ extension ControlFlowTypeChecker {
                 hasFalseCase: hasFalseCase
             )
             let isExhaustive = ctx.dataFlow.isWhenExhaustive(subjectType: boolType, branches: summary, sema: sema)
-            if !isExhaustive {
+            // A subject-less `when` used as a statement (its value discarded) does not
+            // require exhaustiveness in Kotlin - only `when` used as an expression does.
+            if !isExhaustive, !isStatementContext {
                 ctx.semaCtx.diagnostics.error(
                     "KSWIFTK-SEMA-0004",
                     "Non-exhaustive when expression.",

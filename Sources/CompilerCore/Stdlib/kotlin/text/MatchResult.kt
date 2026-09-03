@@ -208,3 +208,10 @@ public operator fun MatchResult.Destructured.component7(): String = groupValue(7
 public operator fun MatchResult.Destructured.component8(): String = groupValue(8)
 
 public operator fun MatchResult.Destructured.component9(): String = groupValue(9)
+
+public operator inline fun MatchResult.Destructured.component10(): String = groupValue(10)
+
+public fun MatchResult.Destructured.toList(): List<String> {
+    val values = __kkDestructuredMatch(this).groupValues
+    return values.subList(1, values.size)
+}
