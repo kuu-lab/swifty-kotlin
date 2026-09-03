@@ -126,7 +126,7 @@ final class MemberLowerer {
             // BUG-227: the same field-reading getter is also exactly what a
             // *class* vtable slot needs behind it, so every property that
             // ever needs virtual dispatch — not just `override` members, but
-            // also the open/abstract root of the chain — gets one here too.
+            // also the open stored-property root of the chain — gets one here too.
             // A `final` property never needs one: LayoutSynthesis never gives
             // it a vtable slot, so no call site ever looks for this accessor.
             let hasCustomGetterBody = (propertyDecl.getter?.body).map { $0 != .unit } ?? false
@@ -140,8 +140,8 @@ final class MemberLowerer {
                let ownerSymbol = sema.symbols.parentSymbol(for: symbol)
             {
                 let isExternalLinked = sema.symbols.externalLinkName(for: symbol).map { !$0.isEmpty } ?? false
-                if (isInterfaceContext || isAbstractProperty), !isExternalLinked {
-                    synthesizeAbstractPropertyGetterStub(
+                if isInterfaceContext, !isExternalLinked {
+                    synthesizeInterfacePropertyGetterStub(
                         propertySymbol: symbol,
                         ownerSymbol: ownerSymbol,
                         sema: sema,
