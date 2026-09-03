@@ -42,6 +42,8 @@ extension CallLowerer {
         "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
         "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
         "indexOf", "indexOfFirst", "indexOfLast",
+        "shuffled",
+        "distinct", "distinctBy", "flatten",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]

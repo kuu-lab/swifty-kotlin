@@ -1134,7 +1134,7 @@
   - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt` に本家準拠の `public inline` `Iterable<T>.find` / `findLast` を追加した。`find` は最初の match で short-circuit し、`findLast` は iterator を最後まで走査して最後の match を返す。対象の `kk_*` / `__kk_*` Runtime、synthetic stub、RuntimeABI、CallTypeChecker/CallLowerer の対象専用 bridge は現行 master に存在せず、共有の List/Sequence/Range 経路は変更していない。
   - 回帰: `stdlib_kotlin_collections_Iterable_find.golden` で Iterable/nullable/List の exact overload と戻り値型を固定し、`stdlib_kotlin_collections_Iterable_find.kt` で custom one-shot Iterable、順序、predicate 評価回数、nullable match/no-match、empty/no-match、predicate 例外中断を kotlinc と比較する。
 
-- [ ] KSP-975: kotlin.collections.Iterable.flatten-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-975: kotlin.collections.Iterable.flatten-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `flatten`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1143,6 +1143,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.flatten` — fun Iterable.flatten(): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<kotlin.collections/Iterable<#A>>).kotlin.collections/flatten(): kotlin.collections/List<#A>`
+  - 完了: `Iterables.kt` に source-backed 実装を追加し、Iterable/List overload 解決、dynamic iterator の例外伝播、Golden、focused diff、Sema/RuntimeABI 回帰を確認。
 
 - [ ] KSP-977: kotlin.collections.Iterable.for-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / receiver `Iterable` / family `for`
