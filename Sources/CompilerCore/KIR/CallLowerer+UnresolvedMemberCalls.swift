@@ -2,6 +2,36 @@
 
 /// Name-based fallback resolution for unresolved synthetic and collection members.
 extension CallLowerer {
+    /// HashSet is source-backed for its nominal API, but its instances are
+    /// RuntimeSetBox values without a Kotlin vtable. Keep the mutating and
+    /// membership operations on their runtime ABI entry points.
+    func runtimeBackedSetMemberCallee(
+        memberName: String,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
+        if memberName == "contains",
+           isSetLikeType(nonNullReceiverType, sema: sema, interner: interner)
+        {
+            return interner.intern("__kk_set_contains")
+        }
+        if isMutableSetLikeType(nonNullReceiverType, sema: sema, interner: interner) {
+            switch memberName {
+            case "add":
+                return interner.intern("__kk_mutable_set_add")
+            case "remove":
+                return interner.intern("__kk_mutable_set_remove")
+            case "clear":
+                return interner.intern("__kk_mutable_set_clear")
+            default:
+                break
+            }
+        }
+        return nil
+    }
+
     // swiftlint:disable cyclomatic_complexity
     func unresolvedSyntheticMemberCallee(
         memberName: String,
@@ -98,14 +128,6 @@ extension CallLowerer {
             }
         }
 
-        // Generic Comparable<T>.compareTo — emitted when the receiver is a type parameter
-        // bounded by Comparable<T> and no concrete stub covers it (e.g. sorted() in the
-        // bundled stdlib).  String is excluded above; Char and primitives are excluded by
-        // tryLowerPrimitiveCompareTo which runs before this path.
-        if memberName == "compareTo", argumentCount == 1 {
-            return interner.intern("__kk_comparable_compareTo")
-        }
-
         if isConcreteListLikeType(nonNullReceiverType, sema: sema, interner: interner) {
             switch memberName {
             // KSP-426: List sorting and extrema HOFs are bundled Kotlin source.
@@ -197,18 +219,7 @@ extension CallLowerer {
             case "toMutableList":
                 return interner.intern("kk_array_toMutableList")
             case "toTypedArray":
-                return interner.intern("kk_array_copyOf")
-            case "copyOf":
-                switch argumentCount {
-                case 0:
-                    return interner.intern("kk_array_copyOf")
-                case 1:
-                    return interner.intern("kk_array_copyOf_newSize")
-                case 2:
-                    return interner.intern("kk_array_copyOf_newSize_init")
-                default:
-                    break
-                }
+                return interner.intern("__kk_array_copyOf")
             case "fill":
                 return interner.intern("kk_array_fill")
             case "asSequence":
@@ -527,13 +538,77 @@ extension CallLowerer {
               || memberName == "reduceIndexed"
               || memberName == "reduceRightIndexed"
               || memberName == "reduceRightOrNull"
-              || memberName == "reduceRightIndexedOrNull",
-              let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+              || memberName == "reduceRightIndexedOrNull"
         else {
             return nil
         }
 
         let knownNames = KnownCompilerNames(interner: interner)
+        if memberName == "size" || memberName == "isEmpty" {
+            func collectionKind(
+                for type: TypeID,
+                visitedTypeParams: inout Set<SymbolID>
+            ) -> KnownCollectionKind? {
+                let nonNullType = sema.types.makeNonNullable(type)
+                switch sema.types.kind(of: nonNullType) {
+                case let .classType(classType):
+                    guard let symbol = sema.symbols.symbol(classType.classSymbol) else {
+                        return nil
+                    }
+                    return collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames)
+                case let .intersection(parts):
+                    for part in parts {
+                        if let kind = collectionKind(for: part, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                case let .typeParam(typeParam):
+                    guard visitedTypeParams.insert(typeParam.symbol).inserted else {
+                        return nil
+                    }
+                    for bound in sema.symbols.typeParameterUpperBounds(for: typeParam.symbol) {
+                        if let kind = collectionKind(for: bound, visitedTypeParams: &visitedTypeParams) {
+                            return kind
+                        }
+                    }
+                    return nil
+                default:
+                    return nil
+                }
+            }
+
+            var visitedTypeParams = Set<SymbolID>()
+            switch (memberName, collectionKind(for: receiverType, visitedTypeParams: &visitedTypeParams)) {
+            case ("size", .map?):
+                return interner.intern("kk_map_size")
+            case ("size", .set?):
+                return interner.intern("__kk_set_size")
+            case ("size", .array?):
+                return interner.intern("__kk_array_size")
+            case ("size", .list?):
+                return interner.intern("__kk_list_size")
+            case ("size", .collection?):
+                return interner.intern("__kk_collection_size")
+            case ("isEmpty", .map?):
+                return interner.intern("kk_map_is_empty")
+            case ("isEmpty", .set?):
+                return interner.intern("__kk_set_is_empty")
+            case ("isEmpty", .array?):
+                return interner.intern("kk_array_is_empty")
+            case ("isEmpty", .list?):
+                return interner.intern("kk_list_is_empty")
+            case ("isEmpty", .collection?):
+                return interner.intern("__kk_collection_isEmpty")
+            default:
+                return nil
+            }
+        }
+
+        guard let (_, symbol) = resolveClassTypeSymbol(receiverType, sema: sema) else {
+            return nil
+        }
+
         switch memberName {
         case "size":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {

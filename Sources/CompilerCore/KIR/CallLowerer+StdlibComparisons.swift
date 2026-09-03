@@ -188,7 +188,7 @@ extension CallLowerer {
         })
         let isPrimitiveOverload = !isComparatorOverload
             && signature.typeParameterSymbols.isEmpty
-            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema, isMin: isMin) })
+            && signature.parameterTypes.allSatisfy({ isPrimitiveComparisonType($0, sema: sema) })
         let isGenericTypeParameterOverload = !signature.typeParameterSymbols.isEmpty
             && !isComparatorOverload
             && isUniformTypeParameterOverload(signature, sema: sema)
@@ -405,19 +405,18 @@ extension CallLowerer {
         }
     }
 
-    /// True for numeric primitive types whose ordering can be lowered to a
-    /// direct `<` / `>` comparison. Byte/Short are admitted only for exact
-    /// `minOf` overloads; `maxOf` keeps its existing widening guard. Used by
-    /// the vararg `minOf` / `maxOf` lowering to fold the arguments inline.
+    /// True for the numeric primitive types whose ordering can be lowered to a
+    /// direct `<` / `>` comparison: all signed and unsigned primitive types.
+    /// Used by the vararg `minOf` / `maxOf` lowering to fold the arguments
+    /// inline without widening Byte or Short.
     private func isPrimitiveComparisonType(
         _ type: TypeID,
-        sema: SemaModule,
-        isMin: Bool
+        sema: SemaModule
     ) -> Bool {
         switch sema.types.kind(of: type) {
-        case .primitive(.byte, .nonNull), .primitive(.short, .nonNull):
-            return isMin
-        case .primitive(.int, .nonNull),
+        case .primitive(.byte, .nonNull),
+             .primitive(.short, .nonNull),
+             .primitive(.int, .nonNull),
              .primitive(.long, .nonNull),
              .primitive(.float, .nonNull),
              .primitive(.double, .nonNull),

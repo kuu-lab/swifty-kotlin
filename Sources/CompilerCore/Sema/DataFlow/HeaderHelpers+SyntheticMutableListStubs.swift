@@ -6,6 +6,56 @@
 /// entries to this package.
 extension DataFlowSemaPhase {
 
+    private func hasMutableListOverload(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        fqName: [InternedString],
+        mutableListInterfaceSymbol: SymbolID,
+        parameterCount: Int,
+        parameterClassSymbol: SymbolID? = nil,
+        mlTypeParamType: TypeID
+    ) -> Bool {
+        if parameterClassSymbol == nil,
+           let contextTypes = BundledSyntheticStubRegistration.types,
+           let memberName = fqName.last,
+           BundledSyntheticStubRegistration.shouldSkipRegistration(
+               declaredOwnerFQName: Array(fqName.dropLast()),
+               receiverType: types.make(.classType(ClassType(
+                   classSymbol: mutableListInterfaceSymbol,
+                   args: [.invariant(mlTypeParamType)],
+                   nullability: .nonNull
+               ))),
+               name: memberName,
+               arity: parameterCount,
+               symbols: symbols,
+               types: contextTypes,
+               interner: interner
+           )
+        {
+            return true
+        }
+        return symbols.lookupAll(fqName: fqName).contains { symbolID in
+            guard let signature = symbols.functionSignature(for: symbolID),
+                  let receiverType = signature.receiverType,
+                  case let .classType(receiverClass) = types.kind(of: types.makeNonNullable(receiverType)),
+                  receiverClass.classSymbol == mutableListInterfaceSymbol,
+                  signature.parameterTypes.count == parameterCount
+            else {
+                return false
+            }
+            guard let parameterClassSymbol else {
+                return true
+            }
+            guard let parameterType = signature.parameterTypes.first,
+                  case let .classType(parameterClass) = types.kind(of: types.makeNonNullable(parameterType))
+            else {
+                return false
+            }
+            return parameterClass.classSymbol == parameterClassSymbol
+        }
+    }
+
     func registerSyntheticMutableListStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -62,6 +112,14 @@ extension DataFlowSemaPhase {
         types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
 
         registerMutableListIteratorMember(
+            symbols: symbols, types: types, interner: interner,
+            kotlinCollectionsPkg: kotlinCollectionsPkg,
+            mutableListFQName: mutableListFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            mlTypeParamSymbol: mlTypeParamSymbol,
+            mlTypeParamType: mlTypeParamType
+        )
+        registerMutableListIteratorAtIndexMember(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             mutableListFQName: mutableListFQName,
@@ -189,6 +247,14 @@ extension DataFlowSemaPhase {
             mlTypeParamSymbol: mlTypeParamSymbol,
             mlTypeParamType: mlTypeParamType
         )
+        registerMutableListAddAllAtIndexMember(
+            symbols: symbols, types: types, interner: interner,
+            mutableListFQName: mutableListFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            collectionInterfaceSymbol: collectionInterfaceSymbol,
+            mlTypeParamSymbol: mlTypeParamSymbol,
+            mlTypeParamType: mlTypeParamType
+        )
         registerMutableListPlusAssignMembers(
             symbols: symbols, types: types, interner: interner,
             mutableListFQName: mutableListFQName,
@@ -235,6 +301,53 @@ extension DataFlowSemaPhase {
             kotlinCollectionsPkg: kotlinCollectionsPkg,
             listInterfaceSymbol: listInterfaceSymbol,
             mutableListInterfaceSymbol: mutableListInterfaceSymbol
+        )
+    }
+
+    /// Restore the shared MutableIterable residual edge after a bundled
+    /// MutableList source declaration is bound. The source declaration owns
+    /// List/MutableCollection, while the compiler shell still owns the
+    /// residual iterator/mutation surface and its direct compatibility edge.
+    func patchSourceBackedMutableListSupertypes(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let collectionsPackage = [interner.intern("kotlin"), interner.intern("collections")]
+        let mutableListName = interner.intern("MutableList")
+        let mutableIterableName = interner.intern("MutableIterable")
+        guard let mutableListSymbol = symbols.lookup(fqName: collectionsPackage + [mutableListName]),
+              let mutableListInfo = symbols.symbol(mutableListSymbol),
+              !mutableListInfo.flags.contains(.synthetic),
+              let mutableIterableSymbol = symbols.lookup(fqName: collectionsPackage + [mutableIterableName]),
+              let typeParameter = types.nominalTypeParameterSymbols(for: mutableListSymbol).first
+        else {
+            return
+        }
+
+        let directSupertypes = symbols.directSupertypes(for: mutableListSymbol)
+        guard !directSupertypes.contains(mutableIterableSymbol) else {
+            return
+        }
+        let patchedSupertypes = Array(Set(directSupertypes + [mutableIterableSymbol]))
+            .sorted(by: { $0.rawValue < $1.rawValue })
+        symbols.setDirectSupertypes(patchedSupertypes, for: mutableListSymbol)
+        types.setNominalDirectSupertypes(patchedSupertypes, for: mutableListSymbol)
+
+        let typeParameterType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameter,
+            nullability: .nonNull
+        )))
+        let mutableIterableTypeArgs: [TypeArg] = [.invariant(typeParameterType)]
+        symbols.setSupertypeTypeArgs(
+            mutableIterableTypeArgs,
+            for: mutableListSymbol,
+            supertype: mutableIterableSymbol
+        )
+        types.setNominalSupertypeTypeArgs(
+            mutableIterableTypeArgs,
+            for: mutableListSymbol,
+            supertype: mutableIterableSymbol
         )
     }
 
@@ -519,7 +632,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("removeFirst")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -559,7 +680,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("removeFirstOrNull")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -599,7 +728,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("removeLast")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -639,7 +776,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("removeLastOrNull")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -717,7 +862,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("shuffle")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -756,7 +909,15 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("reverse")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 0,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -796,7 +957,6 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("retainAll")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -807,6 +967,16 @@ extension DataFlowSemaPhase {
             args: [.out(mlTypeParamType)],
             nullability: .nonNull
         )))
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 1,
+            parameterClassSymbol: collectionInterfaceSymbol,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,
@@ -1165,6 +1335,55 @@ extension DataFlowSemaPhase {
         )
     }
 
+    /// Register `MutableList<E>.addAll(index: Int, elements: Collection<E>): Boolean`
+    /// (bulk insert-at-index, distinct overload from the append-only `addAll` above).
+    private func registerMutableListAddAllAtIndexMember(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        mutableListFQName: [InternedString],
+        mutableListInterfaceSymbol: SymbolID,
+        collectionInterfaceSymbol: SymbolID,
+        mlTypeParamSymbol: SymbolID,
+        mlTypeParamType: TypeID
+    ) {
+        let memberName = interner.intern("addAll")
+        let memberFQName = mutableListFQName + [memberName]
+        let paramType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(mlTypeParamType)],
+            nullability: .nonNull
+        )))
+        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+            symbols.functionSignature(for: symbolID)?.parameterTypes == [types.intType, paramType]
+        }) == nil else { return }
+        let receiverType = types.make(.classType(ClassType(
+            classSymbol: mutableListInterfaceSymbol,
+            args: [.invariant(mlTypeParamType)],
+            nullability: .nonNull
+        )))
+        let memberSymbol = symbols.define(
+            kind: .function,
+            name: memberName,
+            fqName: memberFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
+        symbols.setExternalLinkName("__kk_mutable_list_addAll_at", for: memberSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: receiverType,
+                parameterTypes: [types.intType, paramType],
+                returnType: types.booleanType,
+                typeParameterSymbols: [mlTypeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: memberSymbol
+        )
+    }
+
     private func registerMutableListPlusAssignMembers(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -1236,7 +1455,6 @@ extension DataFlowSemaPhase {
     ) {
         let memberName = interner.intern("removeAll")
         let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
         let receiverType = types.make(.classType(ClassType(
             classSymbol: mutableListInterfaceSymbol,
             args: [.invariant(mlTypeParamType)],
@@ -1247,6 +1465,16 @@ extension DataFlowSemaPhase {
             args: [.out(mlTypeParamType)],
             nullability: .nonNull
         )))
+        guard !hasMutableListOverload(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            fqName: memberFQName,
+            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
+            parameterCount: 1,
+            parameterClassSymbol: collectionInterfaceSymbol,
+            mlTypeParamType: mlTypeParamType
+        ) else { return }
         let memberSymbol = symbols.define(
             kind: .function,
             name: memberName,

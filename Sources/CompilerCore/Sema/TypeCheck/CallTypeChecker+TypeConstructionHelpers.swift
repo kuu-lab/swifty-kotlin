@@ -182,6 +182,43 @@ extension CallTypeChecker {
         return (sema.types.lub(keyTypes), sema.types.lub(valueTypes))
     }
 
+    func inferMapTypeArgumentsFromConstructorArgument(
+        from argTypes: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> (keyType: TypeID, valueType: TypeID)? {
+        guard argTypes.count == 1,
+              case let .classType(argumentClass) = ctx.sema.types.kind(of: argTypes[0])
+        else {
+            return nil
+        }
+        let interner = ctx.interner
+        let mapSymbol = ctx.sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Map"),
+        ])
+        guard let mapSymbol,
+              let mapArgs = ctx.sema.types.liftedNominalSupertypeArgs(
+                  from: argumentClass.classSymbol,
+                  childArgs: argumentClass.args,
+                  to: mapSymbol
+              ),
+              mapArgs.count == 2
+        else {
+            return nil
+        }
+
+        func projected(_ arg: TypeArg) -> TypeID {
+            switch arg {
+            case let .invariant(type), let .in(type), let .out(type):
+                return type
+            case .star:
+                return ctx.sema.types.anyType
+            }
+        }
+        return (projected(mapArgs[0]), projected(mapArgs[1]))
+    }
+
     func makeSyntheticMutableListType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -355,6 +392,28 @@ extension CallTypeChecker {
         }
         return types.make(.classType(ClassType(
             classSymbol: mapSymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+    }
+
+    func makeSourceBackedHashMapType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        keyType: TypeID,
+        valueType: TypeID
+    ) -> TypeID {
+        let hashMapFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashMap"),
+        ]
+        guard let hashMapSymbol = symbols.lookup(fqName: hashMapFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: hashMapSymbol,
             args: [.invariant(keyType), .invariant(valueType)],
             nullability: .nonNull
         )))
