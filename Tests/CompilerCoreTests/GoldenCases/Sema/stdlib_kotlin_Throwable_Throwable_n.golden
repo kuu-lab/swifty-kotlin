@@ -37,7 +37,6 @@ symbol fq=golden.sema.throwableSubclassToString kind=function vis=public flags=_
 symbol fq=golden.sema.throwableSubclassToString.$6.message kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.throwableWithCauseToString kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
 symbol fq=kotlin.Array kind=class vis=public flags=synthetic
-symbol fq=kotlin.Array.size kind=property vis=public flags=synthetic type=Int
 symbol fq=kotlin.Throwable kind=class vis=public flags=openType
 file fstdlib_kotlin_Throwable_Throwable_n package=golden.sema
   decl golden.sema.NamedThrowable class NamedThrowable sym=golden.sema.NamedThrowable
@@ -137,4 +136,4 @@ expr e@63:5#4 binary(elvis) lhs=e@63:5#3 rhs=e@63:79 type=String
 expr e@65:48 string(trace) type=String
 expr e@65:38 call callee=e@65:38#1 args=[_:e@65:48] type=kotlin.Throwable call=kotlin.Throwable.<init>#1
 expr e@65:38#2 memberCall recv=e@65:38 callee=getStackTrace args=[] type=kotlin.Array<String> call=kotlin.Throwable.getStackTrace
-expr e@65:38#3 memberCall recv=e@65:38#2 callee=size args=[] type=Int ref=kotlin.Array.size
+expr e@65:38#3 memberCall recv=e@65:38#2 callee=size args=[] type=Int call=kotlin.collections.size.$get#0

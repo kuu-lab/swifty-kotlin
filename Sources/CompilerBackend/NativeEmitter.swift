@@ -218,20 +218,57 @@ struct NativeEmitter {
     ) -> Bool {
         guard interner.resolve(function.name) == "toString",
               let symbols,
-              let owner = symbols.parentSymbol(for: function.symbol)
+              isThrowableToStringSymbol(function.symbol, interner: interner, symbols: symbols)
         else {
             return false
         }
+        return true
+    }
+
+    static func isThrowableToStringSymbol(
+        _ symbol: SymbolID,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let owner = symbols.parentSymbol(for: symbol) else {
+            return false
+        }
+        return isThrowableClassSymbol(owner, interner: interner, symbols: symbols)
+    }
+
+    static func isThrowableType(
+        _ type: TypeID?,
+        typeSystem: TypeSystem,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
+        guard let type,
+              case let .classType(classType) = typeSystem.kind(of: type)
+        else {
+            return false
+        }
+        return isThrowableClassSymbol(
+            classType.classSymbol,
+            interner: interner,
+            symbols: symbols
+        )
+    }
+
+    private static func isThrowableClassSymbol(
+        _ symbol: SymbolID,
+        interner: StringInterner,
+        symbols: SymbolTable
+    ) -> Bool {
         let throwableFQName = ["kotlin", "Throwable"]
         var visited: Set<SymbolID> = []
-        var pending = [owner]
+        var pending = [symbol]
         while let candidate = pending.popLast() {
             guard visited.insert(candidate).inserted,
-                  let ownerInfo = symbols.symbol(candidate)
+                  let symbolInfo = symbols.symbol(candidate)
             else {
                 continue
             }
-            if ownerInfo.fqName.map(interner.resolve) == throwableFQName {
+            if symbolInfo.fqName.map(interner.resolve) == throwableFQName {
                 return true
             }
             pending.append(contentsOf: symbols.directSupertypes(for: candidate))

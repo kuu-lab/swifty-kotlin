@@ -2632,19 +2632,31 @@ extension NativeEmitter {
                 let argumentValues = [resolveValue(receiver)] + arguments.map(resolveValue)
                 let argumentTypes = [module.arena.exprType(receiver)] + arguments.map(module.arena.exprType)
                 let isThrowableToStringVirtualCall: Bool = {
-                    guard calleeName == "toString",
-                          case .vtable(0) = dispatch,
-                          let typeSystem,
-                          let symbols,
-                          let receiverType = module.arena.exprType(receiver),
-                          let throwableSymbol = symbols.lookup(fqName: [
-                              interner.intern("kotlin"), interner.intern("Throwable"),
-                          ])
+                    guard case .vtable(0) = dispatch,
+                          let symbols
                     else {
                         return false
                     }
-                    let throwableType = typeSystem.make(.classType(ClassType(classSymbol: throwableSymbol)))
-                    return typeSystem.isSubtype(typeSystem.makeNonNullable(receiverType), throwableType)
+                    let isToString = calleeName == "toString"
+                        || symbol.flatMap { symbols.symbol($0) }
+                            .map { interner.resolve($0.name) == "toString" } == true
+                    guard isToString else {
+                        return false
+                    }
+                    if let symbol,
+                       Self.isThrowableToStringSymbol(symbol, interner: interner, symbols: symbols)
+                    {
+                        return true
+                    }
+                    guard let typeSystem else {
+                        return false
+                    }
+                    return Self.isThrowableType(
+                        module.arena.exprType(receiver),
+                        typeSystem: typeSystem,
+                        interner: interner,
+                        symbols: symbols
+                    )
                 }()
                 let externalCalleeName = Self.runtimePrimitiveAlias(
                     for: calleeName,
@@ -2767,7 +2779,7 @@ extension NativeEmitter {
                     && effectiveSymbol.map { runtimeCallbackRawReturnSymbols.contains($0) } == true
                 let shouldBridgeVirtualExternalStringABI = !isInternalCall
                     && typeLowering != nil
-                    && virtualSourceCallSignature == nil
+                    && (virtualSourceCallSignature == nil || isThrowableToStringVirtualCall)
                 var virtualCallArguments = argumentValues
                 if isRuntimeCallbackRawABIVirtualCall {
                     virtualCallArguments = zip(argumentValues, argumentTypes).enumerated().map { index, pair in
