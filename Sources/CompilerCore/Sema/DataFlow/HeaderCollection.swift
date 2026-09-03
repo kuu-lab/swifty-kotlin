@@ -1476,6 +1476,9 @@ extension DataFlowSemaPhase {
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KSP-1361: Reusing the synthetic SequenceScope shell must still
+            // leave the bundled Kotlin declaration source-backed.
+            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"]
     }
 
     /// Registers type parameters for a nominal type (class or interface) as symbols,

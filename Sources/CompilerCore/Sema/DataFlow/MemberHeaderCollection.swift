@@ -142,6 +142,7 @@ extension DataFlowSemaPhase {
                 // flags that the bundled declaration actually declares.
                 symbols.removeFlags([.abstractType, .static, .finalMember, .overrideMember], for: memberSymbol)
                 symbols.insertFlags(memberFlags, for: memberSymbol)
+                symbols.clearExternalLinkName(for: memberSymbol)
                 symbols.setDeclSite(funDecl.range, for: memberSymbol)
             } else {
                 memberSymbol = symbols.define(
