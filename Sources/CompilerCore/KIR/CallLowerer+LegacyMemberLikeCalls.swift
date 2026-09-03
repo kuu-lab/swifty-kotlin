@@ -28,15 +28,22 @@ extension CallLowerer {
     }
 
     /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435 and KSP-632. A call bound to one of those
+    /// bundled Kotlin source in KSP-435, KSP-632, and KSP-983. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
-        "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull", "minus", "minusElement", "plusElement",
+        "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
+        "minus", "minusElement", "plus", "plusElement", "random", "randomOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
-        "toList", "toMap", "toMutableList", "toMutableSet", "toSet", "toTypedArray", "union",
-        "distinct", "distinctBy", "count",
+        "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
+        "toList", "toLongArray", "toMap", "toMutableList", "toMutableSet", "toSet", "toShortArray",
+        "toTypedArray", "toUByteArray", "toUIntArray", "toULongArray", "toUShortArray", "union",
+        "filter", "filterIndexed", "filterIndexedTo", "filterIsInstance",
+        "filterIsInstanceTo", "filterNot", "filterNotNull", "filterNotNullTo", "filterNotTo", "filterTo",
+        "indexOf", "indexOfFirst", "indexOfLast",
+        "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
+        "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -140,7 +147,27 @@ extension CallLowerer {
             else {
                 return false
             }
-            if Self.sourceBackedIterableCollectionMemberNames.contains(interner.resolve(calleeName)) {
+            let memberName = interner.resolve(calleeName)
+            if memberName == "plus" {
+                // `plus` is shared by collections, sequences, maps, and other
+                // receivers. Only the source declaration whose extension
+                // receiver is Iterable belongs to this source-backed path.
+                guard let signature = sema.symbols.functionSignature(for: chosenCallee),
+                      let declaredReceiver = signature.receiverType,
+                      let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
+                          sema.types.makeNonNullable(declaredReceiver),
+                          sema: sema
+                      )
+                else {
+                    return false
+                }
+                return declaredReceiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+            }
+            if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
             }
             if interner.resolve(calleeName) == "zip" {
@@ -175,10 +202,10 @@ extension CallLowerer {
                 interner: interner
             )
         }()
-        // KSP-658: generic Array<T>.copyOf / copyOfRange now have bundled Kotlin
-        // source implementations (Stdlib/kotlin/collections/ArrayContentAndCopy.kt).
-        // When Sema resolves the call to that source declaration, skip the legacy
-        // kk_array_copyOf* interception below so the resolved symbol is emitted.
+        // KSP-1515: Array copy APIs now have bundled Kotlin source implementations
+        // (Stdlib/kotlin/collections/ArrayContentAndCopy.kt). When Sema resolves
+        // the call to one of those declarations, skip the legacy copy interception
+        // below so the resolved source symbol is emitted.
         let isSourceBackedArrayCopyCall: Bool = {
             guard let chosenCallee = chosenCalleeForArgumentAdaptation,
                   chosenCallee != .invalid,
@@ -698,12 +725,32 @@ extension CallLowerer {
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if nonNullReceiverType == intType || nonNullReceiverType == longType {
                 if args.isEmpty {
+                    let stringReceiverID: KIRExprID
+                    if nonNullReceiverType == longType {
+                        // kk_any_to_string treats the raw null sentinel as null.
+                        // Long.MIN_VALUE has the same representation, so box a
+                        // Long receiver before generic stringification; the
+                        // non-null variant preserves the value at that boundary.
+                        stringReceiverID = boxValueForAnySlot(
+                            loweredReceiverID,
+                            sourceType: receiverType,
+                            types: sema.types,
+                            symbols: sema.symbols,
+                            interner: interner,
+                            arena: arena,
+                            resultType: sema.types.anyType,
+                            requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                            into: &instructions
+                        )
+                    } else {
+                        stringReceiverID = loweredReceiverID
+                    }
                     let tagID = arena.appendExpr(.intLiteral(1), type: intType)
                     instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern("kk_any_to_string"),
-                        arguments: [loweredReceiverID, tagID],
+                        arguments: [stringReceiverID, tagID],
                         result: result,
                         canThrow: false,
                         thrownResult: nil
@@ -823,12 +870,10 @@ extension CallLowerer {
             case ("toInt", byteType, intType): nil // identity
             case ("toInt", shortType, intType): nil // identity
             case ("toInt", intType, intType): nil // identity
-            case ("toChar", intType, charType): interner.intern("kk_int_to_char")
             case ("toUInt", intType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", longType, uintType): interner.intern("kk_long_to_uint")
             case ("toUInt", ubyteType, uintType): interner.intern("kk_ubyte_to_uint")
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
-            case ("toUInt", charType, uintType): interner.intern("kk_char_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
@@ -838,7 +883,6 @@ extension CallLowerer {
             case ("toLong", ushortType, longType): interner.intern("kk_ushort_to_long")
             case ("toLong", doubleType, longType): interner.intern("__kk_double_to_long")
             case ("toLong", floatType, longType): interner.intern("__kk_float_to_long")
-            case ("toLong", charType, longType): interner.intern("kk_char_to_long")
             case ("toLong", byteType, longType): nil // identity
             case ("toLong", shortType, longType): nil // identity
             case ("toLong", longType, longType), ("toLong", ulongType, longType): nil // identity
@@ -847,7 +891,6 @@ extension CallLowerer {
             case ("toULong", uintType, ulongType): interner.intern("kk_uint_to_ulong")
             case ("toULong", ubyteType, ulongType): interner.intern("kk_ubyte_to_ulong")
             case ("toULong", ushortType, ulongType): interner.intern("kk_ushort_to_ulong")
-            case ("toULong", charType, ulongType): interner.intern("kk_char_to_ulong")
             case ("toULong", byteType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", shortType, ulongType): interner.intern("kk_int_to_ulong")
             case ("toULong", ulongType, ulongType): nil // identity
@@ -857,7 +900,6 @@ extension CallLowerer {
             case ("toFloat", shortType, floatType): interner.intern("kk_int_to_float")
             case ("toFloat", doubleType, floatType): interner.intern("kk_double_to_float")
             case ("toFloat", floatType, floatType): nil // identity
-            case ("toDouble", intType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", byteType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", shortType, doubleType): interner.intern("kk_int_to_double_bits")
             case ("toDouble", longType, doubleType): interner.intern("kk_long_to_double")
@@ -913,7 +955,9 @@ extension CallLowerer {
                     || (calleeStr == "toInt" && nonNullReceiverType == charType && nonNullResultType == intType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
                     || (calleeStr == "toLong" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == longType)
-            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toUByte", "toUShort", "toChar"].contains(calleeStr),
+            // Short.toShort() has no runtime callee; keep the identity conversion
+            // from falling through to generic member emission as the raw `toShort` symbol.
+            if ["toInt", "toUInt", "toLong", "toULong", "toFloat", "toDouble", "toShort", "toUByte", "toUShort", "toChar"].contains(calleeStr),
                nonNullReceiverType == nonNullResultType || isRepresentationPreservingConversion,
                nonNullReceiverType == intType || nonNullReceiverType == longType
                || nonNullReceiverType == uintType || nonNullReceiverType == ulongType
@@ -980,8 +1024,44 @@ extension CallLowerer {
         // String.isNullOrEmpty/isNullOrBlank are bundled Kotlin source (KSP-401).
         if args.isEmpty {
             let calleeStr = interner.resolve(calleeName)
-            if sema.bindings.callBindings[exprID] == nil,
-               calleeStr == "isNullOrEmpty"
+            // A source-backed Collection<T>?.isNullOrEmpty() declaration may
+            // be selected once the Collection surface is bundled from Kotlin
+            // source, but concrete collection receivers still need their
+            // type-specific non-throwing isEmpty bridge here.
+            let isSourceBackedCollectionIsNullOrEmpty: Bool = {
+                guard calleeStr == "isNullOrEmpty",
+                      let chosenCallee = chosenCalleeForArgumentAdaptation,
+                      let symbol = sema.symbols.symbol(chosenCallee),
+                      sema.symbols.isSourceBackedSymbol(chosenCallee),
+                      symbol.fqName == [
+                          interner.intern("kotlin"),
+                          interner.intern("collections"),
+                          calleeName,
+                      ]
+                else {
+                    return false
+                }
+                // `kotlin.collections.isNullOrEmpty` is overloaded per receiver
+                // (Collection, Map, ...); the bare package+name FQN above can't
+                // tell those apart since extension receivers aren't part of it.
+                // Map's own isNullOrEmpty is also source-backed and must keep
+                // calling through its Kotlin declaration (which owns the
+                // private kk_map_is_empty helper), so only take the
+                // runtime-bridge fast path when the chosen overload's own
+                // receiver is actually Collection<T>.
+                guard let signatureReceiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiverType, sema: sema)
+                else {
+                    return false
+                }
+                return receiverSymbol.fqName == [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Collection"),
+                ]
+            }()
+            if calleeStr == "isNullOrEmpty",
+               (sema.bindings.callBindings[exprID] == nil || isSourceBackedCollectionIsNullOrEmpty)
             {
                 let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
                 if let runtimeCallee = collectionIsNullOrEmptyRuntimeCallee(
@@ -1659,74 +1739,6 @@ extension CallLowerer {
             }
         }
 
-        if args.count == 1 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall,
-               interner.resolve(calleeName) == "copyOf"
-            {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_array_copyOf_newSize"),
-                    arguments: [loweredReceiverID] + normalizedArgIDs,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return result
-            }
-        }
-
-        if args.count == 2 {
-            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
-            let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
-            if isConcreteArrayLikeType(nonNullReceiverType, sema: sema, interner: interner),
-               !isSourceBackedArrayCopyCall {
-                if interner.resolve(calleeName) == "copyOf" {
-                    let fnPtrExpr: KIRExprID
-                    let envPtrExpr: KIRExprID
-                    if normalizedArgIDs.count >= 3 {
-                        fnPtrExpr = normalizedArgIDs[1]
-                        envPtrExpr = normalizedArgIDs[2]
-                    } else {
-                        let split = splitCallableLambdaArgument(
-                            normalizedArgIDs[1],
-                            sema: sema,
-                            arena: arena,
-                            interner: interner,
-                            instructions: &instructions
-                        )
-                        fnPtrExpr = split.fnPtrExpr
-                        envPtrExpr = split.envPtrExpr
-                    }
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOf_newSize_init"),
-                        arguments: [loweredReceiverID, normalizedArgIDs[0], fnPtrExpr, envPtrExpr],
-                        result: result,
-                        canThrow: true,
-                        thrownResult: nil
-                    ))
-                    return result
-                }
-                if interner.resolve(calleeName) == "copyOfRange" {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_array_copyOfRange"),
-                        arguments: [loweredReceiverID] + normalizedArgIDs,
-                        result: result,
-                        canThrow: true,
-                        thrownResult: arena.appendExpr(
-                            .temporary(Int32(arena.expressions.count)),
-                            type: sema.types.nullableAnyType
-                        )
-                    ))
-                    return result
-                }
-            }
-        }
-
         let hasHOFLambdaArg = args.last.map { ast.arena.expr($0.expr)?.isLambdaOrCallableRef ?? false } ?? false
 
         // KSP-307: ListWindowChunk public functions are source-backed, but codegen
@@ -1872,9 +1884,9 @@ extension CallLowerer {
                 case "toMutableList":
                     "kk_array_toMutableList"
                 case "toTypedArray":
-                    "kk_array_copyOf"
+                    "__kk_array_copyOf"
                 case "copyOf":
-                    isSourceBackedArrayCopyCall ? nil : "kk_array_copyOf"
+                    isSourceBackedArrayCopyCall ? nil : "__kk_array_copyOf"
                 case "concatToString":
                     "kk_chararray_concatToString"
                 default:

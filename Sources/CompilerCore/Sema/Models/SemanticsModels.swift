@@ -1175,6 +1175,12 @@ public final class SymbolTable {
         contractConditionEffects[function] = effect
     }
 
+    /// STDLIB-591: Returns the `returns() implies condition` effect recorded
+    /// for a function, if any.
+    public func contractConditionEffect(for function: SymbolID) -> ContractConditionEffect? {
+        contractConditionEffects[function]
+    }
+
     // MARK: - Indexed queries
 
     /// Returns all symbol IDs of a given kind.

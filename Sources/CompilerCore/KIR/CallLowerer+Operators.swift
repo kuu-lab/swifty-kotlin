@@ -117,12 +117,9 @@ extension CallLowerer {
                 } else {
                     result
                 }
-                // Prefer concrete runtime helpers over bare `compareTo` when the
-                // chosen overload is the synthetic Comparable interface method
-                // (no externalLinkName). Passing Int as the operator call's
-                // expected type (STDLIB-SHARED-001) makes Sema bind String and
-                // other concrete receivers to Comparable.compareTo; without
-                // this rewrite, codegen would emit an undefined `_compareTo`.
+                // String keeps its flat comparison ABI; source-backed
+                // Comparable.compareTo uses its explicit runtime bridge through
+                // the ordinary member-call lowering below.
                 if isCompareToDesugaring {
                     let lhsTypeForCompare = sema.bindings.exprTypes[lhs]
                     let rhsTypeForCompare = sema.bindings.exprTypes[rhs]
@@ -147,32 +144,6 @@ extension CallLowerer {
                         case .greaterThan: cmpOp = .greaterThan
                         case .greaterOrEqual: cmpOp = .greaterOrEqual
                         default: fatalError("Unreachable: compareTo desugaring only applies to comparison operators")
-                        }
-                        instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
-                        return result
-                    }
-                    if shouldLowerComparableViaRuntimeHelper(
-                        chosenCallee: callBinding.chosenCallee,
-                        receiverExpr: lhs,
-                        sema: sema
-                    ) {
-                        instructions.append(.call(
-                            symbol: nil,
-                            callee: interner.intern("kk_compare_any"),
-                            arguments: [lhsID, rhsID],
-                            result: callResult,
-                            canThrow: false,
-                            thrownResult: nil
-                        ))
-                        let zeroExpr = arena.appendExpr(.intLiteral(0), type: intType)
-                        instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                        let cmpOp: KIRBinaryOp
-                        switch op {
-                        case .lessThan: cmpOp = .lessThan
-                        case .lessOrEqual: cmpOp = .lessOrEqual
-                        case .greaterThan: cmpOp = .greaterThan
-                        case .greaterOrEqual: cmpOp = .greaterOrEqual
-                        default: fatalError("Unreachable: erased Comparable runtime path only applies to comparison operators")
                         }
                         instructions.append(.binary(op: cmpOp, lhs: callResult, rhs: zeroExpr, result: result))
                         return result
@@ -870,43 +841,6 @@ extension CallLowerer {
         }
     }
 
-    /// Route `Comparable.compareTo` (synthetic interface method, no external
-    /// link) through `kk_compare_any` instead of emitting a bare `compareTo`
-    /// symbol. Covers type-parameter receivers and any other case where Sema
-    /// selected the interface member without a concrete runtime bridge.
-    private func shouldLowerComparableViaRuntimeHelper(
-        chosenCallee: SymbolID,
-        receiverExpr: ExprID,
-        sema: SemaModule
-    ) -> Bool {
-        // Prefer an explicit runtime bridge when present (e.g. concrete
-        // extension operators exported from a shared stdlib artifact).
-        if let linkName = sema.symbols.externalLinkName(for: chosenCallee), !linkName.isEmpty {
-            return false
-        }
-        guard let comparableSymbol = sema.types.comparableInterfaceSymbol,
-              sema.symbols.parentSymbol(for: chosenCallee) == comparableSymbol
-        else {
-            return false
-        }
-        // User-defined overrides live under their declaring class, not under
-        // Comparable, so they keep the symbol-based call path above.
-        _ = receiverExpr
-        return true
-    }
-
-    private func shouldLowerComparableTypeParamViaRuntime(
-        chosenCallee: SymbolID,
-        receiverExpr: ExprID,
-        sema: SemaModule
-    ) -> Bool {
-        shouldLowerComparableViaRuntimeHelper(
-            chosenCallee: chosenCallee,
-            receiverExpr: receiverExpr,
-            sema: sema
-        )
-    }
-
     // MARK: - Array Operations
 
     func lowerIndexedAccessExpr(
@@ -1049,6 +983,30 @@ extension CallLowerer {
             emitNonThrowingCall(
                 callee: unboxCallee,
                 arg: boxedResult,
+                result: result,
+                into: &instructions
+            )
+            return result
+        }
+        if TypeCheckHelpers().arrayElementType(
+            for: nonNullReceiverType,
+            sema: sema,
+            interner: interner
+        ) == sema.types.ubyteType {
+            // ByteArray.asUByteArray() preserves signed storage, so normalize
+            // the raw byte to UByte at the typed read boundary.
+            let rawResult = arena.appendTemporary(type: sema.types.intType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("kk_array_get"),
+                arguments: [receiverID, indexID],
+                result: rawResult,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            emitNonThrowingCall(
+                callee: interner.intern("kk_int_to_ubyte"),
+                arg: rawResult,
                 result: result,
                 into: &instructions
             )

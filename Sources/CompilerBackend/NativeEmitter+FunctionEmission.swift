@@ -509,6 +509,10 @@ extension NativeEmitter {
                 return nullability != .nonNull
             case let .classType(classType):
                 return symbols?.symbol(classType.classSymbol)?.kind == .enumClass
+            case .unit:
+                // Safe calls returning Unit use the Int64.min sentinel for
+                // null, while the valid Unit value is raw zero.
+                return true
             default:
                 return false
             }
@@ -1662,6 +1666,9 @@ extension NativeEmitter {
 
             let resolvedParameters: [TypeID]
             let resolvedReturnType: TypeID
+            let isRawNumericComparisonHelper = [
+                "kk_min_float", "kk_max_float", "kk_min_double", "kk_max_double",
+            ].contains(externalLinkName)
             if let spec = NativeEmitter.runtimeABIFunctionByName[externalLinkName] {
                 // Runtime callees that throw carry a trailing `outThrown` channel
                 // that is not part of the Kotlin parameter list, so exclude it
@@ -1671,6 +1678,11 @@ extension NativeEmitter {
                 }
                 if abiValueParameters.count == parameters.count {
                     resolvedParameters = zip(parameters, abiValueParameters).map { kotlinType, abiParam in
+                        if isRawNumericComparisonHelper, abiParam.type == .intptr {
+                            // These helpers consume IEEE bit patterns even though their
+                            // bundled Kotlin declarations are Float/Double-typed.
+                            return typeSystem.intType
+                        }
                         if isStringAggregateType(kotlinType), isHandleLike(abiParam.type) {
                             return typeSystem.intType
                         }
@@ -1679,7 +1691,11 @@ extension NativeEmitter {
                 } else {
                     resolvedParameters = parameters
                 }
-                if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
+                if isRawNumericComparisonHelper, spec.returnType == .intptr {
+                    // Keep the raw-bit return type aligned with RuntimeABI when an
+                    // inline precompiled body retains the helper's source symbol.
+                    resolvedReturnType = typeSystem.intType
+                } else if isStringAggregateType(signature.returnType), isHandleLike(spec.returnType) {
                     resolvedReturnType = typeSystem.intType
                 } else {
                     resolvedReturnType = symbols.functionABIReturnType(for: symbol) ?? signature.returnType

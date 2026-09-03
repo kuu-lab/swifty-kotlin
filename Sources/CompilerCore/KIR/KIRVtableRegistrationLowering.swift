@@ -432,7 +432,12 @@ func appendObjectItableMethodRegistrations(
         // conformance (BUG-166) was the first to make it visible, as two
         // otherwise-identical compilations of the same source emitted their
         // three kk_object_register_itable_method calls in different orders.
-        for (methodSymbol, methodSlotInt) in interfaceLayout.vtableSlots.sorted(by: { $0.value < $1.value }) {
+        for (methodSymbol, methodSlotInt) in kirItableMethodEntries(
+            for: interfaceSymbol,
+            interfaceLayout: interfaceLayout,
+            sema: sema,
+            interner: interner
+        ) {
             let implementationSymbol = kirFindOverrideMethod(
                 for: methodSymbol,
                 in: nominalSymbol,
@@ -476,6 +481,44 @@ func appendObjectItableMethodRegistrations(
         interner: interner,
         instructions: &instructions
     )
+}
+
+/// Returns the interface methods that must be registered for dynamic itable dispatch.
+///
+/// BUG-200: bundled library metadata currently omits the compiler-residual
+/// covariant `MutableIterable.iterator(): MutableIterator<T>` entry from the
+/// `MutableIterable` vtable layout. The source class still advertises the
+/// interface and its implementation, so add that exact method at slot zero
+/// until the shared residual layout can carry the covariant member itself.
+func kirItableMethodEntries(
+    for interfaceSymbol: SymbolID,
+    interfaceLayout: NominalLayout,
+    sema: SemaModule,
+    interner: StringInterner
+) -> [(methodSymbol: SymbolID, methodSlot: Int)] {
+    var methods = interfaceLayout.vtableSlots
+    let mutableIterableFQName = ["kotlin", "collections", "MutableIterable"].map(interner.intern)
+    guard let symbol = sema.symbols.symbol(interfaceSymbol),
+          symbol.fqName == mutableIterableFQName
+    else {
+        return methods
+            .sorted { lhs, rhs in
+                lhs.value == rhs.value ? lhs.key.rawValue < rhs.key.rawValue : lhs.value < rhs.value
+            }
+            .map { (methodSymbol: $0.key, methodSlot: $0.value) }
+    }
+
+    let iteratorFQName = mutableIterableFQName + [interner.intern("iterator")]
+    if let iteratorSymbol = sema.symbols.lookup(fqName: iteratorFQName),
+       methods[iteratorSymbol] == nil
+    {
+        methods[iteratorSymbol] = 0
+    }
+    return methods
+        .sorted { lhs, rhs in
+            lhs.value == rhs.value ? lhs.key.rawValue < rhs.key.rawValue : lhs.value < rhs.value
+        }
+        .map { (methodSymbol: $0.key, methodSlot: $0.value) }
 }
 
 /// Interfaces reachable from `nominalSymbol` through the whole supertype
@@ -632,7 +675,7 @@ private func kirOverrideParameterTypesMatch(
     return true
 }
 
-private func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
+func kirSuperclass(of nominalSymbol: SymbolID, sema: SemaModule) -> SymbolID? {
     sema.symbols.directSupertypes(for: nominalSymbol).first { superSymbol in
         switch sema.symbols.symbol(superSymbol)?.kind {
         case .class, .enumClass, .object:

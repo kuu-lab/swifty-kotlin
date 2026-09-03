@@ -387,18 +387,6 @@ extension CallLowerer {
             instructions: &instructions
         )
         if normalized.defaultMask != 0,
-           loweredCallee == interner.intern("kk_array_copyInto")
-        {
-            materializeArrayCopyIntoDefaultArguments(
-                normalized.defaultMask,
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions,
-                arguments: &finalArguments
-            )
-        }
-        if normalized.defaultMask != 0,
            loweredCallee == interner.intern("__kk_byteArray_toKString")
         {
             materializeByteArrayToKStringDefaultArguments(
@@ -485,18 +473,6 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], fnPtrExpr, envPtrExpr]
         }
-        if loweredCallee == interner.intern("kk_array_copyOf_newSize_init"),
-           finalArguments.count == 3
-        {
-            let (fnPtrExpr, envPtrExpr) = splitCallableLambdaArgument(
-                finalArguments[2],
-                sema: sema,
-                arena: arena,
-                interner: interner,
-                instructions: &instructions
-            )
-            finalArguments = [finalArguments[0], finalArguments[1], fnPtrExpr, envPtrExpr]
-        }
         let resultFunction1Callees: Set<InternedString> = [
             interner.intern("kk_runtime_result_get_or_else"),
             interner.intern("kk_runtime_result_map"),
@@ -567,6 +543,15 @@ extension CallLowerer {
         // so itable dispatch must be attempted there as well;
         // tryEmitVirtualDispatch falls back to the link name when the receiver
         // has no resolvable itable entry.
+        // Source-backed ListIterator inherits hasNext/next from Iterator, but
+        // loweredMemberCalleeName intentionally retains those names so the
+        // implementation can be selected through its dynamic itable.
+        let listIteratorInheritedDispatch = listIteratorInheritedDispatchCallee(
+            receiverType: sema.bindings.exprTypes[receiver.expr],
+            calleeName: loweredCallee,
+            sema: sema,
+            interner: interner
+        ) != nil
         let isImportedLibraryLink = chosenCallee.map { symbol in
             // Imported source-backed interface members (kk_fn_* links) still
             // need itable dispatch, but runtime-bridged interface members must
@@ -583,6 +568,7 @@ extension CallLowerer {
             kirIsRuntimeBridgedCallee($0, sema: sema)
         } ?? false
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
+            || listIteratorInheritedDispatch
             || isImportedLibraryLink
             || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
            let inst = tryEmitVirtualDispatch(
@@ -663,6 +649,7 @@ extension CallLowerer {
     private static func throwingMemberCalleeNames(interner: StringInterner) -> Set<InternedString> {
         Set([
             interner.intern("kk_list_random"),
+            interner.intern("kk_iterable_iterator"),
             interner.intern("kk_sequence_takeLast"),
             interner.intern("__kk_iterable_firstNotNullOf"),
             interner.intern("__kk_iterable_firstNotNullOfOrNull"),
@@ -737,7 +724,6 @@ extension CallLowerer {
             interner.intern("kk_sequence_to_list"),
             interner.intern("kk_sequence_runningFoldIndexed"),
             interner.intern("kk_sequence_scanIndexed"),
-            interner.intern("kk_array_copyOf_newSize_init"),
         ])
     }
 

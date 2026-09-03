@@ -182,6 +182,43 @@ extension CallTypeChecker {
         return (sema.types.lub(keyTypes), sema.types.lub(valueTypes))
     }
 
+    func inferMapTypeArgumentsFromConstructorArgument(
+        from argTypes: [TypeID],
+        ctx: TypeInferenceContext
+    ) -> (keyType: TypeID, valueType: TypeID)? {
+        guard argTypes.count == 1,
+              case let .classType(argumentClass) = ctx.sema.types.kind(of: argTypes[0])
+        else {
+            return nil
+        }
+        let interner = ctx.interner
+        let mapSymbol = ctx.sema.symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("Map"),
+        ])
+        guard let mapSymbol,
+              let mapArgs = ctx.sema.types.liftedNominalSupertypeArgs(
+                  from: argumentClass.classSymbol,
+                  childArgs: argumentClass.args,
+                  to: mapSymbol
+              ),
+              mapArgs.count == 2
+        else {
+            return nil
+        }
+
+        func projected(_ arg: TypeArg) -> TypeID {
+            switch arg {
+            case let .invariant(type), let .in(type), let .out(type):
+                return type
+            case .star:
+                return ctx.sema.types.anyType
+            }
+        }
+        return (projected(mapArgs[0]), projected(mapArgs[1]))
+    }
+
     func makeSyntheticMutableListType(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -339,6 +376,28 @@ extension CallTypeChecker {
         )))
     }
 
+    func makeSourceBackedHashMapType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        keyType: TypeID,
+        valueType: TypeID
+    ) -> TypeID {
+        let hashMapFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashMap"),
+        ]
+        guard let hashMapSymbol = symbols.lookup(fqName: hashMapFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: hashMapSymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+    }
+
     func applyContractEffects(
         chosen: SymbolID,
         args: [CallArgument],
@@ -346,13 +405,29 @@ extension CallTypeChecker {
         locals: inout LocalBindings
     ) {
         let sema = ctx.sema
-        guard let effect = sema.symbols.contractNonNullEffect(for: chosen),
-              effect.appliesOnAnyReturn,
-              let signature = sema.symbols.functionSignature(for: chosen),
-              let parameterIndex = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
-              parameterIndex < args.count,
-              parameterIndex < signature.parameterTypes.count
-        else {
+        guard let signature = sema.symbols.functionSignature(for: chosen) else {
+            return
+        }
+        let parameterIndex: Int
+        if let effect = sema.symbols.contractNonNullEffect(for: chosen),
+           effect.appliesOnAnyReturn,
+           let index = signature.valueParameterSymbols.firstIndex(of: effect.parameterSymbol),
+           index < args.count,
+           index < signature.parameterTypes.count
+        {
+            parameterIndex = index
+        } else if let effect = sema.symbols.contractConditionEffect(for: chosen),
+                  // STDLIB-591: only `returns() implies (condition)` (any normal
+                  // return) is handled here; `returns(true/false) implies (...)`
+                  // would need to correlate with how the call's own result is
+                  // branched on at the use site, which this post-call helper
+                  // doesn't have visibility into.
+                  effect.returnsValue == nil,
+                  effect.conditionParameterIndex < args.count,
+                  effect.conditionParameterIndex < signature.parameterTypes.count
+        {
+            parameterIndex = effect.conditionParameterIndex
+        } else {
             return
         }
         let conditionExpr = args[parameterIndex].expr
