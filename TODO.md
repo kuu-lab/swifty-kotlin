@@ -1381,7 +1381,7 @@
     - `kotlin.collections.shuffle` — fun MutableList.shuffle(): Unit  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableList<#A>).kotlin.collections/shuffle()`
     - `kotlin.collections.shuffle` — fun MutableList.shuffle(Random): Unit  -- `final fun <#A: kotlin/Any?> (kotlin.collections/MutableList<#A>).kotlin.collections/shuffle(kotlin.random/Random)`
 
-- [ ] KSP-1022: kotlin.collections.MutableMap の未実装 stdlib API を実装する（19 件）
+- [x] KSP-1022: kotlin.collections.MutableMap の未実装 stdlib API を実装する（19 件）
   - 対象: `kotlin.collections` / receiver `MutableMap`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapLookupAndTransform.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
