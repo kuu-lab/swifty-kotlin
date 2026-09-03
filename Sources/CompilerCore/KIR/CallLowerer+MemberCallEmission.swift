@@ -277,19 +277,7 @@ extension CallLowerer {
         {
             finalArguments.insert(contentsOf: callableInfo.captureArguments, at: 2)
         }
-        // A source-backed HashSet declaration is only the semantic target. Its
-        // runtime representation is a RuntimeSetBox, so a remapped set
-        // operation must not retain the source symbol for NativeEmitter's
-        // internal-function lookup; that would bypass the runtime ABI callee.
-        let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
-            memberName: interner.resolve(calleeName),
-            receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
-            sema: sema,
-            interner: interner
-        )
-        let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
-            ? nil
-            : chosenCallee
+        let callSymbol = chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
         // so lower the concrete Double/Float overload directly to the range ABI.
         // The source-backed generic declaration remains available for overload
