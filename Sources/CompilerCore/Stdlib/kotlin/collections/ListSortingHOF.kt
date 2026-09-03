@@ -163,7 +163,7 @@ public inline fun <T, R : Comparable<R>> MutableList<T>.sortByDescending(selecto
     }
 }
 
-public inline fun <T> MutableList<T>.sortWith(comparator: Comparator<T>) {
+public inline fun <T> MutableList<T>.sortWith(comparator: Comparator<in T>) {
     if (size <= 1) return
     var i = 0
     while (i < size - 1) {

@@ -12,4 +12,8 @@ fun main() {
     println(values.sortedByDescending { value ->
         if (value.length % 2 == 0) null else value.length
     })
+
+    val mutableValues = mutableListOf("a", "bb", "ccc", "dddd")
+    mutableValues.sortWith(comparator)
+    println(mutableValues)
 }
