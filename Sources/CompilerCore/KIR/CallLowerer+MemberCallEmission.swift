@@ -287,7 +287,9 @@ extension CallLowerer {
             sema: sema,
             interner: interner
         )
+        let receiverType = sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType
         let callSymbol: SymbolID? = runtimeSetMemberCallee.map { $0 == loweredCallee } == true
+            && isSourceBackedHashSetType(receiverType, sema: sema, interner: interner)
             ? nil
             : chosenCallee
         // KSP-641: ClosedFloatingPointRange members are still compiler residuals,
