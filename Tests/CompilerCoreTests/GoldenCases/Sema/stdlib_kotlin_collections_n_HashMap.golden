@@ -35,11 +35,11 @@ expr e@11:16 call callee=e@11:16#1 args=[_:e@11:24] type=kotlin.collections.Hash
 expr e@11:5 localDecl copy mutable=0 type=_ init=e@11:16 type=Unit ref=__local_4.copy
 expr e@12:28 name(copy) type=kotlin.collections.HashMap<String, Int> ref=__local_4.copy
 expr e@12:13 call callee=e@12:13#1 args=[_:e@12:28] type=kotlin.collections.MutableMap<String, Int> call=acceptsHashMap
-expr e@12:13#2 memberCall recv=e@12:13 callee=size args=[] type=Int
+expr e@12:13#2 memberCall recv=e@12:13 callee=size args=[] type=Int ref=kotlin.collections.Map.size
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#2] type=Unit call=kotlin.io.println#1
 expr e@13:13 name(withCapacity) type=kotlin.collections.HashMap<String, Int> ref=__local_2.withCapacity
-expr e@13:13#1 memberCall recv=e@13:13 callee=size args=[] type=Int
+expr e@13:13#1 memberCall recv=e@13:13 callee=size args=[] type=Int ref=kotlin.collections.HashMap.size
 expr e@13:5 call callee=e@13:5#1 args=[_:e@13:13#1] type=Unit call=kotlin.io.println#1
 expr e@14:13 name(withLoadFactor) type=kotlin.collections.HashMap<String, Int> ref=__local_3.withLoadFactor
-expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int
+expr e@14:13#1 memberCall recv=e@14:13 callee=size args=[] type=Int ref=kotlin.collections.HashMap.size
 expr e@14:5 call callee=e@14:5#1 args=[_:e@14:13#1] type=Unit call=kotlin.io.println#1
