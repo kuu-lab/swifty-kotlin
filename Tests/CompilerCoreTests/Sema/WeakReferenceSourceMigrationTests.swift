@@ -28,8 +28,8 @@ struct WeakReferenceSourceMigrationTests {
                 return ctx.sourceManager.path(of: fileID) == sourcePath
             }
 
-            #expect(allSymbols.count == 1, "Expected source migration to suppress synthetic duplicates for " + name)
-            #expect(sourceSymbols.count == 1, "Expected one bundled source declaration for " + name)
+            #expect(allSymbols.count == 1, "Expected source migration to suppress synthetic duplicates for \(name)")
+            #expect(sourceSymbols.count == 1, "Expected one bundled source declaration for \(name)")
             let symbol = try #require(sourceSymbols.first)
             #expect(sema.symbols.isSourceBackedSymbol(symbol))
             #expect(sema.symbols.externalLinkName(for: symbol) == nil)
