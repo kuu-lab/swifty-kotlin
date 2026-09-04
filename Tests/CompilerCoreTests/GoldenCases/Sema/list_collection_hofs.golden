@@ -50,7 +50,7 @@ expr e@7:19 name(values) type=kotlin.collections.List<String> ref=transform.$0.v
 expr e@7:36 name(it) type=String ref=s-6
 expr e@7:36#1 memberCall recv=e@7:36 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@7:34 lambda params=[] body=e@7:36#1 label=groupBy type=(String) -> Any
-expr e@7:19#1 memberCall recv=e@7:19 callee=groupBy args=[_:e@7:34] type=kotlin.collections.Map<Int, kotlin.collections.List<String>> call=kotlin.collections.groupBy#0 targs=[String,Int]
+expr e@7:19#1 memberCall recv=e@7:19 callee=groupBy args=[_:e@7:34] type=kotlin.collections.Map<Int, kotlin.collections.List<String>> call=kotlin.collections.groupBy#2 targs=[String,Int]
 expr e@7:5 localDecl grouped mutable=0 type=_ init=e@7:19#1 type=Unit ref=__local_5.grouped
 expr e@8:28 name(values) type=kotlin.collections.List<String> ref=transform.$0.values
 expr e@8:47 name(it) type=String ref=s-7

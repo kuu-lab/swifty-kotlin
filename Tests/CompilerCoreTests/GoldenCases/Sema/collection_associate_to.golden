@@ -65,7 +65,7 @@ expr e@21:36 name(dest4) type=kotlin.collections.MutableMap<Int, kotlin.collecti
 expr e@21:45 name(it) type=String ref=s-3
 expr e@21:45#1 memberCall recv=e@21:45 callee=length args=[] type=Int call=kotlin.length.$get
 expr e@21:43 lambda params=[] body=e@21:45#1 label=groupByTo type=(String) -> Int
-expr e@21:19#1 memberCall recv=e@21:19 callee=groupByTo args=[_:e@21:36,_:e@21:43] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> call=kotlin.collections.groupByTo#0 targs=[String,Int,kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>]
+expr e@21:19#1 memberCall recv=e@21:19 callee=groupByTo args=[_:e@21:36,_:e@21:43] type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> call=kotlin.collections.groupByTo#2 targs=[String,Int,kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>>]
 expr e@21:5 localDecl result4 mutable=0 type=_ init=e@21:19#1 type=Unit ref=__local_7.result4
 expr e@22:13 name(result4) type=kotlin.collections.MutableMap<Int, kotlin.collections.MutableList<String>> ref=__local_7.result4
 expr e@22:5 call callee=e@22:5#1 args=[_:e@22:13] type=Unit call=kotlin.io.println#1
