@@ -2137,11 +2137,20 @@ final class CallTypeChecker {
                let sourceBackedFactory = sourceBackedCollectionFactoryType(name: resolvedName),
                !hasNonStdlibCollectionFactoryShadow(calleeName, locals: locals, ctx: ctx),
                let chosen = candidates.first(where: { candidate in
-                   guard let symbol = ctx.cachedSymbol(candidate) else {
+                   guard let symbol = ctx.cachedSymbol(candidate),
+                         isKotlinCollectionsFactorySymbol(symbol, named: calleeName)
+                   else {
                        return false
                    }
-                   guard isKotlinCollectionsFactorySymbol(symbol, named: calleeName) else {
-                       return false
+                   if resolvedName == "listOfNotNull" {
+                       // The fixed-arity and vararg overloads share the same
+                       // source shape. Select the fixed overload for one
+                       // argument and the vararg overload for zero or multiple
+                       // arguments so lowering receives the correct packing
+                       // contract.
+                       let isVararg = sema.symbols.functionSignature(for: candidate)?
+                           .valueParameterIsVararg.first ?? false
+                       return isVararg == (args.count != 1)
                    }
                    return args.isEmpty || (sema.symbols.functionSignature(for: candidate)?.parameterTypes.isEmpty == false)
                })
