@@ -706,13 +706,28 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
     }
 
     private func enumEntrySymbols(owner: SemanticSymbol, symbols: SymbolTable) -> [SemanticSymbol] {
-        symbols.children(ofFQName: owner.fqName)
+        let fieldOffsets = symbols.nominalLayout(for: owner.id)?.fieldOffsets ?? [:]
+        return symbols.children(ofFQName: owner.fqName)
             .compactMap { symbols.symbol($0) }
             .filter { $0.kind == .field }
             .sorted(by: {
-                // Sort by source declaration offset first (Kotlin guarantees
-                // enum entry order matches declaration order).  Fall back to
-                // symbol ID which is monotonically assigned in parse order.
+                // Imported symbols have no source declaration range. Their
+                // nominal layout restores the declaration order from library
+                // metadata, so prefer field offsets before source locations.
+                if let lhsFieldOffset = fieldOffsets[$0.id],
+                   let rhsFieldOffset = fieldOffsets[$1.id]
+                {
+                    if lhsFieldOffset != rhsFieldOffset {
+                        return lhsFieldOffset < rhsFieldOffset
+                    }
+                } else if fieldOffsets[$0.id] != nil {
+                    return true
+                } else if fieldOffsets[$1.id] != nil {
+                    return false
+                }
+
+                // Source declarations retain their declaration range. Fall
+                // back to symbol ID when neither entry has layout metadata.
                 let lhsOffset = $0.declSite?.start.offset ?? Int.max
                 let rhsOffset = $1.declSite?.start.offset ?? Int.max
                 if lhsOffset != rhsOffset {
