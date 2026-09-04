@@ -5,6 +5,8 @@
  * Derived from kotlin-stdlib libraries/stdlib/src/kotlin/coroutines/CoroutineContextImpl.kt.
  */
 
+@file:Suppress("KSWIFTK-SEMA-ABSTRACT")
+
 package kotlin.coroutines
 
 import kotlin.coroutines.CoroutineContext.Element
