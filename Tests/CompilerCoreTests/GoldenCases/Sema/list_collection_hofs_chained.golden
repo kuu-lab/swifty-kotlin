@@ -38,7 +38,7 @@ expr e@6:35 name(it) type=Int ref=s-5
 expr e@6:40 int(3) type=Int
 expr e@6:35#1 binary(modulo) lhs=e@6:35 rhs=e@6:40 type=Int
 expr e@6:33 lambda params=[] body=e@6:35#1 label=groupBy type=(Int) -> Any
-expr e@6:18#1 memberCall recv=e@6:18 callee=groupBy args=[_:e@6:33] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>> call=kotlin.collections.groupBy#0 targs=[Int,Int]
+expr e@6:18#1 memberCall recv=e@6:18 callee=groupBy args=[_:e@6:33] type=kotlin.collections.Map<Int, kotlin.collections.List<Int>> call=kotlin.collections.groupBy#2 targs=[Int,Int]
 expr e@6:56 name(it) type=kotlin.collections.Map.Entry<out Int, out kotlin.collections.List<Int>> ref=s-6
 expr e@6:56#1 memberCall recv=e@6:56 callee=value args=[] type=kotlin.collections.List<Int> call=kotlin.collections.Map.Entry.value targs=[Int,kotlin.collections.List<Int>]
 expr e@6:56#2 memberCall recv=e@6:56#1 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
