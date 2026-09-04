@@ -1,0 +1,24 @@
+symbol fq=__local_0.entry kind=local vis=private flags=_ type=kotlin.collections.Map.Entry<String, Int>
+symbol fq=__local_1.key kind=local vis=private flags=_ type=String
+symbol fq=__local_2.value kind=local vis=private flags=_ type=Int
+symbol fq=golden.sema.exerciseMapEntryMembers kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=kotlin.Pair<String, Int>
+symbol fq=golden.sema.exerciseMapEntryMembers.$0.values kind=valueParameter vis=private flags=_
+symbol fq=kotlin.Pair kind=class vis=public flags=_
+symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
+file fstdlib_kotlin_collections_Entry_n package=golden.sema
+  decl golden.sema.exerciseMapEntryMembers fun exerciseMapEntryMembers sym=golden.sema.exerciseMapEntryMembers
+expr e@4:17 name(values) type=kotlin.collections.Map<String, Int> ref=golden.sema.exerciseMapEntryMembers.$0.values
+expr e@4:17#1 memberCall recv=e@4:17 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String, Int>> call=kotlin.collections.entries targs=[String,Int]
+expr e@4:17#2 memberCall recv=e@4:17#1 callee=first args=[] type=kotlin.collections.Map.Entry<String, Int> call=kotlin.collections.first#30 targs=[kotlin.collections.Map.Entry<String, Int>]
+expr e@4:5 localDecl entry mutable=0 type=_ init=e@4:17#2 type=Unit ref=__local_0.entry
+expr e@5:15 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=__local_0.entry
+expr e@5:15#1 memberCall recv=e@5:15 callee=component1 args=[] type=String call=kotlin.collections.component1#1 targs=[String,Int]
+expr e@5:5 localDecl key mutable=0 type=_ init=e@5:15#1 type=Unit ref=__local_1.key
+expr e@6:17 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=__local_0.entry
+expr e@6:17#1 memberCall recv=e@6:17 callee=component2 args=[] type=Int call=kotlin.collections.component2#1 targs=[String,Int]
+expr e@6:5 localDecl value mutable=0 type=_ init=e@6:17#1 type=Unit ref=__local_2.value
+expr e@7:12 name(entry) type=kotlin.collections.Map.Entry<String, Int> ref=__local_0.entry
+expr e@7:12#1 memberCall recv=e@7:12 callee=toPair args=[] type=kotlin.Pair<String, Int> call=kotlin.collections.toPair targs=[String,Int]
+expr e@7:5 return value=e@7:12#1 type=Nothing
