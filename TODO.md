@@ -1252,7 +1252,8 @@
     - `kotlin.collections.minus` — fun Iterable.minus(Sequence): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/minus(kotlin.sequences/Sequence<#A>): kotlin.collections/List<#A>`
     - `kotlin.collections.minus` — fun Iterable.minus(Array): List  -- `final fun <#A: kotlin/Any?> (kotlin.collections/Iterable<#A>).kotlin.collections/minus(kotlin/Array<out #A>): kotlin.collections/List<#A>`
 
-- [ ] KSP-986: kotlin.collections.Iterable.none-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-986: kotlin.collections.Iterable.none-family の未実装 stdlib API を実装する（2 件）
+  - 完了根拠: Kotlin 2.3.10 の `Iterable.none()` / `none(predicate)` 契約を `Collection` fast path と iterator-based path を保つ source-backed 実装に移行し、Iterable receiver の Sema routing と legacy lowerer fallback を更新。Sema/KIR/codegen focused 回帰、Sema golden、`diff_kotlinc` 1ケース、runtime ABI link、TODO ID整合性を検証済み。
   - 対象: `kotlin.collections` / receiver `Iterable` / family `none`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/Iterables.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
