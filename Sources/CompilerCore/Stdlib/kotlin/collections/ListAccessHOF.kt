@@ -1,5 +1,18 @@
 package kotlin.collections
 
+// KSP-939: source-backed List nominal declaration and initializer factory.
+// Indexed access and collection members remain compiler/runtime residuals
+// until their dedicated migration tasks land.
+public interface List<out E> : Collection<E>
+
+/**
+ * Creates a read-only list whose elements are produced in ascending index order.
+ */
+@SinceKotlin("1.1")
+@kotlin.internal.InlineOnly
+public inline fun <T> List(size: Int, init: (index: Int) -> T): List<T> =
+    MutableList(size, init)
+
 // MIGRATION-COL-007
 // List access helpers migrated to Kotlin source.
 // Migration source: Sources/Runtime/RuntimeCollections.swift (kk_list_getOrNull,

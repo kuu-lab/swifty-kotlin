@@ -13,7 +13,7 @@ symbol fq=kotlin.CharSequence kind=interface vis=public flags=_ type=kotlin.Char
 symbol fq=kotlin.Comparable kind=interface vis=public flags=_
 symbol fq=kotlin.Comparator kind=interface vis=public flags=funInterface
 symbol fq=kotlin.collections.Iterable kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.List#0 kind=interface vis=public flags=_
 file fstdlib_kotlin_collections_Iterable_sorted package=golden.sema
   decl golden.sema.useSorted fun useSorted sym=golden.sema.useSorted
   decl golden.sema.useSortedBy fun useSortedBy sym=golden.sema.useSortedBy
