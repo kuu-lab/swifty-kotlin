@@ -13,4 +13,13 @@ fun main() {
         print("${iterator.previous()} ")
     }
     println()
+
+    val mutationIterator = values.listIterator()
+    println(mutationIterator.hasNext())
+    println(mutationIterator.next())
+    mutationIterator.set(10)
+    mutationIterator.add(20)
+    println(mutationIterator.previous())
+    mutationIterator.remove()
+    println(values)
 }

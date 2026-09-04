@@ -416,6 +416,7 @@ func registerRuntimeObject(_ box: RuntimeMapBox) -> Int {
 private let runtimeIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterator")
 private let runtimeListIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.ListIterator")
 private let runtimeMutableIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterator")
+private let runtimeMutableListIteratorInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableListIterator")
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.Iterable")
 private let runtimeMutableIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableIterable")
 private let runtimeSequenceInterfaceTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.sequences.Sequence")
@@ -459,6 +460,23 @@ func registerListIteratorItable(raw: Int) {
     _ = kk_object_register_itable_method(raw, 1, 5, previousIndexPtr)
 }
 
+/// Register the source-backed `MutableListIterator` methods on a mutable list
+/// iterator. Its direct methods occupy slots 0 through 4 in the bundled
+/// interface layout: `next`, `hasNext`, `remove`, `set`, and `add`.
+func registerMutableListIteratorItable(raw: Int) {
+    _ = kk_object_register_itable_iface(raw, Int(runtimeMutableListIteratorInterfaceTypeID), 2)
+    let nextPtr = unsafeBitCast(runtimeListIteratorNextThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 2, 0, nextPtr)
+    let hasNextPtr = unsafeBitCast(runtimeListIteratorHasNextThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 2, 1, hasNextPtr)
+    let removePtr = unsafeBitCast(runtimeListIteratorRemoveThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 2, 2, removePtr)
+    let setPtr = unsafeBitCast(runtimeMutableListIteratorSetThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 2, 3, setPtr)
+    let addPtr = unsafeBitCast(runtimeMutableListIteratorAddThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 2, 4, addPtr)
+}
+
 private let runtimeListIteratorHasPreviousThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     return kk_list_iterator_hasPrevious(raw)
@@ -481,6 +499,24 @@ private let runtimeListIteratorNextIndexThunk: @convention(c) (Int, UnsafeMutabl
 private let runtimeListIteratorPreviousIndexThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     return kk_list_iterator_previousIndex(raw)
+}
+
+private let runtimeMutableListIteratorSetThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, element, outThrown in
+    outThrown?.pointee = 0
+    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.setLastReturned(element) else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: "List iterator has no element to set."))
+        return 0
+    }
+    return 0
+}
+
+private let runtimeMutableListIteratorAddThunk: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, element, outThrown in
+    outThrown?.pointee = 0
+    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.add(element) else {
+        runtimeSetThrown(outThrown, runtimeAllocateUnsupportedOperationException(message: nil))
+        return 0
+    }
+    return 0
 }
 
 /// Register the `kotlin.collections.MutableIterator` itable on a raw object handle.
@@ -573,7 +609,11 @@ let runtimeListIteratorNextThunk: @convention(c) (Int, UnsafeMutablePointer<Int>
 
 private let runtimeListIteratorRemoveThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { iterRaw, outThrown in
     outThrown?.pointee = 0
-    return runtimeListIteratorRemove(iterRaw)
+    guard let iter = runtimeListIteratorBox(from: iterRaw), iter.removeLastReturned() else {
+        runtimeSetThrown(outThrown, runtimeAllocateIllegalStateException(message: "List iterator has no element to remove."))
+        return 0
+    }
+    return 0
 }
 
 func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
@@ -581,6 +621,9 @@ func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
     registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
     if box.removeAction != nil {
         registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk)
+    }
+    if box.addAction != nil, box.setAction != nil {
+        registerMutableListIteratorItable(raw: raw)
     }
     return raw
 }
