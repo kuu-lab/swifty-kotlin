@@ -11,7 +11,7 @@ public val Float.Companion.MIN_VALUE: Float get() = 1.4E-45F
 // Float arithmetic across the raw ABI boundary.
 public val Float.Companion.NEGATIVE_INFINITY: Float get() = fromBits(-8388608)
 
-public val Float.Companion.NaN: Float get() = -(0.0F / 0.0F)
+public val Float.Companion.NaN: Float get() = fromBits(2143289344)
 
 public val Float.Companion.POSITIVE_INFINITY: Float get() = 1.0F / 0.0F
 
