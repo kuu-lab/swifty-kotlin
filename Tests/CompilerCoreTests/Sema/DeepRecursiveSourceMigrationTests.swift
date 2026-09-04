@@ -74,6 +74,7 @@ struct DeepRecursiveSourceMigrationTests {
         let functionClassSymbol = try #require(classSymbol(named: "DeepRecursiveFunction", sema: sema, ctx: ctx))
         let functionTypeParameterSymbols = sema.types.nominalTypeParameterSymbols(for: functionClassSymbol)
         let scopeClassSymbol = try #require(classSymbol(named: "DeepRecursiveScope", sema: sema, ctx: ctx))
+        let scopeTypeParameterSymbols = sema.types.nominalTypeParameterSymbols(for: scopeClassSymbol)
         let constructorSignature = try #require(sema.symbols.functionSignature(for: constructorSymbol))
         #expect(constructorSignature.parameterTypes.count == 1)
         guard case let .functionType(blockType) = sema.types.kind(of: constructorSignature.parameterTypes[0]) else {
@@ -121,6 +122,17 @@ struct DeepRecursiveSourceMigrationTests {
         #expect(
             sema.symbols.externalLinkName(for: scopeCallRecursive) == "__kk_deep_recursive_scope_callRecursive"
         )
+        let scopeCallRecursiveSignature = try #require(sema.symbols.functionSignature(for: scopeCallRecursive))
+        #expect(scopeCallRecursiveSignature.isSuspend)
+        #expect(scopeCallRecursiveSignature.parameterTypes.count == 1)
+        guard case let .typeParam(scopeValueType) = sema.types.kind(of: scopeCallRecursiveSignature.parameterTypes[0]),
+              case let .typeParam(scopeReturnType) = sema.types.kind(of: scopeCallRecursiveSignature.returnType)
+        else {
+            Issue.record("DeepRecursiveScope.callRecursive should use the scope class type parameters")
+            return
+        }
+        #expect(scopeValueType.symbol == scopeTypeParameterSymbols[0])
+        #expect(scopeReturnType.symbol == scopeTypeParameterSymbols[1])
     }
 
     @Test func testDeepRecursiveCallsResolveToBundledKotlinSourceSymbols() throws {
