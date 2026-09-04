@@ -470,6 +470,24 @@ extension DataFlowSemaPhase {
             }
             types.setNominalSupertypeTypeArgs(supertype.args, for: binding.symbol, supertype: supertype.classSymbol)
         }
+
+        if binding.record.kind == .enumClass,
+           let enumBaseSymbol = symbols.lookup(fqName: [
+               interner.intern("kotlin"),
+               interner.intern("Enum"),
+           ]),
+           symbols.directSupertypes(for: binding.symbol).contains(enumBaseSymbol),
+           types.nominalSupertypeTypeArgs(for: binding.symbol, supertype: enumBaseSymbol).isEmpty
+        {
+            let enumType = types.make(.classType(ClassType(
+                classSymbol: binding.symbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let enumTypeArg: [TypeArg] = [.invariant(enumType)]
+            symbols.setSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
+            types.setNominalSupertypeTypeArgs(enumTypeArg, for: binding.symbol, supertype: enumBaseSymbol)
+        }
     }
 
     /// Synthesizes function symbols for precompiled object/companion initializers
