@@ -13,4 +13,8 @@ fun main() {
     println(Double.Companion.NaN)
     println(Double.Companion.SIZE_BYTES)
     println(Double.Companion.SIZE_BITS)
+    println(Double.NaN.hashCode())
+    println(Double.Companion.NaN.hashCode())
+    println(Double.NaN.toRawBits())
+    println(Double.Companion.NaN.toRawBits())
 }
