@@ -90,3 +90,18 @@ public func __kk_runtime_freeMemory() -> Int {
 public func __kk_runtime_maxMemory() -> Int {
     Int(clamping: runtimeCaptureMemorySnapshot().maxBytes)
 }
+
+// MARK: - Java class runtime support
+
+final class RuntimeJavaClassBox: @unchecked Sendable {
+    let receiverRaw: Int
+
+    init(receiverRaw: Int) {
+        self.receiverRaw = receiverRaw
+    }
+}
+
+@_cdecl("__kk_any_javaClass")
+public func __kk_any_javaClass(_ receiverRaw: Int) -> Int {
+    registerRuntimeObject(RuntimeJavaClassBox(receiverRaw: receiverRaw))
+}
