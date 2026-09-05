@@ -920,7 +920,7 @@
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractList` — class kotlin.collections.AbstractList  -- `abstract class <#A: out kotlin/Any?> kotlin.collections/AbstractList : kotlin.collections/AbstractCollection<#A>, kotlin.collections/List<#A> {`
 
-- [ ] KSP-928: kotlin.collections.AbstractMap-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-928: kotlin.collections.AbstractMap-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `AbstractMap`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -929,6 +929,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.collections.AbstractMap` — class kotlin.collections.AbstractMap  -- `abstract class <#A: kotlin/Any?, #B: out kotlin/Any?> kotlin.collections/AbstractMap : kotlin.collections/Map<#A, #B> {`
+  - 実装根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap.kt` に protected constructor、variance、abstract entries、Map の read-only 操作、equals/hashCode/toString を source-backed 化。共有 Map/Entry/runtime bridge は維持。
+  - 回帰根拠: focused Sema 2件、direct Golden、`Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractMap.kt` の reference diff、TODO-ID、Runtime ABI link、`git diff --check` が pass。
 
 - [ ] KSP-933: kotlin.collections.ArrayList-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `ArrayList`
