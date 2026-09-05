@@ -466,6 +466,46 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1150: forward-declares the source-backed cancellation nominal before
+    /// residual coroutine registration needs its type and constructor owner.
+    func predeclareBundledCancellationExceptionHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [
+            interner.intern("kotlin"),
+            interner.intern("coroutines"),
+            interner.intern("cancellation"),
+        ]
+        let targetName = interner.intern("CancellationException")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard case let .classDecl(classDecl)? = ast.arena.decl(declID) else {
+                    return false
+                }
+                return classDecl.name == targetName
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1210: forward-declares the source-backed Native OsFamily enum before
     /// Platform.osFamily's retained runtime bridge resolves its property type.
     func predeclareBundledOsFamilyHeaders(
