@@ -535,7 +535,12 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        func registerMutationMember(name: String) {
+        // KSP-1073: give `add`/`set`/`remove` a link name like every
+        // navigation member above, instead of relying on itable dispatch —
+        // a kklib-imported `.synthetic` interface's layout is frozen before
+        // these lazily-added members exist, so `resolveVirtualDispatchKind`
+        // returns nil for them under the default stdlib mode.
+        func registerMutationMember(name: String, externalLinkName: String) {
             let memberName = interner.intern(name)
             let memberFQName = mutableListIteratorFQName + [memberName]
             guard symbols.lookup(fqName: memberFQName) == nil else { return }
@@ -548,6 +553,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(mutableListIteratorSymbol, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
             let valueName = interner.intern("element")
             let valueSymbol = symbols.define(
                 kind: .valueParameter,
@@ -586,6 +592,7 @@ extension DataFlowSemaPhase {
                 flags: [.synthetic]
             )
             symbols.setParentSymbol(mutableListIteratorSymbol, for: memberSymbol)
+            symbols.setExternalLinkName("kk_list_iterator_remove", for: memberSymbol)
             symbols.setFunctionSignature(
                 FunctionSignature(
                     receiverType: receiverType,
@@ -601,8 +608,8 @@ extension DataFlowSemaPhase {
             )
         }
 
-        registerMutationMember(name: "add")
-        registerMutationMember(name: "set")
+        registerMutationMember(name: "add", externalLinkName: "kk_list_iterator_add")
+        registerMutationMember(name: "set", externalLinkName: "kk_list_iterator_set")
         registerRemoveMember()
 
         return mutableListIteratorSymbol
