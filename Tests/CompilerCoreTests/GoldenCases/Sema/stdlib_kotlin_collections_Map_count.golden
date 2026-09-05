@@ -1,7 +1,7 @@
 symbol fq=ObservedMap kind=class vis=public flags=_
 symbol fq=ObservedMap.<init> kind=constructor vis=public flags=_ sig=recv=ObservedMap params=[] ret=ObservedMap
 symbol fq=customMapCount kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
-symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Map kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map.Entry.key kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.K
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
@@ -36,3 +36,8 @@ expr e@12:5 return value=e@12:12#1 type=Nothing
 expr e@16:12 call callee=e@16:12#1 args=[] type=ObservedMap call=ObservedMap.<init>
 expr e@16:12#2 memberCall recv=e@16:12 callee=count args=[] type=Int call=kotlin.collections.count#32 targs=[String?,Int?]
 expr e@16:5 return value=e@16:12#2 type=Nothing
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=1:1 msg=Class 'ObservedMap' must override abstract member 'entries' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=1:1 msg=Class 'ObservedMap' must override abstract member 'get' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=1:1 msg=Class 'ObservedMap' must override abstract member 'isEmpty' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=1:1 msg=Class 'ObservedMap' must override abstract member 'keys' or be declared abstract.
+diagnostic severity=error code=KSWIFTK-SEMA-ABSTRACT at=1:1 msg=Class 'ObservedMap' must override abstract member 'values' or be declared abstract.

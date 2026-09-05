@@ -8,13 +8,12 @@ symbol fq=golden.sema.mapSingletonOverload kind=function vis=public flags=_ sig=
 symbol fq=kotlin.Any kind=class vis=public flags=synthetic
 symbol fq=kotlin.Any.hashCode kind=function vis=public flags=synthetic|openType sig=recv=kotlin.Any params=[] ret=Int
 symbol fq=kotlin.Pair kind=class vis=public flags=_
-symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Map kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map.Entry.key kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.K
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
 symbol fq=kotlin.collections.Map.K kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.Map.V kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Map.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.Map<kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[kotlin.collections.Map.K] ret=kotlin.collections.Map.V?
 symbol fq=kotlin.collections.Set kind=interface vis=public flags=_
 file fstdlib_kotlin_collections_n_map package=golden.sema
   decl golden.sema.mapSingletonOverload fun mapSingletonOverload sym=golden.sema.mapSingletonOverload
@@ -39,7 +38,7 @@ expr e@9:9 call callee=e@9:9#1 args=[_:e@9:29,_:e@9:38] type=kotlin.Pair<String?
 expr e@7:18 call callee=e@7:18#1 args=[_:e@8:9,_:e@9:9] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf#2 targs=[String?,Int?]
 expr e@7:5 localDecl vararg mutable=0 type=_ init=e@7:18 type=Unit ref=__local_3.vararg
 expr e@11:17 name(singleton) type=kotlin.collections.Map<String?, Int?> ref=__local_1.singleton
-expr e@11:17#1 memberCall recv=e@11:17 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String?, Int?>> call=kotlin.collections.entries targs=[String?,Int?]
+expr e@11:17#1 memberCall recv=e@11:17 callee=entries args=[] type=kotlin.collections.Set<kotlin.collections.Map.Entry<String?, Int?>> ref=kotlin.collections.Map.entries
 expr e@11:17#2 memberCall recv=e@11:17#1 callee=first args=[] type=kotlin.collections.Map.Entry<String?, Int?> call=kotlin.collections.first#30 targs=[kotlin.collections.Map.Entry<String?, Int?>]
 expr e@11:5 localDecl entry mutable=0 type=_ init=e@11:17#2 type=Unit ref=__local_4.entry
 expr e@12:16 name(singleton) type=kotlin.collections.Map<String?, Int?> ref=__local_1.singleton
@@ -50,7 +49,7 @@ expr e@13:35 name(nullablePair) type=kotlin.Pair<String?, Int?> ref=__local_0.nu
 expr e@13:29 call callee=e@13:29#1 args=[_:e@13:35] type=kotlin.collections.Map<String?, Int?> call=kotlin.collections.mapOf#1 targs=[String?,Int?]
 expr e@13:16#1 binary(equal) lhs=e@13:16 rhs=e@13:29 type=Boolean
 expr e@13:52 name(vararg) type=kotlin.collections.Map<String?, Int?> ref=__local_3.vararg
-expr e@13:52#1 memberCall recv=e@13:52 callee=size args=[] type=Int
+expr e@13:52#1 memberCall recv=e@13:52 callee=size args=[] type=Int ref=kotlin.collections.Map.size
 expr e@13:67 int(2) type=Int
 expr e@13:52#2 binary(equal) lhs=e@13:52#1 rhs=e@13:67 type=Boolean
 expr e@13:16#2 binary(logicalAnd) lhs=e@13:16#1 rhs=e@13:52#2 type=Boolean

@@ -5,7 +5,7 @@ symbol fq=customMap kind=function vis=public flags=_ sig=recv=_ params=[ProbeMap
 symbol fq=customMap.$1.values kind=valueParameter vis=private flags=_
 symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Map kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.Map kind=interface vis=public flags=_
 symbol fq=kotlin.collections.Map.Entry kind=interface vis=public flags=synthetic
 symbol fq=kotlin.collections.Map.Entry.key kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.K
 symbol fq=kotlin.collections.Map.Entry.value kind=function vis=public flags=synthetic sig=recv=kotlin.collections.Map.Entry<out kotlin.collections.Map.K, out kotlin.collections.Map.V> params=[] ret=kotlin.collections.Map.V
@@ -54,7 +54,7 @@ expr e@12:12 name(values) type=kotlin.collections.Map<Any?, kotlin.Number> ref=p
 expr e@12:12#1 memberCall recv=e@12:12 callee=none args=[] type=Boolean call=kotlin.collections.none#29 targs=[Any?,kotlin.Number]
 expr e@12:5 return value=e@12:12#1 type=Nothing
 expr e@16:12 name(values) type=kotlin.collections.Map<String?, Int?> ref=memberIsEmpty.$3.values
-expr e@16:12#1 memberCall recv=e@16:12 callee=isEmpty args=[] type=Boolean
+expr e@16:12#1 memberCall recv=e@16:12 callee=isEmpty args=[] type=Boolean call=kotlin.collections.Map.isEmpty
 expr e@16:5 return value=e@16:12#1 type=Nothing
 expr e@20:12 name(values) type=kotlin.collections.List<Int?> ref=listNone.$2.values
 expr e@20:12#1 memberCall recv=e@20:12 callee=none args=[] type=Boolean call=kotlin.collections.none#26 targs=[Int?]

@@ -41,7 +41,32 @@ public class HashMap<K, V> : MutableMap<K, V> {
     constructor(initialCapacity: Int)
     constructor(initialCapacity: Int, loadFactor: Float)
     constructor(original: Map<out K, V>)
+
+    override fun get(key: K): V? = __kkHashMapGet(this, key)
+
+    override fun isEmpty(): Boolean = __kkHashMapSize(this) == 0
+
+    override val keys: Set<K>
+        get() = __kkHashMapKeys(this)
+
+    override val size: Int
+        get() = __kkHashMapSize(this)
+
+    override val values: Collection<V>
+        get() = __kkHashMapValues(this)
 }
+
+@KsSymbolName("kk_map_size")
+private external fun <K, V> __kkHashMapSize(map: Map<K, V>): Int
+
+@KsSymbolName("__kk_map_get")
+private external fun <K, V> __kkHashMapGet(map: Map<K, V>, key: K): V?
+
+@KsSymbolName("__kk_map_keys")
+private external fun <K, V> __kkHashMapKeys(map: Map<K, V>): Set<K>
+
+@KsSymbolName("__kk_map_values")
+private external fun <K, V> __kkHashMapValues(map: Map<K, V>): Collection<V>
 
 public typealias LinkedHashMap<K, V> = MutableMap<K, V>
 
