@@ -615,10 +615,30 @@ public final class SymbolTable {
                 false
             }
         }
+        func isParameterLike(_ kind: SymbolKind) -> Bool {
+            switch kind {
+            case .valueParameter, .typeParameter:
+                true
+            default:
+                false
+            }
+        }
         if kind == .package {
             return true
         }
-        let existingNonPackage = existingSymbols.filter { $0.kind != .package }
+        // Parameters are encoded as `ownerFQName + [paramName]`. A class and a
+        // factory function that share an FQName (Kotlin `class Foo` + `fun Foo`)
+        // therefore make class members and factory parameters collide in this
+        // encoding — e.g. `AtomicIntArray.size` is both the residual property
+        // and the `fun AtomicIntArray(size: Int, init: ...)` parameter. They
+        // are distinct declarations and must coexist. Two parameters of the
+        // same kind at one FQName still reuse the first symbol.
+        if isParameterLike(kind) {
+            return !existingSymbols.contains { $0.kind == kind }
+        }
+        let existingNonPackage = existingSymbols.filter { symbol in
+            symbol.kind != .package && !isParameterLike(symbol.kind)
+        }
         if existingNonPackage.isEmpty {
             return true
         }
@@ -635,17 +655,11 @@ public final class SymbolTable {
                 // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
-                        || existing.kind == .valueParameter
                         || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
                 }
             }
-            return existingNonPackageKinds.allSatisfy { isCallableLike($0) || $0 == .valueParameter }
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
                 && !existingNonPackageKinds.contains(.property)
-        }
-        if kind == .valueParameter {
-            return existingNonPackageKinds.allSatisfy {
-                $0 == .property || $0 == .field || isCallableLike($0)
-            }
         }
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
@@ -704,7 +718,7 @@ public final class SymbolTable {
             switch symbol.kind {
             case .property:
                 return symbol.flags.contains(.synthetic)
-            case .function, .constructor, .valueParameter:
+            case .function, .constructor, .valueParameter, .typeParameter:
                 return true
             default:
                 return false

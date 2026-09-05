@@ -177,5 +177,27 @@ struct AtomicTopLevelSourceTests {
             #expect(firstParam.name == interner.intern("size"))
         }
     }
+
+    @Test
+    func testResidualArraySizePropertyKeepsRuntimeLink() throws {
+        let (_, sema, interner) = try sharedSema()
+        let cases: [(name: String, link: String)] = [
+            ("AtomicIntArray", "kk_atomic_int_array_size"),
+            ("AtomicLongArray", "kk_atomic_long_array_size"),
+        ]
+        for item in cases {
+            let classFQName = ["kotlin", "concurrent", item.name].map(interner.intern)
+            let size = try #require(
+                sema.symbols.lookupAll(fqName: classFQName + [interner.intern("size")]).first {
+                    sema.symbols.symbol($0)?.kind == .property
+                },
+                Comment(rawValue: "Missing residual " + item.name + ".size")
+            )
+            let info = try #require(sema.symbols.symbol(size))
+            #expect(info.flags.contains(.synthetic), Comment(rawValue: item.name + ".size must stay residual"))
+            #expect(sema.symbols.externalLinkName(for: size) == item.link)
+            #expect(sema.symbols.propertyType(for: size) == sema.types.intType)
+        }
+    }
 }
 #endif

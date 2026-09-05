@@ -1598,7 +1598,11 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let internedName = interner.intern(name)
         let fqName = pkg + [internedName]
-        if let existing = symbols.lookup(fqName: fqName) {
+        // Prefer an existing class when a factory function shares the FQName
+        // (Kotlin `class Foo` + `fun Foo(...)`).
+        if let existing = symbols.lookupAll(fqName: fqName).first(where: { id in
+            symbols.symbol(id)?.kind == .class
+        }) {
             return existing
         }
         return symbols.define(
