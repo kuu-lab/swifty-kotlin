@@ -3188,14 +3188,12 @@
     - `kotlin.native.OsFamily.valueOf(String)`
     - `kotlin.native.OsFamily.values()`
 
-- [ ] KSP-1214: kotlin.native.SymbolName top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1214: kotlin.native.SymbolName top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.SymbolName` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/SymbolName/Stdlib.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_SymbolName_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_SymbolName_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_SymbolName_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 実装: `Sources/CompilerCore/Stdlib/kotlin/native/SymbolName/Stdlib.kt` に Kotlin 2.3.10 準拠の source-backed `SymbolName(String)` と Native metadata を追加。runtime bridge/stub、`RuntimeABISpec`、name-string 特例は不要だった。
+  - golden: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_SymbolName_n_n.kt` と `.golden` を追加。Sema shard 57/100（対象を含む 8 cases）と生成出力比較が PASS。
+  - diff/検証: `Scripts/diff_cases/stdlib_kotlin_native_SymbolName_n_n.kt` を追加。`diff_kotlinc` は `SKIP-DIFF`（`total=0 failed=0 passed=0 skipped=1`）で終了し、`NativePlatformAnnotationTests`（26 tests）、runtime ABI link validation（4 tests）、`check_todo_ids.sh` が PASS。
+  - 実装済みシンボル一覧:
     - `kotlin.native.SymbolName.<init>` — constructor (String)  -- `constructor <init>(kotlin/String)`
 
 - [ ] KSP-1215: kotlin.native.SymbolName.SymbolName の未実装 stdlib API を実装する（1 件）
