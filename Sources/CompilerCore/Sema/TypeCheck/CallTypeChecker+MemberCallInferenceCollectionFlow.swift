@@ -31,6 +31,14 @@ extension CallTypeChecker {
         ).isEmpty {
             return nil
         }
+        if !collectArraySourceConversionCandidates(
+            named: calleeName,
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ).isEmpty {
+            return nil
+        }
         // Defer inference of lambda arguments for collection HOFs so that the
         // contextual function type (and thus implicit `it`) is available.
         let collectionHOFNames: Set = [
