@@ -2981,7 +2981,7 @@
     - `kotlin.io.encoding.Base64.encodeToAppendable` — fun Base64.encodeToAppendable(ByteArray, , Int, Int): #A1  -- `final fun <#A1: kotlin.text/Appendable> encodeToAppendable(kotlin/ByteArray, #A1, kotlin/Int = ..., kotlin/Int = ...): #A1`
     - `kotlin.io.encoding.Base64.encodeToByteArray` — fun Base64.encodeToByteArray(ByteArray, Int, Int): ByteArray  -- `final fun encodeToByteArray(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...): kotlin/ByteArray`
 
-- [ ] KSP-1167: kotlin.io.encoding.Base64.Default.Default の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1167: kotlin.io.encoding.Base64.Default.Default の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.io.encoding.Base64.Default` / receiver `Default`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64/Default/Default.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
