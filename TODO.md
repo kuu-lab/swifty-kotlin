@@ -4748,7 +4748,7 @@
     - `kotlin.sequences.toCollection` — fun Sequence.toCollection(): #B  -- `final fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/toCollection(#B): #B`
     - `kotlin.sequences.toHashSet` — fun Sequence.toHashSet(): HashSet  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/toHashSet(): kotlin.collections/HashSet<#A>`
 
-- [ ] KSP-1361: kotlin.sequences.SequenceScope.SequenceScope の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1361: kotlin.sequences.SequenceScope.SequenceScope の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences.SequenceScope` / receiver `SequenceScope`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceScope/SequenceScope.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
