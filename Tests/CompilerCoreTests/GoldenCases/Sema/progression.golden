@@ -1,4 +1,4 @@
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.List kind=interface vis=public flags=_
 symbol fq=kotlin.ranges.CharProgression kind=class vis=public flags=synthetic
 symbol fq=kotlin.ranges.CharProgression.Companion kind=object vis=public flags=synthetic|static
 symbol fq=kotlin.ranges.IntProgression kind=class vis=public flags=synthetic

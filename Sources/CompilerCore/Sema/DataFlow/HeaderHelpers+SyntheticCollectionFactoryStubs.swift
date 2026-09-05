@@ -1,5 +1,5 @@
 
-/// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
+/// Synthetic stdlib stubs split from the KSP-697 collection residual registry:
 /// bootstrap symbols for the `kotlin.collections` factory functions.
 ///
 /// The collection type aliases (`ArrayList` / `HashSet` / `LinkedHashMap`),
@@ -71,7 +71,6 @@ extension DataFlowSemaPhase {
         register(name: "emptyList", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptyList")
         register(name: "listOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_emptyList")
         register(name: "listOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")
-        register(name: "listOfNotNull", typeParameterNames: ["T"], isVararg: true, externalLinkName: "kk_list_of_not_null")
         register(name: "arrayListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")
         register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: false, externalLinkName: "__kk_list_of")
         register(name: "mutableListOf", typeParameterNames: ["T"], isVararg: true, externalLinkName: "__kk_list_of")

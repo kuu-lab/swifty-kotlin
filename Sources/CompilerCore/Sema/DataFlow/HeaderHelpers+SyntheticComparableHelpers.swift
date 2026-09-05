@@ -1,5 +1,5 @@
 
-/// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
+/// Synthetic Comparable helpers retained after the KSP-697 nominal shell migration.
 /// Comparable<in T> sub-helpers (primitive compatibility and null-safe extensions).
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new

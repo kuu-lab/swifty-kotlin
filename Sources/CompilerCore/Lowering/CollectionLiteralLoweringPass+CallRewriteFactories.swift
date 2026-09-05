@@ -35,7 +35,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 } else {
-                    // emptyList(), listOf(), listOfNotNull() -> kk_emptyList()
+                    // emptyList(), listOf() -> kk_emptyList()
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkEmptyListName,
@@ -61,7 +61,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
             } else {
                 // listOf(a, b, c), mutableListOf(a, b, c), arrayListOf(a, b, c) -> kk_list_of
-                // listOfNotNull(a, b, c) -> kk_list_of_not_null
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
                 let arrayExpr = module.arena.appendTemporary(type: nil
@@ -115,12 +114,9 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 }
-                let runtimeCallee = callee == lookup.listOfNotNullName
-                    ? lookup.kkListOfNotNullName
-                    : lookup.kkListOfName
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: runtimeCallee,
+                    callee: lookup.kkListOfName,
                     arguments: [arrayExpr, countExpr],
                     result: result,
                     canThrow: false,

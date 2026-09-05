@@ -1,5 +1,5 @@
 
-/// Synthetic stdlib stubs split from `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift`:
+/// Synthetic stdlib stubs split from the KSP-697 collection residual registry:
 /// Array<T> and primitive array types (TYPE-103) plus the synthetic factory function helper.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new

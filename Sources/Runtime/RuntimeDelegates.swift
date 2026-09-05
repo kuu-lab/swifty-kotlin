@@ -26,7 +26,6 @@ final class RuntimeKPropertyStub {
         self.isConst = isConst
     }
 }
-
 private func runtimeTagCallableRef(
     _ callable: Int,
     name: Int,
@@ -200,4 +199,3 @@ private func kk_kproperty_stub_make_string(_ s: String) -> Int {
         Int(bitPattern: kk_string_from_utf8(buffer.baseAddress!, Int32(buffer.count)))
     }
 }
-
