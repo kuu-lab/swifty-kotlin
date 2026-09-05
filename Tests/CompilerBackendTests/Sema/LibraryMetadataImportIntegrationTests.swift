@@ -176,6 +176,44 @@ struct LibraryMetadataImportIntegrationTests {
     }
 
     @Test
+    func testImportedEnumApisUseDeclarationOrderFromLibraryMetadata() throws {
+        let librarySource = """
+        package extdemo
+        enum class ExternalOsFamily {
+            UNKNOWN, MACOSX, IOS, LINUX, WINDOWS, ANDROID, WASM, TVOS, WATCHOS
+        }
+        """
+
+        try withCompiledLibrary(source: librarySource, moduleName: "ExtEnumOrder") { libraryPath in
+            let appSource = """
+            import extdemo.ExternalOsFamily
+
+            fun main() {
+                println(ExternalOsFamily.entries[7])
+                println(ExternalOsFamily.valueOf("TVOS").ordinal)
+            }
+            """
+            try withTemporaryFile(contents: appSource) { appPath in
+                let outputBase = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString).path
+                let appCtx = makeCompilationContext(
+                    inputs: [appPath],
+                    moduleName: "ImportedEnumOrderApp",
+                    emit: .executable,
+                    outputPath: outputBase,
+                    searchPaths: [libraryPath]
+                )
+                try runToLowering(appCtx)
+                try CodegenPhase().run(appCtx)
+                try LinkPhase().run(appCtx)
+
+                let result = try CommandRunner.run(executable: outputBase, arguments: [])
+                #expect(result.stdout.replacingOccurrences(of: "\r\n", with: "\n") == "TVOS\n7\n")
+            }
+        }
+    }
+
+    @Test
     func testSemaAllocatesVtableSlotsFromImportedNominalMetadata() throws {
         let records = [
             MetadataRecord(kind: .class, mangledName: "_", fqName: "ext.C"),
