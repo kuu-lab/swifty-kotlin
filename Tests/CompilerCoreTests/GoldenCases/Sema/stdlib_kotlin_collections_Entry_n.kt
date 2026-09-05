@@ -6,3 +6,16 @@ fun exerciseMapEntryMembers(values: Map<String, Int>): Pair<String, Int> {
     val value = entry.component2()
     return entry.toPair()
 }
+
+fun destructureMapEntryInValDecl(values: Map<String, Int>): String {
+    val (key, value) = values.entries.first()
+    return "$key=$value"
+}
+
+fun destructureMapEntryInForLoop(values: Map<String, Int>): String {
+    var result = ""
+    for ((key, value) in values) {
+        result += "$key=$value;"
+    }
+    return result
+}

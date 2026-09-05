@@ -5,4 +5,11 @@ fun main() {
         println(entry.component2())
         println(entry.toPair())
     }
+
+    val (firstKey, firstValue) = values.entries.first()
+    println("$firstKey=$firstValue")
+
+    for ((key, value) in values) {
+        println("$key=$value")
+    }
 }
