@@ -24,7 +24,6 @@ symbol fq=kotlin.UIntArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.ULongArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.UShortArray#0 kind=class vis=public flags=synthetic
 symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.uintArrayOf kind=function vis=public flags=synthetic sig=recv=_ params=[UInt] ret=kotlin.UIntArray vararg=[1]
 file funsigned_array_as_list package=golden.sema
   decl golden.sema.main fun main sym=golden.sema.main
 expr e@4:31 int(1) type=Int

@@ -108,6 +108,10 @@ extension BuildKIRRegressionTests {
                 val arr = make11()
                 return arr.size
             }
+            """,
+            """
+            package sample12
+            fun make12() = uintArrayOf(1u, 4000000000u)
             """
         ]
         var result: CompilationContext?
@@ -310,6 +314,23 @@ extension BuildKIRRegressionTests {
             !callNames.contains("ULongArray"),
             "ULongArray(n) (size-only) must not fall through to an unresolved 'ULongArray' call; got: \(callNames)"
         )
+    }
+
+    @Test
+    func testUIntArrayOfFactoryLowersToSourceBackedPrimitiveArrayPath() throws {
+        let ctx = try sharedPrimitiveArrayCtx()
+        let module = try #require(ctx.kir)
+        let makeBody = try findKIRFunctionBody(named: "make12", in: module, interner: ctx.interner)
+        let callNames = extractCallees(from: makeBody, interner: ctx.interner)
+
+        #expect(callNames.contains("kk_array_new"), "source-backed uintArrayOf must allocate a primitive array; got: \(callNames)")
+        #expect(
+            callNames.filter { $0 == "kk_array_set" }.count == 2,
+            "source-backed uintArrayOf must store each UInt element; got: \(callNames)"
+        )
+        #expect(!callNames.contains("kk_array_of"), "source-backed uintArrayOf must not use the generic array bridge; got: \(callNames)")
+        #expect(!callNames.contains("uintArrayOf"), "inline uintArrayOf should not remain as a call in KIR; got: \(callNames)")
+        #expect(!callNames.contains("kk_box_int"), "primitive UInt elements should not be boxed; got: \(callNames)")
     }
 
     @Test
