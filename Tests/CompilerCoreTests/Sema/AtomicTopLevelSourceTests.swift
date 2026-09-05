@@ -128,6 +128,22 @@ struct AtomicTopLevelSourceTests {
     }
 
     @Test
+    func testResidualArrayConstructorKeepsRuntimeLink() throws {
+        let (_, sema, interner) = try sharedSema()
+        let classFQName = ["kotlin", "concurrent", "AtomicIntArray"].map(interner.intern)
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first {
+                guard let signature = sema.symbols.functionSignature(for: $0) else { return false }
+                return signature.parameterTypes == [sema.types.intType]
+            },
+            "Missing residual AtomicIntArray(Int) constructor"
+        )
+        let info = try #require(sema.symbols.symbol(constructor))
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: constructor) == "kk_atomic_int_array_create")
+    }
+
+    @Test
     func testAtomicArraySizePropertyCoexistsWithFactoryParameter() throws {
         let (_, sema, interner) = try sharedSema()
         let package = ["kotlin", "concurrent"].map(interner.intern)
