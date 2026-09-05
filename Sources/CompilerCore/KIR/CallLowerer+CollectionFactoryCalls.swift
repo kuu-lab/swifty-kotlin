@@ -100,9 +100,10 @@ extension CallLowerer {
             return result
 
         case "mutableSetOf", "hashSetOf", "linkedSetOf":
+            let runtimeCallee = name == "hashSetOf" ? "__kk_hash_set_of" : "__kk_set_of"
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "__kk_set_of",
+                    runtimeCallee,
                     arity: 1,
                     result: result,
                     sema: sema,
@@ -121,7 +122,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                "__kk_set_of",
+                runtimeCallee,
                 array: packed.array,
                 count: packed.count,
                 result: result,

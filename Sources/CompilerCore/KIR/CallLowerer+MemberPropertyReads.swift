@@ -264,6 +264,27 @@ extension CallLowerer {
             return nil
         }
 
+        // HashSet inherits synthetic collection properties while its storage is
+        // a RuntimeSetBox, not a nominal object-field array. Keep size and
+        // isEmpty on the shared collection dispatch path for the source-backed
+        // HashSet surface, including when the receiver comes from a .kklib.
+        let hashSetFQName = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("HashSet")
+        ]
+        if let propertyInfo = sema.symbols.symbol(propertySymbol),
+           propertyInfo.name == interner.intern("size")
+               || propertyInfo.name == interner.intern("isEmpty"),
+           let receiverType = arena.exprType(loweredReceiverID),
+           let (_, receiverSymbol) = resolveClassTypeSymbol(
+               sema.types.makeNonNullable(receiverType), sema: sema
+           ),
+           receiverSymbol.fqName == hashSetFQName
+        {
+            return nil
+        }
+
         // Runtime-backed interface properties (for example Collection.size)
         // may now carry a bundled source declaration while retaining their
         // external ABI link. Keep those reads on the direct bridge path below;
