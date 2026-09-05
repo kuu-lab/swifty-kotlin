@@ -1,0 +1,6 @@
+symbol fq=golden.sema.construct kind=function vis=public flags=_ sig=recv=_ params=[String] ret=kotlin.native.concurrent.AtomicReference<String>
+symbol fq=golden.sema.construct.$0.value kind=valueParameter vis=private flags=_
+file fstdlib_kotlin_native_concurrent_AtomicReference_n_n package=golden.sema
+  decl golden.sema.construct fun construct sym=golden.sema.construct
+expr e@5:46 name(value) type=String ref=golden.sema.construct.$0.value
+expr e@5:5 memberCall recv=e@5:5#1 callee=AtomicReference args=[_:e@5:46] type=kotlin.native.concurrent.AtomicReference<String> call=kotlin.native.concurrent.AtomicReference.<init> targs=[String]
