@@ -912,23 +912,59 @@ final class RuntimeIndexingIteratorBox {
 final class RuntimeListIteratorBox {
     var elements: [Int]
     var index: Int
+    /// Index last returned by `next()`/`previous()`, or -1 before any
+    /// traversal call or once consumed by `remove()`/`add()` — mirrors
+    /// Java/Kotlin's `AbstractList.Itr.lastRet` invariant.
+    var lastReturnedIndex: Int
     let removeAction: ((Int) -> Void)?
+    let setAction: ((Int, Int) -> Void)?
+    let addAction: ((Int, Int) -> Void)?
 
-    init(elements: [Int], removeAction: ((Int) -> Void)? = nil) {
+    init(
+        elements: [Int],
+        removeAction: ((Int) -> Void)? = nil,
+        setAction: ((Int, Int) -> Void)? = nil,
+        addAction: ((Int, Int) -> Void)? = nil
+    ) {
         self.elements = elements
         index = 0
+        lastReturnedIndex = -1
         self.removeAction = removeAction
+        self.setAction = setAction
+        self.addAction = addAction
     }
 
     func removeLastReturned() -> Bool {
-        guard index > 0, index <= elements.count else {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < elements.count else {
             return false
         }
-        let removedIndex = index - 1
-        elements.remove(at: removedIndex)
-        index = removedIndex
-        removeAction?(removedIndex)
+        elements.remove(at: lastReturnedIndex)
+        index = lastReturnedIndex
+        removeAction?(lastReturnedIndex)
+        lastReturnedIndex = -1
         return true
+    }
+
+    /// Replaces the element last returned by `next()`/`previous()`.
+    func setLastReturned(_ value: Int) -> Bool {
+        guard lastReturnedIndex >= 0, lastReturnedIndex < elements.count else {
+            return false
+        }
+        elements[lastReturnedIndex] = value
+        setAction?(lastReturnedIndex, value)
+        return true
+    }
+
+    /// Inserts `value` immediately before the cursor (i.e. before whatever
+    /// `next()` would return) and advances the cursor past it, so a
+    /// subsequent `next()` still returns the element it would have returned
+    /// before the insertion. Invalidates `lastReturnedIndex`: `add()` cannot
+    /// be followed directly by `set()`/`remove()`.
+    func addBeforeCursor(_ value: Int) {
+        elements.insert(value, at: index)
+        addAction?(index, value)
+        index += 1
+        lastReturnedIndex = -1
     }
 }
 
