@@ -4033,7 +4033,7 @@
     - `kotlin.ranges.CharProgression.step` — val CharProgression.step: Int  -- `final val step`
     - `kotlin.ranges.CharProgression.toString` — fun CharProgression.toString(): String  -- `open fun toString(): kotlin/String`
 
-- [ ] KSP-1295: kotlin.ranges.CharRange top-level の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1295: kotlin.ranges.CharRange top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ranges.CharRange` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/CharRange/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
