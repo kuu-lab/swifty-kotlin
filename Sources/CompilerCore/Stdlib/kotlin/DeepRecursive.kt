@@ -16,7 +16,7 @@ import kotlin.internal.KsSymbolName
 
 public class DeepRecursiveScope<T, R> private constructor() {
     @KsSymbolName("__kk_deep_recursive_scope_callRecursive")
-    public external fun callRecursive(value: T): R
+    public external suspend fun callRecursive(value: T): R
 }
 
 public class DeepRecursiveFunction<T, R> {

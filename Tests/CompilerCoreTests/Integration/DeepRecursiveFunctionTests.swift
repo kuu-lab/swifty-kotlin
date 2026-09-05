@@ -119,14 +119,14 @@ import Testing
         let invokeSignature = try #require(sema.symbols.functionSignature(for: invokeSymbol))
         #expect(!(invokeSignature.isSuspend))
 
-        // The recursion trampoline lives in the runtime, so the bundled Kotlin
-        // source declares a single non-suspend `callRecursive` per type.
+        // The recursion trampoline lives in the runtime, while the bundled Kotlin
+        // source preserves the suspend contract of the scope member.
         let callRecursiveSymbols = sema.symbols.lookupAll(fqName: scopeCallFQName)
         #expect(callRecursiveSymbols.count == 1)
         let callRecursiveSymbol = try #require(callRecursiveSymbols.first)
         let callRecursiveSignature = try #require(sema.symbols.functionSignature(for: callRecursiveSymbol))
         #expect(callRecursiveSignature.parameterTypes.count == 1)
-        #expect(!(callRecursiveSignature.isSuspend))
+        #expect(callRecursiveSignature.isSuspend)
     }
 
 }
