@@ -3935,7 +3935,7 @@
     - `kotlin.ranges.contains` — fun LongRange.contains(Int): Boolean  -- `final inline fun (kotlin.ranges/LongRange).kotlin.ranges/contains(kotlin/Int): kotlin/Boolean`
     - `kotlin.ranges.contains` — fun LongRange.contains(Short): Boolean  -- `final inline fun (kotlin.ranges/LongRange).kotlin.ranges/contains(kotlin/Short): kotlin/Boolean`
 
-- [ ] KSP-1288: kotlin.ranges.OpenEndRange の未実装 stdlib API を実装する（13 件）
+- [x] KSP-1288: kotlin.ranges.OpenEndRange の未実装 stdlib API を実装する（13 件）
   - 対象: `kotlin.ranges` / receiver `OpenEndRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/OpenEndRange.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
