@@ -2859,6 +2859,8 @@ extension CallTypeChecker {
                 ? sema.types.doubleType
                 : memberName == interner.intern("firstNotNullOf") || memberName == interner.intern("firstNotNullOfOrNull")
                 ? sema.types.nullableAnyType
+                : memberName == interner.intern("sortedByDescending")
+                ? sema.types.nullableAnyType
                 : sema.types.anyType
             let expectedType = sema.types.make(.functionType(FunctionType(
                 params: [receiverElementType],
@@ -2881,7 +2883,7 @@ extension CallTypeChecker {
         {
             let expectedType = sema.types.make(.classType(ClassType(
                 classSymbol: comparatorSymbol,
-                args: [.invariant(receiverElementType)],
+                args: [.in(receiverElementType)],
                 nullability: .nonNull
             )))
             return (argumentIndex: 0, expectedType: expectedType)
