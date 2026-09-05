@@ -659,13 +659,15 @@
   - 未実装シンボル一覧:
     - `kotlin.Comparable.compareTo` — fun Comparable.compareTo(): Int  -- `abstract fun compareTo(#A): kotlin/Int`
 
-- [ ] KSP-826: kotlin.DeepRecursiveScope.DeepRecursiveFunction の未実装 stdlib API を実装する（2 件）
+- [x] KSP-826: kotlin.DeepRecursiveScope.DeepRecursiveFunction の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.DeepRecursiveScope` / receiver `DeepRecursiveFunction`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/DeepRecursiveScope/DeepRecursiveFunction.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了: bundled `DeepRecursive.kt` に `DeepRecursiveFunction` receiver の member-extension `callRecursive`（suspend、既存 `__kk_deep_recursive_function_callRecursive` bridge）と、`DeepRecursiveScope` 内での deprecated `invoke`（`Nothing`、`DeprecationLevel.ERROR`）を追加。既存の scope member API（KSP-827）は変更せず、共有 runtime/ABI bridge も保持した。
+  - 回帰: 専用 Sema Golden、`DeepRecursive` focused Sema/source-ownership/signature tests、既存 backend tests、`stdlib_kotlin_DeepRecursiveScope_DeepRecursiveFunction_n.kt` の kotlinc diff、`check_todo_ids.sh`、`validate_runtime_abi_links.sh` を pass。
   - 未実装シンボル一覧:
     - `kotlin.DeepRecursiveScope.callRecursive` — fun DeepRecursiveFunction.callRecursive(): #B1  -- `abstract suspend fun <#A1: kotlin/Any?, #B1: kotlin/Any?> (kotlin/DeepRecursiveFunction<#A1, #B1>).callRecursive(#A1): #B1`
     - `kotlin.DeepRecursiveScope.invoke` — fun DeepRecursiveFunction.invoke(Any): Nothing  -- `final fun (kotlin/DeepRecursiveFunction<*, *>).invoke(kotlin/Any?): kotlin/Nothing`
@@ -831,7 +833,7 @@
     - `kotlin.ULongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.ULongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
 
-- [ ] KSP-919: kotlin.annotation.AnnotationRetention.AnnotationRetention の未実装 stdlib API を実装する（3 件）
+- [x] KSP-919: kotlin.annotation.AnnotationRetention.AnnotationRetention の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.annotation.AnnotationRetention` / receiver `AnnotationRetention`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/AnnotationRetention/AnnotationRetention.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -843,7 +845,7 @@
     - `kotlin.annotation.AnnotationRetention.valueOf` — fun AnnotationRetention.valueOf(String): AnnotationRetention  -- `final fun valueOf(kotlin/String): kotlin.annotation/AnnotationRetention`
     - `kotlin.annotation.AnnotationRetention.values` — fun AnnotationRetention.values(): Array  -- `final fun values(): kotlin/Array<kotlin.annotation/AnnotationRetention>`
 
-- [ ] KSP-920: kotlin.annotation.AnnotationTarget.AnnotationTarget の未実装 stdlib API を実装する（3 件）
+- [x] KSP-920: kotlin.annotation.AnnotationTarget.AnnotationTarget の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.annotation.AnnotationTarget` / receiver `AnnotationTarget`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/AnnotationTarget/AnnotationTarget.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -876,17 +878,18 @@
   - 未実装シンボル一覧:
     - `kotlin.annotation.Repeatable.<init>` — constructor ()  -- `constructor <init>()`
 
-- [ ] KSP-923: kotlin.annotation.Retention top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-923: kotlin.annotation.Retention top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.annotation.Retention` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/Retention/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_annotation_Retention_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_annotation_Retention_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_annotation_Retention_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠（2026-09-03）: merged PR #6142（commit `32945a5299e90365a29c39828388a4d54f3e13a8`）で `kotlin.annotation.Retention` を bundled source-backed 宣言へ移行済み。現行 `Sources/CompilerCore/Stdlib/kotlin/annotation/Stdlib.kt:42-44` は Kotlin 2.3.10 の `Retention(value: AnnotationRetention = AnnotationRetention.RUNTIME)` と一致し、`KotlinAnnotationAPIInventoryTests` の value 型・RUNTIME default・constructor default flag 検証で実装を固定している。既存 `stdlib_kotlin_annotation_n_n.kt` の `@Retention()`、diff ケースの `@Retention` が default 呼び出しをカバーし、focused inventory 31/31、annotation Sema 15/15、Golden、diff 1/1、Runtime ABI link 4/4 が pass。対象専用の runtime/ABI bridge や name-string 特例の追加・重複変更は不要。
   - 未実装シンボル一覧:
     - `kotlin.annotation.Retention.<init>` — constructor (AnnotationRetention)  -- `constructor <init>(kotlin.annotation/AnnotationRetention = ...)`
 
-- [ ] KSP-924: kotlin.annotation.Retention.Retention の未実装 stdlib API を実装する（1 件）
+- [x] KSP-924: kotlin.annotation.Retention.Retention の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.annotation.Retention` / receiver `Retention`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/annotation/Retention/Retention.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2303,7 +2306,7 @@
     - `kotlin.concurrent.AtomicReference.toString` — fun AtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicReference.value` — val AtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1099: kotlin.concurrent.Volatile top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1099: kotlin.concurrent.Volatile top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.concurrent.Volatile` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/Volatile/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2674,7 +2677,7 @@
     - `kotlin.coroutines.coroutineContext` — val coroutineContext  -- `final val kotlin.coroutines/coroutineContext`
     - `kotlin.coroutines.suspendCoroutine` — fun suspendCoroutine(Function1): #A  -- `final suspend inline fun <#A: kotlin/Any?> kotlin.coroutines/suspendCoroutine(crossinline kotlin/Function1<kotlin.coroutines/Continuation<#A>, kotlin/Unit>): #A`
 
-- [ ] KSP-1132: kotlin.coroutines.Continuation の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1132: kotlin.coroutines.Continuation の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.coroutines` / receiver `Continuation`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/Continuation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2696,7 +2699,7 @@
     - `kotlin.coroutines.getPolymorphicElement` — fun Element.getPolymorphicElement(Key): #A  -- `final fun <#A: kotlin.coroutines/CoroutineContext.Element> (kotlin.coroutines/CoroutineContext.Element).kotlin.coroutines/getPolymorphicElement(kotlin.coroutines/CoroutineContext.Key<#A>): #A?`
     - `kotlin.coroutines.minusPolymorphicKey` — fun Element.minusPolymorphicKey(Key): CoroutineContext  -- `final fun (kotlin.coroutines/CoroutineContext.Element).kotlin.coroutines/minusPolymorphicKey(kotlin.coroutines/CoroutineContext.Key<*>): kotlin.coroutines/CoroutineContext`
 
-- [ ] KSP-1134: kotlin.coroutines.SuspendFunction0 の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1134: kotlin.coroutines.SuspendFunction0 の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.coroutines` / receiver `SuspendFunction0`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/SuspendFunction0.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2954,7 +2957,7 @@
     - `kotlin.experimental.ExperimentalObjCRefinement` — class kotlin.experimental.ExperimentalObjCRefinement  -- `open annotation class kotlin.experimental/ExperimentalObjCRefinement : kotlin/Annotation {`
     - `kotlin.experimental.ExperimentalTypeInference` — class kotlin.experimental.ExperimentalTypeInference  -- `open annotation class kotlin.experimental/ExperimentalTypeInference : kotlin/Annotation {`
 
-- [ ] KSP-1162: kotlin.experimental.ExperimentalTypeInference top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1162: kotlin.experimental.ExperimentalTypeInference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.experimental.ExperimentalTypeInference` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/experimental/ExperimentalTypeInference/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2981,7 +2984,7 @@
     - `kotlin.io.encoding.Base64.encodeToAppendable` — fun Base64.encodeToAppendable(ByteArray, , Int, Int): #A1  -- `final fun <#A1: kotlin.text/Appendable> encodeToAppendable(kotlin/ByteArray, #A1, kotlin/Int = ..., kotlin/Int = ...): #A1`
     - `kotlin.io.encoding.Base64.encodeToByteArray` — fun Base64.encodeToByteArray(ByteArray, Int, Int): ByteArray  -- `final fun encodeToByteArray(kotlin/ByteArray, kotlin/Int = ..., kotlin/Int = ...): kotlin/ByteArray`
 
-- [ ] KSP-1167: kotlin.io.encoding.Base64.Default.Default の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1167: kotlin.io.encoding.Base64.Default.Default の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.io.encoding.Base64.Default` / receiver `Default`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64/Default/Default.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2993,7 +2996,7 @@
     - `kotlin.io.encoding.Base64.Default.Pem` — val Default.Pem: Base64  -- `final val Pem`
     - `kotlin.io.encoding.Base64.Default.UrlSafe` — val Default.UrlSafe: Base64  -- `final val UrlSafe`
 
-- [ ] KSP-1168: kotlin.io.encoding.Base64.PaddingOption.PaddingOption の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1168: kotlin.io.encoding.Base64.PaddingOption.PaddingOption の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.io.encoding.Base64.PaddingOption` / receiver `PaddingOption`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/io/encoding/Base64/PaddingOption/PaddingOption.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3612,13 +3615,15 @@
     - `kotlin.native.runtime.Debugging.forceCheckedShutdown` — val Debugging.forceCheckedShutdown: Boolean  -- `final var forceCheckedShutdown`
     - `kotlin.native.runtime.Debugging.isThreadStateRunnable` — val Debugging.isThreadStateRunnable: Boolean  -- `final val isThreadStateRunnable`
 
-- [ ] KSP-1261: kotlin.native.runtime.GC top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1261: kotlin.native.runtime.GC top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.GC` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_GC_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: Kotlin 2.3.10 の `GC.MainThreadFinalizerProcessor` を `Stdlib.kt` の source-backed nested object として追加した。既存の `GC` synthetic shell と runtime/ABI bridge は KSP-1262/KSP-1263 の所有範囲を保持するため変更していない。専用 Sema 回帰、Golden harness、fresh stdlib artifact による diff ケースのコンパイル・リンク・実行で確認した。
+  - 検証根拠: `GCSourceMigrationTests` PASS、対象 Golden harness PASS、kswiftc 実行結果 `true`。`diff_kotlinc` は Kotlin/Native 専用 API のため `SKIP-DIFF` とする。
   - 未実装シンボル一覧:
     - `kotlin.native.runtime.GC.MainThreadFinalizerProcessor` — object kotlin.native.runtime.GC.MainThreadFinalizerProcessor  -- `final object MainThreadFinalizerProcessor {`
 
@@ -3700,13 +3705,14 @@
     - `kotlin.native.runtime.GCInfo.startTimeNs` — val GCInfo.startTimeNs: Long  -- `final val startTimeNs`
     - `kotlin.native.runtime.GCInfo.sweepStatistics` — val GCInfo.sweepStatistics: Map  -- `final val sweepStatistics`
 
-- [ ] KSP-1266: kotlin.native.runtime.MemoryUsage top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1266: kotlin.native.runtime.MemoryUsage top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.MemoryUsage` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/MemoryUsage/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_MemoryUsage_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: Kotlin/Native 2.3.10 の `MemoryUsage(Long)` に合わせ、`Sources/CompilerCore/Stdlib/kotlin/native/runtime/MemoryUsage/Stdlib.kt` に `@NativeRuntimeApi` / `@SinceKotlin("1.9")` 付きの source-backed nominal class と public Long constructor を追加した。既存の MemoryUsage constructor synthetic stub の登録だけを削除し、KSP-1267 が所有する `totalObjectsSizeBytes` property の synthetic surface は保持した。Runtime/ABI bridge は存在しないため追加・削除していない。
   - 未実装シンボル一覧:
     - `kotlin.native.runtime.MemoryUsage.<init>` — constructor (Long)  -- `constructor <init>(kotlin/Long)`
 
@@ -4079,7 +4085,7 @@
     - `kotlin.ranges.ClosedRange.isEmpty` — fun ClosedRange.isEmpty(): Boolean  -- `open fun isEmpty(): kotlin/Boolean`
     - `kotlin.ranges.ClosedRange.start` — val ClosedRange.start: #A  -- `abstract val start`
 
-- [ ] KSP-1300: kotlin.ranges.IntProgression top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1300: kotlin.ranges.IntProgression top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.IntProgression` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/IntProgression/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4383,13 +4389,15 @@
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`
 
-- [ ] KSP-1327: kotlin.reflect.KCallable.KCallable の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1327: kotlin.reflect.KCallable.KCallable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KCallable` / receiver `KCallable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KCallable/KCallable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `KCallable.kt` を source-backed declaration として追加し、`name: String` と Native 契約の `returnType: KType` を定義。KFunction/KProperty 継承と safe-call を含む Sema/KIR routing を shared `__kk_kcallable_get_return_type` に接続し、runtime reflection box と callable reference metadata を実体の `RuntimeKTypeBox` に変換した。
+  - 回帰: `ReflectKCallableTests`、`stdlib_kotlin_reflect_KCallable_KCallable_n` の Sema Golden/diff、`RuntimeReflectionTypeMetadataTests`、既存 `CallableRefTypeIdentityTests`、Runtime ABI link validation を通過。
   - 未実装シンボル一覧:
     - `kotlin.reflect.KCallable.name` — val KCallable.name: String  -- `abstract val name`
     - `kotlin.reflect.KCallable.returnType` — val KCallable.returnType: KType  -- `abstract val returnType`
@@ -5426,9 +5434,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.toCharArray` — fun StringBuilder.toCharArray(CharArray, Int, Int, Int): Unit  -- `final inline fun (kotlin.text/StringBuilder).kotlin.text/toCharArray(kotlin/CharArray, kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...)`
 
-- [ ] KSP-1415: kotlin.text.Appendable.Appendable の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1415: kotlin.text.Appendable.Appendable の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.text.Appendable` / receiver `Appendable`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Appendable/Appendable.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Appendable.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_Appendable_Appendable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_Appendable_Appendable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_Appendable_Appendable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -5437,8 +5445,10 @@
     - `kotlin.text.Appendable.append` — fun Appendable.append(Char): Appendable  -- `abstract fun append(kotlin/Char): kotlin.text/Appendable`
     - `kotlin.text.Appendable.append` — fun Appendable.append(CharSequence): Appendable  -- `abstract fun append(kotlin/CharSequence?): kotlin.text/Appendable`
     - `kotlin.text.Appendable.append` — fun Appendable.append(CharSequence, Int, Int): Appendable  -- `abstract fun append(kotlin/CharSequence?, kotlin/Int, kotlin/Int): kotlin.text/Appendable`
+  - 完了根拠（2026-09-03, master `cf95db64`）: 実装は KSP-711 の merged PR #6048（commit `9a39776a`）で先行導入済み。現行 `Appendable.kt` は source-backed interface と3 overloadを宣言し、それぞれ `@KsSymbolName` で `__kk_string_builder_append_char` / `__kk_string_builder_append_obj` / `__kk_string_builder_append_range` に接続している。StringBuilder が通常の object itable を登録しないため direct bridge を残す設計は、`RuntimeStringBuilder.swift`、`RuntimeABISpec+StringBuilder.swift`、KIR の source-backed link routing で一貫している。
+  - 回帰根拠: `StringAppendFunctionTests`、`StringSyntheticMemberLinkTests`、`CodegenBackendStringBuilderEdgeCasesTests` の Appendable overload ケース、および `Scripts/diff_cases/appendable_append_overloads.kt` が現行実装を検証する。
 
-- [ ] KSP-1417: kotlin.text.CharCategory.CharCategory の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1417: kotlin.text.CharCategory.CharCategory の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text.CharCategory` / receiver `CharCategory`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/CharCategory/CharCategory.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5588,7 +5598,7 @@
     - `kotlin.text.MatchGroup.toString` — fun MatchGroup.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.text.MatchGroup.value` — val MatchGroup.value: String  -- `final val value`
 
-- [ ] KSP-1432: kotlin.text.MatchNamedGroupCollection.MatchNamedGroupCollection の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1432: kotlin.text.MatchNamedGroupCollection.MatchNamedGroupCollection の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.MatchNamedGroupCollection` / receiver `MatchNamedGroupCollection`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/MatchNamedGroupCollection/MatchNamedGroupCollection.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5597,6 +5607,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.MatchNamedGroupCollection.get` — fun MatchNamedGroupCollection.get(String): MatchGroup  -- `abstract fun get(kotlin/String): kotlin.text/MatchGroup?`
+  - 完了根拠: Kotlin source-backed interface、MatchGroupCollection の interface 階層、undefined name の例外判定、Sema/Golden/Codegen/Runtime 回帰を実装・検証済み。
 
 - [ ] KSP-1433: kotlin.text.MatchResult top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.MatchResult` / top-level
@@ -5782,7 +5793,7 @@
     - `kotlin.text.Typography.greater` — val Typography.greater: Char  -- `final const val greater`
     - `kotlin.text.Typography.greaterOrEqual` — val Typography.greaterOrEqual: Char  -- `final const val greaterOrEqual`
 
-- [ ] KSP-1453: kotlin.text.Typography.Typography.half-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1453: kotlin.text.Typography.Typography.half-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `half`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/half.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5792,7 +5803,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.half` — val Typography.half: Char  -- `final const val half`
 
-- [ ] KSP-1454: kotlin.text.Typography.Typography.left-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1454: kotlin.text.Typography.Typography.left-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `left`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/left.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5805,7 +5816,7 @@
     - `kotlin.text.Typography.leftGuillemete` — val Typography.leftGuillemete: Char  -- `final const val leftGuillemete`
     - `kotlin.text.Typography.leftSingleQuote` — val Typography.leftSingleQuote: Char  -- `final const val leftSingleQuote`
 
-- [ ] KSP-1455: kotlin.text.Typography.Typography.less-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1455: kotlin.text.Typography.Typography.less-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `less`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/less.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5816,7 +5827,7 @@
     - `kotlin.text.Typography.less` — val Typography.less: Char  -- `final const val less`
     - `kotlin.text.Typography.lessOrEqual` — val Typography.lessOrEqual: Char  -- `final const val lessOrEqual`
 
-- [ ] KSP-1456: kotlin.text.Typography.Typography.low-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1456: kotlin.text.Typography.Typography.low-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `low`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/low.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -6064,9 +6075,11 @@
   - 未実装シンボル一覧:
     - `kotlin.time.Clock.now` — fun Clock.now(): Instant  -- `abstract fun now(): kotlin.time/Instant`
 
-- [ ] KSP-1482: kotlin.time.ComparableTimeMark.ComparableTimeMark の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1482: kotlin.time.ComparableTimeMark.ComparableTimeMark の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.time.ComparableTimeMark` / receiver `ComparableTimeMark`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/time/ComparableTimeMark/ComparableTimeMark.kt`（該当ファイルが無ければ新規作成）
+  - 完了根拠: Kotlin 2.3.10 の公式 source/ABI に合わせ、`equals(Any?)` / `hashCode()` の2 memberだけを source-backed interface に追加。既存の `ValueTimeMark` / `AbstractLongTimeMark` / `AbstractDoubleTimeMark` の concrete implementation は維持し、`ComparableTimeMark` の interface-typed call が `Any` fallback ではなく itable dispatch になることを Golden で固定した。
+  - runtime 根拠: `ComparableTimeMark.plus` の既存 source extension が返す `RuntimeTimeMarkBox` に、同じ `Any.equals` / `Any.hashCode` identity semantics の2 itable entryだけを登録した。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_time_ComparableTimeMark_ComparableTimeMark_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_time_ComparableTimeMark_ComparableTimeMark_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_time_ComparableTimeMark_ComparableTimeMark_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

@@ -500,6 +500,44 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1266: forward-declares the source-backed Native MemoryUsage class
+    /// before GCInfo's residual synthetic properties resolve their value type.
+    func predeclareBundledMemoryUsageHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("runtime"),
+        ]
+        let targetName = interner.intern("MemoryUsage")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTargetNominal,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1334: forward-declares the source-backed KTypeProjection nominal
     /// before reflection synthetic stubs resolve its property owner.
     func predeclareBundledKTypeProjectionHeaders(
@@ -1473,8 +1511,10 @@ extension DataFlowSemaPhase {
         // for their value-class and enum metadata.
         let resolvedFQName = fqName.map(interner.resolve)
         return resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+            || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
+            || resolvedFQName == ["kotlin", "text", "CharCategory"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
     }
 
