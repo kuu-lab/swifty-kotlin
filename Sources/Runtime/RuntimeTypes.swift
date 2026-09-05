@@ -242,6 +242,7 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?
     var throwableCause: Int
@@ -250,6 +251,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 
     init(length: Int, classID: Int64) {
         self.classID = classID
+        self.backingListBox = nil
         self.backingSetBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0

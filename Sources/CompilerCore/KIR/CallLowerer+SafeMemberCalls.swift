@@ -784,8 +784,8 @@ extension CallLowerer {
         // undefined symbol at link time.
         if let storedRead = tryLowerStoredMemberPropertyRead(
             exprID,
-            loweredReceiverID: loweredReceiverID,
             receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
             args: args,
             ast: ast,
             sema: sema,

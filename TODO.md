@@ -941,7 +941,8 @@
   - 実装根拠: `Sources/CompilerCore/Stdlib/kotlin/collections/AbstractMap.kt` に protected constructor、variance、abstract entries、Map の read-only 操作、equals/hashCode/toString を source-backed 化。共有 Map/Entry/runtime bridge は維持。
   - 回帰根拠: focused Sema 2件、direct Golden、`Scripts/diff_cases/stdlib_kotlin_collections_n_AbstractMap.kt` の reference diff、TODO-ID、Runtime ABI link、`git diff --check` が pass。
 
-- [ ] KSP-933: kotlin.collections.ArrayList-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-933: kotlin.collections.ArrayList-family の未実装 stdlib API を実装する（1 件）
+  - 根拠: `CollectionAliases.kt` に source-backed な `final ArrayList` と3種の公式コンストラクタを追加し、focused Sema、Golden、`diff_kotlinc`、Runtime/ABI 検証を通過。
   - 対象: `kotlin.collections` / top-level / family `ArrayList`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
