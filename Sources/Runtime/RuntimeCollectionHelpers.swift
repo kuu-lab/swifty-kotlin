@@ -1036,8 +1036,8 @@ func runtimeElementToString(_ elem: Int) -> String {
     if let charBox = tryCast(ptr, to: RuntimeCharBox.self) {
         return UnicodeScalar(charBox.value).map(String.init) ?? "?"
     }
-    if let throwable = tryCast(ptr, to: RuntimeThrowableBox.self) {
-        return "Throwable(\(throwable.renderedMessage))"
+    if let throwableString = runtimeThrowableToString(elem) {
+        return throwableString
     }
     if let instantBox = tryCast(ptr, to: RuntimeInstantBox.self) {
         return runtimeInstantToString(instantBox)

@@ -755,14 +755,16 @@
     - `kotlin.Pair.<init>` — constructor (, )  -- `constructor <init>(#A, #B)`
   - 実装済み（ゲート保留）: `Sources/CompilerCore/Stdlib/kotlin/Pair/Stdlib.kt` に constructor の source owner を追加。`__kk_pair_new` は collection/sequence が共有する Pair box allocation bridge のため残置。Pair 単体 diff、TODO ID、Runtime ABI link は pass 済みだが、全 Golden / 全 diff_cases は共有実行環境の timeout/SIGTERM で未完了。
 
-- [ ] KSP-897: kotlin.Throwable.Throwable の未実装 stdlib API を実装する（2 件）
+- [x] KSP-897: kotlin.Throwable.Throwable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.Throwable` / receiver `Throwable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Throwable/Throwable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Throwable_Throwable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Throwable_Throwable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Throwable_Throwable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-08-23）: `Throwable.kt` の source-backed member、raw stack-frame/runtime type-name 経路、Throwable vtable ABI を実装し、null/空文字/message/cause/subclass/override/Any/Throwable/catch と stack-frame の回帰を追加。
+  - 検証: 対象 Golden worker、対象 `diff_kotlinc`、KIR/LLVM、backend 12 件、RuntimeStringArray 94 件、`check_todo_ids.sh`、`validate_runtime_abi_links.sh`、`git diff --check` が pass。標準 Sema shard は環境の Golden worker timeout（240 秒）だが、対象 Golden worker は pass。
+  - 実装シンボル一覧:
     - `kotlin.Throwable.getStackTrace` — fun Throwable.getStackTrace(): Array  -- `final fun getStackTrace(): kotlin/Array<kotlin/String>`
     - `kotlin.Throwable.toString` — fun Throwable.toString(): String  -- `open fun toString(): kotlin/String`
 

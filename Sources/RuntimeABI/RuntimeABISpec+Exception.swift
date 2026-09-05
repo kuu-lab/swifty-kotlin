@@ -642,10 +642,19 @@ public extension RuntimeABISpec {
             name: "__kk_throwable_rawStackFrames",
             parameters: [
                 RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
-            section: "Exception",
-            isThrowing: false
+            section: "Exception"
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_throwable_toString",
+            parameters: [
+                RuntimeABIParameter(name: "throwableRaw", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "Exception"
         ),
         RuntimeABIFunctionSpec(
             name: "__kk_printStderr",
