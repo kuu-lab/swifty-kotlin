@@ -516,14 +516,6 @@ extension DataFlowSemaPhase {
             ownerFQName: gcInfoFQName,
             parentSymbol: gcInfoSymbol
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.gcInfoConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.gcInfoType,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         registerSyntheticPropertyStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.gcInfoProperties,
             context: gcInfoContext,
