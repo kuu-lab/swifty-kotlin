@@ -5,7 +5,7 @@ symbol fq=__local_3.fromFactory kind=local vis=private flags=_ type=kotlin.colle
 symbol fq=__local_4.mutable kind=local vis=private flags=_ type=kotlin.collections.MutableList<Int>
 symbol fq=__local_5.readonly kind=local vis=private flags=_ type=kotlin.collections.List<Int>
 symbol fq=kotlin.collections.Collection kind=interface vis=public flags=_
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
+symbol fq=kotlin.collections.List kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean

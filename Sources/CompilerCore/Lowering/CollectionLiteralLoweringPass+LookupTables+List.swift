@@ -9,13 +9,11 @@ struct ListLookupNames {
     let mutableListOfName: InternedString
     let arrayListOfName: InternedString
     let emptyListName: InternedString
-    let listOfNotNullName: InternedString
     // Type alias constructor names (STDLIB-245)
     let arrayListName: InternedString
     // Runtime ABI names
     let kkListOfName: InternedString
     let kkArrayListOfName: InternedString
-    let kkListOfNotNullName: InternedString
     let kkEmptyListName: InternedString
     let kkListSizeName: InternedString
     let kkListGetName: InternedString
@@ -100,11 +98,9 @@ struct ListLookupNames {
         mutableListOfName = interner.intern("mutableListOf")
         arrayListOfName = interner.intern("arrayListOf")
         emptyListName = interner.intern("emptyList")
-        listOfNotNullName = interner.intern("listOfNotNull")
         arrayListName = interner.intern("ArrayList")
         kkListOfName = interner.intern("__kk_list_of")
         kkArrayListOfName = interner.intern("__kk_array_list_of")
-        kkListOfNotNullName = interner.intern("kk_list_of_not_null")
         kkEmptyListName = interner.intern("__kk_emptyList")
         kkListSizeName = interner.intern("__kk_list_size")
         kkListGetName = interner.intern("__kk_list_get")
@@ -178,7 +174,7 @@ struct ListLookupNames {
         previousName = interner.intern("previous")
         nextIndexName = interner.intern("nextIndex")
         previousIndexName = interner.intern("previousIndex")
-        listFactoryNames = [listOfName, mutableListOfName, arrayListOfName, emptyListName, listOfNotNullName]
+        listFactoryNames = [listOfName, mutableListOfName, arrayListOfName, emptyListName]
         mutableListConstructorNames = [arrayListName]
     }
 }

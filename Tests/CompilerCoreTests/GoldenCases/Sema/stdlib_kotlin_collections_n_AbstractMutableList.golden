@@ -21,9 +21,7 @@ symbol fq=golden.sema.acceptMutableList kind=function vis=public flags=_ sig=rec
 symbol fq=golden.sema.acceptMutableList.$6.values kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.probe kind=function vis=public flags=_ sig=recv=_ params=[golden.sema.Probe] ret=Int
 symbol fq=golden.sema.probe.$7.values kind=valueParameter vis=private flags=_
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
+symbol fq=kotlin.collections.List kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.listIterator#0 kind=function vis=public flags=synthetic sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[] ret=kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E> type=() -> kotlin.collections.MutableListIterator<kotlin.collections.MutableList.E>
@@ -49,7 +47,7 @@ expr e@12:40#1 compoundAssign(plusAssign) name=index value=e@12:45 type=Unit ref
 expr e@12:40#2 localDecl $incdec$345$1 mutable=0 type=_ init=e@12:40 type=Unit ref=__local_0.$incdec$345$1
 expr e@12:40#3 name($incdec$345$1) type=Int ref=__local_0.$incdec$345$1
 expr e@12:40#4 blockExpr stmts=[e@12:40#2,e@12:40#1] trailing=e@12:40#3 type=Int
-expr e@12:32#1 indexedAccess receiver=e@12:32 indices=[e@12:40#4] type=Int call=kotlin.collections.List.get targs=[Int]
+expr e@12:32#1 indexedAccess receiver=e@12:32 indices=[e@12:40#4] type=Int call=kotlin.collections.ArrayList.get targs=[Int]
 expr e@15:9 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema.ProbeIterator.storage
 expr e@15:28 name(index) type=Int ref=golden.sema.ProbeIterator.index
 expr e@15:26 int(1) type=Int
@@ -64,7 +62,7 @@ expr e@23:17 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sem
 expr e@23:17#1 memberCall recv=e@23:17 callee=size args=[] type=Int ref=kotlin.collections.ArrayList.size
 expr e@25:41 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Probe.storage
 expr e@25:49 name(index) type=Int ref=golden.sema.Probe.get.$1.index
-expr e@25:41#1 indexedAccess receiver=e@25:41 indices=[e@25:49] type=Int call=kotlin.collections.List.get targs=[Int]
+expr e@25:41#1 indexedAccess receiver=e@25:41 indices=[e@25:49] type=Int call=kotlin.collections.ArrayList.get targs=[Int]
 expr e@27:55 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Probe.storage
 expr e@27:67 name(index) type=Int ref=golden.sema.Probe.set.$3.index
 expr e@27:74 name(element) type=Int ref=golden.sema.Probe.set.$3.element

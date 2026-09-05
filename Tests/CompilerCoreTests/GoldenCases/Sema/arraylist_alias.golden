@@ -15,9 +15,7 @@ symbol fq=constrain.$0.T kind=typeParameter vis=private flags=_
 symbol fq=constrain.$0.list kind=valueParameter vis=private flags=_
 symbol fq=createList kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.collections.ArrayList<Int>
 symbol fq=customExtension kind=function vis=public flags=_ sig=recv=kotlin.collections.ArrayList<String> params=[] ret=String
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
+symbol fq=kotlin.collections.List kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList#0 kind=interface vis=public flags=_
 symbol fq=kotlin.collections.MutableList.E kind=typeParameter vis=private flags=_
 symbol fq=kotlin.collections.MutableList.add#1 kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
@@ -72,7 +70,7 @@ expr e@34:13#1 memberCall recv=e@34:13 callee=size args=[] type=Int ref=kotlin.c
 expr e@34:5 call callee=e@34:5#1 args=[_:e@34:13#1] type=Unit call=kotlin.io.println#1
 expr e@35:13 name(list) type=kotlin.collections.ArrayList<String> ref=__local_2.list
 expr e@35:18 int(0) type=Int
-expr e@35:13#1 indexedAccess receiver=e@35:13 indices=[e@35:18] type=String call=kotlin.collections.List.get targs=[String]
+expr e@35:13#1 indexedAccess receiver=e@35:13 indices=[e@35:18] type=String call=kotlin.collections.ArrayList.get targs=[String]
 expr e@35:5 call callee=e@35:5#1 args=[_:e@35:13#1] type=Unit call=kotlin.io.println#2
 expr e@37:35 name(list) type=kotlin.collections.ArrayList<String> ref=__local_2.list
 expr e@37:5 localDecl ml mutable=0 type=MutableList<String> init=e@37:35 type=Unit ref=__local_3.ml

@@ -31,6 +31,9 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override val size: Int
         get() = __kkArrayListSize(this)
 
+    @KsSymbolName("__kk_list_get")
+    override external operator fun get(index: Int): E
+
     @KsSymbolName("kk_op_contains")
     override external operator fun contains(element: @UnsafeVariance E): Boolean
 
@@ -53,7 +56,18 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override external fun set(index: Int, element: E): E
 }
 
-public typealias HashSet<E> = MutableSet<E>
+/**
+ * Hash-based mutable set implementation.
+ *
+ * The Kotlin/Native `KonanSet` marker is an internal platform type that is not
+ * modeled by KSwiftK. The public nominal hierarchy is preserved here while
+ * the shared runtime set box supplies storage and collection operations.
+ */
+public class HashSet<E> : AbstractMutableSet<E>, MutableSet<E> {
+    constructor()
+    constructor(initialCapacity: Int)
+    constructor(elements: Collection<E>)
+}
 
 /**
  * A mutable hash map backed by the runtime map representation.

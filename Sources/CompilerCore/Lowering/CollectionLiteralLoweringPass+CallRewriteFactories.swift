@@ -35,7 +35,7 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 } else {
-                    // emptyList(), listOf(), listOfNotNull() -> kk_emptyList()
+                    // emptyList(), listOf() -> kk_emptyList()
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: lookup.kkEmptyListName,
@@ -65,7 +65,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
             } else {
                 // listOf(a, b, c), mutableListOf(a, b, c), arrayListOf(a, b, c) -> kk_list_of
-                // listOfNotNull(a, b, c) -> kk_list_of_not_null
                 let countExpr = module.arena.appendExpr(.intLiteral(Int64(count)), type: nil)
                 loweredBody.append(.constValue(result: countExpr, value: .intLiteral(Int64(count))))
                 let arrayExpr = module.arena.appendTemporary(type: nil
@@ -119,14 +118,9 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 }
-                let runtimeCallee: InternedString
-                if callee == lookup.listOfNotNullName {
-                    runtimeCallee = lookup.kkListOfNotNullName
-                } else if callee == lookup.arrayListOfName {
-                    runtimeCallee = lookup.kkArrayListOfName
-                } else {
-                    runtimeCallee = lookup.kkListOfName
-                }
+                let runtimeCallee = callee == lookup.arrayListOfName
+                    ? lookup.kkArrayListOfName
+                    : lookup.kkListOfName
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: runtimeCallee,
@@ -172,12 +166,22 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        if lookup.mutableSetConstructorNames.contains(callee) {
+        let isHashSetConstructor = isHashSetConstructor(
+            callee: callee,
+            symbol: symbol,
+            result: result,
+            module: module,
+            lookup: lookup,
+            ctx: ctx
+        )
+        if lookup.mutableSetConstructorNames.contains(callee) || isHashSetConstructor {
             if arguments.count == 1,
                isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkIterableToMutableSetName,
+                    callee: isHashSetConstructor
+                        ? lookup.kkIterableToHashSetName
+                        : lookup.kkIterableToMutableSetName,
                     arguments: [arguments[0]],
                     result: result,
                     canThrow: false,
@@ -193,7 +197,9 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkSetOfName,
+                callee: isHashSetConstructor
+                    ? lookup.kkHashSetOfName
+                    : lookup.kkSetOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
                 canThrow: false,
@@ -299,14 +305,17 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // Mutable/hash/linked set factories produce a fresh instance via __kk_set_of(null, 0).
+                // Mutable/hash/linked set factories produce a fresh instance via
+                // the shared set storage, with HashSet retaining its nominal tag.
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkSetOfName,
+                    callee: callee == lookup.hashSetOfName
+                        ? lookup.kkHashSetOfName
+                        : lookup.kkSetOfName,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -366,7 +375,9 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 }
-                let runtimeCallee = callee == lookup.setOfNotNullName
+                let runtimeCallee = callee == lookup.hashSetOfName
+                    ? lookup.kkHashSetOfName
+                    : callee == lookup.setOfNotNullName
                     ? lookup.kkSetOfNotNullName
                     : lookup.kkSetOfName
                 loweredBody.append(.call(

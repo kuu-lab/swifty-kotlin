@@ -6,9 +6,6 @@ symbol fq=ProbeIterator.<init>.$0.values kind=valueParameter vis=private flags=_
 symbol fq=ProbeIterator.index kind=property vis=private flags=mutable type=Int
 symbol fq=ProbeIterator.values kind=property vis=public flags=_ type=kotlin.collections.ArrayList<Int>
 symbol fq=__local_0.value kind=local vis=private flags=_ type=Int
-symbol fq=kotlin.collections.List kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.List.E kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.List.get kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.List<out kotlin.collections.List.E> params=[Int] ret=kotlin.collections.List.E
 symbol fq=kotlin.collections.MutableIterable kind=interface vis=public flags=_
 symbol fq=probe kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.MutableIterable<Int>] ret=Boolean
 symbol fq=probe.$1.values kind=valueParameter vis=private flags=_
@@ -23,7 +20,7 @@ expr e@6:47#1 memberCall recv=e@6:47 callee=size args=[] type=Int ref=kotlin.col
 expr e@6:39#1 binary(lessThan) lhs=e@6:39 rhs=e@6:47#1 type=Boolean
 expr e@9:21 name(values) type=kotlin.collections.ArrayList<Int> ref=ProbeIterator.values
 expr e@9:28 name(index) type=Int ref=ProbeIterator.index
-expr e@9:21#1 indexedAccess receiver=e@9:21 indices=[e@9:28] type=Int call=kotlin.collections.List.get targs=[Int]
+expr e@9:21#1 indexedAccess receiver=e@9:21 indices=[e@9:28] type=Int call=kotlin.collections.ArrayList.get targs=[Int]
 expr e@9:9 localDecl value mutable=0 type=_ init=e@9:21#1 type=Unit ref=__local_0.value
 expr e@10:18 int(1) type=Int
 expr e@10:9 compoundAssign(plusAssign) name=index value=e@10:18 type=Unit ref=ProbeIterator.index
