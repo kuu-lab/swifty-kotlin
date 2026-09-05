@@ -2705,7 +2705,7 @@
     - `kotlin.coroutines.createCoroutine` — fun SuspendFunction1.createCoroutine(, Continuation): Continuation  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.coroutines/SuspendFunction1<#A, #B>).kotlin.coroutines/createCoroutine(#A, kotlin.coroutines/Continuation<#B>): kotlin.coroutines/Continuation<kotlin/Unit>`
     - `kotlin.coroutines.startCoroutine` — fun SuspendFunction1.startCoroutine(, Continuation): Unit  -- `final fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.coroutines/SuspendFunction1<#A, #B>).kotlin.coroutines/startCoroutine(#A, kotlin.coroutines/Continuation<#B>)`
 
-- [ ] KSP-1136: kotlin.coroutines.AbstractCoroutineContextElement top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1136: kotlin.coroutines.AbstractCoroutineContextElement top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.coroutines.AbstractCoroutineContextElement` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/coroutines/AbstractCoroutineContextElement/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
