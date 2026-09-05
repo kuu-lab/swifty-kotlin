@@ -1511,6 +1511,7 @@ extension DataFlowSemaPhase {
         // for their value-class and enum metadata.
         let resolvedFQName = fqName.map(interner.resolve)
         return resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+            || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
