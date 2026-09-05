@@ -1111,7 +1111,8 @@ extension DataFlowSemaPhase {
         if record.propertyGetterExternalLinkName != nil,
            record.propertyReceiverTypeSignature == nil,
            getterOwnerInfo == nil || getterOwnerInfo?.kind == .package
-               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .interface
+               || getterOwnerInfo?.kind == .class || getterOwnerInfo?.kind == .enumClass
+               || getterOwnerInfo?.kind == .interface
                || getterOwnerInfo?.kind == .object
         {
             symbols.setPropertyHasCustomGetter(true, for: symbol)

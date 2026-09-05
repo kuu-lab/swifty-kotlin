@@ -5447,7 +5447,7 @@
   - 完了根拠（2026-09-03, master `cf95db64`）: 実装は KSP-711 の merged PR #6048（commit `9a39776a`）で先行導入済み。現行 `Appendable.kt` は source-backed interface と3 overloadを宣言し、それぞれ `@KsSymbolName` で `__kk_string_builder_append_char` / `__kk_string_builder_append_obj` / `__kk_string_builder_append_range` に接続している。StringBuilder が通常の object itable を登録しないため direct bridge を残す設計は、`RuntimeStringBuilder.swift`、`RuntimeABISpec+StringBuilder.swift`、KIR の source-backed link routing で一貫している。
   - 回帰根拠: `StringAppendFunctionTests`、`StringSyntheticMemberLinkTests`、`CodegenBackendStringBuilderEdgeCasesTests` の Appendable overload ケース、および `Scripts/diff_cases/appendable_append_overloads.kt` が現行実装を検証する。
 
-- [ ] KSP-1417: kotlin.text.CharCategory.CharCategory の未実装 stdlib API を実装する（5 件）
+- [x] KSP-1417: kotlin.text.CharCategory.CharCategory の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text.CharCategory` / receiver `CharCategory`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/CharCategory/CharCategory.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
