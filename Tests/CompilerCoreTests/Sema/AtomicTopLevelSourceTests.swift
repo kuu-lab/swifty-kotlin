@@ -128,6 +128,22 @@ struct AtomicTopLevelSourceTests {
     }
 
     @Test
+    func testResidualArrayConstructorKeepsRuntimeLink() throws {
+        let (_, sema, interner) = try sharedSema()
+        let classFQName = ["kotlin", "concurrent", "AtomicIntArray"].map(interner.intern)
+        let constructor = try #require(
+            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first {
+                guard let signature = sema.symbols.functionSignature(for: $0) else { return false }
+                return signature.parameterTypes == [sema.types.intType]
+            },
+            "Missing residual AtomicIntArray(Int) constructor"
+        )
+        let info = try #require(sema.symbols.symbol(constructor))
+        #expect(info.flags.contains(.synthetic))
+        #expect(sema.symbols.externalLinkName(for: constructor) == "kk_atomic_int_array_create")
+    }
+
+    @Test
     func testAtomicArraySizePropertyCoexistsWithFactoryParameter() throws {
         let (_, sema, interner) = try sharedSema()
         let package = ["kotlin", "concurrent"].map(interner.intern)
@@ -159,6 +175,28 @@ struct AtomicTopLevelSourceTests {
             let firstParam = try #require(sema.symbols.symbol(firstParamSymbol))
             #expect(firstParam.kind == .valueParameter)
             #expect(firstParam.name == interner.intern("size"))
+        }
+    }
+
+    @Test
+    func testResidualArraySizePropertyKeepsRuntimeLink() throws {
+        let (_, sema, interner) = try sharedSema()
+        let cases: [(name: String, link: String)] = [
+            ("AtomicIntArray", "kk_atomic_int_array_size"),
+            ("AtomicLongArray", "kk_atomic_long_array_size"),
+        ]
+        for item in cases {
+            let classFQName = ["kotlin", "concurrent", item.name].map(interner.intern)
+            let size = try #require(
+                sema.symbols.lookupAll(fqName: classFQName + [interner.intern("size")]).first {
+                    sema.symbols.symbol($0)?.kind == .property
+                },
+                Comment(rawValue: "Missing residual " + item.name + ".size")
+            )
+            let info = try #require(sema.symbols.symbol(size))
+            #expect(info.flags.contains(.synthetic), Comment(rawValue: item.name + ".size must stay residual"))
+            #expect(sema.symbols.externalLinkName(for: size) == item.link)
+            #expect(sema.symbols.propertyType(for: size) == sema.types.intType)
         }
     }
 }
