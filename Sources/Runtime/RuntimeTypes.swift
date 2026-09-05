@@ -912,22 +912,95 @@ final class RuntimeIndexingIteratorBox {
 final class RuntimeListIteratorBox {
     var elements: [Int]
     var index: Int
+    var lastReturnedIndex: Int?
     let removeAction: ((Int) -> Void)?
+    let addAction: ((Int, Int) -> Int?)?
+    let setAction: ((Int, Int) -> Int?)?
 
-    init(elements: [Int], removeAction: ((Int) -> Void)? = nil) {
+    init(
+        elements: [Int],
+        removeAction: ((Int) -> Void)? = nil,
+        addAction: ((Int, Int) -> Int?)? = nil,
+        setAction: ((Int, Int) -> Int?)? = nil
+    ) {
         self.elements = elements
         index = 0
+        lastReturnedIndex = nil
         self.removeAction = removeAction
+        self.addAction = addAction
+        self.setAction = setAction
+    }
+
+    func nextElement() -> Int? {
+        guard index >= 0, index < elements.count else {
+            return nil
+        }
+        let returnedIndex = index
+        index += 1
+        lastReturnedIndex = returnedIndex
+        return elements[returnedIndex]
+    }
+
+    func previousElement() -> Int? {
+        guard index > 0, index <= elements.count else {
+            return nil
+        }
+        index -= 1
+        lastReturnedIndex = index
+        return elements[index]
     }
 
     func removeLastReturned() -> Bool {
-        guard index > 0, index <= elements.count else {
+        guard let returnedIndex = lastReturnedIndex,
+              elements.indices.contains(returnedIndex)
+        else {
             return false
         }
-        let removedIndex = index - 1
-        elements.remove(at: removedIndex)
-        index = removedIndex
-        removeAction?(removedIndex)
+        elements.remove(at: returnedIndex)
+        if returnedIndex < index {
+            index -= 1
+        }
+        lastReturnedIndex = nil
+        removeAction?(returnedIndex)
+        return true
+    }
+
+    func setLastReturned(_ rawValue: Int) -> Bool {
+        guard let returnedIndex = lastReturnedIndex,
+              elements.indices.contains(returnedIndex)
+        else {
+            return false
+        }
+        let normalizedValue: Int
+        if let setAction {
+            guard let value = setAction(returnedIndex, rawValue) else {
+                return false
+            }
+            normalizedValue = value
+        } else {
+            normalizedValue = rawValue
+        }
+        elements[returnedIndex] = normalizedValue
+        return true
+    }
+
+    func add(_ rawValue: Int) -> Bool {
+        guard index >= 0, index <= elements.count else {
+            return false
+        }
+        let insertionIndex = index
+        let normalizedValue: Int
+        if let addAction {
+            guard let value = addAction(insertionIndex, rawValue) else {
+                return false
+            }
+            normalizedValue = value
+        } else {
+            normalizedValue = rawValue
+        }
+        elements.insert(normalizedValue, at: insertionIndex)
+        index += 1
+        lastReturnedIndex = nil
         return true
     }
 }

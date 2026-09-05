@@ -472,6 +472,7 @@ extension DataFlowSemaPhase {
     ) -> SymbolID {
         let mutableListIteratorName = interner.intern("MutableListIterator")
         let mutableListIteratorFQName = kotlinCollectionsPkg + [mutableListIteratorName]
+        let activeBundledIndex = BundledSyntheticStubRegistration.bundledIndex
         // STDLIB-SHARED-014: MutableListIterator may have been imported as a
         // synthetic nominal anchor with missing members.
         var mutableListIteratorSymbol: SymbolID
@@ -535,7 +536,9 @@ extension DataFlowSemaPhase {
         func registerMutationMember(name: String) {
             let memberName = interner.intern(name)
             let memberFQName = mutableListIteratorFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
+            guard symbols.lookup(fqName: memberFQName) == nil,
+                  !activeBundledIndex.contains(owner: mutableListIteratorFQName, name: memberName, arity: 1)
+            else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,
@@ -573,7 +576,9 @@ extension DataFlowSemaPhase {
         func registerRemoveMember() {
             let memberName = interner.intern("remove")
             let memberFQName = mutableListIteratorFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
+            guard symbols.lookup(fqName: memberFQName) == nil,
+                  !activeBundledIndex.contains(owner: mutableListIteratorFQName, name: memberName, arity: 0)
+            else { return }
             let memberSymbol = symbols.define(
                 kind: .function,
                 name: memberName,

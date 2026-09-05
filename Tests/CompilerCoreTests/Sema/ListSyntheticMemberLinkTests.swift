@@ -2780,8 +2780,6 @@ struct ListSyntheticMemberLinkTests {
             let mutableListIteratorSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName))
             let mutableListIteratorInfo = try #require(sema.symbols.symbol(mutableListIteratorSymbol))
             #expect(mutableListIteratorInfo.kind == .interface)
-            // KSP-945: the nominal interface is source-backed; mutation members
-            // remain compiler residuals until their separate migration lands.
             #expect(!mutableListIteratorInfo.flags.contains(.synthetic))
             #expect(sema.types.nominalTypeParameterVariances(for: mutableListIteratorSymbol) == [.invariant])
 
@@ -2791,16 +2789,32 @@ struct ListSyntheticMemberLinkTests {
             #expect(sema.symbols.supertypeTypeArgs(for: mutableListIteratorSymbol, supertype: listIteratorSymbol).count == 1)
             #expect(sema.symbols.supertypeTypeArgs(for: mutableListIteratorSymbol, supertype: mutableIteratorSymbol).count == 1)
 
-            for memberName in ["add", "set"] {
+            let mutableListIteratorSourceFileID = ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/collections/MutableListIterator.kt"
+            )
+            for (memberName, arity) in [("next", 0), ("hasNext", 0), ("remove", 0), ("set", 1), ("add", 1)] {
                 let memberSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern(memberName)]))
+                let memberInfo = try #require(sema.symbols.symbol(memberSymbol))
+                #expect(!memberInfo.flags.contains(.synthetic))
+                #expect(sema.symbols.isSourceBackedSymbol(memberSymbol))
+                #expect(sema.symbols.sourceFileID(for: memberSymbol) == mutableListIteratorSourceFileID)
+                #expect(sema.symbols.externalLinkName(for: memberSymbol) == nil)
                 let signature = try #require(sema.symbols.functionSignature(for: memberSymbol))
-                #expect(signature.parameterTypes.count == 1)
-                #expect(signature.returnType == sema.types.unitType)
+                #expect(signature.parameterTypes.count == arity)
             }
-            let removeSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern("remove")]))
-            let removeSignature = try #require(sema.symbols.functionSignature(for: removeSymbol))
-            #expect(removeSignature.parameterTypes.isEmpty)
-            #expect(removeSignature.returnType == sema.types.unitType)
+            let hasNextSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern("hasNext")]))
+            #expect(sema.symbols.functionSignature(for: hasNextSymbol)?.returnType == sema.types.booleanType)
+            let nextSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern("next")]))
+            let nextReturnType = try #require(sema.symbols.functionSignature(for: nextSymbol)?.returnType)
+            if case .typeParam = sema.types.kind(of: nextReturnType) {
+                // MutableListIterator.next() returns its element type.
+            } else {
+                Issue.record("MutableListIterator.next should return its element type")
+            }
+            for memberName in ["remove", "set", "add"] {
+                let memberSymbol = try #require(sema.symbols.lookup(fqName: mutableListIteratorFQName + [ctx.interner.intern(memberName)]))
+                #expect(sema.symbols.functionSignature(for: memberSymbol)?.returnType == sema.types.unitType)
+            }
 
             let mutableListSymbol = try #require(sema.symbols.lookup(fqName: collectionsPkg + [ctx.interner.intern("MutableList")]))
             let listIteratorMember = try #require(sema.symbols.lookup(

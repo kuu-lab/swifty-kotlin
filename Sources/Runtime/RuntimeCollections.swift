@@ -165,8 +165,28 @@ public func kk_list_iterator(_ listRaw: Int) -> Int {
             RuntimeListIteratorBox(
                 elements: list.elements,
                 removeAction: { index in
-                    guard list.elements.indices.contains(index) else { return }
-                    list.elements.remove(at: index)
+                    guard list.values.indices.contains(index) else { return }
+                    var values = list.values
+                    values.remove(at: index)
+                    list.values = values
+                },
+                addAction: { index, rawValue in
+                    guard !list.isReadOnly else { return nil }
+                    var values = list.values
+                    guard (0 ... values.count).contains(index) else { return nil }
+                    let value = runtimeMutableListInsertedValue(for: values, rawValue: rawValue)
+                    values.insert(value, at: index)
+                    list.values = values
+                    return value.legacyRawValue
+                },
+                setAction: { index, rawValue in
+                    guard !list.isReadOnly else { return nil }
+                    var values = list.values
+                    guard values.indices.contains(index) else { return nil }
+                    let value = runtimeMutableListInsertedValue(for: values, rawValue: rawValue)
+                    values[index] = value
+                    list.values = values
+                    return value.legacyRawValue
                 }
             )
         )
@@ -230,8 +250,28 @@ public func kk_list_iterator_at(_ listRaw: Int, _ index: Int, _ outThrown: Unsaf
     let iter = RuntimeListIteratorBox(
         elements: list.elements,
         removeAction: { removedIndex in
-            guard list.elements.indices.contains(removedIndex) else { return }
-            list.elements.remove(at: removedIndex)
+            guard list.values.indices.contains(removedIndex) else { return }
+            var values = list.values
+            values.remove(at: removedIndex)
+            list.values = values
+        },
+        addAction: { insertionIndex, rawValue in
+            guard !list.isReadOnly else { return nil }
+            var values = list.values
+            guard (0 ... values.count).contains(insertionIndex) else { return nil }
+            let value = runtimeMutableListInsertedValue(for: values, rawValue: rawValue)
+            values.insert(value, at: insertionIndex)
+            list.values = values
+            return value.legacyRawValue
+        },
+        setAction: { replacementIndex, rawValue in
+            guard !list.isReadOnly else { return nil }
+            var values = list.values
+            guard values.indices.contains(replacementIndex) else { return nil }
+            let value = runtimeMutableListInsertedValue(for: values, rawValue: rawValue)
+            values[replacementIndex] = value
+            list.values = values
+            return value.legacyRawValue
         }
     )
     iter.index = index
@@ -262,17 +302,7 @@ public func kk_list_iterator_next(_ iterRaw: Int) -> Int {
     guard iter.index < iter.elements.count else {
         return 0
     }
-    let value = iter.elements[iter.index]
-    iter.index += 1
-    return value
-}
-
-func runtimeListIteratorRemove(_ iterRaw: Int) -> Int {
-    guard let iter = runtimeListIteratorBox(from: iterRaw) else {
-        return 0
-    }
-    _ = iter.removeLastReturned()
-    return 0
+    return iter.nextElement() ?? 0
 }
 
 /// Whether the iterator has a valid previous element.
@@ -300,10 +330,7 @@ public func kk_list_iterator_previous(_ iterRaw: Int) -> Int {
     guard listIteratorCanGoBack(iter) else {
         return 0
     }
-    // Always decrement index and return the element at the new position
-    // This matches the standard ListIterator behavior
-    iter.index -= 1
-    return iter.elements[iter.index]
+    return iter.previousElement() ?? 0
 }
 
 @_cdecl("kk_list_iterator_nextIndex")
