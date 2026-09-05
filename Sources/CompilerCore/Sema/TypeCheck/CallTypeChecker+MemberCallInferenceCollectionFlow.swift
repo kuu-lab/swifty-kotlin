@@ -2189,7 +2189,7 @@ extension CallTypeChecker {
                     _ = bindBundledSequenceDestinationSourceFunction(typeArguments: typeArguments)
                 }
                 if isMapReceiver,
-                   ["mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)
+                   ["filterTo", "filterNotTo", "mapTo", "mapNotNullTo", "mapKeysTo", "mapValuesTo"].contains(calleeStr)
                 {
                     _ = bindBundledMapSourceFunction()
                 }
