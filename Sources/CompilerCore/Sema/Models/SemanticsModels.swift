@@ -635,11 +635,17 @@ public final class SymbolTable {
                 // HeaderHelpers.hasDeclarationConflict.
                 return existingNonPackage.allSatisfy { existing in
                     isCallableLike(existing.kind)
+                        || existing.kind == .valueParameter
                         || (existing.kind == .property && extensionPropertyReceiverType(for: existing.id) != nil)
                 }
             }
-            return existingNonPackageKinds.allSatisfy { isCallableLike($0) }
+            return existingNonPackageKinds.allSatisfy { isCallableLike($0) || $0 == .valueParameter }
                 && !existingNonPackageKinds.contains(.property)
+        }
+        if kind == .valueParameter {
+            return existingNonPackageKinds.allSatisfy {
+                $0 == .property || $0 == .field || isCallableLike($0)
+            }
         }
         if isCallableLike(kind) {
             // Allow functions/constructors to coexist with nominal types and
@@ -698,7 +704,7 @@ public final class SymbolTable {
             switch symbol.kind {
             case .property:
                 return symbol.flags.contains(.synthetic)
-            case .function, .constructor:
+            case .function, .constructor, .valueParameter:
                 return true
             default:
                 return false

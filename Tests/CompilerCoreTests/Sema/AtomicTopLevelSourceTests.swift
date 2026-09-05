@@ -102,7 +102,7 @@ struct AtomicTopLevelSourceTests {
         let loadInfo = try #require(sema.symbols.symbol(load))
         let loadSignature = try #require(sema.symbols.functionSignature(for: load))
         #expect(loadInfo.flags.contains(.synthetic))
-        #expect(sema.symbols.externalLinkName(for: load) == "kk_atomic_ref_load")
+        #expect(sema.symbols.externalLinkName(for: load) == "__kk_atomic_ref_load")
         #expect(loadSignature.typeParameterSymbols == [classTypeParameter])
         guard case let .typeParam(returnType) = sema.types.kind(of: loadSignature.returnType) else {
             Issue.record("AtomicReference.load should return the class T type parameter")
@@ -125,6 +125,41 @@ struct AtomicTopLevelSourceTests {
         let info = try #require(sema.symbols.symbol(constructor))
         #expect(info.flags.contains(.synthetic))
         #expect(sema.symbols.externalLinkName(for: constructor) == "kk_atomic_int_create")
+    }
+
+    @Test
+    func testAtomicArraySizePropertyCoexistsWithFactoryParameter() throws {
+        let (_, sema, interner) = try sharedSema()
+        let package = ["kotlin", "concurrent"].map(interner.intern)
+        for name in ["AtomicIntArray", "AtomicLongArray"] {
+            let classFQName = package + [interner.intern(name)]
+            let sizeFQName = classFQName + [interner.intern("size")]
+            let symbols = sema.symbols.lookupAll(fqName: sizeFQName)
+            let propertySymbol = symbols.first { sema.symbols.symbol($0)?.kind == .property }
+            let requiredProperty = try #require(
+                propertySymbol,
+                Comment(rawValue: name + ".size property must coexist with " + name + "(size: Int, init) parameter")
+            )
+            #expect(sema.symbols.propertyType(for: requiredProperty) == sema.types.intType)
+            let factoryCandidates = sema.symbols.lookupAll(fqName: classFQName).filter { candidate in
+                guard let info = sema.symbols.symbol(candidate),
+                      info.kind == .function,
+                      let signature = sema.symbols.functionSignature(for: candidate)
+                else {
+                    return false
+                }
+                return signature.parameterTypes.count == 2
+            }
+            let factory = try #require(
+                factoryCandidates.first,
+                Comment(rawValue: "Missing " + name + "(Int, init) factory")
+            )
+            let factorySignature = try #require(sema.symbols.functionSignature(for: factory))
+            let firstParamSymbol = try #require(factorySignature.valueParameterSymbols.first)
+            let firstParam = try #require(sema.symbols.symbol(firstParamSymbol))
+            #expect(firstParam.kind == .valueParameter)
+            #expect(firstParam.name == interner.intern("size"))
+        }
     }
 }
 #endif
