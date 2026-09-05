@@ -34,6 +34,9 @@ struct ArrayLookupNames {
     // Array member names (STDLIB-087/088/089)
     let toMutableListName: InternedString
     let toTypedArrayName: InternedString
+    let sliceArrayName: InternedString
+    let reversedArrayName: InternedString
+    let asListName: InternedString
     let copyOfName: InternedString
     let copyOfRangeName: InternedString
     let fillName: InternedString
@@ -68,6 +71,9 @@ struct ArrayLookupNames {
         kkArrayOfName = interner.intern("kk_array_of")
         toMutableListName = interner.intern("toMutableList")
         toTypedArrayName = interner.intern("toTypedArray")
+        sliceArrayName = interner.intern("sliceArray")
+        reversedArrayName = interner.intern("reversedArray")
+        asListName = interner.intern("asList")
         copyOfName = interner.intern("copyOf")
         copyOfRangeName = interner.intern("copyOfRange")
         fillName = interner.intern("fill")
