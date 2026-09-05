@@ -5756,7 +5756,7 @@
     - `kotlin.text.Typography.ellipsis` — val Typography.ellipsis: Char  -- `final const val ellipsis`
   - 完了根拠（2026-09-03、remote master `cf95db64dac5d4ead0e3529998b9d26b8d2b8848` を GitHub API/raw で再確認）: KSP-711 の merged PR #6048 / commit `9a39776adff70eb419b7effc3ea21fa0a1baa632` が Typography 全定数を source-backed 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/text/Typography.kt:22` に `public const val ellipsis: Char = '\u2026'` があり、`Tests/CompilerCoreTests/Sema/StringSyntheticMemberLinkTests.swift:989-1049` が Typography を non-synthetic source declaration、非 nullable Char、const の char literal U+2026 として検証する。Kotlin 2.3.10 公式 source の `\u2026` および published JVM ABI の `kotlin.text.Typography.ellipsis: C` / constant 8230 と一致し、対象専用の synthetic/runtime/RuntimeABI bridge はない。focused `CompilerCoreTests.StringSyntheticMemberLinkTests`（4 tests）が PASS、`validate_runtime_abi_links.sh`（4 tests）/`check_todo_ids.sh`/`git diff --check` も PASS のため、コード・追加 `.kt`・Golden・diff ケースの重複変更は不要。
 
-- [ ] KSP-1451: kotlin.text.Typography.Typography.euro-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1451: kotlin.text.Typography.Typography.euro-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `euro`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/euro.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5765,6 +5765,10 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.euro` — val Typography.euro: Char  -- `final const val euro`
+  - 完了根拠（2026-09-03）: KSP-711/#6048 の merged commit `9a39776adff70eb419b7effc3ea21fa0a1baa632` が `Typography.kt` を追加し、Typography 全定数を Kotlin source-backed 化。現行 `Typography.euro` は `public const val euro: Char = '\u20AC'`。`StringSyntheticMemberLinkTests.testTypographyObjectSurfaceResolves` は非 synthetic の object/property、Char 型、const value、char literal U+20AC を含む全 Typography surface を検証する。
+  - 契約/経路: Kotlin 2.3.10 公式 source の `Typography.euro` は `public const val euro: Char = '\u20AC'`。公開 `kotlin-stdlib-2.3.10.jar` の JVM ABI は `kotlin.text.Typography.euro` を `public static final char` / descriptor `C` として公開。現行 Sema/KIR/lowering/Runtime/RuntimeABI には euro/Typography 専用登録・bridge がなく、bundled Kotlin source の通常経路で解決される。
+  - 所有/重複監査: #6048 は merged、KSP-1451 固有の open/merged PR はなく、#6476 は `Typography.dollar` の KSP-1448 TODO 同期で対象外。GitHub API で再確認した最新 master `cf95db64dac5d4ead0e3529998b9d26b8d2b8848` にも同じ実装があり、KSP-1451 は未チェックだった。
+  - 検証: PASS `SWIFT_TEST_PARALLEL=0 SWIFT_TEST_WORKERS=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.StringSyntheticMemberLinkTests`（4 tests / 1 suite）、PASS `bash Scripts/check_todo_ids.sh`、PASS `git diff --check`。実装・golden・diff source の変更を伴わない TODO 同期のため、全 Golden / 全 diff_kotlinc / ABI link script は未再実行。
 
 - [ ] KSP-1452: kotlin.text.Typography.Typography.greater-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `greater`
