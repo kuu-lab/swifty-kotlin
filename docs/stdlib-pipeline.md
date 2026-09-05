@@ -277,7 +277,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticExperimentalTimeStubs.swift` | 463 | (c) | KSP-712 reclassified: `ExperimentalTime` metadata plus TimeSource/TimeMark nominal anchors and fallback dispatch remain compiler/runtime surfaces; public operations are bundled Kotlin source. |
 | `HeaderHelpers+SyntheticFileTreeWalkStubs.swift` | 291 | (a) | JVM file-walk compatibility; cleanup candidate. |
 | `HeaderHelpers+SyntheticFileWalkDirectionStubs.swift` | 113 | (a) | ~~JVM file-walk support enum; cleanup with file-walk surface.~~ **削除済み** (CLEANUP-STUB-109, 2026-08-14)。 |
-| `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | 520 | (a) | `java.nio.file` / files utility surface; target-out cleanup. |
+| `HeaderHelpers+SyntheticFilesUtilityStubs.swift` | ~~520~~ | ~~(a)~~ | ~~`java.nio.file` / files utility surface; target-out cleanup.~~ **削除済み** (CLEANUP-STUB-110, 2026-09-03)。`FileTime` の Path 共有部分は保持。 |
 | `HeaderHelpers+SyntheticFunctionTypeStubs.swift` | 523 | (c) | Function interfaces are compiler-known. |
 | `HeaderHelpers+SyntheticGroupingStubs.swift` | 373 | (b) | M3 grouping/HOF source migration. |
 | `HeaderHelpers+SyntheticHexFormatStubs.swift` | 589 | (b) | MIGRATION-ENC owner; source exists but not fully wired. |
