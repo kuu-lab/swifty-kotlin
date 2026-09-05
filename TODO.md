@@ -5722,7 +5722,7 @@
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.degree` — val Typography.degree: Char  -- `final const val degree`
 
-- [ ] KSP-1448: kotlin.text.Typography.Typography.dollar-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1448: kotlin.text.Typography.Typography.dollar-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `dollar`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/dollar.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -5731,6 +5731,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.Typography.dollar` — val Typography.dollar: Char  -- `final const val dollar`
+  - 完了根拠（2026-09-03、remote master `70313149ecfa4c110d7701c5fc7ee8a30f0d1bb8` で再確認）: KSP-711 の merged PR #6048 / commit `9a39776adff70eb419b7effc3ea21fa0a1baa632` が Typography 全定数を source-backed 化済み。現行 `Sources/CompilerCore/Stdlib/kotlin/text/Typography.kt:19` に `public const val dollar: Char = '$'` があり、`Tests/CompilerCoreTests/Sema/StringSyntheticMemberLinkTests.swift:993-1049` が Typography を non-synthetic source declaration、非 nullable Char、const の char literal U+0024 として検証する。Kotlin 2.3.10 公式 source の `\u0024` および `kotlin.text.Typography.dollar: C` JVM ABI と一致し、対象専用の synthetic/runtime/RuntimeABI 経路はない。focused `CompilerCoreTests.StringSyntheticMemberLinkTests`（4 tests）が PASS のため、追加の `.kt`/Golden/diff/回帰コードは不要。
 
 - [ ] KSP-1449: kotlin.text.Typography.Typography.double-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `double`
