@@ -701,14 +701,15 @@
     - `kotlin.DoubleArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.DoubleArray.<init>` — constructor (Int, Function1)  -- `constructor <init>(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Double>)`
 
-- [ ] KSP-837: kotlin.Enum.Enum の未実装 stdlib API を実装する（6 件）
+- [x] KSP-837: kotlin.Enum.Enum の未実装 stdlib API を実装する（6 件、2026-09-04 完了）
   - 対象: `kotlin.Enum` / receiver `Enum`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum/Enum.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/Enum.kt`（既存 KSP-732 source shell を拡張。`Enum/` 配下の新規ファイルは作成しない）
+  - bridge/stub 整理: `compareTo` は既存 `__kk_comparable_compareTo`、`equals` / `hashCode` / `toString` は既存 Any member bridge を source-backed 宣言へ接続。`name` / `ordinal` の compiler-owned lowering と source-less surface 用 synthetic fallback は保持し、Enum box の class ID を equals に反映。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_Enum_Enum_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_Enum_Enum_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_Enum_Enum_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠: Kotlin 2.3.10 公式 `Enum.kt` の6宣言を source-backed surface として登録。Sema regression は6シンボルの source file / synthetic flag / bridge link を確認し、runtime regression と exact diff は異なる enum class の同 ordinal が equals で一致しないことを確認。
+  - 実装シンボル一覧:
     - `kotlin.Enum.compareTo` — fun Enum.compareTo(): Int  -- `final fun compareTo(#A): kotlin/Int`
     - `kotlin.Enum.equals` — fun Enum.equals(Any): Boolean  -- `final fun equals(kotlin/Any?): kotlin/Boolean`
     - `kotlin.Enum.hashCode` — fun Enum.hashCode(): Int  -- `final fun hashCode(): kotlin/Int`
