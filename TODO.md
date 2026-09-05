@@ -5822,7 +5822,7 @@
     - `kotlin.text.Typography.less` — val Typography.less: Char  -- `final const val less`
     - `kotlin.text.Typography.lessOrEqual` — val Typography.lessOrEqual: Char  -- `final const val lessOrEqual`
 
-- [ ] KSP-1456: kotlin.text.Typography.Typography.low-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1456: kotlin.text.Typography.Typography.low-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text.Typography` / receiver `Typography` / family `low`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/Typography/low.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
