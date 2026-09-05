@@ -149,13 +149,14 @@
 >
 > 2026-08-14 現 HEAD で `SyntheticBase64Stubs` / `SyntheticHexFormatStubs` は存在しないため、Base64/HexFormat 対応タスクは追加しない。
 
-- [ ] KSP-696: Atomic 残存メンバを Kotlin 化し `HeaderHelpers+SyntheticAtomicStubs.swift` を削除する
+- [x] KSP-696: Atomic 残存メンバを Kotlin 化し `HeaderHelpers+SyntheticAtomicStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticAtomicStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicMigration.kt` 追記 or 新設 `kotlin/concurrent/Atomics.kt`
   - 削除/降格 kk_*: `kk_atomic_int_compareAndExchange`, `kk_atomic_long_compareAndExchange` 等の public `kk_atomic_*` ブリッジを `__kk_` へ降格 or 削除。対象は `compareAndExchange`/`getAndUpdate`/`updateAndGet`/`fetchAndUpdate` 系（`RuntimeAtomic.swift`。着手時 `rg -o '@_cdecl\("kk_atomic_[a-zA-Z0-9_]*"\)' Sources/Runtime` / `rg 'kk_atomic_'` 全層で再固定）
   - 手順: T
   - diff: `atomic_*.kt` 既存 + `compareAndExchange`/`getAndUpdate`/`updateAndGet`/`fetchAndUpdate` 単独ケース
   - 前提: KSP-CAP-004, KSP-688
+  - **完了 (2026-08-23)**: `AtomicMigration.kt` に scalar 4型の `compareAndExchange` と lambda 更新系を source-backed wrapper として追加し、`HeaderHelpers+SyntheticAtomicStubs.swift` を削除して残存登録を `HeaderHelpers+SyntheticAtomicResidualRegistry.swift` へ移管。scalar core は `__kk_*` ABIへ降格し、constructor・Java `AtomicInteger`互換・配列/NativePtr/package alias・共有CAS/arithmetic coreは保持。Sema/Backend/KIR/Runtime、`atomic_basic.kt`・`atomic_boolean_reference_cas.kt`・`while_true_cas_loop_return.kt` のdiff、ABIリンク突合を検証済み。
 
 - [ ] KSP-697: `buildList` capacity overload を Kotlin 化し `HeaderHelpers+SyntheticBuilderDSLStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticBuilderDSLStubs.swift`
