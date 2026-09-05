@@ -897,7 +897,9 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         mapInterfaceSymbol: SymbolID,
         keyTypeParamSymbol _: SymbolID,
-        valueTypeParamSymbol _: SymbolID
+        valueTypeParamSymbol _: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let mutableMapName = interner.intern("MutableMap")
         let mutableMapFQName = kotlinCollectionsPkg + [mutableMapName]
@@ -1041,7 +1043,9 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapInterfaceSymbol,
             mutableMapSymbol: mutableMapSymbol,
             keyTypeParamSymbol: mutableKeyParamSymbol,
-            valueTypeParamSymbol: mutableValueParamSymbol
+            valueTypeParamSymbol: mutableValueParamSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
@@ -1103,7 +1107,9 @@ extension DataFlowSemaPhase {
         mapInterfaceSymbol: SymbolID,
         mutableMapSymbol: SymbolID,
         keyTypeParamSymbol: SymbolID,
-        valueTypeParamSymbol: SymbolID
+        valueTypeParamSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> TypeID {
         let mutableEntryName = interner.intern("MutableEntry")
         let mutableMapFQName = kotlinCollectionsPkg + [interner.intern("MutableMap")]
@@ -1184,7 +1190,19 @@ extension DataFlowSemaPhase {
 
         let setValueName = interner.intern("setValue")
         let setValueFQName = mutableEntryFQName + [setValueName]
-        if symbols.lookup(fqName: setValueFQName) == nil {
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: mutableEntryFQName,
+            name: setValueName,
+            arity: 1
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: mutableEntryFQName,
+                name: setValueName,
+                arity: 1,
+                interner: interner
+            )
+        } else if symbols.lookup(fqName: setValueFQName) == nil {
             let setValueSymbol = symbols.define(
                 kind: .function,
                 name: setValueName,
