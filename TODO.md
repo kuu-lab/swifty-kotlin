@@ -4383,13 +4383,15 @@
     - `kotlin.reflect.findAssociatedObject` — fun KClass.findAssociatedObject(): Any  -- `final inline fun <#A: reified kotlin/Annotation> (kotlin.reflect/KClass<*>).kotlin.reflect/findAssociatedObject(): kotlin/Any?`
     - `kotlin.reflect.safeCast` — fun KClass.safeCast(Any): #A  -- `final fun <#A: kotlin/Any> (kotlin.reflect/KClass<#A>).kotlin.reflect/safeCast(kotlin/Any?): #A?`
 
-- [ ] KSP-1327: kotlin.reflect.KCallable.KCallable の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1327: kotlin.reflect.KCallable.KCallable の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.reflect.KCallable` / receiver `KCallable`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/reflect/KCallable/KCallable.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_reflect_KCallable_KCallable_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `KCallable.kt` を source-backed declaration として追加し、`name: String` と Native 契約の `returnType: KType` を定義。KFunction/KProperty 継承と safe-call を含む Sema/KIR routing を shared `__kk_kcallable_get_return_type` に接続し、runtime reflection box と callable reference metadata を実体の `RuntimeKTypeBox` に変換した。
+  - 回帰: `ReflectKCallableTests`、`stdlib_kotlin_reflect_KCallable_KCallable_n` の Sema Golden/diff、`RuntimeReflectionTypeMetadataTests`、既存 `CallableRefTypeIdentityTests`、Runtime ABI link validation を通過。
   - 未実装シンボル一覧:
     - `kotlin.reflect.KCallable.name` — val KCallable.name: String  -- `abstract val name`
     - `kotlin.reflect.KCallable.returnType` — val KCallable.returnType: KType  -- `abstract val returnType`
