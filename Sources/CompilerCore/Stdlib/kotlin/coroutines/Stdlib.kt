@@ -23,9 +23,9 @@ public interface CoroutineContext
 
 public interface SuspendFunction<out R>
 
-@SinceKotlin("1.3")
-public abstract class AbstractCoroutineContextElement : Element
+// AbstractCoroutineContextElement already lives in
+// AbstractCoroutineContextElement/Stdlib.kt (KSP-1136); redeclaring it here
+// collides in the same package scope.
 
-@SinceKotlin("1.3")
-@ExperimentalStdlibApi
-public abstract class AbstractCoroutineContextKey<B : Element, E : B> : Key<E>
+// AbstractCoroutineContextKey already lives in AbstractCoroutineContextKey/Stdlib.kt
+// (KSP-1138); redeclaring it here collides in the same package scope.
