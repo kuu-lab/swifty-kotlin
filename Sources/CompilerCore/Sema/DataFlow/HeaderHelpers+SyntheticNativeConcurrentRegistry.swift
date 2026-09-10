@@ -177,9 +177,10 @@ extension DataFlowSemaPhase {
         types: TypeSystem,
         interner: StringInterner
     ) {
+        // AtomicLong is intentionally excluded: it is already source-backed
+        // by KSP-1222 (Stdlib/kotlin/native/concurrent/AtomicLong/Stdlib.kt).
         for (name, replacement) in [
             ("AtomicInt", "kotlin.concurrent.atomics.AtomicInt"),
-            ("AtomicLong", "kotlin.concurrent.atomics.AtomicLong"),
             ("AtomicNativePtr", "kotlin.concurrent.atomics.AtomicNativePtr"),
         ] {
             registerNativeConcurrentNominalAnchor(
@@ -198,23 +199,24 @@ extension DataFlowSemaPhase {
             )
         }
 
-        for name in ["AtomicReference", "FreezableAtomicReference"] {
-            registerNativeConcurrentNominalAnchor(
-                named: name,
-                packageFQName: packageFQName,
-                pkgSymbol: pkgSymbol,
-                typeParameter: (name: "T", variance: .invariant, upperBound: types.nullableAnyType),
-                annotations: [
-                    nativeConcurrentDeprecatedErrorAnnotation(
-                        message: "Use kotlin.concurrent.atomics.AtomicReference instead.",
-                        replaceWith: "kotlin.concurrent.atomics.AtomicReference"
-                    ),
-                ],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
+        // FreezableAtomicReference is intentionally excluded: it is already
+        // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
+        // FreezableAtomicReference/Stdlib.kt).
+        registerNativeConcurrentNominalAnchor(
+            named: "AtomicReference",
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            typeParameter: (name: "T", variance: .invariant, upperBound: types.nullableAnyType),
+            annotations: [
+                nativeConcurrentDeprecatedErrorAnnotation(
+                    message: "Use kotlin.concurrent.atomics.AtomicReference instead.",
+                    replaceWith: "kotlin.concurrent.atomics.AtomicReference"
+                ),
+            ],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         registerNativeConcurrentNominalAnchor(
             named: "DetachedObjectGraph",

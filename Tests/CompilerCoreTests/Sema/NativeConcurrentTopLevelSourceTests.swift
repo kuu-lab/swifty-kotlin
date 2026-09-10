@@ -37,8 +37,10 @@ struct NativeConcurrentTopLevelSourceTests {
         let package = ["kotlin", "native", "concurrent"]
         // FreezableAtomicReference is already source-backed by KSP-1236
         // (its constructor ships in Stdlib/kotlin/native/concurrent/
-        // FreezableAtomicReference/Stdlib.kt), so it is intentionally absent
-        // from this synthetic-anchor inventory.
+        // FreezableAtomicReference/Stdlib.kt) and AtomicLong is already
+        // source-backed by KSP-1222 (Stdlib/kotlin/native/concurrent/
+        // AtomicLong/Stdlib.kt), so both are intentionally absent from this
+        // synthetic-anchor inventory.
         let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
             "AtomicReference": (.invariant, sema.types.nullableAnyType),
             "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
@@ -46,7 +48,7 @@ struct NativeConcurrentTopLevelSourceTests {
         ]
 
         for name in [
-            "AtomicInt", "AtomicLong", "AtomicNativePtr", "AtomicReference",
+            "AtomicInt", "AtomicNativePtr", "AtomicReference",
             "DetachedObjectGraph", "MutableData", "WorkerBoundReference",
         ] {
             let path = package + [name]
@@ -83,6 +85,15 @@ struct NativeConcurrentTopLevelSourceTests {
         #expect(freezableInfo.kind == .class)
         #expect(!freezableInfo.flags.contains(.synthetic))
         #expect(sema.symbols.sourceFileID(for: freezableSymbol) != nil)
+
+        // AtomicLong is already source-backed (KSP-1222) with a default-valued
+        // constructor; it is intentionally not a synthetic anchor.
+        let atomicLongPath = package + ["AtomicLong"]
+        let atomicLongSymbol = try symbol(atomicLongPath, in: context)
+        let atomicLongInfo = try #require(sema.symbols.symbol(atomicLongSymbol))
+        #expect(atomicLongInfo.kind == .class)
+        #expect(!atomicLongInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: atomicLongSymbol) != nil)
     }
 
     @Test
