@@ -32,14 +32,20 @@ extension BuildKIRRegressionTests {
 
     @Test
     func erasedEqualityRegistersUserEqualsOverride() throws {
+        // Regression note (BUG-242): this fixture must not be named `Key` (or
+        // `Element`) — those simple names collide with imported nested stdlib
+        // types (e.g. `kotlin.coroutines.CoroutineContext.Key`) and trip a
+        // separate, pre-existing Sema bug where a bundled stdlib file's
+        // supertype reference resolves to this test's top-level class instead
+        // of its own file-scoped import. See TODO.md BUG-242.
         let source = """
-        class Key(val id: Int, val ignored: Int) {
-            override fun equals(other: Any?): Boolean = other is Key && id == other.id
+        class ErasedEqKey(val id: Int, val ignored: Int) {
+            override fun equals(other: Any?): Boolean = other is ErasedEqKey && id == other.id
             override fun hashCode(): Int = id
         }
 
         fun <T> same(lhs: T, rhs: T): Boolean = lhs == rhs
-        fun compareKeys(): Boolean = same(Key(7, 1), Key(7, 2))
+        fun compareKeys(): Boolean = same(ErasedEqKey(7, 1), ErasedEqKey(7, 2))
         """
 
         try withTemporaryFile(contents: source) { path in
