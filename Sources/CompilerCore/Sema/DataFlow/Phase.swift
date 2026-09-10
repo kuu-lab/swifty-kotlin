@@ -50,6 +50,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1520: `Comparator.kt` is source-backed, but comparator-typed
+        // synthetic signatures are registered before the normal bundled header
+        // collection pass. Predeclare its nominal so those signatures resolve
+        // without a synthetic Comparator anchor.
+        predeclareBundledComparatorHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
         // extension bridges need the source symbol before synthetic
         // registration constructs their signatures.
@@ -75,6 +84,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
         predeclareBundledMemoryUsageHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-1198: Platform.cpuArchitecture is typed against the
+        // source-backed CpuArchitecture enum before native platform stubs run.
+        predeclareBundledCpuArchitectureHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -107,6 +123,11 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        predeclareBundledGCInfoHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
 
         if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
@@ -135,15 +156,16 @@ final class DataFlowSemaPhase: CompilerPhase {
             bundledIndex: bundledIndex
         )
 
-        // Synthetic nominal anchors (e.g. kotlin.Comparator) register methods after
-        // library import. Apply imported class/interface layouts only after those
-        // synthetic methods exist, so vtable/itable slots can resolve.
+        // Apply imported class/interface layouts after synthetic bootstrap
+        // registration and before bundled source headers are collected, so
+        // imported vtable/itable slots can resolve against final symbols.
         applyImportedLibraryDeferredWork(
             importDeferredWork,
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
         )
         normalizeImportedLibraryMemberSignatures(
             importDeferredWork,
@@ -170,6 +192,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             predeclared: predeclaredEarlyHeaders
         )
         BundledSyntheticStubRegistration.bundledIndex = previousBundledIndex
+        // KSP-1332: the source declaration spells this as List<KTypeProjection>,
+        // while the compiler's residual List model represents covariant uses
+        // with an explicit out projection. Reapply that existing KType contract
+        // after source collection has claimed the old synthetic anchor.
+        patchKTypeArgumentsType(
+            symbols: symbols,
+            types: types,
+            interner: ctx.interner
+        )
         initializeSourceBackedCloseableTypes(
             symbols: symbols,
             types: types,
@@ -379,25 +410,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         // explicit supertype clause and would otherwise erase the synthetic
         // supertype installed by registerSyntheticAnyStub.
         patchBundledAnnotationSupertype(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-        // BUG-166: StringBuilder's Appendable/CharSequence conformance is
-        // synthetic (not written in the bundled Kotlin source's `class
-        // StringBuilder { ... }` declaration), so bindInheritanceEdges above —
-        // which recomputes every nominal's directSupertypes from its AST
-        // super-type clause and defaults to just `Any` when that clause is
-        // empty — unconditionally overwrites whatever this patch had set
-        // if it ran any earlier (e.g. before this function, as a prior
-        // version of this fix did). That left `val x: Appendable =
-        // StringBuilder()` unable to satisfy the assignment's subtype
-        // constraint (KSWIFTK-TYPE-0001) despite Appendable's own itable
-        // layout being otherwise correct. Patching here, immediately after
-        // bindInheritanceEdges and before every other validation pass and
-        // synthesizeNominalLayouts below, ensures both the constraint solver
-        // and itable slot synthesis see the complete supertype list.
-        patchSourceBackedStringBuilderSupertypes(
             symbols: symbols,
             types: types,
             interner: ctx.interner
