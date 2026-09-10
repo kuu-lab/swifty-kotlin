@@ -270,7 +270,8 @@ struct BuildKIRCodegenRegressionTests {
             let familyBody = try findKIRFunctionBody(named: "receiverFamilies", in: module, interner: ctx.interner)
             let familyCallees = extractCallees(from: familyBody, interner: ctx.interner)
             #expect(familyCallees.contains("kk_list_forEach"))
-            #expect(familyCallees.contains("kk_sequence_forEach"))
+            // No kk_sequence_forEach intrinsic exists; Sequence.forEach is bundled Kotlin source (see CodegenBackendSequenceForEachTests).
+            #expect(!(familyCallees.contains("kk_sequence_forEach")))
             #expect(containsKotlinCallee("forEach", in: familyCallees))
             #expect(containsKotlinCallee("forEachIndexed", in: familyCallees))
             #expect(!(familyCallees.contains("kk_list_forEachIndexed")))
