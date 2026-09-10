@@ -20,7 +20,6 @@ symbol fq=golden.sema.stringPadStart.$5.length[kind=vparam] kind=valueParameter 
 symbol fq=golden.sema.stringPadStart.$5.padChar[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.stringPadStart.$5.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.stringPadStart[kind=fun;params=String,Int,Char] kind=function vis=public flags=_ sig=recv=_ params=[String,Int,Char] ret=String
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_CharSequence_pad package=golden.sema
   decl golden.sema.charSequencePadStart[kind=fun;params=kotlin.CharSequence,Int,Char] fun charSequencePadStart sym=golden.sema.charSequencePadStart[kind=fun;params=kotlin.CharSequence,Int,Char]
   decl golden.sema.charSequencePadStartDefault[kind=fun;params=kotlin.CharSequence,Int] fun charSequencePadStartDefault sym=golden.sema.charSequencePadStartDefault[kind=fun;params=kotlin.CharSequence,Int]
