@@ -42,6 +42,7 @@ struct MetadataState {
     var dataClassIDs: Set<Int64> = []
     var objectVtableMethods: [UInt: [Int: Int]] = [:]
     var objectEqualsOverrides: [UInt: Int] = [:]
+    var objectAnyToStringMethods: [UInt: Int] = [:]
     var objectItableMethods: [UInt: [UInt64: Int]] = [:]
     var objectInterfaceSlots: [UInt: [Int64: Int]] = [:]
 }
@@ -339,6 +340,7 @@ func kk_runtime_reset_metadata() {
         state.dataClassIDs.removeAll(keepingCapacity: false)
         state.objectVtableMethods.removeAll(keepingCapacity: false)
         state.objectEqualsOverrides.removeAll(keepingCapacity: false)
+        state.objectAnyToStringMethods.removeAll(keepingCapacity: false)
         state.objectItableMethods.removeAll(keepingCapacity: false)
         state.objectInterfaceSlots.removeAll(keepingCapacity: false)
         return boxes
@@ -354,6 +356,7 @@ private func removeRuntimeObjectMetadata(forObjectKey key: UInt) {
         state.objectTypeByPointer.removeValue(forKey: key)
         state.objectVtableMethods.removeValue(forKey: key)
         state.objectEqualsOverrides.removeValue(forKey: key)
+        state.objectAnyToStringMethods.removeValue(forKey: key)
         state.objectItableMethods.removeValue(forKey: key)
         state.objectInterfaceSlots.removeValue(forKey: key)
     }
