@@ -29,9 +29,6 @@ symbol fq=__local_27.explicitMinValue[kind=local] kind=local vis=private flags=_
 symbol fq=__local_28.explicitSizeBits[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=__local_29.explicitSizeBytes[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=golden.sema.main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
-symbol fq=kotlin.Char.Companion[kind=obj] kind=object vis=public flags=synthetic|static
-symbol fq=kotlin.Char[kind=class] kind=class vis=public flags=synthetic
-symbol fq=kotlin.text.code[kind=fun;recv=Char;params=] kind=function vis=public flags=synthetic sig=recv=Char params=[] ret=Int
 file fstdlib_kotlin_Char_Companion_Companion_n package=golden.sema
   decl golden.sema.main[kind=fun;params=] fun main sym=golden.sema.main[kind=fun;params=]
 expr e@4:35 name(Char) type=kotlin.Char.Companion ref=kotlin.Char[kind=class]
