@@ -8,7 +8,7 @@
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
-///   - `Future<T>` value class with `result`, `consume`, `getState` members and the `FutureState` anchor
+///   - `Future<T>` value-class anchor and the residual `Future(Int)` constructor
 ///   - `@ObsoleteWorkersApi` marker annotation
 ///   - `TransferMode` nominal anchor for the early `Worker.execute` registration
 ///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
@@ -53,7 +53,7 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
         // FutureState is source-backed. Keep only its early nominal anchor here
-        // because Future.getState is registered before bundled headers are collected.
+        // because Worker/Future registration runs before bundled headers are collected.
         let futureStateSymbol = ensureNativeConcurrentEnum(
             named: "FutureState",
             entries: [],
@@ -153,7 +153,6 @@ extension DataFlowSemaPhase {
             registerNativeConcurrentFuture(
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
-                futureStateType: futureStateType,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -1272,7 +1271,7 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Future<T> value class with result, consume, getState members.
+/// Residual synthetic support for the source-backed `Future<T>` value class.
 ///
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
@@ -1282,7 +1281,6 @@ extension DataFlowSemaPhase {
     func registerNativeConcurrentFuture(
         packageFQName: [InternedString],
         pkgSymbol: SymbolID?,
-        futureStateType: TypeID,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -1355,44 +1353,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Future.result: T
-        registerNativeConcurrentReadOnlyProperty(
-            ownerSymbol: futureSymbol,
-            name: "result",
-            propertyType: typeParamType,
-            getterLinkName: "kk_future_result",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Future.consume(): T
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: futureSymbol,
-            ownerType: futureType,
-            name: "consume",
-            externalLinkName: "kk_future_consume",
-            returnType: typeParamType,
-            parameters: [],
-            defaultValues: [],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // Future.getState(): FutureState
-        registerNativeConcurrentMemberFunction(
-            ownerSymbol: futureSymbol,
-            ownerType: futureType,
-            name: "getState",
-            externalLinkName: "kk_future_getState",
-            returnType: futureStateType,
-            parameters: [],
-            defaultValues: [],
-            typeParameterSymbols: [typeParamSymbol],
-            classTypeParameterCount: 1,
-            symbols: symbols,
-            interner: interner
-        )
+        // The public Future members are implemented by the bundled Kotlin
+        // source in Future/Future.kt. Keep only the constructor above: it is
+        // the residual handle-wrapping surface established by KSP-1239.
     }
 }
