@@ -10,12 +10,6 @@ symbol fq=golden.sema.mapSize.$4.values[kind=vparam] kind=valueParameter vis=pri
 symbol fq=golden.sema.mapSize[kind=fun;params=kotlin.collections.Map<String,Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=Int
 symbol fq=golden.sema.mapValues.$5.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.mapValues[kind=fun;params=kotlin.collections.Map<String,Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Map<String, Int>] ret=kotlin.collections.Collection<Int>
-symbol fq=kotlin.collections.Collection[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.Map.Entry[kind=iface;gen=2] kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.Map.K[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Map.V[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.Map[kind=iface;gen=2] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.Set[kind=iface;gen=1] kind=interface vis=public flags=_
 file fstdlib_kotlin_collections_Map_Map_n package=golden.sema
   decl golden.sema.mapSize[kind=fun;params=kotlin.collections.Map<String,Int>] fun mapSize sym=golden.sema.mapSize[kind=fun;params=kotlin.collections.Map<String,Int>]
   decl golden.sema.mapKeys[kind=fun;params=kotlin.collections.Map<String,Int>] fun mapKeys sym=golden.sema.mapKeys[kind=fun;params=kotlin.collections.Map<String,Int>]
