@@ -9,7 +9,8 @@ import Foundation
 //   ABI-001  Worker.id              — kk_worker_id
 //   ABI-002  Future<T>              — kk_future_new / kk_future_complete /
 //                                     kk_future_result / kk_future_consume /
-//                                     kk_future_is_ready
+//                                     kk_future_is_ready / kk_future_getState /
+//                                     kk_future_invoke
 //   ABI-003  TransferMode           — kk_transfer_object  (SAFE freezes; UNSAFE is pass-through)
 //   ABI-004  FreezableAtomicReference<T> — kk_freezable_atomic_ref_create / _load / _store / _is_frozen
 //   ABI-005  Worker.executeAfter    — kk_worker_execute_after
@@ -129,6 +130,13 @@ final class RuntimeFutureBox: @unchecked Sendable {
         return _ready
     }
 
+    var stateRaw: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if _consumed { return 0 } // FutureState.INVALID
+        return _ready ? 2 : 1 // FutureState.COMPUTED : FutureState.SCHEDULED
+    }
+
     /// Non-consuming read.  Blocks until a value is available.
     func result() -> Int {
         blockUntilReady()
@@ -178,6 +186,33 @@ public func kk_future_is_ready(_ futureHandle: Int) -> Int {
         return 0
     }
     return box.isReady ? 1 : 0
+}
+
+/// Returns the FutureState ordinal for a valid runtime Future handle.
+@_cdecl("kk_future_getState")
+public func kk_future_getState(_ futureHandle: Int) -> Int {
+    guard let ptr = UnsafeMutableRawPointer(bitPattern: futureHandle),
+          let box = tryCast(ptr, to: RuntimeFutureBox.self)
+    else {
+        return 0 // FutureState.INVALID
+    }
+    return box.stateRaw
+}
+
+/// Invoke a Future.consume callback through the function-value ABI.
+@_cdecl("kk_future_invoke")
+public func kk_future_invoke(
+    _ fnPtr: Int,
+    _ closureRaw: Int,
+    _ valueRaw: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    runtimeInvokeCollectionLambda1(
+        fnPtr: fnPtr,
+        closureRaw: closureRaw,
+        value: valueRaw,
+        outThrown: outThrown
+    )
 }
 
 /// Blocking, non-consuming read of the resolved value.
