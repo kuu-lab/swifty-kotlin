@@ -1047,9 +1047,9 @@ public fun <T : Any> List<T?>.requireNoNulls(): List<T> {
     return this as List<T>
 }
 
-// Shared by Iterable.joinTo/joinToString (below) and Sequence.joinTo/joinToString
-// (SequenceAggregateHOF.kt, kotlin.sequences) — both only need iterator(), so a
-// single implementation keyed on Iterator<T> covers both receiver types (KSP-621).
+// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
+// kotlin.sequences). The legacy Sequence surface only needs iterator(), so a
+// single implementation keyed on Iterator<T> covers its receiver type (KSP-621).
 internal fun <T> appendJoinToPlain(
     iterator: Iterator<T>,
     buffer: StringBuilder,
