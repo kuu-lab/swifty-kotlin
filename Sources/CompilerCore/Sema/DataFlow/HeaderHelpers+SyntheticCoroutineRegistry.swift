@@ -659,7 +659,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        // Preserve the declaration-site `in` variance once Continuation has
+        // been reused from bundled Kotlin source. The synthetic fallback
+        // remains invariant when no source declaration is available.
+        if !symbols.isSourceBackedSymbol(continuationSymbol) {
+            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        }
 
         // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
         // `collect` and `collectLatest` as synthetic source-visible members so
@@ -721,7 +726,12 @@ extension DataFlowSemaPhase {
 
         let suspendIntrinsicName = interner.intern("suspendCoroutineUninterceptedOrReturn")
         let suspendIntrinsicFQName = kotlinCoroutinesIntrinsicsPkg + [suspendIntrinsicName]
-        if symbols.lookup(fqName: suspendIntrinsicFQName) == nil {
+        let hasBundledSuspendIntrinsic = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesIntrinsicsPkg,
+            name: suspendIntrinsicName,
+            arity: 1
+        )
+        if !hasBundledSuspendIntrinsic, symbols.lookup(fqName: suspendIntrinsicFQName) == nil {
             let suspendIntrinsicSymbol = symbols.define(
                 kind: .function,
                 name: suspendIntrinsicName,
@@ -1381,7 +1391,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextElementSymbol)
         let coroutineContextElementType = types.make(.classType(ClassType(
@@ -1434,7 +1444,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamName = interner.intern("E")
@@ -1447,6 +1457,8 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(coroutineContextKeySymbol, for: coroutineContextKeyTypeParamSymbol)
+        types.setNominalTypeParameterSymbols([coroutineContextKeyTypeParamSymbol], for: coroutineContextKeySymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: coroutineContextKeyTypeParamSymbol,
             nullability: .nonNull
@@ -1889,17 +1901,25 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerSyntheticCoroutineTopLevelProperty(
-            named: "COROUTINE_SUSPENDED",
-            packageFQName: kotlinCoroutinesIntrinsicsPkg,
-            returnType: coroutineSuspendedType,
-            externalLinkName: "kk_coroutine_suspended",
-            symbols: symbols,
-            interner: interner
+        let coroutineSuspendedName = interner.intern("COROUTINE_SUSPENDED")
+        let hasBundledCoroutineSuspended = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: kotlinCoroutinesIntrinsicsPkg,
+            name: coroutineSuspendedName,
+            arity: 0
         )
+        if !hasBundledCoroutineSuspended {
+            registerSyntheticCoroutineTopLevelProperty(
+                named: "COROUTINE_SUSPENDED",
+                packageFQName: kotlinCoroutinesIntrinsicsPkg,
+                returnType: coroutineSuspendedType,
+                externalLinkName: "kk_coroutine_suspended",
+                symbols: symbols,
+                interner: interner
+            )
+        }
         let suspendCoroutineName = interner.intern("suspendCoroutineUninterceptedOrReturn")
         let suspendCoroutineFQName = kotlinCoroutinesIntrinsicsPkg + [suspendCoroutineName]
-        if symbols.lookup(fqName: suspendCoroutineFQName) == nil {
+        if !hasBundledSuspendIntrinsic, symbols.lookup(fqName: suspendCoroutineFQName) == nil {
             let suspendCoroutineTypeParamName = interner.intern("T")
             let suspendCoroutineTypeParamFQName = suspendCoroutineFQName + [suspendCoroutineTypeParamName]
             let suspendCoroutineTypeParamSymbol = symbols.define(
@@ -3061,14 +3081,22 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerSyntheticCoroutineTopLevelProperty(
-            named: "COROUTINE_SUSPENDED",
-            packageFQName: intrinsicsPkg,
-            returnType: types.nullableAnyType,
-            externalLinkName: "kk_coroutine_suspended",
-            symbols: symbols,
-            interner: interner
+        let coroutineSuspendedName = interner.intern("COROUTINE_SUSPENDED")
+        let hasBundledCoroutineSuspended = BundledSyntheticStubRegistration.bundledIndex.contains(
+            ownerFQName: intrinsicsPkg,
+            name: coroutineSuspendedName,
+            arity: 0
         )
+        if !hasBundledCoroutineSuspended {
+            registerSyntheticCoroutineTopLevelProperty(
+                named: "COROUTINE_SUSPENDED",
+                packageFQName: intrinsicsPkg,
+                returnType: types.nullableAnyType,
+                externalLinkName: "kk_coroutine_suspended",
+                symbols: symbols,
+                interner: interner
+            )
+        }
     }
 
     func attachRestrictsSuspensionAnnotationMetadata(

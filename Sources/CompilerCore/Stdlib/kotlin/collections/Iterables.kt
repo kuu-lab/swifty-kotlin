@@ -1,3 +1,10 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
+ *
+ * Derived from kotlin-stdlib libraries/stdlib/src/kotlin/collections/Iterables.kt.
+ */
+
 package kotlin.collections
 
 import kotlin.comparisons.compareValues
@@ -19,6 +26,16 @@ private external fun kk_unbox_double(value: Double): Double
 
 // KSP-963: Kotlin's Iterable.asIterable() is an identity conversion.
 public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this
+
+// KSP-966: Published helpers expose a Collection's known size without
+// traversing a general Iterable.
+@PublishedApi
+internal fun <T> Iterable<T>.collectionSizeOrNull(): Int? =
+    if (this is Collection<*>) (this as Collection<*>).size else null
+
+@PublishedApi
+internal fun <T> Iterable<T>.collectionSizeOrDefault(default: Int): Int =
+    if (this is Collection<*>) (this as Collection<*>).size else default
 
 public fun <T> Iterable<T>.toList(): List<T> {
     val result = mutableListOf<T>()
@@ -200,6 +217,84 @@ public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
         for (nestedElement in element) result.add(nestedElement)
     }
     return result
+}
+
+// KSP-978: Keep Iterable group-family operations on the iterator-backed
+// source path so custom and one-shot Iterables preserve encounter order.
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K> Iterable<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
+    val result = mutableMapOf<K, MutableList<T>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<T>()
+            bucket.add(element)
+            result[key] = bucket
+        } else {
+            existing.add(element)
+        }
+    }
+    return result as Map<K, List<T>>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Iterable<T>.groupBy(
+    keySelector: (T) -> K,
+    valueTransform: (T) -> V
+): Map<K, List<V>> {
+    val result = mutableMapOf<K, MutableList<V>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            bucket.add(valueTransform(element))
+            result[key] = bucket
+        } else {
+            existing.add(valueTransform(element))
+        }
+    }
+    return result as Map<K, List<V>>
+}
+
+@IgnorableReturnValue
+public inline fun <T, K, M : MutableMap<in K, MutableList<T>>> Iterable<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K
+): M {
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<T>()
+            bucket.add(element)
+            destination[key] = bucket
+        } else {
+            existing.add(element)
+        }
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, MutableList<V>>> Iterable<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K,
+    valueTransform: (T) -> V
+): M {
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            bucket.add(valueTransform(element))
+            destination[key] = bucket
+        } else {
+            existing.add(valueTransform(element))
+        }
+    }
+    return destination
 }
 
 // KSP-974: Iterable flat-map transformations are source-backed. Keep the
@@ -916,6 +1011,21 @@ public fun <T> Iterable<T>.all(predicate: (T) -> Boolean): Boolean {
     return true
 }
 
+// KSP-986: Preserve the Collection fast path while keeping arbitrary
+// Iterable implementations on the iterator-backed source path.
+public fun <T> Iterable<T>.none(): Boolean {
+    if (this is Collection<*>) return (this as Collection<*>).isEmpty()
+    return !iterator().hasNext()
+}
+
+public inline fun <T> Iterable<T>.none(predicate: (T) -> Boolean): Boolean {
+    if (this is Collection<*> && (this as Collection<*>).isEmpty()) return true
+    for (element in this) {
+        if (predicate(element)) return false
+    }
+    return true
+}
+
 public fun <T> Iterable<T>.count(): Int {
     if (this is Collection<*>) return (this as Collection<*>).size
 
@@ -1003,9 +1113,21 @@ public fun <T : Any> Iterable<T?>.requireNoNulls(): Iterable<T> {
     return this as Iterable<T>
 }
 
-// Shared by Iterable.joinTo/joinToString (below) and Sequence.joinTo/joinToString
-// (SequenceAggregateHOF.kt, kotlin.sequences) — both only need iterator(), so a
-// single implementation keyed on Iterator<T> covers both receiver types (KSP-621).
+// Kotlin 2.3.10 exposes a List-specific overload so the narrowed return type
+// is preserved for statically typed List receivers.
+@Suppress("UNCHECKED_CAST")
+public fun <T : Any> List<T?>.requireNoNulls(): List<T> {
+    for (element in this) {
+        if (element == null) {
+            throw IllegalArgumentException("null element found in $this.")
+        }
+    }
+    return this as List<T>
+}
+
+// Shared by Sequence.joinTo/joinToString (SequenceAggregateHOF.kt,
+// kotlin.sequences). The legacy Sequence surface only needs iterator(), so a
+// single implementation keyed on Iterator<T> covers its receiver type (KSP-621).
 internal fun <T> appendJoinToPlain(
     iterator: Iterator<T>,
     buffer: StringBuilder,
@@ -1067,76 +1189,109 @@ internal fun <T> appendJoinToTransform(
     return buffer
 }
 
-public fun <T> Iterable<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
-): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, -1, "...")
-
-public fun <T> Iterable<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
+// Kotlin 2.3.10 models joinTo's transform as a nullable function with a null
+// default. The current compiler cannot lower nullable function-typed
+// parameters, so the source-backed surface keeps the no-transform and
+// non-null-transform paths as separate overloads while preserving the same
+// defaults and behavior.
+internal fun <T, A : Appendable> appendJoinToAppendablePlain(
+    iterator: Iterator<T>,
+    buffer: A,
+    separator: CharSequence,
+    prefix: CharSequence,
+    postfix: CharSequence,
     limit: Int,
-    truncated: String
-): StringBuilder = appendJoinToPlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
-
-public fun <T> Iterable<T>.joinTo(
-    buffer: StringBuilder,
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): StringBuilder = appendJoinToTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
-
-public fun <T> Iterable<T>.joinToString(
-    separator: String = ", ",
-    prefix: String = "",
-    postfix: String = ""
-): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...").toString()
-
-public fun <T> Iterable<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    limit: Int,
-    truncated: String
-): String = appendJoinToPlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
-
-// The `transform` overloads are spelled per arity because a trailing lambda
-// cannot be bound to the defaulted `String` parameters above.
-public fun <T> Iterable<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
-    transform: (T) -> Any
-): String {
-    return appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, -1, "...", transform).toString()
+    truncated: CharSequence
+): A {
+    buffer.append(prefix.toString())
+    var count = 0
+    var hasMore = false
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator.toString())
+        buffer.append(element.toString())
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator.toString())
+        buffer.append(truncated.toString())
+    }
+    buffer.append(postfix.toString())
+    return buffer
 }
 
-public fun <T> Iterable<T>.joinToString(
-    separator: String,
-    prefix: String,
-    transform: (T) -> Any
-): String = joinToString(separator, prefix, "", transform)
-
-public fun <T> Iterable<T>.joinToString(
-    separator: String,
-    transform: (T) -> Any
-): String = joinToString(separator, "", "", transform)
-
-public fun <T> Iterable<T>.joinToString(
-    separator: String,
-    prefix: String,
-    postfix: String,
+internal fun <T, A : Appendable> appendJoinToAppendableTransform(
+    iterator: Iterator<T>,
+    buffer: A,
+    separator: CharSequence,
+    prefix: CharSequence,
+    postfix: CharSequence,
     limit: Int,
-    truncated: String,
-    transform: (T) -> Any
-): String = appendJoinToTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
+    truncated: CharSequence,
+    transform: (T) -> CharSequence
+): A {
+    buffer.append(prefix.toString())
+    var count = 0
+    var hasMore = false
+    while (iterator.hasNext()) {
+        val element = iterator.next()
+        if (limit >= 0 && count >= limit) {
+            hasMore = true
+            break
+        }
+        if (count > 0) buffer.append(separator.toString())
+        buffer.append(transform(element).toString())
+        count++
+    }
+    if (hasMore) {
+        if (count > 0) buffer.append(separator.toString())
+        buffer.append(truncated.toString())
+    }
+    buffer.append(postfix.toString())
+    return buffer
+}
+
+@IgnorableReturnValue
+public fun <T, A : Appendable> Iterable<T>.joinTo(
+    buffer: A,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): A = appendJoinToAppendablePlain(this.iterator(), buffer, separator, prefix, postfix, limit, truncated)
+
+@IgnorableReturnValue
+public fun <T, A : Appendable> Iterable<T>.joinTo(
+    buffer: A,
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
+    transform: (T) -> CharSequence
+): A = appendJoinToAppendableTransform(this.iterator(), buffer, separator, prefix, postfix, limit, truncated, transform)
+
+public fun <T> Iterable<T>.joinToString(
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "..."
+): String = appendJoinToAppendablePlain(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated).toString()
+
+public fun <T> Iterable<T>.joinToString(
+    separator: CharSequence = ", ",
+    prefix: CharSequence = "",
+    postfix: CharSequence = "",
+    limit: Int = -1,
+    truncated: CharSequence = "...",
+    transform: (T) -> CharSequence
+): String = appendJoinToAppendableTransform(this.iterator(), StringBuilder(), separator, prefix, postfix, limit, truncated, transform).toString()
 
 // KSP-632: remaining Iterable HOFs migrated from the Swift runtime `kk_list_*`
 // bridges. These implementations rely only on `iterator()` / `toMutableList()`,
@@ -1267,10 +1422,6 @@ public fun <T> Iterable<T>.sortedWith(comparator: Comparator<in T>): List<T> {
     }
     return result
 }
-
-public fun <T> Iterable<T>.joinToString(
-    transform: (T) -> Any
-): String = appendJoinToTransform(this.iterator(), StringBuilder(), ", ", "", "", -1, "...", transform).toString()
 
 // Char.toString() is represented by its numeric code in the generic path;
 // keep the List<Char> overload aligned with Kotlin's character rendering.
