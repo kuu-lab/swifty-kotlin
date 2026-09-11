@@ -944,8 +944,15 @@ extension DataFlowSemaPhase {
         let valueType = types.make(.typeParam(TypeParamType(symbol: mutableValueParamSymbol, nullability: .nonNull)))
         types.setNominalTypeParameterSymbols([mutableKeyParamSymbol, mutableValueParamSymbol], for: mutableMapSymbol)
         types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableMapSymbol)
-        symbols.setSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+        // Map's own K is invariant (only V is `out`), so the MutableMap -> Map
+        // supertype edge must project K as invariant too. Projecting it `.out`
+        // made `isProjectionSubtype` reject any Map<K, V> view of a MutableMap
+        // (composedProjection passes an invariant declaration's use-site
+        // projection through unchanged, so `.out(K)` never satisfies an
+        // `.invariant(K)` target) -- masked everywhere else because existing
+        // MutableMap-to-Map widenings route through AbstractMap instead.
+        symbols.setSupertypeTypeArgs([.invariant(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.invariant(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
 
         // The source-backed AbstractMutableMap declaration names the official
         // nested MutableMap.MutableEntry type. Keep this nominal entry shell in
