@@ -17,10 +17,7 @@ extension CallLowerer {
     ///
     /// `super`-qualified access is always excluded — `super.p` must keep
     /// reading/writing the syntactically-named class's own implementation,
-    /// never the runtime type's override (BUG-228 tracks that `super.p`
-    /// already resolves to the wrong symbol upstream in Sema; this guard
-    /// keeps that pre-existing bug from becoming a *worse*, dynamically wrong
-    /// one once accessors are virtually dispatched).
+    /// never the runtime type's override (BUG-228).
     func tryResolvePropertyAccessorVirtualDispatch(
         propertySymbol: SymbolID,
         receiverExpr: ExprID,
@@ -309,7 +306,17 @@ extension CallLowerer {
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
         // subclass's `entries` override.
+        //
+        // `super`-qualified access is excluded for the same reason
+        // `tryResolvePropertyAccessorVirtualDispatch` below excludes it
+        // (BUG-228): `super.p` must keep reading the syntactically-named
+        // class's own implementation, never the runtime type's override.
+        var isSuperQualifiedReceiver = false
+        if case .superRef = ast.arena.expr(receiverExpr) {
+            isSuperQualifiedReceiver = true
+        }
         if ownerInfo.kind == .class,
+           !isSuperQualifiedReceiver,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
