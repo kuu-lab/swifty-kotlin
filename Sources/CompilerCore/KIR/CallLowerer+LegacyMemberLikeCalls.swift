@@ -13,8 +13,7 @@ extension CallLowerer {
         return linkName.hasPrefix("kk_fn_")
     }
 
-    /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435, KSP-632, KSP-983, and KSP-986. A call bound to one of those
+    /// bundled Kotlin source in KSP-435, KSP-632, KSP-978, KSP-983, and KSP-986. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "none", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
@@ -32,6 +31,7 @@ extension CallLowerer {
         "distinct", "distinctBy", "flatten",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        "groupBy", "groupByTo",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -93,8 +93,19 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let loweredArgIDs = args.map { argument in
-            driver.lowerExpr(
+        let argumentCallBinding = sema.bindings.callBindings[exprID]
+        let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: argumentIndex,
+                ast: ast,
+                sema: sema,
+                callBinding: argumentCallBinding,
+                chosen: argumentCallBinding?.chosenCallee
+            )
+            defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
+            return driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,

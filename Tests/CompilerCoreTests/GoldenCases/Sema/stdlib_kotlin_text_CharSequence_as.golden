@@ -1,0 +1,11 @@
+symbol fq=golden.sema.charSequenceAsIterable.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceAsIterable[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.collections.Iterable<Char>
+symbol fq=golden.sema.charSequenceAsSequence.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceAsSequence[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.sequences.Sequence<Char>
+file fstdlib_kotlin_text_CharSequence_as package=golden.sema
+  decl golden.sema.charSequenceAsIterable[kind=fun;params=kotlin.CharSequence] fun charSequenceAsIterable sym=golden.sema.charSequenceAsIterable[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceAsSequence[kind=fun;params=kotlin.CharSequence] fun charSequenceAsSequence sym=golden.sema.charSequenceAsSequence[kind=fun;params=kotlin.CharSequence]
+expr e@3:67 name(value) type=kotlin.CharSequence ref=golden.sema.charSequenceAsIterable.$0.value[kind=vparam]
+expr e@3:67#1 memberCall recv=e@3:67 callee=asIterable args=[] type=kotlin.collections.Iterable<Char> call=kotlin.text.asIterable[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@5:67 name(value) type=kotlin.CharSequence ref=golden.sema.charSequenceAsSequence.$1.value[kind=vparam]
+expr e@5:67#1 memberCall recv=e@5:67 callee=asSequence args=[] type=kotlin.sequences.Sequence<Char> call=kotlin.text.asSequence[kind=fun;recv=kotlin.CharSequence;params=]
