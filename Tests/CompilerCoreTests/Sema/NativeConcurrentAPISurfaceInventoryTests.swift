@@ -56,16 +56,15 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     @Test
     func testTargetInventoryHasExpectedShape() {
-        // Structural invariants only — no magic totals. A previous version asserted exact
-        // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub
-        // to update three integers and was a major merge-conflict source.
+        // Structural invariants only — no magic totals. Two PRs adding *different* entries
+        // at *different* Set literal positions merge with no text conflict, but if each also
+        // rewrites the same hardcoded count identically (`N` -> `N+1`), git applies that
+        // identical-looking edit once — the merged inventory silently ends up short.
         let targetEntries = Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries)
         let targetNames = Set(targetEntries.map(\.name))
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 20)
-        #expect(Self.implementedTopLevelEntries.count == 20)
         #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 
