@@ -10,7 +10,6 @@ symbol fq=__local_8.i[kind=local] kind=local vis=private flags=_ type=kotlin.Cha
 symbol fq=golden.sema.trims.$0.predicate[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.trims.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.trims[kind=fun;params=kotlin.CharSequence,fn{p=Char;ret=Boolean}] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,(Char) -> Boolean] ret=Unit
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_CharSequence_trim package=golden.sema
   decl golden.sema.trims[kind=fun;params=kotlin.CharSequence,fn{p=Char;ret=Boolean}] fun trims sym=golden.sema.trims[kind=fun;params=kotlin.CharSequence,fn{p=Char;ret=Boolean}]
 expr e@4:27 name(source) type=kotlin.CharSequence ref=golden.sema.trims.$0.source[kind=vparam]

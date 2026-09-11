@@ -8,8 +8,6 @@ symbol fq=golden.sema.removeRangeIntRange.$2.source[kind=vparam] kind=valueParam
 symbol fq=golden.sema.removeRangeIntRange[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.CharSequence
 symbol fq=golden.sema.removeRangeStringAsCharSequence[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.CharSequence
 symbol fq=golden.sema.removeRangeStringBuilderAsCharSequence[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=kotlin.CharSequence
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
-symbol fq=kotlin.ranges.IntRange[kind=class] kind=class vis=public flags=synthetic
 file fstdlib_kotlin_text_CharSequence_remove package=golden.sema
   decl golden.sema.removeRangeIndices[kind=fun;params=kotlin.CharSequence] fun removeRangeIndices sym=golden.sema.removeRangeIndices[kind=fun;params=kotlin.CharSequence]
   decl golden.sema.removeRangeIntRange[kind=fun;params=kotlin.CharSequence] fun removeRangeIntRange sym=golden.sema.removeRangeIntRange[kind=fun;params=kotlin.CharSequence]

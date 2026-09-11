@@ -3,7 +3,6 @@ symbol fq=golden.sema.charSequenceReversedBuilder.$1.source[kind=vparam] kind=va
 symbol fq=golden.sema.charSequenceReversedBuilder[kind=fun;params=kotlin.text.StringBuilder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.StringBuilder] ret=kotlin.CharSequence
 symbol fq=golden.sema.charSequenceReversed[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.CharSequence
 symbol fq=golden.sema.stringReversed[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_CharSequence_reversed package=golden.sema
   decl golden.sema.charSequenceReversed[kind=fun;params=kotlin.CharSequence] fun charSequenceReversed sym=golden.sema.charSequenceReversed[kind=fun;params=kotlin.CharSequence]
   decl golden.sema.charSequenceReversedBuilder[kind=fun;params=kotlin.text.StringBuilder] fun charSequenceReversedBuilder sym=golden.sema.charSequenceReversedBuilder[kind=fun;params=kotlin.text.StringBuilder]

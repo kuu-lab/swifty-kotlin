@@ -17,8 +17,6 @@ symbol fq=golden.sema.appendValues.$1.chars[kind=vparam] kind=valueParameter vis
 symbol fq=golden.sema.appendValues.$1.short[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.appendValues.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.appendValues[kind=fun;params=kotlin.text.StringBuilder,Any?,Byte,Short,kotlin.CharArray] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.StringBuilder,Any?,Byte,Short,kotlin.CharArray] ret=kotlin.text.StringBuilder
-symbol fq=kotlin.CharArray[kind=class] kind=class vis=public flags=synthetic
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_StringBuilder_append package=golden.sema
   decl golden.sema.appendValues[kind=fun;params=kotlin.text.StringBuilder,Any?,Byte,Short,kotlin.CharArray] fun appendValues sym=golden.sema.appendValues[kind=fun;params=kotlin.text.StringBuilder,Any?,Byte,Short,kotlin.CharArray]
   decl golden.sema.appendLines[kind=fun;params=kotlin.text.StringBuilder,Boolean,Byte,Char,kotlin.CharArray,kotlin.CharSequence?,Double,Float,Int,Long,Short,String?] fun appendLines sym=golden.sema.appendLines[kind=fun;params=kotlin.text.StringBuilder,Boolean,Byte,Char,kotlin.CharArray,kotlin.CharSequence?,Double,Float,Int,Long,Short,String?]
