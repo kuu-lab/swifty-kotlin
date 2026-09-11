@@ -470,17 +470,17 @@ final class CallTypeChecker {
         let suspendCoroutineIntrinsicFQName = knownNames.kotlinCoroutinesIntrinsicsFQName + [knownNames.suspendCoroutineUninterceptedOrReturn]
         let isSuspendCoroutineIntrinsic = if let calleeName {
             calleeName == knownNames.suspendCoroutineUninterceptedOrReturn
-                && !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx)
-                && isSyntheticStdlibSymbol(
+                && locals[calleeName] == nil
+                && sourceOrSyntheticStdlibFunctionSymbol(
                     calleeName,
                     fqComponents: ["kotlin", "coroutines", "intrinsics", "suspendCoroutineUninterceptedOrReturn"],
                     ctx: ctx
-                )
+                ) != nil
         } else {
             calleePath == suspendCoroutineIntrinsicFQName
         }
         let isSuspendCoroutineShadowed = calleeName.map {
-            isShadowedByNonSyntheticSymbol($0, locals: locals, ctx: ctx)
+            locals[$0] != nil
         } ?? false
         if isSuspendCoroutineIntrinsic,
            args.count == 1,
@@ -685,7 +685,7 @@ final class CallTypeChecker {
         }()
         if let calleeName,
            knownNames.isPrimitiveArrayConstructorTypeName(calleeName),
-           args.count == 2 || (args.count == 1 && calleeName != knownNames.array),
+           args.count == 1 || args.count == 2,
            locals[calleeName] == nil,
            !hasSourceBackedArrayConstructor
         {
@@ -713,7 +713,26 @@ final class CallTypeChecker {
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
-                        elementType: explicitTypeArgs.first ?? expectedType ?? sema.types.anyType
+                        elementType: {
+                            if let explicitTypeArg = explicitTypeArgs.first {
+                                explicitTypeArg
+                            } else if let kotlinArraySymbol = sema.symbols.lookup(
+                                fqName: [interner.intern("kotlin"), interner.intern("Array")]
+                            ), let expectedType,
+                                      case let .classType(expectedClassType) = sema.types.kind(of: expectedType),
+                                      expectedClassType.classSymbol == kotlinArraySymbol,
+                                      let firstArg = expectedClassType.args.first
+                            {
+                                switch firstArg {
+                                case let .invariant(type), let .in(type), let .out(type):
+                                    type
+                                case .star:
+                                    sema.types.anyType
+                                }
+                            } else {
+                                sema.types.anyType
+                            }
+                        }()
                     )
                 } else {
                     makeSyntheticPrimitiveArrayType(
@@ -741,13 +760,11 @@ final class CallTypeChecker {
             ]
             let kotlinArraySymbol = sema.symbols.lookup(fqName: arrayFQName)
             let isKotlinArray = calleeNameStr == "Array"
-            let inferLambdaOnce: Bool
             let elementReturnType: TypeID
             if isKotlinArray,
                let explicitTypeArg = explicitTypeArgs.first
             {
                 elementReturnType = explicitTypeArg
-                inferLambdaOnce = true
             } else if isKotlinArray,
                let kotlinArraySymbol,
                let expectedType, expectedType != sema.types.errorType,
@@ -761,7 +778,6 @@ final class CallTypeChecker {
                 case .star:
                     elementReturnType = sema.types.anyType
                 }
-                inferLambdaOnce = true
             } else if isKotlinArray {
                 // No expected type and no explicit type argument for Array(size) { init }.
                 // Infer the lambda with `it` constrained to Int, then extract the
@@ -784,7 +800,6 @@ final class CallTypeChecker {
                 }
                 let inferred = bodyType ?? sema.types.anyType
                 elementReturnType = (inferred != sema.types.errorType) ? inferred : sema.types.anyType
-                inferLambdaOnce = false
             } else {
                 // For primitive array constructors, the element type is fixed.
                 elementReturnType = switch calleeNameStr {
@@ -801,20 +816,20 @@ final class CallTypeChecker {
                 case "CharArray": sema.types.make(.primitive(.char, .nonNull))
                 default: sema.types.anyType
                 }
-                inferLambdaOnce = false
             }
             let initExpectedType = sema.types.make(.functionType(FunctionType(
                 params: [intType],
                 returnType: elementReturnType
             )))
-            if !inferLambdaOnce {
-                _ = driver.inferExpr(
-                    args[1].expr,
-                    ctx: ctx,
-                    locals: &locals,
-                    expectedType: initExpectedType
-                )
-            }
+            // Always infer the init lambda against `(Int) -> elementReturnType`.
+            // Skipping it leaves the lambda's index parameter unbound, so
+            // `Array<Int>(3) { it }` lowers with a zero index for every slot.
+            _ = driver.inferExpr(
+                args[1].expr,
+                ctx: ctx,
+                locals: &locals,
+                expectedType: initExpectedType
+            )
             sema.bindings.markStdlibSpecialCallExpr(id, kind: .arrayConstructor)
             sema.bindings.markCollectionExpr(id)
             let resultType: TypeID
@@ -1173,6 +1188,11 @@ final class CallTypeChecker {
                 locals: &locals,
                 expectedType: lambdaExpectedType
             )
+            // Contract effects are consumed by Sema and have no runtime
+            // representation. Mark the call so KIR does not lower its builder
+            // lambda, whose effect expressions may otherwise become runtime
+            // calls even though the contract itself is compiler-only.
+            sema.bindings.markStdlibSpecialCallExpr(id, kind: .contract)
             sema.bindings.bindExprType(id, type: sema.types.unitType)
             return sema.types.unitType
         }
@@ -2523,6 +2543,18 @@ final class CallTypeChecker {
                 )
                 sema.bindings.bindExprType(id, type: sema.types.errorType)
                 return sema.types.errorType
+            }
+            // KSP-1543: source-backed channelFlow/callbackFlow still use the
+            // launcher continuation ABI for their suspend ProducerScope receiver.
+            // Mark the lambda only after overload resolution selects the bundled
+            // declaration, so a same-named user function keeps the regular ABI.
+            if isSourceBackedProducerFlowBuilder(chosen, ctx: ctx)
+            {
+                for argument in args {
+                    if case .lambdaLiteral = ast.arena.expr(argument.expr) {
+                        sema.bindings.markCoroutineLauncherLambdaExpr(argument.expr)
+                    }
+                }
             }
             // ANNO-001: Check for @Deprecated annotation on the resolved callee.
             driver.helpers.checkDeprecation(
