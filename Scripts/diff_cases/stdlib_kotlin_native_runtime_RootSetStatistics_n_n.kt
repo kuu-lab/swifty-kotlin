@@ -15,6 +15,7 @@ fun makeRootSetStatistics(
     stableReferences,
 )
 
+@OptIn(NativeRuntimeApi::class)
 fun main() {
     println(makeRootSetStatistics(1L, 2L, 3L, 4L) is RootSetStatistics)
 }
