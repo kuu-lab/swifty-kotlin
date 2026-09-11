@@ -9,11 +9,6 @@ symbol fq=groupFamily.$0.list[kind=vparam] kind=valueParameter vis=private flags
 symbol fq=groupFamily.$0.nullable[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=groupFamily.$0.values[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=groupFamily[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.MutableMap<Any,kotlin.collections.MutableList<Int>>,kotlin.collections.List<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.MutableMap<Any, kotlin.collections.MutableList<Int>>,kotlin.collections.List<Int>] ret=Unit
-symbol fq=kotlin.collections.Iterable[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.List[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.Map[kind=iface;gen=2] kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.MutableList[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.MutableMap[kind=iface;gen=2] kind=interface vis=public flags=synthetic
 file fstdlib_kotlin_collections_Iterable_group package=_
   decl groupFamily[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.MutableMap<Any,kotlin.collections.MutableList<Int>>,kotlin.collections.List<Int>] fun groupFamily sym=groupFamily[kind=fun;params=kotlin.collections.Iterable<Int>,kotlin.collections.Iterable<String?>,kotlin.collections.MutableMap<Any,kotlin.collections.MutableList<Int>>,kotlin.collections.List<Int>]
 expr e@7:40 name(values) type=kotlin.collections.Iterable<Int> ref=groupFamily.$0.values[kind=vparam]
