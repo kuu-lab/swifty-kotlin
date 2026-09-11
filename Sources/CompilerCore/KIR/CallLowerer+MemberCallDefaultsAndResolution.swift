@@ -2,7 +2,7 @@
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
-    /// Returns the default mask for the three string parameters of the
+    /// Returns the default mask for the five optional parameters of the
     /// source-backed Iterable.joinToString overload.
     ///
     /// Safe-call collection fallback can lose the declaration's default-value
@@ -13,7 +13,7 @@ extension CallLowerer {
         sourceArguments: [CallArgument],
         interner: StringInterner
     ) -> Int64 {
-        let parameterNames = ["separator", "prefix", "postfix"]
+        let parameterNames = ["separator", "prefix", "postfix", "limit", "truncated"]
         var suppliedParameters = Set<Int>()
         var nextPositionalParameter = 0
 
@@ -51,17 +51,23 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID]
     ) {
-        let defaults = [", ", "", ""]
         let stringType = sema.types.stringType
-        for (offset, defaultValue) in defaults.enumerated() {
+        let defaults: [(KIRExprKind, TypeID)] = [
+            (.stringLiteral(interner.intern(", ")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.intLiteral(-1), sema.types.intType),
+            (.stringLiteral(interner.intern("...")), stringType),
+        ]
+        for (offset, entry) in defaults.enumerated() {
             let paramIndex = firstDefaultParameterIndex + offset
             let maskBit = Int64(1) << paramIndex
             guard (defaultMask & maskBit) != 0 else { continue }
             let argumentIndex = paramIndex + 1
             guard argumentIndex < arguments.count else { continue }
-            let interned = interner.intern(defaultValue)
-            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+            let (defaultValue, type) = entry
+            let exprID = arena.appendExpr(defaultValue, type: type)
+            instructions.append(.constValue(result: exprID, value: defaultValue))
             arguments[argumentIndex] = exprID
         }
     }
@@ -200,23 +206,6 @@ extension CallLowerer {
         )
     }
 
-    /// KSP-611: a member of an interface imported from a compiled library carries the
-    /// link name of the body emitted for it in that library. For an abstract member that
-    /// body is an empty stub, so honouring the link name would silently call nothing;
-    /// interface members must dispatch through the receiver's itable instead. A
-    /// source-backed interface declaration may instead carry a private runtime bridge
-    /// such as `__kk_string_builder_append_obj`; that link is the actual implementation
-    /// and must stay on direct dispatch, just like a synthetic runtime bridge.
-    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
-        guard let calleeSymbol = sema.symbols.symbol(callee),
-              calleeSymbol.flags.contains(.importedLibrary),
-              let parentID = sema.symbols.parentSymbol(for: callee),
-              let parentSymbol = sema.symbols.symbol(parentID)
-        else { return false }
-        return parentSymbol.kind == .interface
-            && Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
-    }
-
     /// Callees bridged to a C runtime function (such as kk_array_get) are
     /// normally not dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
@@ -289,6 +278,14 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
+        if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+            chosenCallee: chosenCallee,
+            calleeName: fallback,
+            sema: sema,
+            interner: interner
+        ) {
+            return sequenceBuilderCallee
+        }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType

@@ -2,6 +2,32 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func sequenceBuilderRuntimeCalleeName(
+        chosenCallee: SymbolID?,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              symbol.fqName.count == 4,
+              symbol.fqName[0] == interner.intern("kotlin"),
+              symbol.fqName[1] == interner.intern("sequences"),
+              symbol.fqName[2] == interner.intern("SequenceScope")
+        else {
+            return nil
+        }
+
+        switch interner.resolve(calleeName) {
+        case "yield":
+            return interner.intern("__kk_sequence_builder_yield")
+        case "yieldAll":
+            return interner.intern("__kk_sequence_builder_yieldAll")
+        default:
+            return nil
+        }
+    }
+
     func tryFoldConstMemberProperty(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -719,7 +745,6 @@ extension CallLowerer {
             interner.intern("__kk_char_progression_fromClosedRange"),
             interner.intern("__kk_op_step"),
             interner.intern("__kk_char_range_step"),
-            interner.intern("kk_sequence_foldIndexed"),
             interner.intern("kk_sequence_reduceOrNull"),
             interner.intern("kk_sequence_reduceRight"),
             interner.intern("kk_sequence_reduce"),

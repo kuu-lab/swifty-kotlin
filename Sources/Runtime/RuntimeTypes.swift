@@ -73,13 +73,17 @@ struct RuntimeValue {
     var payload1: Int
     var payload2: Int
     var payload3: Int
+    // Static type information used by Any fallback operations. This is kept
+    // separate from `tag`, which describes the storage representation.
+    var anyFallbackTag: Int32
 
-    init(raw: Int) {
+    init(raw: Int, anyFallbackTag: Int32 = 0) {
         self.tag = Self.rawTag
         self.payload0 = raw
         self.payload1 = 0
         self.payload2 = 0
         self.payload3 = 0
+        self.anyFallbackTag = anyFallbackTag
     }
 
     init(stringData data: Int, length: Int, byteCount: Int, hash: Int) {
@@ -88,6 +92,7 @@ struct RuntimeValue {
         self.payload1 = length
         self.payload2 = byteCount
         self.payload3 = hash
+        self.anyFallbackTag = 0
     }
 
     init(charScalar value: Int) {
@@ -96,6 +101,7 @@ struct RuntimeValue {
         self.payload1 = 0
         self.payload2 = 0
         self.payload3 = 0
+        self.anyFallbackTag = 0
     }
 
     var legacyRawValue: Int {
@@ -228,7 +234,18 @@ class RuntimeArrayBox {
     /// loop access O(n) per iteration.
     subscript(index: Int) -> Int {
         get { storage[index].legacyRawValue }
-        set { storage[index] = RuntimeValue(raw: newValue) }
+        set {
+            storage[index] = RuntimeValue(
+                raw: newValue,
+                anyFallbackTag: storage[index].anyFallbackTag
+            )
+        }
+    }
+
+    /// Stores a raw field value together with the static tag needed by
+    /// Any-erased operations such as `hashCode()`.
+    func setValue(_ value: Int, at index: Int, anyFallbackTag: Int32) {
+        storage[index] = RuntimeValue(raw: value, anyFallbackTag: anyFallbackTag)
     }
 
     var count: Int {
@@ -823,12 +840,21 @@ final class RuntimeArrayDequeBox {
         }
     }
 
-    init(elements: [Int]) {
-        let capacity = max(Self.minimumCapacity, elements.count)
-        buffer = elements.map { RuntimeValue(raw: $0) }
-            + Array(repeating: RuntimeValue(raw: 0), count: capacity - elements.count)
+    init(capacity: Int) {
+        buffer = Array(
+            repeating: RuntimeValue(raw: 0),
+            count: max(Self.minimumCapacity, capacity)
+        )
         head = 0
-        count = elements.count
+        count = 0
+    }
+
+    init(values: [RuntimeValue]) {
+        let capacity = max(Self.minimumCapacity, values.count)
+        buffer = values
+            + Array(repeating: RuntimeValue(raw: 0), count: capacity - values.count)
+        head = 0
+        count = values.count
     }
 
     func element(at index: Int) -> RuntimeValue? {
