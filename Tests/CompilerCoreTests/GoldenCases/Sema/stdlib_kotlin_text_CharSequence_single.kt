@@ -3,6 +3,8 @@ package golden.sema
 class SingleSequence(private val value: String) : CharSequence {
     override val length: Int get() = value.length
     override fun get(index: Int): Char = value[index]
+    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+        value.substring(startIndex, endIndex)
 }
 
 fun singleDirect(source: CharSequence): Char = source.single()
