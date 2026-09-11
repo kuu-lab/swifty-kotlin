@@ -33,7 +33,7 @@ struct InlineNonLocalReturnTypeTests {
             return source.first { return@first true }
         }
 
-        fun labeledPredicateReturnExplicitLabel(source: CharSequence): Char {
+        fun explicitLambdaLabelReturn(source: CharSequence): Char {
             return source.first predicate@ { return@predicate true }
         }
         """)

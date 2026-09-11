@@ -175,6 +175,12 @@ extension CallTypeChecker {
         } else {
             activeCollectionHOFNames.remove("mapIndexedNotNull")
             activeCollectionHOFNames.remove("dropLastWhile")
+            // Sequence.flatMapTo/flatMapIndexedTo have Iterable- and
+            // Sequence-return overloads. Let regular overload resolution use
+            // the lambda return type instead of the single-shape destination
+            // fast path below, which otherwise binds the first declaration.
+            activeCollectionHOFNames.remove("flatMapTo")
+            activeCollectionHOFNames.remove("flatMapIndexedTo")
         }
         if isMapReceiver {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)
@@ -439,6 +445,8 @@ extension CallTypeChecker {
             receiverElementType: TypeID? = nil,
             allowNominalIterableReceiver: Bool = false
         ) -> Bool {
+            // KSP-978: Generic Iterable group-family calls use the bundled
+            // source declarations; concrete List receivers keep the List path.
             guard !isSequenceReceiver,
                   (allowNominalIterableReceiver
                     ? (isIterableReceiver || !isCollectionReceiver)
@@ -447,6 +455,8 @@ extension CallTypeChecker {
                         || calleeStr == "dropWhile"
                         || calleeStr == "runningReduce"
                         || calleeStr == "runningReduceIndexed"
+                        || calleeStr == "groupBy"
+                        || calleeStr == "groupByTo"
                         || isIterableFilterFamilyHOF))
                         || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
             else {
@@ -3736,7 +3746,9 @@ extension CallTypeChecker {
                 let groupByTypeArgs: [TypeID] = args.count >= 2
                     ? [collectionElementType, keyType, valueElementType]
                     : [collectionElementType, keyType]
-                if bindBundledListSourceFunction(typeArguments: groupByTypeArgs) {
+                let didBindSource = bindBundledListSourceFunction(typeArguments: groupByTypeArgs)
+                    || bindBundledIterableSourceFunction(typeArguments: groupByTypeArgs)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                     }
@@ -3824,7 +3836,9 @@ extension CallTypeChecker {
                 let toTypeArgs: [TypeID] = args.count == 3
                     ? [collectionElementType, firstLambdaReturn, valueType, nonNullableDestType]
                     : [collectionElementType, firstLambdaReturn, nonNullableDestType]
-                if bindBundledListSourceFunction(typeArguments: toTypeArgs) {
+                let didBindSource = bindBundledListSourceFunction(typeArguments: toTypeArgs)
+                    || bindBundledIterableSourceFunction(typeArguments: toTypeArgs)
+                if didBindSource {
                     if let lambdaExpr = ast.arena.expr(args[1].expr), lambdaExpr.isLambdaOrCallableRef {
                         sema.bindings.unmarkCollectionHOFLambdaExpr(args[1].expr)
                     }
