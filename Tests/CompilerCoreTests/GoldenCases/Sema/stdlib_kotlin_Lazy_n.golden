@@ -1,0 +1,17 @@
+symbol fq=golden.sema.CustomLazy.$class0.T[kind=tparam] kind=typeParameter vis=private flags=_
+symbol fq=golden.sema.CustomLazy.<init>.$0.stored[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.CustomLazy.<init>[kind=ctor;recv=golden.sema.CustomLazy<T0>;params=T0;gen=1] kind=constructor vis=public flags=_ sig=recv=golden.sema.CustomLazy<golden.sema.CustomLazy.$class0.T> params=[golden.sema.CustomLazy.$class0.T] ret=golden.sema.CustomLazy<golden.sema.CustomLazy.$class0.T>
+symbol fq=golden.sema.CustomLazy.stored[kind=prop] kind=property vis=public flags=_ type=golden.sema.CustomLazy.$class0.T
+symbol fq=golden.sema.CustomLazy[kind=class;gen=1] kind=class vis=public flags=_
+symbol fq=golden.sema.delegated[kind=prop] kind=property vis=public flags=_ type=Int
+symbol fq=golden.sema.useLazyGetValue[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Int
+file fstdlib_kotlin_Lazy_n package=golden.sema
+  decl golden.sema.CustomLazy[kind=class;gen=1] class CustomLazy sym=golden.sema.CustomLazy[kind=class;gen=1]
+  decl golden.sema.delegated[kind=prop] property delegated var=0 sym=golden.sema.delegated[kind=prop]
+  decl golden.sema.useLazyGetValue[kind=fun;params=] fun useLazyGetValue sym=golden.sema.useLazyGetValue[kind=fun;params=]
+expr e@5:17 name(stored) type=golden.sema.CustomLazy.$class0.T ref=golden.sema.CustomLazy.stored[kind=prop]
+expr e@6:45 bool(true) type=Boolean
+expr e@9:34 int(42) type=Int
+expr e@9:23 call callee=e@9:23#1 args=[_:e@9:34] type=golden.sema.CustomLazy<Int> call=golden.sema.CustomLazy.<init>[kind=ctor;recv=golden.sema.CustomLazy<T0>;params=T0;gen=1] targs=[Int]
+expr e@12:12 name(delegated) type=Int ref=golden.sema.delegated[kind=prop]
+expr e@12:5 return value=e@12:12 type=Nothing

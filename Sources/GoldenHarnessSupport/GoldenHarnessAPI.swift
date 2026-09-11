@@ -80,6 +80,9 @@ public enum GoldenHarness {
     public static func render(suiteName: String, sourcePath: String) throws -> String {
         let resolvedSuite = try suite(named: suiteName)
         let stdlibLibraryPath = ProcessInfo.processInfo.environment[stdlibLibraryEnvironmentKey]
+        if stdlibLibraryPath == nil, resolvedSuite == .sema || resolvedSuite == .diagnostics {
+            warnAboutMissingStdlibLibraryPath(suite: resolvedSuite, sourcePath: sourcePath)
+        }
         let raw: String = switch resolvedSuite {
         case .lexer:
             try GoldenHarnessDump.dumpLexer(sourcePath: sourcePath)
@@ -91,6 +94,27 @@ public enum GoldenHarness {
             try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath)
         }
         return normalizedForComparison(suite: resolvedSuite, output: raw)
+    }
+
+    /// Bundled-source fallback (no artifact) compiles the stdlib `.kt` sources
+    /// into the *same module* as `sourcePath`, unlike the artifact path where
+    /// they are a separate imported module — so `internal` stdlib
+    /// declarations that should be invisible across that module boundary
+    /// resolve successfully instead, and RF-GOLDEN-002 symbol-origin
+    /// classification sees different declSite metadata. This silently
+    /// produces output that looks plausible but does not match what CI (which
+    /// always sets `KSWIFTK_GOLDEN_STDLIB_LIBRARY`) renders — see
+    /// `stdlibLibraryEnvironmentKey`'s doc comment. A prior investigation lost
+    /// real time to exactly this when invoking `GoldenHarnessWorker` directly
+    /// from a shell without the env var, so flag it instead of failing silent.
+    private static func warnAboutMissingStdlibLibraryPath(suite: GoldenHarnessGoldenSuite, sourcePath: String) {
+        let message = """
+        warning: \(stdlibLibraryEnvironmentKey) is not set; rendering \(suite.rawValue) for \
+        \(sourcePath) via bundled-source stdlib compilation. This does not match CI's \
+        artifact-based output for internal-visibility checks or symbol-origin classification \
+        (RF-GOLDEN-002) — do not use this output to update a committed .golden file.\n
+        """
+        FileHandle.standardError.write(Data(message.utf8))
     }
 
     public static func renderInSubprocess(

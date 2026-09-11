@@ -24,6 +24,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
         TopLevelEntry(name: "FutureState", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "InvalidMutabilityException", kind: .class, todo: nil),
+        TopLevelEntry(name: "MutableData", kind: .class, todo: nil),
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "SharedImmutable", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "ThreadLocal", kind: .annotationClass, todo: nil),
