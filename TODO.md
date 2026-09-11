@@ -1213,7 +1213,7 @@
 - [x] KSP-941: kotlin.collections.Map-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.collections` / top-level / family `Map`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/collections/MapHOF.kt`
-  - 実装根拠: `Map<K, out V>` の nominal shell を bundled Kotlin source に移し、Map.K は invariant、Map.V は out のまま保持。Map.get と Map.Entry/query surface は既存の compiler/runtime residual として保持し、synthetic fallback の bootstrap と #4731 の K variance 修正を維持。
+  - 実装根拠: `Map<K, out V>` の nominal shell を bundled Kotlin source に移し、Map.K は invariant、Map.V は out のまま保持。マージ後、並行して進んでいた KSP-1067(#6627)が同じ interface を `Sources/CompilerCore/Stdlib/kotlin/collections/Map/Map.kt` としてより完全な形(size/keys/values/entries/isEmpty/get を実メンバーとして宣言)で先に master へ着地させたため、本 PR 側の重複 nominal shell 宣言は削除し、`Map/Map.kt` 側の宣言に一本化した(MapHOF.kt はこの HOF 拡張関数群のみを保持)。
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_collections_n_Map.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_collections_n_Map.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_collections_n_Map.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

@@ -1,8 +1,11 @@
 @testable import CompilerCore
 import Testing
 
-/// KSP-941: the read-only Map nominal shell is declared by bundled Kotlin
-/// source while query members and Map.Entry remain compiler/runtime residuals.
+/// KSP-941: the Map nominal declaration is source-backed (now via
+/// `collections/Map/Map.kt`, landed independently by KSP-1067 #6627). These
+/// tests pin the variance/type-parameter mechanics that KSP-941 introduced;
+/// see `MapAsSourceMigrationTests` for member-level (get/size/keys/...)
+/// coverage of the KSP-1067 declaration itself.
 @Suite
 struct MapInterfaceSourceMigrationTests {
     @Test
@@ -23,7 +26,7 @@ struct MapInterfaceSourceMigrationTests {
         #expect(mapInfo.kind == .interface)
         #expect(!mapInfo.flags.contains(.synthetic))
         let mapSourceFile = try #require(sema.symbols.sourceFileID(for: mapSymbol))
-        #expect(ctx.sourceManager.path(of: mapSourceFile) == "__bundled_kotlin/collections/MapHOF.kt")
+        #expect(ctx.sourceManager.path(of: mapSourceFile) == "__bundled_kotlin/collections/Map/Map.kt")
         #expect(sema.types.nominalTypeParameterVariances(for: mapSymbol) == [.invariant, .out])
 
         let typeParameters = sema.types.nominalTypeParameterSymbols(for: mapSymbol)
