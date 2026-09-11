@@ -67,7 +67,8 @@ extension DataFlowSemaPhase {
         // is no longer needed.
 
         // BUG-152: `subSequence` on a value statically typed as `CharSequence` is
-        // provided by bundled Kotlin source (StringSubstringSlice.kt).
+        // a nominal `CharSequence` interface member (`kotlin/CharSequence.kt`);
+        // the synthetic extension stub is no longer needed.
 
         // --- STDLIB-141: String.compareTo ---
 
