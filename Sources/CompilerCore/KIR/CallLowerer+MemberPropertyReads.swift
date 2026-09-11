@@ -17,10 +17,7 @@ extension CallLowerer {
     ///
     /// `super`-qualified access is always excluded — `super.p` must keep
     /// reading/writing the syntactically-named class's own implementation,
-    /// never the runtime type's override (BUG-228 tracks that `super.p`
-    /// already resolves to the wrong symbol upstream in Sema; this guard
-    /// keeps that pre-existing bug from becoming a *worse*, dynamically wrong
-    /// one once accessors are virtually dispatched).
+    /// never the runtime type's override (BUG-228).
     func tryResolvePropertyAccessorVirtualDispatch(
         propertySymbol: SymbolID,
         receiverExpr: ExprID,
@@ -309,7 +306,17 @@ extension CallLowerer {
         // not an instance field or a direct abstract getter stub. In
         // particular, AbstractMap's skeletal methods must observe a concrete
         // subclass's `entries` override.
+        //
+        // `super`-qualified access is excluded for the same reason
+        // `tryResolvePropertyAccessorVirtualDispatch` below excludes it
+        // (BUG-228): `super.p` must keep reading the syntactically-named
+        // class's own implementation, never the runtime type's override.
+        var isSuperQualifiedReceiver = false
+        if case .superRef = ast.arena.expr(receiverExpr) {
+            isSuperQualifiedReceiver = true
+        }
         if ownerInfo.kind == .class,
+           !isSuperQualifiedReceiver,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
@@ -556,6 +563,23 @@ extension CallLowerer {
 
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+
+        // An interface-owned property whose getter link is not a runtime
+        // bridge has no single concrete implementation to call directly --
+        // like `MatchGroupCollection.size`, it must dispatch through the
+        // interface's itable to reach whichever type actually implements it.
+        // This function's only caller always retries the read through
+        // tryLowerStoredMemberPropertyRead next, which already carries that
+        // itable fallback; defer to it here instead of duplicating it, so a
+        // property whose consumer-side accessor link exists only for
+        // inline-body call-site remapping (KSP-472) is not miscompiled into
+        // a direct, non-virtual call to that placeholder accessor symbol.
+        if sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0) })?.kind == .interface,
+           !kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
+        {
+            return nil
+        }
+
         instructions.append(.call(
             symbol: getterSymbol,
             callee: interner.intern("get"),

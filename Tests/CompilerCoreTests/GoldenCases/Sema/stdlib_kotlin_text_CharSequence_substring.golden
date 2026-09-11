@@ -8,8 +8,6 @@ symbol fq=golden.sema.charSequenceSubstringRange.$3.source[kind=vparam] kind=val
 symbol fq=golden.sema.charSequenceSubstringRange[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=String
 symbol fq=golden.sema.stringSubstringRange.$4.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.stringSubstringRange[kind=fun;params=String] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=String
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
-symbol fq=kotlin.ranges.IntRange[kind=class] kind=class vis=public flags=synthetic
 file fstdlib_kotlin_text_CharSequence_substring package=golden.sema
   decl golden.sema.charSequenceSubstringDefault[kind=fun;params=kotlin.CharSequence] fun charSequenceSubstringDefault sym=golden.sema.charSequenceSubstringDefault[kind=fun;params=kotlin.CharSequence]
   decl golden.sema.charSequenceSubstringBounded[kind=fun;params=kotlin.CharSequence] fun charSequenceSubstringBounded sym=golden.sema.charSequenceSubstringBounded[kind=fun;params=kotlin.CharSequence]

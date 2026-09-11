@@ -2,8 +2,6 @@ symbol fq=golden.sema.charSequenceSubSequenceEmpty.$0.source[kind=vparam] kind=v
 symbol fq=golden.sema.charSequenceSubSequenceEmpty[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.CharSequence
 symbol fq=golden.sema.charSequenceSubSequenceRange.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.charSequenceSubSequenceRange[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.CharSequence
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
-symbol fq=kotlin.ranges.IntRange[kind=class] kind=class vis=public flags=synthetic
 file fstdlib_kotlin_text_CharSequence_sub package=golden.sema
   decl golden.sema.charSequenceSubSequenceRange[kind=fun;params=kotlin.CharSequence] fun charSequenceSubSequenceRange sym=golden.sema.charSequenceSubSequenceRange[kind=fun;params=kotlin.CharSequence]
   decl golden.sema.charSequenceSubSequenceEmpty[kind=fun;params=kotlin.CharSequence] fun charSequenceSubSequenceEmpty sym=golden.sema.charSequenceSubSequenceEmpty[kind=fun;params=kotlin.CharSequence]

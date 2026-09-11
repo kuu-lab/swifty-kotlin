@@ -127,6 +127,60 @@ func appendObjectVtableMethodRegistrations(
         interner: interner,
         instructions: &instructions
     )
+    appendObjectAnyEqualsOverrideRegistration(
+        objectValue: objectValue,
+        nominalSymbol: nominalSymbol,
+        sema: sema,
+        arena: arena,
+        interner: interner,
+        instructions: &instructions
+    )
+}
+
+/// KSP-967: Generic equality in source-backed functions is lowered through
+/// `kk_structural_eq`, where the concrete receiver type is unavailable. Keep
+/// the most-specific real `Any.equals` override alongside each object so that
+/// erased equality can still honor user-defined semantics.
+private func appendObjectAnyEqualsOverrideRegistration(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
+    guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
+          let anyEquals = sema.symbols.lookupAll(
+              fqName: anyFQName + [interner.intern("equals")]
+          ).first(where: { sema.symbols.parentSymbol(for: $0) == anySymbol }),
+          let implementation = kirFindOverrideMethod(
+              for: anyEquals,
+              in: nominalSymbol,
+              sema: sema,
+              interner: interner
+          ),
+          implementation != anyEquals,
+          sema.symbols.symbol(implementation)?.flags.contains(.overrideMember) == true,
+          let signature = sema.symbols.functionSignature(for: implementation),
+          signature.parameterTypes.count == 1,
+          signature.returnType == sema.types.booleanType
+    else {
+        return
+    }
+
+    let intType = sema.types.intType
+    let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+    instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+    let registerResult = arena.appendTemporary(type: intType)
+    instructions.append(.call(
+        symbol: nil,
+        callee: interner.intern("kk_object_register_equals_override"),
+        arguments: [objectValue, methodFnExpr],
+        result: registerResult,
+        canThrow: false,
+        thrownResult: nil
+    ))
 }
 
 /// Returns a raw-string ABI bridge for a class `toString()` implementation.
@@ -492,6 +546,55 @@ func itableBridgeSymbolForMethod(
     driver.ctx.appendGeneratedCallableDecl(bridgeDecl)
 
     return bridgeSymbol
+}
+
+/// Registers a nominal type's vtable implementations on an object produced by
+/// a runtime collection factory (for example `LinkedHashSet()` lowered to
+/// `__kk_set_of`). Factory-returned boxes never pass through `kk_object_new`,
+/// so the constructor-site registrations in `appendObjectVtableMethodRegistrations`
+/// never ran for them; without this, an open member such as `LinkedHashSet.size`
+/// dispatches through a vtable slot the box never had registered and the runtime
+/// lookup traps.
+///
+/// Unlike `appendObjectVtableMethodRegistrations` this variant runs in driver-less
+/// lowering passes (it only needs `KIRContext`-level services), so it cannot create
+/// `itableBridgeSymbolForMethod` shims; the registered implementations are the
+/// class's own external-link bridges, whose ABI already matches the erased vtable
+/// signature.
+func appendFactoryObjectVtableMethodRegistrations(
+    objectValue: KIRExprID,
+    nominalSymbol: SymbolID,
+    sema: SemaModule,
+    arena: KIRArena,
+    interner: StringInterner,
+    instructions: inout [KIRInstruction]
+) {
+    var implementationsBySlot: [Int: SymbolID] = [:]
+    for entry in kirVtableImplementations(for: nominalSymbol, sema: sema) {
+        implementationsBySlot[entry.slot] = entry.implementation
+    }
+    for entry in kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema) {
+        implementationsBySlot[entry.slot] = entry.implementation
+    }
+    guard !implementationsBySlot.isEmpty else { return }
+
+    let intType = sema.types.intType
+    let registerCallee = interner.intern("kk_object_register_vtable_method")
+    for (slot, implementation) in implementationsBySlot.sorted(by: { $0.key < $1.key }) {
+        let slotExpr = arena.appendExpr(.intLiteral(Int64(slot)), type: intType)
+        instructions.append(.constValue(result: slotExpr, value: .intLiteral(Int64(slot))))
+        let methodFnExpr = arena.appendExpr(.symbolRef(implementation), type: intType)
+        instructions.append(.constValue(result: methodFnExpr, value: .symbolRef(implementation)))
+        let registerResult = arena.appendTemporary(type: intType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: registerCallee,
+            arguments: [objectValue, slotExpr, methodFnExpr],
+            result: registerResult,
+            canThrow: false,
+            thrownResult: nil
+        ))
+    }
 }
 
 /// Registers every direct supertype edge in the ancestor graph of `childSymbol`.

@@ -767,20 +767,18 @@ extension CallTypeChecker {
     }
 
     // MARK: - Numeric companion constants (STDLIB-153)
-
+    //
+    // Double (KSP-833) and Float (KSP-847) constants are now source-backed
+    // (see Stdlib/kotlin/Double/Companion/Companion.kt and
+    // Stdlib/kotlin/Float/Companion/Companion.kt), so this fallback is
+    // reserved for compiler-primitive numeric types that have not yet been
+    // migrated to source-backed Companion extensions.
     func numericCompanionConstant(
         typeName: String,
         memberName: String,
         sema: SemaModule
     ) -> (TypeID, KIRExprKind)? {
-        let types = sema.types
         switch (typeName, memberName) {
-        // Float
-        case ("Float", "MAX_VALUE"): return (types.floatType, .floatLiteral(Double(Float.greatestFiniteMagnitude)))
-        case ("Float", "MIN_VALUE"): return (types.floatType, .floatLiteral(Double(Float.leastNonzeroMagnitude)))
-        case ("Float", "NaN"): return (types.floatType, .floatLiteral(Double(Float.nan)))
-        case ("Float", "POSITIVE_INFINITY"): return (types.floatType, .floatLiteral(Double(Float.infinity)))
-        case ("Float", "NEGATIVE_INFINITY"): return (types.floatType, .floatLiteral(Double(-Float.infinity)))
         default: return nil
         }
     }
