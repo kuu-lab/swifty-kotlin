@@ -749,10 +749,10 @@
   - 副産物のコンパイラバグ修正（バグ修正ルールに従い本 PR で修正・回帰同梱）: `Array(size) { init }` に**明示型引数がある場合と期待型がある場合**、init ラムダが一度も型推論されず、index パラメータが束縛されないまま lower されて全要素が index 0 で初期化されていた（`Array<Int>(3) { it }` → `[0, 0, 0]`、`Array<Int>(3) { i -> i + 10 }` → `[10, 10, 10]`）。原因は `Sources/CompilerCore/Sema/TypeCheck/CallTypeChecker.swift` の `inferLambdaOnce` フラグの値が該当2分岐で逆（`true` = 推論スキップ）だったこと。フラグの導入は `3b7a7b07df`（TYPE-103 レビュー追従）。該当2分岐を通る fixture 関数（`arrayConstructorExplicitTypeArgWinsOverExpectedType` / `arrayConstructorExpectedType`）は次の追従コミット `256f5973b0` で追加されたが、いずれも `println(array.size)` しか照合しておらず、要素数が正しければ index が壊れていても通ってしまうため検出されていなかった（本タスクが除去対象とした検証パターンそのもの）。フラグを削除し `3b7a7b07df` 以前の無条件推論に戻した。回帰は `Scripts/diff_cases/array_constructor.kt`（実行値）と `array_constructor_type_inference.golden`（`e@10:47` / `e@14:41` のラムダ型が記録されること）で固定。
   - ゲート: 全 Swift テスト（1542 tests / 309 suites, green）、`--filter Golden`（更新モードなし、Golden.Sema 74 batches / 611.3s, green）、全 diff（total 1236 / failed 0 / skipped 59、skip はすべて既存の `SKIP-DIFF`）、`check_todo_ids.sh`、`git diff --check`。分割対象以外の既存 golden の変更は0件。
   - 進行順の逸脱: 共通方針は RF-GOLDEN-010 と RF-FIXTURE-001 の先行を求めているが、いずれも未着手のまま本タスクを実施した。010 は overload キーの表記変更であり、本タスクの入力分割・依存削減とは独立に適用できる。
-- [ ] RF-FIXTURE-003: `map_hofs.kt` の Map HOF・分解宣言・変換を分離する（11行 / 15回）
+- [x] RF-FIXTURE-003: `map_hofs.kt` の Map HOF・分解宣言・変換を分離する（11行 / 15回）（完了: PR #6650）
   - `forEach` の entry destructuring、`map` / `filter` の引数・戻り値、`mapValues` / `mapKeys` の K/V 型伝播、`toList` の Pair 変換を別目的にする。Map と entries の Iterable HOF の解決先を混同しない。
   - ラムダ内外の `println` を型照合へ置き換え、必要のない String 操作を使わない。実行先は `map_hof.kt` / `map_entries_hof.kt`。destructuring と `toList` の型検証は、出力ケースがあるという理由だけでは削除しない。
-- [ ] RF-FIXTURE-004: `collection_mutable_conversions.kt` の変換型と変更後の挙動を分離する（29行 / 14回）
+- [x] RF-FIXTURE-004: `collection_mutable_conversions.kt` の変換型と変更後の挙動を分離する（29行 / 14回）（完了: PR #6651）
   - `Iterable` / `Collection` → `MutableList`、`Iterable` → `MutableSet` / `HashSet`、`Map` → `MutableMap` を receiver / 変換 API 別に固定する。receiver をすべて具体的な List に変えて interface 経由の解決を失わない。
   - 型ケースから `add`・`contains`・set・`println` を除き、可変な戻り型を明示的に検証する。コピー独立性・変更結果は `collection_copies.kt` / `iterable_generic_surface.kt` と照合し、Map 変換などの不足を補完する。
 - [ ] RF-FIXTURE-005: `unsigned_array_as_list.kt` を view / copy / size の型検証に分離する（31行 / 10回）
@@ -770,10 +770,10 @@
 - [ ] RF-FIXTURE-008: `linkedhashset_alias.kt` の nominal 型と継承検証を分離する（72行 / 6回）
   - `LinkedHashSet` は open class。型引数・引数 / 戻り値 / プロパティ・`Set` / `MutableSet` 互換性、ネスト / 上限制約 / 拡張 receiver と、`MySet` による継承・継承メンバ解決を別目的にする。
   - 型だけを見る箇所の更新操作・文字列補間・出力を除く。実行先は `ksp627_collection_aliases.kt` / `bug196_linkedhashset_subclass.kt` と `testCodegenLinkedSetOfFactoryUsesMutableRuntimeSet`。既存の subclass 回帰を保持する。
-- [ ] RF-FIXTURE-009: `list_collection_hofs.kt` の独立 HOF 群を目的別に分離する（9行 / 9回）
+- [x] RF-FIXTURE-009: `list_collection_hofs.kt` の独立 HOF 群を目的別に分離する（9行 / 9回）（完了: PR #6656）
   - `mapIndexed`、`flatMap`、associate 系、`groupBy`、`partition` / destructuring の戻り型・ラムダ引数型を独立に固定する。文字列補間・`uppercase`・`first` など目的外の処理は最小のラムダに置き換える。
   - 実行先は `collection_hof.kt` / `list_associate_group_hofs.kt`。別入力 `list_collection_hofs_chained.kt` は連鎖推論の sentinel としてそのまま残し、分割先への再統合をしない。
-- [ ] RF-FIXTURE-010: `flatten_sequence_stdlib.kt` の flatten 型解決と Sequence 実行シナリオを分離する（28行 / 7回）
+- [x] RF-FIXTURE-010: `flatten_sequence_stdlib.kt` の flatten 型解決と Sequence 実行シナリオを分離する（28行 / 7回）（完了: PR #6657）
   - `Sequence<Iterable<T>>` と `Sequence<Sequence<T>>` の overload / 要素型推論を型付き入力と戻り型で検証する。builder・`yield`・for・`take` / `drop`・`toList`・size・出力を同居させない。
   - 実行先は `flatten_sequence_edge_cases.kt`。元の `mixedSeq`（List と Sequence の混在）はこの diff にないため、標準 Kotlin で成立する型・診断と検証目的を確認して別途固定する。builder 内推論などを削るだけで既存の問題を隠さない。
 - [ ] RF-FIXTURE-011: `flatten_stdlib.kt` を Iterable flatten の型伝播に最小化する（18行 / 7回）
@@ -782,10 +782,10 @@
 - [ ] RF-FIXTURE-012: `sequence_partition.kt` の戻り型と destructuring を実行条件から分離する（29行 / 7回）
   - `Sequence<T>.partition` の predicate 引数と `Pair<List<T>, List<T>>`、分解後の各 List 型を固定する。`asSequence`・Pair の出力用アクセス・空 / 全一致 / 不一致の重複シナリオを型 fixture に集約しない。
   - 実行先は `CodegenBackendSequenceEdgeCasesTests.testCodegenSequencePartitionSplitsElements`（通常・空は既存）。全一致 / 不一致 / `asSequence` 経由は不足を照合して補完し、List.partition のテストだけで Sequence の実行を代替しない。
-- [ ] RF-FIXTURE-013: `progression.kt` の生成・変換操作の型と列挙結果を分離する（8行 / 7回）
+- [x] RF-FIXTURE-013: `progression.kt` の生成・変換操作の型と列挙結果を分離する（8行 / 7回）（完了: PR #6660）
   - 5種の `fromClosedRange` は Progression 自身の戻り型を固定し、`step` / `reversed` / `isEmpty` はそれぞれ必要な型検証へ分ける。全式を `toList` に接続して返す構成をやめる。
   - 要素列・端点・空判定・step の挙動は既存 `progression.kt` の実行ケースに寄せ、Int / Long / Char / UInt / ULong の型検証を維持する。
-- [ ] RF-FIXTURE-014: `file_operations_advanced.kt` の File API 型解決とディレクトリ操作を分離する（28行 / 10回）
+- [x] RF-FIXTURE-014: `file_operations_advanced.kt` の File API 型解決とディレクトリ操作を分離する（28行 / 10回）（完了: PR #6661）
   - mkdirs / delete の戻り型、walk の戻り型、listFiles の nullable 戻り型を別目的で固定する。File を引数に受け、固定 `/tmp` パスの操作手順と `toList()?.size` / 出力を型検証から外す。
   - 実行先は `file_mkdirs.kt` / `file_walk.kt` / `file_listfiles.kt`。実ファイル生成・走査・削除はこれらの実行層で維持し、Sema が実行結果を検証しているとは扱わない。
 - [ ] RF-FIXTURE-015: `file_use_lines.kt` を useLines のラムダ / 戻り型推論に絞る（17行 / 8回）
@@ -794,26 +794,26 @@
 
 ### 第3群: 大きな API surface / シナリオの分解（016〜022）
 
-- [ ] RF-FIXTURE-016: `stdlib_kotlin_collections_Collection_n.kt` の Collection surface を API 群別に分ける（71行 / 6回）
+- [x] RF-FIXTURE-016: `stdlib_kotlin_collections_Collection_n.kt` の Collection surface を API 群別に分ける（71行 / 6回）（完了: PR #6663）
   - containsAll / count / indices、nullable helper、plus overload、random overload、可変変換、signed / unsigned 配列変換に分ける。各入力は型付き receiver を受け、結果を連結した巨大な Boolean 式と `println` を除く。
   - nullability、Random あり / なし、要素 / Iterable / Sequence / Array の overload、配列変換12型の行列を維持する。実行先は同名 `stdlib_kotlin_collections_Collection_n.kt`。コピー独立性・乱数・配列内容は実行層に残す。
 - [ ] RF-FIXTURE-017: `stdlib_kotlin_collections_MutableCollection_n.kt` の更新 surface と値検証を分離する（81行 / 3回）
   - addAll、remove / removeAll、retainAll、plusAssign / minusAssign を目的別に分け、Iterable / Collection / Sequence / Array と nullable 要素の overload・戻り型を固定する。型付き引数を使い、同じ mutableList の生成・出力を繰り返さない。
   - `StableIterable` の実走査、重複要素の削除、空入力、Set 更新などの値検証は、入力が完全一致する同名 diff に残す。静的 receiver / 引数型が変わって別 overload を検証する退行を防ぐ。
-- [ ] RF-FIXTURE-018: `stdlib_kotlin_collections_Map_flat.kt` を flatMapTo の overload / destination 型に絞る（70行 / 2回）
+- [x] RF-FIXTURE-018: `stdlib_kotlin_collections_Map_flat.kt` を flatMapTo の overload / destination 型に絞る（70行 / 2回）（完了: PR #6665）
   - Iterable と Sequence を返すラムダの overload、entry の K/V 型、nullable 要素、`MutableList<Any>` 等の広い destination と戻り型保持を型ケースにする。入力 Map・destination・変換元を引数に受け、不要な factory と処理手順を外す。
   - destination の同一性・追記順・呼び出し回数・`constrainOnce`・独自 one-shot Iterable・例外時の部分結果は、入力が完全一致する同名 diff に残す。これらの runtime シナリオを別の Sema fixture にコピーし直さない。
-- [ ] RF-FIXTURE-019: `stdlib_kotlin_collections_MutableMap_n.kt` の更新・委譲・iterator を分離する（36行 / 2回）
+- [x] RF-FIXTURE-019: `stdlib_kotlin_collections_MutableMap_n.kt` の更新・委譲・iterator を分離する（36行 / 2回）（完了: PR #6666）
   - nullable getOrPut、plusAssign / minusAssign、putAll、set / remove、Map による property delegation、withDefault / getValue、mutable iterator / entry.setValue を別目的に分ける。各型・overload を明示して出力用の更新連鎖を外す。
   - 実行先は同名 `stdlib_kotlin_collections_MutableMap_n.kt`。null / absent、wrapper と元 Map の共有、iterator.remove の結果を維持し、001の基本 Map 操作と分割先が重複しないよう照合する。
-- [ ] RF-FIXTURE-020: `stdlib_kotlin_collections_n_if.kt` の ifEmpty 型推論と遅延評価を分離する（87行 / 2回）
+- [x] RF-FIXTURE-020: `stdlib_kotlin_collections_n_if.kt` の ifEmpty 型推論と遅延評価を分離する（87行 / 2回）（完了: PR #6667）
   - Collection / Map / Array の overload、nullable 要素、receiver と fallback の異なる型からの戻り型推論を固定する。カウンタ・同一性比較・出力・空判定の実行シナリオを取り除く。
   - custom Collection / Map の subtype に対する解決は必要な型ケースとして独立させ、size の override を使う isEmpty の実行結果と fallback 評価回数・同一性は同名 diff に残す。型注釈を追加して元の推論パスを失わない。
 - [ ] RF-FIXTURE-021: `companion_object_private_access.kt` のアクセス規則と companion 拡張を分離する（163行 / 4回）
   - private constructor（通常 / data class）、companion → インスタンスの private property / function、外側クラス → companion の private member、名前付き / 無名 companion の拡張関数 / 拡張プロパティを目的別の最小クラスにする。
   - メール検証の `contains`、業務的な分岐・演算、整形文字列、factory ごとの大量出力をアクセス可否の検証から外す。private の許可範囲と呼び出し先は Sema に残す。
   - 実行先 `companion_receiver_extension_function.kt` は companion 拡張関数の一部のみをカバーする。private access / data class / 拡張プロパティまで網羅済みとはせず、残すべき実行挙動があれば既存 fixture ハーネスで不足を補う。
-- [ ] RF-FIXTURE-022: `stdlib_string_ops.kt` の String API を検証目的別に分離する（77行 / 5回）
+- [x] RF-FIXTURE-022: `stdlib_string_ops.kt` の String API を検証目的別に分離する（77行 / 5回）（完了: PR #6669）
   - trim / indent、検索・prefix / suffix、部分文字列、置換、split、大小文字 / equals、数値変換、format、空白判定・先頭要素などの API 群に分ける。既に明示された戻り型・nullable 戻り型と overload の区別は維持する。
   - `println` は元からないため、出力除去を成果としない。valid / invalid 入力で型が同じケースは、既存の型・実行検証と照合して冗長分だけ整理する。実行先は `stdlib_string_ops.kt` を起点に、prefix / suffix / indent 等の不足項目を API 別の既存実行ケースと照合する。
 
