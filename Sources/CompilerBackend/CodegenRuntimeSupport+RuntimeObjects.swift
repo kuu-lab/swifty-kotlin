@@ -127,13 +127,34 @@ extension CodegenRuntimeSupport {
                 currentDirectoryPath: packageRootURL().path,
                 phaseTimer: nil,
                 subPhaseName: "Link/swift-runtime-build",
-                timeout: 300
+                timeout: runtimeBuildTimeoutSeconds()
             )
         } catch let error as CommandRunnerError {
             throw CodegenRuntimeSupportError.runtimeBuildFailed(describeBuild(error))
         } catch {
             throw CodegenRuntimeSupportError.runtimeBuildFailed(String(describing: error))
         }
+    }
+
+    // A from-scratch `swift build -c release --target Runtime` (first run in
+    // a new worktree, or after `--clean-runtime-cache`) measured 225-330s on
+    // a moderately loaded machine, so this default leaves headroom above
+    // that observed range. KSWIFTK_RUNTIME_BUILD_TIMEOUT overrides it for
+    // machines that are slower or more heavily loaded still.
+    private static let defaultRuntimeBuildTimeoutSeconds: TimeInterval = 600
+
+    // Exposed for testing, like discoverRuntimeObjectPaths below.
+    static func runtimeBuildTimeoutSeconds(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> TimeInterval {
+        guard let raw = environment["KSWIFTK_RUNTIME_BUILD_TIMEOUT"],
+              let parsed = TimeInterval(raw),
+              parsed.isFinite,
+              parsed > 0
+        else {
+            return defaultRuntimeBuildTimeoutSeconds
+        }
+        return parsed
     }
 
     private static func describeBuild(_ error: CommandRunnerError) -> String {
@@ -144,7 +165,7 @@ extension CodegenRuntimeSupport {
             let stderr = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             return stderr.isEmpty ? "swift build exited with code \(result.exitCode)." : stderr
         case let .timedOut(reason):
-            return reason
+            return "\(reason) Set KSWIFTK_RUNTIME_BUILD_TIMEOUT (seconds) to allow more time."
         }
     }
 

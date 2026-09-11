@@ -88,6 +88,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1198: Platform.cpuArchitecture is typed against the
+        // source-backed CpuArchitecture enum before native platform stubs run.
+        predeclareBundledCpuArchitectureHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         predeclareBundledAnnotationHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
@@ -116,11 +123,16 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        predeclareBundledGCInfoHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
 
-        if let stdlibLibraryPath = ctx.options.stdlibLibraryPath {
+        if let stdlibModuleName = importDeferredWork.stdlibModuleName {
             bundledIndex = mergeImportedStdlibSymbolsIntoBundledIndex(
                 bundledIndex: bundledIndex,
-                stdlibLibraryPath: stdlibLibraryPath,
+                stdlibModuleName: stdlibModuleName,
                 symbols: symbols,
                 types: types,
                 interner: ctx.interner
@@ -152,7 +164,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
         )
         normalizeImportedLibraryMemberSignatures(
             importDeferredWork,
@@ -261,21 +274,24 @@ final class DataFlowSemaPhase: CompilerPhase {
         return (importedInlineFunctions, deferredWork)
     }
 
-    private func mergeImportedStdlibSymbolsIntoBundledIndex(
+    /// Merges the stdlib artifact's imported symbols into `bundledIndex` so
+    /// synthetic stub registration can see they are already covered (see
+    /// `BundledSyntheticStubRegistration`'s callers). `stdlibModuleName` is
+    /// resolved and validated once, in `loadImportedLibrarySymbols`, from
+    /// manifest.json; take it from there rather than re-reading and
+    /// re-parsing that file here. A second, independent read had no
+    /// diagnostic on failure (unlike the first) and would silently return
+    /// `bundledIndex` unchanged, so any suppression that depends on it
+    /// (e.g. `HeaderHelpers+SyntheticRangeUntilStubs`) would fail open —
+    /// registering a synthetic stub the artifact already provides, which
+    /// then wins overload resolution as the more specific candidate.
+    func mergeImportedStdlibSymbolsIntoBundledIndex(
         bundledIndex: BundledDeclarationIndex,
-        stdlibLibraryPath: String,
+        stdlibModuleName: InternedString,
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
     ) -> BundledDeclarationIndex {
-        let manifestPath = URL(fileURLWithPath: stdlibLibraryPath).appendingPathComponent("manifest.json").path
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)),
-              let manifest = try? JSONDecoder().decode(LibraryManifest.self, from: data),
-              let moduleName = manifest.moduleName, !moduleName.isEmpty
-        else {
-            return bundledIndex
-        }
-        let stdlibModuleName = interner.intern(moduleName)
         var importedStdlibKeys: Set<BundledMemberKey> = []
         for symbol in symbols.allSymbols() where symbol.flags.contains(.importedLibrary) {
             guard symbols.moduleFQN(for: symbol.id) == stdlibModuleName else { continue }
