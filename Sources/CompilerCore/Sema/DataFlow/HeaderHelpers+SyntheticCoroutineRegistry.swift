@@ -1391,7 +1391,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextElementSymbol)
         let coroutineContextElementType = types.make(.classType(ClassType(
@@ -1444,7 +1444,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamName = interner.intern("E")
@@ -1457,6 +1457,8 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(coroutineContextKeySymbol, for: coroutineContextKeyTypeParamSymbol)
+        types.setNominalTypeParameterSymbols([coroutineContextKeyTypeParamSymbol], for: coroutineContextKeySymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: coroutineContextKeyTypeParamSymbol,
             nullability: .nonNull
