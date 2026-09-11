@@ -1,16 +1,19 @@
 package kotlin.text
 
 // KSP-406: substring / subSequence / slice / removeRange / replaceRange.
-// Character indices traverse toString().toList() because Kotlin String and
-// CharSequence lengths are measured in UTF-16 code units.
+// String operations traverse toString().toList(); CharSequence slice keeps
+// indexed access on the receiver so custom implementations remain observable.
 
 private fun buildStringFromCharRange(chars: List<Char>, startIndex: Int, endIndex: Int): String {
     val sb = StringBuilder()
+    // Append the collected range once so UTF-16 surrogate pairs stay intact.
+    val range = CharArray(endIndex - startIndex)
     var i = startIndex
     while (i < endIndex) {
-        sb.append(chars[i])
+        range[i - startIndex] = chars[i]
         i++
     }
+    sb.appendRange(range, 0, range.size)
     return sb.toString()
 }
 
@@ -39,10 +42,6 @@ public fun String.substring(startIndex: Int, endIndex: Int): String {
 public fun String.subSequence(startIndex: Int, endIndex: Int): String =
     this.substring(startIndex, endIndex)
 
-// BUG-152: members reached through a value statically typed as `CharSequence`.
-public fun CharSequence.subSequence(startIndex: Int, endIndex: Int): CharSequence =
-    this.toString().substring(startIndex, endIndex)
-
 public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""
     return this.substring(indices.first, indices.last + 1)
@@ -59,6 +58,24 @@ public fun String.slice(indices: Iterable<Int>): String {
         sb.append(chars[index])
     }
     return sb.toString()
+}
+
+public fun CharSequence.slice(indices: IntRange): CharSequence {
+    if (indices.isEmpty()) return ""
+    return this.subSequence(indices.first, indices.last + 1)
+}
+
+public fun CharSequence.slice(indices: Iterable<Int>): CharSequence {
+    val size = if (indices is Collection<*>) indices.size else 10
+    if (size == 0) return ""
+    val chars = mutableListOf<Char>()
+    for (index in indices) {
+        chars.add(get(index))
+    }
+    val result = StringBuilder(size)
+    // Append the collected UTF-16 code units in one bridge call so surrogate
+    // pairs are preserved by the native StringBuilder representation.
+    return result.appendRange(chars.toCharArray(), 0, chars.size)
 }
 
 public fun String.removeRange(startIndex: Int, endIndex: Int): String {

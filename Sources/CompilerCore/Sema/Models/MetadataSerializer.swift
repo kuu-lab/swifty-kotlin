@@ -843,9 +843,10 @@ package final class MetadataEncoder {
                     nameResolver: { interner.resolve($0) }
                 )
             }
-            // Properties with custom getters are lowered as accessor functions in
-            // the artifact objects. Record that function's link name so consumers
-            // can call the precompiled getter directly.
+            // Property accessors are lowered as functions in the artifact
+            // objects. Record the getter link even for abstract properties:
+            // inline producer bodies may dispatch through that getter and the
+            // consumer must resolve the link to its imported accessor symbol.
             // Enum `entries` is a compiler-synthesized property whose getter
             // is emitted as `entries$get`, rather than through the ordinary
             // property-accessor naming scheme. Preserve that getter link in a
@@ -886,11 +887,21 @@ package final class MetadataEncoder {
             {
                 propertyGetterExternalLinkName = propertyLink
             }
-            if hasCustomGetter,
-               let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
+            if let linkName = functionLinkNames[getterSymbol] ?? symbols.externalLinkName(for: getterSymbol),
                !linkName.isEmpty {
                 propertyGetterExternalLinkName = linkName
-                if runtimeCallbackRawReturnSymbolIDs.contains(getterSymbol) {
+                let isErasedTypeParameterGetter: Bool = {
+                    guard let propertyType = symbols.propertyType(for: symbol.id) else {
+                        return false
+                    }
+                    if case .typeParam = types.kind(of: propertyType) {
+                        return true
+                    }
+                    return false
+                }()
+                if runtimeCallbackRawReturnSymbolIDs.contains(getterSymbol)
+                    || isErasedTypeParameterGetter
+                {
                     propertyGetterAbiReturnTypeSignature = metadataTypeSignature(
                         types.intType,
                         symbols: symbols,
@@ -991,9 +1002,13 @@ package final class MetadataEncoder {
 
         let isDataClass = symbol.flags.contains(.dataType)
         let isOpenClass = symbol.flags.contains(.openType)
+        // Kotlin override members are implicitly open unless explicitly final;
+        // without this, an imported `override val` (e.g. AbstractMap.size)
+        // decodes as final and consumers reject valid overrides.
         let modality: MetadataModality = if symbol.flags.contains(.abstractType) {
             .abstract
-        } else if symbol.flags.contains(.openType) {
+        } else if symbol.flags.contains(.openType)
+                    || (symbol.flags.contains(.overrideMember) && !symbol.flags.contains(.finalMember)) {
             .open
         } else {
             .final

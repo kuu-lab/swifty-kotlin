@@ -2,7 +2,7 @@
 
 /// Default-argument materialization and runtime callee resolution helpers.
 extension CallLowerer {
-    /// Returns the default mask for the three string parameters of the
+    /// Returns the default mask for the five optional parameters of the
     /// source-backed Iterable.joinToString overload.
     ///
     /// Safe-call collection fallback can lose the declaration's default-value
@@ -13,7 +13,7 @@ extension CallLowerer {
         sourceArguments: [CallArgument],
         interner: StringInterner
     ) -> Int64 {
-        let parameterNames = ["separator", "prefix", "postfix"]
+        let parameterNames = ["separator", "prefix", "postfix", "limit", "truncated"]
         var suppliedParameters = Set<Int>()
         var nextPositionalParameter = 0
 
@@ -51,17 +51,23 @@ extension CallLowerer {
         instructions: inout [KIRInstruction],
         arguments: inout [KIRExprID]
     ) {
-        let defaults = [", ", "", ""]
         let stringType = sema.types.stringType
-        for (offset, defaultValue) in defaults.enumerated() {
+        let defaults: [(KIRExprKind, TypeID)] = [
+            (.stringLiteral(interner.intern(", ")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.stringLiteral(interner.intern("")), stringType),
+            (.intLiteral(-1), sema.types.intType),
+            (.stringLiteral(interner.intern("...")), stringType),
+        ]
+        for (offset, entry) in defaults.enumerated() {
             let paramIndex = firstDefaultParameterIndex + offset
             let maskBit = Int64(1) << paramIndex
             guard (defaultMask & maskBit) != 0 else { continue }
             let argumentIndex = paramIndex + 1
             guard argumentIndex < arguments.count else { continue }
-            let interned = interner.intern(defaultValue)
-            let exprID = arena.appendExpr(.stringLiteral(interned), type: stringType)
-            instructions.append(.constValue(result: exprID, value: .stringLiteral(interned)))
+            let (defaultValue, type) = entry
+            let exprID = arena.appendExpr(defaultValue, type: type)
+            instructions.append(.constValue(result: exprID, value: defaultValue))
             arguments[argumentIndex] = exprID
         }
     }
@@ -233,13 +239,20 @@ extension CallLowerer {
         // those symbols through an itable is invalid for the built-in runtime
         // collection boxes; only source-backed/internal links may use virtual
         // dispatch here. A source-backed ListIterator's inherited Iterator
-        // methods are the deliberate exception because they must use the
-        // implementation's inherited itable slots. Clock bridges are another
-        // deliberate exception: their receiver is represented by a
-        // runtime-backed virtual object.
+        // methods and Iterator bridges on source-backed class receivers are
+        // deliberate exceptions because they must use the implementation's
+        // itable slots. Clock bridges are another deliberate exception: their
+        // receiver is represented by a runtime-backed virtual object.
+        let usesIteratorRuntimeVirtualBridge = isIteratorRuntimeVirtualBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema,
+            interner: interner
+        )
         guard listIteratorInheritedDispatch != nil
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+            || usesIteratorRuntimeVirtualBridge
         else { return nil }
         guard let dispatchKind = resolveVirtualDispatch(
             callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
@@ -250,9 +263,12 @@ extension CallLowerer {
         {
             vcArguments.removeFirst()
         }
+        let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+            ? (sema.symbols.symbol(chosenCallee)?.name ?? calleeName)
+            : calleeName
         return .virtualCall(
-            symbol: dispatchCallee,
-            callee: calleeName,
+            symbol: usesIteratorRuntimeVirtualBridge ? chosenCallee : dispatchCallee,
+            callee: virtualCalleeName,
             receiver: loweredReceiverID,
             arguments: vcArguments,
             result: result,
@@ -272,6 +288,14 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
+        if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+            chosenCallee: chosenCallee,
+            calleeName: fallback,
+            sema: sema,
+            interner: interner
+        ) {
+            return sequenceBuilderCallee
+        }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType

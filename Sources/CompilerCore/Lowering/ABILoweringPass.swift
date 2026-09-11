@@ -132,6 +132,10 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("__kk_op_rangeUntil"),
         ]
 
+        let unboxSkipCallees = boxedReturnRangeCallees.union(
+            rawBooleanReturnCallees(interner: ctx.interner)
+        )
+
         var signatureByName: [InternedString: FunctionSignature] = [:]
         if let symbols {
             for decl in module.arena.declarations {
@@ -233,7 +237,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                         types: types,
                         symbols: symbols,
                         boxingCalleeTable: boxingCalleeTable,
-                        boxedReturnCallees: boxedReturnRangeCallees
+                        boxedReturnCallees: unboxSkipCallees
                     )
                     if let (vcUnboxCallee, vcReturnType) = vcUnbox, let vcResult {
                         let tempResult = module.arena.appendTemporary(type: vcReturnType
@@ -555,7 +559,7 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
                     types: types,
                     symbols: symbols,
                     boxingCalleeTable: boxingCalleeTable,
-                    boxedReturnCallees: boxedReturnRangeCallees
+                    boxedReturnCallees: unboxSkipCallees
                 )
 
                 // Fallback: collection element accessors may return a boxed primitive.
