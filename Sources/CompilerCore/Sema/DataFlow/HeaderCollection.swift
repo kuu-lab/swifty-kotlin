@@ -1710,13 +1710,17 @@ extension DataFlowSemaPhase {
         // staged source-shell treatment to the kotlin.concurrent atomic
         // nominals while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
-            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"] {
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KSP-1361: Reusing the synthetic SequenceScope shell must still
+            // leave the bundled Kotlin declaration source-backed.
+            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
             return true
         }
         guard resolvedFQName.count == 3,

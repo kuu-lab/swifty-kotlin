@@ -265,4 +265,29 @@ struct CodegenRuntimeObjectDiscoveryTests {
             #expect(validated.isEmpty)
         }
     }
+
+    @Test
+    func testRuntimeBuildTimeoutDefaultsWhenEnvironmentVariableIsAbsent() {
+        let timeout = CodegenRuntimeSupport.runtimeBuildTimeoutSeconds(environment: [:])
+        #expect(timeout == 600)
+    }
+
+    @Test
+    func testRuntimeBuildTimeoutUsesEnvironmentVariableOverride() {
+        let timeout = CodegenRuntimeSupport.runtimeBuildTimeoutSeconds(
+            environment: ["KSWIFTK_RUNTIME_BUILD_TIMEOUT": "900"]
+        )
+        #expect(timeout == 900)
+    }
+
+    // Unparseable, non-positive, or non-finite overrides must not produce a
+    // zero/negative/infinite timeout that either fires immediately or never
+    // fires at all; fall back to the default instead.
+    @Test(arguments: ["not-a-number", "0", "-5", "", "inf", "nan"])
+    func testRuntimeBuildTimeoutIgnoresInvalidOverride(rawValue: String) {
+        let timeout = CodegenRuntimeSupport.runtimeBuildTimeoutSeconds(
+            environment: ["KSWIFTK_RUNTIME_BUILD_TIMEOUT": rawValue]
+        )
+        #expect(timeout == 600)
+    }
 }

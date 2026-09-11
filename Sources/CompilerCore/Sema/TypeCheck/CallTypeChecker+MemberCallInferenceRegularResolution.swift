@@ -640,7 +640,10 @@ extension CallTypeChecker {
            !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
-               receiverType: memberLookupType,
+               // Property reads are resolved from the receiver's static type.
+               // In particular, `super.p` must select the direct superclass
+               // declaration instead of the most-derived override.
+               receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
                sema: sema
            )
         {
@@ -1361,6 +1364,37 @@ extension CallTypeChecker {
             sema: sema,
             interner: interner
         )
+        if calleeName == interner.intern("forEach") {
+            let receiverClassification = ReceiverClassifier(sema: sema, interner: interner).classify(
+                receiverID: receiverID,
+                receiverType: lookupReceiverType,
+                ast: ast
+            )
+            let isEligibleIterableReceiver = receiverClassification.isIterableReceiver
+                || (
+                    !receiverClassification.isCollectionReceiver
+                        && !receiverClassification.isSequenceReceiver
+                        && !receiverClassification.isArrayReceiver
+                        && !receiverClassification.isMapReceiver
+                        && !receiverClassification.isSetReceiver
+                )
+            if !isEligibleIterableReceiver {
+                let iterableFQName = [
+                    interner.intern("kotlin"),
+                    interner.intern("collections"),
+                    interner.intern("Iterable"),
+                ]
+                candidates.removeAll { candidate in
+                    guard sema.symbols.isSourceBackedSymbol(candidate),
+                          let signatureReceiver = sema.symbols.functionSignature(for: candidate)?.receiverType,
+                          let (_, receiverSymbol) = resolveClassTypeSymbol(signatureReceiver, sema: sema)
+                    else {
+                        return false
+                    }
+                    return receiverSymbol.fqName == iterableFQName
+                }
+            }
+        }
         // Kotlin selects MutableMap.withDefault over the less-specific
         // Map.withDefault extension for a MutableMap receiver. Resolve this
         // subtype preference before trailing-lambda overload inference sees
@@ -1575,7 +1609,7 @@ extension CallTypeChecker {
         // (map, filter, etc.) must bind to the real Kotlin declaration so the
         // object-expression pipeline runs instead of a `kk_*` runtime shortcut.
         let sourceBackedCollectionMemberNames: Set<String> = ["take", "drop", "chunked", "windowed", "asSequence", "constrainOnce", "orEmpty", "distinct", "flatten", "filterNotNull", "withIndex", "toList", "toMutableList", "toSet", "toMutableSet", "toHashSet", "toSortedSet", "toCollection", "toMap", "unzip", "union", "intersect", "subtract", "plus", "plusElement", "minus", "minusElement", "average", "sliceArray", "reversedArray", "asList", "toTypedArray", "putAll", "remove", "clear"]
-        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty"]
+        let sourceBackedTrailingLambdaMemberNames: Set<String> = ["map", "filter", "filterNot", "mapIndexed", "mapNotNull", "filterIndexed", "onEach", "onEachIndexed", "ifEmpty", "flatMap", "flatMapIndexed", "joinTo", "joinToString", "isNotEmpty", "forEach"]
         let memberNameText = interner.resolve(calleeName)
         let isMutableMapIteratorSource = memberNameText == "iterator"
             && ReceiverClassifier(sema: sema, interner: interner).isMutableMapType(memberLookupType)
