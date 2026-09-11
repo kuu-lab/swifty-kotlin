@@ -8,11 +8,6 @@ symbol fq=golden.sema.charSequenceGroupByTo[kind=fun;params=kotlin.CharSequence]
 symbol fq=golden.sema.charSequenceGroupByTransform.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.charSequenceGroupByTransform[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.collections.Map<Int, kotlin.collections.List<String>>
 symbol fq=golden.sema.charSequenceGroupBy[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=kotlin.collections.Map<Int, kotlin.collections.List<Char>>
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
-symbol fq=kotlin.collections.List[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.Map[kind=iface;gen=2] kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.MutableList[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.MutableMap[kind=iface;gen=2] kind=interface vis=public flags=synthetic
 file fstdlib_kotlin_text_CharSequence_group package=golden.sema
   decl golden.sema.charSequenceGroupBy[kind=fun;params=kotlin.CharSequence] fun charSequenceGroupBy sym=golden.sema.charSequenceGroupBy[kind=fun;params=kotlin.CharSequence]
   decl golden.sema.charSequenceGroupByTransform[kind=fun;params=kotlin.CharSequence] fun charSequenceGroupByTransform sym=golden.sema.charSequenceGroupByTransform[kind=fun;params=kotlin.CharSequence]

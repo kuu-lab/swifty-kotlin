@@ -39,9 +39,6 @@ symbol fq=golden.sema.singlePredicateNamed.$13.wanted[kind=vparam] kind=valuePar
 symbol fq=golden.sema.singlePredicateNamed[kind=fun;params=kotlin.CharSequence,Char] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,Char] ret=Char
 symbol fq=golden.sema.singlePredicate[kind=fun;params=kotlin.CharSequence,Char] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,Char] ret=Char
 symbol fq=golden.sema.singleString[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Char
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
-symbol fq=kotlin.text.get.index[kind=vparam] kind=valueParameter vis=private flags=synthetic
-symbol fq=kotlin.text.get[kind=fun;recv=String;params=Int] kind=function vis=public flags=synthetic|operatorFunction sig=recv=String params=[Int] ret=Char
 file fstdlib_kotlin_text_CharSequence_single package=golden.sema
   decl golden.sema.SingleSequence[kind=class] class SingleSequence sym=golden.sema.SingleSequence[kind=class]
   decl golden.sema.singleDirect[kind=fun;params=kotlin.CharSequence] fun singleDirect sym=golden.sema.singleDirect[kind=fun;params=kotlin.CharSequence]
@@ -60,7 +57,7 @@ file fstdlib_kotlin_text_CharSequence_single package=golden.sema
   decl golden.sema.nullableNonLocal[kind=fun;params=kotlin.CharSequence?,Char] fun nullableNonLocal sym=golden.sema.nullableNonLocal[kind=fun;params=kotlin.CharSequence?,Char]
   decl golden.sema.discardedNonLocal[kind=fun;params=kotlin.CharSequence] fun discardedNonLocal sym=golden.sema.discardedNonLocal[kind=fun;params=kotlin.CharSequence]
 expr e@4:38 name(value) type=String ref=golden.sema.SingleSequence.value[kind=prop]
-expr e@4:38#1 memberCall recv=e@4:38 callee=length args=[] type=Int
+expr e@4:38#1 memberCall recv=e@4:38 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
 expr e@5:42 name(value) type=String ref=golden.sema.SingleSequence.value[kind=prop]
 expr e@5:48 name(index) type=Int ref=golden.sema.SingleSequence.get.$1.index[kind=vparam]
 expr e@5:42#1 indexedAccess receiver=e@5:42 indices=[e@5:48] type=Char call=kotlin.text.get[kind=fun;recv=String;params=Int]
