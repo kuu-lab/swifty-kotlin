@@ -11,5 +11,5 @@ expr e@3:20 name(value) type=kotlin.sequences.Sequence<Int> ref=__local_0.value[
 expr e@3:20#1 memberCall recv=e@3:20 callee=iterator args=[] type=kotlin.collections.Iterator<Int> call=kotlin.sequences.Sequence.iterator[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=;gen=1] targs=[Int]
 expr e@3:5 localDecl iterator mutable=0 type=_ init=e@3:20#1 type=Unit ref=__local_1.iterator[kind=local]
 expr e@4:12 name(iterator) type=kotlin.collections.Iterator<Int> ref=__local_1.iterator[kind=local]
-expr e@4:12#1 memberCall recv=e@4:12 callee=next args=[] type=Int call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<out T0>;params=;gen=1] targs=[Int]
+expr e@4:12#1 memberCall recv=e@4:12 callee=next args=[] type=Int call=kotlin.collections.Iterator.next[kind=fun;recv=kotlin.collections.Iterator<T0>;params=;gen=1] targs=[Int]
 expr e@4:5 return value=e@4:12#1 type=Nothing
