@@ -21,15 +21,6 @@ symbol fq=__try_0_catch_0._[kind=local] kind=local vis=internal flags=_ type=kot
 symbol fq=flatMapTo.$1.destination[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=flatMapTo.$1.transform[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=flatMapTo[kind=fun;recv=UserSequence;params=kotlin.collections.MutableList<Int>,fn{p=Int;ret=kotlin.sequences.Sequence<Int>}] kind=function vis=public flags=_ sig=recv=UserSequence params=[kotlin.collections.MutableList<Int>,(Int) -> kotlin.sequences.Sequence<Int>] ret=kotlin.collections.MutableList<Int>
-symbol fq=kotlin.collections.Iterable[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.Iterator[kind=iface;gen=1] kind=interface vis=public flags=synthetic
-symbol fq=kotlin.collections.List[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.MutableCollection[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.collections.MutableList.E[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;gen=1] kind=function vis=public flags=synthetic|operatorFunction sig=recv=kotlin.collections.MutableList<kotlin.collections.MutableList.E> params=[kotlin.collections.MutableList.E] ret=Boolean
-symbol fq=kotlin.collections.MutableList[kind=iface;gen=1] kind=interface vis=public flags=_
-symbol fq=kotlin.sequences.Sequence.T[kind=tparam] kind=typeParameter vis=private flags=_
-symbol fq=kotlin.sequences.Sequence[kind=iface;gen=1] kind=interface vis=public flags=_
 symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_sequences_Sequence_flat package=_
   decl UserSequence[kind=class] class UserSequence sym=UserSequence[kind=class]
