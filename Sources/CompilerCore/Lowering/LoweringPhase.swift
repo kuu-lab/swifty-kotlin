@@ -58,9 +58,9 @@ public final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
-        // BUG-243: ImportedInlineKIRMaterializer.materialize() corrupts
+        // BUG-244: ImportedInlineKIRMaterializer.materialize() corrupts
         // unrelated imported-inline KIR at runtime; disabled until fixed.
-        // Re-enabling condition and regression scope: TODO.md BUG-243.
+        // Re-enabling condition and regression scope: TODO.md BUG-244.
         module.scanFeatures()
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.
