@@ -6,6 +6,8 @@ import Testing
 extension BuildKIRRegressionTests {
     // BUG-211: an interface property read must remain an itable dispatch in
     // KIR. The backend then boxes the receiver before doing the dynamic lookup.
+    // CharSequence.length is the property getter after `get` (slot 0) and
+    // `subSequence` (slot 1), so KIR must use method slot 2.
     @Test func testBug211CharSequenceLengthUsesDynamicItableDispatch() throws {
         let source = """
         fun lengthOf(value: CharSequence): Int = value.length
@@ -16,6 +18,20 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            // Slot is vtableSize-relative (kirInterfacePropertyGetterSlots), so derive it
+            // from production code instead of hardcoding — it shifts when CharSequence gains a method.
+            let charSequenceFQ = ["kotlin", "CharSequence"].map { ctx.interner.intern($0) }
+            let lengthFQ = charSequenceFQ + [ctx.interner.intern("length")]
+            let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: charSequenceFQ))
+            let lengthSymbol = try #require(sema.symbols.lookup(fqName: lengthFQ))
+            let expectedSlot = try #require(kirInterfacePropertyGetterSlot(
+                interfaceProperty: lengthSymbol,
+                interfaceSymbol: charSequenceSymbol,
+                sema: sema,
+                interner: ctx.interner
+            ))
+
             let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
             let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
                 guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
@@ -24,23 +40,8 @@ extension BuildKIRRegressionTests {
                 return dispatch
             }
 
-            let sema = try #require(ctx.sema)
-            let charSequenceFQName = ["kotlin", "CharSequence"].map { ctx.interner.intern($0) }
-            let charSequence = try #require(sema.symbols.lookup(fqName: charSequenceFQName))
-            let length = try #require(
-                sema.symbols.lookup(fqName: charSequenceFQName + [ctx.interner.intern("length")])
-            )
-            let expectedLengthSlot = try #require(
-                kirInterfacePropertyGetterSlot(
-                    interfaceProperty: length,
-                    interfaceSymbol: charSequence,
-                    sema: sema,
-                    interner: ctx.interner
-                )
-            )
-
             #expect(dispatches.contains { dispatch in
-                if case .itableDynamic(_, expectedLengthSlot) = dispatch { return true }
+                if case .itableDynamic(_, expectedSlot) = dispatch { return true }
                 return false
             })
         }
