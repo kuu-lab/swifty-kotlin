@@ -6,7 +6,6 @@ symbol fq=golden.sema.charSequenceRepeatEmpty.$2.source[kind=vparam] kind=valueP
 symbol fq=golden.sema.charSequenceRepeatEmpty[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=String
 symbol fq=golden.sema.charSequenceRepeat[kind=fun;params=kotlin.CharSequence,Int] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,Int] ret=String
 symbol fq=golden.sema.stringRepeat[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=String
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_CharSequence_repeat package=golden.sema
   decl golden.sema.charSequenceRepeat[kind=fun;params=kotlin.CharSequence,Int] fun charSequenceRepeat sym=golden.sema.charSequenceRepeat[kind=fun;params=kotlin.CharSequence,Int]
   decl golden.sema.charSequenceRepeatBuilder[kind=fun;params=kotlin.text.StringBuilder] fun charSequenceRepeatBuilder sym=golden.sema.charSequenceRepeatBuilder[kind=fun;params=kotlin.text.StringBuilder]
