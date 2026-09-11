@@ -19,6 +19,8 @@ extension CallLowerer {
         "all", "any", "none", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
         "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
         "minus", "minusElement", "plus", "plusElement", "random", "randomOrNull",
+        "min", "minBy", "minByOrNull", "minOf", "minOfOrNull", "minOfWith",
+        "minOfWithOrNull", "minOrNull", "minWith", "minWithOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
@@ -165,6 +167,24 @@ extension CallLowerer {
                     interner.intern("collections"),
                     interner.intern("Iterable"),
                 ]
+            }
+            // KSP-967: Iterable.contains is an ordinary bundled source call.
+            // Collection, Set, List, Map, and Sequence retain their existing
+            // owner-specific member/source/runtime paths.
+            if memberName == "contains",
+               let signature = sema.symbols.functionSignature(for: chosenCallee),
+               let declaredReceiver = signature.receiverType,
+               let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
+                   sema.types.makeNonNullable(declaredReceiver),
+                   sema: sema
+               ),
+               declaredReceiverSymbol.fqName == [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   interner.intern("Iterable"),
+               ]
+            {
+                return true
             }
             if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
