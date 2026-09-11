@@ -556,6 +556,23 @@ extension CallLowerer {
 
         let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: propertySymbol)
             ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySymbol)
+
+        // An interface-owned property whose getter link is not a runtime
+        // bridge has no single concrete implementation to call directly --
+        // like `MatchGroupCollection.size`, it must dispatch through the
+        // interface's itable to reach whichever type actually implements it.
+        // This function's only caller always retries the read through
+        // tryLowerStoredMemberPropertyRead next, which already carries that
+        // itable fallback; defer to it here instead of duplicating it, so a
+        // property whose consumer-side accessor link exists only for
+        // inline-body call-site remapping (KSP-472) is not miscompiled into
+        // a direct, non-virtual call to that placeholder accessor symbol.
+        if sema.symbols.parentSymbol(for: propertySymbol).flatMap({ sema.symbols.symbol($0) })?.kind == .interface,
+           !kirIsRuntimeBridgedCallee(getterSymbol, sema: sema)
+        {
+            return nil
+        }
+
         instructions.append(.call(
             symbol: getterSymbol,
             callee: interner.intern("get"),
