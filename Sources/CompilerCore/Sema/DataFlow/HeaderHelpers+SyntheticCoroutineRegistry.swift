@@ -660,7 +660,12 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([exceptionSymbol], for: rootCancellationSymbol)
         symbols.setDirectSupertypes([continuationInterceptorSymbol], for: dispatcherSymbol)
         types.setNominalTypeParameterSymbols([continuationTypeParameterSymbol], for: continuationSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        // Preserve the declaration-site `in` variance once Continuation has
+        // been reused from bundled Kotlin source. The synthetic fallback
+        // remains invariant when no source declaration is available.
+        if !symbols.isSourceBackedSymbol(continuationSymbol) {
+            types.setNominalTypeParameterVariances([.invariant], for: continuationSymbol)
+        }
 
         // KSP-499: Flow's cold core remains a compiler/runtime bridge. Keep
         // `collect` and `collectLatest` as synthetic source-visible members so
@@ -1387,7 +1392,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextElementSymbol)
         let coroutineContextElementType = types.make(.classType(ClassType(
@@ -1440,7 +1445,7 @@ extension DataFlowSemaPhase {
             in: coroutineContextFQName,
             symbols: symbols,
             interner: interner,
-            visibility: .internal
+            visibility: .public
         )
         symbols.setParentSymbol(coroutineContextSymbol, for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamName = interner.intern("E")
@@ -1453,6 +1458,8 @@ extension DataFlowSemaPhase {
             flags: [.synthetic]
         )
         symbols.setParentSymbol(coroutineContextKeySymbol, for: coroutineContextKeyTypeParamSymbol)
+        types.setNominalTypeParameterSymbols([coroutineContextKeyTypeParamSymbol], for: coroutineContextKeySymbol)
+        types.setNominalTypeParameterVariances([.invariant], for: coroutineContextKeySymbol)
         let coroutineContextKeyTypeParamType = types.make(.typeParam(TypeParamType(
             symbol: coroutineContextKeyTypeParamSymbol,
             nullability: .nonNull
