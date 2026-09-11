@@ -64,8 +64,8 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 19)
-        #expect(Self.implementedTopLevelEntries.count == 19)
+        #expect(targetEntries.count == 20)
+        #expect(Self.implementedTopLevelEntries.count == 20)
         #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 
