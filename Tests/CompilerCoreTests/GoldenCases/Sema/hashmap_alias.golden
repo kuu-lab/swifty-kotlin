@@ -40,7 +40,7 @@ expr e@19:8 string(w) type=String
 expr e@19:15 int(40) type=Int
 expr e@19:5#1 indexedAssign receiver=e@19:5 indices=[e@19:8] value=e@19:15 type=Unit call=kotlin.collections.set[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0,T1;gen=2] targs=[String,Int]
 expr e@20:13 name(mm) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mm[kind=local]
-expr e@20:13#1 memberCall recv=e@20:13 callee=size args=[] type=Int
+expr e@20:13#1 memberCall recv=e@20:13 callee=size args=[] type=Int ref=kotlin.collections.Map.size[kind=prop]
 expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@21:24 name(hm) type=kotlin.collections.HashMap<String, Int> ref=__local_0.hm[kind=local]
 expr e@21:16 call callee=e@21:16#1 args=[_:e@21:24] type=kotlin.collections.HashMap<String, Int>
