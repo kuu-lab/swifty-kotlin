@@ -8,7 +8,7 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         module: KIRModule,
         ctx: KIRContext,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) {
         guard let result,
               let sema = ctx.sema,
@@ -40,7 +40,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // --- Rewrite list factories to runtime helpers. ---
         // Keep the Kotlin-source declarations visible to sema, but preserve the

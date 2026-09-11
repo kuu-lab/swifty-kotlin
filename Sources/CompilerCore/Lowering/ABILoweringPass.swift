@@ -192,13 +192,16 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated: KIRFunction = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
 
             let functionReturnKind: TypeKind? = types.map { $0.kind(of: function.returnType) }
 
             var idx = 0
             while idx < function.body.count {
+                newBody.currentSourceRange = idx < function.instructionLocations.count
+                    ? function.instructionLocations[idx]
+                    : nil
                 let instruction = function.body[idx]
                 if case let .virtualCall(vcSymbol, vcCallee, vcReceiver, vcArguments, vcResult, _, vcThrownResult, vcDispatch) = instruction {
                     let vcIsClosureRelated = module.nonThrowingClosureCallees.contains(vcCallee)

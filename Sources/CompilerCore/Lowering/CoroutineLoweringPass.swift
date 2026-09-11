@@ -198,6 +198,7 @@ final class CoroutineLoweringPass: LoweringPass {
             )
             let loweredBody = lowerSuspendBodyToStateMachineSkeleton(
                 originalBody: suspendFunction.body,
+                originalLocations: suspendFunction.instructionLocations,
                 continuationParameterSymbol: continuationParameterSymbol,
                 loweredSymbol: loweredSymbol,
                 module: module,

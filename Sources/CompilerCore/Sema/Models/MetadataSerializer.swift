@@ -290,7 +290,22 @@ package final class MetadataEncoder {
                         symbols: symbols,
                         excludedSourceFileIDs: excludeSourceFileIDs
                     )
-                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember {
+                // `$enumConstructorProperty$` helpers are lowered synthesized
+                // functions, but they are the only representation of an enum
+                // constructor-property read and their object code is already
+                // compiled into the artifact. Consumers cannot re-synthesize
+                // them (no AST), so they must be exported like enum API
+                // members even when the owning enum reuses a synthetic shell.
+                let keepAsEnumCtorPropHelper = !includeSynthetic
+                    && symbol.kind == .function
+                    && interner.resolve(symbol.name).hasPrefix("$enumConstructorProperty$")
+                    && Self.isSourceBackedEnumClassMember(
+                        symbol.id,
+                        symbols: symbols,
+                        excludedSourceFileIDs: excludeSourceFileIDs,
+                        allowShellBackedEnum: true
+                    )
+                if !includeSynthetic && symbol.flags.contains(.synthetic) && !keepAsDataClassMember && !keepAsEnumClassMember && !keepAsEnumCtorPropHelper {
                     let keepAsSyntheticNominalAnchor = includeSyntheticNominalAnchors && Self.nominalKinds.contains(symbol.kind)
                     let keepAsSyntheticTypeAlias = includeSyntheticNominalAnchors && symbol.kind == .typeAlias
                     if !(keepAsSyntheticNominalAnchor || keepAsSyntheticTypeAlias) {
@@ -1149,7 +1164,8 @@ package final class MetadataEncoder {
     private static func isSourceBackedEnumClassMember(
         _ symbolID: SymbolID,
         symbols: SymbolTable,
-        excludedSourceFileIDs: Set<Int32>
+        excludedSourceFileIDs: Set<Int32>,
+        allowShellBackedEnum: Bool = false
     ) -> Bool {
         var currentID = symbols.parentSymbol(for: symbolID)
         while let parentID = currentID, let parent = symbols.symbol(parentID) {
@@ -1157,6 +1173,20 @@ package final class MetadataEncoder {
                 if parent.kind == .enumClass,
                    !parent.flags.contains(.synthetic),
                    parent.declSite != nil {
+                    if let sourceFileID = symbols.sourceFileID(for: parent.id),
+                       excludedSourceFileIDs.contains(sourceFileID.rawValue)
+                    {
+                        return false
+                    }
+                    return true
+                }
+                // Source-backed bundled enums may reuse a synthetic nominal
+                // shell (synthetic flag set, declSite nil) while still carrying
+                // a tracked sourceFileID. Callers that opt in treat those as
+                // source-backed too.
+                if allowShellBackedEnum,
+                   parent.kind == .enumClass,
+                   parent.declSite != nil || symbols.sourceFileID(for: parent.id) != nil {
                     if let sourceFileID = symbols.sourceFileID(for: parent.id),
                        excludedSourceFileIDs.contains(sourceFileID.rawValue)
                     {

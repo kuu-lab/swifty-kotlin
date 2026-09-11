@@ -11,7 +11,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // A source-backed primitive array factory with a normalized spread
         // argument already has the complete array value. Preserve that value
@@ -379,7 +379,7 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         module: KIRModule,
         ctx: KIRContext,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) {
         if let result,
            let resultTypeID = module.arena.exprType(result),

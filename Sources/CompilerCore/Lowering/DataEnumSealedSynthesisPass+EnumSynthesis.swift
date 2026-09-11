@@ -51,7 +51,7 @@ extension DataEnumSealedSynthesisPass {
 
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
-        var body: [KIRInstruction] = []
+        var body = KIRLoweringEmitContext()
         let (arrayExpr, countExpr, _) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: owner.id,
             entries: entries,
@@ -104,7 +104,7 @@ extension DataEnumSealedSynthesisPass {
                 sema: sema,
                 signature: signature,
                 params: [],
-                body: body
+                body: body.instructions
             )
         } else {
             appendSyntheticFunctionIfNeeded(
@@ -114,7 +114,7 @@ extension DataEnumSealedSynthesisPass {
                 sema: sema,
                 signature: signature,
                 params: [],
-                body: body,
+                body: body.instructions,
                 existingFunctionSymbols: existingFunctionSymbols
             )
         }
@@ -160,7 +160,7 @@ extension DataEnumSealedSynthesisPass {
 
         let signature = FunctionSignature(parameterTypes: [], returnType: returnType, isSuspend: false)
 
-        var body: [KIRInstruction] = []
+        var body = KIRLoweringEmitContext()
         let (arrayExpr, countExpr, classIDExpr) = appendEnumOrdinalArrayCreation(
             enumClassSymbol: enumSymbol.id,
             entries: entries,
@@ -192,7 +192,7 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             signature: signature,
             params: [],
-            body: body,
+            body: body.instructions,
             existingFunctionSymbols: existingFunctionSymbols
         )
     }
@@ -201,7 +201,7 @@ extension DataEnumSealedSynthesisPass {
         enumClassSymbol: SymbolID,
         entries: [SemanticSymbol],
         intType: TypeID,
-        body: inout [KIRInstruction],
+        body: inout KIRLoweringEmitContext,
         module: KIRModule,
         sema: SemaModule,
         interner: StringInterner
@@ -301,7 +301,7 @@ extension DataEnumSealedSynthesisPass {
         )
         let param = KIRParameter(symbol: paramSymbol, type: intType)
         let paramRef = module.arena.appendExpr(.symbolRef(paramSymbol), type: intType)
-        var body: [KIRInstruction] = []
+        var body = KIRLoweringEmitContext()
         body.append(.constValue(result: paramRef, value: .symbolRef(paramSymbol)))
         let unboxedOrdinalRef = emitNonThrowingCall(
             callee: ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner),
@@ -361,7 +361,7 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             signature: signature,
             params: [param],
-            body: body,
+            body: body.instructions,
             existingFunctionSymbols: existingFunctionSymbols
         )
     }
@@ -400,7 +400,7 @@ extension DataEnumSealedSynthesisPass {
             type: stringType
         )
 
-        var body: [KIRInstruction] = []
+        var body = KIRLoweringEmitContext()
         body.append(.constValue(result: paramRef, value: .symbolRef(parameterSymbol)))
 
         var labelCounter: Int32 = 5000
@@ -544,7 +544,7 @@ extension DataEnumSealedSynthesisPass {
                 sema: sema,
                 signature: signature,
                 params: params,
-                body: body
+                body: body.instructions
             )
         } else {
             appendSyntheticFunctionIfNeeded(
@@ -554,7 +554,7 @@ extension DataEnumSealedSynthesisPass {
                 sema: sema,
                 signature: signature,
                 params: params,
-                body: body,
+                body: body.instructions,
                 existingFunctionSymbols: existingFunctionSymbols
             )
         }
@@ -600,7 +600,7 @@ extension DataEnumSealedSynthesisPass {
         let ownerName = interner.resolve(owner.name)
         let initName = interner.intern("__enum_static_init_\(ownerName)")
 
-        var body: [KIRInstruction] = []
+        var body = KIRLoweringEmitContext()
 
         for (ordinal, entry) in entries.enumerated() {
             // Produce the ordinal value.
@@ -652,7 +652,7 @@ extension DataEnumSealedSynthesisPass {
             sema: sema,
             signature: signature,
             params: [],
-            body: body,
+            body: body.instructions,
             existingFunctionSymbols: existingFunctionSymbols
         )
     }

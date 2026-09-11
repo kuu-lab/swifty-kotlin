@@ -65,6 +65,27 @@ extension BuildKIRRegressionTests {
                 },
                 "CpuArchitecture must retain its source-backed nominal identity in KIR"
             )
+
+            // `ARM64.bitness` emits a `$enumConstructorProperty$` placeholder
+            // call that must resolve to the synthesized helper even though the
+            // bundled stdlib file was skipped from output lowering.
+            let helperDecl = module.arena.declarations.contains { declaration in
+                guard case let .function(function) = declaration else { return false }
+                return interner.resolve(function.name) == "$enumConstructorProperty$bitness"
+            }
+            #expect(
+                helperDecl,
+                "Skipped bundled enum must still get its constructor-property helper synthesized"
+            )
+            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: interner)
+            for instruction in mainBody {
+                guard case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
+                      interner.resolve(callee).hasPrefix("$enumConstructorProperty$")
+                else {
+                    continue
+                }
+                #expect(symbol != nil, "enum constructor-property call must carry the helper symbol")
+            }
         }
     }
 

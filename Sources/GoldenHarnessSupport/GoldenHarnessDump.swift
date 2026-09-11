@@ -194,7 +194,18 @@ enum GoldenHarnessDump {
             .compactMap { diagnostic -> (LineColumn, String)? in
                 guard let range = diagnostic.primaryRange, range.start.file == sourceFileID else { return nil }
                 let position = sourceManager.lineColumn(of: range.start)
-                let line = "diagnostic severity=error code=\(diagnostic.code) at=\(position.line):\(position.column) msg=\(diagnostic.message)"
+                // Secondary ranges (e.g. expected-type origin, ambiguous
+                // overload candidates) are pinned for same-file positions only;
+                // library-side sites stay out of the fixture-facing dump.
+                let secondaryPositions = diagnostic.secondaryRanges
+                    .filter { $0.start.file == sourceFileID }
+                    .map { sourceManager.lineColumn(of: $0.start) }
+                    .map { "\($0.line):\($0.column)" }
+                    .joined(separator: ",")
+                let secondarySuffix = secondaryPositions.isEmpty
+                    ? ""
+                    : " secondary=[\(secondaryPositions)]"
+                let line = "diagnostic severity=error code=\(diagnostic.code) at=\(position.line):\(position.column) msg=\(diagnostic.message)\(secondarySuffix)"
                 return (position, line)
             }
             // Multiple diagnostics can land on the same position (e.g. several

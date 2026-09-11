@@ -211,7 +211,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         pathExprIDs: inout Set<Int32>,
         indexingIterableExprIDs: inout Set<Int32>,
         listIteratorExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
@@ -387,7 +387,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         origThrownResult: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let kkCallee: InternedString?
 
@@ -475,7 +475,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         setExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
         indexingIterableExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
@@ -547,7 +547,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
             || callee == lookup.mapValuesName || callee == lookup.mapKeysName
@@ -596,7 +596,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         origCanThrow: Bool,
         origThrownResult: KIRExprID?,
         module: KIRModule,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let hofResult = module.arena.appendTemporary(type: nil
         )
@@ -624,7 +624,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         guard callee == lookup.mapName || callee == lookup.mapNotNullName
             || callee == lookup.forEachName || callee == lookup.onEachName
@@ -668,7 +668,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         context: VirtualCallRewriteContext,
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
@@ -728,7 +728,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
@@ -827,7 +827,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         listExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
         let lookup = context.lookup
@@ -885,7 +885,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
         indexingIterableExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         guard listExprIDs.contains(receiver.rawValue) else { return false }
 
@@ -1036,7 +1036,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         lookup: CollectionLiteralLookupTables,
         listExprIDs: inout Set<Int32>,
         setExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         guard listExprIDs.contains(receiver.rawValue) else { return false }
 

@@ -77,15 +77,15 @@ private func kirVtableSlotImplementationSymbol(for symbol: SymbolID, sema: SemaM
         ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: symbol)
 }
 
-func appendObjectVtableMethodRegistrations(
+func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     driver: KIRLoweringDriver,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     let implementations = kirVtableImplementations(for: nominalSymbol, sema: sema)
     if !implementations.isEmpty {
         let intType = sema.types.intType
@@ -214,15 +214,15 @@ func anyToStringBridgeSymbolForImplementation(
 
 /// Registers the generated raw-string bridge used when a class instance is
 /// stringified after its static type has been erased to `Any`.
-func appendObjectAnyToStringRegistration(
+func appendObjectAnyToStringRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     driver: KIRLoweringDriver,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     guard sema.symbols.symbol(nominalSymbol)?.kind == .class,
           let implementation = resolveClassToStringSymbol(
               for: nominalSymbol,
@@ -332,14 +332,14 @@ func kirVtablePropertyAccessorImplementations(
         }
 }
 
-func appendObjectVtablePropertyAccessorRegistrations(
+func appendObjectVtablePropertyAccessorRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     let implementations = kirVtablePropertyAccessorImplementations(for: nominalSymbol, sema: sema)
     guard !implementations.isEmpty else {
         return
@@ -507,14 +507,14 @@ func itableBridgeSymbolForMethod(
 /// `itableBridgeSymbolForMethod` shims; the registered implementations are the
 /// class's own external-link bridges, whose ABI already matches the erased vtable
 /// signature.
-func appendFactoryObjectVtableMethodRegistrations(
+func appendFactoryObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     var implementationsBySlot: [Int: SymbolID] = [:]
     for entry in kirVtableImplementations(for: nominalSymbol, sema: sema) {
         implementationsBySlot[entry.slot] = entry.implementation
@@ -548,14 +548,14 @@ func appendFactoryObjectVtableMethodRegistrations(
 /// instantiated intermediate interface (`Ranked : Comparable<Ranked>`) never
 /// contributed `Ranked → Comparable`. Erased `kk_compare_any` then could not
 /// prove the operands were Comparable and fell back to pointer comparison.
-func appendNominalSupertypeEdgeRegistrations(
+func appendNominalSupertypeEdgeRegistrations<C: RangeReplaceableCollection>(
     childSymbol: SymbolID,
     extraDirectSupertypes: [SymbolID] = [],
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     let intType = sema.types.intType
     var pending: [SymbolID] = [childSymbol]
     var visited: Set<SymbolID> = []
@@ -610,15 +610,15 @@ func appendNominalSupertypeEdgeRegistrations(
     }
 }
 
-func appendObjectItableMethodRegistrations(
+func appendObjectItableMethodRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     driver: KIRLoweringDriver,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     guard let _ = sema.symbols.symbol(nominalSymbol),
           let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol)
     else {

@@ -11,7 +11,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // STDLIB-pipeline §5 / KSP-441〜447: Bundled Kotlin source implementations
         // (e.g. flatten, toSet) take priority over runtime shortcuts, but a runtime

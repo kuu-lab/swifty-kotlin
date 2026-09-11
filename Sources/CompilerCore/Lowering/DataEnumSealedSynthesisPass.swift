@@ -6,7 +6,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module.arena.transformFunctions { function in
             var updated = function
             if updated.body.isEmpty {
-                updated.replaceBody([.nop, .returnUnit])
+                updated.replaceBody([.nop, .returnUnit], locations: [nil, nil])
             }
             return updated
         }
@@ -114,10 +114,19 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     ))
                 }
                 var updated = function
+                let initLocations = Array(repeating: SourceRange?.none, count: initInstructions.count)
                 if let first = updated.body.first, case .beginBlock = first {
-                    updated.replaceBody([first] + initInstructions + updated.body.dropFirst())
+                    updated.replaceBody(
+                        [first] + initInstructions + updated.body.dropFirst(),
+                        locations: Array(updated.instructionLocations.prefix(1))
+                            + initLocations
+                            + updated.instructionLocations.dropFirst()
+                    )
                 } else {
-                    updated.replaceBody(initInstructions + updated.body)
+                    updated.replaceBody(
+                        initInstructions + updated.body,
+                        locations: initLocations + updated.instructionLocations
+                    )
                 }
                 return updated
             }
@@ -440,7 +449,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
             if changed {
                 var updated = function
-                updated.replaceBody(newBody)
+                updated.replaceBody(newBody, locations: function.instructionLocations)
                 return updated
             }
             return function
