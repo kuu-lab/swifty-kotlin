@@ -443,15 +443,15 @@ extension CallTypeChecker {
             receiverElementType: TypeID? = nil
         ) -> Bool {
             guard !isSequenceReceiver,
-                  isCollectionReceiver
-                      || (allowNominalIterableReceiver && isIterableReceiver)
-                      || (isIterableReceiver && (calleeStr == "none"
-                          || calleeStr == "drop"
-                          || calleeStr == "dropWhile"
-                          || calleeStr == "runningReduce"
-                          || calleeStr == "runningReduceIndexed"
-                          || isIterableFilterFamilyHOF))
-                      || (isIterableIndexReceiver && isIterableIndexFamilyHOF)
+                  (allowNominalIterableReceiver
+                    ? (isIterableReceiver || !isCollectionReceiver)
+                    : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
+                        || calleeStr == "drop"
+                        || calleeStr == "dropWhile"
+                        || calleeStr == "runningReduce"
+                        || calleeStr == "runningReduceIndexed"
+                        || isIterableFilterFamilyHOF))
+                        || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
             else {
                 return false
             }
@@ -2996,7 +2996,16 @@ extension CallTypeChecker {
                                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
                             }
                         }
-                    case "forEach": resultType = sema.types.unitType
+                    case "forEach":
+                        resultType = sema.types.unitType
+                        if bindBundledIterableSourceFunction(
+                            typeArguments: [collectionElementType],
+                            allowNominalIterableReceiver: true
+                        ),
+                           let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
+                        {
+                            sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
+                        }
                     case "onEach":
                         if isSequenceReceiver {
                             resultType = makeSyntheticSequenceType(
