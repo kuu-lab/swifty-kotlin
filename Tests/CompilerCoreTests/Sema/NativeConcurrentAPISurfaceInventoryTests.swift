@@ -24,6 +24,7 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
         TopLevelEntry(name: "FutureState", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "InvalidMutabilityException", kind: .class, todo: nil),
+        TopLevelEntry(name: "MutableData", kind: .class, todo: nil),
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "SharedImmutable", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "ThreadLocal", kind: .annotationClass, todo: nil),
@@ -75,8 +76,8 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 31)
-        #expect(Self.implementedTopLevelEntries.count == 31)
+        #expect(targetEntries.count == 32)
+        #expect(Self.implementedTopLevelEntries.count == 32)
         #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 

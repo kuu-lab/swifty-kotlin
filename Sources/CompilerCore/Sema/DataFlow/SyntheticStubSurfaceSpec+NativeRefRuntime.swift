@@ -93,9 +93,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
         SyntheticPropertyStubSpec(name: "memoryUsageBefore", propertyType: mapOfString(to: memoryUsageType)),
         SyntheticPropertyStubSpec(name: "memoryUsageAfter", propertyType: mapOfString(to: memoryUsageType)),
     ]
-    static let memoryUsageProperties: [SyntheticPropertyStubSpec] = [
-        SyntheticPropertyStubSpec(name: "totalObjectsSizeBytes", propertyType: .long),
-    ]
 
     static let debuggingProperties: [SyntheticPropertyStubSpec] = [
         SyntheticPropertyStubSpec(
