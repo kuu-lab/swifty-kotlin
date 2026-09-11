@@ -676,6 +676,27 @@ final class CallLowerer {
             interner: interner,
             instructions: &instructions
         ) {
+            // Runtime factories like `linkedSetOf()` return concrete-class
+            // boxes that never pass `kk_object_new`, so the constructor-site
+            // vtable registrations never ran for them. Register the nominal
+            // vtable implementations on the box so an open member dispatch
+            // (e.g. `LinkedHashSet.size`) resolves instead of trapping at
+            // `kk_vtable_lookup`. No-ops for interface-typed results.
+            if let factoryResultClass = collectionFactoryResultClassSymbol(
+                result: loweredCollectionFactory,
+                boundType: boundType,
+                arena: arena,
+                sema: sema
+            ) {
+                appendFactoryObjectVtableMethodRegistrations(
+                    objectValue: loweredCollectionFactory,
+                    nominalSymbol: factoryResultClass,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    instructions: &instructions
+                )
+            }
             return loweredCollectionFactory
         }
         if args.count == 1,
@@ -711,6 +732,23 @@ final class CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
+    }
+
+    /// Resolves the concrete class a runtime collection factory result claims
+    /// to be, or nil for interface-typed results (those dispatch through the
+    /// itable, not the class vtable).
+    private func collectionFactoryResultClassSymbol(
+        result: KIRExprID,
+        boundType: TypeID?,
+        arena: KIRArena,
+        sema: SemaModule
+    ) -> SymbolID? {
+        let resultType = boundType ?? arena.exprType(result)
+        guard let resultType,
+              let resolved = resolveClassTypeSymbol(resultType, sema: sema),
+              resolved.symbol.kind == .class
+        else { return nil }
+        return resolved.symbol.id
     }
 
     /// Emits the call/allocation instructions for an already-resolved call
@@ -995,8 +1033,16 @@ final class CallLowerer {
             // and must dispatch through the receiver's vtable/itable exactly like
             // the explicit form: a subclass override, or a base-class
             // implementation of an interface method, is otherwise bypassed.
+            // SequenceScope calls use runtime-owned builder receivers, so their
+            // remapped ABI entry points must remain direct calls.
             if let implicitReceiver,
-               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true
+               sema.symbols.externalLinkName(for: chosen)?.isEmpty ?? true,
+               sequenceBuilderRuntimeCalleeName(
+                   chosenCallee: chosen,
+                   calleeName: sourceCalleeName,
+                   sema: sema,
+                   interner: interner
+               ) == nil
             {
                 implicitReceiverDispatch = resolveVirtualDispatch(
                     callee: chosen,
@@ -1145,6 +1191,15 @@ final class CallLowerer {
                 // source declaration has a generic __kk_range_contains link,
                 // so keep the widened call on the unsigned runtime ABI.
                 interner.intern("kk_ulong_range_contains")
+            } else if let chosen,
+                      let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+                          chosenCallee: chosen,
+                          calleeName: sourceCalleeName,
+                          sema: sema,
+                          interner: interner
+                      )
+            {
+                sequenceBuilderCallee
             } else if let chosen,
                                                        let externalLinkName = sema.symbols.externalLinkName(for: chosen),
                                                        !externalLinkName.isEmpty
