@@ -179,25 +179,23 @@ extension DataFlowSemaPhase {
     ) {
         // AtomicLong is intentionally excluded: it is already source-backed
         // by KSP-1222 (Stdlib/kotlin/native/concurrent/AtomicLong/Stdlib.kt).
-        for (name, replacement) in [
-            ("AtomicInt", "kotlin.concurrent.atomics.AtomicInt"),
-            ("AtomicNativePtr", "kotlin.concurrent.atomics.AtomicNativePtr"),
-        ] {
-            registerNativeConcurrentNominalAnchor(
-                named: name,
-                packageFQName: packageFQName,
-                pkgSymbol: pkgSymbol,
-                annotations: [
-                    nativeConcurrentDeprecatedErrorAnnotation(
-                        message: "Use \(replacement) instead.",
-                        replaceWith: replacement
-                    ),
-                ],
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
+        // AtomicNativePtr is intentionally excluded: it is already
+        // source-backed by KSP-1224 (Stdlib/kotlin/native/concurrent/
+        // AtomicNativePtr/Stdlib.kt).
+        registerNativeConcurrentNominalAnchor(
+            named: "AtomicInt",
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            annotations: [
+                nativeConcurrentDeprecatedErrorAnnotation(
+                    message: "Use kotlin.concurrent.atomics.AtomicInt instead.",
+                    replaceWith: "kotlin.concurrent.atomics.AtomicInt"
+                ),
+            ],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
 
         // FreezableAtomicReference is intentionally excluded: it is already
         // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/

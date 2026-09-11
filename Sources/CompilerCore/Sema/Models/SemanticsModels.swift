@@ -876,6 +876,10 @@ public final class SymbolTable {
         externalLinkNames[symbol] = linkName
     }
 
+    public func clearExternalLinkName(for symbol: SymbolID) {
+        externalLinkNames.removeValue(forKey: symbol)
+    }
+
     public func externalLinkName(for symbol: SymbolID) -> String? {
         externalLinkNames[symbol]
     }
