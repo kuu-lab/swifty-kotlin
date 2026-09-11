@@ -378,7 +378,7 @@ extension ExprTypeChecker {
             }
         }
 
-        // BUG-239: an object literal that implements an interface directly
+        // BUG-242: an object literal that implements an interface directly
         // (no superclass to inherit itable slots from — e.g. `object :
         // MutableIterator<Int> { ... }`) previously kept `inheritedItableSlots`
         // verbatim, which is empty in that case. `appendObjectItableMethodRegistrations`

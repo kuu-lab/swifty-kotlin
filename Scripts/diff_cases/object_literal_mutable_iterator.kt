@@ -1,4 +1,4 @@
-// BUG-239: an object literal implementing an interface with no superclass
+// BUG-242: an object literal implementing an interface with no superclass
 // (e.g. `object : MutableIterator<Int> { ... }`) previously left its itable
 // slots empty, so every interface it registers (here both `Iterator` and
 // `MutableIterator`) collided into slot 0 and the later registration
