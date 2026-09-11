@@ -41,9 +41,11 @@ struct NativeConcurrentTopLevelSourceTests {
         // source-backed by KSP-1222 (Stdlib/kotlin/native/concurrent/
         // AtomicLong/Stdlib.kt), AtomicNativePtr is already source-backed
         // by KSP-1224 (Stdlib/kotlin/native/concurrent/AtomicNativePtr/
-        // Stdlib.kt), and AtomicReference is already source-backed by
+        // Stdlib.kt), AtomicReference is already source-backed by
         // KSP-1226 (Stdlib/kotlin/native/concurrent/AtomicReference/
-        // Stdlib.kt), so all four are intentionally absent from this
+        // Stdlib.kt), and MutableData is already source-backed by
+        // KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/
+        // Stdlib.kt), so all five are intentionally absent from this
         // synthetic-anchor inventory.
         let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
             "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
@@ -52,7 +54,7 @@ struct NativeConcurrentTopLevelSourceTests {
 
         for name in [
             "AtomicInt",
-            "DetachedObjectGraph", "MutableData", "WorkerBoundReference",
+            "DetachedObjectGraph", "WorkerBoundReference",
         ] {
             let path = package + [name]
             let classSymbol = try symbol(path, in: context)
@@ -116,6 +118,16 @@ struct NativeConcurrentTopLevelSourceTests {
         #expect(atomicReferenceInfo.kind == .class)
         #expect(!atomicReferenceInfo.flags.contains(.synthetic))
         #expect(sema.symbols.sourceFileID(for: atomicReferenceSymbol) != nil)
+
+        // MutableData is already source-backed (KSP-1243) with a
+        // default-valued constructor; it is intentionally not a synthetic
+        // anchor.
+        let mutableDataPath = package + ["MutableData"]
+        let mutableDataSymbol = try symbol(mutableDataPath, in: context)
+        let mutableDataInfo = try #require(sema.symbols.symbol(mutableDataSymbol))
+        #expect(mutableDataInfo.kind == .class)
+        #expect(!mutableDataInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: mutableDataSymbol) != nil)
     }
 
     @Test

@@ -226,27 +226,8 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerNativeConcurrentNominalAnchor(
-            named: "MutableData",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            annotations: [
-                MetadataAnnotationRecord(annotationFQName: "kotlin.native.internal.NoReorderFields"),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Support for the legacy memory manager has been completely removed. Use any regular collection instead.\"",
-                    ]
-                ),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                    arguments: ["errorSince = \"2.1\""]
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // MutableData is intentionally excluded: it is already source-backed
+        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt).
 
         registerNativeConcurrentNominalAnchor(
             named: "WorkerBoundReference",
