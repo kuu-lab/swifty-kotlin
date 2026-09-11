@@ -39,18 +39,19 @@ struct NativeConcurrentTopLevelSourceTests {
         // (its constructor ships in Stdlib/kotlin/native/concurrent/
         // FreezableAtomicReference/Stdlib.kt), AtomicLong is already
         // source-backed by KSP-1222 (Stdlib/kotlin/native/concurrent/
-        // AtomicLong/Stdlib.kt), and AtomicNativePtr is already source-backed
+        // AtomicLong/Stdlib.kt), AtomicNativePtr is already source-backed
         // by KSP-1224 (Stdlib/kotlin/native/concurrent/AtomicNativePtr/
-        // Stdlib.kt), so all three are intentionally absent from this
+        // Stdlib.kt), and AtomicReference is already source-backed by
+        // KSP-1226 (Stdlib/kotlin/native/concurrent/AtomicReference/
+        // Stdlib.kt), so all four are intentionally absent from this
         // synthetic-anchor inventory.
         let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
-            "AtomicReference": (.invariant, sema.types.nullableAnyType),
             "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
             "WorkerBoundReference": (.out, sema.types.anyType),
         ]
 
         for name in [
-            "AtomicInt", "AtomicReference",
+            "AtomicInt",
             "DetachedObjectGraph", "MutableData", "WorkerBoundReference",
         ] {
             let path = package + [name]
@@ -105,6 +106,16 @@ struct NativeConcurrentTopLevelSourceTests {
         #expect(atomicNativePtrInfo.kind == .class)
         #expect(!atomicNativePtrInfo.flags.contains(.synthetic))
         #expect(sema.symbols.sourceFileID(for: atomicNativePtrSymbol) != nil)
+
+        // AtomicReference is already source-backed (KSP-1226) with a
+        // value-taking generic constructor; it is intentionally not a
+        // synthetic anchor.
+        let atomicReferencePath = package + ["AtomicReference"]
+        let atomicReferenceSymbol = try symbol(atomicReferencePath, in: context)
+        let atomicReferenceInfo = try #require(sema.symbols.symbol(atomicReferenceSymbol))
+        #expect(atomicReferenceInfo.kind == .class)
+        #expect(!atomicReferenceInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: atomicReferenceSymbol) != nil)
     }
 
     @Test

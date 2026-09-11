@@ -199,22 +199,9 @@ extension DataFlowSemaPhase {
 
         // FreezableAtomicReference is intentionally excluded: it is already
         // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
-        // FreezableAtomicReference/Stdlib.kt).
-        registerNativeConcurrentNominalAnchor(
-            named: "AtomicReference",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            typeParameter: (name: "T", variance: .invariant, upperBound: types.nullableAnyType),
-            annotations: [
-                nativeConcurrentDeprecatedErrorAnnotation(
-                    message: "Use kotlin.concurrent.atomics.AtomicReference instead.",
-                    replaceWith: "kotlin.concurrent.atomics.AtomicReference"
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // FreezableAtomicReference/Stdlib.kt). AtomicReference is
+        // intentionally excluded: it is already source-backed by KSP-1226
+        // (Stdlib/kotlin/native/concurrent/AtomicReference/Stdlib.kt).
 
         registerNativeConcurrentNominalAnchor(
             named: "DetachedObjectGraph",
