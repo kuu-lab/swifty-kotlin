@@ -11,6 +11,14 @@ extension DataFlowSemaPhase {
     struct LibraryImportDeferredWork {
         let pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])]
         let importedBindings: [ImportedLibraryBinding]
+        /// The stdlib artifact's module name, already interned and validated
+        /// against its manifest.json by the loop below. Callers that need to
+        /// filter symbols by stdlib-module membership (e.g.
+        /// `mergeImportedStdlibSymbolsIntoBundledIndex`) should use this
+        /// instead of re-reading and re-parsing manifest.json themselves: a
+        /// second independent read has no diagnostic on failure and is
+        /// redundant with the validation already performed here.
+        let stdlibModuleName: InternedString?
     }
 
     func loadImportedLibrarySymbols(
@@ -32,6 +40,7 @@ extension DataFlowSemaPhase {
         var pendingSupertypeEdges: [(subtype: SymbolID, superFQName: [InternedString])] = []
         var importedBindings: [ImportedLibraryBinding] = []
         var stdlibArtifactLoaded = false
+        var stdlibModuleName: InternedString?
 
         func isStdlibArtifact(_ libraryDir: String) -> Bool {
             guard let stdlibLibraryPath = options.stdlibLibraryPath else { return false }
@@ -61,6 +70,9 @@ extension DataFlowSemaPhase {
             }
             let metadataPath = manifestInfo.metadataPath
             let libraryModuleFQN: InternedString? = manifestInfo.moduleName.map { interner.intern($0) }
+            if stdlibArtifact {
+                stdlibModuleName = libraryModuleFQN
+            }
             let records: [ImportedLibrarySymbolRecord]
             if let cached = cache?.cachedMetadataRecords(metadataPath: metadataPath, interner: interner) {
                 records = cached
@@ -158,7 +170,7 @@ extension DataFlowSemaPhase {
                 "Stdlib library artifact '\(options.stdlibLibraryPath!)' could not be loaded",
                 range: nil
             )
-            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [])
+            return LibraryImportDeferredWork(pendingSupertypeEdges: [], importedBindings: [], stdlibModuleName: nil)
         }
 
         var externalLinkNameToSymbol: [String: SymbolID] = [:]
@@ -248,7 +260,8 @@ extension DataFlowSemaPhase {
 
         return LibraryImportDeferredWork(
             pendingSupertypeEdges: pendingSupertypeEdges,
-            importedBindings: importedBindings
+            importedBindings: importedBindings,
+            stdlibModuleName: stdlibModuleName
         )
     }
 
