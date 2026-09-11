@@ -16,4 +16,15 @@ fun main() {
     println(empty is ArrayList<*>)
     println(empty is MutableList<*>)
     println(empty is RandomAccess)
+
+    // BUG-244 regression: clear() on an empty ArrayList used to crash
+    // (kk_array_get_inbounds), because the inherited AbstractMutableList
+    // default routed through listIterator(), which reads the modCount field.
+    val toClear = ArrayList<Int>()
+    toClear.clear()
+    println(toClear.isEmpty())
+    toClear.add(1)
+    toClear.add(2)
+    toClear.clear()
+    println(toClear.isEmpty())
 }
