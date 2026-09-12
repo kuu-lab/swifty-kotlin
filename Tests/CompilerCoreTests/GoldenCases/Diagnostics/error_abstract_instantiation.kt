@@ -30,5 +30,20 @@ fun main() {
     val p = PartialImpl()  // KSWIFTK-SEMA-0312: class 'PartialImpl' is not abstract and does not implement abstract member 'speak()'
 }
 
+// KSP-CAP-018: an object expression is always concrete, so it must implement
+// every inherited abstract member. These went unchecked entirely -- the named
+// nominal check runs during header validation, before an object literal's
+// symbol exists.
+
 // ERROR: object expression inheriting abstract class without implementing members
-val bad = object : Animal() {}  // KSWIFTK-SEMA-0313: object is not abstract and does not implement abstract member 'speak()'
+val bad = object : Animal() {}  // KSWIFTK-SEMA-ABSTRACT: must override abstract member 'speak'
+
+// ERROR: same for an unimplemented interface member, with a non-empty body
+val badInterface = object : Flyable {
+    val unrelated: Int = 1
+}  // KSWIFTK-SEMA-ABSTRACT: must override abstract member 'fly'
+
+// OK: implementing the member satisfies the contract
+val good = object : Animal() {
+    override fun speak(): String = "meow"
+}

@@ -398,6 +398,47 @@ extension ExprTypeChecker {
             nextItableSlot += 1
         }
 
+        // KSP-CAP-018: an object literal is always concrete, so it must
+        // implement every inherited abstract member -- `object : Animal() {}`
+        // over `abstract fun speak()` is an error in Kotlin. The named-nominal
+        // check (`Inheritance.validateAbstractOverrides`) runs during header
+        // validation, before this symbol exists, so object literals were never
+        // checked at all. Same structural cause as the vtable-slot gap above;
+        // the shared logic lives in `AbstractMemberCompleteness.swift`.
+        var overriddenNames: Set<InternedString> = []
+        for functionDeclID in objectDecl.memberFunctions {
+            guard let decl = ast.arena.decl(functionDeclID),
+                  case let .funDecl(functionDecl) = decl
+            else { continue }
+            overriddenNames.insert(functionDecl.name)
+        }
+        for propertyDeclID in objectDecl.memberProperties {
+            guard let decl = ast.arena.decl(propertyDeclID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else { continue }
+            overriddenNames.insert(propertyDecl.name)
+        }
+        // Unlike a named class, an object literal's members carry no `override`
+        // modifier requirement worth enforcing here (Kotlin does require it,
+        // but that is `OpenFinalOverride`'s job) -- any member of a matching
+        // name satisfies the abstract contract for this check.
+        for missingMember in unimplementedAbstractMembers(
+            for: objectSymbol,
+            overriddenNames: overriddenNames,
+            delegatedInterfaces: sema.symbols.delegatedInterfaces(forClass: objectSymbol),
+            symbols: sema.symbols
+        ) {
+            guard let missingSymbol = sema.symbols.symbol(missingMember) else {
+                continue
+            }
+            ctx.semaCtx.diagnostics.error(
+                "KSWIFTK-SEMA-ABSTRACT",
+                "Object expression must override abstract member "
+                    + "'\(interner.resolve(missingSymbol.name))'.",
+                range: objectDecl.range
+            )
+        }
+
         sema.symbols.setNominalLayout(
             NominalLayout(
                 objectHeaderWords: objectHeaderWords,
