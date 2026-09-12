@@ -225,7 +225,9 @@
 
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
-- [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
+- [x] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`）。実装は `46377d557b`（PR #4984。`ControlFlowTypeChecker` が break を持たない定数 true ループを `Nothing` 型付けし、`ControlFlowLowerer` へ伝播。`Tests/CompilerCoreTests/Sema/InfiniteLoopTypeCheckingTests.swift` を新設）、実行レベルの oracle は `51be709ff2`（PR #4992。`Scripts/diff_cases/while_true_cas_loop_return.kt`）。ブロック対象はいずれも解消済み: KSP-673 は `13ab8e6bc8`（PR #5045）でマージされ TODO.md から剪定済み、`AtomicMigration.kt` / `AtomicArrayMigration.kt` の保留コメントは #4984 で撤回され `getAndUpdate`/`updateAndGet`/`fetchAndUpdate`/`fetchAndUpdateAt` の CAS retry loop が Kotlin source 実装になっている。
+  - 完了根拠（2026-09-13 実測、本 PR）: `swift build` PASS / `bash Scripts/swift_test.sh --filter CompilerCoreTests.InfiniteLoopTypeCheckingTests` が `Test run with 1 test in 1 suite passed`（0 件マッチの空振りでないことを出力で確認）/ `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/while_true_cas_loop_return.kt` が `total=1 failed=0 passed=1 skipped=0`。共通ゲート G の全体実行はローカルでは行わず、変更スコープ最小化方針（`c6826127ff` / #6749）に従い CI へ委譲した。
+  - 派生: 隣接シェイプ（ラムダ内 break）のプローブで BUG-253（非ローカル break/continue の未実装による黙った誤コンパイル）を発見し、診断化の部分修正と回帰テストを本 PR に同梱した。`containsBreakTargetingCurrentLoop` の `.lambdaLiteral` 扱いは BUG-253 側で扱うため本項では変更していない。
 - [~] KSP-CAP-018: object 式によるクラス継承を通す（= BUG-215）。ブロック対象: KSP-441（object 式でパイプラインを表現する方針）
   - **注記**: 旧 KSP-CAP-016/017（同一症状、2026-08-06 記録）と旧 BUG-187/188 は、名前不明の TODO.md 編集（`f9dea8961c` 付近、DEBT-DIFF-005 統合コミット群）でブロッカー台帳から本文ごと消失し、`[x]` 化されないまま記録が失われていた。名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 症状の一部）は別途 `1128468186`（PR #5506, "Fix BUG-155: run superclass constructors and class-body initializers"）で修正済みと 2026-08-18 実機確認したため当該部分はクローズ、object 式経由の残り2症状のみ本項として採番し直す。
   - 症状は2系統（interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済み。本項目は**クラス**継承）:
@@ -646,6 +648,36 @@
 - [x] BUG-249: `kk_worker_execute_after`（`Sources/Runtime/RuntimeNativeConcurrentABI.swift`、PR #1287 由来の既存バグで KSP-1250 とは無関係）が独自の 1 引数 `WorkFn = @convention(c) (Int) -> Int` で呼び出し先クロージャを呼んでいたが、コンパイル済み Kotlin クロージャ本体は標準の 2 引数 `KKClosureThunkEntryPoint = (Int, UnsafeMutablePointer<Int>?) -> Int` 規約を実装している。ARM64 では余分な `outThrown` 引数レジスタ（x1）が未初期化のまま呼び出し先に渡り、呼び出し先の `outThrown?.pointee = 0` 書き込みがゴミアドレスへの書き込みとなりクラッシュする。既存の単体テスト `workerExecuteAfterNoopThunk` 自体が同じ誤った 1 引数シグネチャで thunk を定義していたため、これまで検出できていなかった。修正: `WorkFn` を廃止して `KKClosureThunkEntryPoint` を使用するよう変更し、`resolveFunctionValuePair` による事前解決も追加。`workerExecuteAfterNoopThunk`（`Tests/RuntimeTests/RuntimeNativeConcurrentTests.swift`）を正しい 2 引数シグネチャへ修正。
   - 回帰テスト: `Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+NativeConcurrentWorkerExecute.swift` の `testWorkerExecuteAfterRunsTrailingLambdaOperation`（コンパイル済み Kotlin クロージャを実際に `executeAfter` へ渡して固定）。
   - 発見元: 本 PR（`#6572` のコンフリクト解消、KSP-1250）で BUG-248 の修正検証中、`executeAfter` でも同種のクラッシュが再現し、lldb 調査で別原因と判明。
+
+- [ ] BUG-253: 非ローカル `break`/`continue`（ラムダ本体に書かれ、ラムダを囲むループを標的にするジャンプ。Kotlin 2.2 で stable、ターゲットの 2.3.10 でも有効）が Lowering に未実装で、ジャンプが黙って捨てられ、有効な Kotlin プログラムが無限ループまたは誤った結果になる。
+  - 最小再現1（`while(true)` + ラムダ内 break。2026-09-13 `.build/debug/kswiftc` と kotlinc 2.4.20 で実測）:
+    ```kotlin
+    fun f(xs: List<Int>): Int {
+        while (true) {
+            xs.forEach { if (it > 0) break }
+        }
+        return -1
+    }
+    fun main() { println(f(listOf(-1, 2, 3))) }
+    ```
+    kotlinc は `-1` を出力（exit 0、警告なし）。修正前の kswiftc は `return -1` に `warning KSWIFTK-SEMA-0096: Unreachable code.` を出したうえでハングするバイナリを生成した（`diff_kotlinc.sh` で `run exit mismatch: ref=0 candidate=124` / `candidate run timed out after 10s` / stdout は空）。
+  - 最小再現2（無限ループを介さない同じ症状）:
+    ```kotlin
+    fun g(xs: List<Int>): Int {
+        var sum = 0
+        for (i in 1..3) {
+            xs.forEach { if (it > 0) break }
+            sum += 1
+        }
+        return sum
+    }
+    fun main() { println(g(listOf(-1, 2, 3))) }
+    ```
+    kotlinc は `0`（break が `for` を脱出する）、修正前の kswiftc は `3`（break が外側ループに一切効かない）。`Sources/` 全体に非ローカル break/continue の実装・診断・追跡の痕跡は無い。
+  - **部分修正（本 PR で実施）**: `TypeInferenceContext.enteringLambdaBody()`（`Sources/CompilerCore/Sema/TypeCheck/TypeInferenceContext.swift`）で `loopDepth` / `loopLabelStack` をリセットし、ローカル関数本体（`LocalDeclTypeChecker+IndexedCompoundAssignAndLocalFunctions.swift` の "Local functions introduce a new scope for control flow" と同じ扱い）に揃えた。これによりラムダ境界を越える break/continue は既存の `KSWIFTK-SEMA-0018` / `KSWIFTK-SEMA-0019` で**コンパイルエラー**になり、黙った誤コンパイルではなくなる（上記2ケースとも `error KSWIFTK-SEMA-0018` を実測）。ラムダ内のループは `loopDepth` を再インクリメントするため `run { while (true) { ... break } }`（`Scripts/diff_cases/atomic_basic.kt` の実シェイプ）は引き続きコンパイルできる。kotlinc が受理するコードを拒否する意図的な差分であり、未実装機能に対する明示エラーとして採用した。
+  - 回帰テスト: `Tests/CompilerCoreTests/Sema/LambdaBreakContinueScopeTests.swift`（6 サンプル: ラムダ越え break / 同 continue / ラベル付き break@outer の 3 件がエラー、ラムダ内ループ・素のループ・ループ内ラムダ内ループの 3 件がエラーなし）。修正を戻すと前者 3 件が `diags → []` で失敗することを実測確認済み（空振りでない）。
+  - 非回帰の実測（2026-09-13、本 PR）: `.build/debug/kswiftc --stdlib-only --emit library` がエラー 0 件（bundled `.kt` にラムダ境界を越える break/continue は無い）/ `break`・`continue` を含む `Scripts/diff_cases/` 全 16 件 + `while_true_cas_loop_return.kt` が `total=16 failed=0 passed=16 skipped=0`。
+  - **残作業（本項目が `[ ]` である理由）**: 非ローカル break/continue を実装する。Sema と Lowering を同じ PR で変更する必要がある — `ControlFlowTypeChecker.containsBreakTargetingCurrentLoop` の `.lambdaLiteral → return false`（`while(true)` を `Nothing` 型付けするための break 探索がラムダ内を見ない）を「ラムダ内の break も外側ループを標的にしうる」へ変えるのは、Lowering 側でジャンプが実際にラムダを脱出できるようになってからでないと、異常を知らせる唯一のシグナルを消すだけになる。inline 関数のラムダからの非ローカル `return` の実装をモデルにする。
 
 - [ ] `isImportedInterfaceMember`（`Sources/CompilerCore/KIR/CallLowerer+MemberCallDefaultsAndResolution.swift:210`、KSP-611 のコメント付きで定義）は、importedLibrary 経由のインターフェースメンバーを判定する目的で書かれたが、呼び出し元が一つも存在しない未配線のデッドコード。発見元: PR #6621（KSP-1070、`MutableIterable.iterator()` の実行時ディスパッチ修正）の調査中、まさにこの関数が対処しようとしていたのと同種の問題（imported library 経由の abstract メンバーの externalLinkName が誤って直接呼び出しに使われる）を `NativeEmitter+FunctionEmission.swift` の `.call` 命令処理に別実装したが、既存のこの関数へ統合するか、削除するかの判断はしていない。今回対応しない理由: 統合するには呼び出し元候補（`CallLowerer` 側の member call lowering 経路）への配線と、その影響範囲（他の imported interface member 解決への副作用の有無）の調査が必要で、スコープを超える。
 
