@@ -34,8 +34,6 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         canThrow: Bool,
         thrownResult: KIRExprID?,
-        function: KIRFunction,
-        builderLambdaKinds: [InternedString: InternedString],
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
