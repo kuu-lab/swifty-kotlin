@@ -50,7 +50,7 @@ extension BuildASTPhase {
                 self.parseTypeRef(from: typeTokens, interner: interner, astArena: astArena)
             },
             resolveDeclarationName: { token, interner in
-                guard TypeRefParserCore.isTypeLikeNameToken(token.kind) else {
+                guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
                     return nil
                 }
                 return self.internedIdentifier(from: token, interner: interner)

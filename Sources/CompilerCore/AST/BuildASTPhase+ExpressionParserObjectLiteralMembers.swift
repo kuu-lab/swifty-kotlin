@@ -636,7 +636,7 @@ extension BuildASTPhase.ExpressionParser {
             if token.kind == .symbol(.rParen) {
                 break
             }
-            if TypeRefParserCore.isTypeLikeNameToken(token.kind),
+            if TypeRefParserCore.isDeclarationNameToken(token.kind),
                let name = tokenText(token)
             {
                 return name
