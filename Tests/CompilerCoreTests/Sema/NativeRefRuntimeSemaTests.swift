@@ -481,7 +481,11 @@ struct NativeRefRuntimeSemaTests {
             sema.symbols.lookup(fqName: fqName),
             "Expected kotlin.native.runtime.RootSetStatistics to be registered"
         )
-        #expect(sema.symbols.symbol(symbol)?.kind == .class)
+        let info = try #require(sema.symbols.symbol(symbol))
+        #expect(info.kind == .class)
+        #expect(!info.flags.contains(.synthetic))
+        #expect(info.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(symbol))
     }
 
     @Test
@@ -504,7 +508,17 @@ struct NativeRefRuntimeSemaTests {
         }
 
         let ctor = try #require(
-            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first,
+            sema.symbols.lookupAll(fqName: classFQName + [interner.intern("<init>")]).first {
+                guard let info = sema.symbols.symbol($0),
+                      let signature = sema.symbols.functionSignature(for: $0)
+                else {
+                    return false
+                }
+                return info.kind == .constructor
+                    && !info.flags.contains(.synthetic)
+                    && signature.parameterTypes
+                        == Array(repeating: sema.types.longType, count: expectedProperties.count)
+            },
             "RootSetStatistics should expose its primary constructor"
         )
         let signature = try #require(sema.symbols.functionSignature(for: ctor))
@@ -512,6 +526,8 @@ struct NativeRefRuntimeSemaTests {
             signature.parameterTypes
                 == Array(repeating: sema.types.longType, count: expectedProperties.count)
         )
+        #expect(sema.symbols.isSourceBackedSymbol(ctor))
+        #expect(sema.symbols.externalLinkName(for: ctor) == nil)
     }
 
     @Test

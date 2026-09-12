@@ -43,18 +43,19 @@ struct NativeConcurrentTopLevelSourceTests {
         // by KSP-1224 (Stdlib/kotlin/native/concurrent/AtomicNativePtr/
         // Stdlib.kt), AtomicReference is already source-backed by
         // KSP-1226 (Stdlib/kotlin/native/concurrent/AtomicReference/
-        // Stdlib.kt), and MutableData is already source-backed by
-        // KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/
-        // Stdlib.kt), so all five are intentionally absent from this
+        // Stdlib.kt), MutableData is already source-backed by KSP-1243
+        // (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt), and
+        // WorkerBoundReference's constructor is already source-backed by
+        // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference/
+        // Stdlib.kt), so all six are intentionally absent from this
         // synthetic-anchor inventory.
         let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
             "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
-            "WorkerBoundReference": (.out, sema.types.anyType),
         ]
 
         for name in [
             "AtomicInt",
-            "DetachedObjectGraph", "WorkerBoundReference",
+            "DetachedObjectGraph",
         ] {
             let path = package + [name]
             let classSymbol = try symbol(path, in: context)
@@ -128,6 +129,17 @@ struct NativeConcurrentTopLevelSourceTests {
         #expect(mutableDataInfo.kind == .class)
         #expect(!mutableDataInfo.flags.contains(.synthetic))
         #expect(sema.symbols.sourceFileID(for: mutableDataSymbol) != nil)
+
+        // WorkerBoundReference's constructor is already source-backed
+        // (KSP-1252) with a value-taking generic constructor; it is
+        // intentionally not a synthetic anchor. Its value/worker properties
+        // remain a separate KSP-1253 task.
+        let workerBoundReferencePath = package + ["WorkerBoundReference"]
+        let workerBoundReferenceSymbol = try symbol(workerBoundReferencePath, in: context)
+        let workerBoundReferenceInfo = try #require(sema.symbols.symbol(workerBoundReferenceSymbol))
+        #expect(workerBoundReferenceInfo.kind == .class)
+        #expect(!workerBoundReferenceInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: workerBoundReferenceSymbol) != nil)
     }
 
     @Test

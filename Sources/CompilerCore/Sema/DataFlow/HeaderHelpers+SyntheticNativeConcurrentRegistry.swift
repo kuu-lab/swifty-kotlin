@@ -228,29 +228,10 @@ extension DataFlowSemaPhase {
 
         // MutableData is intentionally excluded: it is already source-backed
         // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt).
-
-        registerNativeConcurrentNominalAnchor(
-            named: "WorkerBoundReference",
-            packageFQName: packageFQName,
-            pkgSymbol: pkgSymbol,
-            typeParameter: (name: "T", variance: .out, upperBound: types.anyType),
-            annotations: [
-                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: [
-                        "message = \"Support for the legacy memory manager has been completely removed. Use the referenced value directly.\"",
-                    ]
-                ),
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.DeprecatedSinceKotlin",
-                    arguments: ["errorSince = \"2.1\""]
-                ),
-            ],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // WorkerBoundReference is intentionally excluded: its constructor is
+        // already source-backed by KSP-1252 (Stdlib/kotlin/native/concurrent/
+        // WorkerBoundReference/Stdlib.kt); its value/worker properties remain
+        // a separate KSP-1253 task.
 
         // NativePtr is the opaque representation used by two internal KSP-1216
         // functions. Its own members remain outside this API slice.
