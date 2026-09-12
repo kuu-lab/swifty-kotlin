@@ -1,3 +1,4 @@
+#if canImport(Testing)
 @testable import CompilerCore
 import Testing
 
@@ -51,3 +52,4 @@ extension BuildKIRRegressionTests {
         })
     }
 }
+#endif
