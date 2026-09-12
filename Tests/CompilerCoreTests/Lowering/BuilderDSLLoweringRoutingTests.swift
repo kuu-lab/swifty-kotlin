@@ -7,6 +7,12 @@ import Testing
 /// `buildSet` / `buildMap` DSL before RF-LOWER-CALL-004〜006 delete the legacy
 /// `__kk_build_*` rewrite in `CollectionLiteralLoweringPass+CallRewriteFactories.swift`.
 ///
+/// RF-LOWER-CALL-004 has since removed the `buildList` half: `__kk_build_list`
+/// and `__kk_build_list_with_capacity` no longer exist as a rewrite target, a
+/// `RuntimeABISpec` entry, or a Runtime `@_cdecl`.  Those two names stay in
+/// `legacyBuilderRuntimeCallees` below as a reintroduction guard.  The
+/// `buildSet` / `buildMap` rewrites remain, pending CALL-005/006.
+///
 /// `CollectionLiteralLoweringTests` covers the same three names, but every one
 /// of those cases hand-builds `.call(symbol: nil, ...)` KIR against a
 /// `KIRContext` without a `SemaModule`, which short-circuits

@@ -5,11 +5,8 @@ import RuntimeABI
 /// Split out from `CollectionLiteralLoweringPass+LookupTables.swift`.
 struct BuilderDSLLookupNames {
     // Builder DSL names (STDLIB-002)
-    let buildListName: InternedString
     let buildSetName: InternedString
     let buildMapName: InternedString
-    let kkBuildListName: InternedString
-    let kkBuildListWithCapacityName: InternedString
     let kkBuildSetName: InternedString
     let kkBuildSetWithCapacityName: InternedString
     let kkBuildMapName: InternedString
@@ -19,11 +16,8 @@ struct BuilderDSLLookupNames {
     let builderDSLNames: Set<InternedString>
 
     init(interner: StringInterner) {
-        buildListName = interner.intern("buildList")
         buildSetName = interner.intern("buildSet")
         buildMapName = interner.intern("buildMap")
-        kkBuildListName = interner.intern("__kk_build_list")
-        kkBuildListWithCapacityName = interner.intern("__kk_build_list_with_capacity")
         kkBuildSetName = interner.intern("__kk_build_set")
         kkBuildSetWithCapacityName = interner.intern("__kk_build_set_with_capacity")
         kkBuildMapName = interner.intern("__kk_build_map")
@@ -31,7 +25,6 @@ struct BuilderDSLLookupNames {
         kkMutableSetAddName = interner.intern("__kk_mutable_set_add")
         kkMutableSetRemoveName = interner.intern("__kk_mutable_set_remove")
         builderDSLNames = [
-            buildListName,
             buildSetName,
             buildMapName,
         ]

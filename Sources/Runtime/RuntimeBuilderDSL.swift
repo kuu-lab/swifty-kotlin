@@ -35,43 +35,10 @@ public func __kk_builder_map_freeze(_ raw: Int) -> Int {
     return raw
 }
 
-@_cdecl("__kk_build_list")
-public func __kk_build_list(_ fnRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    __kkBuildList(capacity: 0, fnRaw: fnRaw, outThrown: outThrown)
-}
-
-private func __kkBuildList(
-    capacity: Int,
-    fnRaw: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard fnRaw != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_build_list called with null function pointer")
-    }
-    let listPtr = registerRuntimeObject(RuntimeListBox(capacity: capacity), typeID: listRuntimeTypeID)
-    var thrown = 0
-    _ = kk_function_invoke(fnRaw, listPtr, &thrown)
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-    runtimeListBox(from: listPtr)?.freeze()
-    return listPtr
-}
-
-@_cdecl("__kk_build_list_with_capacity")
-public func __kk_build_list_with_capacity(
-    _ capacity: Int,
-    _ fnRaw: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
-        return 0
-    }
-    return __kkBuildList(capacity: capacity, fnRaw: fnRaw, outThrown: outThrown)
-}
+// `__kk_build_list` / `__kk_build_list_with_capacity` were removed together
+// with their lowering rewrite (RF-LOWER-CALL-004).  Both `buildList` overloads
+// are implemented in `CollectionBuilders.kt` on top of the
+// `__kk_builder_list_new` / `__kk_builder_list_freeze` bridges above.
 
 @_cdecl("__kk_build_set")
 public func __kk_build_set(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {

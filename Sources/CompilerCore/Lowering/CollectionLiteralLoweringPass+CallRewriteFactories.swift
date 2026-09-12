@@ -550,10 +550,10 @@ extension CollectionLiteralConstructionLoweringPass {
         // Sequence factories are lowered through their bundled Kotlin source.
 
         // --- Rewrite builder DSL calls to kk_build_* runtime helpers (STDLIB-002) ---
+        // `buildList` is no longer part of this rewrite: both overloads are
+        // supplied by `CollectionBuilders.kt` (RF-LOWER-CALL-004).
         if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             let kkCallee: InternedString = switch callee {
-            case lookup.buildListName:
-                arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
             case lookup.buildSetName:
                 arguments.count == 2 ? lookup.kkBuildSetWithCapacityName : lookup.kkBuildSetName
             case lookup.buildMapName:
@@ -570,10 +570,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 canThrow: canThrow,
                 thrownResult: thrownResult
             ))
-            if callee == lookup.buildListName, let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(builderResult.rawValue)
-            }
             if callee == lookup.buildSetName, let result {
                 state.setExprIDs.insert(result.rawValue)
                 state.setExprIDs.insert(builderResult.rawValue)
