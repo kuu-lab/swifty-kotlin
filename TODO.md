@@ -84,9 +84,16 @@
 - [ ] RF-LOWER-CALL-002: 未消費の `builderLambdaKinds` 事前走査と引数配線を除去する（前提: CALL-001）
   - 対象: `CollectionLiteralLoweringRegistry.swift`、`+PreScan.swift` の `collectBuilderLambdaKinds` / `scanBuilderLambdaEntries`、`+CallRewrite.swift` / `+CallRewriteFactories.swift` の引数転送。着手時に、辞書が渡されるだけでrewriteの判断に使われないことを再確認する。
   - 完了条件: 未使用と確認できた辞書構築・走査・引数がなくなり、Builder DSL の呼び出し先と出力が不変。`isStdlibBuilderDSLCall` や他のcollection事前走査は削除せず、lookupの一括整理も混ぜない。
-- [ ] RF-LOWER-CALL-003: 常にfalseを返す source-backed Builder 判定の空実装を畳む（前提: CALL-002）
+- [x] RF-LOWER-CALL-003: 常にfalseを返す source-backed Builder 判定の空実装を畳む（前提: CALL-002）
   - 対象: `+PreScan.swift` の `isSourceBackedStdlibBuilderDSLCall` と呼び出し元のみ。現行の全分岐がfalseであることを確認し、不要なFQName構築・比較を除去する。
   - 完了条件: source-backed builderをrewriteしない契約を維持し、nil symbol / synthetic / external linkの既存分岐は変えない。CALL-001の回帰がgreenで、恒偽helperへの参照が0件。
+  - 完了根拠（挙動不変の畳み込み。製品1ファイル -27/+2 行、テスト・Kotlin側は無変更）:
+    - `isSourceBackedStdlibBuilderDSLCall` は `return` 3箇所すべてが `false` の恒偽関数だった。`fqName.count == 3` / `fqName[0] == lookup.kotlinName` / `fqName[2] == callee` のガードを通っても、`fqName[1] == collectionsName` の分岐に入っても、最後の行に落ちても結果は `false` で同じ。よって呼び出し元の `return isSourceBackedStdlibBuilderDSLCall(...)` を `return false` に畳み、helper と FQName 構築・比較を削除した。KSP-622 / KSP-623（source-backed builder は `CollectionBuilders.kt` に解決するので旧rewriteは適用されない）という理由はコメントで残した。
+    - 既存分岐は無変更: `guard let symbol else { return true }` / `.synthetic` / `externalLinkName?.hasPrefix("kk_build_")` の3つはそのまま。CALL-001 の完了メモは `hasPrefix("kk_build_")` も恒偽だと記録しているが、本項の完了条件が「external linkの既存分岐は変えない」なので触っていない（CALL-004〜006 の担当）。
+    - 消えた副作用の確認: 呼び出しごとの `ctx.interner.intern("collections")` が1件減る。"collections" は Sema 段の `HeaderHelpers+Synthetic*` 群（`--no-stdlib` 時も含む）で先に intern され、intern は冪等なので `InternedString` の採番は変わらない。`lookup.kotlinName` は `+FactoryPredicates.swift:127` に別利用者が残るため、lookup テーブル側の整理（CALL-015 の担当）を巻き込む必要はない。
+    - 恒偽helperへの参照: `Sources` / `Tests` 双方で0件（残るのは本 TODO.md の記述のみ）。
+    - 前提 CALL-002 の扱い: 未完了のまま着手した。TODO の順序注記は「編集が重なる場合は直列化する」という衝突回避の指示であり技術的依存ではなく、CALL-002 の対象（`collectBuilderLambdaKinds` / `scanBuilderLambdaEntries` / 引数転送）と本項の対象（`isStdlibBuilderDSLCall` の末尾3行）は同一ファイル内の別関数で、編集行が重ならない。ただし `claude/rf-lower-call-002-67200a` が並行稼働しており、削除範囲が `isStdlibBuilderDSLCall` の直後から始まるため `+PreScan.swift` は隣接hunkとして衝突しうる。正しい解決は両変更の union（CALL-002 の2関数削除 + 本項の `return false`）で、どちらかを捨てない。
+    - 検証（最小スコープ）: `bash Scripts/swift_test.sh --filter BuilderDSLLoweringRoutingTests --filter CollectionLiteralLoweringTests`（CALL-001 が固定した production 経路の契約 + `symbol: nil` 手組みKIRの旧契約）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` — 挙動不変の畳み込みなので CI に委ねた。`Scripts/loc_report.sh` の変動は `loc_by_directory Sources` の -25 行のみで、`HeaderHelpers+Synthetic*` 行数・`kir_lowering_todo_fixme_count`・`kk_literal_count`・`interner_resolve_literal_comparison_count`・`kk_cdecl_count` / `__kk_cdecl_count` はいずれも不変。
 - [ ] RF-LOWER-CALL-004: `buildList` の旧runtime rewriteを削除する（前提: CALL-003、KSP-697の必要な移行・fallback整理完了）
   - 対象: `+CallRewriteFactories.swift` のbuildList分岐、`+LookupTables+BuilderDSL.swift` / `+LookupTables.swift` の対応名、該当テスト。capacity有無を一組として扱い、Kotlin本体・Semaの移行をこのPRで重複実装しない。
   - 完了条件: source / artifactの両経路でKotlin実装が使われ、Loweringの旧 `__kk_build_list*` への置換と不要lookupが0件。手組みKIRの旧期待値はsource-backed契約へ置換する。製品で必要なfallbackが残る場合は削除を強行せず、前提未達として扱う。
