@@ -64,8 +64,10 @@ extension CoroutineLoweringPass {
             if function.isSuspend,
                let wrapperBody = buildSuspendWrapperBody(for: function, using: rewrite)
             {
-                updated.replaceBody(wrapperBody)
-                updated.replaceInstructionLocations(Array(repeating: nil, count: wrapperBody.count))
+                updated.replaceBody(
+                    wrapperBody,
+                    locations: Array(repeating: nil, count: wrapperBody.count)
+                )
                 return updated
             }
 
@@ -97,7 +99,8 @@ extension CoroutineLoweringPass {
         let continuationExpr = rewrite.module.arena.appendTemporary(type: continuationType
         )
 
-        var wrapperBody: [KIRInstruction] = [
+        var wrapperBody = KIRLoweringEmitContext()
+        wrapperBody.append(
             .call(
                 symbol: nil,
                 callee: rewrite.continuationFactory,
@@ -105,8 +108,8 @@ extension CoroutineLoweringPass {
                 result: continuationExpr,
                 canThrow: false,
                 thrownResult: nil
-            ),
-        ]
+            )
+        )
 
         let entryPointSymbol: SymbolID
         if function.params.isEmpty {
@@ -141,14 +144,14 @@ extension CoroutineLoweringPass {
             )
         )
         wrapperBody.append(.returnValue(callResult))
-        return wrapperBody
+        return wrapperBody.instructions
     }
 
     func appendWrapperArgumentSetup(
         for function: KIRFunction,
         continuationExpr: KIRExprID,
         using rewrite: SuspendRewriteContext,
-        into wrapperBody: inout [KIRInstruction]
+        into wrapperBody: inout KIRLoweringEmitContext
     ) {
         for (index, parameter) in function.params.enumerated() {
             let slotExpr = rewrite.module.arena.appendExpr(
@@ -175,7 +178,7 @@ extension CoroutineLoweringPass {
     func rewriteFunctionBody(
         _ function: KIRFunction,
         using rewrite: SuspendRewriteContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         let symbolByExprRaw = propagatedSymbolReferences(
             for: function,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
@@ -223,10 +226,13 @@ extension CoroutineLoweringPass {
         let callerContinuationSymbol = rewrite.continuationTypeByLoweredSymbol[function.symbol] != nil
             ? function.params.last?.symbol
             : nil
-        var loweredBody: [KIRInstruction] = []
-        loweredBody.reserveCapacity(function.body.count)
+        var loweredBody = KIRLoweringEmitContext()
+        loweredBody.instructions.reserveCapacity(function.body.count)
 
-        for instruction in function.body {
+        for (index, instruction) in function.body.enumerated() {
+            loweredBody.currentSourceRange = index < function.instructionLocations.count
+                ? function.instructionLocations[index]
+                : nil
             guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
                 loweredBody.append(instruction)
                 continue
@@ -358,15 +364,18 @@ extension CoroutineLoweringPass {
     func rewriteCoroutineBuilderBuildCalls(
         _ function: KIRFunction,
         using rewrite: SuspendRewriteContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         let symbolByExprRaw = propagatedSymbolReferences(
             for: function,
             callableRefTagFunctionCallee: rewrite.ctx.interner.intern("kk_callable_ref_tag_kfunction")
         )
-        var loweredBody: [KIRInstruction] = []
-        loweredBody.reserveCapacity(function.body.count)
+        var loweredBody = KIRLoweringEmitContext()
+        loweredBody.instructions.reserveCapacity(function.body.count)
 
-        for instruction in function.body {
+        for (index, instruction) in function.body.enumerated() {
+            loweredBody.currentSourceRange = index < function.instructionLocations.count
+                ? function.instructionLocations[index]
+                : nil
             guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
                 loweredBody.append(instruction)
                 continue
@@ -508,7 +517,7 @@ extension CoroutineLoweringPass {
         )
         let collectorCallableInfo = rewrite.module.arena.callableValueInfo(for: collectorExpr)
 
-        var prefixInstructions: [KIRInstruction] = []
+        var prefixInstructions = KIRLoweringEmitContext()
         let collectorEntryPoint: KIRExprID
         let collectorEnvPtr: KIRExprID
         let collectorContinuationArg: KIRExprID
@@ -599,7 +608,7 @@ extension CoroutineLoweringPass {
             thrownResult: call.thrownResult,
             isSuperCall: call.isSuperCall
         ))
-        return prefixInstructions
+        return prefixInstructions.instructions
     }
 
     /// Threads a capturing `flow { }` builder's captured values into its emitter.
@@ -769,7 +778,7 @@ extension CoroutineLoweringPass {
     func flowCollectorEnvironmentPointerExpr(
         for lambdaID: KIRExprID,
         using rewrite: SuspendRewriteContext,
-        into instructions: inout [KIRInstruction]
+        into instructions: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         guard let captureArguments = rewrite.module.arena.callableValueInfo(for: lambdaID)?.captureArguments,
               !captureArguments.isEmpty
@@ -1711,6 +1720,12 @@ extension CoroutineLoweringPass {
         arity: Int,
         using rewrite: SuspendRewriteContext
     ) -> LoweredSuspendFunction? {
+        // Source-backed SequenceScope declarations provide the signature for
+        // boxing, but builder bridges already implement their suspension ABI.
+        // Rebinding them to the source suspend body would discard each yield.
+        guard callee != rewrite.sequenceBuilderYieldCallee,
+              callee != rewrite.sequenceBuilderYieldAllCallee
+        else { return nil }
         if let symbol {
             if let loweredBySymbol = rewrite.loweredBySymbol[symbol] {
                 return loweredBySymbol

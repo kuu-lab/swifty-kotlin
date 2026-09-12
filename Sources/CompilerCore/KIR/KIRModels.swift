@@ -140,15 +140,24 @@ public struct KIRFunction: Sendable {
         self.isSuspend = isSuspend; self.isInline = isInline
         self.isInlineOnly = isInlineOnly
         self.isTailrec = isTailrec; self.sourceRange = sourceRange
-        self.instructionLocations = instructionLocations
+        if instructionLocations.isEmpty {
+            self.instructionLocations = Array(repeating: nil, count: body.count)
+        } else {
+            precondition(
+                instructionLocations.count == body.count,
+                "instructionLocations must be parallel to body (\(instructionLocations.count) != \(body.count))"
+            )
+            self.instructionLocations = instructionLocations
+        }
     }
 
-    public mutating func replaceBody(_ body: [KIRInstruction]) {
+    public mutating func replaceBody(_ body: [KIRInstruction], locations: [SourceRange?]) {
+        precondition(
+            locations.count == body.count,
+            "locations must be parallel to body (\(locations.count) != \(body.count))"
+        )
         self.body = body
-    }
-
-    public mutating func replaceInstructionLocations(_ instructionLocations: [SourceRange?]) {
-        self.instructionLocations = instructionLocations
+        instructionLocations = locations
     }
 }
 

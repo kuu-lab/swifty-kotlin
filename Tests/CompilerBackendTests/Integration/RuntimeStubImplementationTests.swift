@@ -24,7 +24,7 @@ struct RuntimeStubImplementationTests {
         )
     }
 
-    @Test func testLLVMBackendDefinesFrameRuntimeFunctionsWithWeakLinkage() throws {
+    @Test func testLLVMBackendDoesNotEmitFrameRuntimeCalls() throws {
         let interner = StringInterner()
         let module = makeSimpleModule(interner: interner)
 
@@ -39,24 +39,11 @@ struct RuntimeStubImplementationTests {
         try backend.emitLLVMIR(module: module, outputIRPath: irPath, interner: interner)
         let ir = try String(contentsOfFile: irPath, encoding: .utf8)
 
-        // Functions must be referenced in the IR
-        #expect(ir.contains("@kk_register_frame_map"), "LLVM IR must reference kk_register_frame_map")
-        #expect(ir.contains("@kk_push_frame"), "LLVM IR must reference kk_push_frame")
-        #expect(ir.contains("@kk_pop_frame"), "LLVM IR must reference kk_pop_frame")
-
-        // Must NOT contain internal linkage definitions for these functions
-        let lines = ir.components(separatedBy: "\n")
-        for line in lines {
-            let referencesRuntimeFunction = line.contains("kk_register_frame_map")
-                || line.contains("kk_push_frame")
-                || line.contains("kk_pop_frame")
-            if referencesRuntimeFunction && line.contains("define") {
-                #expect(
-                    !line.contains("internal"),
-                    "Runtime functions must not be defined as internal: \(line)"
-                )
-            }
-        }
+        // ARCH-014: root-empty frame map registration / push / pop are no longer
+        // emitted; the symbols must not appear in the IR at all.
+        #expect(!ir.contains("kk_register_frame_map"), "LLVM IR must not reference kk_register_frame_map")
+        #expect(!ir.contains("kk_push_frame"), "LLVM IR must not reference kk_push_frame")
+        #expect(!ir.contains("kk_pop_frame"), "LLVM IR must not reference kk_pop_frame")
     }
 }
 #endif

@@ -1082,7 +1082,7 @@ public func kk_println_any(_ obj: UnsafeMutableRawPointer?)
   * globals（singleton/object/companion）
   * thread stacks：**Kotlin フレームマップ**により列挙
   * coroutines：Continuation オブジェクトから辿れる参照も root 扱い
-* 各関数は compile 時に “GC root map” を生成し、runtime に登録する（例：`kk_register_frame_map(functionId, mapPtr)`）
+* 各関数は compile 時に “GC root map” を生成し、runtime に登録する（例：`kk_register_frame_map(functionId, mapPtr)`）（現状は未配線。ARCH-014 で emit 停止、再導入方針は docs/arch-014-frame-map-emission.md）
 
 ## J16.3 オブジェクト header（固定）
 

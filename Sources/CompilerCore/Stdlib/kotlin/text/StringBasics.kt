@@ -8,12 +8,77 @@ public fun String.repeat(count: Int): String {
     return sb.toString()
 }
 
+public fun CharSequence.repeat(n: Int): String {
+    if (n < 0) throw IllegalArgumentException("Count 'n' must be non-negative, but was $n.")
+
+    return when (n) {
+        0 -> ""
+        1 -> this.toString()
+        else -> {
+            when (length) {
+                0 -> ""
+                1 -> {
+                    val char = this[0]
+                    val sb = StringBuilder(n)
+                    var i = 0
+                    while (i < n) {
+                        sb.append(char)
+                        i += 1
+                    }
+                    sb.toString()
+                }
+                else -> {
+                    val sb = StringBuilder(n * length)
+                    var i = 1
+                    while (i <= n) {
+                        sb.append(this)
+                        i += 1
+                    }
+                    sb.toString()
+                }
+            }
+        }
+    }
+}
+
 public fun String.reversed(): String {
     val len = this.length
     val sb = StringBuilder()
     var i = len - 1
     while (i >= 0) { sb.append(this[i]); i -= 1 }
     return sb.toString()
+}
+
+public fun CharSequence.reversed(): CharSequence {
+    val source = StringBuilder(this.length)
+    source.append(this)
+    val content = source.toString()
+    val sb = StringBuilder()
+    var i = content.length - 1
+    while (i >= 0) {
+        val current = content[i]
+        if (i > 0 && (current.isLowSurrogate() || current.isHighSurrogate())) {
+            val previous = content[i - 1]
+            if (current.isLowSurrogate() && previous.isHighSurrogate()) {
+                val pair = CharArray(2)
+                pair[0] = previous
+                pair[1] = current
+                sb.append(pair)
+                i -= 2
+                continue
+            } else if (current.isHighSurrogate() && previous.isLowSurrogate()) {
+                val pair = CharArray(2)
+                pair[0] = current
+                pair[1] = previous
+                sb.append(pair)
+                i -= 2
+                continue
+            }
+        }
+        sb.append(current)
+        i -= 1
+    }
+    return sb
 }
 
 public fun String.padStart(length: Int, padChar: Char = ' '): String {

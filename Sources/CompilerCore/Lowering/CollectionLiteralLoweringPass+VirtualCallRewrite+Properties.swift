@@ -12,7 +12,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         setExprIDs: Set<Int32>,
         mapExprIDs: Set<Int32>,
         arrayExprIDs: Set<Int32> = [],
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if callee == lookup.sizeName || callee == lookup.countName, arguments.isEmpty {
             if listExprIDs.contains(receiver.rawValue) {

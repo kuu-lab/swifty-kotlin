@@ -308,10 +308,12 @@ extension DataFlowSemaPhase {
             let fqName = kotlinPkg + [name]
             if let existing = symbols.lookup(fqName: fqName) {
                 // Compatibility shells intentionally keep a nil declSite so bundled
-                // source declarations do not displace them in golden semantic dumps
-                // (`GoldenHarnessDump.isExcludedBundledSymbol` filters bundled-file
-                // declSites out; the pre-KSP-706 anchor never restored declSite for
-                // Pair/Triple either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`).
+                // source declarations do not displace them: a nil declSite keeps the
+                // shell's symbol identity stable for `ref=`/`call=` resolution, and
+                // `GoldenHarnessDump.isExcludedLibrarySymbol` omits it from `symbol`
+                // lines in golden dumps (only case-file-local declSites are listed).
+                // The pre-KSP-706 anchor never restored declSite for Pair/Triple
+                // either -- see `shouldRestoreDeclSiteForReusableSyntheticSymbol`.
                 symbols.setDeclSite(nil, for: existing)
             } else {
                 _ = symbols.define(
@@ -627,6 +629,41 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1198: forward-declares the source-backed Native CpuArchitecture
+    /// enum before Platform.cpuArchitecture's retained runtime bridge resolves
+    /// its property type.
+    func predeclareBundledCpuArchitectureHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [interner.intern("kotlin"), interner.intern("native")]
+        let targetName = interner.intern("CpuArchitecture")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTargetNominal,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
     /// KSP-1334: forward-declares the source-backed KTypeProjection nominal
     /// before reflection synthetic stubs resolve its property owner.
     func predeclareBundledKTypeProjectionHeaders(
@@ -674,6 +711,83 @@ extension DataFlowSemaPhase {
     ) {
         let packageFQName = [interner.intern("kotlin"), interner.intern("reflect")]
         let targetName = interner.intern("KVariance")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTarget = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTarget,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1264: forward-declares the source-backed Native GCInfo class
+    /// before synthetic runtime properties are registered against its owner.
+    func predeclareBundledGCInfoHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("runtime"),
+        ]
+        let targetName = interner.intern("GCInfo")
+        for file in ast.sortedFiles where file.packageFQName == packageFQName {
+            let declaresTargetNominal = file.topLevelDecls.contains { declID in
+                guard let decl = ast.arena.decl(declID) else { return false }
+                switch decl {
+                case .classDecl, .interfaceDecl, .objectDecl, .typeAliasDecl:
+                    return topLevelDeclarationDescriptor(for: decl, diagnostics: nil)?.name == targetName
+                case .funDecl, .propertyDecl, .enumEntryDecl:
+                    return false
+                }
+            }
+            guard declaresTargetNominal,
+                  let fileScope = fileScopes[file.fileID.rawValue]
+            else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
+    /// KSP-1269: forward-declares the source-backed RootSetStatistics nominal
+    /// before the NativeRuntime residual stubs resolve its constructor and
+    /// property owners.
+    func predeclareBundledRootSetStatisticsHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let packageFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("runtime"),
+        ]
+        let targetName = interner.intern("RootSetStatistics")
         for file in ast.sortedFiles where file.packageFQName == packageFQName {
             let declaresTarget = file.topLevelDecls.contains { declID in
                 guard let decl = ast.arena.decl(declID) else { return false }
@@ -1635,13 +1749,18 @@ extension DataFlowSemaPhase {
         // staged source-shell treatment to the kotlin.concurrent atomic
         // nominals while their constructors and members remain residual.
         let resolvedFQName = fqName.map(interner.resolve)
-        if resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+        if resolvedFQName == ["kotlin", "collections", "Iterator"]
+            || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
+            || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
             || resolvedFQName == ["kotlin", "text", "CharCategory"]
-            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"] {
+            || resolvedFQName == ["kotlin", "native", "concurrent", "TransferMode"]
+            // KSP-1361: Reusing the synthetic SequenceScope shell must still
+            // leave the bundled Kotlin declaration source-backed.
+            || resolvedFQName == ["kotlin", "sequences", "SequenceScope"] {
             return true
         }
         guard resolvedFQName.count == 3,

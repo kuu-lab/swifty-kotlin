@@ -104,4 +104,8 @@ extension KIRFunction {
             instructionLocations: body.instructionLocations
         )
     }
+
+    mutating func replaceBody(_ emit: KIRLoweringEmitContext) {
+        replaceBody(emit.instructions, locations: emit.instructionLocations)
+    }
 }

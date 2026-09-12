@@ -30,6 +30,22 @@ struct DeclarationBoundaryTests {
         return parsed.arena.nodes.count { $0.kind == kind }
     }
 
+    /// Parses `source` and returns the CST range of the root (file) node,
+    /// which is the accumulation of every top-level declaration's range.
+    private func rootRange(_ source: String) -> SourceRange {
+        let interner = StringInterner()
+        let diagnostics = DiagnosticEngine()
+        let lexer = KotlinLexer(
+            file: FileID(rawValue: 0),
+            source: Data(source.utf8),
+            interner: interner,
+            diagnostics: diagnostics
+        )
+        let parser = KotlinParser(tokens: lexer.lexAll(), interner: interner, diagnostics: diagnostics)
+        let parsed = parser.parseFile()
+        return parsed.arena.node(parsed.root).range
+    }
+
     /// Direct `.node` children of kind `blockChildKind` inside the first
     /// `.block` node found anywhere in the file (i.e. a function/constructor
     /// body), skipping over unrelated sibling structure like a parameter list.
@@ -139,6 +155,52 @@ struct DeclarationBoundaryTests {
         fun f() { value.hashCode(); value = 1 }
         """
         #expect(blockChildCount(source, blockChildKind: .statement) == 2)
+    }
+
+    // Found while investigating a `@file:Suppress` annotation that failed to
+    // suppress a diagnostic raised deep inside a trailing function's block
+    // body (PR #6562's KSP-1216 native concurrent top-level tests). The root
+    // node's range is the accumulation of every top-level declaration's
+    // range, and file-level `@Suppress` registers that whole range as the
+    // suppression window. The `lBrace` branches of `parseFunctionDeclaration`,
+    // `parseEnumDeclaration`, and `parsePropertyDeclaration` all appended
+    // their `{ ... }` body node to `children` but never fed its range into
+    // the `RangeAccumulator` (nor, for functions, the parameter list's) — so
+    // a block-bodied declaration's own range stopped at its name, silently
+    // truncating the root range whenever such a declaration was the last (or
+    // only) top-level declaration, and making any diagnostic inside its body
+    // fall outside every file-level `@Suppress`/`@OptIn` window. Pre-existing
+    // (last touched in b1e9bcc283, unrelated to this PR or the master merge);
+    // KSP-1216's tests were simply the first to combine a file-level
+    // `@Suppress` header with a trailing block-bodied `fun main`.
+    @Test
+    func testBlockBodiedFunctionRangeIncludesParametersAndBody() {
+        let source = """
+        fun main() {
+            println(1)
+        }
+        """
+        #expect(rootRange(source).end.offset == source.utf8.count)
+    }
+
+    @Test
+    func testRootRangeReachesTrailingBlockBodiedFunction() {
+        let source = """
+        fun oldFn(): Int = 1
+
+        fun main() {
+            println(oldFn())
+        }
+        """
+        #expect(rootRange(source).end.offset == source.utf8.count)
+    }
+
+    @Test
+    func testRootRangeReachesTrailingEnumBody() {
+        let source = """
+        enum class Color { RED, GREEN }
+        """
+        #expect(rootRange(source).end.offset == source.utf8.count)
     }
 }
 #endif

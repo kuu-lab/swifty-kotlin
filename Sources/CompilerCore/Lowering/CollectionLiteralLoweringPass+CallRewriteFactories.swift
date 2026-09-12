@@ -1,6 +1,31 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
+    /// Registers the rewritten result's nominal vtable implementations when the
+    /// factory produced a concrete-class collection box. See the call-site
+    /// comment in `lowerCallInstruction` for why the box needs them.
+    func appendFactoryResultVtableRegistrations(
+        result: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout KIRLoweringEmitContext
+    ) {
+        guard let result,
+              let sema = ctx.sema,
+              let resultType = module.arena.exprType(result),
+              let resolved = resolveClassTypeSymbol(resultType, sema: sema),
+              resolved.symbol.kind == .class
+        else { return }
+        appendFactoryObjectVtableMethodRegistrations(
+            objectValue: result,
+            nominalSymbol: resolved.symbol.id,
+            sema: sema,
+            arena: module.arena,
+            interner: ctx.interner,
+            instructions: &loweredBody
+        )
+    }
+
     /// Rewrites collection factories, builder DSL calls, and tuple constructor shims.
     func rewriteFactoryAndBuilderCall(
         symbol: SymbolID?,
@@ -15,8 +40,24 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
+        if rewriteSequenceBuilderCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return true
+        }
+
         // --- Rewrite list factories to runtime helpers. ---
         // Keep the Kotlin-source declarations visible to sema, but preserve the
         // runtime lowering path for primitive boxing and tracked collection IDs.
@@ -46,14 +87,18 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
             } else if count == 0 {
-                // mutableListOf()/arrayListOf() -> fresh instance via kk_list_of(null, 0)
+                // mutableListOf()/arrayListOf() -> fresh instance via the
+                // corresponding tagged list bridge.
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+                let runtimeCallee = callee == lookup.arrayListOfName
+                    ? lookup.kkArrayListOfName
+                    : lookup.kkListOfName
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkListOfName,
+                    callee: runtimeCallee,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -114,9 +159,12 @@ extension CollectionLiteralConstructionLoweringPass {
                         thrownResult: nil
                     ))
                 }
+                let runtimeCallee = callee == lookup.arrayListOfName
+                    ? lookup.kkArrayListOfName
+                    : lookup.kkListOfName
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkListOfName,
+                    callee: runtimeCallee,
                     arguments: [arrayExpr, countExpr],
                     result: result,
                     canThrow: false,
@@ -129,12 +177,12 @@ extension CollectionLiteralConstructionLoweringPass {
         // --- Rewrite ArrayList()/HashSet()/LinkedHashSet()/HashMap()/LinkedHashMap() constructors ---
         // 0 args → empty collection; 1 int arg (capacity) → empty collection;
         // 1 collection arg → copy.
-        if lookup.mutableListConstructorNames.contains(callee) {
+        if isStdlibArrayListConstructor(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
             if arguments.count == 1,
                isCollectionCopyConstructorArgument(arguments[0], module: module, ctx: ctx) {
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkCollectionToMutableListName,
+                    callee: lookup.kkCollectionToArrayListName,
                     arguments: [arguments[0]],
                     result: result,
                     canThrow: false,
@@ -150,7 +198,7 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
             loweredBody.append(.call(
                 symbol: nil,
-                callee: lookup.kkListOfName,
+                callee: lookup.kkArrayListOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
                 canThrow: false,

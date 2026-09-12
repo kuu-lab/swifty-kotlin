@@ -6,7 +6,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         module.arena.transformFunctions { function in
             var updated = function
             if updated.body.isEmpty {
-                updated.replaceBody([.nop, .returnUnit])
+                updated.replaceBody([.nop, .returnUnit], locations: [nil, nil])
             }
             return updated
         }
@@ -27,6 +27,11 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             interner: ctx.interner
         )
         appendReferencedSourceBackedKVarianceNominalIfNeeded(
+            module: module,
+            sema: sema,
+            interner: ctx.interner
+        )
+        appendReferencedSourceBackedCpuArchitectureNominalIfNeeded(
             module: module,
             sema: sema,
             interner: ctx.interner
@@ -109,10 +114,19 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
                     ))
                 }
                 var updated = function
+                let initLocations = Array(repeating: SourceRange?.none, count: initInstructions.count)
                 if let first = updated.body.first, case .beginBlock = first {
-                    updated.replaceBody([first] + initInstructions + updated.body.dropFirst())
+                    updated.replaceBody(
+                        [first] + initInstructions + updated.body.dropFirst(),
+                        locations: Array(updated.instructionLocations.prefix(1))
+                            + initLocations
+                            + updated.instructionLocations.dropFirst()
+                    )
                 } else {
-                    updated.replaceBody(initInstructions + updated.body)
+                    updated.replaceBody(
+                        initInstructions + updated.body,
+                        locations: initLocations + updated.instructionLocations
+                    )
                 }
                 return updated
             }
@@ -309,6 +323,72 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
         _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: kVarianceSymbol)))
     }
 
+    /// Makes the bundled Native CpuArchitecture enum available to the shared
+    /// enum synthesis pass when a consumer KIR references one of its generated
+    /// APIs or the `Platform.cpuArchitecture` property type.
+    /// Bundled source declarations are omitted from consumer KIR, but their
+    /// source-backed nominal identity is still required by enum helper bodies.
+    private func appendReferencedSourceBackedCpuArchitectureNominalIfNeeded(
+        module: KIRModule,
+        sema: SemaModule,
+        interner: StringInterner
+    ) {
+        let cpuArchitectureFQName = [
+            interner.intern("kotlin"),
+            interner.intern("native"),
+            interner.intern("CpuArchitecture"),
+        ]
+        guard let cpuArchitectureSymbol = sema.symbols.lookup(fqName: cpuArchitectureFQName),
+              let cpuArchitecture = sema.symbols.symbol(cpuArchitectureSymbol),
+              cpuArchitecture.kind == .enumClass,
+              sema.symbols.isSourceBackedSymbol(cpuArchitectureSymbol)
+        else {
+            return
+        }
+
+        var generatedMembers = Set(
+            sema.symbols.lookupAll(fqName: cpuArchitectureFQName + [interner.intern("values")])
+        )
+        if let companionSymbol = sema.symbols.companionObjectSymbol(for: cpuArchitectureSymbol),
+           let companion = sema.symbols.symbol(companionSymbol)
+        {
+            generatedMembers.formUnion(
+                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("entries")])
+            )
+            generatedMembers.formUnion(
+                sema.symbols.lookupAll(fqName: companion.fqName + [interner.intern("valueOf")])
+            )
+        }
+        guard !generatedMembers.isEmpty else {
+            return
+        }
+
+        let isReferenced = sema.bindings.identifierSymbols.values.contains {
+            generatedMembers.contains($0)
+        } || sema.bindings.callBindings.values.contains {
+            generatedMembers.contains($0.chosenCallee)
+        } || sema.bindings.exprTypes.values.contains {
+            guard case let .classType(classType) = sema.types.kind(of: $0) else {
+                return false
+            }
+            return classType.classSymbol == cpuArchitectureSymbol
+        }
+        guard isReferenced else {
+            return
+        }
+
+        let alreadyDeclared = module.arena.declarations.contains { declaration in
+            guard case let .nominalType(nominal) = declaration else {
+                return false
+            }
+            return nominal.symbol == cpuArchitectureSymbol
+        }
+        guard !alreadyDeclared else {
+            return
+        }
+        _ = module.arena.appendDecl(.nominalType(KIRNominalType(symbol: cpuArchitectureSymbol)))
+    }
+
     /// Replaces `constValue(result: r, value: .symbolRef(sym))` where `sym`
     /// is a synthetic field owned by a synthetic enum class with
     /// `constValue(result: r, value: .intLiteral(ordinal))` followed by a
@@ -369,7 +449,7 @@ final class DataEnumSealedSynthesisPass: LoweringPass {
             }
             if changed {
                 var updated = function
-                updated.replaceBody(newBody)
+                updated.replaceBody(newBody, locations: function.instructionLocations)
                 return updated
             }
             return function
