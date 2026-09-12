@@ -672,11 +672,27 @@ extension OverloadResolver {
         return errorResult(
             code: "KSWIFTK-SEMA-0003",
             message: "Ambiguous overload resolution.",
-            range: call.range
+            range: call.range,
+            secondaryRanges: candidateDeclSites(viable, typeSystem: typeSystem)
         )
     }
 
-    private func errorResult(code: String, message: String, range: SourceRange) -> ResolvedCall {
+    /// ARCH-031: declaration sites of the ambiguous overload candidates,
+    /// deduplicated and sorted by source position so diagnostics stay
+    /// deterministic.
+    private func candidateDeclSites(
+        _ candidates: [ViableCandidate],
+        typeSystem: TypeSystem
+    ) -> [SourceRange] {
+        typeSystem.symbolTable?.sortedDeclSites(of: candidates.map(\.symbol)) ?? []
+    }
+
+    private func errorResult(
+        code: String,
+        message: String,
+        range: SourceRange,
+        secondaryRanges: [SourceRange] = []
+    ) -> ResolvedCall {
         ResolvedCall(
             chosenCallee: nil,
             substitutedTypeArguments: [:],
@@ -686,7 +702,7 @@ extension OverloadResolver {
                 code: code,
                 message: message,
                 primaryRange: range,
-                secondaryRanges: []
+                secondaryRanges: secondaryRanges
             )
         )
     }

@@ -32,15 +32,18 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
 
         module.arena.transformFunctions { function in
             var updated = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
             var nextLabel = Self.maxLabelNumber(in: function.body) + 1
             func allocateLabel() -> Int32 {
                 defer { nextLabel += 1 }
                 return nextLabel
             }
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
                     if let printKind = Self.consolePrintKind(
@@ -147,7 +150,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         rawPrintCallee: InternedString,
         stringType: TypeID,
         intType: TypeID,
-        newBody: inout [KIRInstruction],
+        newBody: inout KIRLoweringEmitContext,
         allocateLabel: () -> Int32
     ) -> Bool {
         if arguments.isEmpty {
@@ -191,7 +194,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         if sema.types.nullability(of: argType) != .nonNull {
             // Build the non-null rewrite first on a scratch body so we only
             // commit the branch when a class-specific toString is available.
-            var nonNullBody: [KIRInstruction] = []
+            var nonNullBody = KIRLoweringEmitContext()
             guard let stringExpr = Self.classToStringExpression(
                 argument: argument,
                 classSymbol: classSymbol,
@@ -269,7 +272,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         stringType: TypeID,
-        to body: inout [KIRInstruction]
+        to body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let expr = stringLiteral(value, arena: arena, interner: interner, stringType: stringType)
         body.append(.constValue(result: expr, value: .stringLiteral(interner.intern(value))))
@@ -279,7 +282,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     private func appendPrintRaw(
         _ value: KIRExprID,
         rawPrintCallee: InternedString,
-        to body: inout [KIRInstruction]
+        to body: inout KIRLoweringEmitContext
     ) {
         body.append(.call(
             symbol: nil,
@@ -292,7 +295,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         ))
     }
 
-    private func appendUnitResult(_ result: KIRExprID?, to body: inout [KIRInstruction]) {
+    private func appendUnitResult(_ result: KIRExprID?, to body: inout KIRLoweringEmitContext) {
         if let result {
             body.append(.constValue(result: result, value: .unit))
         }
@@ -309,13 +312,13 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         interner: StringInterner,
         stringType: TypeID,
         intType: TypeID,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID? {
         let argType = arena.exprType(argument) ?? inferPrimitiveType(
             argument: argument,
             sema: sema,
             interner: interner,
-            newBody: newBody
+            newBody: newBody.instructions
         )
         let nonNullType = sema.types.makeNonNullable(argType)
         let kind = sema.types.kind(of: nonNullType)
@@ -366,7 +369,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         intType: TypeID,
         stringType: TypeID,
         anyToStringCallee: InternedString,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
         newBody.append(.constValue(result: tagExpr, value: .intLiteral(tag)))

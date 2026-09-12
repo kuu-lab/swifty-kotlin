@@ -353,7 +353,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         let invokeParams = [closureObjParam] + lambdaInfo.valueParams
         let returnType = lambdaInfo.function.returnType
 
-        var invokeBody: [KIRInstruction] = [.beginBlock]
+        var invokeBody: KIRLoweringEmitContext = [.beginBlock]
         let kk_array_get = interner.intern("kk_array_get_inbounds")
         // Compute next temp ID from the arena's current expression count.
         // This is safe here because synthesizeClosureObject is called
@@ -447,10 +447,13 @@ final class LambdaClosureConversionPass: LoweringPass {
         var nextTempID = Self.maxTempID(in: function) + 1
 
         var updated = function
-        var loweredBody: [KIRInstruction] = []
-        loweredBody.reserveCapacity(function.body.count * 2)
+        var loweredBody = KIRLoweringEmitContext()
+        loweredBody.instructions.reserveCapacity(function.body.count * 2)
 
-        for instruction in function.body {
+        for (index, instruction) in function.body.enumerated() {
+            loweredBody.currentSourceRange = index < function.instructionLocations.count
+                ? function.instructionLocations[index]
+                : nil
             switch instruction {
             case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 if callee == markerCallee {
@@ -560,7 +563,7 @@ final class LambdaClosureConversionPass: LoweringPass {
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
-        body: inout [KIRInstruction]
+        body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let typeKind = sema.types.kind(of: type)
         guard case .primitive(_, .nonNull) = typeKind,

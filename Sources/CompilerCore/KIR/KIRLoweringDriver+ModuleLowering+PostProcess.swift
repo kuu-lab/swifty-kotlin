@@ -18,13 +18,17 @@ extension KIRLoweringDriver {
 
             if function.name == mainName, !allTopLevelInitInstructions.isEmpty {
                 updated.replaceBody(injectTopLevelInits(
-                    body: function.body, inits: allTopLevelInitInstructions
+                    body: function.body,
+                    bodyLocations: function.instructionLocations,
+                    inits: allTopLevelInitInstructions
                 ))
             }
 
             if !delegateStorageSymbolByPropertySymbol.isEmpty {
                 updated.replaceBody(rewriteDelegateAccesses(
-                    body: updated.body, sema: sema,
+                    body: updated.body,
+                    bodyLocations: updated.instructionLocations,
+                    sema: sema,
                     storageMap: delegateStorageSymbolByPropertySymbol, interner: interner
                 ))
             }
@@ -37,24 +41,35 @@ extension KIRLoweringDriver {
 
     private func injectTopLevelInits(
         body: [KIRInstruction],
+        bodyLocations: [SourceRange?],
         inits: KIRLoweringEmitContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         // The initializers were lowered under their own function scopes, so
         // their labels restart from the same base as `main`'s own body.
         let relocatedInits = KIRLabelRelocation.relocatingLabels(
             of: inits.instructions,
             toAvoidCollisionsWith: body
         )
-        var newBody: KIRLoweringEmitContext = []
-        if let first = body.first, case .beginBlock = first {
-            newBody.append(first)
-            newBody.append(contentsOf: relocatedInits)
-            newBody.append(contentsOf: body.dropFirst())
-        } else {
-            newBody.append(contentsOf: relocatedInits)
-            newBody.append(contentsOf: body)
+        var newBody = KIRLoweringEmitContext()
+        func appendAll(
+            _ instructions: some Sequence<KIRInstruction>,
+            locations: some Sequence<SourceRange?>
+        ) {
+            for (instruction, location) in zip(instructions, locations) {
+                newBody.currentSourceRange = location
+                newBody.append(instruction)
+            }
         }
-        return newBody.instructions
+        if let first = body.first, case .beginBlock = first {
+            newBody.currentSourceRange = bodyLocations.first ?? nil
+            newBody.append(first)
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body.dropFirst(), locations: bodyLocations.dropFirst())
+        } else {
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body, locations: bodyLocations)
+        }
+        return newBody
     }
 
     // MARK: - Delegate Access Rewriting
@@ -68,10 +83,11 @@ extension KIRLoweringDriver {
     /// same synthesized accessors (`emitDelegateAccessorsIfCustom`).
     private func rewriteDelegateAccesses(
         body: [KIRInstruction],
+        bodyLocations: [SourceRange?],
         sema: SemaModule,
         storageMap: [SymbolID: SymbolID],
         interner: StringInterner
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         var fullStorageMap = storageMap
         for symbol in sema.symbols.allSymbols() where symbol.kind == .property {
             if let storageSymbol = sema.symbols.delegateStorageSymbol(for: symbol.id) {
@@ -93,10 +109,13 @@ extension KIRLoweringDriver {
 
         // Pass 2: rewrite instructions.
         var targets: [KIRExprID: SymbolID] = [:]
-        var result: KIRLoweringEmitContext = []
-        result.reserveCapacity(body.count)
+        var result = KIRLoweringEmitContext()
+        result.instructions.reserveCapacity(body.count)
 
-        for instruction in body {
+        for (index, instruction) in body.enumerated() {
+            result.currentSourceRange = index < bodyLocations.count
+                ? bodyLocations[index]
+                : nil
             if case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                let storageSymbol = symbol,
                propertyByStorageSymbol[storageSymbol] != nil,
@@ -170,7 +189,7 @@ extension KIRLoweringDriver {
 
             result.append(instruction)
         }
-        return result.instructions
+        return result
     }
 }
 

@@ -156,8 +156,8 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
 
             var flowExprIDs: Set<Int32> = []
             var activeFlowExpr: KIRExprID?
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count + 16)
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count + 16)
 
             func appendIntConstant(_ value: Int64) -> KIRExprID {
                 let expr = module.arena.appendTemporary(type: intType
@@ -199,7 +199,10 @@ final class FlowLoweringPass: LoweringPass, ParallelLoweringPass {
                     && CallLowerer.isSourceBackedLinkName(sema.symbols.externalLinkName(for: symbol))
             }
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .copy(from, to):
                     if flowExprIDs.contains(from.rawValue) {

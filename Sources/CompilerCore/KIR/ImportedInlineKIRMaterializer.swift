@@ -48,7 +48,10 @@ enum ImportedInlineKIRMaterializer {
             }
 
             let body = function.body.map { remapInstruction($0, using: remap) }
-            function.replaceBody(body)
+            let locations = function.instructionLocations.count == body.count
+                ? function.instructionLocations
+                : [SourceRange?](repeating: nil, count: body.count)
+            function.replaceBody(body, locations: locations)
             for (source, type) in concreteBooleanResults {
                 if let consumer = sourceToConsumer[source] {
                     arena.setExprType(type, for: consumer)

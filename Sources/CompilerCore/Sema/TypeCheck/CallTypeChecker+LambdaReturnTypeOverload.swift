@@ -312,7 +312,7 @@ extension CallTypeChecker {
         })
 
         if blockedLambdaRefinement, hasRefinementAnnotation || hasUnresolvableImplicitLambdaParameter {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
 
         let contextualExpectedType = overloadResolutionExpectedType(from: expectedType, sema: ctx.sema)
@@ -331,10 +331,10 @@ extension CallTypeChecker {
         // resolution is actually attempted (inputOnlyLambdaIndices is non-empty).
         // Running them earlier would incorrectly reject single-candidate calls.
         if functionParameterArgumentPositions.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
         if functionTypedArgumentIndices.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
 
         let overloadResolutionExpectedType: TypeID? = nil
@@ -370,7 +370,7 @@ extension CallTypeChecker {
               let lambdaIndex = lambdaLiteralIndices.first,
               inputOnlyLambdaIndices.contains(lambdaIndex)
         else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
         // When all viable candidates share the same input-only HOF shape, the
         // apparent ambiguity is structural — not semantic. Fall back to the standard
@@ -389,7 +389,7 @@ extension CallTypeChecker {
         guard viableSymbols.contains(where: {
             hasOverloadResolutionByLambdaReturnTypeAnnotation(symbol: $0, sema: ctx.sema)
         }) else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
 
         let refinedCandidates = refineCandidatesByLambdaReturnType(
@@ -418,7 +418,7 @@ extension CallTypeChecker {
                 ctx: ctx.semaCtx
             )
         }
-        return ambiguousCallResult(range: range)
+        return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)
     }
 
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
@@ -1475,7 +1475,11 @@ extension CallTypeChecker {
         }
     }
 
-    private func ambiguousCallResult(range: SourceRange) -> ResolvedCall {
+    private func ambiguousCallResult(
+        range: SourceRange,
+        candidateSymbols: [SymbolID],
+        sema: SemaModule
+    ) -> ResolvedCall {
         ResolvedCall(
             chosenCallee: nil,
             substitutedTypeArguments: [:],
@@ -1485,7 +1489,7 @@ extension CallTypeChecker {
                 code: "KSWIFTK-SEMA-0003",
                 message: "Ambiguous overload resolution.",
                 primaryRange: range,
-                secondaryRanges: []
+                secondaryRanges: sema.symbols.sortedDeclSites(of: candidateSymbols)
             )
         )
     }

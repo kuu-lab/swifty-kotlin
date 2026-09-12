@@ -20,7 +20,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         charRangeExprIDs: inout Set<Int32>,
         ulongRangeExprIDs: inout Set<Int32>,
         listExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         guard rangeExprIDs.contains(receiver.rawValue) else { return false }
         let isCharRange = charRangeExprIDs.contains(receiver.rawValue)

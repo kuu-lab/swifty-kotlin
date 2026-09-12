@@ -586,6 +586,7 @@ extension CoroutineLoweringPass {
             )
             let loweredBody = rewriteFlowInstructions(
                 originalBody: function.body,
+                originalLocations: function.instructionLocations,
                 module: module,
                 ctx: ctx,
                 flowExprIDs: &flowExprIDs,
