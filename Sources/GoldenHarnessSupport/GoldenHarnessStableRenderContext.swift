@@ -21,9 +21,17 @@ final class StableRenderContext {
     /// bundled source files before the test input does not renumber the file line.
     private let fileKeys: [Int32: String]
     private(set) var requiredSymbols = Set<Int32>()
+    /// Declaration-index map for type-parameter symbols, including the
+    /// negative virtual IDs assigned to imported-library type parameters
+    /// (`HeaderHelpers.syntheticTypeParameterBase`). Those symbols are never
+    /// registered in `SymbolTable`, so `symbolFQ` cannot resolve `T#-<id>`
+    /// references inside imported signatures — this map normalizes them to
+    /// `T<declarationIndex>` instead (the same normalization the meaning keys
+    /// in `call=`/`ref=` fields use).
+    private let typeParamIndices: [Int32: Int]
 
     // swiftlint:disable:next force_try
-    private static let typeRefRegex = try! NSRegularExpression(pattern: "(Class#|T#)(\\d+)")
+    private static let typeRefRegex = try! NSRegularExpression(pattern: "(Class#|T#)(-?\\d+)")
 
     init(sema: SemaModule, interner: StringInterner, ast: ASTModule, sourceManager: SourceManager) {
         self.sema = sema
@@ -39,13 +47,15 @@ final class StableRenderContext {
         }
         self.symbolFQ = fqMap
 
-        self.symbolKeys = StableSemanticKeyComputer(
+        let keyComputer = StableSemanticKeyComputer(
             sema: sema,
             interner: interner,
             symbolFQ: fqMap,
             fileKeys: fileKeys,
             sourceManager: sourceManager
-        ).computeKeys()
+        )
+        self.symbolKeys = keyComputer.computeKeys()
+        self.typeParamIndices = keyComputer.typeParamIndices
     }
 
     /// Returns the stable, meaning-derived key for a symbol. The key combines the
@@ -229,11 +239,18 @@ final class StableRenderContext {
         for match in matches.reversed() {
             let idRange = match.range(at: 2)
             guard idRange.location != NSNotFound,
-                  let rawID = Int32(nsText.substring(with: idRange)),
-                  let fq = symbolFQ[rawID]
+                  let rawID = Int32(nsText.substring(with: idRange))
             else { continue }
-            requiredSymbols.insert(rawID)
-            mutable.replaceCharacters(in: match.range, with: fq)
+            if let fq = symbolFQ[rawID] {
+                requiredSymbols.insert(rawID)
+                mutable.replaceCharacters(in: match.range, with: fq)
+            } else if let index = typeParamIndices[rawID] {
+                // Imported-library type parameters carry negative virtual
+                // SymbolIDs that are never registered in the symbol table —
+                // normalize them to the owner's declaration index so the
+                // rendered type stays stable across artifact layout changes.
+                mutable.replaceCharacters(in: match.range, with: "T\(index)")
+            }
         }
         return mutable as String
     }
@@ -314,6 +331,13 @@ private final class StableSemanticKeyComputer {
     /// or its `fqName` parent is not resolvable (synthetic scopes, merged
     /// stub declarations).
     private var typeParamIndexBySymbol: [Int32: Int] = [:]
+
+    /// `typeParameter symbol → declaration index inside its owner`, valid
+    /// after `computeKeys()`. Includes unregistered virtual IDs used by
+    /// imported-library type parameters.
+    var typeParamIndices: [Int32: Int] {
+        typeParamIndexBySymbol
+    }
 
     init(
         sema: SemaModule,
