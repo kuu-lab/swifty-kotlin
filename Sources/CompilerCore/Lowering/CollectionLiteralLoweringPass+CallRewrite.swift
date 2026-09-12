@@ -63,32 +63,28 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
-            // KSP-426: List sorting/extrema are bundled Kotlin source and must
-            // not be redirected to the removed kk_list_* runtime exports.
-            || callee == lookup.sortedName
-            || callee == lookup.sortedByName
-            || callee == lookup.sortedByDescendingName
-            || callee == lookup.sortedDescendingName
-            || callee == lookup.sortedWithName
-            || callee == lookup.maxName
-            || callee == lookup.maxByName
-            || callee == lookup.maxOfName
-            || callee == lookup.maxOfOrNullName
-            || callee == lookup.maxOfWithName
-            || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.maxOrNullName
-            || callee == lookup.maxWithName
-            || callee == lookup.maxWithOrNullName
-            || callee == lookup.minName
-            || callee == lookup.minByName
-            || callee == lookup.minByOrNullName
-            || callee == lookup.minOfName
-            || callee == lookup.minOfOrNullName
-            || callee == lookup.minOfWithName
-            || callee == lookup.minOfWithOrNullName
-            || callee == lookup.minOrNullName
-            || callee == lookup.minWithName
-            || callee == lookup.minWithOrNullName
+            // RF-LOWER-CALL-011 dropped the KSP-426 block that listed all 25
+            // List `sorted*` / `min*` / `max*` names here.  It was meant to keep
+            // those bundled Kotlin declarations (`ListSortingHOF.kt`,
+            // `ListExtremaHOF.kt`) off the legacy `kk_list_*` exports, of which
+            // only `kk_list_sortedBy` still has a `@_cdecl` — but it guarded
+            // nothing.  Every rewrite reachable from here sits behind an outer
+            // member-name gate that never listed these names: the leading `if`
+            // of `rewriteCoreHigherOrderCollectionCall` and
+            // `isCollectionHOFMemberName`, which between them also put the
+            // `.list` / `.map` `collectionHOFRuntimeNames` lookups out of
+            // reach.  `+CallRewriteSequenceTerminals.swift` does compare
+            // `max` / `maxOrNull` / `minOrNull` by name, but its entry guard
+            // bails for a source-backed symbol whose receiver is not a tracked
+            // runtime Sequence handle, which the bundled `sequenceOf` /
+            // `generateSequence` / `asSequence` results are not.  Removing all
+            // 25 left post-lowering KIR byte-identical across the
+            // sorting/extrema, Map, Sequence and range cases.
+            //
+            // `maxByOrNull` / `minByOrNull` stay in the Map group above and the
+            // virtual policy keeps `sorted` for its Range consumer; both are
+            // RF-LOWER-CALL-012/014 territory.  Either way
+            // `ListSortExtremaLoweringRoutingTests` pins the routing itself.
             // KSP-421: List transform HOFs have Kotlin source implementations.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
@@ -304,7 +300,6 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            function: function,
             module: module,
             ctx: ctx,
             lookup: lookup,

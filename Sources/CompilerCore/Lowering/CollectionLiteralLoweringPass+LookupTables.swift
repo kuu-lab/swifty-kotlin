@@ -499,7 +499,6 @@ struct CollectionLiteralLookupTables {
     var runningReduceName: InternedString { commonLookup.runningReduceName }
     var scanReduceName: InternedString { commonLookup.scanReduceName }
     var groupByName: InternedString { commonLookup.groupByName }
-    var sortedByName: InternedString { commonLookup.sortedByName }
     var findName: InternedString { commonLookup.findName }
     var findLastName: InternedString { commonLookup.findLastName }
     var associateByName: InternedString { commonLookup.associateByName }
@@ -541,23 +540,8 @@ struct CollectionLiteralLookupTables {
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }
-    var maxByName: InternedString { commonLookup.maxByName }
-    var minName: InternedString { commonLookup.minName }
     var maxByOrNullName: InternedString { commonLookup.maxByOrNullName }
     var minByOrNullName: InternedString { commonLookup.minByOrNullName }
-    var minByName: InternedString { commonLookup.minByName }
-    var maxOfOrNullName: InternedString { commonLookup.maxOfOrNullName }
-    var minOfOrNullName: InternedString { commonLookup.minOfOrNullName }
-    var maxOfName: InternedString { commonLookup.maxOfName }
-    var minOfName: InternedString { commonLookup.minOfName }
-    var maxWithName: InternedString { commonLookup.maxWithName }
-    var maxWithOrNullName: InternedString { commonLookup.maxWithOrNullName }
-    var minWithName: InternedString { commonLookup.minWithName }
-    var minWithOrNullName: InternedString { commonLookup.minWithOrNullName }
-    var maxOfWithName: InternedString { commonLookup.maxOfWithName }
-    var maxOfWithOrNullName: InternedString { commonLookup.maxOfWithOrNullName }
-    var minOfWithName: InternedString { commonLookup.minOfWithName }
-    var minOfWithOrNullName: InternedString { commonLookup.minOfWithOrNullName }
     var dropName: InternedString { commonLookup.dropName }
     var reversedName: InternedString { commonLookup.reversedName }
     var asReversedName: InternedString { commonLookup.asReversedName }
@@ -573,9 +557,6 @@ struct CollectionLiteralLookupTables {
     var indexOfLastName: InternedString { commonLookup.indexOfLastName }
     var chunkedName: InternedString { commonLookup.chunkedName }
     var windowedName: InternedString { commonLookup.windowedName }
-    var sortedDescendingName: InternedString { commonLookup.sortedDescendingName }
-    var sortedByDescendingName: InternedString { commonLookup.sortedByDescendingName }
-    var sortedWithName: InternedString { commonLookup.sortedWithName }
     var partitionName: InternedString { commonLookup.partitionName }
     var takeWhileName: InternedString { commonLookup.takeWhileName }
     var dropWhileName: InternedString { commonLookup.dropWhileName }
