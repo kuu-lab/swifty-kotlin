@@ -468,12 +468,15 @@ struct ExperimentalMarkerStubTests {
 
     @Test
     func testKotlinExperimentalMarkerInventoryHasExpectedShape() {
+        // Structural invariants only — no magic totals. Two PRs adding *different* entries
+        // at *different* Set literal positions merge with no text conflict, but if each also
+        // rewrites the same hardcoded count identically (`N` -> `N+1`), git applies that
+        // identical-looking edit once — the merged inventory silently ends up short.
         let targetMarkers = Self.implementedExperimentalPackageMarkers.union(Self.knownGapExperimentalPackageMarkers)
         let targetNames = Set(targetMarkers.map(\.name))
 
+        // Each marker must have a unique name (no two entries share a `name`).
         #expect(targetMarkers.count == targetNames.count)
-        #expect(targetMarkers.count == 6)
-        #expect(Self.implementedExperimentalPackageMarkers.count == 6)
         #expect(Self.knownGapExperimentalPackageMarkers.count == 0)
     }
 
