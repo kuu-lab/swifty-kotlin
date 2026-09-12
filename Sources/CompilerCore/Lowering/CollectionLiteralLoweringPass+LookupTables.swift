@@ -452,7 +452,6 @@ struct CollectionLiteralLookupTables {
     var sizeName: InternedString { commonLookup.sizeName }
     var getName: InternedString { commonLookup.getName }
     var containsName: InternedString { commonLookup.containsName }
-    var containsAllName: InternedString { commonLookup.containsAllName }
     var containsKeyName: InternedString { commonLookup.containsKeyName }
     var containsValueName: InternedString { commonLookup.containsValueName }
     var isEmptyName: InternedString { commonLookup.isEmptyName }
@@ -567,10 +566,6 @@ struct CollectionLiteralLookupTables {
     var distinctByName: InternedString { commonLookup.distinctByName }
     var shuffledName: InternedString { commonLookup.shuffledName }
     var flattenName: InternedString { commonLookup.flattenName }
-    var indexOfName: InternedString { commonLookup.indexOfName }
-    var lastIndexOfName: InternedString { commonLookup.lastIndexOfName }
-    var indexOfFirstName: InternedString { commonLookup.indexOfFirstName }
-    var indexOfLastName: InternedString { commonLookup.indexOfLastName }
     var chunkedName: InternedString { commonLookup.chunkedName }
     var windowedName: InternedString { commonLookup.windowedName }
     var sortedDescendingName: InternedString { commonLookup.sortedDescendingName }

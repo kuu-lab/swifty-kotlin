@@ -15,7 +15,7 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.mapNotNullName || callee == lookup.forEachName || callee == lookup.onEachName
         || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.anyName || callee == lookup.noneName
         || callee == lookup.allName || callee == lookup.mapValuesName || callee == lookup.mapKeysName
-        || callee == lookup.toListName || callee == lookup.countName
+        || callee == lookup.toListName
     {
         if let rewrite = rewriteCollectionHOFCall(
             call: .init(
@@ -35,11 +35,8 @@ extension CollectionLiteralConstructionLoweringPass {
         if arguments.count == 2 || arguments.count == 3 {
             let receiverID = arguments[0]
             let lambdaID = arguments[1]
-            // countName with a List receiver is now a bundled Kotlin source function, so
-            // it must not be intercepted by the generic list-HOF rewrite path below.
             if let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1),
                state.listExprIDs.contains(receiverID.rawValue),
-               callee != lookup.countName,
                callee != lookup.filterName,
                callee != lookup.filterNotName
             {

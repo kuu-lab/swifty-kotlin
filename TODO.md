@@ -105,9 +105,47 @@
 - [ ] RF-LOWER-CALL-009: Listの畳み込み・累積系の保持判断を整理する（前提: CALL-008）
   - 対象: policyと `+CallRewriteHOFAccumulations.swift` の `fold*` / `reduce*` / `scan*` / `running*` 系、必要なlookup・テストのみ。
   - 完了条件: source移行済みoverloadの旧rewriteと保護用名前列挙が減り、空入力・nullable accumulator・例外・左右の評価順の契約を保持する。型消去境界のboxing/unboxingは別責務として維持する。
-- [ ] RF-LOWER-CALL-010: Listの検索・述語系の保持判断を整理する（前提: CALL-009）
+- [x] RF-LOWER-CALL-010: Listの検索・述語系の保持判断を整理する（前提: CALL-009）
   - 対象: policyと検索・述語を扱う `+CallRewriteHOFCore.swift` / `+CallRewriteCollectionMember.swift` の該当分岐、必要なlookup・テスト。`find*` / `indexOf*` / `contains*` / `count` / `any` / `all` / `none` / `first*` / `last*` を着手時にoverload単位で照合する。
   - 完了条件: source移行済み経路だけを削減し、短絡評価・空入力・見つからない場合の戻り値／例外を保持する。Runtime ABIのboxed Bool変更（ARCH-011）を同時に行わない。
+  - **前提の状況**: `origin/master` には CALL-002〜009 のいずれも入っていない（PR は CALL-003 の #6758 のみ）。ローカルの sibling worktree には未 push のコミットが存在する — CALL-002 / 003 / 007（`RF-LOWER-CALL-007: extract source-backed call preservation into a policy`）/ 008 / 009 / 011 / 012。本PRは `origin/master` 基準なので専用 policy ファイルは存在せず、削減は現行の `shouldPreserveSourceBackedAggregateCall` / `shouldPreserveSourceBackedVirtualCall` 内で in-place に実施した。**同じ方式を CALL-009 の sibling ブランチも採っている**（policy を使わず `+CallRewrite.swift` を直接編集）ので、群ごとに in-place で縮めてから CALL-007 が最後にまとめて抽出する形になる。
+  - **想定される衝突**: `+CallRewrite.swift` の同一 allowlist を CALL-008（transform/filter 群）・009（fold/reduce 群）・011（sort/extrema 群）も編集する。本PRが触るのは KSP-423 ブロックの5行のみなので union 解決できるが、CALL-007 の policy 抽出が先に入った場合は抽出後のファイルへ同じ5行削除を移す必要がある。**本項の [x] は 007〜009 の完了を意味しない** — CALL-011 に進む際は各前提の実際のマージ状況を確認すること。
+  - 判定基準: allowlist は receiver 種別を見ず、preserve を外した場合のフォールスルー既定は `loweredBody.append(instruction)`（`+CallRewrite.swift` 末尾）で preserve と**完全に同一**。よって「対象名に keying する rewrite が Lowering の2パス内に1つも無い」場合に限り、その allowlist エントリは no-op で削除できる。逆に rewrite が存在する名前は、それが現在 preserve に遮られていても（＝そのコードが今は発火していなくても）エントリを外せば発火してしまうため load-bearing。`lookup.<name>` 参照と文字列キー表 `StdlibSurfaceSpec` の両方を走査して判定した:
+
+    | 名前 | 対象名に keying する rewrite | 判定 |
+    |---|---|---|
+    | `indexOf` / `lastIndexOf` / `indexOfFirst` / `indexOfLast` / `containsAll` | **direct・virtual とも皆無** | **no-op → 削除** |
+    | `find` / `findLast` | `+VirtualCallRewrite+Range.swift:341,355` → `kk_range_find` / `kk_range_findLast` | 残す（`IntRange.find` は `RangeHOF.kt:307` で source-backed なので現在 preserve が遮っている。外すと rewrite が復活する — 新テストで固定） |
+    | `firstOrNull` / `lastOrNull` | `+Range.swift:383,393,421,431` | 残す（同様） |
+    | `first` / `last` | `+CallRewriteCollectionMember.swift:27`、`+Range.swift:42,51,369,407` | 残す |
+    | `contains` | `+CallRewriteCollectionMember.swift:151`（Set）、`+Properties.swift:64`（Set）、`+Range.swift:96`（Range） | 残す。Set・Range とも rewrite が**現に発火**（`__kk_set_contains` / `__kk_range_contains`、新テストで固定）。List のみ preserve が発火する |
+    | `count` | `+CallRewriteCollectionMember.swift:54`（List arity-1 / Map / Set / Array / Range）、`+CallRewriteFactories.swift:301`（Map、独自の `isSourceBackedBundledFunction` ガード付き）、`+Properties.swift:17`、`+Range.swift:68` | 残す |
+    | `any` / `all` / `none` | `+CallRewriteHOFCore.swift:83` + `+CallRewriteHandlers.swift:140-142`（Map）、`+Range.swift:445`、`+VirtualCallRewrite.swift:662` | 残す |
+
+  - **落とし穴（この作業で2回踏んだ）**: 「source 宣言が存在する ⇒ preserve が発火して rewrite は遮られている」は成立しない。`CallLowerer` 側の fast path が `symbol: nil` で emit すると preserve の `guard let symbol` で弾かれ、宣言があっても rewrite が発火する。実測で確認した2例 — 素の `List.count()`（`CallLowerer+LegacyMemberLikeCalls.swift:20`）と range の `contains`（`CallLowerer+MemberCallEmission.swift:98` が `contains` / `first` / `last` / `count` / `isEmpty` / `sum` を範囲メンバ fast path で emit）。逆に `IntRange.find`（`RangeHOF.kt:307`）は通常経路で symbol が付くため preserve が発火し `kk_range_find` を遮る。**到達性は宣言の有無ではなく KIR の symbol 有無で判定すること。**
+  - `count` の実測（新テストで固定）: **素の `List.count()` だけは preserve に到達しない**。`CallLowerer+LegacyMemberLikeCalls.swift:20` が `count` を legacy member-like 呼び出しとして `symbol: nil` で emit するため `guard let symbol` を通らず、`+CallRewriteCollectionMember.swift:54` の List 分岐で `__kk_list_size` になる。`ListSearchHOF.kt:188` が `count(): Int = size` なので意味は同値だが、これは**生きている rewrite** であり CALL-011 が死んでいると誤認してはいけない。`count(predicate)` を含む他22オーバーロードは全て `ListSearchHOF.kt` の source-backed シンボルを持ち preserve が発火する。
+  - 派生の調査リード（本PRでは扱わない）: `kk_range_find` / `kk_range_findLast` と `kk_map_count` は、対応する source 宣言（`RangeHOF.kt:307-308` / `MapHOF.kt:118,125`）が symbol 付きで解決し preserve を発火させるため、少なくとも range リテラル / map リテラル receiver では emit されない（新テストで固定）。`kk_range_firstOrNull` / `kk_range_lastOrNull` は未確認。Range 側は CALL-011、Map 側は CALL-012 の対象。なお `containsName` / `countName` は、実測上 List のみ preserve が発火する（Set・Range は `symbol: nil` 経路で rewrite が発火、Map `count(predicate)` は `+CallRewriteFactories.swift:301` の独自ガードが処理）一方、List 向けの下流 rewrite が無いため **no-op の可能性がある**。両名を外したビルドで検証を試みたが、共有 stdlib artifact キャッシュ（`~/Library/Caches/kswiftk/stdlib/`）を別セッションが同時に再構築しており E2E が実行できず**結果不確定**（新テスト4件は removal 後も PASS したが、Map / Array receiver と coroutines Flow 経路までは未確認）。保守的に両名を残した。CALL-012 以降で `--emit kir` の byte-identical 確認とともに再判定すること。
+
+  - `kk_sequence_indexOf` / `_indexOfFirst` / `_indexOfLast` は Lowering ではなく BuildKIR の `CallLowerer+{UnresolvedMemberCalls,LegacyMemberLikeCalls,MemberCallEmission}.swift` が emit するため、Lowering の preserve の管轄外。`.sequence` の spec 表は `+CallRewriteSequencePipeline.swift` で `requireNoNulls` / `map` / `filter` / `flatMap*` にしか引かれておらず、名前駆動の総称 dispatch は無い。
+  - 削除内容:
+    - `+CallRewriteHOFAccumulations.swift`: List `count(predicate)` 分岐（33行）。`List.count(predicate)` は `ListSearchHOF.kt:194` で source-backed なので step 4 の preserve が先に発火して到達不能。かつ到達した場合 `let kkName: InternedString = callee` により `kk_list_count`（**存在しない**）ではなく文字列 `count` を `symbol: nil` で emit する壊れた分岐だった。
+    - `+CallRewriteHOFCore.swift`: entry gate の `countName` と、不要になった `callee != lookup.countName` ガード。gate に入っても List は `collectionHOFRuntimeName(.list, count, 1)` が nil（`StdlibSurfaceSpec+ListHOF.swift` は `forEach` / `firstNotNullOf` / `firstNotNullOfOrNull` / `maxOfOrNull` の4件のみ）、Map 分岐リストに `countName` 無し、Range 分岐は `map` / `forEach` のみ。`filter` / `filterNot` のガードは CALL-008 の担当なので温存。
+    - `+CallRewriteHandlers.swift`: `isCollectionHOFMemberName` の `countName` と冗長ガード。`rewriteCollectionHOFCall` の唯一の呼び出し元が上記 gate 内で、`mapHOFRuntimeName` は count に対し nil を返す。
+    - 両 allowlist から5名（`indexOfName` / `lastIndexOfName` / `indexOfFirstName` / `indexOfLastName` / `containsAllName`）と、利用者ゼロになった `+LookupTables+Common.swift` の定義・`interner.intern` 呼び出し・`+LookupTables.swift` の転送アクセサ（計15行）。
+  - 追加テスト `Tests/CompilerCoreTests/Lowering/ListSearchPredicateLoweringRoutingTests.swift`（4テスト、全PASS）:
+    1. 22オーバーロードが source 呼び出しとして pass を素通りし、素の `count()` 由来の `__kk_list_size` が**ちょうど1件**だけ出ること、`__kk_set_contains` / `kk_map_count` / `kk_list_count` が出ないこと、削除した分岐の署名（`symbol: nil` かつ callee が文字列 `count` かつ引数3）が emit されないこと。
+    2. 23件中 `count/1` のみが symbol 未解決で、残り22件が全て `ListSearchHOF.kt` の source-backed 宣言に解決すること。
+    3. allowlist から外した5名が名前保護なしでも source 呼び出しとして素通りすること（削除の等価性の直接の回帰テスト）。
+    4. 非List receiver の2系統を区別して固定 — 現に発火する rewrite（`__kk_list_size` / `__kk_set_contains`）と、preserve が遮っていて名前を外すと復活する rewrite（`kk_range_find` / `kk_map_count`）。
+  - ARCH-011（Runtime ABI の boxed Bool 変更）には触っていない。
+  - 検証（変更に関係する最低限のスコープ。全テスト・全Golden・全 `diff_kotlinc` の総ざらいは未実施）:
+    - `swift build` green。
+    - Core Lowering の関連スイート全PASS: `ListSearchPredicateLoweringRoutingTests` 4 / `CollectionLiteralLoweringTests` 68（`testMapAnyRewriteToKkMapAny` / `KkMapAll` / `KkMapNone` を含み、保持した Map any/all/none 経路を直接カバー）/ `CollectionClassificationTests` 6 / `CollectionRewriteStateTests` 5 / `LoweringPassRegressionTests` 126 / `BuilderDSLLoweringRoutingTests` 5。
+    - E2E: 16名の List 全オーバーロード + 空入力・見つからない場合 + Map / Set / Range 対応物を並べた48行出力の Kotlin プログラムを、変更前後のコンパイラでビルドして実行結果が**完全一致**（短絡評価・空入力・`indexOf` の `-1`・`find` の `null` を含む）。48行はすべて Kotlin の期待値と照合済み。
+    - kotlinc 差分: 検索・述語系 API を含む該当106ケースを抽出して実行し 103 PASS / 0 FAIL / 既存 SKIP-DIFF 3件（`enum_basic` / `kclass_members` / `prepared_statement_complete`、いずれも本変更と無関係の既存 skip）。
+    - `loc_report.sh` 前後比較（`origin/master` の一時 worktree と比較）: `loc_by_directory Sources` **-63**、`Tests` +345（追加テスト）、`.` +35（本メモ）。`header_helpers_synthetic_total_lines` / `call_lowerer_legacy_total_lines` / `kir_lowering_todo_fixme_count` / `kk_cdecl_count` / `__kk_cdecl_count` / `typecheck_*` はいずれも**不変**。
+      - **意図的な悪化2件**: `kk_literal_count` +4、`interner_resolve_literal_comparison_count` +1。両指標は Tests も含む repo 全体スコープで、増加分は**全て新テストファイル由来**（`"kk_list_count"` ×1 / `"kk_map_count"` ×2 / `"kk_range_find"` ×1、および `interner.resolve(callee) == "count"` ×1）。**Sources のみに絞ると両指標とも完全に不変**（`"kk_` 4548→4548、`interner.resolve ==` 153→153）。理由: 削除した rewrite・遮られている rewrite が emit されないことを固定するには、テストがその runtime シンボル名を literal で参照する必要がある。影響範囲はテストのみで製品コードは減少方向。フォローアップ不要（CALL-011/012 が同じ runtime 名を扱う際に共有定数へ寄せる余地はある）。
+    - 未実施: 全 Swift テスト、Golden 4系統、`diff_kotlinc.sh Scripts/diff_cases` 全1300件（該当106ケースのみ実行）。
 - [ ] RF-LOWER-CALL-011: Listのソート・極値系の保持判断を整理する（前提: CALL-010）
   - 対象: policyと `+CallRewriteHOFExtrema.swift` のList用 `sorted*` / `min*` / `max*` 分岐、必要なlookup・テスト。
   - 完了条件: Kotlin実装を削除済みruntime exportへredirectしないことを固定し、comparator / selector・空入力・null・同順位要素の挙動を維持する。名前列挙を別のList専用allowlistへ移すだけにしない。
