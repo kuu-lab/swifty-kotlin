@@ -1,7 +1,9 @@
 #if canImport(Testing)
+import CompilerCore
 @testable import GoldenHarnessSupport
 import Foundation
 import Testing
+import TestStdlibCache
 
 /// Regression coverage for RF-GOLDEN-010: symbol references in Sema golden
 /// dumps must be keyed by the *meaning* of the referenced declaration, never
@@ -13,7 +15,8 @@ import Testing
 struct GoldenHarnessStableKeyTests {
     private func renderSema(
         _ source: String,
-        injected: [(path: String, contents: String)] = []
+        injected: [(path: String, contents: String)] = [],
+        stdlibLibraryPath: String? = nil
     ) throws -> String {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -24,7 +27,8 @@ struct GoldenHarnessStableKeyTests {
         try source.write(to: sourceURL, atomically: false, encoding: .utf8)
         return try GoldenHarnessDump.dumpSema(
             sourcePath: sourceURL.path,
-            preInjectedFiles: injected.map { ($0.path, Data($0.contents.utf8)) }
+            preInjectedFiles: injected.map { ($0.path, Data($0.contents.utf8)) },
+            stdlibLibraryPath: stdlibLibraryPath
         )
     }
 
@@ -159,6 +163,48 @@ struct GoldenHarnessStableKeyTests {
         #expect(intCall != stringCall, Comment(rawValue: "Distinct overload choices rendered an identical key"))
         #expect(intCall.first?.contains("params=Int") == true)
         #expect(stringCall.first?.contains("params=String") == true)
+    }
+
+    @Test
+    func selfTypeConstrainedStdlibOverloadsStayDistinctWhenLoadedFromArtifact() throws {
+        // Symbols imported from the prebuilt stdlib artifact carry the
+        // `.importedLibrary` flag but never a `declSite` — the library
+        // metadata format has no source-position field. `if.kt` declares
+        // three `ifEmpty` overloads (`where C : Collection<*>`, `where M :
+        // Map<*, *>`, `where C : Array<*>`) that are structurally identical
+        // once their self-type bound is erased, so `declSite` used to be the
+        // *only* thing telling them apart in the golden dump. Loaded from
+        // source it works (a real declSite is available); loaded from the
+        // artifact all three fell back to the same `up:kotlin.collections[…]`
+        // scope key and became indistinguishable — the bug this test pins.
+        TestStdlibCache.shared.prepare()
+        guard let artifactPath = CompilerOptions.defaultStdlibLibraryPath else {
+            Issue.record("Shared stdlib artifact was not built; cannot exercise the artifact-loading path")
+            return
+        }
+        let source = """
+        package sample
+
+        fun useIfEmpty(collection: Collection<String>, map: Map<String, Int>) {
+            val a = collection.ifEmpty { "a" }
+            val b = map.ifEmpty { "b" }
+        }
+        """
+        let dump = try renderSema(source, stdlibLibraryPath: artifactPath)
+        // `callKeys` returns the whole tail of the line, including `targs=`,
+        // which differs by call site regardless of the declaration key —
+        // comparing that whole tail would trivially "pass" even when the
+        // declaration key itself has collapsed. Trim each hit back to just
+        // the `<fq>[<inner>]` declaration key before comparing.
+        let declarationKeys = callKeys(in: dump, calleeName: "ifEmpty").map { key -> String in
+            guard let closingBracket = key.firstIndex(of: "]") else { return key }
+            return String(key[...closingBracket])
+        }
+        #expect(declarationKeys.count == 2)
+        #expect(
+            Set(declarationKeys).count == 2,
+            Comment(rawValue: "Collection- and Map-bound ifEmpty overloads collapsed to the same declaration key under artifact-mode stdlib: \(declarationKeys)")
+        )
     }
 
     @Test
