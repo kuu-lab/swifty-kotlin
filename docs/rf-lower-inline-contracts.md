@@ -13,9 +13,9 @@
 | imported virtual call の受理 | `LibMetadataImportIntegrationTests.testInlineKIRArtifactWithVirtualCallIsImported`。 |
 | 捕捉lambda、nested inline、try/catch/finally の実行 | Backend fixture `inline/captured_try_finally`。捕捉値を返す経路と例外経路でfinallyの実行を確認する。`inline/qualified_super` は捕捉したthisでの呼び出しも実行する。 |
 | lambdaの展開・解決不能時のfallback・const alias | `LoweringPassRegressionTests+InlineLambdaInlining.swift`。解決できないclosureを無理に展開しない契約も含む。 |
-| reified token と型代入 | `LoweringPassRegressionTests+InlineReifiedTypeToken.swift`、`CodegenBackendIntegrationTests+InlineFunctionExceptionPropagation.swift`、`Scripts/diff_cases/inline_reified.kt`。 |
+| reified token と型代入 | `LoweringPassRegressionTests+InlineReifiedTypeToken.swift`、`CodegenBackendInlineFunctionExceptionPropagationTests.swift`、`Scripts/diff_cases/inline_reified.kt`。 |
 | non-local return と通常returnの混在 | `LoweringPassRegressionTests+InlineNonLocalReturn.swift`、`Scripts/diff_cases/bug_209_inline_nonlocal_return.kt`。 |
-| catch内の複数call、inline castから呼び出し元catchへの例外伝播 | `CodegenBackendIntegrationTests+InlineFunctionTryCatchValueReturn.swift` / `+InlineFunctionExceptionPropagation.swift`。 |
+| catch内の複数call、inline castから呼び出し元catchへの例外伝播 | `CodegenBackendInlineFunctionTryCatchValueReturnTests.swift` / `+InlineFunctionExceptionPropagation.swift`。 |
 | stdlib artifact経由の展開 | `StdlibArtifactRegressionTests` の `testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact` など既存suite。 |
 
 今回の修正は、`expandInlineCall` / `expandLambdaBody` が `.call` を複製するときに落としていた `qualifiedSuperType` を引き継ぐもの。
