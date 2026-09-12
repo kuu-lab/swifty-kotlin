@@ -34,10 +34,12 @@ extension CollectionLiteralConstructionLoweringPass {
         let receiverID = call.arguments[0]
         let lambdaID = call.arguments[1]
 
+        // RF-LOWER-CALL-008: `filter` / `filterNot` used to need explicit
+        // exclusions here so the source-backed List declarations survived. They
+        // have no `.list` surface spec since KSP-421, so the lookup below already
+        // returns nil for them. `count` keeps its guard until RF-LOWER-CALL-010.
         if state.listExprIDs.contains(receiverID.rawValue),
            call.callee != lookup.countName,
-           call.callee != lookup.filterName,
-           call.callee != lookup.filterNotName,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
         {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
@@ -95,8 +97,6 @@ extension CollectionLiteralConstructionLoweringPass {
     ) -> Bool {
         callee == lookup.mapName
             || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.mapNotNullName
             || callee == lookup.forEachName
             || callee == lookup.onEachName
             || callee == lookup.flatMapName
@@ -148,18 +148,18 @@ extension CollectionLiteralConstructionLoweringPass {
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
-        callee == lookup.mapName
-            || callee == lookup.mapNotNullName
-            || callee == lookup.flatMapName
-            || callee == lookup.flatMapIndexedName
-            || callee == lookup.onEachName
+        // RF-LOWER-CALL-008: the transform names (`map`, `mapNotNull`,
+        // `flatMap`, `flatMapIndexed`) are unreachable here — the list branch
+        // only runs for callees carrying a `.list` runtime link, and KSP-421
+        // removed theirs.
+        callee == lookup.onEachName
     }
 
     private func mapHOFReturnsList(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
-        callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName
+        callee == lookup.mapName || callee == lookup.flatMapName
     }
 
     private func mapHOFReturnsMap(
@@ -169,7 +169,6 @@ extension CollectionLiteralConstructionLoweringPass {
         callee == lookup.mapValuesName
             || callee == lookup.mapKeysName
             || callee == lookup.filterName
-            || callee == lookup.filterNotName
             || callee == lookup.filterKeysName
             || callee == lookup.filterValuesName
     }

@@ -84,6 +84,17 @@ extension CollectionLiteralLoweringSupport {
         return [receiver, sizeID, stepID, partialID, windowedArguments[lambdaIndex], closureRawID]
     }
 
+    /// RF-LOWER-CALL-008 removed the List transform rewrites that used to live
+    /// here — the `*To` destination variants (`mapTo`, `mapNotNullTo`,
+    /// `mapIndexedTo`, `mapIndexedNotNullTo`, `flatMapTo`, `flatMapIndexedTo`,
+    /// `associateTo`) and the indexed 1-lambda forms (`mapIndexed`,
+    /// `mapIndexedNotNull`, `onEachIndexed`). Both looked their runtime callee up
+    /// through `collectionHOFRuntimeName(ownerKind: .list, ...)`, and KSP-421
+    /// source-backed those members and deleted every `kotlin.collections.List`
+    /// surface spec, so the lookup could only ever return nil. The resolved
+    /// Kotlin declaration is now kept by falling through to normal call lowering;
+    /// `ListTransformFilterPreservationTests` pins the empty `.list` surface that
+    /// makes this sound.
     func rewriteTransformHigherOrderCollectionCall(
         callee: InternedString,
         arguments: [KIRExprID],
@@ -217,58 +228,6 @@ extension CollectionLiteralLoweringSupport {
                 }
                 return true
             }
-        }
-    }
-
-    // --- STDLIB-021: destination collection variants with [receiver, dest, lambda, closureRaw?] ---
-    if callee == lookup.mapToName || callee == lookup.flatMapToName
-        || callee == lookup.mapNotNullToName || callee == lookup.mapIndexedToName
-        || callee == lookup.mapIndexedNotNullToName
-        || callee == lookup.flatMapIndexedToName || callee == lookup.associateToName
-    {
-        if arguments.count == 3 || arguments.count == 4,
-           state.listExprIDs.contains(arguments[0].rawValue)
-            || state.setExprIDs.contains(arguments[0].rawValue)
-            || state.arrayExprIDs.contains(arguments[0].rawValue)
-        {
-            let receiverID = arguments[0]
-            let destID = arguments[1]
-            let lambdaID = arguments[2]
-            let closureRawID: KIRExprID
-            if arguments.count == 4 {
-                closureRawID = arguments[3]
-            } else {
-                let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                closureRawID = zeroExpr
-            }
-            guard let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 2) else {
-                return false
-            }
-            let hofResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: kkName,
-                arguments: [receiverID, destID, lambdaID, closureRawID],
-                result: hofResult,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if let result {
-                if state.listExprIDs.contains(destID.rawValue) {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                } else if state.setExprIDs.contains(destID.rawValue) {
-                    state.setExprIDs.insert(result.rawValue)
-                    state.setExprIDs.insert(hofResult.rawValue)
-                } else if state.mapExprIDs.contains(destID.rawValue) {
-                    state.mapExprIDs.insert(result.rawValue)
-                    state.mapExprIDs.insert(hofResult.rawValue)
-                }
-                loweredBody.append(.copy(from: hofResult, to: result))
-            }
-            return true
         }
     }
 
@@ -517,43 +476,6 @@ extension CollectionLiteralLoweringSupport {
                 loweredBody.append(.copy(from: hofResult, to: result))
             }
             return true
-        }
-    }
-
-    // KSP-626: withIndex / forEachIndexed are bundled Kotlin source, not bridges.
-    if callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName {
-        if arguments.count == 2 || arguments.count == 3 {
-            let receiverID = arguments[0]
-            let lambdaID = arguments[1]
-            if state.listExprIDs.contains(receiverID.rawValue),
-               let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: callee, arity: 1) {
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if callee == lookup.mapIndexedName || callee == lookup.mapIndexedNotNullName || callee == lookup.onEachIndexedName, let result {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                }
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
         }
     }
 
