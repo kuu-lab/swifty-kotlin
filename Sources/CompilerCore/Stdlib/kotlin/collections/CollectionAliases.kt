@@ -57,7 +57,7 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
 
     // AbstractMutableList's default clear() (removeRange -> listIterator) reads
     // the inherited modCount field, which is not addressable on ArrayList's
-    // runtime-backed storage (see TODO.md BUG-245). Bind directly to the
+    // runtime-backed storage (see TODO.md BUG-247). Bind directly to the
     // runtime primitive instead, matching the other members above.
     @KsSymbolName("__kk_mutable_list_clear")
     override external fun clear()
