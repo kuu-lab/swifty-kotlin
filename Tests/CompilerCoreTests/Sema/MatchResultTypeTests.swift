@@ -119,30 +119,6 @@ struct MatchResultTypeTests {
         return shared
     }
 
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
     private func sourcePath(
         for symbol: SymbolID,
         sema: SemaModule,

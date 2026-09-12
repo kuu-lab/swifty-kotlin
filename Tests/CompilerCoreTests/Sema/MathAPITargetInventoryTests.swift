@@ -293,10 +293,6 @@ struct MathAPITargetInventoryTests {
         }
     }
 
-    private static func unaryFloatingLinks(_ entries: [(String, String, String)]) -> [(String, String, String)] {
-        entries
-    }
-
     private static func declarationName(_ signature: String) -> String {
         var remainder = signature
         if remainder.hasPrefix("val ") {

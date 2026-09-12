@@ -14,14 +14,6 @@ import Testing
 @Suite
 struct ArrayEraseHeuristicNegativeTests {
 
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
     @Test
     func testArrayEraseHeuristics() throws {
         let sources: [String] = [
