@@ -78,41 +78,7 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "loopWithBreak", in: module, interner: ctx.interner)
-
-            let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
-                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
-                      ctx.interner.resolve(callee) == "cleanup"
-                else { return nil }
-                return (index: index, canThrow: canThrow)
-            }
-
-            #expect(
-                cleanupCalls.count >= 1,
-                "Expected at least one inlined cleanup() call for finally on break"
-            )
-
-            let rethrowIndices = body.indices.filter { index in
-                if case .rethrow = body[index] { return true }
-                return false
-            }
-
-            let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
-            #expect(
-                hasThrowAwareCleanup,
-                "Inlined finally cleanup() should be throw-aware for break path"
-            )
-
-            #expect(
-                rethrowIndices.count >= 1,
-                "Expected at least one rethrow for inlined finally exception routing on break"
-            )
-        }
+        try assertInlinedFinallyIsThrowAware(source: source, functionName: "loopWithBreak")
     }
 
     @Test func testInlinedFinallyWithNoCallsSkipsExceptionWrapping() throws {
@@ -213,41 +179,7 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "loopWithContinue", in: module, interner: ctx.interner)
-
-            let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
-                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
-                      ctx.interner.resolve(callee) == "cleanup"
-                else { return nil }
-                return (index: index, canThrow: canThrow)
-            }
-
-            #expect(
-                cleanupCalls.count >= 1,
-                "Expected at least one inlined cleanup() call for finally on continue"
-            )
-
-            let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
-            #expect(
-                hasThrowAwareCleanup,
-                "Inlined finally cleanup() should be throw-aware for continue path"
-            )
-
-            let rethrowCount = body.filter { instr in
-                if case .rethrow = instr { return true }
-                return false
-            }.count
-
-            #expect(
-                rethrowCount >= 1,
-                "Expected at least one rethrow for inlined finally exception routing on continue"
-            )
-        }
+        try assertInlinedFinallyIsThrowAware(source: source, functionName: "loopWithContinue")
     }
 
     // MARK: - usePinned nested inside an outer try (CODE-001 guard placement)
@@ -315,6 +247,44 @@ struct FinallyExceptionRouteTests {
             #expect(
                 sawCallAtNestedDepth,
                 "Expected the usePinned block-call itself inside the doubly-guarded region"
+            )
+        }
+    }
+
+    // break/continue paths share the same assertion structure
+    private func assertInlinedFinallyIsThrowAware(source: String, functionName: String) throws {
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+
+            let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
+                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
+                      ctx.interner.resolve(callee) == "cleanup"
+                else { return nil }
+                return (index: index, canThrow: canThrow)
+            }
+
+            #expect(
+                cleanupCalls.count >= 1,
+                Comment(rawValue: "Expected at least one inlined cleanup() call for finally on \(functionName)")
+            )
+
+            let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
+            #expect(
+                hasThrowAwareCleanup,
+                Comment(rawValue: "Inlined finally cleanup() should be throw-aware for \(functionName)")
+            )
+
+            let rethrowCount = body.filter { instr in
+                if case .rethrow = instr { return true }
+                return false
+            }.count
+            #expect(
+                rethrowCount >= 1,
+                Comment(rawValue: "Expected at least one rethrow for inlined finally exception routing on \(functionName)")
             )
         }
     }
