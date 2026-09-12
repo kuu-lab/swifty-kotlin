@@ -11,7 +11,7 @@ extension ABILoweringPass {
         callee: InternedString?,
         interner: StringInterner,
         boxTypeParamArguments: Bool = false,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         var boxedArguments = arguments
         let parameterTypes = signature.parameterTypes

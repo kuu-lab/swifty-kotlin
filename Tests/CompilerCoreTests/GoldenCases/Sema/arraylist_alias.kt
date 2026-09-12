@@ -1,10 +1,11 @@
-// `ArrayList<E>` is a typealias for `MutableList<E>`
-// (Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt).
-// This case verifies only alias resolution: parameter / return / property
-// types, nested type arguments, upper bounds, extension receivers, and
-// MutableList / List compatibility. Element mutation, indexed access and
-// printing are executed by Scripts/diff_cases/arraylist_alias.kt and
-// ksp627_collection_aliases.kt.
+// `ArrayList<E>` is a source-backed `final` class implementing `MutableList<E>`
+// (Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt, KSP-933).
+// This case verifies parameter / return / property types, nested type
+// arguments, upper bounds, extension receivers, and ArrayList / MutableList /
+// List compatibility (ArrayList satisfies MutableList and List, not the
+// reverse — it is a concrete class, not an alias). Element mutation, indexed
+// access and printing are executed by Scripts/diff_cases/arraylist_alias.kt
+// and ksp627_collection_aliases.kt.
 
 fun processList(list: ArrayList<String>) {}
 
@@ -32,13 +33,9 @@ fun main() {
     val explicitAsMutable: MutableList<String> = explicit
     processList(explicit)
 
-    // Expected-type inference through the alias and through MutableList.
+    // Expected-type inference for ArrayList's own type and through MutableList.
     val fromAlias: ArrayList<Double> = ArrayList()
     val fromMutable: MutableList<Boolean> = ArrayList()
-
-    // A value declared as MutableList satisfies an ArrayList parameter,
-    // because the alias resolves to the same type.
-    processList(explicitAsMutable)
 
     // List (read-only) compatibility.
     val asReadOnly: List<String> = ArrayList()
@@ -52,14 +49,15 @@ fun main() {
     val items: MutableList<String> = holder.items
     val numbers: ArrayList<Int> = holder.numbers
 
-    // Nested type arguments.
+    // Nested type arguments (generics are invariant, so the outer ArrayList ->
+    // MutableList upcast requires the inner type argument to match exactly).
     val nested: ArrayList<ArrayList<String>> = ArrayList()
-    val nestedAsMutable: MutableList<MutableList<String>> = nested
+    val nestedAsMutable: MutableList<ArrayList<String>> = nested
 
     // Upper-bound constraint and return propagation.
     val constrained = constrain(explicit)
     val constrainedAsMutable: MutableList<String> = constrained
 
-    // Extension receiver on the alias.
+    // Extension receiver on ArrayList.
     val extended: String = explicit.customExtension()
 }

@@ -13,13 +13,14 @@ extension CallLowerer {
         return linkName.hasPrefix("kk_fn_")
     }
 
-    /// Member names whose generic Iterable/Collection implementations moved to
-    /// bundled Kotlin source in KSP-435, KSP-632, KSP-983, and KSP-986. A call bound to one of those
+    /// bundled Kotlin source in KSP-435, KSP-632, KSP-978, KSP-983, and KSP-986. A call bound to one of those
     /// source declarations bypasses this file's runtime-bridge special cases.
     static let sourceBackedIterableCollectionMemberNames: Set<String> = [
         "all", "any", "none", "firstNotNullOf", "firstNotNullOfOrNull", "joinTo", "joinToString",
         "containsAll", "count", "isNotEmpty", "intersect", "last", "lastIndexOf", "lastOrNull",
         "minus", "minusElement", "plus", "plusElement", "random", "randomOrNull",
+        "min", "minBy", "minByOrNull", "minOf", "minOfOrNull", "minOfWith",
+        "minOfWithOrNull", "minOrNull", "minWith", "minWithOrNull",
         "requireNoNulls", "reduceRight", "reduceRightIndexed", "reduceRightIndexedOrNull",
         "reduceRightOrNull", "sumBy", "sumByDouble", "subtract", "toCollection", "toHashSet",
         "toBooleanArray", "toByteArray", "toCharArray", "toDoubleArray", "toFloatArray", "toIntArray",
@@ -32,6 +33,7 @@ extension CallLowerer {
         "distinct", "distinctBy", "flatten",
         "max", "maxBy", "maxByOrNull", "maxOf", "maxOfOrNull", "maxOfWith",
         "maxOfWithOrNull", "maxOrNull", "maxWith", "maxWithOrNull",
+        "groupBy", "groupByTo",
     ]
 
     // swiftlint:disable cyclomatic_complexity function_body_length
@@ -93,8 +95,19 @@ extension CallLowerer {
             propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions
         )
-        let loweredArgIDs = args.map { argument in
-            driver.lowerExpr(
+        let argumentCallBinding = sema.bindings.callBindings[exprID]
+        let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: argumentIndex,
+                ast: ast,
+                sema: sema,
+                callBinding: argumentCallBinding,
+                chosen: argumentCallBinding?.chosenCallee
+            )
+            defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
+            return driver.lowerExpr(
                 argument.expr,
                 ast: ast,
                 sema: sema,
@@ -154,6 +167,24 @@ extension CallLowerer {
                     interner.intern("collections"),
                     interner.intern("Iterable"),
                 ]
+            }
+            // KSP-967: Iterable.contains is an ordinary bundled source call.
+            // Collection, Set, List, Map, and Sequence retain their existing
+            // owner-specific member/source/runtime paths.
+            if memberName == "contains",
+               let signature = sema.symbols.functionSignature(for: chosenCallee),
+               let declaredReceiver = signature.receiverType,
+               let (_, declaredReceiverSymbol) = resolveClassTypeSymbol(
+                   sema.types.makeNonNullable(declaredReceiver),
+                   sema: sema
+               ),
+               declaredReceiverSymbol.fqName == [
+                   interner.intern("kotlin"),
+                   interner.intern("collections"),
+                   interner.intern("Iterable"),
+               ]
+            {
+                return true
             }
             if Self.sourceBackedIterableCollectionMemberNames.contains(memberName) {
                 return true
@@ -397,16 +428,29 @@ extension CallLowerer {
                     || name == "UIntProgression"
                     || name == "ULongProgression"
             }()
-            let isExplicitCharProgressionSourceCall = ast.arena.isExplicitCall(exprID)
-                && ["first", "firstOrNull", "last", "lastOrNull"].contains(interner.resolve(calleeName))
+            let isExplicitProgressionSourceCall = ast.arena.isExplicitCall(exprID)
                 && {
+                    let memberName = interner.resolve(calleeName)
                     guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) else {
                         return false
                     }
-                    return interner.resolve(symbol.name) == "CharProgression"
+                    switch interner.resolve(symbol.name) {
+                    case "CharProgression":
+                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
+                    case "IntProgression":
+                        return ["first", "last"].contains(memberName)
+                    case "LongProgression":
+                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
+                    case "UIntProgression":
+                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
+                    case "ULongProgression":
+                        return ["first", "firstOrNull", "last", "lastOrNull"].contains(memberName)
+                    default:
+                        return false
+                    }
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
-            if isRangeLikeReceiver && !isExplicitCharProgressionSourceCall {
+            if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
@@ -500,8 +544,8 @@ extension CallLowerer {
 
         if let storedMemberProperty = tryLowerStoredMemberPropertyRead(
             exprID,
-            loweredReceiverID: loweredReceiverID,
             receiverExpr: receiverExpr,
+            loweredReceiverID: loweredReceiverID,
             args: args,
             ast: ast,
             sema: sema,

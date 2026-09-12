@@ -513,11 +513,16 @@ extension KIRLoweringDriver {
     }
 
     /// BUG-205: Synthesizes per-enum-class, per-constructor-property helper
-    /// functions (`$enumConstructorProperty$<classID>$<propertyName>`) that switch
+    /// functions (`$enumConstructorProperty$<propertyName>`) that switch
     /// on the receiver's ordinal and return the corresponding constructor
     /// argument. Without these helpers, reading `s.code` on an enum class
     /// `Status(val code: Int)` is lowered as an unresolved zero-argument call.
-    private func synthesizeEnumConstructorPropertyHelperFunctions(
+    ///
+    /// The helper name is intentionally free of the owner symbol's rawValue:
+    /// symbol IDs are re-assigned on .kklib import, so an ID-bearing name
+    /// would make the helper's fqName unresolvable for consumers. The enum's
+    /// fqName already scopes the helper, so the property name alone is unique.
+    func synthesizeEnumConstructorPropertyHelperFunctions(
         classDecl: ClassDecl,
         ownerSymbol: SymbolID,
         shared: KIRLoweringSharedContext,
@@ -546,7 +551,7 @@ extension KIRLoweringDriver {
                 continue
             }
             let propertyType = sema.symbols.propertyType(for: propertySymbol) ?? anyType
-            let helperName = interner.intern("$enumConstructorProperty$\(ownerSymbol.rawValue)$\(interner.resolve(propertyName))")
+            let helperName = interner.intern("$enumConstructorProperty$\(interner.resolve(propertyName))")
             let helperFQName = ownerInfo.fqName + [helperName]
 
             guard sema.symbols.lookupAll(fqName: helperFQName)
@@ -563,6 +568,9 @@ extension KIRLoweringDriver {
                 visibility: .public,
                 flags: [.synthetic, .static]
             )
+            // The parent link is what lets metadata export treat this helper
+            // as an enum-class member (and lets consumers resolve it).
+            sema.symbols.setParentSymbol(ownerSymbol, for: helperSymbol)
 
             let receiverParamName = interner.intern("$receiver")
             let receiverParamSymbol = sema.symbols.define(
@@ -573,6 +581,7 @@ extension KIRLoweringDriver {
                 visibility: .private,
                 flags: [.synthetic]
             )
+            sema.symbols.setParentSymbol(helperSymbol, for: receiverParamSymbol)
 
             let signature = FunctionSignature(
                 parameterTypes: [anyType],

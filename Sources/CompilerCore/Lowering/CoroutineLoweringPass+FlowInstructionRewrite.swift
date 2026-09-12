@@ -2,15 +2,16 @@
 extension CoroutineLoweringPass {
     func rewriteFlowInstructions(
         originalBody: [KIRInstruction],
+        originalLocations: [SourceRange?],
         module: KIRModule,
         ctx: KIRContext,
         flowExprIDs: inout Set<Int32>,
         remainingConsumes: inout [Int32: Int],
         symbolByExprRaw: [Int32: SymbolID],
         names: FlowLoweringNames
-    ) -> [KIRInstruction] {
-        var loweredBody: [KIRInstruction] = []
-        loweredBody.reserveCapacity(originalBody.count)
+    ) -> KIRLoweringEmitContext {
+        var loweredBody = KIRLoweringEmitContext()
+        loweredBody.instructions.reserveCapacity(originalBody.count)
 
         func appendIntConstantInBody(_ value: Int64) -> KIRExprID {
             let expr = module.arena.appendTemporary(type: ctx.sema?.types.intType ?? TypeID.invalid
@@ -160,7 +161,10 @@ extension CoroutineLoweringPass {
             if let releaseHandle = consume.releaseAfterCall { appendFlowReleaseCall(releaseHandle) }
         }
 
-        for instruction in originalBody {
+        for (index, instruction) in originalBody.enumerated() {
+            loweredBody.currentSourceRange = index < originalLocations.count
+                ? originalLocations[index]
+                : nil
             switch instruction {
             case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType):
                 if let producerBridge = producerFlowBridgeName(for: callee, symbol: symbol),

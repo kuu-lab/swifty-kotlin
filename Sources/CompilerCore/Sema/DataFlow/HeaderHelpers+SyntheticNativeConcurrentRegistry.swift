@@ -2,6 +2,7 @@
 /// Synthetic stdlib stubs for `kotlin.native.concurrent` (STDLIB-NATIVE-CONCURRENT-002).
 ///
 /// Registers:
+///   - KSP-1216 package-level nominal anchors whose constructors and members are owned by follow-up tasks
 ///   - `Continuation0` / `Continuation1` / `Continuation2` classes
 ///   - `callContinuation0` / `callContinuation1` / `callContinuation2` extensions
 ///   - `FreezingException` class with native constructor surface
@@ -13,6 +14,7 @@
 ///   - `@ThreadLocal` annotation (PROPERTY/CLASS target, native variant)
 
 private enum NativeConcurrentRegistrationStep: CaseIterable {
+    case topLevelNominalAnchors
     case continuationTypes
     case callContinuationFunctions
     case freezingException
@@ -99,6 +101,14 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         switch step {
+        case .topLevelNominalAnchors:
+            registerNativeConcurrentTopLevelNominalAnchors(
+                packageFQName: packageFQName,
+                pkgSymbol: pkgSymbol,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
         case .continuationTypes:
             registerNativeConcurrentContinuationTypes(
                 packageFQName: packageFQName,
@@ -156,6 +166,160 @@ extension DataFlowSemaPhase {
                 interner: interner
             )
         }
+    }
+
+    /// Registers only the package-level class identity required by KSP-1216.
+    /// Constructors and receiver members remain owned by KSP-1219 onward.
+    private func registerNativeConcurrentTopLevelNominalAnchors(
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        // AtomicLong is intentionally excluded: it is already source-backed
+        // by KSP-1222 (Stdlib/kotlin/native/concurrent/AtomicLong/Stdlib.kt).
+        // AtomicNativePtr is intentionally excluded: it is already
+        // source-backed by KSP-1224 (Stdlib/kotlin/native/concurrent/
+        // AtomicNativePtr/Stdlib.kt).
+        registerNativeConcurrentNominalAnchor(
+            named: "AtomicInt",
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            annotations: [
+                nativeConcurrentDeprecatedErrorAnnotation(
+                    message: "Use kotlin.concurrent.atomics.AtomicInt instead.",
+                    replaceWith: "kotlin.concurrent.atomics.AtomicInt"
+                ),
+            ],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // FreezableAtomicReference is intentionally excluded: it is already
+        // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
+        // FreezableAtomicReference/Stdlib.kt). AtomicReference is
+        // intentionally excluded: it is already source-backed by KSP-1226
+        // (Stdlib/kotlin/native/concurrent/AtomicReference/Stdlib.kt).
+
+        registerNativeConcurrentNominalAnchor(
+            named: "DetachedObjectGraph",
+            packageFQName: packageFQName,
+            pkgSymbol: pkgSymbol,
+            typeParameter: (name: "T", variance: .invariant, upperBound: types.nullableAnyType),
+            annotations: [
+                MetadataAnnotationRecord(annotationFQName: "kotlin.native.concurrent.ObsoleteWorkersApi"),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.Deprecated",
+                    arguments: [
+                        "message = \"Support for the legacy memory manager has been completely removed. Use the pointed value directly. To pass the value through the C interop, use the StableRef class.\"",
+                    ]
+                ),
+                MetadataAnnotationRecord(
+                    annotationFQName: "kotlin.DeprecatedSinceKotlin",
+                    arguments: ["errorSince = \"2.1\""]
+                ),
+            ],
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+
+        // MutableData is intentionally excluded: it is already source-backed
+        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt).
+        // WorkerBoundReference is intentionally excluded: its constructor is
+        // already source-backed by KSP-1252 (Stdlib/kotlin/native/concurrent/
+        // WorkerBoundReference/Stdlib.kt); its value/worker properties remain
+        // a separate KSP-1253 task.
+
+        // NativePtr is the opaque representation used by two internal KSP-1216
+        // functions. Its own members remain outside this API slice.
+        let nativeInternalPkg = ensurePackage(
+            path: ["kotlin", "native", "internal"],
+            symbols: symbols,
+            interner: interner
+        )
+        registerNativeConcurrentNominalAnchor(
+            named: "NativePtr",
+            packageFQName: nativeInternalPkg,
+            pkgSymbol: symbols.lookup(fqName: nativeInternalPkg),
+            symbols: symbols,
+            types: types,
+            interner: interner
+        )
+    }
+
+    private func registerNativeConcurrentNominalAnchor(
+        named name: String,
+        packageFQName: [InternedString],
+        pkgSymbol: SymbolID?,
+        typeParameter: (name: String, variance: TypeVariance, upperBound: TypeID)? = nil,
+        annotations: [MetadataAnnotationRecord] = [],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner
+    ) {
+        let className = interner.intern(name)
+        let classFQName = packageFQName + [className]
+        let classSymbol: SymbolID
+        if let existing = symbols.lookup(fqName: classFQName),
+           symbols.symbol(existing)?.kind == .class
+        {
+            classSymbol = existing
+        } else {
+            classSymbol = symbols.define(
+                kind: .class,
+                name: className,
+                fqName: classFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if let pkgSymbol {
+            symbols.setParentSymbol(pkgSymbol, for: classSymbol)
+        }
+
+        let classType: TypeID
+        if let typeParameter {
+            let typeParameterName = interner.intern(typeParameter.name)
+            let typeParameterFQName = classFQName + [typeParameterName]
+            let typeParameterSymbol: SymbolID
+            if let existing = symbols.lookup(fqName: typeParameterFQName) {
+                typeParameterSymbol = existing
+            } else {
+                typeParameterSymbol = symbols.define(
+                    kind: .typeParameter,
+                    name: typeParameterName,
+                    fqName: typeParameterFQName,
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+            }
+            symbols.setParentSymbol(classSymbol, for: typeParameterSymbol)
+            symbols.setTypeParameterUpperBounds([typeParameter.upperBound], for: typeParameterSymbol)
+            types.setNominalTypeParameterSymbols([typeParameterSymbol], for: classSymbol)
+            types.setNominalTypeParameterVariances([typeParameter.variance], for: classSymbol)
+            let typeParameterType = types.make(.typeParam(TypeParamType(
+                symbol: typeParameterSymbol,
+                nullability: .nonNull
+            )))
+            classType = types.make(.classType(ClassType(
+                classSymbol: classSymbol,
+                args: [.invariant(typeParameterType)],
+                nullability: .nonNull
+            )))
+        } else {
+            classType = types.make(.classType(ClassType(
+                classSymbol: classSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+        }
+        symbols.setPropertyType(classType, for: classSymbol)
+        appendNativeConcurrentMetadataAnnotations(annotations, to: classSymbol, symbols: symbols)
     }
 
     private func registerNativeConcurrentMarkerAnnotations(

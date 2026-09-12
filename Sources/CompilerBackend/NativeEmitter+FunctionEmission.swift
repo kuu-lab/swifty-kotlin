@@ -705,7 +705,6 @@ extension NativeEmitter {
 
                 bindings.positionBuilder(builder, at: thrownBlock)
                 storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
-                emitFramePop("throw_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                 currentBlock = continueBlock
@@ -1886,21 +1885,6 @@ extension NativeEmitter {
             bindings.positionBuilder(builder, at: continueBlock)
         }
 
-        let frameRegisterFunction = declareExternalFunction(
-            named: "kk_register_frame_map",
-            argumentCount: 2,
-            appendThrownChannel: false
-        )
-        let framePushFunction = declareExternalFunction(
-            named: "kk_push_frame",
-            argumentCount: 2,
-            appendThrownChannel: false
-        )
-        let framePopFunction = declareExternalFunction(
-            named: "kk_pop_frame",
-            argumentCount: 0,
-            appendThrownChannel: false
-        )
         let coroutineRegisterRootFunction = declareExternalFunction(
             named: "kk_register_coroutine_root",
             argumentCount: 1,
@@ -1911,43 +1895,6 @@ extension NativeEmitter {
             argumentCount: 1,
             appendThrownChannel: false
         )
-        let functionIDValue = bindings.constInt(
-            int64Type,
-            value: UInt64(bitPattern: Int64(max(0, function.symbol.rawValue))),
-            signExtend: false
-        ) ?? zeroValue
-
-        func emitFramePop(_ suffix: String) {
-            guard let framePopFunction else {
-                return
-            }
-            _ = bindings.buildCall(
-                builder,
-                functionType: framePopFunction.type,
-                callee: framePopFunction.value,
-                arguments: [],
-                name: "frame_pop_\(suffix)"
-            )
-        }
-
-        if let frameRegisterFunction {
-            _ = bindings.buildCall(
-                builder,
-                functionType: frameRegisterFunction.type,
-                callee: frameRegisterFunction.value,
-                arguments: [functionIDValue, zeroValue],
-                name: "frame_register"
-            )
-        }
-        if let framePushFunction {
-            _ = bindings.buildCall(
-                builder,
-                functionType: framePushFunction.type,
-                callee: framePushFunction.value,
-                arguments: [functionIDValue, zeroValue],
-                name: "frame_push"
-            )
-        }
         storeOutThrownIfNonNull(zeroValue, suffix: "entry")
 
         func emitBuiltinCall(
@@ -2219,7 +2166,6 @@ extension NativeEmitter {
                             )
                             bindings.positionBuilder(builder, at: thrownBlock)
                             storeOutThrownIfNonNull(thrownValue, suffix: "notnull_throw_\(instructionIndex)")
-                            emitFramePop("notnull_throw_\(instructionIndex)")
                             _ = bindings.buildRet(builder, value: zeroReturnValue)
                             currentBlock = continueBlock
                             bindings.positionBuilder(builder, at: continueBlock)
@@ -2342,7 +2288,13 @@ extension NativeEmitter {
                 // a captured parameter such as `transform` into an undefined
                 // external `_transform` symbol (KSP-499 compiler regression).
                 let isFunctionValueInvoke = Self.functionValueInvokeCallees.contains(calleeName)
+                // SequenceScope symbols retain generic parameter types for ABI
+                // boxing, but their source bodies do not implement the runtime
+                // builder. Honor the remapped bridge after boxing is complete.
+                let isSequenceBuilderRuntimeCall = calleeName == "__kk_sequence_builder_yield"
+                    || calleeName == "__kk_sequence_builder_yieldAll"
                 let normalizedSymbol: SymbolID? = if !isFunctionValueInvoke,
+                                                       !isSequenceBuilderRuntimeCall,
                                                        let symbol,
                                                        symbol != .invalid
                 {
@@ -2631,7 +2583,6 @@ extension NativeEmitter {
 
                         bindings.positionBuilder(builder, at: thrownBlock)
                         storeOutThrownIfNonNull(thrownValue, suffix: "throw_\(instructionIndex)")
-                        emitFramePop("throw_\(instructionIndex)")
                         _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                         currentBlock = continueBlock
@@ -3049,7 +3000,6 @@ extension NativeEmitter {
 
                         bindings.positionBuilder(builder, at: thrownBlock)
                         storeOutThrownIfNonNull(thrownValue, suffix: "vthrow_\(instructionIndex)")
-                        emitFramePop("vthrow_\(instructionIndex)")
                         _ = bindings.buildRet(builder, value: zeroReturnValue)
 
                         currentBlock = continueBlock
@@ -3227,7 +3177,6 @@ extension NativeEmitter {
                 }
                 let resolved = resolveValue(value)
                 storeOutThrownIfNonNull(resolved, suffix: "rethrow_\(instructionIndex)")
-                emitFramePop("rethrow_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnIfEqual(lhs, rhs):
@@ -3251,7 +3200,6 @@ extension NativeEmitter {
                 _ = bindings.buildCondBr(builder, condition: condition, thenBlock: trueBlock, elseBlock: falseBlock)
 
                 bindings.positionBuilder(builder, at: trueBlock)
-                emitFramePop("ret_if_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: lhsValue)
 
                 currentBlock = falseBlock
@@ -3261,7 +3209,6 @@ extension NativeEmitter {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
-                emitFramePop("ret_unit_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: zeroReturnValue)
 
             case let .returnValue(value):
@@ -3282,7 +3229,6 @@ extension NativeEmitter {
                         suffix: "return_\(instructionIndex)"
                     )
                 }
-                emitFramePop("ret_val_\(instructionIndex)")
                 _ = bindings.buildRet(builder, value: returnValue)
 
             case let .nonLocalReturn(value):
@@ -3294,7 +3240,6 @@ extension NativeEmitter {
                 guard !bindings.hasTerminator(currentBlock) else {
                     continue
                 }
-                emitFramePop("ret_nonlocal_\(instructionIndex)")
                 if let value {
                     let resolvedReturnValue = resolveValue(value)
                     let returnValue: LLVMCAPIBindings.LLVMValueRef = if returnsRawStringRuntimeCallback {
@@ -3318,7 +3263,6 @@ extension NativeEmitter {
         }
 
         if !bindings.hasTerminator(currentBlock) {
-            emitFramePop("ret_fallthrough")
             _ = bindings.buildRet(builder, value: zeroReturnValue)
         }
     }

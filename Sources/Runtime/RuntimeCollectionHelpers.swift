@@ -16,6 +16,27 @@ let listRuntimeTypeID: Int64 = {
     return id
 }()
 
+private let mutableListRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableList")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: listRuntimeTypeID)
+    return id
+}()
+
+private let abstractMutableListRuntimeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.AbstractMutableList"
+)
+private let randomAccessRuntimeTypeID = runtimeStableNominalTypeID(
+    fqName: "kotlin.collections.RandomAccess"
+)
+
+let arrayListRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.ArrayList")
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: mutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: abstractMutableListRuntimeTypeID)
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: randomAccessRuntimeTypeID)
+    return id
+}()
+
 let setRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.Set")
     runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: collectionRuntimeTypeID)
@@ -170,7 +191,25 @@ func runtimeListBox(from rawValue: Int) -> RuntimeListBox? {
     guard isObjectPointer else {
         return nil
     }
-    return tryCast(ptr, to: RuntimeListBox.self)
+    if let box = tryCast(ptr, to: RuntimeListBox.self) {
+        return box
+    }
+    if let objectBox = tryCast(ptr, to: RuntimeObjectBox.self) {
+        if let backingListBox = objectBox.backingListBox {
+            return backingListBox
+        }
+        if let objectTypeID = runtimeObjectTypeID(rawValue: rawValue),
+           runtimeIsAssignable(
+               sourceTypeID: objectTypeID,
+               targetTypeID: arrayListRuntimeTypeID
+           )
+        {
+            let backingListBox = RuntimeListBox(elements: [])
+            objectBox.backingListBox = backingListBox
+            return backingListBox
+        }
+    }
+    return nil
 }
 
 func runtimeMapBox(from rawValue: Int) -> RuntimeMapBox? {
@@ -462,11 +501,21 @@ func registerIteratorItable(
     }
 }
 
-/// Register the four `ListIterator` methods on a runtime-backed list iterator.
-/// The inherited `Iterator` methods occupy slots 0 and 1, so the source-backed
-/// `ListIterator` members begin at slots 2 through 5.
+/// Register the six `ListIterator` methods on a runtime-backed list iterator.
+/// KSP-1064: `next`/`hasNext` are now declared directly on `ListIterator`
+/// (rather than purely inherited from `Iterator`), so member calls through a
+/// `ListIterator`/`MutableListIterator`-typed receiver resolve them as
+/// `ListIterator`'s own vtable slots 0/1 — the same layout that assigns
+/// `hasPrevious`/`previous`/`nextIndex`/`previousIndex` to slots 2 through 5.
+/// Both slot ranges must be registered under this same itable (ifaceSlot 1),
+/// even though slots 0/1 duplicate the `Iterator` itable already registered
+/// at ifaceSlot 0 for the plain `Iterator<T>` receiver case.
 func registerListIteratorItable(raw: Int) {
     _ = kk_object_register_itable_iface(raw, Int(runtimeListIteratorInterfaceTypeID), 1)
+    let nextPtr = unsafeBitCast(runtimeListIteratorNextThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 0, nextPtr)
+    let hasNextPtr = unsafeBitCast(runtimeListIteratorHasNextThunk, to: Int.self)
+    _ = kk_object_register_itable_method(raw, 1, 1, hasNextPtr)
     let hasPreviousPtr = unsafeBitCast(runtimeListIteratorHasPreviousThunk, to: Int.self)
     _ = kk_object_register_itable_method(raw, 1, 2, hasPreviousPtr)
     let previousPtr = unsafeBitCast(runtimeListIteratorPreviousThunk, to: Int.self)
@@ -626,7 +675,14 @@ func registerRuntimeObject(_ box: RuntimeListIteratorBox) -> Int {
     let raw = registerRuntimeObject(box as AnyObject)
     registerIteratorItable(raw: raw, hasNext: runtimeListIteratorHasNextThunk, next: runtimeListIteratorNextThunk)
     if box.removeAction != nil {
-        registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk)
+        // KSP-1064: `registerListIteratorItable` below always claims ifaceSlot 1
+        // for this same object's `ListIterator` itable. `MutableIterator`'s
+        // default ifaceSlot (1) would collide with it — both tables would then
+        // share method slot 0, so a `MutableListIterator.next()` call (now
+        // itable-dispatched since ListIterator declares `next`/`hasNext`
+        // itself) landed on `MutableIterator.remove` instead. Slot 2 is unused
+        // on this object (0=Iterator, 1=ListIterator).
+        registerMutableIteratorItable(raw: raw, remove: runtimeListIteratorRemoveThunk, ifaceSlot: 2)
     }
     return raw
 }
@@ -964,20 +1020,36 @@ public func __kk_values_equal(_ lhs: Int, _ rhs: Int) -> Int {
 /// Returns nil when either operand is not a nominal runtime object, allowing
 /// callers to fall back to `runtimeValuesEqual` for the other runtime types.
 func runtimeAnyObjectEquality(_ lhs: Int, _ rhs: Int) -> Bool? {
-    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs),
-          let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs)
+    guard let lhsPtr = UnsafeMutableRawPointer(bitPattern: lhs)
     else {
         return nil
     }
-    let areRegisteredObjects = runtimeStorage.withGCLock { state in
+    let lhsIsRegisteredObject = runtimeStorage.withGCLock { state in
         state.objectPointers.contains(UInt(bitPattern: lhsPtr))
-            && state.objectPointers.contains(UInt(bitPattern: rhsPtr))
     }
-    guard areRegisteredObjects,
-          let lhsObject = tryCast(lhsPtr, to: RuntimeObjectBox.self),
+    guard lhsIsRegisteredObject,
+          let lhsObject = tryCast(lhsPtr, to: RuntimeObjectBox.self)
+    else {
+        return nil
+    }
+
+    if let functionRaw = runtimeStorage.withMetadataLock({ state in
+        state.objectEqualsOverrides[UInt(bitPattern: lhsPtr)]
+    }) {
+        let equals = unsafeBitCast(
+            functionRaw,
+            to: (@convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int).self
+        )
+        return equals(lhs, rhs, nil) != 0
+    }
+
+    guard let rhsPtr = UnsafeMutableRawPointer(bitPattern: rhs),
+          runtimeStorage.withGCLock({ state in
+              state.objectPointers.contains(UInt(bitPattern: rhsPtr))
+          }),
           let rhsObject = tryCast(rhsPtr, to: RuntimeObjectBox.self)
     else {
-        return nil
+        return false
     }
 
     guard lhsObject.classID == rhsObject.classID else {

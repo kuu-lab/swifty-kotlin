@@ -31,7 +31,7 @@ enum SequencePlusMinusRewriteResult {
 /// Emits the shared Sequence plus/minus runtime rewrite used by KIR lowering
 /// and collection call rewrites.
 @discardableResult
-func emitSequencePlusMinusRewrite(
+func emitSequencePlusMinusRewrite<C: RangeReplaceableCollection>(
     operation: SequencePlusMinusRewriteOperation,
     receiver: KIRExprID,
     argument: KIRExprID,
@@ -39,8 +39,8 @@ func emitSequencePlusMinusRewrite(
     result: KIRExprID?,
     arena: KIRArena,
     callees: SequencePlusMinusRuntimeCallees,
-    instructions: inout [KIRInstruction]
-) -> SequencePlusMinusRewriteResult {
+    instructions: inout C
+) -> SequencePlusMinusRewriteResult where C.Element == KIRInstruction {
     switch operation {
     case .plus:
         let effectiveArgument: KIRExprID

@@ -58,6 +58,14 @@ public final class LoweringPhase: CompilerPhase {
             interner: ctx.interner,
             sema: ctx.sema
         )
+        if let sema = ctx.sema {
+            ImportedInlineKIRMaterializer.materialize(
+                importedFunctions: &sema.importedInlineFunctions,
+                arena: module.arena,
+                types: sema.types,
+                interner: ctx.interner
+            )
+        }
         module.scanFeatures()
         // Parallel lowering is disabled: appendExpr assigns IDs under lock
         // in non-deterministic order, breaking KIR determinism tests.
@@ -69,6 +77,16 @@ public final class LoweringPhase: CompilerPhase {
                 try pass.run(module: module, ctx: kirCtx)
             } else {
                 module.recordLowering(type(of: pass).name)
+            }
+        }
+        if KIRVerifier.isEnabled {
+            let failures = KIRVerifier.verify(
+                module: module,
+                symbols: ctx.sema?.symbols,
+                interner: ctx.interner
+            )
+            for failure in failures.prefix(50) {
+                ctx.diagnostics.error("KSWIFTK-KIR-0003", "KIR verifier: \(failure.message)", range: nil)
             }
         }
     }
