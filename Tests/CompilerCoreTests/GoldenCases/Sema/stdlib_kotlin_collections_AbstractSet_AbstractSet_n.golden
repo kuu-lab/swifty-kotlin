@@ -19,7 +19,7 @@ file fstdlib_kotlin_collections_AbstractSet_AbstractSet_n package=golden.sema
 expr e@8:17 name(elements) type=kotlin.collections.List<golden.sema.ProbeSet.$class0.E> ref=golden.sema.ProbeSet.elements
 expr e@8:17#1 memberCall recv=e@8:17 callee=size args=[] type=Int ref=kotlin.collections.Collection.size
 expr e@10:44 name(elements) type=kotlin.collections.List<golden.sema.ProbeSet.$class0.E> ref=golden.sema.ProbeSet.elements
-expr e@10:44#1 memberCall recv=e@10:44 callee=iterator args=[] type=kotlin.collections.Iterator<out golden.sema.ProbeSet.$class0.E> call=kotlin.collections.Collection.iterator
+expr e@10:44#1 memberCall recv=e@10:44 callee=iterator args=[] type=kotlin.collections.Iterator<golden.sema.ProbeSet.$class0.E> call=kotlin.collections.Collection.iterator targs=[golden.sema.ProbeSet.$class0.E]
 expr e@16:15 name(values) type=golden.sema.ProbeSet<Int> ref=golden.sema.probe.$1.values
 expr e@16:5 call callee=e@16:5#1 args=[_:e@16:15] type=Unit call=golden.sema.acceptSet
 expr e@17:12 name(values) type=golden.sema.ProbeSet<Int> ref=golden.sema.probe.$1.values
