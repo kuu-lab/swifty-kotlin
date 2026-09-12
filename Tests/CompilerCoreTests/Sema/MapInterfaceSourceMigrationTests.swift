@@ -52,7 +52,8 @@ struct MapInterfaceSourceMigrationTests {
         #expect(receiverClass.classSymbol == mapSymbol)
         #expect(receiverClass.args.count == 2)
         #expect(receiverClass.args[0] == .invariant(keyType))
-        #expect(receiverClass.args[1] == .out(valueType))
+        // Source-declared member receiver uses formal K/V directly; use-site variance is checked in the next test.
+        #expect(receiverClass.args[1] == .invariant(valueType))
         #expect(getSignature.typeParameterSymbols == typeParameters)
         #expect(sema.symbols.externalLinkName(for: getSymbol) == "__kk_map_get")
     }
