@@ -128,6 +128,7 @@ public enum RuntimeABISpec {
         localeFunctions,
         mathFunctions,
         memoryFunctions,
+        nativeConcurrentFunctions,
         nativeRefFunctions,
         networkFunctions,
         numericRuntimeBridgeFunctions,
