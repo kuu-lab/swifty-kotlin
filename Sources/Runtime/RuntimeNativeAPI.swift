@@ -1106,7 +1106,7 @@ public func kk_worker_execute(
     }
 
     var producerThrown = 0
-    let producedRaw = runtimeInvokeClosureThunk(
+    let producedRaw = runtimeInvokeClosureThunkMaybeWrapped(
         fnPtr: producerFnPtr,
         closureRaw: producerClosureRaw,
         outThrown: &producerThrown
@@ -1119,11 +1119,26 @@ public func kk_worker_execute(
     guard futureHandle != 0 else {
         return 0
     }
+    // `jobFnPtr`/`jobClosureRaw` can arrive as a `kk_function_create_1`-wrapped
+    // handle instead of a raw pair: CallLowerer's `kk_worker_execute` call-site
+    // expansion (CallLowerer+MemberCallEmission.swift / +ClosureAdapters.swift,
+    // `appendClosureArgumentsIfNeeded`) expands `producer` via
+    // `makeClosureThunkExpandedArguments`, which always resolves to a genuine
+    // raw pair, but expands `job` via `makeCollectionHOFExpandedArguments`,
+    // whose no-compile-time-info fallback forwards the argument expression
+    // as-is with a literal `0` closureRaw — the same fallback documented on
+    // `runtimeInvokeCollectionLambda1MaybeWrapped`. Resolve here, on the
+    // calling thread, while the handle is still reachable from this call's
+    // own arguments — see `resolveFunctionValuePair`. The queued closure
+    // below runs later on the worker's dispatch queue and captures only the
+    // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
+    // the wrapper box surviving until the job actually executes.
+    let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
     let submitted = worker.execute {
         var jobThrown = 0
         let resultRaw = runtimeInvokeCollectionLambda1(
-            fnPtr: jobFnPtr,
-            closureRaw: jobClosureRaw,
+            fnPtr: resolvedJob.fnPtr,
+            closureRaw: resolvedJob.closureRaw,
             value: producedRaw,
             outThrown: &jobThrown
         )
