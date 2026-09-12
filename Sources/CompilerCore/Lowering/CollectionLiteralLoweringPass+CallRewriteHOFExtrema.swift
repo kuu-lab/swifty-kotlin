@@ -10,7 +10,7 @@ extension CollectionLiteralConstructionLoweringPass {
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         return false
     }

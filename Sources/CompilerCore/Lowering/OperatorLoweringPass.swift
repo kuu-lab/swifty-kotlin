@@ -11,9 +11,12 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx: KIRContext) throws {
         module.arena.transformFunctions { function in
             var updated = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .binary(op, lhs, rhs, result):
                     lowerBinaryInstruction(
@@ -55,7 +58,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) {
         let notNullResult = arena.appendTemporary(type: arena.exprType(result))
         newBody.append(
@@ -121,7 +124,7 @@ final class OperatorLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         types: TypeSystem?,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) {
         // STDLIB-CORO-077: CoroutineContext + operator -> kk_context_plus
         if op == .add, isCoroutineContextType(lhs, arena: arena, types: types, interner: interner)

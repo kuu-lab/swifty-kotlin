@@ -9,7 +9,7 @@ extension CollectionLiteralConstructionLoweringPass {
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
     // --- Rewrite higher-order collection member calls (FUNC-003) ---
     if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.mapNotNullName || callee == lookup.forEachName || callee == lookup.onEachName

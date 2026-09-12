@@ -184,7 +184,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) {
         // kk_sequence_requireNoNulls is emitted directly by CallLowerer when the
         // bundled source declaration is absent. Track its result as a runtime

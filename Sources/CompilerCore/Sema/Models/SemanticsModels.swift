@@ -508,6 +508,24 @@ public final class SymbolTable {
         symbolsStorage[index].declSite = declSite
     }
 
+    /// ARCH-031: declaration sites of the given symbols, deduplicated and
+    /// sorted by source position so diagnostics rendering stays deterministic.
+    public func sortedDeclSites(of symbols: [SymbolID]) -> [SourceRange] {
+        var sites: [SourceRange] = []
+        for symbol in symbols {
+            guard let site = self.symbol(symbol)?.declSite,
+                  !sites.contains(site)
+            else {
+                continue
+            }
+            sites.append(site)
+        }
+        return sites.sorted {
+            ($0.start.file.rawValue, $0.start.offset, $0.end.offset)
+                < ($1.start.file.rawValue, $1.start.offset, $1.end.offset)
+        }
+    }
+
     public func lookup(fqName: [InternedString]) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
