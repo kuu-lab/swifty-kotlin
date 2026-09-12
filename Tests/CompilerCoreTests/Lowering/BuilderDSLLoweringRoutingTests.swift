@@ -53,12 +53,7 @@ struct BuilderDSLLoweringRoutingTests {
 
     private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
         let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
+        let kirCtx = makeKIRContext(from: ctx)
         module.scanFeatures()
         try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
         return module

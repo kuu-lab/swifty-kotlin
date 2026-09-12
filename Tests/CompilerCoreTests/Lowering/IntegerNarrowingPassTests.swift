@@ -5,53 +5,7 @@ import Testing
 
 @Suite(.serialized)
 struct IntegerNarrowingPassTests {
-    private func makeKIRContext(interner: StringInterner, sema: SemaModule?) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "IntNarrowTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner,
-            sema: sema
-        )
-    }
-
-    private static nonisolated(unsafe) let sharedSema: SemaModule = makeSemaModule(
-        symbols: SymbolTable(),
-        types: TypeSystem(),
-        bindings: BindingTable(),
-        diagnostics: DiagnosticEngine()
-    ).ctx
-
-    private func makeModule(
-        body: [KIRInstruction],
-        interner: StringInterner,
-        arena: KIRArena
-    ) -> (KIRModule, KIRDeclID) {
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
-    }
-
-    private func body(_ declID: KIRDeclID, _ module: KIRModule) -> [KIRInstruction] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return fn.body
-    }
+    private static nonisolated(unsafe) let sharedSema: SemaModule = makeSemaModule().ctx
 
     // MARK: - Arithmetic narrowing
 
@@ -78,7 +32,7 @@ struct IntegerNarrowingPassTests {
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         // Expect: kk_op_add -> temp, then kk_int_narrow(temp) -> result.
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected arithmetic call to be preserved"); return
@@ -116,7 +70,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         let narrowCount = lowered.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                 return interner.resolve(callee) == "kk_int_narrow"
@@ -155,7 +109,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected the shift call to be present"); return
         }
@@ -187,7 +141,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, callee, args, shiftResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected the shift call to be present"); return
         }
@@ -228,7 +182,7 @@ struct IntegerNarrowingPassTests {
         #expect(IntegerNarrowingPass().shouldRun(module: module, ctx: ctx))
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         guard case let .call(_, addCallee, _, addResult, _, _, _, _) = lowered[0] else {
             Issue.record("Expected arithmetic call to be preserved"); return
         }
@@ -265,7 +219,7 @@ struct IntegerNarrowingPassTests {
 
         try IntegerNarrowingPass().run(module: module, ctx: ctx)
 
-        let lowered = body(declID, module)
+        let lowered = bodyInDecl(declID, module: module)
         let narrowCount = lowered.filter { instruction in
             if case let .call(_, callee, _, _, _, _, _, _) = instruction {
                 let name = interner.resolve(callee)
