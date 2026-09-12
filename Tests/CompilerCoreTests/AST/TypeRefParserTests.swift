@@ -15,19 +15,11 @@ struct TypeRefParserTests {
         let depth = TypeRefParserCore.maxRecursionDepth + 1
         let tokens = makeFunctionTypeTokens(depth: depth, intName: intName)
 
-        let options = TypeRefParserCore.Options(
-            allowQualifiedPath: true,
-            allowFunctionType: true,
-            allowKeywordIdentifiers: false,
-            reserveVarianceKeywords: false,
-            allowTypeAnnotations: false
-        )
-
         let result = TypeRefParserCore.parseTypeRefPrefix(
             tokens[...],
             interner: interner,
             astArena: arena,
-            options: options,
+            options: makeOptions(allowFunctionType: true),
             diagnostics: diagnostics
         )
 
@@ -45,19 +37,11 @@ struct TypeRefParserTests {
         let depth = TypeRefParserCore.maxRecursionDepth
         let tokens = makeFunctionTypeTokens(depth: depth, intName: intName)
 
-        let options = TypeRefParserCore.Options(
-            allowQualifiedPath: true,
-            allowFunctionType: true,
-            allowKeywordIdentifiers: false,
-            reserveVarianceKeywords: false,
-            allowTypeAnnotations: false
-        )
-
         let result = TypeRefParserCore.parseTypeRefPrefix(
             tokens[...],
             interner: interner,
             astArena: arena,
-            options: options,
+            options: makeOptions(allowFunctionType: true),
             diagnostics: diagnostics
         )
 
@@ -89,19 +73,11 @@ struct TypeRefParserTests {
             makeToken(kind: .identifier(charName), start: 23, end: 27),
         ]
 
-        let options = TypeRefParserCore.Options(
-            allowQualifiedPath: true,
-            allowFunctionType: true,
-            allowKeywordIdentifiers: true,
-            reserveVarianceKeywords: false,
-            allowTypeAnnotations: false
-        )
-
         let result = TypeRefParserCore.parseTypeRefPrefix(
             tokens[...],
             interner: interner,
             astArena: arena,
-            options: options,
+            options: makeOptions(allowFunctionType: true, allowKeywordIdentifiers: true),
             diagnostics: diagnostics
         )
 
@@ -134,24 +110,29 @@ struct TypeRefParserTests {
             makeToken(kind: .symbol(.greaterThan), start: 6, end: 7),
         ]
 
-        let options = TypeRefParserCore.Options(
-            allowQualifiedPath: true,
-            allowFunctionType: false,
-            allowKeywordIdentifiers: false,
-            reserveVarianceKeywords: false,
-            allowTypeAnnotations: false
-        )
-
         let result = TypeRefParserCore.parseTypeRefPrefix(
             tokens[...],
             interner: interner,
             astArena: arena,
-            options: options,
+            options: makeOptions(allowFunctionType: false),
             diagnostics: diagnostics
         )
 
         #expect(result != nil)
         #expect(diagnostics.diagnostics.isEmpty)
+    }
+
+    private func makeOptions(
+        allowFunctionType: Bool,
+        allowKeywordIdentifiers: Bool = false
+    ) -> TypeRefParserCore.Options {
+        TypeRefParserCore.Options(
+            allowQualifiedPath: true,
+            allowFunctionType: allowFunctionType,
+            allowKeywordIdentifiers: allowKeywordIdentifiers,
+            reserveVarianceKeywords: false,
+            allowTypeAnnotations: false
+        )
     }
 
     private func makeFunctionTypeTokens(depth: Int, intName: InternedString) -> [Token] {
