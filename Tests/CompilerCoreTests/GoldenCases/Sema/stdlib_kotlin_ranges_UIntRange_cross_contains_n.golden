@@ -1,44 +1,80 @@
-symbol fq=golden.sema.uintRangeContainsUByte kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsUByte.$0.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUByte.$0.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUByteIn kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsUByteIn.$1.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUByteIn.$1.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsULong kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,ULong] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsULong.$2.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsULong.$2.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsULongIn kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,ULong] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsULongIn.$3.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsULongIn.$3.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUShort kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UShort] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsUShort.$4.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUShort.$4.value kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUShortIn kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UShort] ret=Boolean
-symbol fq=golden.sema.uintRangeContainsUShortIn.$5.range kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.uintRangeContainsUShortIn.$5.value kind=valueParameter vis=private flags=_
-symbol fq=kotlin.ranges.UIntRange kind=class vis=public flags=synthetic
+symbol fq=golden.sema.uintRangeContainsNullableUByte.$0.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsNullableUByte.$0.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsNullableUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte?] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte?] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUByte.$1.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByte.$1.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteIn.$2.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteIn.$2.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteIn[kind=fun;params=kotlin.ranges.UIntRange,UByte] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUByteNamed.$3.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteNamed.$3.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteNamed[kind=fun;params=kotlin.ranges.UIntRange,UByte] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUByteWrongLabel.$4.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteWrongLabel.$4.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUByteWrongLabel[kind=fun;params=kotlin.ranges.UIntRange,UByte] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UByte] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUInt.$5.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUInt.$5.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUIntIn.$6.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUIntIn.$6.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUIntIn[kind=fun;params=kotlin.ranges.UIntRange,UInt] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UInt] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUInt[kind=fun;params=kotlin.ranges.UIntRange,UInt] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UInt] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsULong.$7.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsULong.$7.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsULongIn.$8.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsULongIn.$8.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsULongIn[kind=fun;params=kotlin.ranges.UIntRange,ULong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,ULong] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsULong[kind=fun;params=kotlin.ranges.UIntRange,ULong] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,ULong] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUShort.$9.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUShort.$9.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUShortIn.$10.range[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUShortIn.$10.value[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.uintRangeContainsUShortIn[kind=fun;params=kotlin.ranges.UIntRange,UShort] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UShort] ret=Boolean
+symbol fq=golden.sema.uintRangeContainsUShort[kind=fun;params=kotlin.ranges.UIntRange,UShort] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.ranges.UIntRange,UShort] ret=Boolean
 file fstdlib_kotlin_ranges_UIntRange_cross_contains_n package=golden.sema
-  decl golden.sema.uintRangeContainsUByte fun uintRangeContainsUByte sym=golden.sema.uintRangeContainsUByte
-  decl golden.sema.uintRangeContainsULong fun uintRangeContainsULong sym=golden.sema.uintRangeContainsULong
-  decl golden.sema.uintRangeContainsUShort fun uintRangeContainsUShort sym=golden.sema.uintRangeContainsUShort
-  decl golden.sema.uintRangeContainsUByteIn fun uintRangeContainsUByteIn sym=golden.sema.uintRangeContainsUByteIn
-  decl golden.sema.uintRangeContainsULongIn fun uintRangeContainsULongIn sym=golden.sema.uintRangeContainsULongIn
-  decl golden.sema.uintRangeContainsUShortIn fun uintRangeContainsUShortIn sym=golden.sema.uintRangeContainsUShortIn
-expr e@4:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByte.$0.range
-expr e@4:20 name(value) type=UByte ref=golden.sema.uintRangeContainsUByte.$0.value
-expr e@4:5#1 memberCall recv=e@4:5 callee=contains args=[_:e@4:20] type=Boolean call=kotlin.ranges.contains#23
-expr e@7:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsULong.$2.range
-expr e@7:20 name(value) type=ULong ref=golden.sema.uintRangeContainsULong.$2.value
-expr e@7:5#1 memberCall recv=e@7:5 callee=contains args=[_:e@7:20] type=Boolean call=kotlin.ranges.contains#25
-expr e@10:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUShort.$4.range
-expr e@10:20 name(value) type=UShort ref=golden.sema.uintRangeContainsUShort.$4.value
-expr e@10:5#1 memberCall recv=e@10:5 callee=contains args=[_:e@10:20] type=Boolean call=kotlin.ranges.contains#26
-expr e@13:5 name(value) type=UByte ref=golden.sema.uintRangeContainsUByteIn.$1.value
-expr e@13:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByteIn.$1.range
-expr e@13:5#1 inExpr lhs=e@13:5 rhs=e@13:14 type=Boolean call=kotlin.ranges.contains#23
-expr e@16:5 name(value) type=ULong ref=golden.sema.uintRangeContainsULongIn.$3.value
-expr e@16:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsULongIn.$3.range
-expr e@16:5#1 inExpr lhs=e@16:5 rhs=e@16:14 type=Boolean call=kotlin.ranges.contains#25
-expr e@19:5 name(value) type=UShort ref=golden.sema.uintRangeContainsUShortIn.$5.value
-expr e@19:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUShortIn.$5.range
-expr e@19:5#1 inExpr lhs=e@19:5 rhs=e@19:14 type=Boolean call=kotlin.ranges.contains#26
+  decl golden.sema.uintRangeContainsUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte] fun uintRangeContainsUByte sym=golden.sema.uintRangeContainsUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte]
+  decl golden.sema.uintRangeContainsULong[kind=fun;params=kotlin.ranges.UIntRange,ULong] fun uintRangeContainsULong sym=golden.sema.uintRangeContainsULong[kind=fun;params=kotlin.ranges.UIntRange,ULong]
+  decl golden.sema.uintRangeContainsUShort[kind=fun;params=kotlin.ranges.UIntRange,UShort] fun uintRangeContainsUShort sym=golden.sema.uintRangeContainsUShort[kind=fun;params=kotlin.ranges.UIntRange,UShort]
+  decl golden.sema.uintRangeContainsUByteIn[kind=fun;params=kotlin.ranges.UIntRange,UByte] fun uintRangeContainsUByteIn sym=golden.sema.uintRangeContainsUByteIn[kind=fun;params=kotlin.ranges.UIntRange,UByte]
+  decl golden.sema.uintRangeContainsULongIn[kind=fun;params=kotlin.ranges.UIntRange,ULong] fun uintRangeContainsULongIn sym=golden.sema.uintRangeContainsULongIn[kind=fun;params=kotlin.ranges.UIntRange,ULong]
+  decl golden.sema.uintRangeContainsUShortIn[kind=fun;params=kotlin.ranges.UIntRange,UShort] fun uintRangeContainsUShortIn sym=golden.sema.uintRangeContainsUShortIn[kind=fun;params=kotlin.ranges.UIntRange,UShort]
+  decl golden.sema.uintRangeContainsUInt[kind=fun;params=kotlin.ranges.UIntRange,UInt] fun uintRangeContainsUInt sym=golden.sema.uintRangeContainsUInt[kind=fun;params=kotlin.ranges.UIntRange,UInt]
+  decl golden.sema.uintRangeContainsUIntIn[kind=fun;params=kotlin.ranges.UIntRange,UInt] fun uintRangeContainsUIntIn sym=golden.sema.uintRangeContainsUIntIn[kind=fun;params=kotlin.ranges.UIntRange,UInt]
+  decl golden.sema.uintRangeContainsUByteNamed[kind=fun;params=kotlin.ranges.UIntRange,UByte] fun uintRangeContainsUByteNamed sym=golden.sema.uintRangeContainsUByteNamed[kind=fun;params=kotlin.ranges.UIntRange,UByte]
+  decl golden.sema.uintRangeContainsUByteWrongLabel[kind=fun;params=kotlin.ranges.UIntRange,UByte] fun uintRangeContainsUByteWrongLabel sym=golden.sema.uintRangeContainsUByteWrongLabel[kind=fun;params=kotlin.ranges.UIntRange,UByte]
+  decl golden.sema.uintRangeContainsNullableUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte?] fun uintRangeContainsNullableUByte sym=golden.sema.uintRangeContainsNullableUByte[kind=fun;params=kotlin.ranges.UIntRange,UByte?]
+expr e@4:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByte.$1.range[kind=vparam]
+expr e@4:20 name(value) type=UByte ref=golden.sema.uintRangeContainsUByte.$1.value[kind=vparam]
+expr e@4:5#1 memberCall recv=e@4:5 callee=contains args=[_:e@4:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UByte]
+expr e@7:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsULong.$7.range[kind=vparam]
+expr e@7:20 name(value) type=ULong ref=golden.sema.uintRangeContainsULong.$7.value[kind=vparam]
+expr e@7:5#1 memberCall recv=e@7:5 callee=contains args=[_:e@7:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=ULong]
+expr e@10:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUShort.$9.range[kind=vparam]
+expr e@10:20 name(value) type=UShort ref=golden.sema.uintRangeContainsUShort.$9.value[kind=vparam]
+expr e@10:5#1 memberCall recv=e@10:5 callee=contains args=[_:e@10:20] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UShort]
+expr e@13:5 name(value) type=UByte ref=golden.sema.uintRangeContainsUByteIn.$2.value[kind=vparam]
+expr e@13:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByteIn.$2.range[kind=vparam]
+expr e@13:5#1 inExpr lhs=e@13:5 rhs=e@13:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UByte]
+expr e@16:5 name(value) type=ULong ref=golden.sema.uintRangeContainsULongIn.$8.value[kind=vparam]
+expr e@16:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsULongIn.$8.range[kind=vparam]
+expr e@16:5#1 inExpr lhs=e@16:5 rhs=e@16:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=ULong]
+expr e@19:5 name(value) type=UShort ref=golden.sema.uintRangeContainsUShortIn.$10.value[kind=vparam]
+expr e@19:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUShortIn.$10.range[kind=vparam]
+expr e@19:5#1 inExpr lhs=e@19:5 rhs=e@19:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UShort]
+expr e@22:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUInt.$5.range[kind=vparam]
+expr e@22:20 name(value) type=UInt ref=golden.sema.uintRangeContainsUInt.$5.value[kind=vparam]
+expr e@22:5#1 memberCall recv=e@22:5 callee=contains args=[_:e@22:20] type=Boolean call=kotlin.ranges.ClosedRange.contains[kind=fun;recv=kotlin.ranges.ClosedRange<T0>;params=T0;gen=1] targs=[UInt]
+expr e@25:5 name(value) type=UInt ref=golden.sema.uintRangeContainsUIntIn.$6.value[kind=vparam]
+expr e@25:14 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUIntIn.$6.range[kind=vparam]
+expr e@25:5#1 inExpr lhs=e@25:5 rhs=e@25:14 type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UInt]
+expr e@28:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByteNamed.$3.range[kind=vparam]
+expr e@28:28 name(value) type=UByte ref=golden.sema.uintRangeContainsUByteNamed.$3.value[kind=vparam]
+expr e@28:5#1 memberCall recv=e@28:5 callee=contains args=[value:e@28:28] type=Boolean call=kotlin.ranges.contains[kind=fun;recv=kotlin.ranges.UIntRange;params=UByte]
+expr e@31:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsUByteWrongLabel.$4.range[kind=vparam]
+expr e@31:28 name(value) type=UByte ref=golden.sema.uintRangeContainsUByteWrongLabel.$4.value[kind=vparam]
+expr e@31:5#1 memberCall recv=e@31:5 callee=contains args=[other:e@31:28] type=<error>
+expr e@34:5 name(range) type=kotlin.ranges.UIntRange ref=golden.sema.uintRangeContainsNullableUByte.$0.range[kind=vparam]
+expr e@34:20 name(value) type=UByte? ref=golden.sema.uintRangeContainsNullableUByte.$0.value[kind=vparam]
+expr e@34:5#1 memberCall recv=e@34:5 callee=contains args=[_:e@34:20] type=<error>
+diagnostic severity=error code=KSWIFTK-SEMA-0002 at=31:5 msg=No viable overload found for call.
+diagnostic severity=error code=KSWIFTK-TYPE-0001 at=34:5 msg=Conflicting bounds for type variable #0: inferred Any? is not a subtype of UInt. lower=[UByte?, UInt], upper=[UInt]
