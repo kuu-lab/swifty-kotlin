@@ -22,7 +22,7 @@ node kotlinFile f0:0..73
     node block f0:32..35
       tok symbol({) f0:32..33
       tok symbol(}) f0:34..35
-  node funDecl f0:36..46
+  node funDecl f0:36..47
     tok keyword(fun) f0:36..39
     tok identifier(broken) f0:40..46
     node statement f0:46..47
