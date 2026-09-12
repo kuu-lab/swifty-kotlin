@@ -6,10 +6,15 @@ extension BuildASTPhase.ExpressionParser {
         bodyTokens: [Token],
         range: SourceRange
     ) -> DeclID? {
+        // KSP-CAP-018: a body with no members (`object : Base(x) {}`) still
+        // gets an `ObjectDecl`. Returning `nil` here used to route the literal
+        // through `ObjectLiteralLowerer`'s no-decl path, which allocates with
+        // `classID = 0` and no `NominalLayout` — so inherited fields had no
+        // slots reserved and the superclass constructor was never called.
+        // Reading any inherited property then panicked with
+        // `kk_array_get_inbounds precondition failed`. Only a *failed* member
+        // parse below still returns `nil` (the lenient malformed-body path).
         let statementRanges = objectLiteralMemberRanges(in: bodyTokens)
-        guard !statementRanges.isEmpty else {
-            return nil
-        }
 
         var functionDeclIDs: [DeclID] = []
         var propertyDeclIDs: [DeclID] = []
@@ -26,10 +31,6 @@ extension BuildASTPhase.ExpressionParser {
                 return nil
             }
             propertyDeclIDs.append(astArena.appendDecl(.propertyDecl(propertyDecl)))
-        }
-
-        guard !functionDeclIDs.isEmpty || !propertyDeclIDs.isEmpty else {
-            return nil
         }
 
         let syntheticName = interner.intern(

@@ -42,6 +42,16 @@
 //     expression-bodied function: a lambda whose entire body was the bare
 //     object literal expression (`{ object : Base(x) { ... } }`) mis-parsed
 //     `object` as a new named declaration.
+// (7) An object literal declaring *no* members (`object : Base(x) {}`) got no
+//     `ObjectDecl` at all -- `parseObjectLiteralDecl` returned `nil` for an
+//     empty body -- so it took `ObjectLiteralLowerer`'s no-decl path, which
+//     allocates via `kk_object_new` with `classID = 0` and no `NominalLayout`,
+//     registers no supertype edges, and emits no superclass constructor call.
+//     Inherited fields therefore had no slots reserved and their initializers
+//     never ran, so reading any inherited property panicked with
+//     `kk_array_get_inbounds precondition failed`. Note this was *not* limited
+//     to headers with constructor arguments: `object : Base() {}` over a base
+//     with an initialized property crashed the same way.
 @testable import CompilerCore
 @testable import CompilerBackend
 import Foundation
@@ -189,6 +199,76 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         fun main() { println(make()().f()) }
         """
         try assertKotlinOutput(source, moduleName: "ObjectLiteralBareLambdaBody", expected: "anon\n")
+    }
+
+    @Test
+    func testEmptyBodyObjectLiteralRunsSuperclassConstructorWithArguments() throws {
+        let source = """
+        open class Base2(val v: Int)
+        fun make2(x: Int): Base2 = object : Base2(x) {}
+        fun main() { println(make2(7).v) }
+        """
+        try assertKotlinOutput(source, moduleName: "EmptyObjectLiteralSuperCtorArgs", expected: "7\n")
+    }
+
+    @Test
+    func testEmptyBodyObjectLiteralRunsInheritedPropertyInitializerWithoutArguments() throws {
+        let source = """
+        open class Fixed {
+            val answer: Int = 42
+            open fun describe(): String = "Fixed(" + answer + ")"
+        }
+        fun makeFixed(): Fixed = object : Fixed() {}
+        fun main() {
+            val fixed = makeFixed()
+            println(fixed.answer)
+            println(fixed.describe())
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "EmptyObjectLiteralNoCtorArgs", expected: "42\nFixed(42)\n"
+        )
+    }
+
+    @Test
+    func testEmptyBodyObjectLiteralInsideLambdaCapturesOuterLocalUsedOnlyInSuperCtorArgs() throws {
+        let source = """
+        open class Counter(val start: Int) { val doubled: Int = start * 2 }
+        fun makeLater(start: Int): () -> Counter = { object : Counter(start) {} }
+        fun main() {
+            val counter = makeLater(11)()
+            println(counter.start)
+            println(counter.doubled)
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "EmptyObjectLiteralLambdaCapture", expected: "11\n22\n"
+        )
+    }
+
+    @Test
+    func testEmptyBodyObjectLiteralRegistersInterfaceAndGenericClassSupertypes() throws {
+        let source = """
+        interface Tagged
+        open class Counter(val start: Int) { open fun describe(): String = "Counter(" + start + ")" }
+        open class Holder<V>(val item: V)
+        fun makeTagged(): Tagged = object : Tagged {}
+        fun makeHolder(v: Int): Holder<Int> = object : Holder<Int>(v) {}
+        fun makeBoth(n: Int): Counter = object : Counter(n), Tagged {}
+        fun main() {
+            val anyTagged: Any = makeTagged()
+            println(anyTagged is Tagged)
+            println(makeHolder(8).item)
+            val both = makeBoth(3)
+            println(both.describe())
+            println(both is Tagged)
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "EmptyObjectLiteralSupertypeRegistration",
+            expected: "true\n8\nCounter(3)\ntrue\n"
+        )
     }
 }
 #endif
