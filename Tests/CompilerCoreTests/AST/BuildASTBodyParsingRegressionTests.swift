@@ -6,121 +6,126 @@ import Testing
 @Suite
 struct BuildASTBodyParsingRegressionTests {
 
+    // Every case below must reach KIR without errors. They share one pipeline
+    // run, so per-case test functions would all fail identically on any error.
+    private static let bodyParsingSources: [String] = [
+        // local function with expression body
+        """
+        package buildast.kir0
+        fun outer0(): Int {
+            fun add0(a: Int, b: Int) = a + b
+            return add0(1, 2)
+        }
+        fun main0() = outer0()
+        """,
+        // nested local function
+        """
+        package buildast.kir1
+        fun outer1(): Int {
+            fun inner1(): Int {
+                fun deep1(): Int = 42
+                return deep1()
+            }
+            return inner1()
+        }
+        fun main1() = outer1()
+        """,
+        // suspend local function
+        """
+        package buildast.kir2
+        suspend fun delayed2(value: Int): Int = value
+        fun outer2(): Int {
+            suspend fun local2(value: Int): Int = delayed2(value)
+            return 1
+        }
+        """,
+        // block body with multiple statements
+        """
+        package buildast.kir3
+        fun compute3(a: Int, b: Int): Int {
+            val sum = a + b
+            val diff = a - b
+            val product = sum * diff
+            return product
+        }
+        fun main3() = compute3(5, 3)
+        """,
+        // string template in body
+        """
+        package buildast.kir4
+        fun greet4(name: String): String {
+            val greeting = "Hello, $name!"
+            return greeting
+        }
+        fun main4() = greet4("World")
+        """,
+        // multi-line function call merges into a single statement
+        """
+        package buildast.kir5
+        fun add5(a: Int, b: Int, c: Int): Int = a + b + c
+        fun main5(): Int {
+            val result = add5(
+                1,
+                2,
+                3)
+            return result
+        }
+        """,
+        // multi-line binary expression merges into a single statement
+        """
+        package buildast.kir6
+        fun main6(): Int {
+            val x = 1 +
+                2 +
+                3
+            return x
+        }
+        """,
+        // multi-line string concat merges correctly
+        """
+        package buildast.kir7
+        fun main7(): String {
+            val s = "Hello" +
+                ", " +
+                "World"
+            return s
+        }
+        """,
+        // chained member calls across lines merge
+        """
+        package buildast.kir8
+        fun main8(): String {
+            val s = "  hello  "
+                .trim()
+                .uppercase()
+            return s
+        }
+        """,
+        // closing paren on a separate line merges with the call
+        """
+        package buildast.kir9
+        fun pair9(a: Int, b: Int): Int = a + b
+        fun main9(): Int {
+            val x = pair9(
+                10,
+                20
+            )
+            return x
+        }
+        """,
+    ]
+
     private static nonisolated(unsafe) var _sharedBodyParsingKIRCtx: CompilationContext?
 
     private func sharedBodyParsingKIRCtx() throws -> CompilationContext {
         if let cached = Self._sharedBodyParsingKIRCtx {
             return cached
         }
-
-        let sources: [String] = [
-            """
-            package buildast.kir0
-            fun outer0(): Int {
-                fun add0(a: Int, b: Int) = a + b
-                return add0(1, 2)
-            }
-            fun main0() = outer0()
-            """,
-            """
-            package buildast.kir1
-            fun outer1(): Int {
-                fun inner1(): Int {
-                    fun deep1(): Int = 42
-                    return deep1()
-                }
-                return inner1()
-            }
-            fun main1() = outer1()
-            """,
-            """
-            package buildast.kir2
-            suspend fun delayed2(value: Int): Int = value
-            fun outer2(): Int {
-                suspend fun local2(value: Int): Int = delayed2(value)
-                return 1
-            }
-            """,
-            """
-            package buildast.kir3
-            fun compute3(a: Int, b: Int): Int {
-                val sum = a + b
-                val diff = a - b
-                val product = sum * diff
-                return product
-            }
-            fun main3() = compute3(5, 3)
-            """,
-            """
-            package buildast.kir4
-            fun greet4(name: String): String {
-                val greeting = "Hello, $name!"
-                return greeting
-            }
-            fun main4() = greet4("World")
-            """,
-            """
-            package buildast.kir5
-            fun add5(a: Int, b: Int, c: Int): Int = a + b + c
-            fun main5(): Int {
-                val result = add5(
-                    1,
-                    2,
-                    3)
-                return result
-            }
-            """,
-            """
-            package buildast.kir6
-            fun main6(): Int {
-                val x = 1 +
-                    2 +
-                    3
-                return x
-            }
-            """,
-            """
-            package buildast.kir7
-            fun main7(): String {
-                val s = "Hello" +
-                    ", " +
-                    "World"
-                return s
-            }
-            """,
-            """
-            package buildast.kir8
-            fun main8(): String {
-                val s = "  hello  "
-                    .trim()
-                    .uppercase()
-                return s
-            }
-            """,
-            """
-            package buildast.kir9
-            fun pair9(a: Int, b: Int): Int = a + b
-            fun main9(): Int {
-                val x = pair9(
-                    10,
-                    20
-                )
-                return x
-            }
-            """,
-        ]
-
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runToKIR(ctx)
-            result = ctx
-        }
-
-        let ctx = try #require(result)
+        let ctx = try makeSharedKIRContext(sources: Self.bodyParsingSources)
         Self._sharedBodyParsingKIRCtx = ctx
         return ctx
     }
+
     // MARK: - Frontend body parsing cases
 
     /// Frontend-only cases share one source manager while retaining per-file checks.
@@ -381,66 +386,28 @@ struct BuildASTBodyParsingRegressionTests {
         }
     }
 
+    // MARK: - Shared KIR fixture
+
     @Test
-    func testLocalFunctionWithExpressionBody() throws {
+    func testBodyParsingSourcesCompileWithoutErrors() throws {
+        let ctx = try sharedBodyParsingKIRCtx()
+        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                "Expected no errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+    }
+
+    @Test
+    func testBodyParsingSourcesPopulateExprTypes() throws {
         let ctx = try sharedBodyParsingKIRCtx()
         let sema = try #require(ctx.sema)
         #expect(!(sema.bindings.exprTypes.isEmpty))
     }
-    @Test
-    func testNestedLocalFunction() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        let sema = try #require(ctx.sema)
-        #expect(!(sema.bindings.exprTypes.isEmpty))
-    }
-    @Test
-    func testSuspendLocalFunctionParsesThroughKIR() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        let sema = try #require(ctx.sema)
-        #expect(!(sema.bindings.exprTypes.isEmpty))
-    }
+
     @Test
     func testBlockBodyMultipleStatements() throws {
         let ctx = try sharedBodyParsingKIRCtx()
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "compute3", in: module, interner: ctx.interner)
         #expect(!(body.isEmpty))
-    }
-    @Test
-    func testStringTemplateInBody() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        let sema = try #require(ctx.sema)
-        #expect(!(sema.bindings.exprTypes.isEmpty))
-    }
-    @Test
-    func testMultiLineFunctionCallMergesIntoSingleStatement() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                "Expected no errors for multi-line call, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-    @Test
-    func testMultiLineBinaryExpressionMergesIntoSingleStatement() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                "Expected no errors for multi-line binary expr, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-    @Test
-    func testMultiLineStringConcatMergesCorrectly() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                "Expected no errors for multi-line string concat, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-    @Test
-    func testChainedMemberCallsAcrossLinesMerge() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                "Expected no errors for chained member calls, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-    }
-    @Test
-    func testClosingParenOnSeparateLineMergesWithCall() throws {
-        let ctx = try sharedBodyParsingKIRCtx()
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
-                "Expected no errors for closing paren on separate line, got: \(ctx.diagnostics.diagnostics.map(\.message))")
     }
 }
 #endif

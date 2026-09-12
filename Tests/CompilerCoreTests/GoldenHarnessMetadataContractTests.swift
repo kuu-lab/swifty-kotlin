@@ -104,6 +104,7 @@ struct GoldenHarnessMetadataContractTests {
         "stdlib_kotlin_collections_Map_min.kt",
         "stdlib_kotlin_collections_n_build.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
+        "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "stdlib_kotlin_native_SymbolName_n_n.kt",
         "use_site_variance.kt",
         "variance_violation.kt",
@@ -130,6 +131,7 @@ struct GoldenHarnessMetadataContractTests {
     private static let errorTypeCaseBasenames: Set<String> = [
         "inner_class.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
+        "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
     ]
 
