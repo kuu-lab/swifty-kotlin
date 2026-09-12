@@ -6,8 +6,6 @@ import Testing
 @Suite
 struct RuntimeTypeCheckTokenTests {
 
-    // MARK: - classify() Tests
-
     @Test func testClassifyBuiltinTypes() {
         let types = TypeSystem()
         let symbols = SymbolTable()
@@ -93,8 +91,6 @@ struct RuntimeTypeCheckTokenTests {
         #expect(descriptor.category.base == RuntimeTypeCheckToken.unknownBase)
     }
 
-    // MARK: - encode() Consistency Tests
-
     @Test func testEncodeConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -178,8 +174,6 @@ struct RuntimeTypeCheckTokenTests {
         #expect(encoded == manuallyEncoded)
     }
 
-    // MARK: - simpleName() Consistency Tests
-
     @Test func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
@@ -231,8 +225,6 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    // MARK: - Catch/Is Token Consistency Tests
-
     @Test func testCatchTokenMatchesIsToken() throws {
         let source = """
         class MyException : Exception()
@@ -280,8 +272,6 @@ struct RuntimeTypeCheckTokenTests {
             }
         }
     }
-
-    // MARK: - Type Alias Resolution Test
 
     @Test func testTypeAliasResolvesToCorrectToken() {
         let interner = StringInterner()

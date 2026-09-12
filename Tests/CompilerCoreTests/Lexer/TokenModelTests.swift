@@ -83,8 +83,6 @@ struct TokenModelTests {
         #expect(token.trailingTrivia == [.newline, .lineComment("// trailing")])
     }
 
-    // MARK: - Keyword enum: all cases
-
     @Test
     func testKeywordAllCasesRawValues() {
         let expectedKeywords: [(Keyword, String)] = [
@@ -203,12 +201,9 @@ struct TokenModelTests {
             #expect(kind == TokenKind.keyword(keyword))
         }
 
-        // Different keywords should not be equal
         #expect(TokenKind.keyword(.fun) != TokenKind.keyword(.val))
         #expect(TokenKind.keyword(.class) != TokenKind.keyword(.interface))
     }
-
-    // MARK: - SoftKeyword enum: all cases
 
     @Test
     func testSoftKeywordAllCasesRawValues() {
@@ -270,7 +265,6 @@ struct TokenModelTests {
             #expect(kind == TokenKind.softKeyword(softKeyword))
         }
 
-        // Different soft keywords should not be equal
         #expect(TokenKind.softKeyword(.get) != TokenKind.softKeyword(.set))
         #expect(TokenKind.softKeyword(.field) != TokenKind.softKeyword(.property))
     }

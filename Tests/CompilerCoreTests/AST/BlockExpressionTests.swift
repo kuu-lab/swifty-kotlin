@@ -3,11 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - Block Expression Multi-Statement Evaluation Tests
-
-// Covers: P5-47 — block expression with multiple statements + trailing expression
-// Spec references: J6, J9, J11
-
 @Suite
 struct BlockExpressionTests {
     private static nonisolated(unsafe) var _sharedBlockKIRCtx: CompilationContext?
@@ -175,8 +170,6 @@ struct BlockExpressionTests {
         return ctx
     }
 
-    // MARK: - AST: single expression block always produces blockExpr
-
     @Test
     func testSingleExpressionBlockProducesBlockExprNode() throws {
         let source = """
@@ -197,8 +190,6 @@ struct BlockExpressionTests {
         }
     }
 
-    // MARK: - if branch with multi-statement block (return pattern)
-
     @Test
     func testIfBranchMultiStatementBlockReturnPattern() throws {
         let ctx = try sharedBlockKIRCtx()
@@ -208,16 +199,12 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - if branch with multi-statement block and String trailing expr (return pattern)
-
     @Test
     func testIfBranchMultiStatementBlockStringTrailingExpr() throws {
         let ctx = try sharedBlockKIRCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
-
-    // MARK: - when branch with multi-statement block
 
     @Test
     func testWhenBranchMultiStatementBlockInfersTrailingExprType() throws {
@@ -228,8 +215,6 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - try/catch with multi-statement block
-
     @Test
     func testTryCatchMultiStatementBlockInfersTrailingExprType() throws {
         let ctx = try sharedBlockKIRCtx()
@@ -239,16 +224,12 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - Empty block has Unit type
-
     @Test
     func testEmptyBlockHasUnitType() throws {
         let ctx = try sharedBlockKIRCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
-
-    // MARK: - Block expression with only declarations (no trailing expr -> Unit)
 
     @Test
     func testBlockWithOnlyDeclarationsHasUnitType() throws {
@@ -257,16 +238,12 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - Multi-statement block with three val declarations and trailing expr
-
     @Test
     func testThreeValDeclarationsAndTrailingExpr() throws {
         let ctx = try sharedBlockKIRCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
-
-    // MARK: - Multi-statement block with var reassignment (return pattern)
 
     @Test
     func testMultiStatementBlockWithVarReassignment() throws {
@@ -275,8 +252,6 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - if branch with single val and trailing expr (return pattern)
-
     @Test
     func testIfBranchSingleValAndTrailingExpr() throws {
         let ctx = try sharedBlockKIRCtx()
@@ -284,16 +259,12 @@ struct BlockExpressionTests {
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
 
-    // MARK: - try/catch both branches with multi-statement blocks
-
     @Test
     func testTryCatchBothBranchesMultiStatement() throws {
         let ctx = try sharedBlockKIRCtx()
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(errors.isEmpty, "Unexpected errors: \(errors.map(\.code))")
     }
-
-    // MARK: - when expression-body with multi-statement branches
 
     @Test
     func testWhenExpressionBodyMultiStatementBranches() throws {
@@ -424,8 +395,6 @@ struct BlockExpressionTests {
             #expect(trailing != nil, "Expected trailing `a + b` expression to survive")
         }
     }
-
-    // MARK: - AST structure: blockExpr has statements and trailing expression
 
     @Test
     func testBlockExprASTStructure() throws {

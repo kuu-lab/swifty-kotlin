@@ -99,12 +99,9 @@ extension TokenModelTests {
             #expect(kind == TokenKind.symbol(symbol))
         }
 
-        // Different symbols should not be equal
         #expect(TokenKind.symbol(.plus) != TokenKind.symbol(.minus))
         #expect(TokenKind.symbol(.lParen) != TokenKind.symbol(.rParen))
     }
-
-    // MARK: - TokenKind: all variants
 
     @Test
     func testTokenKindLongLiteral() {
@@ -214,12 +211,10 @@ extension TokenModelTests {
         #expect(missing1 != missing3)
         #expect(missing1 != TokenKind.keyword(.val))
 
-        // missing with symbol
         let missingSymbol = TokenKind.missing(expected: .symbol(.lParen))
         #expect(missingSymbol == TokenKind.missing(expected: .symbol(.lParen)))
         #expect(missingSymbol != TokenKind.missing(expected: .symbol(.rParen)))
 
-        // missing with eof
         let missingEof = TokenKind.missing(expected: .eof)
         #expect(missingEof == TokenKind.missing(expected: .eof))
     }
@@ -258,7 +253,6 @@ extension TokenModelTests {
             .missing(expected: .eof),
         ]
 
-        // Each kind should only be equal to itself
         for i in 0 ..< allKinds.count {
             for j in 0 ..< allKinds.count {
                 if i == j {

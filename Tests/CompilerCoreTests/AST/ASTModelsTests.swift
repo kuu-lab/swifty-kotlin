@@ -485,8 +485,5 @@ struct ASTModelsTests {
         #expect(catchClause.paramTypeName == name)
     }
 
-    // MARK: - Expr variants
-
-    // MARK: - ASTArena expr() method
 }
 #endif

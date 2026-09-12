@@ -367,8 +367,6 @@ struct DiagnosticEngineTests {
         #expect(engine.diagnostics[2].code == "N1")
     }
 
-    // MARK: - Diagnostic Equality
-
     @Test
     func testDiagnosticEquality() {
         let d1 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
@@ -607,8 +605,6 @@ struct DiagnosticEngineTests {
             "Registry should have at least 10 diagnostics with codeActions"
         )
     }
-
-    // MARK: - DiagnosticsFormat
 
     @Test
     func testDiagnosticsFormatRawValues() {

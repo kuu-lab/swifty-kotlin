@@ -3,10 +3,8 @@
 import Foundation
 import Testing
 
-/// REFL-003: Tests for KFunction / KProperty type identity on callable references.
 @Suite
 struct CallableRefTypeIdentityTests {
-    // MARK: - Sema binding tests
 
     @Test func testSemaBindsFunctionRefKindForCallableReference() throws {
         let source = """
@@ -146,8 +144,6 @@ struct CallableRefTypeIdentityTests {
         #expect(classType.args.count == 2, "KProperty1<Counter, Int> should carry both type arguments.")
     }
 
-    // MARK: - KIR lowering tests
-
     @Test func testKIREmitsKFunctionTagForFunctionCallableRef() throws {
         let source = """
         fun inc(x: Int): Int = x + 1
@@ -219,16 +215,13 @@ struct CallableRefTypeIdentityTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
-            // Property callable refs are lowered inline in main.
             let allCallees = findAllKIRFunctions(in: module).flatMap { function in
                 return extractCallees(from: function.body, interner: ctx.interner)
             }
-            // Verify the property ref is tagged with the KProperty tag.
             #expect(
                 allCallees.contains("kk_callable_ref_tag_kproperty"),
                 "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
             )
-            // Verify it does not accidentally tag as kfunction.
             #expect(
                 !(allCallees.contains("kk_callable_ref_tag_kfunction")),
                 "Property callable ref should NOT be tagged as KFunction."
@@ -252,7 +245,6 @@ struct CallableRefTypeIdentityTests {
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // Find the tagging call and verify its arguments.
             let tagCall = mainBody.first { instruction in
                 guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                     return false
@@ -269,7 +261,6 @@ struct CallableRefTypeIdentityTests {
             // arguments[4] = isSuspend flag.
             #expect(arguments.count == 5)
 
-            // Verify the name argument is the string "add".
             if let nameExpr = module.arena.expr(arguments[1]),
                case let .stringLiteral(nameInterned) = nameExpr
             {
@@ -287,7 +278,6 @@ struct CallableRefTypeIdentityTests {
                 Issue.record("Third argument to tag call should be string literal 'Int'.")
             }
 
-            // Verify the arity argument is 2 (two value parameters).
             if let arityExpr = module.arena.expr(arguments[3]),
                case let .intLiteral(arityValue) = arityExpr
             {
@@ -296,7 +286,6 @@ struct CallableRefTypeIdentityTests {
                 Issue.record("Fourth argument to tag call should be int literal for arity.")
             }
 
-            // Non-suspend callable refs should emit an isSuspend flag of 0.
             if let suspendExpr = module.arena.expr(arguments[4]),
                case let .intLiteral(isSuspendValue) = suspendExpr
             {
@@ -332,8 +321,6 @@ struct CallableRefTypeIdentityTests {
             )
         }
     }
-
-    // MARK: - Non-throwing verification
 
     @Test func testCallableRefTagCallsAreNonThrowing() throws {
         let source = """

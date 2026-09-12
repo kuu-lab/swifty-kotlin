@@ -5,7 +5,6 @@ import Testing
 
 @Suite
 struct FileFingerprintTests {
-    // MARK: - Init
 
     @Test
     func testInitStoresProperties() {
@@ -80,8 +79,6 @@ struct FileFingerprintTests {
         let fp2 = FileFingerprint(path: "/a.kt", contentHash: "same", mtimeNanos: 200)
         #expect(!(fp1.contentChanged(from: fp2)))
     }
-
-    // MARK: - Equatable
 
     @Test
     func testEquatable() {

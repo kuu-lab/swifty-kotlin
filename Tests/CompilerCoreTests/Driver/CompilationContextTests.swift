@@ -111,8 +111,6 @@ struct CompilationContextTests {
         #expect(ctx.frontendJobs == 4)
     }
 
-    // MARK: - phaseTimer
-
     @Test
     func testPhaseTimerCanBeSet() {
         let ctx = makeCompilationContext(inputs: ["/a.kt"])

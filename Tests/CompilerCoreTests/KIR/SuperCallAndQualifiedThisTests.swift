@@ -3,8 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - Helper to extract isSuperCall flags from KIR instructions
-
 private func extractSuperCallFlags(
     from body: [KIRInstruction],
     interner: StringInterner
@@ -17,7 +15,6 @@ private func extractSuperCallFlags(
     }
 }
 
-/// Find all KIR function bodies matching the given name (handles overrides with same name).
 private func findAllKIRFunctionBodies(
     named name: String,
     in module: KIRModule,
@@ -28,7 +25,6 @@ private func findAllKIRFunctionBodies(
     }
 }
 
-/// Collect isSuperCall flags across ALL functions with the given name.
 private func extractSuperCallFlagsAcrossOverrides(
     named name: String,
     in module: KIRModule,
@@ -41,7 +37,6 @@ private func extractSuperCallFlagsAcrossOverrides(
 
 @Suite
 struct SuperCallAndQualifiedThisTests {
-    // MARK: - super.method() isSuperCall flag
 
     @Test func testSuperCallProducesIsSuperCallTrueInKIR() throws {
         let source = """
@@ -93,8 +88,6 @@ struct SuperCallAndQualifiedThisTests {
                            "Expected this.greet() to have isSuperCall=false, got: \(flags)")
         }
     }
-
-    // MARK: - isSuperCall through lowering pipeline
 
     @Test func testIsSuperCallSurvivesFullLoweringPipeline() throws {
         let source = """
@@ -152,8 +145,6 @@ struct SuperCallAndQualifiedThisTests {
         }
     }
 
-    // MARK: - Qualified this@Label
-
     @Test func testQualifiedThisResolvesToOuterClassType() throws {
         let source = """
         class Outer {
@@ -189,8 +180,6 @@ struct SuperCallAndQualifiedThisTests {
             assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
         }
     }
-
-    // MARK: - KIR dump format
 
     @Test func testKIRDumpFormatIncludesSuperTag() throws {
         let source = """

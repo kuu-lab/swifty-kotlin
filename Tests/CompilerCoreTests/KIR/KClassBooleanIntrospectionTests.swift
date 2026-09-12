@@ -3,9 +3,6 @@
 import Foundation
 import Testing
 
-/// STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
-/// (`isData` / `isSealed` / `isValue`) lowering.
-///
 /// KSP-496 moved these to ordinary Kotlin extension properties
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so `main`'s
 /// KIR body now calls the Kotlin getter (e.g. `isData`) directly — the
@@ -13,9 +10,6 @@ import Testing
 /// getter's own KIR function body. These tests assert that `main` resolves
 /// to the getter (i.e. does not fall through to an undefined symbol) for
 /// both receiver forms:
-/// - a compile-time class literal (`Foo::class.isData`), and
-/// - a stored `KClass<T>` variable (`val k: KClass<Foo> = Foo::class; k.isData`),
-///   which exercises the `.classType`-wrapping-KClass receiver representation.
 @Suite
 struct KClassBooleanIntrospectionTests {
 
@@ -34,8 +28,6 @@ struct KClassBooleanIntrospectionTests {
         }
         return try #require(result)
     }
-
-    // MARK: - Class-literal receiver
 
     @Test func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {
         let callees = try calleesForMain("""
@@ -106,9 +98,6 @@ struct KClassBooleanIntrospectionTests {
             )
         }
     }
-
-    // MARK: - Stored KClass<T> variable receiver (regression for the
-    // `.classType`-wrapping-KClass receiver guard).
 
     @Test func testVariableReceiverIsDataEmitsRuntimeCall() throws {
         let callees = try calleesForMain("""

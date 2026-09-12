@@ -153,12 +153,9 @@ struct DriverTests {
         #expect(result.exitCode == 1)
     }
 
-    // MARK: - CompilerDriver Init
-
     @Test
     func testCompilerDriverInit() {
         let driver = CompilerDriver()
-        // Verify the driver works by running with empty inputs
         let options = CompilerOptions(
             moduleName: "Test",
             inputs: [],

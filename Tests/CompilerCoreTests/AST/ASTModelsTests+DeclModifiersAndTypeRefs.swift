@@ -123,8 +123,6 @@ extension ASTModelsTests {
         if case .enumEntryDecl = arena.decl(enumID) {} else { Issue.record("Expected enumEntryDecl") }
     }
 
-    // MARK: - Visibility enum all cases
-
     @Test
     func testVisibilityAllCases() {
         #expect(Visibility.public.rawValue == 0)
@@ -142,8 +140,6 @@ extension ASTModelsTests {
         #expect(Visibility(rawValue: 4) == nil)
         #expect(Visibility(rawValue: -1) == nil)
     }
-
-    // MARK: - Modifiers all flags and combinations
 
     @Test
     func testModifiersAllIndividualFlags() {
