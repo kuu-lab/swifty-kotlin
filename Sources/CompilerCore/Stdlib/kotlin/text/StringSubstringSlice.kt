@@ -35,12 +35,24 @@ public fun String.substring(startIndex: Int, endIndex: Int): String {
     return buildStringFromCharRange(chars, startIndex, endIndex)
 }
 
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.substring(startIndex: Int, endIndex: Int = length): String =
+    this.subSequence(startIndex, endIndex).toString()
+
+public fun CharSequence.substring(range: IntRange): String =
+    this.subSequence(range.start, range.endInclusive + 1).toString()
+
 @Deprecated(
     "Use substring(startIndex, endIndex) instead.",
     ReplaceWith("substring(startIndex, endIndex)")
 )
 public fun String.subSequence(startIndex: Int, endIndex: Int): String =
     this.substring(startIndex, endIndex)
+
+// KSP-1402: delegates to the nominal two-argument member so custom receivers
+// keep their own `subSequence` behavior and UTF-16 indices.
+public fun CharSequence.subSequence(range: IntRange): CharSequence =
+    this.subSequence(range.start, range.endInclusive + 1)
 
 public fun String.slice(indices: IntRange): String {
     if (indices.isEmpty()) return ""

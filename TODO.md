@@ -972,7 +972,7 @@
     - `kotlin.uintToULong` — fun uintToULong(Int): ULong  -- `final inline fun kotlin/uintToULong(kotlin/Int): kotlin/ULong`
   - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/uint.kt` に8シンボルをsource-backed実装し、`uintArrayOf`はprimitive UIntArrayへのcopy loopでlowerされる。UIntArray factoryの合成stub登録を削除し、非nullable UInt系変換の既存runtime ABI loweringを保持した。Sema/KIR/Golden/diffケースで確認済み。
 
-- [ ] KSP-791: kotlin.ulong-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-791: kotlin.ulong-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin` / top-level / family `ulong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ulong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4836,9 +4836,10 @@
     - `kotlin.text.removeSurrounding` — fun CharSequence.removeSurrounding(CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/removeSurrounding(kotlin/CharSequence): kotlin/CharSequence`
     - `kotlin.text.removeSurrounding` — fun CharSequence.removeSurrounding(CharSequence, CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/removeSurrounding(kotlin/CharSequence, kotlin/CharSequence): kotlin/CharSequence`
 
-- [ ] KSP-1394: kotlin.text.CharSequence.repeat-family の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1394: kotlin.text.CharSequence.repeat-family の未実装 stdlib API を実装する（1 件）
+  - 実装中: `CharSequence.repeat(Int): String` を Kotlin source に追加。#6697 stable head を基点とし、全体 G はこの PR head で未完了。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `repeat`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_repeat.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_repeat.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_repeat.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -4935,7 +4936,7 @@
     - `kotlin.text.splitToSequence` — fun CharSequence.splitToSequence(Array, Boolean, Int): Sequence  -- `final fun (kotlin/CharSequence).kotlin.text/splitToSequence(kotlin/Array<out kotlin/String>..., kotlin/Boolean = ..., kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
     - `kotlin.text.splitToSequence` — fun CharSequence.splitToSequence(Array, Boolean, Int): Sequence  -- `final fun (kotlin/CharSequence).kotlin.text/splitToSequence(kotlin/CharArray..., kotlin/Boolean = ..., kotlin/Int = ...): kotlin.sequences/Sequence<kotlin/String>`
 
-- [ ] KSP-1402: kotlin.text.CharSequence.sub-family の未実装 stdlib API を実装する（1 件）
+- [~] KSP-1402: kotlin.text.CharSequence.sub-family の未実装 stdlib API を実装する（実装済み・共通G待ち）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `sub`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4945,9 +4946,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.subSequence` — fun CharSequence.subSequence(IntRange): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/subSequence(kotlin.ranges/IntRange): kotlin/CharSequence`
 
-- [ ] KSP-1403: kotlin.text.CharSequence.substring-family の未実装 stdlib API を実装する（2 件）
+- [~] KSP-1403: kotlin.text.CharSequence.substring-family の未実装 stdlib API を実装する（2 件）（実装済み・共通G待ち）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `substring`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringSubstringSlice.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_substring.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_substring.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_substring.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
