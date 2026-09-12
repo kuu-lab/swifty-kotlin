@@ -1,12 +1,12 @@
 symbol fq=__local_0.$incdec$221$1[kind=local] kind=local vis=private flags=_ type=Int
 symbol fq=__local_1.result[kind=local] kind=local vis=private flags=mutable type=Int
 symbol fq=golden.sema.Bag.add.$0.element[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.Bag.items[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.MutableList<Int>
+symbol fq=golden.sema.Bag.items[kind=prop] kind=property vis=private flags=_ type=kotlin.collections.ArrayList<Int>
 symbol fq=golden.sema.Bag.size[kind=prop] kind=property vis=public flags=overrideMember type=Int
 symbol fq=golden.sema.BagIterator.<init>.$1.items[kind=vparam] kind=valueParameter vis=private flags=_
-symbol fq=golden.sema.BagIterator.<init>[kind=ctor;recv=golden.sema.BagIterator;params=kotlin.collections.MutableList<Int>] kind=constructor vis=public flags=_ sig=recv=golden.sema.BagIterator params=[kotlin.collections.MutableList<Int>] ret=golden.sema.BagIterator
+symbol fq=golden.sema.BagIterator.<init>[kind=ctor;recv=golden.sema.BagIterator;params=kotlin.collections.ArrayList<Int>] kind=constructor vis=public flags=_ sig=recv=golden.sema.BagIterator params=[kotlin.collections.ArrayList<Int>] ret=golden.sema.BagIterator
 symbol fq=golden.sema.BagIterator.index[kind=prop] kind=property vis=private flags=mutable type=Int
-symbol fq=golden.sema.BagIterator.items[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.MutableList<Int>
+symbol fq=golden.sema.BagIterator.items[kind=prop] kind=property vis=public flags=_ type=kotlin.collections.ArrayList<Int>
 symbol fq=golden.sema.BagIterator[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.Bag[kind=class] kind=class vis=public flags=_
 symbol fq=golden.sema.probe.$2.values[kind=vparam] kind=valueParameter vis=private flags=_
@@ -17,31 +17,31 @@ file fstdlib_kotlin_collections_AbstractMutableCollection_AbstractMutableCollect
   decl golden.sema.probe[kind=fun;params=golden.sema.Bag] fun probe sym=golden.sema.probe[kind=fun;params=golden.sema.Bag]
 expr e@4:25 int(0) type=Int
 expr e@6:39 name(index) type=Int ref=golden.sema.BagIterator.index[kind=prop]
-expr e@6:47 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.BagIterator.items[kind=prop]
-expr e@6:47#1 memberCall recv=e@6:47 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@6:47 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.BagIterator.items[kind=prop]
+expr e@6:47#1 memberCall recv=e@6:47 callee=size args=[] type=Int ref=kotlin.collections.ArrayList.size[kind=prop]
 expr e@6:39#1 binary(lessThan) lhs=e@6:39 rhs=e@6:47#1 type=Boolean
-expr e@8:32 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.BagIterator.items[kind=prop]
+expr e@8:32 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.BagIterator.items[kind=prop]
 expr e@8:38 name(index) type=Int ref=golden.sema.BagIterator.index[kind=prop]
 expr e@8:43 int(1) type=Int
 expr e@8:38#1 compoundAssign(plusAssign) name=index value=e@8:43 type=Unit ref=golden.sema.BagIterator.index[kind=prop]
 expr e@8:38#2 localDecl $incdec$221$1 mutable=0 type=_ init=e@8:38 type=Unit ref=__local_0.$incdec$221$1[kind=local]
 expr e@8:38#3 name($incdec$221$1) type=Int ref=__local_0.$incdec$221$1[kind=local]
 expr e@8:38#4 blockExpr stmts=[e@8:38#2,e@8:38#1] trailing=e@8:38#3 type=Int
-expr e@8:32#1 indexedAccess receiver=e@8:32 indices=[e@8:38#4] type=Int call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<out T0>;params=Int;gen=1] targs=[Int]
-expr e@11:9 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.BagIterator.items[kind=prop]
+expr e@8:32#1 indexedAccess receiver=e@8:32 indices=[e@8:38#4] type=Int call=kotlin.collections.ArrayList.get[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int;gen=1] targs=[Int]
+expr e@11:9 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.BagIterator.items[kind=prop]
 expr e@11:26 name(index) type=Int ref=golden.sema.BagIterator.index[kind=prop]
 expr e@11:24 int(1) type=Int
 expr e@11:26#1 compoundAssign(minusAssign) name=index value=e@11:24 type=Unit ref=golden.sema.BagIterator.index[kind=prop]
 expr e@11:26#2 blockExpr stmts=[e@11:26#1] trailing=e@11:26 type=Int
-expr e@11:9#1 memberCall recv=e@11:9 callee=removeAt args=[_:e@11:26#2] type=Int call=kotlin.collections.MutableList.removeAt[kind=fun;recv=kotlin.collections.MutableList<T0>;params=Int;gen=1] targs=[Int]
-expr e@16:25 call callee=e@16:25#1 args=[] type=kotlin.collections.MutableList<Int>
-expr e@19:17 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.Bag.items[kind=prop]
-expr e@19:17#1 memberCall recv=e@19:17 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
-expr e@21:65 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.Bag.items[kind=prop]
-expr e@21:53 call callee=e@21:53#1 args=[_:e@21:65] type=golden.sema.BagIterator call=golden.sema.BagIterator.<init>[kind=ctor;recv=golden.sema.BagIterator;params=kotlin.collections.MutableList<Int>]
-expr e@24:9 name(items) type=kotlin.collections.MutableList<Int> ref=golden.sema.Bag.items[kind=prop]
+expr e@11:9#1 memberCall recv=e@11:9 callee=removeAt args=[_:e@11:26#2] type=Int call=kotlin.collections.ArrayList.removeAt[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=Int;gen=1] targs=[Int]
+expr e@16:25 call callee=e@16:25#1 args=[] type=kotlin.collections.ArrayList<Int>
+expr e@19:17 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Bag.items[kind=prop]
+expr e@19:17#1 memberCall recv=e@19:17 callee=size args=[] type=Int ref=kotlin.collections.ArrayList.size[kind=prop]
+expr e@21:65 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Bag.items[kind=prop]
+expr e@21:53 call callee=e@21:53#1 args=[_:e@21:65] type=golden.sema.BagIterator call=golden.sema.BagIterator.<init>[kind=ctor;recv=golden.sema.BagIterator;params=kotlin.collections.ArrayList<Int>]
+expr e@24:9 name(items) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Bag.items[kind=prop]
 expr e@24:19 name(element) type=Int ref=golden.sema.Bag.add.$0.element[kind=vparam]
-expr e@24:9#1 memberCall recv=e@24:9 callee=add args=[_:e@24:19] type=Boolean call=kotlin.collections.MutableList.add[kind=fun;recv=kotlin.collections.MutableList<T0>;params=T0;gen=1]
+expr e@24:9#1 memberCall recv=e@24:9 callee=add args=[_:e@24:19] type=Boolean call=kotlin.collections.ArrayList.add[kind=fun;recv=kotlin.collections.ArrayList<T0>;params=T0;gen=1]
 expr e@25:16 bool(true) type=Boolean
 expr e@25:9 return value=e@25:16 type=Nothing
 expr e@30:18 int(0) type=Int
