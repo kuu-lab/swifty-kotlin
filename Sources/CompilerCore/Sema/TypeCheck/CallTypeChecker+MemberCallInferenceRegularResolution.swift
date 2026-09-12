@@ -640,7 +640,10 @@ extension CallTypeChecker {
            !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
-               receiverType: memberLookupType,
+               // Property reads are resolved from the receiver's static type.
+               // In particular, `super.p` must select the direct superclass
+               // declaration instead of the most-derived override.
+               receiverType: isSuperCall ? lookupReceiverType : memberLookupType,
                sema: sema
            )
         {
@@ -1351,6 +1354,44 @@ extension CallTypeChecker {
                 sema.bindings.bindExprType(id, type: finalType)
                 return finalType
             }
+        }
+
+        // KSP-1403: CharSequence.substring overloads must keep normal member
+        // and user-extension precedence before the source fallback is used.
+        if let boundType = tryBindSyntheticStringSubstringFallback(
+            id,
+            calleeName: calleeName,
+            receiverType: lookupReceiverType,
+            args: args,
+            argTypes: argTypes,
+            range: range,
+            ctx: ctx,
+            expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs,
+            safeCall: safeCall,
+            existingCandidates: allCandidates
+        ) {
+            return boundType
+        }
+
+        // KSP-1402: the nominal CharSequence.subSequence(Int, Int) candidate
+        // shadows the source-backed IntRange extension during member lookup.
+        // Resolve the range overload before the nominal candidate resolver sees
+        // the scalar representation of an inline range literal.
+        if let boundType = tryBindSyntheticStringRangeSubSequenceFallback(
+            id,
+            calleeName: calleeName,
+            receiverType: lookupReceiverType,
+            args: args,
+            argTypes: argTypes,
+            range: range,
+            ctx: ctx,
+            expectedType: expectedType,
+            explicitTypeArgs: explicitTypeArgs,
+            safeCall: safeCall,
+            existingCandidates: allCandidates
+        ) {
+            return boundType
         }
 
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)

@@ -18,16 +18,19 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         TopLevelEntry(name: "Continuation2", kind: .class, todo: nil),
         TopLevelEntry(name: "AtomicLong", kind: .class, todo: nil),
         TopLevelEntry(name: "AtomicNativePtr", kind: .class, todo: nil),
+        TopLevelEntry(name: "AtomicReference", kind: .class, todo: nil),
         TopLevelEntry(name: "FreezableAtomicReference", kind: .class, todo: nil),
         TopLevelEntry(name: "FreezingException", kind: .class, todo: nil),
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
         TopLevelEntry(name: "FutureState", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "InvalidMutabilityException", kind: .class, todo: nil),
+        TopLevelEntry(name: "MutableData", kind: .class, todo: nil),
         TopLevelEntry(name: "ObsoleteWorkersApi", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "SharedImmutable", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "ThreadLocal", kind: .annotationClass, todo: nil),
         TopLevelEntry(name: "TransferMode", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "Worker", kind: .class, todo: nil),
+        TopLevelEntry(name: "WorkerBoundReference", kind: .class, todo: nil),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation2", kind: .function, todo: nil),
@@ -54,16 +57,15 @@ struct NativeConcurrentAPISurfaceInventoryTests {
 
     @Test
     func testTargetInventoryHasExpectedShape() {
-        // Structural invariants only — no magic totals. A previous version asserted exact
-        // sizes (`== 31`, `== 28`, `== 3`) which forced every PR adding/promoting a stub
-        // to update three integers and was a major merge-conflict source.
+        // Structural invariants only — no magic totals. Two PRs adding *different* entries
+        // at *different* Set literal positions merge with no text conflict, but if each also
+        // rewrites the same hardcoded count identically (`N` -> `N+1`), git applies that
+        // identical-looking edit once — the merged inventory silently ends up short.
         let targetEntries = Self.implementedTopLevelEntries.union(Self.knownGapTopLevelEntries)
         let targetNames = Set(targetEntries.map(\.name))
 
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
-        #expect(targetEntries.count == 18)
-        #expect(Self.implementedTopLevelEntries.count == 18)
         #expect(Self.knownGapTopLevelEntries.count == 0)
     }
 
