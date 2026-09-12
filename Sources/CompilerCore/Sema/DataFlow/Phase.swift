@@ -88,6 +88,13 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1198: Platform.cpuArchitecture is typed against the
+        // source-backed CpuArchitecture enum before native platform stubs run.
+        predeclareBundledCpuArchitectureHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         predeclareBundledAnnotationHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
@@ -112,6 +119,18 @@ final class DataFlowSemaPhase: CompilerPhase {
         // the residual pass retain its no-stdlib fallback without recreating
         // the bundled class or its constructors.
         predeclareBundledCancellationExceptionHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        predeclareBundledGCInfoHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
+        // KSP-1269: make the source-backed RootSetStatistics nominal available
+        // before NativeRuntime residual stubs register its remaining members.
+        predeclareBundledRootSetStatisticsHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
@@ -152,7 +171,8 @@ final class DataFlowSemaPhase: CompilerPhase {
             symbols: symbols,
             types: types,
             diagnostics: ctx.diagnostics,
-            interner: ctx.interner
+            interner: ctx.interner,
+            bundledIndex: bundledIndex
         )
         normalizeImportedLibraryMemberSignatures(
             importDeferredWork,

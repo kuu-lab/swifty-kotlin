@@ -105,7 +105,10 @@ extension DataFlowSemaPhase {
                 }
                 // Overrides must stay marked so member lookup can shadow the
                 // supertype declaration instead of reporting an ambiguity.
-                if record.isOverride, record.kind == .function {
+                // Properties/fields override too (for example
+                // `AbstractMap.size`), so the flag is not function-only.
+                if record.isOverride,
+                   record.kind == .function || record.kind == .property || record.kind == .field {
                     flags.insert(.overrideMember)
                 }
                 if record.isDataClass {
@@ -179,6 +182,12 @@ extension DataFlowSemaPhase {
             if let linkName = binding.record.externalLinkName, !linkName.isEmpty {
                 externalLinkNameToSymbol[linkName] = binding.symbol
             }
+            // Inline bodies can call a default stub whose signature is restored
+            // below. Resolve it to that symbol so ABI lowering retains the
+            // parameter and return types, including the flat String ABI.
+            if let linkName = binding.record.defaultStubExternalLinkName, !linkName.isEmpty {
+                externalLinkNameToSymbol[linkName] = SyntheticSymbolScheme.defaultStubSymbol(for: binding.symbol)
+            }
             let fQName = binding.record.fqName
                 .map { interner.resolve($0) }
                 .joined(separator: ".")
@@ -187,7 +196,40 @@ extension DataFlowSemaPhase {
             }
         }
 
-        for binding in importedBindings {
+        // Property getter accessors are synthesized while applying their
+        // property records. Import those records before inline function bodies
+        // so a producer getter link (for example Lazy.value) resolves to the
+        // consumer-side accessor symbol when the inline virtual call is parsed.
+        let propertyBindingsWithGetter = importedBindings.filter { binding in
+            (binding.record.kind == .property || binding.record.kind == .field)
+                && binding.record.propertyGetterExternalLinkName?.isEmpty == false
+        }
+        for binding in propertyBindingsWithGetter {
+            applyImportedBinding(
+                binding,
+                symbols: symbols,
+                types: types,
+                diagnostics: diagnostics,
+                interner: interner,
+                importedInlineFunctions: &importedInlineFunctions,
+                pendingSupertypeEdges: &pendingSupertypeEdges,
+                cache: cache,
+                isStdlibArtifact: binding.isStdlibArtifact,
+                externalLinkNameToSymbol: externalLinkNameToSymbol,
+                importedSymbolByFQName: importedSymbolByFQName
+            )
+        }
+        for binding in propertyBindingsWithGetter {
+            guard let getterLink = binding.record.propertyGetterExternalLinkName,
+                  let getterSymbol = symbols.extensionPropertyGetterAccessor(for: binding.symbol)
+            else {
+                continue
+            }
+            externalLinkNameToSymbol[getterLink] = getterSymbol
+        }
+
+        let preloadedGetterBindingSymbols = Set(propertyBindingsWithGetter.map(\.symbol))
+        for binding in importedBindings where !preloadedGetterBindingSymbols.contains(binding.symbol) {
             applyImportedBinding(
                 binding,
                 symbols: symbols,
@@ -270,7 +312,8 @@ extension DataFlowSemaPhase {
         symbols: SymbolTable,
         types: TypeSystem,
         diagnostics: DiagnosticEngine,
-        interner: StringInterner
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
     ) {
         for edge in work.pendingSupertypeEdges {
             guard let superSymbol = symbols.lookupAll(fqName: edge.superFQName)
@@ -343,6 +386,205 @@ extension DataFlowSemaPhase {
                 symbols.setSealedSubclasses(resolvedSubclasses, for: binding.symbol)
             } else {
                 symbols.setSealedSubclasses([], for: binding.symbol)
+            }
+        }
+
+        // Imported enum classes have no AST declarations, so the per-decl enum
+        // member synthesis in HeaderCollection never runs for them. Register
+        // the implicit enum API (name/ordinal, values(), valueOf(_:), entries)
+        // here so it resolves on the artifact path as well. Lowering reuses
+        // these symbols when it synthesizes their KIR bodies
+        // (DataEnumSealedSynthesisPass looks them up by FQ name and owner).
+        applyImportedEnumSyntheticMembers(
+            work: work,
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex
+        )
+    }
+
+    /// Registers the implicit enum members that HeaderCollection normally
+    /// creates from an enum declaration for enums that only exist as imported
+    /// library records. Mirrors `collectSyntheticEnumEntryProperties`,
+    /// `collectSyntheticEnumValuesMember`, and
+    /// `collectSyntheticEnumCompanionMembers`, including the source-path flag
+    /// set so golden rendering matches between the two paths.
+    private func applyImportedEnumSyntheticMembers(
+        work: LibraryImportDeferredWork,
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        let stringType = types.stringType
+        let intType = types.make(.primitive(.int, .nonNull))
+        let enumEntriesSymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("enums"),
+            interner.intern("EnumEntries"),
+        ])
+        let arraySymbol = symbols.lookup(fqName: [
+            interner.intern("kotlin"),
+            interner.intern("Array"),
+        ])
+
+        for binding in work.importedBindings where binding.record.kind == .enumClass {
+            let enumSymbol = binding.symbol
+            let enumFQName = binding.record.fqName
+            let enumType = types.make(.classType(ClassType(
+                classSymbol: enumSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            for (memberName, memberType) in [
+                (interner.intern("name"), stringType),
+                (interner.intern("ordinal"), intType),
+            ] {
+                let memberFQName = enumFQName + [memberName]
+                guard symbols.lookupAll(fqName: memberFQName).allSatisfy({
+                    symbols.symbol($0)?.kind != .property
+                }) else {
+                    continue
+                }
+                let propertySymbol = symbols.define(
+                    kind: .property,
+                    name: memberName,
+                    fqName: memberFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic]
+                )
+                symbols.setParentSymbol(enumSymbol, for: propertySymbol)
+                symbols.setPropertyType(memberType, for: propertySymbol)
+            }
+
+            // Mirror `collectSyntheticEnumValuesMember`: skip `values` when a
+            // source-backed declaration already owns the class-name API for
+            // this enum (for example `RequiresOptIn.Level.values()`).
+            let valuesName = interner.intern("values")
+            let valuesFQName = enumFQName + [valuesName]
+            if !bundledIndex.contains(ownerFQName: enumFQName, name: valuesName, arity: 0),
+               symbols.lookupAll(fqName: valuesFQName).allSatisfy({
+                symbols.symbol($0)?.kind != .function
+            }), let arraySymbol {
+                let arrayType = types.make(.classType(ClassType(
+                    classSymbol: arraySymbol,
+                    args: [.invariant(enumType)],
+                    nullability: .nonNull
+                )))
+                let valuesSymbol = symbols.define(
+                    kind: .function,
+                    name: valuesName,
+                    fqName: valuesFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(enumSymbol, for: valuesSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        parameterTypes: [],
+                        returnType: arrayType,
+                        isSuspend: false
+                    ),
+                    for: valuesSymbol
+                )
+            }
+
+            let companionSymbol: SymbolID
+            if let existingCompanion = symbols.companionObjectSymbol(for: enumSymbol) {
+                companionSymbol = existingCompanion
+            } else {
+                let companionName = interner.intern("Companion")
+                let companionFQName = enumFQName + [companionName]
+                if let found = symbols.lookupAll(fqName: companionFQName).first(where: {
+                    symbols.symbol($0)?.kind == .object
+                }) {
+                    companionSymbol = found
+                } else {
+                    companionSymbol = symbols.define(
+                        kind: .object,
+                        name: companionName,
+                        fqName: companionFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic]
+                    )
+                    symbols.setParentSymbol(enumSymbol, for: companionSymbol)
+                }
+                symbols.setCompanionObjectSymbol(companionSymbol, for: enumSymbol)
+            }
+            guard let companionInfo = symbols.symbol(companionSymbol) else {
+                continue
+            }
+            let companionFQName = companionInfo.fqName
+            let companionType = types.make(.classType(ClassType(
+                classSymbol: companionSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+
+            let valueOfName = interner.intern("valueOf")
+            let valueOfFQName = companionFQName + [valueOfName]
+            if symbols.lookupAll(fqName: valueOfFQName).allSatisfy({
+                symbols.symbol($0)?.kind != .function
+            }) {
+                let paramName = interner.intern("name")
+                let paramSymbol = symbols.define(
+                    kind: .valueParameter,
+                    name: paramName,
+                    fqName: valueOfFQName + [paramName],
+                    declSite: nil,
+                    visibility: .private,
+                    flags: [.synthetic]
+                )
+                let valueOfSymbol = symbols.define(
+                    kind: .function,
+                    name: valueOfName,
+                    fqName: valueOfFQName,
+                    declSite: nil,
+                    visibility: .public,
+                    flags: [.synthetic, .static]
+                )
+                symbols.setParentSymbol(companionSymbol, for: valueOfSymbol)
+                symbols.setFunctionSignature(
+                    FunctionSignature(
+                        receiverType: companionType,
+                        parameterTypes: [stringType],
+                        returnType: enumType,
+                        isSuspend: false,
+                        valueParameterSymbols: [paramSymbol],
+                        valueParameterHasDefaultValues: [false],
+                        valueParameterIsVararg: [false]
+                    ),
+                    for: valueOfSymbol
+                )
+            }
+
+            if let enumEntriesSymbol {
+                let entriesName = interner.intern("entries")
+                let entriesFQName = companionFQName + [entriesName]
+                if symbols.lookupAll(fqName: entriesFQName).allSatisfy({
+                    symbols.symbol($0)?.kind != .property
+                }) {
+                    let entriesType = types.make(.classType(ClassType(
+                        classSymbol: enumEntriesSymbol,
+                        args: [.invariant(enumType)],
+                        nullability: .nonNull
+                    )))
+                    let entriesSymbol = symbols.define(
+                        kind: .property,
+                        name: entriesName,
+                        fqName: entriesFQName,
+                        declSite: nil,
+                        visibility: .public,
+                        flags: [.synthetic, .static]
+                    )
+                    symbols.setParentSymbol(companionSymbol, for: entriesSymbol)
+                    symbols.setPropertyType(entriesType, for: entriesSymbol)
+                }
             }
         }
     }
@@ -1092,8 +1334,10 @@ extension DataFlowSemaPhase {
         {
             symbols.setExtensionPropertyReceiverType(receiverType, for: symbol)
 
+            // Match the source-path convention: the accessor's short name is
+            // `get` while its FQ name is `<property>.$get` (HeaderCollection).
             let getName = interner.intern("get")
-            let getterFQName = record.fqName + [getName]
+            let getterFQName = record.fqName + [interner.intern("$get")]
             let getterSymbol = symbols.define(
                 kind: .function,
                 name: getName,
@@ -1134,7 +1378,7 @@ extension DataFlowSemaPhase {
 
             if record.isMutable {
                 let setName = interner.intern("set")
-                let setterFQName = record.fqName + [setName]
+                let setterFQName = record.fqName + [interner.intern("$set")]
                 let setterSymbol = symbols.define(
                     kind: .function,
                     name: setName,
@@ -1178,7 +1422,7 @@ extension DataFlowSemaPhase {
                     : types.make(.classType(ClassType(classSymbol: ownerInfo.id, args: [], nullability: .nonNull)))
             }
             let getName = interner.intern("get")
-            let getterFQName = record.fqName + [getName]
+            let getterFQName = record.fqName + [interner.intern("$get")]
             let getterSymbol = symbols.define(
                 kind: .function,
                 name: getName,

@@ -1,5 +1,8 @@
 package kotlin.text
 
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.InvocationKind
+import kotlin.contracts.contract
 import kotlin.random.Random
 
 // MIGRATION-TEXT-008 / KSP-410
@@ -43,6 +46,12 @@ import kotlin.random.Random
 // length reads in these loops work for String, StringBuilder, and user-defined
 // CharSequence classes. Other CharSequence operations retain their own
 // runtime/itable contracts.
+
+/**
+ * Returns the range of valid character indices for this char sequence.
+ */
+public val CharSequence.indices: IntRange
+    get() = 0..length - 1
 
 public fun String.filter(predicate: (Char) -> Boolean): String {
     val sb = StringBuilder()
@@ -183,6 +192,37 @@ public fun <R> CharSequence.mapIndexed(transform: (Int, Char) -> R): List<R> {
     return result
 }
 
+public inline fun <R : Any> CharSequence.mapIndexedNotNull(transform: (index: Int, Char) -> R?): List<R> {
+    return mapIndexedNotNullTo(ArrayList<R>(), transform)
+}
+
+@IgnorableReturnValue
+public inline fun <R : Any, C : MutableCollection<in R>> CharSequence.mapIndexedNotNullTo(
+    destination: C,
+    transform: (index: Int, Char) -> R?
+): C {
+    var index = 0
+    while (index < this.length) {
+        val transformed = transform(index, this[index])
+        if (transformed != null) destination.add(transformed)
+        index++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.mapIndexedTo(
+    destination: C,
+    transform: (index: Int, Char) -> R
+): C {
+    var index = 0
+    while (index < this.length) {
+        destination.add(transform(index, this[index]))
+        index++
+    }
+    return destination
+}
+
 public fun <R : Any> CharSequence.mapNotNull(transform: (Char) -> R?): List<R> {
     val result = mutableListOf<R>()
     var i = 0
@@ -195,6 +235,111 @@ public fun <R : Any> CharSequence.mapNotNull(transform: (Char) -> R?): List<R> {
     return result
 }
 
+@IgnorableReturnValue
+public inline fun <R : Any, C : MutableCollection<in R>> CharSequence.mapNotNullTo(
+    destination: C,
+    transform: (Char) -> R?
+): C {
+    var index = 0
+    while (index < this.length) {
+        val transformed = transform(this[index])
+        if (transformed != null) destination.add(transformed)
+        index++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.mapTo(
+    destination: C,
+    transform: (Char) -> R
+): C {
+    var index = 0
+    while (index < this.length) {
+        destination.add(transform(this[index]))
+        index++
+    }
+    return destination
+}
+
+/**
+ * Returns a single list of all elements yielded from results of [transform] function being invoked on each character of original char sequence.
+ */
+public inline fun <R> CharSequence.flatMap(transform: (Char) -> Iterable<R>): List<R> {
+    return flatMapTo(ArrayList<R>(), transform)
+}
+
+/**
+ * Returns a single list of all elements yielded from results of [transform] function being invoked on each character
+ * and its index in the original char sequence.
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterable")
+@kotlin.internal.InlineOnly
+public inline fun <R> CharSequence.flatMapIndexed(transform: (index: Int, Char) -> Iterable<R>): List<R> {
+    return flatMapIndexedTo(ArrayList<R>(), transform)
+}
+
+/**
+ * Appends all elements yielded from results of [transform] function being invoked on each character
+ * and its index in the original char sequence, to the given [destination].
+ */
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("flatMapIndexedIterableTo")
+@IgnorableReturnValue
+@kotlin.internal.InlineOnly
+public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapIndexedTo(
+    destination: C,
+    transform: (index: Int, Char) -> Iterable<R>
+): C {
+    var index = 0
+    while (index < this.length) {
+        val list = transform(index, this[index])
+        index++
+        val resultIterator = list.iterator()
+        while (resultIterator.hasNext()) destination.add(resultIterator.next())
+    }
+    return destination
+}
+
+/**
+ * Appends all elements yielded from results of [transform] function being invoked on each character of original char sequence, to the given [destination].
+ */
+@IgnorableReturnValue
+public inline fun <R, C : MutableCollection<in R>> CharSequence.flatMapTo(
+    destination: C,
+    transform: (Char) -> Iterable<R>
+): C {
+    var index = 0
+    while (index < this.length) {
+        val list = transform(this[index])
+        index++
+        val resultIterator = list.iterator()
+        while (resultIterator.hasNext()) destination.add(resultIterator.next())
+    }
+    return destination
+}
+
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.elementAt(index: Int): Char = get(index)
+
+@kotlin.internal.InlineOnly
+@OptIn(kotlin.contracts.ExperimentalContracts::class)
+public inline fun CharSequence.elementAtOrElse(index: Int, defaultValue: (Int) -> Char): Char {
+    contract {
+        callsInPlace(defaultValue, InvocationKind.AT_MOST_ONCE)
+    }
+    return if (index >= 0 && index < length) get(index) else defaultValue(index)
+}
+
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.elementAtOrNull(index: Int): Char? =
+    if (index >= 0 && index < length) get(index) else null
+
 public fun <R : Any> CharSequence.firstNotNullOf(transform: (Char) -> R?): R {
     var i = 0
     val sz = this.length
@@ -206,6 +351,22 @@ public fun <R : Any> CharSequence.firstNotNullOf(transform: (Char) -> R?): R {
     throw NoSuchElementException("No element of the char sequence was transformed to a non-null value.")
 }
 
+public fun CharSequence.first(): Char {
+    if (isEmpty())
+        throw NoSuchElementException("Char sequence is empty.")
+    return this[0]
+}
+
+public inline fun CharSequence.first(predicate: (Char) -> Boolean): Char {
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index++
+    }
+    throw NoSuchElementException("Char sequence contains no character matching the predicate.")
+}
+
 public fun <R : Any> CharSequence.firstNotNullOfOrNull(transform: (Char) -> R?): R? {
     var i = 0
     val sz = this.length
@@ -213,6 +374,20 @@ public fun <R : Any> CharSequence.firstNotNullOfOrNull(transform: (Char) -> R?):
         val transformed = transform(this[i])
         if (transformed != null) return transformed
         i++
+    }
+    return null
+}
+
+public fun CharSequence.firstOrNull(): Char? {
+    return if (isEmpty()) null else this[0]
+}
+
+public inline fun CharSequence.firstOrNull(predicate: (Char) -> Boolean): Char? {
+    var index = 0
+    while (index < length) {
+        val element = this[index]
+        if (predicate(element)) return element
+        index++
     }
     return null
 }
@@ -267,6 +442,10 @@ public fun CharSequence.all(predicate: (Char) -> Boolean): Boolean {
     return true
 }
 
+public fun CharSequence.none(): Boolean {
+    return isEmpty()
+}
+
 public fun CharSequence.none(predicate: (Char) -> Boolean): Boolean {
     var i = 0
     val sz = this.length
@@ -275,6 +454,14 @@ public fun CharSequence.none(predicate: (Char) -> Boolean): Boolean {
         i++
     }
     return true
+}
+
+/**
+ * Returns the length of this char sequence.
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.count(): Int {
+    return length
 }
 
 public fun CharSequence.count(predicate: (Char) -> Boolean): Int {
@@ -350,6 +537,77 @@ public fun CharSequence.sumByDouble(selector: (Char) -> Double): Double {
     var i = 0
     val sz = this.length
     while (i < sz) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfDouble")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Double): Double {
+    var sum: Double = 0.toDouble()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@kotlin.jvm.JvmName("sumOfInt")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Int): Int {
+    var sum: Int = 0.toInt()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.4")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfLong")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> Long): Long {
+    var sum: Long = 0.toLong()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.5")
+@kotlin.jvm.JvmName("sumOfUInt")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> UInt): UInt {
+    var sum: UInt = 0.toUInt()
+    var i = 0
+    while (i < this.length) {
+        sum += selector(this[i])
+        i++
+    }
+    return sum
+}
+
+@SinceKotlin("1.5")
+@OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@OverloadResolutionByLambdaReturnType
+@kotlin.jvm.JvmName("sumOfULong")
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.sumOf(selector: (Char) -> ULong): ULong {
+    var sum: ULong = 0.toULong()
+    var i = 0
+    while (i < this.length) {
         sum += selector(this[i])
         i++
     }
@@ -502,4 +760,307 @@ public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int,
         i--
     }
     return accumulator
+}
+
+// KSP-1366: CharSequence association functions are source-backed. The
+// explicit index walk keeps CharSequence receiver dispatch and the source
+// implementation visible to the compiler while matching the standard map
+// capacity and dynamic length behavior.
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.associate(transform: (Char) -> Pair<K, V>): Map<K, V> {
+    val result = LinkedHashMap<K, V>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        val pair = transform(e)
+        result[pair.first] = pair.second
+        i++
+    }
+    return result as Map<K, V>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K> CharSequence.associateBy(keySelector: (Char) -> K): Map<K, Char> {
+    val result = LinkedHashMap<K, Char>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[keySelector(e)] = e
+        i++
+    }
+    return result as Map<K, Char>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.associateBy(
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): Map<K, V> {
+    val result = LinkedHashMap<K, V>(mapCapacity(this.length).coerceAtLeast(16))
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[keySelector(e)] = valueTransform(e)
+        i++
+    }
+    return result as Map<K, V>
+}
+
+@IgnorableReturnValue
+public inline fun <K, M : MutableMap<in K, in Char>> CharSequence.associateByTo(
+    destination: M,
+    keySelector: (Char) -> K
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(keySelector(e), e)
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, in V>> CharSequence.associateByTo(
+    destination: M,
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(keySelector(e), valueTransform(e))
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, in V>> CharSequence.associateTo(
+    destination: M,
+    transform: (Char) -> Pair<K, V>
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        val pair = transform(e)
+        destination.put(pair.first, pair.second)
+        i++
+    }
+    return destination
+}
+
+@SinceKotlin("1.3")
+@Suppress("UNCHECKED_CAST")
+public inline fun <V> CharSequence.associateWith(valueSelector: (Char) -> V): Map<Char, V> {
+    val result = LinkedHashMap<Char, V>(
+        mapCapacity(this.length.coerceAtMost(128)).coerceAtLeast(16)
+    )
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        result[e] = valueSelector(e)
+        i++
+    }
+    return result as Map<Char, V>
+}
+
+@SinceKotlin("1.3")
+@IgnorableReturnValue
+public inline fun <V, M : MutableMap<in Char, in V>> CharSequence.associateWithTo(
+    destination: M,
+    valueSelector: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val e: Char = this[i]
+        destination.put(e, valueSelector(e))
+        i++
+    }
+    return destination
+}
+
+// KSP-1379: CharSequence grouping functions are source-backed. The explicit
+// index walk preserves the source receiver contract while avoiding iterator
+// inference gaps in the bundled compiler.
+@Suppress("UNCHECKED_CAST")
+public inline fun <K> CharSequence.groupBy(keySelector: (Char) -> K): Map<K, List<Char>> {
+    val result = mutableMapOf<K, MutableList<Char>>()
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<Char>()
+            result[key] = bucket
+            bucket.add(element)
+        } else {
+            existing.add(element)
+        }
+        i++
+    }
+    return result as Map<K, List<Char>>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <K, V> CharSequence.groupBy(
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): Map<K, List<V>> {
+    val result = mutableMapOf<K, MutableList<V>>()
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            result[key] = bucket
+            bucket.add(valueTransform(element))
+        } else {
+            existing.add(valueTransform(element))
+        }
+        i++
+    }
+    return result as Map<K, List<V>>
+}
+
+@IgnorableReturnValue
+public inline fun <K, M : MutableMap<in K, MutableList<Char>>> CharSequence.groupByTo(
+    destination: M,
+    keySelector: (Char) -> K
+): M {
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<Char>()
+            destination[key] = bucket
+            bucket.add(element)
+        } else {
+            existing.add(element)
+        }
+        i++
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <K, V, M : MutableMap<in K, MutableList<V>>> CharSequence.groupByTo(
+    destination: M,
+    keySelector: (Char) -> K,
+    valueTransform: (Char) -> V
+): M {
+    var i = 0
+    while (i < this.length) {
+        val element: Char = this[i]
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            destination[key] = bucket
+            bucket.add(valueTransform(element))
+        } else {
+            existing.add(valueTransform(element))
+        }
+        i++
+    }
+    return destination
+}
+
+public fun CharSequence.drop(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    return this.subSequence(n.coerceAtMost(length), length)
+}
+
+public fun CharSequence.dropLast(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    val count = (length - n).coerceAtLeast(0)
+    return this.subSequence(0, count.coerceAtMost(length))
+}
+
+public inline fun CharSequence.dropLastWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = this.length - 1
+    while (index >= 0) {
+        val shouldDrop = predicate(this[index])
+        if (shouldDrop == false) {
+            return this.subSequence(0, index + 1)
+        }
+        index--
+    }
+    return ""
+}
+
+public inline fun CharSequence.dropWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = 0
+    val endIndex = this.length
+    while (index < endIndex) {
+        val shouldDrop = predicate(this[index])
+        if (shouldDrop == false) {
+            return this.subSequence(index, this.length)
+        }
+        index++
+    }
+    return ""
+}
+
+public fun CharSequence.take(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    return this.subSequence(0, n.coerceAtMost(length))
+}
+
+public fun CharSequence.takeLast(n: Int): CharSequence {
+    require(n >= 0) { "Requested character count $n is less than zero." }
+    val length = this.length
+    return this.subSequence(length - n.coerceAtMost(length), length)
+}
+
+public inline fun CharSequence.takeLastWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = this.length - 1
+    while (index >= 0) {
+        if (predicate(this[index]) == false) {
+            return this.subSequence(index + 1, this.length)
+        }
+        index--
+    }
+    return this.subSequence(0, this.length)
+}
+
+public inline fun CharSequence.takeWhile(predicate: (Char) -> Boolean): CharSequence {
+    var index = 0
+    val endIndex = this.length
+    while (index < endIndex) {
+        if (predicate(this[index]) == false) {
+            return this.subSequence(0, index)
+        }
+        index++
+    }
+    return this.subSequence(0, this.length)
+}
+
+public fun CharSequence.padStart(length: Int, padChar: Char = ' '): CharSequence {
+    if (length < 0)
+        throw IllegalArgumentException("Desired length $length is less than zero.")
+    if (length <= this.length)
+        return this.subSequence(0, this.length)
+    val sb = StringBuilder(length)
+    for (i in 1..(length - this.length))
+        sb.append(padChar)
+    sb.append(this)
+    return sb
+}
+
+public fun CharSequence.padEnd(length: Int, padChar: Char = ' '): CharSequence {
+    if (length < 0)
+        throw IllegalArgumentException("Desired length $length is less than zero.")
+    if (length <= this.length)
+        return this.subSequence(0, this.length)
+    val sb = StringBuilder(length)
+    sb.append(this)
+    for (i in 1..(length - this.length))
+        sb.append(padChar)
+    return sb
 }

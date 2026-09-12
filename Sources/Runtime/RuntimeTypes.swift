@@ -259,6 +259,7 @@ class RuntimeArrayBox {
 
 final class RuntimeObjectBox: RuntimeArrayBox {
     let classID: Int64
+    var backingListBox: RuntimeListBox?
     var backingSetBox: RuntimeSetBox?
     var throwableMessage: String?
     var throwableCause: Int
@@ -267,6 +268,7 @@ final class RuntimeObjectBox: RuntimeArrayBox {
 
     init(length: Int, classID: Int64) {
         self.classID = classID
+        self.backingListBox = nil
         self.backingSetBox = nil
         self.throwableMessage = nil
         self.throwableCause = 0
@@ -840,12 +842,21 @@ final class RuntimeArrayDequeBox {
         }
     }
 
-    init(elements: [Int]) {
-        let capacity = max(Self.minimumCapacity, elements.count)
-        buffer = elements.map { RuntimeValue(raw: $0) }
-            + Array(repeating: RuntimeValue(raw: 0), count: capacity - elements.count)
+    init(capacity: Int) {
+        buffer = Array(
+            repeating: RuntimeValue(raw: 0),
+            count: max(Self.minimumCapacity, capacity)
+        )
         head = 0
-        count = elements.count
+        count = 0
+    }
+
+    init(values: [RuntimeValue]) {
+        let capacity = max(Self.minimumCapacity, values.count)
+        buffer = values
+            + Array(repeating: RuntimeValue(raw: 0), count: capacity - values.count)
+        head = 0
+        count = values.count
     }
 
     func element(at index: Int) -> RuntimeValue? {

@@ -14,10 +14,13 @@ final class ForLoweringPass: LoweringPass, ParallelLoweringPass {
 
         module.arena.transformFunctions { (function: KIRFunction) -> KIRFunction in
             var updated = function
-            var rewrittenBody: [KIRInstruction] = []
+            var rewrittenBody = KIRLoweringEmitContext()
             var didRewrite = false
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                rewrittenBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 guard case let .call(symbol, callee, arguments, result, _, _, _, _) = instruction,
                       callee == marker,
                       let iteratorValue = arguments.first
