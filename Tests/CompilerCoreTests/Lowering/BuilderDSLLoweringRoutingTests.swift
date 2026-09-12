@@ -6,6 +6,8 @@ import Testing
 /// RF-LOWER-CALL-001: pin the *production* routing of the `buildList` /
 /// `buildSet` / `buildMap` DSL before RF-LOWER-CALL-004〜006 delete the legacy
 /// `__kk_build_*` rewrite in `CollectionLiteralLoweringPass+CallRewriteFactories.swift`.
+/// RF-LOWER-CALL-005 has since deleted the `buildSet` arm, so the negative
+/// assertions below now also guard against its reintroduction.
 ///
 /// `CollectionLiteralLoweringTests` covers the same three names, but every one
 /// of those cases hand-builds `.call(symbol: nil, ...)` KIR against a
@@ -229,9 +231,10 @@ struct BuilderDSLLoweringRoutingTests {
     }
 
     /// `buildSet` / `buildMap` have no residual synthetic stub, so without the
-    /// bundled stdlib they do not resolve at all.  No production input can
-    /// therefore reach the `__kk_build_set*` / `__kk_build_map*` rewrites:
-    /// RF-LOWER-CALL-005/006 have no fallback consumer to preserve.
+    /// bundled stdlib they do not resolve at all.  That is why neither rewrite
+    /// had a fallback consumer to preserve: RF-LOWER-CALL-005 removed
+    /// `__kk_build_set*` outright, and RF-LOWER-CALL-006 can do the same for
+    /// `__kk_build_map*`.
     @Test
     func noStdlibHasNoBuildSetOrBuildMapEntryPoint() throws {
         let source = """

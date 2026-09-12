@@ -943,10 +943,16 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
-    // MARK: - buildSet rewriting (STDLIB-072)
+    // MARK: - buildSet is no longer rewritten (RF-LOWER-CALL-005)
 
+    /// In production `buildSet` resolves to the bundled `CollectionBuilders.kt`
+    /// declaration and is left alone — `BuilderDSLLoweringRoutingTests` pins
+    /// that from source.  RF-LOWER-CALL-005 removed the legacy
+    /// `__kk_build_set` rewrite, so even this hand-built `symbol: nil` shape —
+    /// the branch that used to short-circuit `isStdlibBuilderDSLCall` to
+    /// `true` — must now pass through untouched.
     @Test
-    func testBuildSetRewrittenToKkBuildSet() throws {
+    func testBuildSetIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildSet")
@@ -956,12 +962,15 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildSet"), "buildSet should be rewritten")
-        #expect(callees.contains("__kk_build_set"), "buildSet should become __kk_build_set")
+        #expect(callees.contains("buildSet"), "buildSet should not be rewritten; callees: \(callees)")
+        #expect(
+            !callees.contains("__kk_build_set"),
+            "the legacy __kk_build_set rewrite must not come back; callees: \(callees)"
+        )
     }
 
     @Test
-    func testBuildSetCapacityRewrittenToKkBuildSetWithCapacity() throws {
+    func testBuildSetCapacityIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -993,10 +1002,10 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildSet"), "buildSet(capacity) should be rewritten")
+        #expect(callees.contains("buildSet"), "buildSet(capacity) should not be rewritten; callees: \(callees)")
         #expect(
-            callees.contains("__kk_build_set_with_capacity"),
-            "buildSet(capacity) should become __kk_build_set_with_capacity"
+            !callees.contains("__kk_build_set_with_capacity"),
+            "the legacy __kk_build_set_with_capacity rewrite must not come back; callees: \(callees)"
         )
     }
 
