@@ -465,6 +465,20 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     ) -> KIRExprWithInstructions? {
         var instructions: [KIRInstruction] = []
 
+        // HashSet is source-backed for its nominal API (AbstractCollection now
+        // provides a real toString() body), but its runtime representation is
+        // a RuntimeSetBox without a Kotlin vtable/heap-object identity.
+        // Emitting a direct virtual call to that inherited toString() here
+        // would dispatch through a vtable the RuntimeSetBox receiver does not
+        // have (KSWIFTK-RUNTIME-0001 vtable lookup panic). Skip the
+        // optimization and fall back to the generic `Any.toString()` path
+        // (kk_any_to_string -> runtimeElementToString), which already knows
+        // how to render a RuntimeSetBox.
+        let knownNames = KnownCompilerNames(interner: interner)
+        if classSymbol.fqName == knownNames.kotlinCollectionsHashSetFQName {
+            return nil
+        }
+
         // Regular and data objects print their simple name.
         if classSymbol.kind == .object {
             let objectName = interner.resolve(classSymbol.name)
