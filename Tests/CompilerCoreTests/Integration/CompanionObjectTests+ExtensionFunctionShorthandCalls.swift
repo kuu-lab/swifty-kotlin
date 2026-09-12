@@ -117,7 +117,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -130,7 +130,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion extension function (with argument) shorthand call, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -143,7 +143,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion extension property shorthand call, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -156,7 +156,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for named companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -169,7 +169,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for interface companion extension function shorthand call, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -182,7 +182,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for extension function on bundled Instant.Companion, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -218,7 +218,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no KIR errors for companion extension function shorthand call, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 

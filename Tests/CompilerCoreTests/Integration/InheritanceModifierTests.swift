@@ -248,7 +248,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testAbstractOverrideInConcreteClass
@@ -270,7 +270,7 @@ import Testing
 
                         // Kotlin allows an abstract class to keep an inherited abstract member abstract.
                         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testFinalOverrideValid
@@ -281,7 +281,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testFinalOverrideCannotBeFurtherOverridden
@@ -353,7 +353,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testOverrideWithMoreVisibility
@@ -364,7 +364,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testInternalOverrideOfPublicInSameModule
@@ -376,7 +376,7 @@ import Testing
 
                         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY", in: sampleDiags)
                         assertNoDiagnostic("KSWIFTK-SEMA-VISIBILITY-MODULE", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testOverrideWithCovariantReturnType
@@ -387,7 +387,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testOverrideWithIncompatibleReturnType
@@ -409,7 +409,7 @@ import Testing
 
                         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: sampleDiags)
                         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testOverrideChaining
@@ -420,7 +420,7 @@ import Testing
 
 
                         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
 

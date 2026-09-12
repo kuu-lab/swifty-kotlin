@@ -80,7 +80,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for Foo.create(), got: \(sampleDiags.map(\.code))"
                         )
 
@@ -93,7 +93,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for Foo.MAX_COUNT, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -106,7 +106,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -119,7 +119,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no errors for named companion factory, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -165,7 +165,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
@@ -208,7 +208,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 
@@ -251,7 +251,7 @@ extension CompanionObjectTests {
         try runToLowering(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no errors after full lowering, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
     }
@@ -276,7 +276,7 @@ extension CompanionObjectTests {
             try runToKIR(ctx)
 
             #expect(
-                !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                !ctx.diagnostics.hasError,
                 "Expected no KIR errors, got: \(ctx.diagnostics.diagnostics.map(\.code))"
             )
 

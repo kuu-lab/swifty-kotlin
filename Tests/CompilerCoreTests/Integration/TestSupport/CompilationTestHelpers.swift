@@ -34,16 +34,14 @@ func makeTestOptions(
 func assertKotlinCompilesToKIR(
     _ source: String,
     moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line,
+    sourceLocation: Testing.SourceLocation = #_sourceLocation,
     allowDefaultStdlibLibrary: Bool = false
 ) throws {
     try withTemporaryFile(contents: source) { path in
         try assertKotlinInputsToKIR(
             inputs: [path],
             moduleName: moduleName,
-            file: file,
-            line: line,
+            sourceLocation: sourceLocation,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
@@ -53,16 +51,14 @@ func assertKotlinCompilesToKIR(
 func assertKotlinSourcesToKIR(
     _ sources: [String],
     moduleName: String = "TestMod",
-    file: StaticString = #filePath,
-    line: UInt = #line,
+    sourceLocation: Testing.SourceLocation = #_sourceLocation,
     allowDefaultStdlibLibrary: Bool = false
 ) throws {
     try withTemporaryFiles(contents: sources) { paths in
         try assertKotlinInputsToKIR(
             inputs: paths,
             moduleName: moduleName,
-            file: file,
-            line: line,
+            sourceLocation: sourceLocation,
             allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
         )
     }
@@ -71,8 +67,7 @@ func assertKotlinSourcesToKIR(
 private func assertKotlinInputsToKIR(
     inputs: [String],
     moduleName: String,
-    file _: StaticString,
-    line _: UInt,
+    sourceLocation: Testing.SourceLocation,
     allowDefaultStdlibLibrary: Bool = false
 ) throws {
     let fm = FileManager.default
@@ -91,11 +86,14 @@ private func assertKotlinInputsToKIR(
     let result = makeTestDriver().runForTesting(options: options)
 
     #expect(result.exitCode == 0,
-            "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })")
-    #expect(!(result.diagnostics.contains(where: { $0.severity == .error })),
-            "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })")
+            "KIR compilation failed. Diagnostics: \(result.diagnostics.map { "\($0.code): \($0.message)" })",
+            sourceLocation: sourceLocation)
+    #expect(!result.diagnostics.hasError,
+            "Unexpected errors: \(result.diagnostics.filter { $0.severity == .error }.map { "\($0.code): \($0.message)" })",
+            sourceLocation: sourceLocation)
     #expect(fm.fileExists(atPath: kirPath),
-            "KIR file not produced at \(kirPath)")
+            "KIR file not produced at \(kirPath)",
+            sourceLocation: sourceLocation)
 }
 
 #endif

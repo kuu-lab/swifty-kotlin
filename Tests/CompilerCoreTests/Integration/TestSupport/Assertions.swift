@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-@testable import CompilerTestSupport
 import Testing
 
 private struct TestRequirementFailure: Error, CustomStringConvertible {
@@ -17,6 +16,13 @@ func requireTestValue<T>(
     return value
 }
 
+/// Mirrors ``DiagnosticEngine/hasError`` for the plain diagnostic arrays that
+/// `diagnosticsForPath` and `DriverResult` hand back, so tests spell the check
+/// the same way whichever side they are holding.
+extension Collection where Element == Diagnostic {
+    var hasError: Bool { contains { $0.severity == .error } }
+}
+
 func diagnosticsForPath(
     _ path: String,
     in ctx: CompilationContext
@@ -25,63 +31,74 @@ func diagnosticsForPath(
     return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
 }
 
+// The `CompilationContext` overloads below snapshot `ctx.diagnostics` once and
+// delegate to the `[Diagnostic]` form, so a failure is reported at the calling
+// test rather than inside this file.
+//
+// `Testing.SourceLocation` must stay qualified: CompilerCore declares its own
+// `SourceLocation`, so the bare name is ambiguous in any file that also does
+// `@testable import CompilerCore`.
+
 func assertHasDiagnostic(
     _ code: String,
     in ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    CompilerTestSupport.assertHasDiagnostic(code, in: ctx, file: file, line: line)
+    assertHasDiagnostic(code, in: ctx.diagnostics.diagnostics, sourceLocation: sourceLocation)
 }
 
 func assertHasDiagnostic(
     _ code: String,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    let found = diagnostics.contains { $0.code == code }
-    #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map(\.code))")
+    #expect(
+        diagnostics.contains { $0.code == code },
+        "Expected diagnostic \(code), got: \(diagnostics.map(\.code))",
+        sourceLocation: sourceLocation
+    )
 }
 
 func assertNoDiagnostic(
     _ code: String,
     in ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    CompilerTestSupport.assertNoDiagnostic(code, in: ctx, file: file, line: line)
+    assertNoDiagnostic(code, in: ctx.diagnostics.diagnostics, sourceLocation: sourceLocation)
 }
 
 func assertNoDiagnostic(
     _ code: String,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    let found = diagnostics.contains { $0.code == code }
-    #expect(!(found), "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))")
+    #expect(
+        !diagnostics.contains { $0.code == code },
+        "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))",
+        sourceLocation: sourceLocation
+    )
 }
 
 func assertDiagnosticCount(
     _ code: String,
     expected: Int,
     in ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    let count = ctx.diagnostics.diagnostics.filter { $0.code == code }.count
-    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
+    assertDiagnosticCount(code, expected: expected, in: ctx.diagnostics.diagnostics, sourceLocation: sourceLocation)
 }
 
 func assertDiagnosticCount(
     _ code: String,
     expected: Int,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let count = diagnostics.filter { $0.code == code }.count
-    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))")
+    #expect(
+        count == expected,
+        "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))",
+        sourceLocation: sourceLocation
+    )
 }
 #endif
