@@ -150,9 +150,14 @@ struct MathAPITargetInventoryTests {
     ]
 
     @Test func testTargetInventoryHasExpectedShape() {
+        // Structural invariants only — no magic totals. Two PRs adding *different* entries
+        // at *different* literal positions merge with no text conflict, but if each also
+        // rewrites the same hardcoded count identically (`N` -> `N+1`), git applies that
+        // identical-looking edit once — the merged inventory silently ends up short.
+        // The array-vs-Set comparison also pins the list down to exact-duplicate literals.
         #expect(Self.targetSignatureList.count == Self.targetSignatures.count)
-        #expect(Self.targetSignatures.count == 104)
-        #expect(Self.targetSignatures.filter { $0.hasPrefix("val ") }.count == 12)
+        // `declarationName` only interprets `val `/`fun ` prefixes — keep entries well-formed.
+        #expect(Self.targetSignatures.allSatisfy { $0.hasPrefix("val ") || $0.hasPrefix("fun ") })
     }
 
     @Test func testCurrentSyntheticMathNamesAreOfficialTargets() throws {
