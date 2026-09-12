@@ -141,14 +141,14 @@ func appendObjectVtableMethodRegistrations<C: RangeReplaceableCollection>(
 /// `kk_structural_eq`, where the concrete receiver type is unavailable. Keep
 /// the most-specific real `Any.equals` override alongside each object so that
 /// erased equality can still honor user-defined semantics.
-private func appendObjectAnyEqualsOverrideRegistration(
+private func appendObjectAnyEqualsOverrideRegistration<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     let anyFQName = [interner.intern("kotlin"), interner.intern("Any")]
     guard let anySymbol = sema.symbols.lookup(fqName: anyFQName),
           let anyEquals = sema.symbols.lookupAll(
