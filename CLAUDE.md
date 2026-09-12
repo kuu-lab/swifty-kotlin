@@ -61,6 +61,14 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 `Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数、Runtime の `kk_cdecl_count` / `__kk_cdecl_count` の悪化がないことも確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。`kk_` 減 + `__kk_` 増の降格ペアは理由コード付きなら許容するが、`__kk_cdecl_count` の純増は§13-2の理由コードと影響範囲をPR本文に明記する。その他の意図的な悪化も、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
 
+## 長時間ゲートの委譲と自己検証
+
+このリポジトリのゲートは人間の待ち時間より長いので、完了を待ってブロックしない。
+
+- **長時間ゲートはサブエージェントに出す。** `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（約 1425 ケース、30 分超、PASS/FAIL はケース単位で出るがサマリは最後）や `bash Scripts/swift_test.sh` の全テストは、サブエージェントに渡してその間に別の作業を進める。脱線や文脈不足が見えたら介入する。
+- **ただし同じ worktree で `swift build` / `swift test` を重ねない。** 同一 worktree での `swift build` と `swift test --skip-build` の同時実行は 0 CPU で停止し、重量 `swift test` を 2 本同時に起動すると `.outputUnavailable` の偽フレークが出る実績がある。並行させるなら別 worktree か、ビルドを伴わない作業にする。
+- **仕様準拠の判定は新しい文脈のサブエージェントに任せる。** RF 系ゲートやゴールデン更新が妥当かは、自己批評よりも、変更の意図を知らないサブエージェントに「[`docs/spec.md`](docs/spec.md) / ゴールデン差分と実装が一致しているか」を検証させた方が精度が高い。差分が大きい更新では、まとめて最後に見るのではなく途中で一度挟む。
+
 ## バグ修正ルール
 
 作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
