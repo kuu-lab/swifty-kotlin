@@ -1,16 +1,17 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
 
-    private static nonisolated(unsafe) var _sharedControlFlowCtx: (ctx: CompilationContext, paths: [String])?
-
-    private func sharedControlFlowTuple(at index: Int) throws -> (ctx: CompilationContext, path: String) {
-        if let cached = Self._sharedControlFlowCtx {
-            return (cached.ctx, cached.paths[index])
-        }
+    /// All ten `sampleN` snippets compile into one context, so every test here
+    /// shares it; `ctx.options.inputs[n]` recovers `sampleN`'s path for the one
+    /// test that scopes an AST search to a single file.
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedControlFlowCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -121,35 +122,27 @@ extension BuildKIRRegressionTests {
             }
             """
         ]
-        var result: CompilationContext?
-        var capturedPaths: [String]?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-            capturedPaths = paths
-        }
-        let ctx = try #require(result)
-        let paths = try #require(capturedPaths)
-        Self._sharedControlFlowCtx = (ctx, paths)
-        return (ctx, paths[index])
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
+        return ctx
+    }
+
+    private func sharedControlFlowCtx() throws -> CompilationContext {
+        try Self._sharedControlFlowCtx.get()
     }
 
     @Test
     func testIfExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 0)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test0", in: module, interner: ctx.interner)
 
         // .select was removed; verify control flow guards side-effect branches
-        let sideEffectCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "sideEffect0"
-        }
-        #expect(sideEffectCalls.count == 2, "Both branches should have sideEffect0 calls in IR")
+        let sideEffectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "sideEffect0" }
+        #expect(sideEffectCallsCount == 2, "Both branches should have sideEffect0 calls in IR")
 
-        let jumpIfEqualCount = body.filter { if case .jumpIfEqual = $0 { return true }; return false }.count
+        let jumpIfEqualCount = body.count { if case .jumpIfEqual = $0 { return true }; return false }
         #expect(jumpIfEqualCount >= 1, "Condition should guard branch entry via jumpIfEqual")
     }
 
@@ -157,13 +150,13 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testIfExprReturnInUnselectedBranchDoesNotLeak() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 1)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "earlyReturn1", in: module, interner: ctx.interner)
 
         // .select was removed; return-in-branch uses control flow with labels/jumps
-        let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+        let labelCount = body.count { if case .label = $0 { return true }; return false }
         #expect(labelCount >= 2, "return-in-branch needs labels for control flow")
 
         let hasReturnValue = body.contains { if case .returnValue = $0 { return true }; return false }
@@ -174,19 +167,16 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testWhenExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 2)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test2", in: module, interner: ctx.interner)
 
         // .select was removed; verify control flow guards side-effect2 branches
-        let effectCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "effect2"
-        }
-        #expect(effectCalls.count == 3, "All 3 branches should have effect2 calls in IR")
+        let effectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "effect2" }
+        #expect(effectCallsCount == 3, "All 3 branches should have effect2 calls in IR")
 
-        let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+        let labelCount = body.count { if case .label = $0 { return true }; return false }
         #expect(labelCount >= 3, "Each branch needs labels for control flow")
     }
 
@@ -194,13 +184,13 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchFinallyLoweringUsesOrderedTypeDispatchAndThrownSlotRouting() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 3)
+        let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
 
-        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: ctx.options.inputs[3]))
         let tryExprID = try #require(firstExprID(in: ast) { exprID, expr in
             guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
                 return false
@@ -345,7 +335,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 4)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo4", in: module, interner: ctx.interner)
@@ -392,18 +382,15 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 5)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo5", in: module, interner: ctx.interner)
 
         // Verify that kk_op_is is called for each typed catch clause.
         // Use >= numberOfTypedClauses to be resilient against future lowering changes.
-        let opIsCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_op_is"
-        }
-        #expect(opIsCalls.count >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        #expect(opIsCount >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
     }
 
 
@@ -411,24 +398,21 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 6)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo6", in: module, interner: ctx.interner)
 
         // catch-all should not require runtime type checking
-        let opIsCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_op_is"
-        }
-        #expect(opIsCalls.count == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        #expect(opIsCount == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
     }
 
 
 
     @Test
     func testBuildKIRLowersObjectLiteralToGeneratedFactoryReturningRuntimeObjectEntity() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 7)
+        let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
@@ -502,7 +486,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testBuildKIRObjectLiteralStoredPropertyReadUsesNonThrowingFastPath() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 8)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main8", in: module, interner: ctx.interner)
@@ -517,7 +501,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 9)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main9", in: module, interner: ctx.interner)

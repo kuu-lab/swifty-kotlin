@@ -25,28 +25,27 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
-            let sourceFunctions = findAllKIRFunctions(in: module).filter { function in
-                let name = ctx.interner.resolve(function.name)
-                let isSourceFunction = function.sourceRange?.start.file == sourceFileID
-                let isGeneratedLambdaFunction = name.contains("kk_lambda_")
-                return isSourceFunction || isGeneratedLambdaFunction
-            }
-            let callees = sourceFunctions.flatMap { function -> [String] in
-                return extractCallees(from: function.body, interner: ctx.interner)
-            }
-
-            #expect(!sourceFunctions.isEmpty, "Expected to find functions from \(path)")
-            #expect(callees.contains("__kk_sequence_builder_build"), "Expected sequence builder runtime construction, got: \(callees)")
-            #expect(callees.contains("__kk_iterator_builder_build"), "Expected iterator builder runtime construction, got: \(callees)")
-            #expect(callees.contains("__kk_sequence_builder_yield"), "Expected source builder lambda to yield through runtime, got: \(callees)")
-            #expect(!callees.contains("kk_duration_times_int"), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
+        let module = try #require(ctx.kir)
+        let sourcePath = ctx.options.inputs[0]
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: sourcePath))
+        let sourceFunctions = findAllKIRFunctions(in: module).filter { function in
+            let name = ctx.interner.resolve(function.name)
+            let isSourceFunction = function.sourceRange?.start.file == sourceFileID
+            let isGeneratedLambdaFunction = name.contains("kk_lambda_")
+            return isSourceFunction || isGeneratedLambdaFunction
         }
+        let callees = sourceFunctions.flatMap { function -> [String] in
+            return extractCallees(from: function.body, interner: ctx.interner)
+        }
+
+        #expect(!sourceFunctions.isEmpty, "Expected to find functions from \(sourcePath)")
+        #expect(callees.contains("__kk_sequence_builder_build"), "Expected sequence builder runtime construction, got: \(callees)")
+        #expect(callees.contains("__kk_iterator_builder_build"), "Expected iterator builder runtime construction, got: \(callees)")
+        #expect(callees.contains("__kk_sequence_builder_yield"), "Expected source builder lambda to yield through runtime, got: \(callees)")
+        #expect(!callees.contains("kk_duration_times_int"), "Builder loop Int arithmetic must not use Duration.times(Int), got: \(callees)")
     }
 }
 #endif
