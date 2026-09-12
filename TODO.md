@@ -972,7 +972,7 @@
     - `kotlin.uintToULong` — fun uintToULong(Int): ULong  -- `final inline fun kotlin/uintToULong(kotlin/Int): kotlin/ULong`
   - 完了根拠: `Sources/CompilerCore/Stdlib/kotlin/uint.kt` に8シンボルをsource-backed実装し、`uintArrayOf`はprimitive UIntArrayへのcopy loopでlowerされる。UIntArray factoryの合成stub登録を削除し、非nullable UInt系変換の既存runtime ABI loweringを保持した。Sema/KIR/Golden/diffケースで確認済み。
 
-- [ ] KSP-791: kotlin.ulong-family の未実装 stdlib API を実装する（6 件）
+- [x] KSP-791: kotlin.ulong-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin` / top-level / family `ulong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ulong.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
