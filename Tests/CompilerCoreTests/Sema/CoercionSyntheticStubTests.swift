@@ -50,31 +50,6 @@ struct CoercionSyntheticStubTests {
         )))
     }
 
-    private func assertCoercionStub(
-        member: String,
-        receiverType: TypeID,
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        expectedLink: String,
-        sema: SemaModule,
-        interner: StringInterner,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        let symbols = coercionSymbols(for: member, sema: sema, interner: interner)
-        let matchingSymbol = symbols.first { symbolID in
-            guard let sig = sema.symbols.functionSignature(for: symbolID) else { return false }
-            return sig.receiverType == receiverType
-                && sig.parameterTypes == parameterTypes
-                && sig.returnType == returnType
-        }
-        let sym = try #require(matchingSymbol, "Expected \(expectedLink) coercion stub")
-        #expect(
-            sema.symbols.externalLinkName(for: sym) == expectedLink,
-            "\(expectedLink) should be registered for \(member)"
-        )
-    }
-
     // Byte and Short are normalized to Int in the compiler, so they reuse the
     // Int coercion stubs rather than registering separate symbols.
     // MARK: - Int coercion stubs

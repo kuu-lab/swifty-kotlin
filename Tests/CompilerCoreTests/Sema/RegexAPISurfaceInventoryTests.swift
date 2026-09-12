@@ -446,39 +446,6 @@ struct RegexAPISurfaceInventoryTests {
         )
     }
 
-    // MARK: - Path-aware expression search helpers
-
-    private func allExprIDs(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
-        }
-        return results
-    }
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
     // MARK: - 10. Call-site resolution: constructors resolve in Kotlin source
 
     @Test func testRegexSingleArgConstructorResolvesInCallExpr() throws {
@@ -714,17 +681,5 @@ struct RegexAPISurfaceInventoryTests {
         Set(sema.symbols.allSymbols().compactMap { sema.symbols.externalLinkName(for: $0.id) })
     }
 
-    private func allExprIDs(
-        in ast: ASTModule,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else {
-                return nil
-            }
-            return exprID
-        }
-    }
 }
 #endif
