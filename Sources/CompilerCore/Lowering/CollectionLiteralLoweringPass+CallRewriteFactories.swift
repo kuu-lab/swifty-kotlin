@@ -1,6 +1,31 @@
 
 extension CollectionLiteralConstructionLoweringPass {
 
+    /// Registers the rewritten result's nominal vtable implementations when the
+    /// factory produced a concrete-class collection box. See the call-site
+    /// comment in `lowerCallInstruction` for why the box needs them.
+    func appendFactoryResultVtableRegistrations(
+        result: KIRExprID?,
+        module: KIRModule,
+        ctx: KIRContext,
+        loweredBody: inout KIRLoweringEmitContext
+    ) {
+        guard let result,
+              let sema = ctx.sema,
+              let resultType = module.arena.exprType(result),
+              let resolved = resolveClassTypeSymbol(resultType, sema: sema),
+              resolved.symbol.kind == .class
+        else { return }
+        appendFactoryObjectVtableMethodRegistrations(
+            objectValue: result,
+            nominalSymbol: resolved.symbol.id,
+            sema: sema,
+            arena: module.arena,
+            interner: ctx.interner,
+            instructions: &loweredBody
+        )
+    }
+
     /// Rewrites collection factories, builder DSL calls, and tuple constructor shims.
     func rewriteFactoryAndBuilderCall(
         symbol: SymbolID?,
@@ -15,8 +40,24 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
+        if rewriteSequenceBuilderCall(
+            symbol: symbol,
+            callee: callee,
+            arguments: arguments,
+            result: result,
+            canThrow: canThrow,
+            thrownResult: thrownResult,
+            module: module,
+            ctx: ctx,
+            lookup: lookup,
+            state: &state,
+            loweredBody: &loweredBody
+        ) {
+            return true
+        }
+
         // --- Rewrite list factories to runtime helpers. ---
         // Keep the Kotlin-source declarations visible to sema, but preserve the
         // runtime lowering path for primitive boxing and tracked collection IDs.

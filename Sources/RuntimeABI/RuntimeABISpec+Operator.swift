@@ -58,6 +58,16 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "kk_object_register_equals_override",
+            parameters: [
+                RuntimeABIParameter(name: "objectRaw", type: .intptr),
+                RuntimeABIParameter(name: "functionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "kk_object_register_any_to_string",
             parameters: [
                 RuntimeABIParameter(name: "objectRaw", type: .intptr),
@@ -424,6 +434,24 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "TypeCheck",
             isThrowing: true
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_get_variance",
+            parameters: [
+                RuntimeABIParameter(name: "projectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_ktypeprojection_get_type",
+            parameters: [
+                RuntimeABIParameter(name: "projectionRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "TypeCheck",
+            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_typeof",

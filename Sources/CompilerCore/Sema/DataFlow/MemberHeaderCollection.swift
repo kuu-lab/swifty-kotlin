@@ -127,13 +127,11 @@ extension DataFlowSemaPhase {
             if let existingSyntheticFunction = reusableSyntheticMemberFunctionSymbol(
                 fqName: memberFQName,
                 ownerSymbol: ownerSymbol,
-                ownerFQName: ownerFQName,
                 valueParamCount: funDecl.valueParams.count,
                 expectedVisibility: visibility(from: funDecl.modifiers),
                 sourceFileID: sourceFileID,
                 sourceManager: sourceManager,
-                symbols: symbols,
-                interner: interner
+                symbols: symbols
             ) {
                 memberSymbol = existingSyntheticFunction
                 symbols.removeFlags(.synthetic, for: memberSymbol)
@@ -142,6 +140,14 @@ extension DataFlowSemaPhase {
                 // flags that the bundled declaration actually declares.
                 symbols.removeFlags([.abstractType, .static, .finalMember, .overrideMember], for: memberSymbol)
                 symbols.insertFlags(memberFlags, for: memberSymbol)
+                // SequenceScope's yield methods are rewritten by the builder
+                // lowering pass, so the bundled declarations must not retain
+                // the synthetic runtime bridge. Other bundled members may be
+                // intentionally retained runtime bridges (for example the
+                // Collection interface methods), so do not clear them globally.
+                if ownerFQName.map(interner.resolve) == ["kotlin", "sequences", "SequenceScope"] {
+                    symbols.clearExternalLinkName(for: memberSymbol)
+                }
                 symbols.setDeclSite(funDecl.range, for: memberSymbol)
             } else {
                 memberSymbol = symbols.define(
@@ -1212,24 +1218,21 @@ extension DataFlowSemaPhase {
     /// name and parent, so bundled source declarations can claim pre-registered
     /// methods instead of creating a duplicate symbol.
     ///
-    /// Reuse is restricted to bundled stdlib sources or an explicit owner allow-list
-    /// (currently `kotlin.Comparator`) to avoid accidentally overwriting user-declared
-    /// symbols. The placeholder's value-parameter count and visibility must also match
-    /// the source declaration so the bundled implementation fully replaces the stub.
+    /// Reuse is restricted to bundled stdlib sources to avoid accidentally
+    /// overwriting user-declared symbols. The placeholder's value-parameter count
+    /// and visibility must also match the source declaration so the bundled
+    /// implementation fully replaces the stub.
     private func reusableSyntheticMemberFunctionSymbol(
         fqName: [InternedString],
         ownerSymbol: SymbolID,
-        ownerFQName: [InternedString],
         valueParamCount: Int,
         expectedVisibility: Visibility,
         sourceFileID: FileID,
         sourceManager: SourceManager,
-        symbols: SymbolTable,
-        interner: StringInterner
+        symbols: SymbolTable
     ) -> SymbolID? {
         let isBundledSource = sourceManager.origin(of: sourceFileID)?.isBundledStdlib == true
-        let isAllowedOwner = ownerFQName == [interner.intern("kotlin"), interner.intern("Comparator")]
-        guard isBundledSource || isAllowedOwner else {
+        guard isBundledSource else {
             return nil
         }
 

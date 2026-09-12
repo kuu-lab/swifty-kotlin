@@ -5,6 +5,8 @@ public extension RuntimeABISpec {
     /// These are treated as non-throwing alongside spec-derived names until the
     /// symbols are added to the ABI spec.
     static let compilerInternalNonThrowingCalleeNames: Set<String> = [
+        "__kk_int_range_induction_add",
+        "__kk_int_range_induction_le",
         "kk_for_lowered",
         "kk_int_narrow",
         "kk_lambda_invoke",
@@ -26,6 +28,22 @@ public extension RuntimeABISpec {
         "kk_op_uplus",
         "kk_uint_narrow",
     ]
+
+    /// Callee names that NativeEmitter pattern-matches to direct LLVM ops or
+    /// aggregates accessors; they never become real call targets and are not
+    /// declared in `RuntimeABISpec.allFunctions`. The KIR verifier treats them
+    /// as resolvable so symbol-less calls to these builtins are not flagged.
+    static let compilerInternalBuiltinCalleeNames: Set<String> = [
+        "__kk_string_struct_get_length",
+        "kk_string_struct_get_length",
+        "length",
+    ]
+
+    /// Prefix of compiler-generated C link names for module functions
+    /// (`kk_fn_<name>_<symbolID>`, `s` marker for synthetic/negative symbols).
+    /// KIR calls may carry these names directly when a lowering pass rewrites
+    /// a call to the target's link name; they resolve at final link time.
+    static let compilerGeneratedLinkNamePrefix = "kk_fn_"
 
     /// All runtime callee symbol names that do not use the `outThrown` ABI lowering path.
     static var nonThrowingRuntimeCalleeNames: Set<String> {

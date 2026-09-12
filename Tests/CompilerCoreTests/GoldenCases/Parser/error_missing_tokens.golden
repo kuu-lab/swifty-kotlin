@@ -2,7 +2,7 @@ node kotlinFile f0:0..57
   node packageHeader f0:0..8
     tok keyword(package) f0:0..7
     tok missing(identifier()) f0:8..8
-  node funDecl f0:8..12
+  node funDecl f0:8..15
     tok keyword(fun) f0:8..11
     tok missing(identifier()) f0:12..12
     node block f0:12..15

@@ -99,10 +99,13 @@ final class PropertyLoweringPass: LoweringPass {
 
         module.arena.transformFunctions { function in
             var updated = function
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count)
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count)
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _) = instruction else {
                     // A top-level or object-member property with an
                     // initializer and a custom getter has a real global for
@@ -429,7 +432,7 @@ final class PropertyLoweringPass: LoweringPass {
         function: KIRFunction,
         sema: SemaModule,
         arena: KIRArena,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID] {
         guard let ownerSymbol = sema.symbols.parentSymbol(for: propertySymbol),
               sema.symbols.symbol(ownerSymbol) != nil,

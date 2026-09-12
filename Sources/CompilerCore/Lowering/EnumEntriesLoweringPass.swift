@@ -13,8 +13,11 @@ final class EnumEntriesLoweringPass: LoweringPass, ParallelLoweringPass {
         let entriesGetName = ctx.interner.intern("entries$get")
 
         module.arena.transformFunctions { function in
-            var newBody: [KIRInstruction] = []
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 // Match call/virtualCall where callee is "entries" or symbol is
                 // a property named "entries" owned by an enum class.
                 if let rewritten = self.rewriteEntriesAccess(

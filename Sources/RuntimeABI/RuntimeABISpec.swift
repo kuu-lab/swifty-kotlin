@@ -38,19 +38,24 @@ public struct RuntimeABIFunctionSpec: Equatable, Sendable {
     /// Whether the runtime callee may throw (Kotlin exception propagation via `outThrown`).
     /// Defaults to `true`; non-throwing callees omit the `outThrown` ABI lowering path.
     public let isThrowing: Bool
+    /// Whether the callee returns a raw 0/1 Boolean instead of a boxed Boolean handle.
+    /// When set, ABILoweringPass does not insert `kk_unbox_bool` on the call result.
+    public let returnsRawBoolean: Bool
 
     public init(
         name: String,
         parameters: [RuntimeABIParameter],
         returnType: RuntimeABICType,
         section: String,
-        isThrowing: Bool = true
+        isThrowing: Bool = true,
+        returnsRawBoolean: Bool = false
     ) {
         self.name = name
         self.parameters = parameters
         self.returnType = returnType
         self.section = section
         self.isThrowing = isThrowing
+        self.returnsRawBoolean = returnsRawBoolean
     }
 
     public var cDeclaration: String {
@@ -79,7 +84,7 @@ public enum RuntimeABISpec {
     public static let specVersion: String = {
         let canonical = allFunctions.map { spec in
             let params = spec.parameters.map { "\($0.name):\($0.type.rawValue)" }.joined(separator: ",")
-            return "\(spec.name)|\(spec.returnType.rawValue)|\(params)|\(spec.section)|\(spec.isThrowing)"
+            return "\(spec.name)|\(spec.returnType.rawValue)|\(params)|\(spec.section)|\(spec.isThrowing)|\(spec.returnsRawBoolean)"
         }.joined(separator: "\n")
         return SHA256.hex(Array(canonical.utf8))
     }()
@@ -123,6 +128,7 @@ public enum RuntimeABISpec {
         localeFunctions,
         mathFunctions,
         memoryFunctions,
+        nativeConcurrentFunctions,
         nativeRefFunctions,
         networkFunctions,
         numericRuntimeBridgeFunctions,

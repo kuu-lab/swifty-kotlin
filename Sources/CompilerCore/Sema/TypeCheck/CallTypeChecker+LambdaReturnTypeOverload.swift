@@ -121,6 +121,7 @@ extension CallTypeChecker {
                     candidates: candidates,
                     args: args,
                     inferredNonLambdaArgTypes: inferredNonLambdaArgTypes,
+                    receiverType: receiverType,
                     ctx: ctx
                 )
                 let expectedTypeCandidates = narrowedCandidates.isEmpty ? candidates : narrowedCandidates
@@ -311,7 +312,7 @@ extension CallTypeChecker {
         })
 
         if blockedLambdaRefinement, hasRefinementAnnotation || hasUnresolvableImplicitLambdaParameter {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
 
         let contextualExpectedType = overloadResolutionExpectedType(from: expectedType, sema: ctx.sema)
@@ -330,10 +331,10 @@ extension CallTypeChecker {
         // resolution is actually attempted (inputOnlyLambdaIndices is non-empty).
         // Running them earlier would incorrectly reject single-candidate calls.
         if functionParameterArgumentPositions.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
         if functionTypedArgumentIndices.count > 1, hasRefinementAnnotation {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: candidates, sema: ctx.sema)
         }
 
         let overloadResolutionExpectedType: TypeID? = nil
@@ -369,7 +370,7 @@ extension CallTypeChecker {
               let lambdaIndex = lambdaLiteralIndices.first,
               inputOnlyLambdaIndices.contains(lambdaIndex)
         else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
         // When all viable candidates share the same input-only HOF shape, the
         // apparent ambiguity is structural — not semantic. Fall back to the standard
@@ -388,7 +389,7 @@ extension CallTypeChecker {
         guard viableSymbols.contains(where: {
             hasOverloadResolutionByLambdaReturnTypeAnnotation(symbol: $0, sema: ctx.sema)
         }) else {
-            return ambiguousCallResult(range: range)
+            return ambiguousCallResult(range: range, candidateSymbols: viableSymbols, sema: ctx.sema)
         }
 
         let refinedCandidates = refineCandidatesByLambdaReturnType(
@@ -417,7 +418,7 @@ extension CallTypeChecker {
                 ctx: ctx.semaCtx
             )
         }
-        return ambiguousCallResult(range: range)
+        return ambiguousCallResult(range: range, candidateSymbols: refinedCandidates, sema: ctx.sema)
     }
 
     func overloadResolutionExpectedType(from expectedType: TypeID?, sema: SemaModule) -> TypeID? {
@@ -498,9 +499,25 @@ extension CallTypeChecker {
         candidates: [SymbolID],
         args: [CallArgument],
         inferredNonLambdaArgTypes: [Int: TypeID],
+        receiverType: TypeID?,
         ctx: TypeInferenceContext
     ) -> [SymbolID] {
         let sema = ctx.sema
+
+        // A candidate that declares an extension/member receiver can never be
+        // chosen when the call site has no receiver at all (explicit or
+        // implicit) -- Resolution.swift's buildReceiverConstraints rejects it
+        // outright in that case. Without pruning it here too, an unqualified
+        // call such as `measureTimedValue { ... }` still sees an unrelated
+        // same-named extension (e.g. `TimeSource.measureTimedValue`) as a live
+        // candidate for the lambda's expected type, corrupting it even though
+        // that extension can never actually be selected. A present-but-
+        // mismatched receiver is left to final resolution, unchanged.
+        let effectiveReceiverType = receiverType ?? ctx.implicitReceiverType
+        let candidates = effectiveReceiverType != nil
+            ? candidates
+            : candidates.filter { sema.symbols.functionSignature(for: $0)?.receiverType == nil }
+
         let narrowed = candidates.filter { candidate in
             guard let signature = sema.symbols.functionSignature(for: candidate),
                   isCallableArityCompatible(signature: signature, argCount: args.count)
@@ -1458,7 +1475,11 @@ extension CallTypeChecker {
         }
     }
 
-    private func ambiguousCallResult(range: SourceRange) -> ResolvedCall {
+    private func ambiguousCallResult(
+        range: SourceRange,
+        candidateSymbols: [SymbolID],
+        sema: SemaModule
+    ) -> ResolvedCall {
         ResolvedCall(
             chosenCallee: nil,
             substitutedTypeArguments: [:],
@@ -1468,7 +1489,7 @@ extension CallTypeChecker {
                 code: "KSWIFTK-SEMA-0003",
                 message: "Ambiguous overload resolution.",
                 primaryRange: range,
-                secondaryRanges: []
+                secondaryRanges: sema.symbols.sortedDeclSites(of: candidateSymbols)
             )
         )
     }

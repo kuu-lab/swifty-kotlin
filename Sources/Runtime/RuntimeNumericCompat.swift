@@ -175,6 +175,17 @@ private func runtimeStringHashCode(_ value: String) -> Int {
     }
 }
 
+// Kotlin Set.hashCode() is the order-independent sum of its element hashes.
+// Keep this aligned with RuntimeSetBox equality so sets that contain the same
+// elements in different insertion orders have identical hashes.
+private func runtimeSetHashCode(_ set: RuntimeSetBox) -> Int {
+    var hash: Int32 = 0
+    for element in set.elements {
+        hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
+    }
+    return Int(hash)
+}
+
 /// `(this xor (this ushr 32)).toInt()` — the formula behind Long/ULong/Double
 /// `.hashCode()`, applied to the value's full 64-bit bit pattern. A Swift
 /// arithmetic `>>` sign-extends instead of Kotlin's logical `ushr`, but the
@@ -213,6 +224,10 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     default:
         return value
     }
+}
+
+private func runtimeStoredValueHash(_ value: RuntimeValue) -> Int {
+    kk_any_hashCode(value.legacyRawValue, Int(value.anyFallbackTag))
 }
 
 private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
@@ -294,11 +309,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return Int(hash)
     }
     if let setBox = tryCast(pointer, to: RuntimeSetBox.self) {
-        var hash: Int32 = 0
-        for element in setBox.elements {
-            hash = hash &+ Int32(truncatingIfNeeded: runtimeValueHash(element))
-        }
-        return Int(hash)
+        return runtimeSetHashCode(setBox)
     }
     if let mapBox = tryCast(pointer, to: RuntimeMapBox.self) {
         var hash: Int32 = 0
@@ -347,20 +358,24 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
                 hash &+ kk_any_hashCode(element.legacyRawValue, 0)
             }
         }
+        if runtimeIsDataClass(classID: objBox.classID) {
+            // The first two slots are the runtime object header. Data-class
+            // constructor fields are the tagged slots that follow it; plain
+            // inherited fields remain untagged and are not part of the
+            // compiler-synthesized data-class hash contract.
+            let fields = objBox.values.dropFirst(2).filter { $0.anyFallbackTag != 0 }
+            guard let firstField = fields.first else {
+                return 0
+            }
+            var hash = Int32(truncatingIfNeeded: runtimeStoredValueHash(firstField))
+            for field in fields.dropFirst() {
+                hash = 31 &* hash &+ Int32(truncatingIfNeeded: runtimeStoredValueHash(field))
+            }
+            return Int(hash)
+        }
+
         var hash = Int(truncatingIfNeeded: objBox.classID)
         for element in objBox.elements {
-            // KNOWN LIMITATION: RuntimeObjectBox.elements has no per-field type
-            // tag, so a raw (unboxed) Boolean field hashes as tag 0 here — its
-            // 0/1 value — instead of tag 2's Kotlin-standard 1231/1237. That
-            // mismatches the compiler-synthesized data-class hashCode() (which
-            // does know each field's declared type; see
-            // appendSyntheticDataClassHashCodeIfNeeded), so the same instance's
-            // hashCode() can differ between a direct call and this Any-erased
-            // fallback for a Boolean field. A real fix needs per-field type
-            // tags stored alongside RuntimeObjectBox's elements (a broader
-            // change to object allocation), tracked as a follow-up rather than
-            // rushed here; equal-by-content instances still hash equally to
-            // each other through this same fallback path.
             hash = 31 &* hash &+ kk_any_hashCode(element, 0)
         }
         return hash

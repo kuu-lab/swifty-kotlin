@@ -477,6 +477,17 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String"
         ),
+        RuntimeABIFunctionSpec(
+            name: "kk_char_sequence_subSequence",
+            parameters: [
+                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
+                RuntimeABIParameter(name: "startIndex", type: .intptr),
+                RuntimeABIParameter(name: "endIndex", type: .intptr),
+                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
+            ],
+            returnType: .intptr,
+            section: "String"
+        ),
         flatStringHOFReturnSpec(name: "kk_string_trim_predicate_flat"),
         RuntimeABIFunctionSpec(
             name: "kk_string_lowercase",
@@ -1712,25 +1723,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "String",
             isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_random",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_string_random_random",
-            parameters: [
-                RuntimeABIParameter(name: "strRaw", type: .intptr),
-                RuntimeABIParameter(name: "randomRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "String"
         ),
         // KSP-406: replaceRange_indices/slice_iterable/slice_range removed;
         // now bundled Kotlin source (StringSubstringSlice.kt).

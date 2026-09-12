@@ -206,23 +206,6 @@ extension CallLowerer {
         )
     }
 
-    /// KSP-611: a member of an interface imported from a compiled library carries the
-    /// link name of the body emitted for it in that library. For an abstract member that
-    /// body is an empty stub, so honouring the link name would silently call nothing;
-    /// interface members must dispatch through the receiver's itable instead. A
-    /// source-backed interface declaration may instead carry a private runtime bridge
-    /// such as `__kk_string_builder_append_obj`; that link is the actual implementation
-    /// and must stay on direct dispatch, just like a synthetic runtime bridge.
-    func isImportedInterfaceMember(_ callee: SymbolID, sema: SemaModule) -> Bool {
-        guard let calleeSymbol = sema.symbols.symbol(callee),
-              calleeSymbol.flags.contains(.importedLibrary),
-              let parentID = sema.symbols.parentSymbol(for: callee),
-              let parentSymbol = sema.symbols.symbol(parentID)
-        else { return false }
-        return parentSymbol.kind == .interface
-            && Self.isSourceBackedLinkName(sema.symbols.externalLinkName(for: callee))
-    }
-
     /// Callees bridged to a C runtime function (such as kk_array_get) are
     /// normally not dispatched virtually; see `kirIsRuntimeBridgedCallee`.
     func tryEmitVirtualDispatch(
@@ -256,13 +239,20 @@ extension CallLowerer {
         // those symbols through an itable is invalid for the built-in runtime
         // collection boxes; only source-backed/internal links may use virtual
         // dispatch here. A source-backed ListIterator's inherited Iterator
-        // methods are the deliberate exception because they must use the
-        // implementation's inherited itable slots. Clock bridges are another
-        // deliberate exception: their receiver is represented by a
-        // runtime-backed virtual object.
+        // methods and Iterator bridges on source-backed class receivers are
+        // deliberate exceptions because they must use the implementation's
+        // itable slots. Clock bridges are another deliberate exception: their
+        // receiver is represented by a runtime-backed virtual object.
+        let usesIteratorRuntimeVirtualBridge = isIteratorRuntimeVirtualBridge(
+            chosenCallee,
+            receiverTypeID: receiverTypeForDispatch,
+            sema: sema,
+            interner: interner
+        )
         guard listIteratorInheritedDispatch != nil
             || !kirIsRuntimeBridgedCallee(chosenCallee, sema: sema)
             || isClockRuntimeVirtualBridge(chosenCallee, sema: sema)
+            || usesIteratorRuntimeVirtualBridge
         else { return nil }
         guard let dispatchKind = resolveVirtualDispatch(
             callee: dispatchCallee, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner
@@ -273,9 +263,12 @@ extension CallLowerer {
         {
             vcArguments.removeFirst()
         }
+        let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+            ? (sema.symbols.symbol(chosenCallee)?.name ?? calleeName)
+            : calleeName
         return .virtualCall(
-            symbol: dispatchCallee,
-            callee: calleeName,
+            symbol: usesIteratorRuntimeVirtualBridge ? chosenCallee : dispatchCallee,
+            callee: virtualCalleeName,
             receiver: loweredReceiverID,
             arguments: vcArguments,
             result: result,
@@ -295,6 +288,14 @@ extension CallLowerer {
         sema: SemaModule,
         interner: StringInterner
     ) -> InternedString {
+        if let sequenceBuilderCallee = sequenceBuilderRuntimeCalleeName(
+            chosenCallee: chosenCallee,
+            calleeName: fallback,
+            sema: sema,
+            interner: interner
+        ) {
+            return sequenceBuilderCallee
+        }
         let callArgumentCount = sourceArgumentCount ?? argumentCount
         let fallbackName = interner.resolve(fallback)
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
