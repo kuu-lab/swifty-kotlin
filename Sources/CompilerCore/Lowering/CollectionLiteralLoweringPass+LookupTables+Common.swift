@@ -69,9 +69,7 @@ struct CommonLookupNames {
     let associateWithToName: InternedString
     let groupByToName: InternedString
     let mapValuesName: InternedString
-    let mapValuesToName: InternedString
     let mapKeysName: InternedString
-    let mapKeysToName: InternedString
     let filterKeysName: InternedString
     let filterValuesName: InternedString
     let zipName: InternedString
@@ -235,9 +233,7 @@ struct CommonLookupNames {
         associateWithToName = interner.intern("associateWithTo")
         groupByToName = interner.intern("groupByTo")
         mapValuesName = interner.intern("mapValues")
-        mapValuesToName = interner.intern("mapValuesTo")
         mapKeysName = interner.intern("mapKeys")
-        mapKeysToName = interner.intern("mapKeysTo")
         filterKeysName = interner.intern("filterKeys")
         filterValuesName = interner.intern("filterValues")
         zipName = interner.intern("zip")

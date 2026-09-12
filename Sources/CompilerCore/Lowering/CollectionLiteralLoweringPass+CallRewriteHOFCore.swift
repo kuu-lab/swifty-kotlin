@@ -14,7 +14,7 @@ extension CollectionLiteralConstructionLoweringPass {
     // --- Rewrite higher-order collection member calls (FUNC-003) ---
     if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.mapNotNullName || callee == lookup.forEachName || callee == lookup.onEachName
         || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.anyName || callee == lookup.noneName
-        || callee == lookup.allName || callee == lookup.mapValuesName || callee == lookup.mapKeysName
+        || callee == lookup.allName
         || callee == lookup.toListName || callee == lookup.countName
     {
         if let rewrite = rewriteCollectionHOFCall(
@@ -77,8 +77,6 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             if state.mapExprIDs.contains(receiverID.rawValue),
                callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-               || callee == lookup.mapValuesName || callee == lookup.mapKeysName
-               || callee == lookup.filterKeysName || callee == lookup.filterValuesName
                || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
                || callee == lookup.anyName || callee == lookup.allName
                || callee == lookup.noneName
@@ -107,11 +105,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     state.listExprIDs.insert(result.rawValue)
                     state.listExprIDs.insert(hofResult.rawValue)
                 }
-                if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
-                    state.mapExprIDs.insert(result.rawValue)
-                    state.mapExprIDs.insert(hofResult.rawValue)
-                }
-                if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
+                if callee == lookup.filterName || callee == lookup.filterNotName, let result {
                     state.mapExprIDs.insert(result.rawValue)
                     state.mapExprIDs.insert(hofResult.rawValue)
                 }
