@@ -342,7 +342,7 @@ extension ABILoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         boxingCalleeTable: BoxingCalleeTable,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         // Literal expressions hold raw (never-boxed) values. Inserting kk_unbox_long
         // on a raw Long.MIN_VALUE literal would hit the null-sentinel path and return 0.
@@ -399,7 +399,7 @@ extension ABILoweringPass {
         types: TypeSystem,
         symbols: SymbolTable?,
         boxingCalleeTable: BoxingCalleeTable,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         if let expr = module.arena.expr(operand) {
             switch expr {

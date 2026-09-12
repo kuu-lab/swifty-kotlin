@@ -84,7 +84,7 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                 kk_object_new: kk_object_new,
                 kk_array_get_inbounds: kk_array_get_inbounds
             )
-            updated.replaceBody(newBody)
+            updated.replaceBody(newBody, locations: function.instructionLocations)
             return updated
         }
 
@@ -266,6 +266,13 @@ final class ValueClassUnboxingPass: LoweringPass, ParallelLoweringPass {
                    isValueClassExpr(arguments[0], arena: arena, types: types, valueClassSymbols: valueClassSymbols)
                 {
                     result.append(.copy(from: arguments[0], to: callResult))
+                    continue
+                }
+                // Remove auxiliary calls that consume the removed value-class
+                // allocation (e.g. kk_object_register_any_to_string): the
+                // unboxed value has no heap object to register.
+                if let objectArg = arguments.first, allocExprs.contains(objectArg) {
+                    result.append(.nop)
                     continue
                 }
                 result.append(.call(

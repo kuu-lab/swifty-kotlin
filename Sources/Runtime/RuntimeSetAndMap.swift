@@ -71,17 +71,17 @@ public func kk_set_size(_ setRaw: Int) -> Int {
 @_cdecl("__kk_set_contains")
 public func kk_set_contains(_ setRaw: Int, _ element: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
-    return kk_box_bool(set.contains(rawValue: element) ? 1 : 0)
+    return set.contains(rawValue: element) ? 1 : 0
 }
 
 @_cdecl("__kk_set_is_empty")
 public func kk_set_is_empty(_ setRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(1)
+        return 1
     }
-    return kk_box_bool(set.isEmpty ? 1 : 0)
+    return set.isEmpty ? 1 : 0
 }
 
 @_cdecl("__kk_set_to_string")
@@ -170,21 +170,21 @@ public func kk_mutable_set_add(
 ) -> Int {
     outThrown?.pointee = 0
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
     guard !set.isReadOnly else {
         outThrown?.pointee = runtimeAllocateUnsupportedOperationException(message: nil)
-        return kk_box_bool(0)
+        return 0
     }
-    return kk_box_bool(set.insert(rawValue: elem) ? 1 : 0)
+    return set.insert(rawValue: elem) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_remove")
 public func kk_mutable_set_remove(_ setRaw: Int, _ elem: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
-    return kk_box_bool(set.remove(rawValue: elem) ? 1 : 0)
+    return set.remove(rawValue: elem) ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_clear")
@@ -214,7 +214,7 @@ public func kk_mutable_set_addAll_iterable(_ setRaw: Int, _ iterableRaw: Int) ->
 @_cdecl("__kk_mutable_set_removeAll")
 public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
     let collectionElements: [Int]
     if let collection = runtimeListBox(from: collectionRaw) {
@@ -222,19 +222,19 @@ public func kk_mutable_set_removeAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     } else if let collection = runtimeSetBox(from: collectionRaw) {
         collectionElements = collection.elements
     } else {
-        return kk_box_bool(0)
+        return 0
     }
     let originalCount = set.count
     _ = set.removeAll { elem in
         collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
     }
-    return kk_box_bool(set.count != originalCount ? 1 : 0)
+    return set.count != originalCount ? 1 : 0
 }
 
 @_cdecl("__kk_mutable_set_retainAll")
 public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int {
     guard let set = runtimeSetBox(from: setRaw) else {
-        return kk_box_bool(0)
+        return 0
     }
     let collectionElements: [Int]
     if let collection = runtimeListBox(from: collectionRaw) {
@@ -242,13 +242,13 @@ public func kk_mutable_set_retainAll(_ setRaw: Int, _ collectionRaw: Int) -> Int
     } else if let collection = runtimeSetBox(from: collectionRaw) {
         collectionElements = collection.elements
     } else {
-        return kk_box_bool(0)
+        return 0
     }
     let originalCount = set.count
     _ = set.removeAll { elem in
         !collectionElements.contains(where: { runtimeValuesEqual($0, elem.legacyRawValue) })
     }
-    return kk_box_bool(set.count != originalCount ? 1 : 0)
+    return set.count != originalCount ? 1 : 0
 }
 
 // MARK: - Map Functions (STDLIB-001)
@@ -484,11 +484,11 @@ public func kk_mutable_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         if let sourceSize = runtimeSourceMapSize(mapRaw) {
-            return kk_box_bool(sourceSize == 0 ? 1 : 0)
+            return sourceSize == 0 ? 1 : 0
         }
-        return kk_box_bool(1)
+        return 1
     }
-    return kk_box_bool(map.isEmpty ? 1 : 0)
+    return map.isEmpty ? 1 : 0
 }
 
 @_cdecl("__kk_map_entries")
@@ -500,6 +500,22 @@ public func kk_map_entries(_ mapRaw: Int) -> Int {
         runtimeMapEntryNew(key: key, value: value)
     }
     return registerRuntimeObject(RuntimeSetBox(elements: entries))
+}
+
+@_cdecl("__kk_map_keys")
+public func kk_map_keys(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return registerRuntimeObject(RuntimeSetBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(map.keys)))
+}
+
+@_cdecl("__kk_map_values")
+public func kk_map_values(_ mapRaw: Int) -> Int {
+    guard let map = runtimeMapBox(from: mapRaw) else {
+        return registerRuntimeObject(RuntimeListBox(elements: []))
+    }
+    return registerRuntimeObject(RuntimeListBox(elements: map.values))
 }
 
 @_cdecl("__kk_map_iterator")

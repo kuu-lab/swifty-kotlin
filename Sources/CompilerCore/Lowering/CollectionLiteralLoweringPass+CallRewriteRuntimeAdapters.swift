@@ -12,7 +12,7 @@ extension CollectionLiteralConstructionLoweringPass {
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // --- sortedWith with Comparator argument (STDLIB-649) ---
         // When kk_list_sortedWith is emitted as a .call (from synthetic stub),

@@ -26,7 +26,7 @@ extension CollectionLiteralLoweringSupport {
         windowedArguments: [KIRExprID],
         module: KIRModule,
         sema: SemaModule?,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> [KIRExprID]? {
         guard windowedArguments.count >= 2 else {
             return nil
@@ -94,7 +94,7 @@ extension CollectionLiteralLoweringSupport {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
     if callee == lookup.associateByName,
        arguments.count == 4 || arguments.count == 5,

@@ -1,5 +1,5 @@
-node kotlinFile f0:0..285
-  node funDecl f0:0..16
+node kotlinFile f0:0..383
+  node funDecl f0:0..129
     tok keyword(fun) f0:0..3
     tok identifier(labeledBreak) f0:4..16
     node statement f0:16..18
@@ -46,7 +46,7 @@ node kotlinFile f0:0..285
               tok symbol(}) f0:120..121
           tok symbol(}) f0:126..127
       tok symbol(}) f0:128..129
-  node funDecl f0:131..150
+  node funDecl f0:131..266
     tok keyword(fun) f0:131..134
     tok identifier(labeledContinue) f0:135..150
     node statement f0:150..152
@@ -93,7 +93,7 @@ node kotlinFile f0:0..285
               tok symbol(}) f0:257..258
           tok symbol(}) f0:263..264
       tok symbol(}) f0:265..266
-  node funDecl f0:268..285
+  node funDecl f0:268..383
     tok keyword(fun) f0:268..271
     tok identifier(labeledReturn) f0:272..285
     node statement f0:285..287

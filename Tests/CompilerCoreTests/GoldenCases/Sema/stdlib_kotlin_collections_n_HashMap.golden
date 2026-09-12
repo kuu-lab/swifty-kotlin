@@ -5,7 +5,6 @@ symbol fq=__local_3.withLoadFactor[kind=local] kind=local vis=private flags=_ ty
 symbol fq=__local_4.copy[kind=local] kind=local vis=private flags=_ type=kotlin.collections.HashMap<String, Int>
 symbol fq=acceptsHashMap.$0.map[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=acceptsHashMap[kind=fun;params=kotlin.collections.HashMap<String,Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.collections.HashMap<String, Int>] ret=kotlin.collections.MutableMap<String, Int>
-symbol fq=kotlin.collections.MutableMap[kind=iface;gen=2] kind=interface vis=public flags=synthetic
 symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
 file fstdlib_kotlin_collections_n_HashMap package=_
   decl acceptsHashMap[kind=fun;params=kotlin.collections.HashMap<String,Int>] fun acceptsHashMap sym=acceptsHashMap[kind=fun;params=kotlin.collections.HashMap<String,Int>]
@@ -35,7 +34,7 @@ expr e@11:16 call callee=e@11:16#1 args=[_:e@11:24] type=kotlin.collections.Hash
 expr e@11:5 localDecl copy mutable=0 type=_ init=e@11:16 type=Unit ref=__local_4.copy[kind=local]
 expr e@12:28 name(copy) type=kotlin.collections.HashMap<String, Int> ref=__local_4.copy[kind=local]
 expr e@12:13 call callee=e@12:13#1 args=[_:e@12:28] type=kotlin.collections.MutableMap<String, Int> call=acceptsHashMap[kind=fun;params=kotlin.collections.HashMap<String,Int>]
-expr e@12:13#2 memberCall recv=e@12:13 callee=size args=[] type=Int
+expr e@12:13#2 memberCall recv=e@12:13 callee=size args=[] type=Int ref=kotlin.collections.Map.size[kind=prop]
 expr e@12:5 call callee=e@12:5#1 args=[_:e@12:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
 expr e@13:13 name(withCapacity) type=kotlin.collections.HashMap<String, Int> ref=__local_2.withCapacity[kind=local]
 expr e@13:13#1 memberCall recv=e@13:13 callee=size args=[] type=Int ref=kotlin.collections.HashMap.size[kind=prop]

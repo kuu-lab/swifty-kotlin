@@ -813,8 +813,18 @@ extension CallLowerer {
         }
 
         // Lower arguments only on the non-null path.
-        let loweredArgIDs = args.map { argument in
-            driver.lowerExpr(
+        let loweredArgIDs = args.enumerated().map { argumentIndex, argument in
+            let previousAllowance = driver.ctx.pendingLambdaNonLocalReturnAllowance
+            driver.ctx.pendingLambdaNonLocalReturnAllowance = allowsNonLocalReturn(
+                argumentExpr: argument.expr,
+                argumentIndex: argumentIndex,
+                ast: ast,
+                sema: sema,
+                callBinding: callBinding,
+                chosen: chosen
+            )
+            defer { driver.ctx.pendingLambdaNonLocalReturnAllowance = previousAllowance }
+            return driver.lowerExpr(
                 argument.expr,
                 shared: shared, emit: &instructions
             )
@@ -829,9 +839,19 @@ extension CallLowerer {
         var finalArguments = safeNormalized.arguments
         if let chosen,
            let signature = sema.symbols.functionSignature(for: chosen),
-           signature.receiverType != nil
+           let declaredReceiverType = signature.receiverType
         {
-            finalArguments.insert(loweredReceiverID, at: 0)
+            var receiverArgument = loweredReceiverID
+            if safeReceiverType != nonNullSafeReceiverType,
+               case .primitive(_, .nonNull) = sema.types.kind(of: declaredReceiverType)
+            {
+                // The null branch has exited. ABI argument adaptation skips
+                // the receiver slot, so expose this boundary as a typed copy
+                // to unbox nullable primitives before calling their member.
+                receiverArgument = arena.appendTemporary(type: declaredReceiverType)
+                instructions.append(.copy(from: loweredReceiverID, to: receiverArgument))
+            }
+            finalArguments.insert(receiverArgument, at: 0)
         } else if chosen == nil {
             let calleeStr = interner.resolve(effectiveCalleeName)
             if Self.unresolvedCoroutineHandleMemberNames.contains(calleeStr), isCoroutineReceiver {
@@ -842,7 +862,7 @@ extension CallLowerer {
         // Safe-call collection fallback can resolve the source-backed
         // joinToString declaration without retaining its default-value flags.
         // In that case normalizedCallArguments leaves zero sentinels for the
-        // omitted String parameters, which become literal `null` at runtime.
+        // omitted parameters, including the limit and truncation marker.
         // Recover the mask from the source call labels and materialize the
         // Kotlin defaults before emitting the direct source-backed call.
         let sourceBackedJoinToStringMask: Int64 = {
@@ -993,9 +1013,19 @@ extension CallLowerer {
             }
             let receiverTypeForDispatch = sema.bindings.exprTypes[receiverExpr]
             let hasExternalLink = chosen.map { kirIsRuntimeBridgedCallee($0, sema: sema) } ?? false
+            let usesIteratorRuntimeVirtualBridge = chosen.map {
+                isIteratorRuntimeVirtualBridge(
+                    $0,
+                    receiverTypeID: receiverTypeForDispatch,
+                    sema: sema,
+                    interner: interner
+                )
+            } ?? false
             if !isSuperCall,
                let chosen,
-               (!hasExternalLink || isClockRuntimeVirtualBridge(chosen, sema: sema)),
+               (!hasExternalLink
+                   || isClockRuntimeVirtualBridge(chosen, sema: sema)
+                   || usesIteratorRuntimeVirtualBridge),
                let dispatchKind = resolveVirtualDispatch(callee: chosen, receiverTypeID: receiverTypeForDispatch, sema: sema, interner: interner)
             {
                 var vcArguments = finalArguments
@@ -1005,9 +1035,12 @@ extension CallLowerer {
                 {
                     vcArguments.removeFirst()
                 }
+                let virtualCalleeName = usesIteratorRuntimeVirtualBridge
+                    ? (sema.symbols.symbol(chosen)?.name ?? resolvedCalleeName)
+                    : resolvedCalleeName
                 instructions.append(.virtualCall(
                     symbol: chosen,
-                    callee: resolvedCalleeName,
+                    callee: virtualCalleeName,
                     receiver: loweredReceiverID,
                     arguments: vcArguments,
                     result: result,
@@ -1049,6 +1082,30 @@ extension CallLowerer {
         guard sema.symbols.externalLinkName(for: callee) == "kk_clock_now",
               let parentID = sema.symbols.parentSymbol(for: callee),
               sema.symbols.symbol(parentID)?.kind == .interface
+        else { return false }
+        return true
+    }
+
+    /// Iterator's runtime links also back the source-declared Iterator
+    /// interface. A source-backed class receiver still needs its itable so an
+    /// override such as CharSequenceCharIterator.hasNext() is not bypassed.
+    /// Runtime collection iterator boxes keep the direct bridge because their
+    /// static receiver type is the Iterator interface or a type parameter.
+    func isIteratorRuntimeVirtualBridge(
+        _ callee: SymbolID,
+        receiverTypeID: TypeID?,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let linkName = sema.symbols.externalLinkName(for: callee),
+              linkName == "kk_iterator_hasNext" || linkName == "kk_iterator_next",
+              let parentID = sema.symbols.parentSymbol(for: callee),
+              let parentSymbol = sema.symbols.symbol(parentID),
+              parentSymbol.kind == .interface,
+              parentSymbol.fqName.map(interner.resolve) == ["kotlin", "collections", "Iterator"],
+              let receiverTypeID,
+              case let .classType(receiverClassType) = sema.types.kind(of: sema.types.makeNonNullable(receiverTypeID)),
+              sema.symbols.symbol(receiverClassType.classSymbol)?.kind == .class
         else { return false }
         return true
     }

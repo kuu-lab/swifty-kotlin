@@ -179,6 +179,19 @@ enum SyntheticSymbolScheme {
         decode(symbol)?.kind == .setter
     }
 
+    /// Synthetic kinds that legally appear as `.call` targets: property
+    /// accessors and `$default` stubs are emitted as module functions (or
+    /// resolved by codegen name matching) even though they are never
+    /// registered in the symbol table. Used by the KIR verifier.
+    static func isSyntheticCallTarget(_ symbol: SymbolID) -> Bool {
+        switch decode(symbol)?.kind {
+        case .getter, .setter, .stub:
+            true
+        default:
+            false
+        }
+    }
+
     /// Reverse of the property accessor constructors: recovers the original
     /// property symbol from either a synthetic getter or setter accessor.
     static func originalPropertySymbolFromAccessor(_ accessor: SymbolID) -> SymbolID {

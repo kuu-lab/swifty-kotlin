@@ -10,7 +10,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
     // toMutableList() on array → kk_array_toMutableList (STDLIB-087)
     if callee == lookup.toMutableListName, arguments.count == 1 {
