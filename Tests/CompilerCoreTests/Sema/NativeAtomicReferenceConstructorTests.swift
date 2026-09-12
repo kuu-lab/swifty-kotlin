@@ -50,7 +50,7 @@ struct NativeAtomicReferenceConstructorTests {
         ))))
         let sourceFile = try #require(sema.symbols.sourceFileID(for: owner))
         #expect(constructorInfo.declSite?.start.file == sourceFile)
-        #expect(ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/native/concurrent/AtomicReference/Stdlib.kt")
+        #expect(ctx.sourceManager.path(of: sourceFile) == "__bundled_kotlin/native/concurrent/Atomics.kt")
     }
 }
 #endif
