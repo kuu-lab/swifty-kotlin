@@ -154,6 +154,22 @@ private func runGoldenTests(suiteName: String, batch: GoldenHarnessCaseBatch) th
     )
 
     for (caseFile, result) in zip(batch.cases, results) {
+        if let specErrorDescription = caseFile.specErrorDescription {
+            Issue.record("Invalid .golden-spec for \(caseFile.basename): \(specErrorDescription)")
+            continue
+        }
+        // RF-GOLDEN-012: the profile a spec pins must be the profile the
+        // worker actually ran with — a silent downgrade would verify the
+        // golden against a different stdlib surface than the spec records.
+        let expectedProfile = caseFile.spec?.stdlibProfile?.rawValue
+        if result.resolvedProfile != expectedProfile {
+            let specProfile = expectedProfile ?? "implicit"
+            let workerProfile = result.resolvedProfile ?? "implicit"
+            Issue.record(
+                "Resolved stdlib profile mismatch for \(caseFile.basename): spec expects \(specProfile), worker ran \(workerProfile)"
+            )
+            continue
+        }
         if let errorDescription = result.errorDescription {
             Issue.record("Golden worker failed for \(caseFile.basename): \(errorDescription)")
             continue

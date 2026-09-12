@@ -1381,6 +1381,23 @@ func runtimeInvokeClosureThunk(
     return fn(closureRaw, outThrown)
 }
 
+/// Like `runtimeInvokeClosureThunk`, but tolerates `fnPtr` arriving as a
+/// `kk_function_create_0`-wrapped function-value handle instead of a raw,
+/// directly-callable function pointer — see `resolveFunctionValuePair`. Kept
+/// as a defensive pairing for zero-arg native bridges alongside
+/// `kk_worker_execute`'s job half (see the comment at its call site), which
+/// is the confirmed instance of this ABI boundary receiving a wrapped
+/// handle.
+@inline(__always)
+func runtimeInvokeClosureThunkMaybeWrapped(
+    fnPtr: Int,
+    closureRaw: Int,
+    outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    let resolved = resolveFunctionValuePair(fnPtr: fnPtr, closureRaw: closureRaw)
+    return runtimeInvokeClosureThunk(fnPtr: resolved.fnPtr, closureRaw: resolved.closureRaw, outThrown: outThrown)
+}
+
 func runtimeCompareValues(_ lhs: Int, _ rhs: Int) -> Int {
     if lhs == rhs {
         return 0
