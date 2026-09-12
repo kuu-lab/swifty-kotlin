@@ -4626,7 +4626,8 @@
     - `kotlin.text.foldRight` — fun CharSequence.foldRight(, Function2): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRight(#A, kotlin/Function2<kotlin/Char, #A, #A>): #A`
     - `kotlin.text.foldRightIndexed` — fun CharSequence.foldRightIndexed(, Function3): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRightIndexed(#A, kotlin/Function3<kotlin/Int, kotlin/Char, #A, #A>): #A`
 
-- [ ] KSP-1377: kotlin.text.CharSequence.for-family の未実装 stdlib API を実装する（2 件）
+- [~] KSP-1377: kotlin.text.CharSequence.for-family の未実装 stdlib API を実装する（2 件）
+  - 実装中: Kotlin source の `forEach` / `forEachIndexed` と UTF-16、動的 `CharSequence` length/get、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `for`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4891,7 +4892,8 @@
   - 未実装シンボル一覧:
     - `kotlin.text.reversed` — fun CharSequence.reversed(): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/reversed(): kotlin/CharSequence`
 
-- [ ] KSP-1397: kotlin.text.CharSequence.running-family の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1397: kotlin.text.CharSequence.running-family の未実装 stdlib API を実装する（4 件）
+  - 実装中: Kotlin source の runningFold / runningFoldIndexed / runningReduce / runningReduceIndexed と generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `running`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -4904,7 +4906,8 @@
     - `kotlin.text.runningReduce` — fun CharSequence.runningReduce(Function2): List  -- `final inline fun (kotlin/CharSequence).kotlin.text/runningReduce(kotlin/Function2<kotlin/Char, kotlin/Char, kotlin/Char>): kotlin.collections/List<kotlin/Char>`
     - `kotlin.text.runningReduceIndexed` — fun CharSequence.runningReduceIndexed(Function3): List  -- `final inline fun (kotlin/CharSequence).kotlin.text/runningReduceIndexed(kotlin/Function3<kotlin/Int, kotlin/Char, kotlin/Char, kotlin/Char>): kotlin.collections/List<kotlin/Char>`
 
-- [ ] KSP-1398: kotlin.text.CharSequence.scan-family の未実装 stdlib API を実装する（2 件）
+- [~] KSP-1398: kotlin.text.CharSequence.scan-family の未実装 stdlib API を実装する（2 件）
+  - 実装中: Kotlin source の scan / scanIndexed を runningFold / runningFoldIndexed へ委譲し、generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `scan`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

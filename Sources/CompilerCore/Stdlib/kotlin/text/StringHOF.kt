@@ -762,6 +762,98 @@ public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int,
     return accumulator
 }
 
+public inline fun CharSequence.forEach(action: (Char) -> Unit): Unit {
+    // Read length and get through the CharSequence interface on every iteration.
+    var index = 0
+    while (index < this.length) {
+        action(this[index])
+        index++
+    }
+}
+
+public inline fun CharSequence.forEachIndexed(action: (index: Int, Char) -> Unit): Unit {
+    var index = 0
+    while (index < this.length) {
+        action(index, this[index])
+        index++
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <R> CharSequence.runningFold(initial: R, operation: (acc: R, Char) -> R): List<R> {
+    if (this.length == 0) return listOf(initial)
+    // Box primitive accumulators before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length + 1)
+    result.add(initial)
+    var accumulator = initial
+    var index = 0
+    while (index < this.length) {
+        accumulator = operation(accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<R>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <R> CharSequence.runningFoldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): List<R> {
+    if (this.length == 0) return listOf(initial)
+    // Box primitive accumulators before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length + 1)
+    result.add(initial)
+    var accumulator = initial
+    var index = 0
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<R>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun CharSequence.runningReduce(operation: (acc: Char, Char) -> Char): List<Char> {
+    if (this.length == 0) return emptyList()
+    var accumulator = this[0]
+    // Box primitive values before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length)
+    result.add(accumulator)
+    var index = 1
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<Char>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun CharSequence.runningReduceIndexed(operation: (index: Int, acc: Char, Char) -> Char): List<Char> {
+    if (this.length == 0) return emptyList()
+    var accumulator = this[0]
+    // Box primitive values before crossing the generic List element boundary.
+    val result = ArrayList<Any?>(this.length)
+    result.add(accumulator)
+    var index = 1
+    val end = this.length
+    while (index < end) {
+        accumulator = operation(index, accumulator, this[index])
+        result.add(accumulator)
+        index++
+    }
+    return result as List<Char>
+}
+
+public inline fun <R> CharSequence.scan(initial: R, operation: (acc: R, Char) -> R): List<R> {
+    return runningFold(initial, operation)
+}
+
+public inline fun <R> CharSequence.scanIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): List<R> {
+    return runningFoldIndexed(initial, operation)
+}
+
 // KSP-1366: CharSequence association functions are source-backed. The
 // explicit index walk keeps CharSequence receiver dispatch and the source
 // implementation visible to the compiler while matching the standard map
