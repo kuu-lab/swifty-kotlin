@@ -186,11 +186,15 @@ extension KotlinParser {
         }
 
         if case .symbol(.lParen) = stream.peek().kind {
-            children.append(.node(parseBalancedGroup(opening: .lParen, closing: .rParen)))
+            let params = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(params))
+            range.append(childRange(.node(params)))
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {
-            children.append(.node(parseBlock()))
+            let body = parseBlock()
+            children.append(.node(body))
+            range.append(childRange(.node(body)))
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
         }
@@ -219,7 +223,9 @@ extension KotlinParser {
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {
-            children.append(.node(parseBlock()))
+            let body = parseBlock()
+            children.append(.node(body))
+            range.append(childRange(.node(body)))
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
             // In Kotlin, `get()`/`set()` accessors and explicit backing field
@@ -324,7 +330,9 @@ extension KotlinParser {
         }
 
         if case .symbol(.lBrace) = stream.peek().kind {
-            children.append(.node(parseEnumBody()))
+            let body = parseEnumBody()
+            children.append(.node(body))
+            range.append(childRange(.node(body)))
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
         }

@@ -77,7 +77,8 @@
       "code": "KSWIFTK-TYPE-0001",
       "source": "kswiftk",
       "message": "Type constraint could not be satisfied.",
-      "codeActions": []
+      "codeActions": [],
+              "relatedInformation": [{ "location": { "uri": "range_element_type_mismatch.kt", "range": { "start": { "line": 12, "character": 0 }, "end": { "line": 14, "character": 1 } } }, "message": "expected type declared here" }]
     },
     {
       "file": "range_element_type_mismatch.kt",

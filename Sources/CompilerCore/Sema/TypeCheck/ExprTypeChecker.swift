@@ -219,6 +219,7 @@ final class ExprTypeChecker {
                         solver: ConstraintSolver(),
                         sema: sema,
                         diagnostics: ctx.semaCtx.diagnostics,
+                        secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                         suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                     )
                 }
@@ -231,6 +232,7 @@ final class ExprTypeChecker {
                     solver: ConstraintSolver(),
                     sema: sema,
                     diagnostics: ctx.semaCtx.diagnostics,
+                    secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                     suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                 )
             }
@@ -1330,6 +1332,18 @@ final class ExprTypeChecker {
         case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : defaultType
         default: return defaultType
         }
+    }
+
+    /// Declaration site of the enclosing declaration (e.g. the function whose
+    /// signature declares the expected return type), used as a secondary range
+    /// on return-type mismatch diagnostics.
+    private func enclosingDeclSiteRanges(ctx: TypeInferenceContext) -> [SourceRange] {
+        guard let declSymbol = ctx.currentDeclSymbol,
+              let site = ctx.sema.symbols.symbol(declSymbol)?.declSite
+        else {
+            return []
+        }
+        return [site]
     }
 
     /// Resolves a suffixed unsigned integer literal against an expected unsigned

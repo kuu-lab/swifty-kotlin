@@ -13,7 +13,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if rewriteSequencePipelineCall(
             symbol: symbol,

@@ -13,12 +13,14 @@ struct NativeConcurrentAPISurfaceInventoryTests {
     }
 
     private static let implementedTopLevelEntries: Set<TopLevelEntry> = [
-        TopLevelEntry(name: "Continuation0", kind: .class, todo: nil),
-        TopLevelEntry(name: "Continuation1", kind: .class, todo: nil),
-        TopLevelEntry(name: "Continuation2", kind: .class, todo: nil),
+        TopLevelEntry(name: "AtomicInt", kind: .class, todo: nil),
         TopLevelEntry(name: "AtomicLong", kind: .class, todo: nil),
         TopLevelEntry(name: "AtomicNativePtr", kind: .class, todo: nil),
         TopLevelEntry(name: "AtomicReference", kind: .class, todo: nil),
+        TopLevelEntry(name: "Continuation0", kind: .class, todo: nil),
+        TopLevelEntry(name: "Continuation1", kind: .class, todo: nil),
+        TopLevelEntry(name: "Continuation2", kind: .class, todo: nil),
+        TopLevelEntry(name: "DetachedObjectGraph", kind: .class, todo: nil),
         TopLevelEntry(name: "FreezableAtomicReference", kind: .class, todo: nil),
         TopLevelEntry(name: "FreezingException", kind: .class, todo: nil),
         TopLevelEntry(name: "Future", kind: .class, todo: nil),
@@ -31,9 +33,29 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         TopLevelEntry(name: "TransferMode", kind: .enumClass, todo: nil),
         TopLevelEntry(name: "Worker", kind: .class, todo: nil),
         TopLevelEntry(name: "WorkerBoundReference", kind: .class, todo: nil),
+        TopLevelEntry(name: "atomicLazy", kind: .function, todo: nil),
+        TopLevelEntry(name: "attachObjectGraphInternal", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation0", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation1", kind: .function, todo: nil),
         TopLevelEntry(name: "callContinuation2", kind: .function, todo: nil),
+        TopLevelEntry(name: "consumeFuture", kind: .function, todo: nil),
+        TopLevelEntry(name: "detachObjectGraphInternal", kind: .function, todo: nil),
+        TopLevelEntry(name: "executeImpl", kind: .function, todo: nil),
+        TopLevelEntry(name: "freeze", kind: .function, todo: nil),
+        TopLevelEntry(name: "waitForMultipleFutures", kind: .function, todo: nil),
+        TopLevelEntry(name: "waitWorkerTermination", kind: .function, todo: nil),
+        TopLevelEntry(name: "withWorker", kind: .function, todo: nil),
+    ]
+
+    private static let ksp1216TopLevelNames: Set<String> = [
+        "AtomicInt", "AtomicLong", "AtomicNativePtr", "AtomicReference",
+        "Continuation0", "Continuation1", "Continuation2", "DetachedObjectGraph",
+        "FreezableAtomicReference", "FreezingException", "Future", "FutureState",
+        "InvalidMutabilityException", "MutableData", "ObsoleteWorkersApi",
+        "SharedImmutable", "ThreadLocal", "TransferMode", "Worker",
+        "WorkerBoundReference", "atomicLazy", "attachObjectGraphInternal",
+        "consumeFuture", "detachObjectGraphInternal", "executeImpl", "freeze",
+        "waitForMultipleFutures", "waitWorkerTermination", "withWorker",
     ]
 
     private static let knownGapTopLevelEntries: Set<TopLevelEntry> = []
@@ -67,6 +89,8 @@ struct NativeConcurrentAPISurfaceInventoryTests {
         // Each TopLevelEntry must have a unique name (no two entries share a `name`).
         #expect(targetEntries.count == targetNames.count)
         #expect(Self.knownGapTopLevelEntries.count == 0)
+        #expect(Self.ksp1216TopLevelNames.count == 29)
+        #expect(Self.ksp1216TopLevelNames.isSubset(of: targetNames))
     }
 
     @Test

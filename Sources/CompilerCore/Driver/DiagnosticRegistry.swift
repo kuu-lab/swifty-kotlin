@@ -746,6 +746,12 @@ enum DiagnosticRegistry {
             defaultSeverity: .error,
             summary: "emitDelegateInit called for a property without a delegate expression."
         ),
+        DiagnosticDescriptor(
+            code: "KSWIFTK-KIR-0003",
+            pass: "KIR",
+            defaultSeverity: .error,
+            summary: "KIR verifier detected a malformed function body."
+        ),
     ]
 
     // MARK: - Coroutine lowering pass (CORO)
