@@ -13,7 +13,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // --- Rewrite File(path) → __kk_file_new(path) (STDLIB-565)
         //     Rewrite File(parent, child) → __kk_file_new_parent_child(parent, child) (STDLIB-IO-087) ---

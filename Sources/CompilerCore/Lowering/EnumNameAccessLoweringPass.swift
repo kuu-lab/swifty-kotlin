@@ -35,14 +35,17 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
         let intType = sema.types.intType
 
         module.arena.transformFunctions { function in
-            var newBody: [KIRInstruction] = []
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 if let rewritten = rewriteEnumStringConversionCall(
                     instruction: instruction,
                     sema: sema,
                     arena: module.arena,
                     interner: ctx.interner,
-                    precedingInstructions: newBody,
+                    precedingInstructions: newBody.instructions,
                     kkAnyMemberToStringCallee: kkAnyMemberToStringCallee
                 ) {
                     newBody.append(contentsOf: rewritten)
@@ -244,7 +247,10 @@ final class EnumNameAccessLoweringPass: LoweringPass, ParallelLoweringPass {
             }
         let propType = propSymbol.flatMap { sema.symbols.propertyType(for: $0) } ?? sema.types.anyType
 
-        let helperName = callee
+        // The placeholder callee embeds the caller-side class symbol rawValue,
+        // which is re-assigned across .kklib boundaries. The synthesized helper
+        // is registered under a stable, ID-free name scoped by the enum fqName.
+        let helperName = interner.intern("\(prefix)\(interner.resolve(propertyName))")
         let helperSymbol = sema.symbols.lookupAll(fqName: classSym.fqName + [helperName])
             .first { id in
                 sema.symbols.symbol(id).map { $0.kind == .function } ?? false

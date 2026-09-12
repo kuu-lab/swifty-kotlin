@@ -91,9 +91,12 @@ final class IntegerNarrowingPass: LoweringPass, ParallelLoweringPass {
 
         module.arena.transformFunctions { function in
             var updated = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
-            for instruction in function.body {
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 guard case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, qualifiedSuperType) = instruction else {
                     newBody.append(instruction)
                     continue

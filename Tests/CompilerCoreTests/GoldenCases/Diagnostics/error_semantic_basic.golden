@@ -64,7 +64,8 @@
       "code": "KSWIFTK-TYPE-0001",
       "source": "kswiftk",
       "message": "Type constraint could not be satisfied.",
-      "codeActions": []
+      "codeActions": [],
+              "relatedInformation": [{ "location": { "uri": "error_semantic_basic.kt", "range": { "start": { "line": 19, "character": 0 }, "end": { "line": 21, "character": 1 } } }, "message": "expected type declared here" }]
     },
     {
       "file": "error_semantic_basic.kt",

@@ -195,16 +195,43 @@ public final class DiagnosticEngine: @unchecked Sendable {
 
     private func formatDiagnostic(_ diagnostic: Diagnostic, sourceManager: SourceManager) -> String {
         let severityLabel = label(for: diagnostic.severity)
+        var rendered: String
         if let range = diagnostic.primaryRange {
             let position = sourceManager.lineColumn(of: range.start)
             let path = sourceManager.path(of: range.start.file)
             let header = "\(path):\(position.line):\(position.column): \(severityLabel) \(diagnostic.code): \(diagnostic.message)"
             if let snippet = sourceSnippet(for: range.start, sourceManager: sourceManager) {
-                return "\(header)\n\(snippet)"
+                rendered = "\(header)\n\(snippet)"
+            } else {
+                rendered = header
             }
-            return header
+        } else {
+            rendered = "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
         }
-        return "\(severityLabel) \(diagnostic.code): \(diagnostic.message)"
+        for secondaryRange in diagnostic.secondaryRanges {
+            let position = sourceManager.lineColumn(of: secondaryRange.start)
+            let path = sourceManager.path(of: secondaryRange.start.file)
+            var note = "\(path):\(position.line):\(position.column): note: \(secondaryRangeLabel(for: diagnostic.code))"
+            if let snippet = sourceSnippet(for: secondaryRange.start, sourceManager: sourceManager) {
+                note += "\n\(snippet)"
+            }
+            rendered += "\n\(note)"
+        }
+        return rendered
+    }
+
+    /// Human-readable label attached to secondary ranges. `Diagnostic` stores
+    /// bare ranges without per-range messages, so the label is derived from the
+    /// diagnostic code.
+    private func secondaryRangeLabel(for code: String) -> String {
+        switch code {
+        case "KSWIFTK-SEMA-0003":
+            "candidate declared here"
+        case "KSWIFTK-TYPE-0001":
+            "expected type declared here"
+        default:
+            "related location"
+        }
     }
 
     /// Returns the source line and a caret pointing at the diagnostic start.
@@ -411,6 +438,17 @@ public final class DiagnosticEngine: @unchecked Sendable {
             return header + ", \"edits\": [\(editsJSON)] }"
         }.joined(separator: ", ")
 
+        // LSP `relatedInformation` entries for secondary ranges (e.g. overload
+        // candidates or the expected type's declaration site).
+        let relatedJSON = diagnostic.secondaryRanges.map { relatedRange in
+            let relatedStart = sourceManager.lspPosition(of: relatedRange.start)
+            let relatedEnd = sourceManager.lspPosition(of: relatedRange.end)
+            return "{ \"location\": { \"uri\": \(escapeJSON(sourceManager.path(of: relatedRange.start.file))), \"range\": { \"start\": { \"line\": \(relatedStart.line), \"character\": \(relatedStart.character) }, \"end\": { \"line\": \(relatedEnd.line), \"character\": \(relatedEnd.character) } } }, \"message\": \(escapeJSON(secondaryRangeLabel(for: diagnostic.code))) }"
+        }.joined(separator: ", ")
+        let relatedField = diagnostic.secondaryRanges.isEmpty
+            ? ""
+            : ",\n              \"relatedInformation\": [\(relatedJSON)]"
+
         return """
         {
               "file": \(escapeJSON(filePath)),
@@ -423,7 +461,7 @@ public final class DiagnosticEngine: @unchecked Sendable {
               "code": \(escapeJSON(diagnostic.code)),
               "source": "kswiftk",
               "message": \(escapeJSON(diagnostic.message)),
-              "codeActions": [\(actionsJSON)]
+              "codeActions": [\(actionsJSON)]\(relatedField)
             }
         """
     }

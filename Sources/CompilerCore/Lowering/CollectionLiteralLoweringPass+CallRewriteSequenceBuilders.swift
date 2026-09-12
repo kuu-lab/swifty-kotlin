@@ -11,7 +11,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         if callee == lookup.kkSequenceBuilderBuildName {
             if let result { state.sequenceExprIDs.insert(result.rawValue) }

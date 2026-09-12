@@ -183,14 +183,26 @@ final class ExprTypeChecker {
                     range: range
                 )
             }
+            // An unlabeled return in a lambda targets the surrounding named
+            // function. Its value must therefore be inferred against that
+            // function's return type, not the lambda's expected Boolean/result
+            // type (e.g. a predicate passed to an inline HOF).
+            let returnExpectedType: TypeID? = if label == nil,
+                                                    ctx.lambdaDepth > 0,
+                                                    let enclosingFunctionReturnType = ctx.enclosingFunctionReturnType
+            {
+                enclosingFunctionReturnType
+            } else {
+                expectedType
+            }
             if let value {
-                let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: expectedType)
+                let resolved = driver.inferExpr(value, ctx: ctx, locals: &locals, expectedType: returnExpectedType)
                 // Emit subtype constraint: return value must conform to expected (function) return type.
                 // Range expressions keep their runtime representation separate from the
                 // source-level range interface (they infer as the scalar element type),
                 // so `fun f(): IntRange = a..b` skips the nominal subtype check, matching
                 // the local-declaration rule in LocalDeclTypeChecker.
-                let returnsRangeExpr = expectedType.map {
+                let returnsRangeExpr = returnExpectedType.map {
                     driver.helpers.rangeExprMatchesDeclaredElementType(
                         bodyExprID: value,
                         bodyType: resolved,
@@ -199,26 +211,28 @@ final class ExprTypeChecker {
                         interner: interner
                     )
                 } ?? false
-                if let expectedType, !returnsRangeExpr {
+                if let returnExpectedType, !returnsRangeExpr {
                     driver.emitSubtypeConstraint(
                         left: resolved,
-                        right: expectedType,
+                        right: returnExpectedType,
                         range: range,
                         solver: ConstraintSolver(),
                         sema: sema,
                         diagnostics: ctx.semaCtx.diagnostics,
+                        secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                         suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                     )
                 }
-            } else if let expectedType {
+            } else if let returnExpectedType {
                 // Bare `return` is equivalent to `return Unit`; check Unit <: expectedType
                 driver.emitSubtypeConstraint(
                     left: sema.types.unitType,
-                    right: expectedType,
+                    right: returnExpectedType,
                     range: range,
                     solver: ConstraintSolver(),
                     sema: sema,
                     diagnostics: ctx.semaCtx.diagnostics,
+                    secondaryRanges: enclosingDeclSiteRanges(ctx: ctx),
                     suppressPlatformWarning: ctx.suppressPlatformReturnWarning
                 )
             }
@@ -673,6 +687,121 @@ final class ExprTypeChecker {
                     ctx.semaCtx.diagnostics.emit(diagnostic)
                     return
                 }
+            }
+        }
+
+        // Kotlin gives a bare integer literal the Long context required by
+        // LongRange.contains(Long). An explicitly typed Int remains an Int
+        // and can therefore select a user LongRange.contains(Int) extension.
+        if let rangeSourceReceiverType = driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ),
+        MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ) == .longRange {
+            let isLongLiteral = driver.callChecker.isContextualizableIntegerLiteral(
+                elementExpr,
+                ast: ctx.ast
+            )
+            let resolvedElementType: TypeID = if isLongLiteral {
+                driver.inferExpr(
+                    elementExpr,
+                    ctx: ctx,
+                    locals: &locals,
+                    expectedType: sema.types.longType
+                )
+            } else {
+                elementType
+            }
+            if isLongLiteral,
+               let member = driver.callChecker.longRangeContainsMemberSymbol(
+                   receiverType: rangeSourceReceiverType,
+                   sema: sema,
+                   interner: interner
+               )
+            {
+                sema.bindings.bindCall(
+                    exprID,
+                    binding: CallBinding(
+                        chosenCallee: member,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                return
+            }
+            if !isLongLiteral {
+                let scopedRangeUserCandidates = driver.callChecker
+                    .collectScopedRangeUserExtensionCandidates(
+                        named: containsName,
+                        receiverType: rangeSourceReceiverType,
+                        ctx: ctx,
+                        sema: sema,
+                        interner: interner
+                    )
+                    .filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.flags.contains(SymbolFlags.operatorFunction),
+                              let signature = sema.symbols.functionSignature(for: candidate),
+                              signature.parameterTypes.count == 1,
+                              signature.parameterTypes[0] == sema.types.makeNonNullable(resolvedElementType)
+                        else {
+                            return false
+                        }
+                        return [sema.types.byteType, sema.types.intType, sema.types.shortType]
+                            .contains(signature.parameterTypes[0])
+                    }
+                if !scopedRangeUserCandidates.isEmpty {
+                    let resolved = ctx.resolver.resolveCall(
+                        candidates: scopedRangeUserCandidates,
+                        call: CallExpr(
+                            range: range,
+                            calleeName: containsName,
+                            args: [CallArg(type: resolvedElementType)]
+                        ),
+                        expectedType: nil,
+                        implicitReceiverType: rangeSourceReceiverType,
+                        ctx: ctx.semaCtx
+                    )
+                    if let chosen = resolved.chosenCallee {
+                        sema.bindings.bindCall(
+                            exprID,
+                            binding: CallBinding(
+                                chosenCallee: chosen,
+                                substitutedTypeArguments: resolved.substitutedTypeArguments
+                                    .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                    .map { _, value in value },
+                                parameterMapping: resolved.parameterMapping
+                            )
+                        )
+                        return
+                    }
+                }
+            }
+            if let sourceSymbol = driver.callChecker.sourceRangeHOFSymbol(
+                memberName: "contains",
+                rangeKind: .longRange,
+                argCount: 1,
+                argumentTypes: [sema.types.makeNonNullable(resolvedElementType)],
+                argumentLabels: [nil],
+                sema: sema,
+                interner: interner
+            ) {
+                sema.bindings.bindCall(
+                    exprID,
+                    binding: CallBinding(
+                        chosenCallee: sourceSymbol,
+                        substitutedTypeArguments: [],
+                        parameterMapping: [0: 0]
+                    )
+                )
+                return
             }
         }
 
@@ -1203,6 +1332,18 @@ final class ExprTypeChecker {
         case .short: return (literalValue >= -32768 && literalValue <= 32767) ? sema.types.shortType : defaultType
         default: return defaultType
         }
+    }
+
+    /// Declaration site of the enclosing declaration (e.g. the function whose
+    /// signature declares the expected return type), used as a secondary range
+    /// on return-type mismatch diagnostics.
+    private func enclosingDeclSiteRanges(ctx: TypeInferenceContext) -> [SourceRange] {
+        guard let declSymbol = ctx.currentDeclSymbol,
+              let site = ctx.sema.symbols.symbol(declSymbol)?.declSite
+        else {
+            return []
+        }
+        return [site]
     }
 
     /// Resolves a suffixed unsigned integer literal against an expected unsigned

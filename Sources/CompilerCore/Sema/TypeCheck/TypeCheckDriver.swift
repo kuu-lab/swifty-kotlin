@@ -179,6 +179,7 @@ final class TypeCheckDriver {
         solver: ConstraintSolver,
         sema: SemaModule,
         diagnostics: DiagnosticEngine,
+        secondaryRanges: [SourceRange] = [],
         suppressPlatformWarning: Bool = false
     ) {
         let solution = solver.solve(
@@ -194,7 +195,13 @@ final class TypeCheckDriver {
             typeSystem: sema.types
         )
         if !solution.isSuccess, let failure = solution.failure {
-            diagnostics.emit(failure)
+            diagnostics.emit(withExpectedTypeOrigin(
+                failure,
+                expectedType: right,
+                extraRanges: secondaryRanges,
+                primaryRange: range,
+                sema: sema
+            ))
         } else if !suppressPlatformWarning,
                   let warningRange = range,
                   sema.types.nullability(of: left) == .platformType,
@@ -207,5 +214,54 @@ final class TypeCheckDriver {
                 range: warningRange
             )
         }
+    }
+
+    /// ARCH-031: attach where the expected type comes from as secondary ranges
+    /// on a failed subtype constraint — the expected type's own declaration
+    /// site plus any caller-provided ranges (e.g. the enclosing function whose
+    /// signature declares the expected return type).
+    private func withExpectedTypeOrigin(
+        _ failure: Diagnostic,
+        expectedType: TypeID,
+        extraRanges: [SourceRange],
+        primaryRange: SourceRange?,
+        sema: SemaModule
+    ) -> Diagnostic {
+        var secondary: [SourceRange] = []
+        for candidate in extraRanges + expectedTypeOriginRanges(of: expectedType, sema: sema) {
+            if candidate == primaryRange || secondary.contains(candidate) {
+                continue
+            }
+            secondary.append(candidate)
+        }
+        guard !secondary.isEmpty else {
+            return failure
+        }
+        return Diagnostic(
+            severity: failure.severity,
+            code: failure.code,
+            message: failure.message,
+            primaryRange: failure.primaryRange,
+            secondaryRanges: secondary,
+            codeActions: failure.codeActions
+        )
+    }
+
+    /// Declaration site of the expected type itself (a nominal class or a type
+    /// parameter declared in source). Returns empty for primitive, function,
+    /// or otherwise non-declared types.
+    private func expectedTypeOriginRanges(of type: TypeID, sema: SemaModule) -> [SourceRange] {
+        let symbol: SymbolID? = switch sema.types.kind(of: type) {
+        case let .classType(classType):
+            classType.classSymbol
+        case let .typeParam(typeParam):
+            typeParam.symbol
+        default:
+            nil
+        }
+        guard let symbol, let site = sema.symbols.symbol(symbol)?.declSite else {
+            return []
+        }
+        return [site]
     }
 }

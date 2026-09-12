@@ -7,6 +7,7 @@
 
 package kotlin.collections
 
+import kotlin.comparisons.minOf as comparisonMinOf
 import kotlin.comparisons.compareValues
 import kotlin.comparisons.reverseOrder
 import kotlin.internal.__valuesEqual
@@ -26,6 +27,13 @@ private external fun kk_unbox_double(value: Double): Double
 
 // KSP-963: Kotlin's Iterable.asIterable() is an identity conversion.
 public inline fun <T> Iterable<T>.asIterable(): Iterable<T> = this
+
+// KSP-967: Preserve Kotlin's Collection fast path while keeping arbitrary
+// Iterable implementations on the source-backed indexOf path.
+public operator fun <@kotlin.internal.OnlyInputTypes T> Iterable<T>.contains(element: T): Boolean {
+    if (this is Collection<*>) return this.contains(element)
+    return indexOf(element) >= 0
+}
 
 // KSP-966: Published helpers expose a Collection's known size without
 // traversing a general Iterable.
@@ -217,6 +225,84 @@ public fun <T> Iterable<Iterable<T>>.flatten(): List<T> {
         for (nestedElement in element) result.add(nestedElement)
     }
     return result
+}
+
+// KSP-978: Keep Iterable group-family operations on the iterator-backed
+// source path so custom and one-shot Iterables preserve encounter order.
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K> Iterable<T>.groupBy(keySelector: (T) -> K): Map<K, List<T>> {
+    val result = mutableMapOf<K, MutableList<T>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<T>()
+            bucket.add(element)
+            result[key] = bucket
+        } else {
+            existing.add(element)
+        }
+    }
+    return result as Map<K, List<T>>
+}
+
+@Suppress("UNCHECKED_CAST")
+public inline fun <T, K, V> Iterable<T>.groupBy(
+    keySelector: (T) -> K,
+    valueTransform: (T) -> V
+): Map<K, List<V>> {
+    val result = mutableMapOf<K, MutableList<V>>()
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = result[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            bucket.add(valueTransform(element))
+            result[key] = bucket
+        } else {
+            existing.add(valueTransform(element))
+        }
+    }
+    return result as Map<K, List<V>>
+}
+
+@IgnorableReturnValue
+public inline fun <T, K, M : MutableMap<in K, MutableList<T>>> Iterable<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K
+): M {
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<T>()
+            bucket.add(element)
+            destination[key] = bucket
+        } else {
+            existing.add(element)
+        }
+    }
+    return destination
+}
+
+@IgnorableReturnValue
+public inline fun <T, K, V, M : MutableMap<in K, MutableList<V>>> Iterable<T>.groupByTo(
+    destination: M,
+    keySelector: (T) -> K,
+    valueTransform: (T) -> V
+): M {
+    for (element in this) {
+        val key = keySelector(element)
+        val existing = destination[key]
+        if (existing == null) {
+            val bucket = mutableListOf<V>()
+            bucket.add(valueTransform(element))
+            destination[key] = bucket
+        } else {
+            existing.add(valueTransform(element))
+        }
+    }
+    return destination
 }
 
 // KSP-974: Iterable flat-map transformations are source-backed. Keep the
@@ -1362,6 +1448,255 @@ public fun List<Char>.joinToString(
     }
     buffer.append(postfix)
     return buffer.toString()
+}
+
+// KSP-984: Iterable min-family APIs are source-backed and intentionally keep
+// the iterator-based Kotlin semantics instead of routing through List bridges.
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Double>.min(): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, iterator.next())
+    }
+    return minValue
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun Iterable<Float>.min(): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, iterator.next())
+    }
+    return minValue
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T : Comparable<T>> Iterable<T>.min(): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        val value = iterator.next()
+        if (minValue > value) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minByOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public inline fun <T, R : Comparable<R>> Iterable<T>.minBy(selector: (T) -> R): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minElement = iterator.next()
+    if (!iterator.hasNext()) return minElement
+    var minValue = selector(minElement)
+    do {
+        val element = iterator.next()
+        val value = selector(element)
+        if (minValue > value) {
+            minElement = element
+            minValue = value
+        }
+    } while (iterator.hasNext())
+    return minElement
+}
+
+@SinceKotlin("1.4")
+public inline fun <T, R : Comparable<R>> Iterable<T>.minByOrNull(selector: (T) -> R): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minElement = iterator.next()
+    if (!iterator.hasNext()) return minElement
+    var minValue = selector(minElement)
+    do {
+        val element = iterator.next()
+        val value = selector(element)
+        if (minValue > value) {
+            minElement = element
+            minValue = value
+        }
+    } while (iterator.hasNext())
+    return minElement
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T, R : Comparable<R>> Iterable<T>.minOf(selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val value = selector(iterator.next())
+        if (minValue > value) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.minOf(selector: (T) -> Double): Double {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, selector(iterator.next()))
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.minOf(selector: (T) -> Float): Float {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, selector(iterator.next()))
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T, R : Comparable<R>> Iterable<T>.minOfOrNull(selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val value = selector(iterator.next())
+        if (minValue > value) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.minOfOrNull(selector: (T) -> Double): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, selector(iterator.next()))
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T> Iterable<T>.minOfOrNull(selector: (T) -> Float): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, selector(iterator.next()))
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T, R> Iterable<T>.minOfWith(comparator: Comparator<in R>, selector: (T) -> R): R {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val value = selector(iterator.next())
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+@kotlin.OptIn(kotlin.experimental.ExperimentalTypeInference::class)
+@kotlin.OverloadResolutionByLambdaReturnType
+public inline fun <T, R> Iterable<T>.minOfWithOrNull(comparator: Comparator<in R>, selector: (T) -> R): R? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = selector(iterator.next())
+    while (iterator.hasNext()) {
+        val value = selector(iterator.next())
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Double>.minOrNull(): Double? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, iterator.next())
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun Iterable<Float>.minOrNull(): Float? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        minValue = comparisonMinOf(minValue, iterator.next())
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun <T : Comparable<T>> Iterable<T>.minOrNull(): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        val value = iterator.next()
+        if (minValue > value) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.7")
+@kotlin.jvm.JvmName("minWithOrThrow")
+@Suppress("CONFLICTING_OVERLOADS")
+public fun <T> Iterable<T>.minWith(comparator: Comparator<in T>): T {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw NoSuchElementException()
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        val value = iterator.next()
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    }
+    return minValue
+}
+
+@SinceKotlin("1.4")
+public fun <T> Iterable<T>.minWithOrNull(comparator: Comparator<in T>): T? {
+    val iterator = iterator()
+    if (!iterator.hasNext()) return null
+    var minValue = iterator.next()
+    while (iterator.hasNext()) {
+        val value = iterator.next()
+        if (comparator.compare(minValue, value) > 0) minValue = value
+    }
+    return minValue
 }
 
 // KSP-976: Iterable fold-family source bodies preserve the generic accumulator
