@@ -18,13 +18,17 @@ extension KIRLoweringDriver {
 
             if function.name == mainName, !allTopLevelInitInstructions.isEmpty {
                 updated.replaceBody(injectTopLevelInits(
-                    body: function.body, inits: allTopLevelInitInstructions
+                    body: function.body,
+                    bodyLocations: function.instructionLocations,
+                    inits: allTopLevelInitInstructions
                 ))
             }
 
             if !delegateStorageSymbolByPropertySymbol.isEmpty {
                 updated.replaceBody(rewriteDelegateAccesses(
-                    body: updated.body, sema: sema,
+                    body: updated.body,
+                    bodyLocations: updated.instructionLocations,
+                    sema: sema,
                     storageMap: delegateStorageSymbolByPropertySymbol, interner: interner
                 ))
             }
@@ -37,24 +41,35 @@ extension KIRLoweringDriver {
 
     private func injectTopLevelInits(
         body: [KIRInstruction],
+        bodyLocations: [SourceRange?],
         inits: KIRLoweringEmitContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         // The initializers were lowered under their own function scopes, so
         // their labels restart from the same base as `main`'s own body.
         let relocatedInits = KIRLabelRelocation.relocatingLabels(
             of: inits.instructions,
             toAvoidCollisionsWith: body
         )
-        var newBody: KIRLoweringEmitContext = []
-        if let first = body.first, case .beginBlock = first {
-            newBody.append(first)
-            newBody.append(contentsOf: relocatedInits)
-            newBody.append(contentsOf: body.dropFirst())
-        } else {
-            newBody.append(contentsOf: relocatedInits)
-            newBody.append(contentsOf: body)
+        var newBody = KIRLoweringEmitContext()
+        func appendAll(
+            _ instructions: some Sequence<KIRInstruction>,
+            locations: some Sequence<SourceRange?>
+        ) {
+            for (instruction, location) in zip(instructions, locations) {
+                newBody.currentSourceRange = location
+                newBody.append(instruction)
+            }
         }
-        return newBody.instructions
+        if let first = body.first, case .beginBlock = first {
+            newBody.currentSourceRange = bodyLocations.first ?? nil
+            newBody.append(first)
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body.dropFirst(), locations: bodyLocations.dropFirst())
+        } else {
+            appendAll(relocatedInits, locations: inits.instructionLocations)
+            appendAll(body, locations: bodyLocations)
+        }
+        return newBody
     }
 
     // MARK: - Delegate Access Rewriting
@@ -68,10 +83,11 @@ extension KIRLoweringDriver {
     /// same synthesized accessors (`emitDelegateAccessorsIfCustom`).
     private func rewriteDelegateAccesses(
         body: [KIRInstruction],
+        bodyLocations: [SourceRange?],
         sema: SemaModule,
         storageMap: [SymbolID: SymbolID],
         interner: StringInterner
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         var fullStorageMap = storageMap
         for symbol in sema.symbols.allSymbols() where symbol.kind == .property {
             if let storageSymbol = sema.symbols.delegateStorageSymbol(for: symbol.id) {
@@ -93,10 +109,13 @@ extension KIRLoweringDriver {
 
         // Pass 2: rewrite instructions.
         var targets: [KIRExprID: SymbolID] = [:]
-        var result: KIRLoweringEmitContext = []
-        result.reserveCapacity(body.count)
+        var result = KIRLoweringEmitContext()
+        result.instructions.reserveCapacity(body.count)
 
-        for instruction in body {
+        for (index, instruction) in body.enumerated() {
+            result.currentSourceRange = index < bodyLocations.count
+                ? bodyLocations[index]
+                : nil
             if case let .call(symbol, callee, _, _, _, _, _, _) = instruction,
                let storageSymbol = symbol,
                propertyByStorageSymbol[storageSymbol] != nil,
@@ -170,7 +189,7 @@ extension KIRLoweringDriver {
 
             result.append(instruction)
         }
-        return result.instructions
+        return result
     }
 }
 
@@ -181,9 +200,10 @@ extension KIRLoweringDriver {
     /// may reference other instance fields by bare name (e.g. `initCount += 1`,
     /// DEBT-KIR-008/BUG-170). The generated function is invoked later through
     /// the delegate's stored function pointer (`LazyImpl`'s `initializer` for
-    /// `.lazy`, `SimpleObservableProperty`/`SimpleVetoableProperty`'s `onChange`
-    /// for the other two), which cannot simply gain an extra KIR parameter — the
-    /// runtime side always invokes it through a fixed dispatch entry point
+    /// `.lazy`, or the callback captured by the source-backed observable and
+    /// vetoable delegate objects). These callbacks cannot simply gain an extra
+    /// KIR parameter because the runtime side always invokes them through a
+    /// fixed dispatch entry point
     /// (`kk_function_invoke_0` for `.lazy`, `kk_function_invoke_3` for
     /// `.observable`/`.vetoable`) that already distinguishes a raw thunk
     /// pointer from a boxed `Function0`/`Function3` closure value (BUG-151
@@ -294,7 +314,7 @@ extension KIRLoweringDriver {
             // relying on it only ever being invoked through
             // kk_function_invoke_0/_3's raw-thunk branch. Passed instead to a
             // real Kotlin closure-typed parameter (`LazyImpl`'s
-            // `initializer`, `SimpleObservableProperty`'s `onChange`, ...)
+            // `initializer`, `ObservableProperty`'s callback, ...)
             // and invoked there through ordinary closure-call syntax, the
             // value must be a genuine boxed FunctionN -- but
             // `kk_function_create_N` boxes a `(closureRaw, args..., outThrown)`-
@@ -545,35 +565,4 @@ extension KIRLoweringDriver {
         return materializedExpr
     }
 
-    /// Lowers the initial value argument from a delegate expression.
-    func lowerDelegateInitialValue(
-        delegateExpr: ExprID?,
-        shared: KIRLoweringSharedContext,
-        emit instructions: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        let ast = shared.ast
-        let sema = shared.sema
-        let arena = shared.arena
-        guard let exprID = delegateExpr,
-              let expr = ast.arena.expr(exprID)
-        else {
-            let zeroExpr = arena.appendExpr(.intLiteral(0), type: sema.types.anyType)
-            instructions.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-            return zeroExpr
-        }
-
-        switch expr {
-        case let .call(_, _, args, _):
-            if let firstArg = args.first {
-                return lowerExpr(firstArg.expr, shared: shared, emit: &instructions)
-            }
-        case let .memberCall(_, _, _, args, _):
-            if let firstArg = args.first {
-                return lowerExpr(firstArg.expr, shared: shared, emit: &instructions)
-            }
-        default: break
-        }
-
-        return lowerExpr(exprID, shared: shared, emit: &instructions)
-    }
 }

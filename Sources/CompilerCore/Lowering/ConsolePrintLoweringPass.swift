@@ -1,6 +1,6 @@
 
-/// Rewrites `kotlin.io.print`/`println` call sites so class, data-class and
-/// enum values print via their `toString()` implementation instead of
+/// Rewrites `kotlin.io.print`/`println` call sites so class, data-class, object
+/// and enum values print via their `toString()` implementation instead of
 /// `Any.toString()` falling back to the raw handle.
 ///
 /// With `print`/`println` implemented in bundled Kotlin source, the `Any?`
@@ -32,15 +32,18 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
 
         module.arena.transformFunctions { function in
             var updated = function
-            var newBody: [KIRInstruction] = []
-            newBody.reserveCapacity(function.body.count)
+            var newBody = KIRLoweringEmitContext()
+            newBody.instructions.reserveCapacity(function.body.count)
             var nextLabel = Self.maxLabelNumber(in: function.body) + 1
             func allocateLabel() -> Int32 {
                 defer { nextLabel += 1 }
                 return nextLabel
             }
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                newBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, isSuperCall, _):
                     if let printKind = Self.consolePrintKind(
@@ -147,7 +150,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         rawPrintCallee: InternedString,
         stringType: TypeID,
         intType: TypeID,
-        newBody: inout [KIRInstruction],
+        newBody: inout KIRLoweringEmitContext,
         allocateLabel: () -> Int32
     ) -> Bool {
         if arguments.isEmpty {
@@ -191,7 +194,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         if sema.types.nullability(of: argType) != .nonNull {
             // Build the non-null rewrite first on a scratch body so we only
             // commit the branch when a class-specific toString is available.
-            var nonNullBody: [KIRInstruction] = []
+            var nonNullBody = KIRLoweringEmitContext()
             guard let stringExpr = Self.classToStringExpression(
                 argument: argument,
                 classSymbol: classSymbol,
@@ -269,7 +272,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         arena: KIRArena,
         interner: StringInterner,
         stringType: TypeID,
-        to body: inout [KIRInstruction]
+        to body: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let expr = stringLiteral(value, arena: arena, interner: interner, stringType: stringType)
         body.append(.constValue(result: expr, value: .stringLiteral(interner.intern(value))))
@@ -279,7 +282,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     private func appendPrintRaw(
         _ value: KIRExprID,
         rawPrintCallee: InternedString,
-        to body: inout [KIRInstruction]
+        to body: inout KIRLoweringEmitContext
     ) {
         body.append(.call(
             symbol: nil,
@@ -292,7 +295,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         ))
     }
 
-    private func appendUnitResult(_ result: KIRExprID?, to body: inout [KIRInstruction]) {
+    private func appendUnitResult(_ result: KIRExprID?, to body: inout KIRLoweringEmitContext) {
         if let result {
             body.append(.constValue(result: result, value: .unit))
         }
@@ -309,13 +312,13 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         interner: StringInterner,
         stringType: TypeID,
         intType: TypeID,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID? {
         let argType = arena.exprType(argument) ?? inferPrimitiveType(
             argument: argument,
             sema: sema,
             interner: interner,
-            newBody: newBody
+            newBody: newBody.instructions
         )
         let nonNullType = sema.types.makeNonNullable(argType)
         let kind = sema.types.kind(of: nonNullType)
@@ -366,7 +369,7 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         intType: TypeID,
         stringType: TypeID,
         anyToStringCallee: InternedString,
-        newBody: inout [KIRInstruction]
+        newBody: inout KIRLoweringEmitContext
     ) -> KIRExprID {
         let tagExpr = arena.appendExpr(.intLiteral(tag), type: intType)
         newBody.append(.constValue(result: tagExpr, value: .intLiteral(tag)))
@@ -465,8 +468,45 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
     ) -> KIRExprWithInstructions? {
         var instructions: [KIRInstruction] = []
 
-        // Regular and data objects print their simple name.
+        // Objects without an own toString() keep the simple-name fallback. An
+        // explicitly declared (or synthesized) object toString() must still
+        // be called, just like it is for an ordinary class.
         if classSymbol.kind == .object {
+            let toStringName = interner.intern("toString")
+            let toStringFQName = classSymbol.fqName + [toStringName]
+            let toStringSymbol: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
+                guard let sym = sema.symbols.symbol(id),
+                      sym.kind == .function
+                else {
+                    return false
+                }
+                let sig = sema.symbols.functionSignature(for: id)
+                return sig?.parameterTypes.isEmpty ?? true
+            }
+
+            if let toStringSym = toStringSymbol,
+               let sym = sema.symbols.symbol(toStringSym),
+               !isSyntheticAnyToStringSymbol(sym, interner: interner)
+            {
+                let externalLinkName = sema.symbols.externalLinkName(for: toStringSym)
+                let toStringCallee: InternedString = if let externalLinkName, !externalLinkName.isEmpty {
+                    interner.intern(externalLinkName)
+                } else {
+                    toStringName
+                }
+                let toStringResult = arena.appendTemporary(type: stringType)
+                instructions.append(.call(
+                    symbol: toStringSym,
+                    callee: toStringCallee,
+                    arguments: [argument],
+                    result: toStringResult,
+                    canThrow: false,
+                    thrownResult: nil,
+                    isSuperCall: false
+                ))
+                return KIRExprWithInstructions(value: toStringResult, instructions: instructions)
+            }
+
             let objectName = interner.resolve(classSymbol.name)
             let interned = interner.intern(objectName)
             let expr = arena.appendExpr(.stringLiteral(interned), type: stringType)
@@ -493,23 +533,13 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
         }
 
         // Data classes and classes with an overriding toString() have a symbol
-        // in the class scope; resolve it and emit a direct call.
+        // in the class hierarchy; resolve it and emit a direct or virtual call.
         let toStringName = interner.intern("toString")
-        let toStringFQName = classSymbol.fqName + [toStringName]
-        let toStringSymbol: SymbolID? = sema.symbols.lookupAll(fqName: toStringFQName).first { id in
-            guard let sym = sema.symbols.symbol(id),
-                  sym.kind == .function
-            else {
-                return false
-            }
-            let sig = sema.symbols.functionSignature(for: id)
-            return sig?.parameterTypes.isEmpty ?? true
-        }
-
-        guard let toStringSym = toStringSymbol,
-              let sym = sema.symbols.symbol(toStringSym),
-              !isSyntheticAnyToString(sym, interner: interner)
-        else {
+        guard let toStringSym = resolveClassToStringSymbol(
+            for: classSymbol.id,
+            sema: sema,
+            interner: interner
+        ) else {
             return nil
         }
 
@@ -550,12 +580,6 @@ final class ConsolePrintLoweringPass: LoweringPass, ParallelLoweringPass {
             ))
         }
         return KIRExprWithInstructions(value: toStringResult, instructions: instructions)
-    }
-
-    private static func isSyntheticAnyToString(_ sym: SemanticSymbol, interner: StringInterner) -> Bool {
-        guard sym.flags.contains(.synthetic) else { return false }
-        let anyToStringFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("Any"), interner.intern("toString")]
-        return sym.fqName == anyToStringFQName
     }
 
     private static func enumNameHelperSymbol(

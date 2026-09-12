@@ -508,6 +508,24 @@ public final class SymbolTable {
         symbolsStorage[index].declSite = declSite
     }
 
+    /// ARCH-031: declaration sites of the given symbols, deduplicated and
+    /// sorted by source position so diagnostics rendering stays deterministic.
+    public func sortedDeclSites(of symbols: [SymbolID]) -> [SourceRange] {
+        var sites: [SourceRange] = []
+        for symbol in symbols {
+            guard let site = self.symbol(symbol)?.declSite,
+                  !sites.contains(site)
+            else {
+                continue
+            }
+            sites.append(site)
+        }
+        return sites.sorted {
+            ($0.start.file.rawValue, $0.start.offset, $0.end.offset)
+                < ($1.start.file.rawValue, $1.start.offset, $1.end.offset)
+        }
+    }
+
     public func lookup(fqName: [InternedString]) -> SymbolID? {
         lock.lock()
         defer { lock.unlock() }
@@ -615,10 +633,30 @@ public final class SymbolTable {
                 false
             }
         }
+        func isParameterLike(_ kind: SymbolKind) -> Bool {
+            switch kind {
+            case .valueParameter, .typeParameter:
+                true
+            default:
+                false
+            }
+        }
         if kind == .package {
             return true
         }
-        let existingNonPackage = existingSymbols.filter { $0.kind != .package }
+        // Parameters are encoded as `ownerFQName + [paramName]`. A class and a
+        // factory function that share an FQName (Kotlin `class Foo` + `fun Foo`)
+        // therefore make class members and factory parameters collide in this
+        // encoding — e.g. `AtomicIntArray.size` is both the residual property
+        // and the `fun AtomicIntArray(size: Int, init: ...)` parameter. They
+        // are distinct declarations and must coexist. Two parameters of the
+        // same kind at one FQName still reuse the first symbol.
+        if isParameterLike(kind) {
+            return !existingSymbols.contains { $0.kind == kind }
+        }
+        let existingNonPackage = existingSymbols.filter { symbol in
+            symbol.kind != .package && !isParameterLike(symbol.kind)
+        }
         if existingNonPackage.isEmpty {
             return true
         }
@@ -698,7 +736,7 @@ public final class SymbolTable {
             switch symbol.kind {
             case .property:
                 return symbol.flags.contains(.synthetic)
-            case .function, .constructor:
+            case .function, .constructor, .valueParameter, .typeParameter:
                 return true
             case .valueParameter:
                 // A source-backed factory can share a FQName with its nominal
@@ -854,6 +892,10 @@ public final class SymbolTable {
 
     public func setExternalLinkName(_ linkName: String, for symbol: SymbolID) {
         externalLinkNames[symbol] = linkName
+    }
+
+    public func clearExternalLinkName(for symbol: SymbolID) {
+        externalLinkNames.removeValue(forKey: symbol)
     }
 
     public func externalLinkName(for symbol: SymbolID) -> String? {

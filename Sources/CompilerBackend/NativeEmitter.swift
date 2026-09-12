@@ -293,6 +293,7 @@ struct NativeEmitter {
         for spec in RuntimeABISpec.allFunctions {
             if spec.name == "kk_object_register_itable_method"
                 || spec.name == "kk_object_register_vtable_method"
+                || spec.name == "kk_object_register_any_to_string"
                 || spec.name.hasPrefix("__kk_kfunction_create")
                 || spec.name == "__kk_kconstructor_create" {
                 continue
@@ -576,18 +577,6 @@ struct NativeEmitter {
                 return false
             }
             return typeLowering != nil
-        }
-
-        do {
-            try defineWeakFrameRuntimeStubs(
-                module: llvmModule,
-                context: context,
-                int64Type: int64Type
-            )
-        } catch {
-            bindings.disposeModule(llvmModule)
-            bindings.disposeContext(context)
-            throw error
         }
 
         // Create LLVM global variables for each KIR global declaration.
@@ -948,70 +937,6 @@ struct NativeEmitter {
         {
             bindings.addModuleFlag(llvmModule, behavior: 1, key: "Dwarf Version", value: dwarfVersionMD)
         }
-    }
-
-    func defineWeakFrameRuntimeStubs(
-        module: LLVMCAPIBindings.LLVMModuleRef,
-        context: LLVMCAPIBindings.LLVMContextRef,
-        int64Type: LLVMCAPIBindings.LLVMTypeRef
-    ) throws {
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_register_frame_map",
-            argumentCount: 2,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_push_frame",
-            argumentCount: 2,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-        _ = try defineWeakRuntimeFunction(
-            named: "kk_pop_frame",
-            argumentCount: 0,
-            module: module,
-            context: context,
-            int64Type: int64Type
-        )
-    }
-
-    func defineWeakRuntimeFunction(
-        named name: String,
-        argumentCount: Int,
-        module: LLVMCAPIBindings.LLVMModuleRef,
-        context: LLVMCAPIBindings.LLVMContextRef,
-        int64Type: LLVMCAPIBindings.LLVMTypeRef
-    ) throws -> LLVMFunction {
-        let parameterTypes = Array(repeating: int64Type, count: max(0, argumentCount))
-        guard let functionType = bindings.functionType(
-            returnType: int64Type,
-            parameters: parameterTypes,
-            isVarArg: false
-        ) else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create runtime function type for '\(name)'")
-        }
-        guard let functionValue = bindings.getNamedFunction(module: module, name: name)
-            ?? bindings.addFunction(module: module, name: name, functionType: functionType)
-        else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to define weak runtime stub '\(name)'")
-        }
-        bindings.setWeakAnyLinkage(functionValue)
-
-        guard let builder = bindings.createBuilder(context: context) else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create builder for runtime stub '\(name)'")
-        }
-        defer { bindings.disposeBuilder(builder) }
-
-        guard let entry = bindings.appendBasicBlock(context: context, function: functionValue, name: "entry") else {
-            throw LLVMBackendError.nativeEmissionFailed("failed to create runtime stub block for '\(name)'")
-        }
-        bindings.positionBuilder(builder, at: entry)
-        let zero = bindings.constInt(int64Type, value: 0) ?? bindings.getUndef(type: int64Type)
-        _ = bindings.buildRet(builder, value: zero)
-        return LLVMFunction(value: functionValue, type: functionType)
     }
 
     func targetTripleString() -> String {

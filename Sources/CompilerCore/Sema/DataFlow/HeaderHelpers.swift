@@ -1272,11 +1272,15 @@ extension DataFlowSemaPhase {
         if types.comparableInterfaceSymbol == nil {
             registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
         }
-        registerSyntheticBuilderDSLStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoroutineStubs(symbols: symbols, types: types, interner: interner)
+        registerSyntheticCoroutineStubs(
+            symbols: symbols,
+            types: types,
+            interner: interner,
+            bundledIndex: bundledIndex
+        )
         registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
         registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
         registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
@@ -1592,8 +1596,9 @@ extension DataFlowSemaPhase {
         let internedName = interner.intern(name)
         let fqName = pkg + [internedName]
         // A factory function may share the class FQName (for example,
-        // `kotlin.concurrent.AtomicIntArray(Int)`). Resolve the nominal class
-        // from all symbols instead of letting the first callable shadow it.
+        // `kotlin.concurrent.AtomicIntArray(Int)` or a Kotlin `class Foo` +
+        // `fun Foo(...)` pair). Prefer an existing nominal class over the
+        // first callable that shadows it.
         if let existing = symbols.lookupAll(fqName: fqName).first(where: { id in
             symbols.symbol(id)?.kind == .class
         }) {
