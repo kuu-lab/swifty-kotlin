@@ -102,17 +102,7 @@ struct CollectionLiteralLoweringRegistry {
                 arena: module.arena,
                 sema: ctx.sema,
                 interner: ctx.interner,
-                listExprIDs: &state.listExprIDs,
-                setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs,
-                arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs,
-                rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs,
-                ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs,
-                fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
+                state: &state
             )
 
             var loweredBody = KIRLoweringEmitContext()

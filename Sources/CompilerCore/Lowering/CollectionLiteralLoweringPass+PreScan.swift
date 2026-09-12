@@ -115,17 +115,7 @@ extension CollectionLiteralLoweringSupport {
         arena: KIRArena,
         sema: SemaModule?,
         interner: StringInterner,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>,
-        pathExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         // Seed tracking sets from static type information (LOWERING-001).
         // This covers function parameters, return values, and any expression
@@ -136,12 +126,7 @@ extension CollectionLiteralLoweringSupport {
             arena: arena,
             sema: sema,
             interner: interner,
-            listExprIDs: &listExprIDs,
-            setExprIDs: &setExprIDs,
-            mapExprIDs: &mapExprIDs,
-            arrayExprIDs: &arrayExprIDs,
-            sequenceExprIDs: &sequenceExprIDs,
-            stringExprIDs: &stringExprIDs
+            state: &state
         )
 
         // First pass: collect char-valued and ulong-valued expression IDs to detect
@@ -184,46 +169,20 @@ extension CollectionLiteralLoweringSupport {
             case let .call(_, callee, arguments, result, _, _, _, _):
                 handleCallInstruction(
                     callee: callee, arguments: arguments, result: result,
-                    lookup: lookup, listExprIDs: &listExprIDs,
-                    setExprIDs: &setExprIDs,
-                    mapExprIDs: &mapExprIDs, arrayExprIDs: &arrayExprIDs,
-                    sequenceExprIDs: &sequenceExprIDs,
-                    rangeExprIDs: &rangeExprIDs,
-                    charRangeExprIDs: &charRangeExprIDs,
-                    charValuedExprIDs: charValuedExprIDs,
-                    ulongRangeExprIDs: &ulongRangeExprIDs,
+                    lookup: lookup, charValuedExprIDs: charValuedExprIDs,
                     ulongValuedExprIDs: ulongValuedExprIDs,
-                    stringExprIDs: &stringExprIDs,
-                    fileExprIDs: &fileExprIDs,
-                    pathExprIDs: &pathExprIDs
+                    state: &state
                 )
             case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
                     symbol: symbol, callee: callee, receiver: receiver, result: result,
                     lookup: lookup, sema: sema,
-                    listExprIDs: &listExprIDs,
-                    mapExprIDs: &mapExprIDs,
-                    sequenceExprIDs: &sequenceExprIDs,
-                    rangeExprIDs: &rangeExprIDs,
-                    charRangeExprIDs: &charRangeExprIDs,
-                    ulongRangeExprIDs: &ulongRangeExprIDs,
-                    stringExprIDs: &stringExprIDs
+                    state: &state
                 )
             case let .copy(from, to):
-                handleCopyInstruction(
-                    from: from, to: to,
-                    listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,
-                    setExprIDs: &setExprIDs,
-                    arrayExprIDs: &arrayExprIDs, sequenceExprIDs: &sequenceExprIDs,
-                    rangeExprIDs: &rangeExprIDs,
-                    charRangeExprIDs: &charRangeExprIDs,
-                    ulongRangeExprIDs: &ulongRangeExprIDs,
-                    stringExprIDs: &stringExprIDs,
-                    fileExprIDs: &fileExprIDs,
-                    pathExprIDs: &pathExprIDs
-                )
+                state.seedCopy(from: from, to: to)
             case let .constValue(result, .stringLiteral):
-                stringExprIDs.insert(result.rawValue)
+                state.stringExprIDs.insert(result.rawValue)
             default:
                 break
             }
@@ -235,24 +194,13 @@ extension CollectionLiteralLoweringSupport {
         arguments: [KIRExprID],
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
         charValuedExprIDs: Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
         ulongValuedExprIDs: Set<Int32>,
-        stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>,
-        pathExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         classifyFactoryCall(
             callee: callee, result: result, lookup: lookup,
-            listExprIDs: &listExprIDs, setExprIDs: &setExprIDs,
-            mapExprIDs: &mapExprIDs, arrayExprIDs: &arrayExprIDs
+            state: &state
         )
         // Classify range factory calls
         if let result,
@@ -260,57 +208,55 @@ extension CollectionLiteralLoweringSupport {
            || callee == lookup.kkOpULongRangeUntilName
            || callee == lookup.kkOpDownToName || callee == lookup.kkOpStepName
         {
-            rangeExprIDs.insert(result.rawValue)
+            state.rangeExprIDs.insert(result.rawValue)
             // Detect CharRange: if any argument is a char-valued expression (STDLIB-290)
             if arguments.contains(where: { charValuedExprIDs.contains($0.rawValue) }) {
-                charRangeExprIDs.insert(result.rawValue)
+                state.charRangeExprIDs.insert(result.rawValue)
             }
             // Detect ULongRange: if any argument is a ULong-valued expression (STDLIB-524)
             if arguments.contains(where: { ulongValuedExprIDs.contains($0.rawValue) }) {
-                ulongRangeExprIDs.insert(result.rawValue)
+                state.ulongRangeExprIDs.insert(result.rawValue)
             }
             // step on a char range propagates char range
             if callee == lookup.kkOpStepName, !arguments.isEmpty,
-               charRangeExprIDs.contains(arguments[0].rawValue)
+               state.charRangeExprIDs.contains(arguments[0].rawValue)
             {
-                charRangeExprIDs.insert(result.rawValue)
+                state.charRangeExprIDs.insert(result.rawValue)
             }
             // step on a ULong range propagates ULong range (STDLIB-524)
             if callee == lookup.kkOpStepName, !arguments.isEmpty,
-               ulongRangeExprIDs.contains(arguments[0].rawValue)
+               state.ulongRangeExprIDs.contains(arguments[0].rawValue)
             {
-                ulongRangeExprIDs.insert(result.rawValue)
+                state.ulongRangeExprIDs.insert(result.rawValue)
             }
         }
         // STDLIB-189: Classify string-producing calls
         if let result, lookup.stringProducingCallees.contains(callee) {
-            stringExprIDs.insert(result.rawValue)
+            state.stringExprIDs.insert(result.rawValue)
         }
         // KSP-441: Sequence factories whose source body is just a bridge to a
         // runtime __kk_* / kk_* entry return a RuntimeSequenceBox handle.  Track
         // those results so source Sequence HOFs route to the runtime helpers.
         if let result, lookup.sequenceRuntimeBridgeReturningNames.contains(callee) {
-            sequenceExprIDs.insert(result.rawValue)
+            state.sequenceExprIDs.insert(result.rawValue)
         }
         propagateCollectionOperation(
             callee: callee, arguments: arguments, result: result, lookup: lookup,
-            listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,
-            sequenceExprIDs: &sequenceExprIDs,
-            stringExprIDs: &stringExprIDs
+            state: &state
         )
         // KSP-453: Source-backed IntRange/IntProgression HOFs are emitted as
         // ordinary .call instructions. Track their results so downstream list
         // operations (size, isEmpty, etc.) still lower correctly.
-        if let result, !arguments.isEmpty, rangeExprIDs.contains(arguments[0].rawValue) {
+        if let result, !arguments.isEmpty, state.rangeExprIDs.contains(arguments[0].rawValue) {
             let listProducingRangeHOFs: Set<InternedString> = [
                 lookup.toListName, lookup.mapName, lookup.mapIndexedName, lookup.mapNotNullName,
                 lookup.filterName, lookup.filterIndexedName, lookup.filterNotName,
                 lookup.chunkedName, lookup.windowedName, lookup.takeName, lookup.dropName, lookup.sortedName,
             ]
             if listProducingRangeHOFs.contains(callee) {
-                listExprIDs.insert(result.rawValue)
+                state.listExprIDs.insert(result.rawValue)
             } else if callee == lookup.toIntArrayName {
-                arrayExprIDs.insert(result.rawValue)
+                state.arrayExprIDs.insert(result.rawValue)
             }
         }
         // STDLIB-565: Classify File constructor calls.
@@ -324,7 +270,7 @@ extension CollectionLiteralLoweringSupport {
         if let result,
            callee == lookup.fileConstructorName || callee == lookup.kkFileNewName
         {
-            fileExprIDs.insert(result.rawValue)
+            state.fileExprIDs.insert(result.rawValue)
         }
     }
 
@@ -332,10 +278,7 @@ extension CollectionLiteralLoweringSupport {
         callee: InternedString,
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         guard let result else { return }
         if lookup.listFactoryNames.contains(callee) || lookup.mutableListConstructorNames.contains(callee)
@@ -344,20 +287,20 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.kkStringSplitName
             || callee == lookup.kkArrayToListName
         {
-            listExprIDs.insert(result.rawValue)
+            state.listExprIDs.insert(result.rawValue)
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
                     || callee == lookup.kkSetOfNotNullName {
-            setExprIDs.insert(result.rawValue)
+            state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)
                     || callee == lookup.kkMapOfName {
-            mapExprIDs.insert(result.rawValue)
+            state.mapExprIDs.insert(result.rawValue)
         } else if lookup.arrayOfFactoryNames.contains(callee)
             || callee == lookup.kkArrayNewName
             // CallLowerer may already lower intArrayOf/arrayOf to kk_array_of before this pass.
             || callee == lookup.kkArrayOfName
         {
-            arrayExprIDs.insert(result.rawValue)
+            state.arrayExprIDs.insert(result.rawValue)
         }
     }
 
@@ -366,32 +309,28 @@ extension CollectionLiteralLoweringSupport {
         arguments: [KIRExprID],
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        stringExprIDs _: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         guard let result, !arguments.isEmpty else { return }
         let src = arguments[0].rawValue
         // KSP-441〜447: Sequence パイプラインは source 化済み。runtime sequence handle の追跡は不要。
-        _ = sequenceExprIDs
         if callee == lookup.groupByName || callee == lookup.associateByName
             || callee == lookup.associateWithName || callee == lookup.associateName
             || callee == lookup.associateByToName || callee == lookup.associateWithToName
             || callee == lookup.groupByToName,
-            listExprIDs.contains(src)
+            state.listExprIDs.contains(src)
         {
-            mapExprIDs.insert(result.rawValue)
-        } else if callee == lookup.mapName, mapExprIDs.contains(src) {
-            listExprIDs.insert(result.rawValue)
-        } else if callee == lookup.filterName, mapExprIDs.contains(src) {
-            mapExprIDs.insert(result.rawValue)
+            state.mapExprIDs.insert(result.rawValue)
+        } else if callee == lookup.mapName, state.mapExprIDs.contains(src) {
+            state.listExprIDs.insert(result.rawValue)
+        } else if callee == lookup.filterName, state.mapExprIDs.contains(src) {
+            state.mapExprIDs.insert(result.rawValue)
         } else if callee == lookup.mapValuesName || callee == lookup.mapKeysName
                     || callee == lookup.filterKeysName || callee == lookup.filterValuesName,
-                  mapExprIDs.contains(src) {
-            mapExprIDs.insert(result.rawValue)
-        } else if callee == lookup.toListName, mapExprIDs.contains(src) {
-            listExprIDs.insert(result.rawValue)
+                  state.mapExprIDs.contains(src) {
+            state.mapExprIDs.insert(result.rawValue)
+        } else if callee == lookup.toListName, state.mapExprIDs.contains(src) {
+            state.listExprIDs.insert(result.rawValue)
         } else if callee == lookup.takeName || callee == lookup.dropName
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
@@ -399,11 +338,11 @@ extension CollectionLiteralLoweringSupport {
             || callee == lookup.kkListSortedName
             || callee == lookup.kkListShuffledName
             || callee == lookup.kkListShuffledRandomName,
-            listExprIDs.contains(src)
+            state.listExprIDs.contains(src)
         {
-            listExprIDs.insert(result.rawValue)
+            state.listExprIDs.insert(result.rawValue)
         }
-        // withIndex returns IndexingIterable, not List — do not add to listExprIDs
+        // withIndex returns IndexingIterable, not List — do not add to state.listExprIDs
     }
 
     private func handleVirtualCallInstruction(
@@ -413,13 +352,7 @@ extension CollectionLiteralLoweringSupport {
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
-        listExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        stringExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         if callee == lookup.asSequenceName
         {
@@ -429,48 +362,48 @@ extension CollectionLiteralLoweringSupport {
                     return sema.symbols.isSourceBackedSymbol(symbol)
                 }()
                 if !isSourceBacked {
-                    sequenceExprIDs.insert(result.rawValue)
+                    state.sequenceExprIDs.insert(result.rawValue)
                 }
             }
             return
         }
         if callee == lookup.kkStringSplitName
         {
-            if let result { listExprIDs.insert(result.rawValue) }
+            if let result { state.listExprIDs.insert(result.rawValue) }
             return
         }
 
         let receiverRaw = receiver.rawValue
-        if sequenceExprIDs.contains(receiverRaw) {
+        if state.sequenceExprIDs.contains(receiverRaw) {
             if callee == lookup.toListName {
-                if let result { listExprIDs.insert(result.rawValue) }
+                if let result { state.listExprIDs.insert(result.rawValue) }
             } else if callee == lookup.mapName || callee == lookup.filterName || callee == lookup.takeName
                 || callee == lookup.flatMapName || callee == lookup.flatMapIndexedName || callee == lookup.dropName
                 || callee == lookup.distinctName || callee == lookup.zipName
                 || callee == lookup.shuffledName
             {
-                if let result { sequenceExprIDs.insert(result.rawValue) }
+                if let result { state.sequenceExprIDs.insert(result.rawValue) }
             }
             return
         }
 
-        if mapExprIDs.contains(receiverRaw) {
+        if state.mapExprIDs.contains(receiverRaw) {
             if callee == lookup.mapName || callee == lookup.toListName {
-                if let result { listExprIDs.insert(result.rawValue) }
+                if let result { state.listExprIDs.insert(result.rawValue) }
             } else if callee == lookup.filterName || callee == lookup.mapValuesName || callee == lookup.mapKeysName
                         || callee == lookup.filterKeysName || callee == lookup.filterValuesName {
-                if let result { mapExprIDs.insert(result.rawValue) }
+                if let result { state.mapExprIDs.insert(result.rawValue) }
             }
             return
         }
 
-        if listExprIDs.contains(receiverRaw) {
+        if state.listExprIDs.contains(receiverRaw) {
             if callee == lookup.groupByName || callee == lookup.associateByName
                 || callee == lookup.associateWithName || callee == lookup.associateName
                 || callee == lookup.associateByToName || callee == lookup.associateWithToName
                 || callee == lookup.groupByToName
             {
-                if let result { mapExprIDs.insert(result.rawValue) }
+                if let result { state.mapExprIDs.insert(result.rawValue) }
             } else if callee == lookup.takeName || callee == lookup.dropName
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
@@ -479,85 +412,35 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.kkListShuffledName
                 || callee == lookup.kkListShuffledRandomName
             {
-                if let result { listExprIDs.insert(result.rawValue) }
+                if let result { state.listExprIDs.insert(result.rawValue) }
             }
-            // withIndex returns IndexingIterable, not List — do not add to listExprIDs
+            // withIndex returns IndexingIterable, not List — do not add to state.listExprIDs
         }
 
         // Track range member calls that return ranges
-        if rangeExprIDs.contains(receiverRaw) {
+        if state.rangeExprIDs.contains(receiverRaw) {
             if callee == lookup.reversedName {
                 if let result {
-                    rangeExprIDs.insert(result.rawValue)
+                    state.rangeExprIDs.insert(result.rawValue)
                     // Propagate char range through reversed() (STDLIB-290)
-                    if charRangeExprIDs.contains(receiverRaw) {
-                        charRangeExprIDs.insert(result.rawValue)
+                    if state.charRangeExprIDs.contains(receiverRaw) {
+                        state.charRangeExprIDs.insert(result.rawValue)
                     }
                     // Propagate ULong range through reversed() (STDLIB-524)
-                    if ulongRangeExprIDs.contains(receiverRaw) {
-                        ulongRangeExprIDs.insert(result.rawValue)
+                    if state.ulongRangeExprIDs.contains(receiverRaw) {
+                        state.ulongRangeExprIDs.insert(result.rawValue)
                     }
                 }
             } else if callee == lookup.toListName || callee == lookup.mapName {
-                if let result { listExprIDs.insert(result.rawValue) }
+                if let result { state.listExprIDs.insert(result.rawValue) }
             }
         }
 
         // STDLIB-189: Track string HOF results
-        if stringExprIDs.contains(receiverRaw) {
+        if state.stringExprIDs.contains(receiverRaw) {
             if callee == lookup.mapName || callee == lookup.filterName, let result {
-                stringExprIDs.insert(result.rawValue)
+                state.stringExprIDs.insert(result.rawValue)
             }
-        }
-    }
-
-    private func handleCopyInstruction(
-        from: KIRExprID,
-        to: KIRExprID,
-        listExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        stringExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>,
-        pathExprIDs: inout Set<Int32>
-    ) {
-        if listExprIDs.contains(from.rawValue) {
-            listExprIDs.insert(to.rawValue)
-        }
-        if setExprIDs.contains(from.rawValue) {
-            setExprIDs.insert(to.rawValue)
-        }
-        if mapExprIDs.contains(from.rawValue) {
-            mapExprIDs.insert(to.rawValue)
-        }
-        if arrayExprIDs.contains(from.rawValue) {
-            arrayExprIDs.insert(to.rawValue)
-        }
-        if sequenceExprIDs.contains(from.rawValue) {
-            sequenceExprIDs.insert(to.rawValue)
-        }
-        if rangeExprIDs.contains(from.rawValue) {
-            rangeExprIDs.insert(to.rawValue)
-        }
-        if charRangeExprIDs.contains(from.rawValue) {
-            charRangeExprIDs.insert(to.rawValue)
-        }
-        if ulongRangeExprIDs.contains(from.rawValue) {
-            ulongRangeExprIDs.insert(to.rawValue)
-        }
-        if stringExprIDs.contains(from.rawValue) {
-            stringExprIDs.insert(to.rawValue)
-        }
-        if fileExprIDs.contains(from.rawValue) {
-            fileExprIDs.insert(to.rawValue)
-        }
-        if pathExprIDs.contains(from.rawValue) {
-            pathExprIDs.insert(to.rawValue)
         }
     }
 
@@ -602,12 +485,7 @@ extension CollectionLiteralLoweringSupport {
         arena: KIRArena,
         sema: SemaModule?,
         interner: StringInterner,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        stringExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         guard let sema else { return }
         let types = sema.types
@@ -622,19 +500,16 @@ extension CollectionLiteralLoweringSupport {
             let exprID = KIRExprID(rawValue: rawID)
             guard let typeID = arena.exprType(exprID) else { continue }
             // Already classified by factory-call scan — skip.
-            if listExprIDs.contains(rawID) || setExprIDs.contains(rawID)
-                || mapExprIDs.contains(rawID) || arrayExprIDs.contains(rawID)
-                || sequenceExprIDs.contains(rawID) || stringExprIDs.contains(rawID)
+            if state.listExprIDs.contains(rawID) || state.setExprIDs.contains(rawID)
+                || state.mapExprIDs.contains(rawID) || state.arrayExprIDs.contains(rawID)
+                || state.sequenceExprIDs.contains(rawID) || state.stringExprIDs.contains(rawID)
             {
                 continue
             }
             classifyExprByTypeID(
-                rawID: rawID, typeID: typeID,
+                expr: exprID, typeID: typeID,
                 types: types, symbols: symbols, interner: interner,
-                listExprIDs: &listExprIDs, setExprIDs: &setExprIDs,
-                mapExprIDs: &mapExprIDs, arrayExprIDs: &arrayExprIDs,
-                sequenceExprIDs: &sequenceExprIDs,
-                stringExprIDs: &stringExprIDs
+                state: &state
             )
         }
     }
@@ -659,42 +534,26 @@ extension CollectionLiteralLoweringSupport {
     }
 
     private func classifyExprByTypeID(
-        rawID: Int32,
+        expr: KIRExprID,
         typeID: TypeID,
         types: TypeSystem,
         symbols: SymbolTable,
         interner: StringInterner,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        stringExprIDs: inout Set<Int32>
+        state: inout CollectionRewriteState
     ) {
         let kind = types.kind(of: typeID)
         if case .stringStruct = kind {
-            stringExprIDs.insert(rawID)
+            state.tag(expr, as: .string)
             return
         }
         guard case let .classType(classType) = kind else { return }
 
         let classSymbol = classType.classSymbol
-        guard let symInfo = symbols.symbol(classSymbol) else { return }
-        switch trackedStaticTypeKind(of: symInfo, interner: interner) {
-        case .list:
-            listExprIDs.insert(rawID)
-        case .set:
-            setExprIDs.insert(rawID)
-        case .map:
-            mapExprIDs.insert(rawID)
-        case .array:
-            arrayExprIDs.insert(rawID)
-        case .sequence:
-            sequenceExprIDs.insert(rawID)
-        case .string:
-            stringExprIDs.insert(rawID)
-        default:
-            break
+        guard let symInfo = symbols.symbol(classSymbol),
+              let trackedKind = trackedStaticTypeKind(of: symInfo, interner: interner)
+        else {
+            return
         }
+        state.tag(expr, as: trackedKind)
     }
 }
