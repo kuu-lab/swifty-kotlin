@@ -578,12 +578,14 @@ public func kk_worker_as_cpointer(_ workerHandle: Int) -> Int {
 /// Schedule a closure to run on a Worker after `afterMicroseconds` microseconds.
 ///
 /// Uses `DispatchQueue.asyncAfter` on the Worker's underlying serial queue.
-/// The closure is represented by the legacy delayed-worker `(fnPtr, closureRaw)` ABI.
+/// The closure is represented by the standard closure-thunk `(fnPtr, closureRaw)`
+/// ABI (`KKClosureThunkEntryPoint`): `fnPtr` takes `(closureRaw, outThrown)` and
+/// returns an (unused, for a `Unit`-returning operation) `Int`.
 ///
 /// - Parameters:
 ///   - workerHandle: handle produced by `kk_worker_new`.
 ///   - afterMicroseconds: delay in microseconds (0 means "as soon as possible").
-///   - fnPtr:        C function pointer `(Int) -> Int` for the closure body.
+///   - fnPtr:        C function pointer for the closure body.
 ///   - closureRaw:   opaque closure capture handle passed to `fnPtr`.
 /// - Returns: 1 if scheduled, 0 if the worker is terminated or `fnPtr` is null.
 @_cdecl("kk_worker_execute_after")
@@ -608,14 +610,30 @@ public func kk_worker_execute_after(
     guard afterMicroseconds >= 0 else {
         return 0
     }
-    typealias WorkFn = @convention(c) (Int) -> Int
-    let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: fnPtr)!, to: WorkFn.self)
-    let captured = closureRaw
+    // `fnPtr`/`closureRaw` could in principle arrive as a
+    // `kk_function_create_0`-wrapped function-value handle rather than a raw
+    // (fnPtr, closureRaw) pair — see `resolveFunctionValuePair`. Resolve on
+    // the calling thread so the deferred closure below only ever captures a
+    // raw pair.
+    let resolved = resolveFunctionValuePair(fnPtr: fnPtr, closureRaw: closureRaw)
+    // A compiled Kotlin closure body always follows the standard
+    // KKClosureThunkEntryPoint convention — (closureRaw, outThrown) -> Int,
+    // matching runtimeInvokeClosureThunk elsewhere in this file — never the
+    // 1-argument `(Int) -> Int` this used to declare here. Calling a 2-arg
+    // callee as if it took 1 arg leaves its `outThrown` parameter register
+    // holding whatever the caller last put there, so `operation`'s generated
+    // adapter (which unconditionally writes `outThrown?.pointee = 0` on the
+    // no-exception path) stores through that garbage address and crashes.
+    let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: resolved.fnPtr)!, to: KKClosureThunkEntryPoint.self)
+    let captured = resolved.closureRaw
     let deadline: DispatchTime = afterMicroseconds > 0
         ? DispatchTime.now() + .microseconds(afterMicroseconds)
         : .now()
     let submitted = worker.executeAfter(deadline: deadline) {
-        _ = fn(captured)
+        // Fire-and-forget: executeAfter's Kotlin signature returns Unit with
+        // no Future, so there is nothing to report a thrown exception to.
+        var thrown = 0
+        _ = fn(captured, &thrown)
     }
     return submitted ? 1 : 0
 }

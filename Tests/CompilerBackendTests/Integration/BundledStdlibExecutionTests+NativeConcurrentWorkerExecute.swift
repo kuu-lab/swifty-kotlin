@@ -44,4 +44,23 @@ extension BundledStdlibExecutionTests {
             expectedOutput: "42\n"
         )
     }
+
+    @Test
+    func testWorkerExecuteAfterRunsTrailingLambdaOperation() throws {
+        try compileAndRunKotlin(
+            """
+            @file:Suppress("DEPRECATION_ERROR")
+            @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+
+            import kotlin.native.concurrent.Worker
+
+            fun main() {
+                val worker = Worker.start()
+                worker.executeAfter(0L) { println("ran") }
+                worker.requestTermination(true)
+            }
+            """,
+            expectedOutput: "ran\n"
+        )
+    }
 }

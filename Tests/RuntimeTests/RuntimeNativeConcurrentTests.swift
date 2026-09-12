@@ -54,8 +54,9 @@ private let workerExecuteJobThunk: @convention(c) (Int, Int, UnsafeMutablePointe
     return value * 2
 }
 
-private let workerExecuteAfterNoopThunk: @convention(c) (Int) -> Int = { _ in
-    0
+private let workerExecuteAfterNoopThunk: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { _, outThrown in
+    outThrown?.pointee = 0
+    return 0
 }
 
 // ---------------------------------------------------------------------------
