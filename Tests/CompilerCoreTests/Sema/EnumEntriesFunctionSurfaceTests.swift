@@ -4,27 +4,14 @@ import Testing
 
 @Suite
 struct EnumEntriesFunctionSurfaceTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static let fixture = SemaFixture(surface: "enumEntries")
 
     private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
+        try Self.fixture.shared()
     }
 
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "enumEntries surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.make(source: source)
     }
 
     @Test func testEnumEntriesFunctionIsRegisteredUnderKotlinEnums() throws {

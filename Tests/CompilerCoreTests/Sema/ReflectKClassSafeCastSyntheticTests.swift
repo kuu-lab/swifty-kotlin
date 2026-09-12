@@ -4,18 +4,10 @@ import Testing
 
 @Suite
 struct ReflectKClassSafeCastSyntheticTests {
+    private static let fixture = SemaFixture(surface: "KClass.safeCast")
+
     private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                Comment(rawValue: "Expected KClass.safeCast source to type-check, got: \(ctx.diagnostics.diagnostics)")
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.make(source: source)
     }
 
     @Test func testKClassSafeCastInfersNullableReceiverArgumentReturnTypes() throws {
