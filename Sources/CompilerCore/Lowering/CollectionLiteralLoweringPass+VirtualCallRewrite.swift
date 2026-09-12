@@ -11,183 +11,32 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
     /// Returns true when the callee resolves to a bundled Kotlin source declaration
     /// that should not be rewritten to a runtime `kk_*` entry point.
+    ///
+    /// RF-LOWER-CALL-007 moved the decision into
+    /// `SourceBackedCallPreservationPolicy`, which the construction pass shares:
+    /// the 102 API names both paths preserved are one set there, and the names
+    /// only virtual dispatch preserves (Range/progression members, `random`)
+    /// are a second. What remains here is resolving the receiver's static type,
+    /// which the policy deliberately cannot do.
     private func shouldPreserveSourceBackedVirtualCall(
         symbol: SymbolID?,
         callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
         receiver: KIRExprID,
         context: VirtualCallRewriteContext
     ) -> Bool {
-        // KSP-1513: array `size` is a bundled Kotlin declaration, so do not
-        // replace it with the generic runtime bridge when the receiver is an
-        // Array<T> or primitive array.
-        if callee == lookup.sizeName,
-           let symbol,
-           let sema = context.sema,
-           sema.symbols.isSourceBackedSymbol(symbol),
-           let receiverType = context.module.arena.exprType(receiver),
-           let (_, receiverSymbol) = resolveClassTypeSymbol(
-               receiverType,
-               sema: sema
-           )
-        {
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
-        }
-
-        // KSP-1516: array conversion members are bundled Kotlin source. Keep
-        // the selected declaration so its source body is emitted instead of
-        // the removed synthetic runtime shortcuts.
-        if callee == lookup.sliceArrayName
-            || callee == lookup.reversedArrayName
-            || callee == lookup.asListName
-            || callee == lookup.toTypedArrayName,
-           let symbol,
-           let sema = context.sema,
-           sema.symbols.isSourceBackedSymbol(symbol),
-           let receiverType = context.module.arena.exprType(receiver),
-           let (_, receiverSymbol) = resolveClassTypeSymbol(
-               receiverType,
-               sema: sema
-           )
-        {
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
-        }
-
-        guard callee == lookup.foldName
-            || callee == lookup.foldRightName
-            || callee == lookup.reduceName
-            || callee == lookup.reduceOrNullName
-            || callee == lookup.scanName
-            || callee == lookup.scanIndexedName
-            || callee == lookup.scanReduceName
-            || callee == lookup.runningFoldName
-            || callee == lookup.runningFoldIndexedName
-            || callee == lookup.runningReduceName
-            || callee == lookup.runningReduceIndexedName
-            || callee == lookup.foldIndexedName
-            || callee == lookup.foldRightIndexedName
-            || callee == lookup.reduceRightName
-            || callee == lookup.reduceRightOrNullName
-            || callee == lookup.reduceRightIndexedName
-            || callee == lookup.reduceRightIndexedOrNullName
-            || callee == lookup.reduceIndexedName
-            || callee == lookup.reduceIndexedOrNullName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterNotNullName
-            || callee == lookup.filterIndexedName
-            || callee == lookup.associateName
-            || callee == lookup.associateByName
-            || callee == lookup.associateWithName
-            || callee == lookup.associateToName
-            || callee == lookup.associateByToName
-            || callee == lookup.associateWithToName
-            || callee == lookup.groupByName
-            || callee == lookup.groupByToName
-            || callee == lookup.partitionName
-            || callee == lookup.unzipName
-            || callee == lookup.withIndexName
-            || callee == lookup.onEachName
-            || callee == lookup.onEachIndexedName
-            || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
-            // KSP-426: List sorting/extrema are bundled Kotlin source.
-            || callee == lookup.sortedName
-            || callee == lookup.sortedByName
-            || callee == lookup.sortedByDescendingName
-            || callee == lookup.sortedDescendingName
-            || callee == lookup.sortedWithName
-            || callee == lookup.maxName
-            || callee == lookup.maxByName
-            || callee == lookup.maxOfName
-            || callee == lookup.maxOfOrNullName
-            || callee == lookup.maxOfWithName
-            || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.maxOrNullName
-            || callee == lookup.maxWithName
-            || callee == lookup.maxWithOrNullName
-            || callee == lookup.minName
-            || callee == lookup.minByName
-            || callee == lookup.minByOrNullName
-            || callee == lookup.minOfName
-            || callee == lookup.minOfOrNullName
-            || callee == lookup.minOfWithName
-            || callee == lookup.minOfWithOrNullName
-            || callee == lookup.minOrNullName
-            || callee == lookup.minWithName
-            || callee == lookup.minWithOrNullName
-            || callee == lookup.mapName
-            || callee == lookup.mapIndexedName
-            || callee == lookup.mapNotNullName
-            || callee == lookup.mapValuesName
-            || callee == lookup.mapValuesToName
-            || callee == lookup.mapKeysName
-            || callee == lookup.mapKeysToName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
-            || callee == lookup.forEachName
-            || callee == lookup.mapToName
-            || callee == lookup.mapIndexedToName
-            || callee == lookup.mapNotNullToName
-            || callee == lookup.mapIndexedNotNullName
-            || callee == lookup.mapIndexedNotNullToName
-            || callee == lookup.flatMapName
-            || callee == lookup.flatMapIndexedName
-            || callee == lookup.flatMapToName
-            || callee == lookup.flatMapIndexedToName
-            || callee == lookup.flattenName
-            || callee == lookup.takeName
-            || callee == lookup.dropName
-            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
-            || callee == lookup.findName
-            || callee == lookup.findLastName
-            || callee == lookup.indexOfName
-            || callee == lookup.lastIndexOfName
-            || callee == lookup.indexOfFirstName
-            || callee == lookup.indexOfLastName
-            || callee == lookup.containsName
-            || callee == lookup.containsAllName
-            || callee == lookup.countName
-            || callee == lookup.anyName
-            || callee == lookup.allName
-            || callee == lookup.noneName
-            || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName
-            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
-            || callee == lookup.copyOfName
-            || callee == lookup.copyOfRangeName
-            // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
-            || callee == lookup.isEmptyName
-            || callee == lookup.iteratorName
-            // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
-            || callee == lookup.toListName
-            || callee == lookup.toIntArrayName
-            || callee == lookup.averageName
-            || callee == lookup.sortedName
-            || callee == lookup.chunkedName
-            || callee == lookup.windowedName
-            || callee == lookup.firstName
-            || callee == lookup.lastName
-            || callee == context.interner.intern("random")
-            || callee == context.interner.intern("randomOrNull"),
-            let symbol,
-            let sema = context.sema,
-            sema.symbols.symbol(symbol) != nil
-        else {
-            return false
-        }
-        return sema.symbols.isSourceBackedSymbol(symbol)
+        sourceBackedPreservation.preservesVirtualCall(
+            callee: callee,
+            resolution: SourceBackedCalleeResolution(symbol: symbol, sema: context.sema),
+            receiverArrayClassName: {
+                guard let sema = context.sema,
+                      let receiverType = context.module.arena.exprType(receiver),
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else {
+                    return nil
+                }
+                return context.interner.resolve(receiverSymbol.name)
+            }
+        )
     }
 
     func rewriteVirtualCallInstruction(
@@ -274,7 +123,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if shouldPreserveSourceBackedVirtualCall(
             symbol: symbol,
             callee: callee,
-            lookup: lookup,
             receiver: receiver,
             context: context
         ) {
