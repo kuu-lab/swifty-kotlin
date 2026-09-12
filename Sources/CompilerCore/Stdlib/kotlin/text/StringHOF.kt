@@ -773,6 +773,7 @@ public inline fun CharSequence.forEachIndexed(action: (index: Int, Char) -> Unit
     }
 }
 
+@Suppress("UNCHECKED_CAST")
 public inline fun <R> CharSequence.runningFold(initial: R, operation: (acc: R, Char) -> R): List<R> {
     if (this.length == 0) return listOf(initial)
     // Box primitive accumulators before crossing the generic List element boundary.
@@ -788,6 +789,7 @@ public inline fun <R> CharSequence.runningFold(initial: R, operation: (acc: R, C
     return result as List<R>
 }
 
+@Suppress("UNCHECKED_CAST")
 public inline fun <R> CharSequence.runningFoldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): List<R> {
     if (this.length == 0) return listOf(initial)
     // Box primitive accumulators before crossing the generic List element boundary.
@@ -804,6 +806,7 @@ public inline fun <R> CharSequence.runningFoldIndexed(initial: R, operation: (in
     return result as List<R>
 }
 
+@Suppress("UNCHECKED_CAST")
 public inline fun CharSequence.runningReduce(operation: (acc: Char, Char) -> Char): List<Char> {
     if (this.length == 0) return emptyList()
     var accumulator = this[0]
@@ -820,6 +823,7 @@ public inline fun CharSequence.runningReduce(operation: (acc: Char, Char) -> Cha
     return result as List<Char>
 }
 
+@Suppress("UNCHECKED_CAST")
 public inline fun CharSequence.runningReduceIndexed(operation: (index: Int, acc: Char, Char) -> Char): List<Char> {
     if (this.length == 0) return emptyList()
     var accumulator = this[0]

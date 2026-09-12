@@ -87,11 +87,11 @@ struct CharSequenceRunningSourceMigrationTests {
                 accumulator + value.code
             })
             source.runningReduce(operation = { accumulator, value ->
-                if (value == 'b') return value
+                if (value == 'b') return value.code
                 accumulator
             })
             source.runningReduceIndexed(operation = { index, accumulator, value ->
-                if (index == 1) return value
+                if (index == 1) return value.code
                 accumulator
             })
             return -1
