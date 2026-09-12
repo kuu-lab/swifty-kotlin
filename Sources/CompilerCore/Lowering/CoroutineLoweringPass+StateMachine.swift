@@ -1,4 +1,8 @@
 
+/// Label base for coroutine state machine dispatch labels, chosen to avoid
+/// collision with user labels and tailrec loop-head labels.
+let coroutineDispatchLabelBase: Int32 = 1000
+
 struct StateMachineTypeContext {
     let continuationType: TypeID
     let anyType: TypeID
@@ -398,7 +402,7 @@ extension CoroutineLoweringPass {
     }
 
     func stateDispatchLabel(for resumeLabel: Int64) -> Int32 {
-        Int32(1000 + resumeLabel)
+        coroutineDispatchLabelBase + Int32(resumeLabel)
     }
 
     struct IndexedInstruction {
