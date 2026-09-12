@@ -3,32 +3,12 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-ANNO-001: kotlin.annotation API Surface Inventory
-//
 // This file fixes the canonical set of source-backed symbols that the sema layer
 // must register for the `kotlin.annotation` package and verifies that every
 // symbol is present in the symbol table after a minimal sema run. It covers:
-//
-//   Annotation classes:
-//     • @Target              (kotlin.annotation.Target)
-//     • @Retention           (kotlin.annotation.Retention)
-//     • @Repeatable          (kotlin.annotation.Repeatable)
-//     • @MustBeDocumented    (kotlin.annotation.MustBeDocumented)
-//
-//   Enum classes and their entries:
-//     • AnnotationTarget     (CLASS, ANNOTATION_CLASS, TYPE_PARAMETER, PROPERTY, FIELD,
-//                             LOCAL_VARIABLE, VALUE_PARAMETER, CONSTRUCTOR, FUNCTION,
-//                             PROPERTY_GETTER, PROPERTY_SETTER, TYPE, EXPRESSION,
-//                             FILE, TYPEALIAS)
-//     • AnnotationRetention  (SOURCE, BINARY, RUNTIME)
-//
-// Scope: symbol-table / sema-level only.  Diagnostic behaviour for these annotations
-//        is covered by AnnotationSemanticTests (codex #1205).
 
 @Suite
 struct KotlinAnnotationAPIInventoryTests {
-
-    // MARK: - Shared sema fixture
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
@@ -47,8 +27,6 @@ struct KotlinAnnotationAPIInventoryTests {
         Self._sharedSema = semaResult
         return semaResult
     }
-
-    // MARK: - Lookup helpers
 
     private func symbol(
         fqPath: [String],

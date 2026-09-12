@@ -53,8 +53,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Unit Tests (KIR level)
 
-    /// Verify that a tailrec function's self-recursive call + returnValue
-    /// is replaced by parameter copy + jump to loop head.
     @Test
     func testTailrecRewritesSelfRecursiveCallToLoop() throws {
         let interner = StringInterner()
@@ -110,7 +108,6 @@ struct TailrecLoweringTests {
             moduleName: "TailrecTest", interner: interner
         )
 
-        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id == tailrecLoopLabelBase
@@ -119,7 +116,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasLoopLabel, "Expected loop-head label L\(tailrecLoopLabelBase)")
 
-        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target == tailrecLoopLabelBase
@@ -128,7 +124,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasJumpBack, "Expected jump back to loop head")
 
-        // The self-recursive call should be gone.
         let hasSelfCall = lowered.body.contains { instruction in
             if case let .call(sym, _, _, _, _, _, _, _) = instruction, sym == fnSymbol {
                 return true
@@ -137,7 +132,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasSelfCall, "Self-recursive call should have been eliminated")
 
-        // There should be copy instructions for parameter reassignment.
         let copyCount = lowered.body.filter { instruction in
             if case .copy = instruction { return true }
             return false
@@ -211,7 +205,6 @@ struct TailrecLoweringTests {
         )
     }
 
-    /// Verify that non-tailrec functions are NOT rewritten.
     @Test
     func testNonTailrecFunctionIsNotModified() {
         let interner = StringInterner()
@@ -251,7 +244,6 @@ struct TailrecLoweringTests {
         )
         let ctx = makeKIRContext(moduleName: "NonTailrecTest", interner: interner)
 
-        // shouldRun should return false.
         #expect(!TailrecLoweringPass().shouldRun(module: module, ctx: ctx))
     }
 
@@ -415,7 +407,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated by tailrec lowering")
 
-        // The loop-head label should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction {
                 return id >= tailrecLoopLabelBase
@@ -424,7 +415,6 @@ struct TailrecLoweringTests {
         }
         #expect(hasLoopLabel, "Expected loop-head label for mask=0 $default call")
 
-        // The jump back to loop head should be present.
         let hasJumpBack = lowered.body.contains { instruction in
             if case let .jump(target) = instruction {
                 return target >= tailrecLoopLabelBase
@@ -600,7 +590,6 @@ struct TailrecLoweringTests {
         }
         #expect(!hasDefaultStubCall, "$default stub call with mask=0 should be eliminated (slow-path mask test)")
 
-        // The loop-head label and jump should be present.
         let hasLoopLabel = lowered.body.contains { instruction in
             if case let .label(id) = instruction { return id >= tailrecLoopLabelBase }
             return false
@@ -616,8 +605,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Sema warning test
 
-    /// Verify that KSWIFTK-SEMA-TAILREC warning is emitted when the last
-    /// expression is not a self-recursive call.
     @Test
     func testSemaTailrecWarningOnNonRecursiveBody() throws {
         let source = """
@@ -640,9 +627,6 @@ struct TailrecLoweringTests {
 
     // MARK: - E2E integration test
 
-    /// Compile a tailrec factorial function and verify that tailrec lowering
-    /// transforms the recursion into a loop in KIR (no self-recursive calls
-    /// remain and control flow uses a loop-head label with jump).
     @Test
     func testTailrecFactorialLoweredToLoop() throws {
         let source = """

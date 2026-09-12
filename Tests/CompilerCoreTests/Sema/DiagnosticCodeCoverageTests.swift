@@ -3,24 +3,12 @@
 import Foundation
 import Testing
 
-// MARK: - Diagnostic Code Coverage Tests (TEST-ERR-004)
-//
-// Covers 15+ diagnostic codes previously untested:
-//   KSWIFTK-LEX-0004
-//   KSWIFTK-PARSE-0001, PARSE-0006
-//   KSWIFTK-SEMA-0021, SEMA-0042, SEMA-0043, SEMA-0050, SEMA-0052,
-//   KSWIFTK-SEMA-0054, SEMA-0055, SEMA-0061, SEMA-0070, SEMA-0072,
-//   KSWIFTK-SEMA-0073, SEMA-0074, SEMA-0080, SEMA-0081, SEMA-0083,
-//   KSWIFTK-SEMA-0097, SEMA-0098, SEMA-0300, SEMA-0301
-
 @Suite
 struct DiagnosticCodeCoverageTests {}
 
-// MARK: - LEX-0004: Invalid escape sequence / unescaped line break
+// MARK: - LEX-0004
 
 extension DiagnosticCodeCoverageTests {
-
-    /// Triggers KSWIFTK-LEX-0004: unescaped newline inside a string literal.
 
     // MARK: - Per-source diagnostic helpers
 

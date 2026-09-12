@@ -79,8 +79,6 @@ extension LoweringPassRegressionTests {
         })
     }
 
-    /// Verifies that `<lambda>` marker calls are still rewritten to
-    /// `kk_lambda_invoke` for backward compatibility.
     @Test
     func testClosureConversionRewritesLambdaMarkerToKkLambdaInvoke() throws {
         let interner = StringInterner()
@@ -146,9 +144,6 @@ extension LoweringPassRegressionTests {
             "Expected <lambda> marker to be removed")
     }
 
-    /// Verifies that a lambda with capture parameters gets rewritten to use
-    /// a closure object: kk_object_new + kk_array_set for captures, then
-    /// kk_closure_invoke_* for the invocation.
     @Test
     func testClosureConversionSynthesizesClosureObjectForLambdaWithCaptures() throws {
         let interner = StringInterner()
@@ -282,8 +277,6 @@ extension LoweringPassRegressionTests {
             "Expected closure object nominal type to be synthesized")
     }
 
-    /// Verifies that lambda functions without captures are NOT rewritten
-    /// (no closure object synthesis needed for zero-capture lambdas).
     @Test
     func testClosureConversionSkipsLambdaWithoutCaptures() throws {
         let interner = StringInterner()
@@ -380,8 +373,6 @@ extension LoweringPassRegressionTests {
             "Expected direct lambda call to remain for zero-capture lambda")
     }
 
-    /// Verifies that the invoke wrapper function correctly loads captures
-    /// via kk_array_get_inbounds and forwards to the original lambda.
     @Test
     func testClosureConversionInvokeWrapperLoadsCaptures() throws {
         let interner = StringInterner()
@@ -500,8 +491,6 @@ extension LoweringPassRegressionTests {
             "Expected invoke wrapper to forward to original lambda")
     }
 
-    /// Verifies that captured lambdas are ignored when no matching call site
-    /// still passes the full lambda arity.
     @Test
     func testClosureConversionSkipsCapturedLambdaWithoutMatchingCallSite() throws {
         let interner = StringInterner()
@@ -565,7 +554,6 @@ extension LoweringPassRegressionTests {
         #expect(!synthesizedNames.contains("kk_closure_invoke_\(lambdaSym.rawValue)"))
     }
 
-    /// Verifies that lambdas with very large ExprIDs are still classified correctly.
     @Test
     func testClosureConversionClassifiesLargeLambdaExprIDSymbols() throws {
         let interner = StringInterner()
@@ -662,7 +650,6 @@ extension LoweringPassRegressionTests {
             "Expected large-ExprID lambda to be converted")
     }
 
-    /// Verifies that throwing lambdas are not converted.
     @Test
     func testClosureConversionSkipsThrowingLambdaCalls() throws {
         let interner = StringInterner()
@@ -755,9 +742,6 @@ extension LoweringPassRegressionTests {
 
     // MARK: - CLSR-001: Multiple capture tests
 
-    /// Verifies that a lambda with two captures generates a closure object
-    /// that stores both captures via two kk_array_set calls, and the invoke
-    /// wrapper loads both via two kk_array_get_inbounds calls.
     @Test
     func testClosureConversionHandlesMultipleCaptures() throws {
         let interner = StringInterner()
@@ -895,9 +879,6 @@ extension LoweringPassRegressionTests {
             "Expected invoke wrapper to have 2 params (closureObj + 1 value)")
     }
 
-    /// Verifies that the closure conversion pass correctly handles non-throwing
-    /// callee registration for closure invoke wrappers, ensuring ABILoweringPass
-    /// can identify them without string-prefix coupling.
     @Test
     func testClosureConversionRegistersNonThrowingCallees() throws {
         let interner = StringInterner()
@@ -994,8 +975,6 @@ extension LoweringPassRegressionTests {
             "Expected lambda target to be registered as non-throwing callee")
     }
 
-    /// Verifies that zero-value-param lambdas with captures are NOT converted
-    /// (they represent scope-function lambdas like apply/run).
     @Test
     func testClosureConversionSkipsZeroValueParamLambdaWithCapture() throws {
         let interner = StringInterner()
@@ -1078,8 +1057,6 @@ extension LoweringPassRegressionTests {
             "Expected pass to skip zero-value-param lambda with capture (scope function)")
     }
 
-    /// Verifies that the invoke wrapper function preserves the isSuspend flag
-    /// from the original lambda function.
     @Test
     func testClosureConversionInvokeWrapperPreservesSuspendFlag() throws {
         let interner = StringInterner()
@@ -1177,8 +1154,6 @@ extension LoweringPassRegressionTests {
             "Expected invoke wrapper to preserve isSuspend=true from the original lambda")
     }
 
-    /// Verifies that the closure object class ID constant in the lowered
-    /// output is non-zero and deterministic (FNV-1a hash based).
     @Test
     func testClosureConversionClassIDIsNonZero() throws {
         let interner = StringInterner()

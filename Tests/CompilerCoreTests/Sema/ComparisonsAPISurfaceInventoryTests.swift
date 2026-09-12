@@ -3,33 +3,11 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-COMP-001: kotlin.comparisons API Surface Inventory
-//
-// This file fixes the canonical API list for kotlin.comparisons and kotlin.Comparator
-// and verifies that every symbol is (or is not) registered after sema.
-//
-// Coverage:
-//   • Comparator<T> interface: compare, thenBy, thenByDescending, thenComparator,
-//     thenDescending, reversed, nullsFirst, nullsLast
-//   • Factory top-levels: compareBy (single-selector & multi-selector), compareByDescending,
-//     naturalOrder, reverseOrder
-//   • Comparison top-levels: compareValues, compareValuesBy (arities 1–3)
-//   • minOf / maxOf with Comparator overloads (kotlin.comparisons package)
-//   • coerceIn range overloads (kotlin.ranges — inventory-level cross-check only)
-//
-// Scope: sema / symbol-table level only.
-//   Runtime correctness is in RuntimeComparatorTests (COMP-003 / #1202).
-//   Overload resolution is in ComparatorOverloadResolutionTests (COMP-002 / #1257).
-//
-// Gap convention:
-//   APIs not yet registered by the sema layer are marked with `_Gap` suffix and
 //   assert the *current absence* with a short follow-up note. Flip `#expect(links.isEmpty)`
 //   to the positive assertion once implemented.
 
 @Suite
 struct ComparisonsAPISurfaceInventoryTests {
-
-    // MARK: - Shared sema fixture
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
@@ -46,8 +24,6 @@ struct ComparisonsAPISurfaceInventoryTests {
         Self._sharedSema = semaResult
         return semaResult
     }
-
-    // MARK: - Lookup helpers
 
     private func externalLink(
         fqPath: [String],

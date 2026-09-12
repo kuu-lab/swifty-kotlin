@@ -2,11 +2,6 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-I18N-COMMON-001: kotlin.text / common formatting and locale inventory
-//
-// This file documents which Kotlin common-scope i18n / locale APIs are implemented
-// in the KSwiftK runtime and which are absent (gaps).
-//
 // Implemented (common scope, backed by runtime functions):
 //   - String.lowercase()                   → kk_string_lowercase_flat
 //   - String.uppercase()                   → kk_string_uppercase_flat
@@ -23,11 +18,6 @@ import Testing
 //   - Char.lowercase()                     → __kk_char_lowercase_string  (returns String per Kotlin spec)
 //   - Char.lowercase(Locale)               → __kk_char_lowercase_locale
 //   - Char.titlecase()                     → __kk_char_titlecase_string
-//   - Char.directionality                  → kk_char_directionality  (CharDirectionality enum)
-//
-// Gaps (absent in common scope):
-//   - String.format(locale, vararg args)  — locale-parameterised receiver overload absent
-//   - NumberFormat (java.text) is JVM/platform only, not common multiplatform
 //   - java.util.Locale members (language/country/variant/displayLanguage, getDefault/
 //     setDefault/getAvailableLocales) — removed with CLEANUP-STUB-112; Locale is only a
 //     construction handle for locale-parameterised String/Char operations
