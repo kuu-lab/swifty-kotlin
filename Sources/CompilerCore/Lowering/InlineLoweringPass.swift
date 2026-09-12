@@ -489,9 +489,15 @@ final class InlineLoweringPass: LoweringPass {
                         loweredBody.append(.label(trailingThrowLabel))
                     }
                     if let result {
-                        if let lambdaReturn = lambdaExpansion.returnedExpr {
+                        // The lambda may return through a non-local return on
+                        // every path, in which case `returnedExpr` refers to a
+                        // slot no emitted instruction defines. Read it only
+                        // when a definition actually survives in the body.
+                        if let lambdaReturn = lambdaExpansion.returnedExpr.map({ resolveAlias(of: $0, aliases: aliases) }),
+                           exprIsDefined(lambdaReturn, in: loweredBody.instructions)
+                        {
                             let finalExpr = boxErasedLambdaResultIfNeeded(
-                                returnedExpr: resolveAlias(of: lambdaReturn, aliases: aliases),
+                                returnedExpr: lambdaReturn,
                                 result: result,
                                 module: module,
                                 ctx: ctx,
@@ -680,9 +686,15 @@ final class InlineLoweringPass: LoweringPass {
             // null branches). Aliasing it globally would leak the non-null branch's
             // value into the null branch.
             if let result {
-                if let returnedExpr = expansion.returnedExpr {
+                // An expansion whose every path returns non-locally leaves
+                // `returnedExpr` (e.g. the merge slot) without a surviving
+                // definition — the dead-code filter above drops its writers.
+                // Fall back to unit instead of reading an undefined slot.
+                if let returnedExpr = expansion.returnedExpr.map({ resolveAlias(of: $0, aliases: aliases) }),
+                   exprIsDefined(returnedExpr, in: loweredBody.instructions)
+                {
                     let finalExpr = unboxErasedInlineResultIfNeeded(
-                        returnedExpr: resolveAlias(of: returnedExpr, aliases: aliases),
+                        returnedExpr: returnedExpr,
                         result: result,
                         inlineTarget: inlineTarget,
                         module: module,
@@ -1237,7 +1249,9 @@ final class InlineLoweringPass: LoweringPass {
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
-                            if let lambdaReturn = lambdaExpansion.returnedExpr {
+                            if let lambdaReturn = lambdaExpansion.returnedExpr,
+                               exprIsDefined(lambdaReturn, in: lowered.instructions)
+                            {
                                 localExprMap[result] = boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
@@ -1292,7 +1306,9 @@ final class InlineLoweringPass: LoweringPass {
                         hasNormalReturn = hasNormalReturn || lambdaExpansion.hasNormalReturn
                         lowered.append(contentsOf: lambdaExpansion.instructions)
                         if let result {
-                            if let lambdaReturn = lambdaExpansion.returnedExpr {
+                            if let lambdaReturn = lambdaExpansion.returnedExpr,
+                               exprIsDefined(lambdaReturn, in: lowered.instructions)
+                            {
                                 localExprMap[result] = boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
@@ -2070,6 +2086,29 @@ final class InlineLoweringPass: LoweringPass {
 
         default:
             instruction
+        }
+    }
+
+    /// Whether any instruction in `instructions` defines `expr` — including
+    /// `copy` destinations and `thrownResult` slots, matching the register-def
+    /// notion used by `KIRVerifier`'s undefined-read check.
+    private func exprIsDefined(_ expr: KIRExprID, in instructions: [KIRInstruction]) -> Bool {
+        instructions.contains { instruction in
+            switch instruction {
+            case let .constValue(result, _):
+                result == expr
+            case let .binary(_, _, _, result), let .unary(_, _, result),
+                 let .nullAssert(_, result), let .loadGlobal(result, _):
+                result == expr
+            case let .call(_, _, _, result, _, thrownResult, _, _):
+                result == expr || thrownResult == expr
+            case let .virtualCall(_, _, _, _, result, _, thrownResult, _):
+                result == expr || thrownResult == expr
+            case let .copy(_, to):
+                to == expr
+            default:
+                false
+            }
         }
     }
 
