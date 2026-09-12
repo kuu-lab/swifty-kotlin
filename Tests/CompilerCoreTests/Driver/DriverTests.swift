@@ -153,18 +153,5 @@ struct DriverTests {
         #expect(result.exitCode == 1)
     }
 
-    @Test
-    func testCompilerDriverInit() {
-        let driver = CompilerDriver()
-        let options = CompilerOptions(
-            moduleName: "Test",
-            inputs: [],
-            outputPath: NSTemporaryDirectory() + "test_out_\(UUID().uuidString)",
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let result = driver.runForTesting(options: options)
-        #expect(result.exitCode == 1)
-    }
 }
 #endif

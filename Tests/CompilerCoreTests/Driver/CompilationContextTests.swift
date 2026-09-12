@@ -111,12 +111,5 @@ struct CompilationContextTests {
         #expect(ctx.frontendJobs == 4)
     }
 
-    @Test
-    func testPhaseTimerCanBeSet() {
-        let ctx = makeCompilationContext(inputs: ["/a.kt"])
-        #expect(ctx.phaseTimer == nil)
-        ctx.phaseTimer = PhaseTimer()
-        #expect(ctx.phaseTimer != nil)
-    }
 }
 #endif

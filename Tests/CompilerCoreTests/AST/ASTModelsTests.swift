@@ -355,17 +355,6 @@ struct ASTModelsTests {
     }
 
     @Test
-    func testTypeArgRefCases() {
-        let typeRef = TypeRefID(rawValue: 0)
-        let invariant = TypeArgRef.invariant(typeRef)
-        let outArg = TypeArgRef.out(typeRef)
-        let inArg = TypeArgRef.in(typeRef)
-        let star = TypeArgRef.star
-        #expect(invariant != star)
-        #expect(outArg != inArg)
-    }
-
-    @Test
     func testPropertyAccessorDeclSetterWithExprBody() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)

@@ -28,45 +28,27 @@ struct StandaloneClassReferenceTests {
         }
     }
 
-    @Test func testStandaloneConcreteClassRefEmitsKClassCreate() throws {
-        let source = """
-        fun main() {
-            val kc = String::class
-            println(kc)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+    @Test func testStandaloneConcreteAndPrimitiveClassRefsEmitKClassCreate() throws {
+        let types = ["String", "Int", "Long", "Double", "Boolean"]
+        for typeName in types {
+            let source = """
+            fun main() {
+                val kc = \(typeName)::class
+                println(kc)
+            }
+            """
+            try withTemporaryFile(contents: source) { path in
+                let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+                try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone String::class, got: \(callees)"
-            )
-        }
-    }
-
-    @Test func testStandalonePrimitiveClassRefEmitsKClassCreate() throws {
-        let source = """
-        fun main() {
-            val kc = Int::class
-            println(kc)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone Int::class, got: \(callees)"
-            )
+                let module = try #require(ctx.kir)
+                let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+                let callees = extractCallees(from: body, interner: ctx.interner)
+                #expect(
+                    callees.contains("__kk_kclass_create"),
+                    "Expected __kk_kclass_create for standalone \(typeName)::class, got: \(callees)"
+                )
+            }
         }
     }
 
@@ -174,96 +156,20 @@ struct StandaloneClassReferenceTests {
         }
     }
 
-    @Test func testStandaloneLongClassRefEmitsKClassCreate() throws {
-        let source = """
-        fun main() {
-            val kc = Long::class
-            println(kc)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone Long::class, got: \(callees)"
-            )
-        }
-    }
-
-    @Test func testStandaloneDoubleClassRefEmitsKClassCreate() throws {
-        let source = """
-        fun main() {
-            val kc = Double::class
-            println(kc)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone Double::class, got: \(callees)"
-            )
-        }
-    }
-
-    @Test func testStandaloneBooleanClassRefEmitsKClassCreate() throws {
-        let source = """
-        fun main() {
-            val kc = Boolean::class
-            println(kc)
-        }
-        """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone Boolean::class, got: \(callees)"
-            )
-        }
-    }
-
-    @Test func testRuntimeTypeCheckTokenEncodesLong() {
+    @Test func testRuntimeTypeCheckTokenEncodesAdditionalPrimitives() {
+        let cases: [(PrimitiveType, Int64, String)] = [
+            (.long, 11, "Long"),
+            (.double, 12, "Double"),
+            (.float, 13, "Float"),
+            (.char, 14, "Char"),
+        ]
         let (sema, _, types, interner) = makeSemaModule()
-        let longType = types.make(.primitive(.long, .nonNull))
-        let encoded = RuntimeTypeCheckToken.encode(type: longType, sema: sema, interner: interner)
-        #expect(encoded & 0xFF == 11, "Long should encode with base 11, got \(encoded & 0xFF)")
-        #expect(encoded != 0, "Long token must not be unknownBase (0)")
-    }
-
-    @Test func testRuntimeTypeCheckTokenEncodesDouble() {
-        let (sema, _, types, interner) = makeSemaModule()
-        let doubleType = types.make(.primitive(.double, .nonNull))
-        let encoded = RuntimeTypeCheckToken.encode(type: doubleType, sema: sema, interner: interner)
-        #expect(encoded & 0xFF == 12, "Double should encode with base 12, got \(encoded & 0xFF)")
-    }
-
-    @Test func testRuntimeTypeCheckTokenEncodesFloat() {
-        let (sema, _, types, interner) = makeSemaModule()
-        let floatType = types.make(.primitive(.float, .nonNull))
-        let encoded = RuntimeTypeCheckToken.encode(type: floatType, sema: sema, interner: interner)
-        #expect(encoded & 0xFF == 13, "Float should encode with base 13, got \(encoded & 0xFF)")
-    }
-
-    @Test func testRuntimeTypeCheckTokenEncodesChar() {
-        let (sema, _, types, interner) = makeSemaModule()
-        let charType = types.make(.primitive(.char, .nonNull))
-        let encoded = RuntimeTypeCheckToken.encode(type: charType, sema: sema, interner: interner)
-        #expect(encoded & 0xFF == 14, "Char should encode with base 14, got \(encoded & 0xFF)")
+        for (kind, expectedBase, label) in cases {
+            let type = types.make(.primitive(kind, .nonNull))
+            let encoded = RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
+            #expect(encoded & 0xFF == expectedBase, "\(label) should encode with base \(expectedBase)")
+            #expect(encoded != 0, "\(label) token must not be unknownBase (0)")
+        }
     }
 
     @Test func testKIRResultTypeIsKClassNotAny() throws {

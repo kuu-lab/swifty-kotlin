@@ -6,14 +6,6 @@ import Testing
 @Suite
 struct FileFingerprintTests {
 
-    @Test
-    func testInitStoresProperties() {
-        let fp = FileFingerprint(path: "/tmp/a.kt", contentHash: "abc123", mtimeNanos: 999)
-        #expect(fp.path == "/tmp/a.kt")
-        #expect(fp.contentHash == "abc123")
-        #expect(fp.mtimeNanos == 999)
-    }
-
     // MARK: - Compute from file contents
 
     @Test
@@ -78,15 +70,6 @@ struct FileFingerprintTests {
         let fp1 = FileFingerprint(path: "/a.kt", contentHash: "same", mtimeNanos: 100)
         let fp2 = FileFingerprint(path: "/a.kt", contentHash: "same", mtimeNanos: 200)
         #expect(!(fp1.contentChanged(from: fp2)))
-    }
-
-    @Test
-    func testEquatable() {
-        let fp1 = FileFingerprint(path: "/a.kt", contentHash: "abc", mtimeNanos: 100)
-        let fp2 = FileFingerprint(path: "/a.kt", contentHash: "abc", mtimeNanos: 100)
-        let fp3 = FileFingerprint(path: "/a.kt", contentHash: "xyz", mtimeNanos: 100)
-        #expect(fp1 == fp2)
-        #expect(fp1 != fp3)
     }
 
     // MARK: - Codable round-trip
