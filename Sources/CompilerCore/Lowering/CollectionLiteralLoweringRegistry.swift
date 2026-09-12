@@ -30,7 +30,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         rewriteVirtualCallInstruction(
             symbol: symbol,
@@ -115,10 +115,13 @@ struct CollectionLiteralLoweringRegistry {
                 pathExprIDs: &state.pathExprIDs
             )
 
-            var loweredBody: [KIRInstruction] = []
-            loweredBody.reserveCapacity(function.body.count + 32)
+            var loweredBody = KIRLoweringEmitContext()
+            loweredBody.instructions.reserveCapacity(function.body.count + 32)
 
-            for instruction in function.body {
+            for (index, instruction) in function.body.enumerated() {
+                loweredBody.currentSourceRange = index < function.instructionLocations.count
+                    ? function.instructionLocations[index]
+                    : nil
                 switch instruction {
                 case let .call(symbol, callee, arguments, result, canThrow, thrownResult, _, _):
                     constructionPass.lowerCallInstruction(

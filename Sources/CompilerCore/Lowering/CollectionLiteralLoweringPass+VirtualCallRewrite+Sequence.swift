@@ -23,7 +23,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         mapExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
         arrayExprIDs: Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
         // Kotlin source declaration, route through normal function resolution so

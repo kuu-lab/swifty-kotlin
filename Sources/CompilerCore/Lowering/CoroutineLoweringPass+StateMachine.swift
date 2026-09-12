@@ -9,6 +9,7 @@ struct StateMachineTypeContext {
 extension CoroutineLoweringPass {
     func lowerSuspendBodyToStateMachineSkeleton(
         originalBody: [KIRInstruction],
+        originalLocations: [SourceRange?],
         continuationParameterSymbol: SymbolID,
         loweredSymbol: SymbolID,
         module: KIRModule,
@@ -22,7 +23,7 @@ extension CoroutineLoweringPass {
         suspendPlan: SuspendLoweringPlan,
         spillSlotByExpr: [KIRExprID: Int64],
         smTypes: StateMachineTypeContext
-    ) -> [KIRInstruction] {
+    ) -> KIRLoweringEmitContext {
         let continuationType = smTypes.continuationType
         let anyType = smTypes.anyType
         let intType = smTypes.intType
@@ -51,8 +52,8 @@ extension CoroutineLoweringPass {
         let transitionsByResumeLabel = suspendPlan.transitionsByResumeLabel
         let spillPlan = suspendPlan.spillPlan
 
-        var lowered: [KIRInstruction] = []
-        lowered.reserveCapacity(originalBody.count * 6 + 24)
+        var lowered = KIRLoweringEmitContext()
+        lowered.instructions.reserveCapacity(originalBody.count * 6 + 24)
 
         func slotForSpillExpr(_ exprID: KIRExprID) -> Int64? {
             if let overridden = spillSlotByExpr[exprID] {
@@ -209,6 +210,9 @@ extension CoroutineLoweringPass {
                 : nil
 
             for stateInstruction in block.instructions {
+                lowered.currentSourceRange = stateInstruction.sourceIndex < originalLocations.count
+                    ? originalLocations[stateInstruction.sourceIndex]
+                    : nil
                 let instruction = stateInstruction.instruction
                 let suspendCallInfo = extractCallInfo(instruction)
                 if let suspendCallInfo,

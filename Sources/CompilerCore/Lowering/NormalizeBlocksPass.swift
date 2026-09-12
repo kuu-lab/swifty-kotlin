@@ -10,25 +10,35 @@ final class NormalizeBlocksPass: LoweringPass, ParallelLoweringPass {
     func run(module: KIRModule, ctx _: KIRContext) throws {
         module.arena.transformFunctions { function in
             var updated = function
-            updated.replaceBody(function.body.filter { instruction in
+            var keptBody: [KIRInstruction] = []
+            var keptLocations: [SourceRange?] = []
+            for (index, instruction) in function.body.enumerated() {
                 switch instruction {
                 case .beginBlock, .endBlock:
-                    false
+                    continue
                 default:
-                    true
+                    keptBody.append(instruction)
+                    keptLocations.append(
+                        index < function.instructionLocations.count
+                            ? function.instructionLocations[index]
+                            : nil
+                    )
                 }
-            })
+            }
+            updated.replaceBody(keptBody, locations: keptLocations)
             if let last = updated.body.last {
                 switch last {
                 case .returnUnit, .returnValue:
                     break
                 default:
                     var normalizedBody = updated.body
+                    var normalizedLocations = updated.instructionLocations
                     normalizedBody.append(.returnUnit)
-                    updated.replaceBody(normalizedBody)
+                    normalizedLocations.append(nil)
+                    updated.replaceBody(normalizedBody, locations: normalizedLocations)
                 }
             } else {
-                updated.replaceBody([.returnUnit])
+                updated.replaceBody([.returnUnit], locations: [nil])
             }
             return updated
         }

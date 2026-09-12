@@ -35,21 +35,20 @@ final class TailrecLoweringPass: LoweringPass {
                 symbol: function.symbol
             )
             var updated = function
-            updated.replaceBody(rewriteTailCalls(
+            let rewrittenBody = rewriteTailCalls(
                 body: function.body,
                 functionIdentity: functionIdentity,
                 params: function.params,
                 loopLabel: loopLabel,
                 arena: module.arena
-            ))
-            // Reset instructionLocations to match the new body length.
+            )
             // The rewrite changes instruction count, so the old parallel
             // array is stale.  Use the function-level sourceRange as a
             // conservative location for every synthesised instruction.
-            updated.replaceInstructionLocations(Array(
-                repeating: function.sourceRange,
-                count: updated.body.count
-            ))
+            updated.replaceBody(
+                rewrittenBody,
+                locations: Array(repeating: function.sourceRange, count: rewrittenBody.count)
+            )
             return updated
         }
 
@@ -102,8 +101,8 @@ final class TailrecLoweringPass: LoweringPass {
         loopLabel: Int32,
         arena: KIRArena
     ) -> [KIRInstruction] {
-        var result: [KIRInstruction] = []
-        result.reserveCapacity(body.count + 2)
+        var result = KIRLoweringEmitContext()
+        result.instructions.reserveCapacity(body.count + 2)
         let loopInsertIndex = loopEntryIndex(body: body, params: params)
         let canonicalParamExprs = canonicalParameterExprs(
             body: Array(body[..<loopInsertIndex]),
@@ -212,7 +211,7 @@ final class TailrecLoweringPass: LoweringPass {
             return body
         }
 
-        return result
+        return result.instructions
     }
 
     /// Check if a call instruction targets the function being optimized.
@@ -334,7 +333,7 @@ final class TailrecLoweringPass: LoweringPass {
         defaultMask: Int64? = nil,
         receiverOffset: Int,
         arena: KIRArena,
-        result: inout [KIRInstruction]
+        result: inout KIRLoweringEmitContext
     ) {
         // Only copy the first `params.count` arguments; $default calls
         // carry trailing reified-type tokens and a mask that must not

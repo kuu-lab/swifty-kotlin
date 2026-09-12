@@ -79,5 +79,15 @@ public final class LoweringPhase: CompilerPhase {
                 module.recordLowering(type(of: pass).name)
             }
         }
+        if KIRVerifier.isEnabled {
+            let failures = KIRVerifier.verify(
+                module: module,
+                symbols: ctx.sema?.symbols,
+                interner: ctx.interner
+            )
+            for failure in failures.prefix(50) {
+                ctx.diagnostics.error("KSWIFTK-KIR-0003", "KIR verifier: \(failure.message)", range: nil)
+            }
+        }
     }
 }
