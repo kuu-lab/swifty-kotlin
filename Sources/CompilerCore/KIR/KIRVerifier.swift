@@ -214,7 +214,12 @@ struct KIRVerifier {
         report: (KIRVerificationFailure.Kind, Int?, String) -> Void
     ) {
         if definedExprs.contains(exprID) { return }
-        if let kind = module.arena.expr(exprID), case .temporary = kind {
+        if let kind = module.arena.expr(exprID), case let .temporary(raw) = kind {
+            // `ImportedInlineKIRMaterializer` maps imported-body IDs that have
+            // no defining instruction (implicit exception slots observed only
+            // by throw checks) to the `.temporary(0)` sentinel; codegen emits
+            // it as the constant-zero fallback, so the read is legal.
+            if raw == 0 { return }
             report(.undefinedRegisterRead, index, "expression \(exprID.rawValue) is read but never defined in this function")
         }
     }
