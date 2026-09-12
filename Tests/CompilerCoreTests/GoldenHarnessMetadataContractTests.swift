@@ -215,15 +215,18 @@ struct GoldenHarnessMetadataContractTests {
 
     /// Metadata classes the ordinary renderer does not emit today. Pinning
     /// their absence documents what the dedicated stdlib golden (RF-GOLDEN-011)
-    /// must own instead of a quiet extension of this format.
+    /// must own instead of a quiet extension of this format. Cases carrying a
+    /// `.golden-spec` emit a dedicated `section stdlib-targets` that owns these
+    /// tokens, so the check is scoped to the ordinary output above it.
     @Test
     func notEmittedMetadataClassesStayAbsent() throws {
         let goldens = try Self.semaGoldenContents()
         let forbidden = ["supertype=", "underlyingType=", "declaredVariance=", "externalLinkName=", "origin="]
         for (name, text) in goldens {
+            let ordinary = text.components(separatedBy: "section stdlib-targets").first ?? text
             for token in forbidden {
                 #expect(
-                    !text.contains(token),
+                    !ordinary.contains(token),
                     Comment(rawValue: "\(name) gained \(token) in the ordinary golden")
                 )
             }

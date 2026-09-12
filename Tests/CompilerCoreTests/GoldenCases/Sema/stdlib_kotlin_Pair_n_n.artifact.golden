@@ -13,3 +13,6 @@ expr e@3:63 call callee=e@3:63#1 args=[_:e@3:68,_:e@3:75] type=kotlin.Pair<Int, 
 expr e@5:80 name(first) type=String? ref=golden.sema.makeNullablePair.$0.first[kind=vparam]
 expr e@5:87 name(second) type=Int? ref=golden.sema.makeNullablePair.$0.second[kind=vparam]
 expr e@5:75 call callee=e@5:75#1 args=[_:e@5:80,_:e@5:87] type=kotlin.Pair<String?, Int?> call=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;gen=2] targs=[String?,Int?]
+section stdlib-targets
+target fq=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;gen=2] origin=importedLibrary kind=constructor vis=public flags=synthetic sig=recv=kotlin.Pair<T0, T1> params=[T0,T1] ret=kotlin.Pair<T0, T1> tparams=[T0,T1] annotations=[@KsSymbolName("__kk_pair_new")]
+target fq=kotlin.Pair[kind=class;gen=2] origin=importedLibrary kind=class vis=public flags=synthetic tparams=[T0(out),T1(out)] supertypes=[kotlin.Any]
