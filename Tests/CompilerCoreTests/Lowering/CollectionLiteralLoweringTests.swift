@@ -171,8 +171,11 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
+    /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
+    /// ArrayList-tagged bridge like `arrayListOf`. `__kk_list_of` tags its box as
+    /// the read-only `List`, which made `is MutableList` answer false.
     @Test
-    func testMutableListOfRewrittenToKkListOf() throws {
+    func testMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -183,7 +186,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        #expect(callees.contains("__kk_list_of"), "mutableListOf should become __kk_list_of")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf should become __kk_array_list_of; got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf must not keep the read-only List tag")
     }
 
     @Test
@@ -628,7 +635,7 @@ struct CollectionLiteralLoweringTests {
     // MARK: - Zero-arg mutable factory rewriting
 
     @Test
-    func testZeroArgMutableListOfRewrittenToKkListOf() throws {
+    func testZeroArgMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -639,7 +646,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        #expect(callees.contains("__kk_list_of"), "mutableListOf() should become __kk_list_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf() should become __kk_array_list_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf() must not keep the read-only List tag")
     }
 
     @Test

@@ -8,6 +8,7 @@
 package kotlin.collections
 
 // KSP-697: keep List's covariant nominal shell in Kotlin source. Indexed and
-// iterator members remain compiler residuals; LateListIndexedMembers is retained
-// until KSP-699 as required by the migration boundary.
+// iterator members remain compiler residuals in
+// Sema/DataFlow/HeaderHelpers+SyntheticListResiduals.swift, which KSP-700 owns
+// (KSP-699 covers only the collection factory functions).
 public interface List<out E> : Collection<E>

@@ -46,9 +46,14 @@ extension CallLowerer {
             return result
 
         case "mutableListOf", "arrayListOf":
+            // Both declare a mutable result (`MutableList` / `ArrayList`), so they
+            // need the ArrayList-tagged bridge: `__kk_list_of` tags its box as the
+            // read-only `List`, which makes `is MutableList` / `is ArrayList`
+            // answer false on the result. `CollectionLiteralLoweringPass` already
+            // uses this bridge for `arrayListOf`; keep both rewriters in agreement.
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
-                    "__kk_list_of",
+                    "__kk_array_list_of",
                     arity: 1,
                     result: result,
                     sema: sema,
@@ -67,7 +72,7 @@ extension CallLowerer {
                 instructions: &instructions
             )
             emitRuntimeCollectionFactory(
-                "__kk_list_of",
+                "__kk_array_list_of",
                 array: packed.array,
                 count: packed.count,
                 result: result,

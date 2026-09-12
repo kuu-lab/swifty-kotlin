@@ -94,6 +94,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
@@ -160,6 +161,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(

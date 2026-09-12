@@ -60,10 +60,31 @@ public fun <T> listOf(vararg elements: T): List<T> {
     return result as List<T>
 }
 
+// NOTE for RF-LOWER-CALL: both mutableListOf bodies below bind __kk_list_of,
+// which tags its box as the read-only `List`. That is inert today because both
+// rewriters intercept these calls by FQName and emit __kk_array_list_of instead
+// (KSP-699), but if the interception is ever removed these bodies must move to
+// an ArrayList-tagged bridge or `is MutableList` regresses to false.
+
 public fun <T> mutableListOf(): MutableList<T> = __kk_list_of(null, 0)
 
 public fun <T> mutableListOf(vararg elements: T): MutableList<T> {
     val result: MutableList<T> = __kk_list_of(null, 0)
+    for (element in elements) {
+        result.add(element)
+    }
+    return result
+}
+
+// KSP-699: arrayListOf is the last collection factory to become
+// source-backed. The declaration carries ArrayList's nominal identity while
+// the shared factory lowering keeps element boxing and tracked collection IDs.
+
+@SinceKotlin("1.1")
+public inline fun <T> arrayListOf(): ArrayList<T> = ArrayList()
+
+public fun <T> arrayListOf(vararg elements: T): ArrayList<T> {
+    val result = ArrayList<T>(elements.size)
     for (element in elements) {
         result.add(element)
     }
