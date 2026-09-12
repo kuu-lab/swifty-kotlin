@@ -543,6 +543,26 @@ private final class StableSemanticKeyComputer {
             let file = fileKeys[site.start.file.rawValue] ?? "f?"
             return "\(Self.escapeKeyAtom(file))@\(position.line).\(position.column)"
         }
+        // Symbols imported from the prebuilt stdlib artifact never carry a
+        // `declSite` — the library metadata format has no source-position
+        // field, so there is nothing to deserialize. Self-type-constrained
+        // overloads (e.g. `if.kt`'s three `ifEmpty` overloads, one per `where
+        // C : Collection<*>` / `Map<*,*>` / `Array<*>` bound) are otherwise
+        // structurally identical, so without this branch they all fall
+        // through to the same `up:<parent>` string below and become
+        // indistinguishable in the golden dump. `typeParameterUpperBoundsList`
+        // *is* preserved through artifact round-tripping (see
+        // `MetadataSerializer.swift`), so it stays stable across rebuilds of
+        // the same stdlib source and gives each overload back a distinct key.
+        if symbol.flags.contains(.importedLibrary),
+           let signature = sema.symbols.functionSignature(for: symbol.id) {
+            let encodedBounds = signature.typeParameterUpperBoundsList.map { bounds in
+                bounds.map { encodeTypeKey($0) }.joined(separator: "&")
+            }.joined(separator: ";")
+            if !encodedBounds.isEmpty {
+                return "bounds:\(encodedBounds)"
+            }
+        }
         if let parent = sema.symbols.parentSymbol(for: symbol.id),
            let parentSymbol = sema.symbols.symbol(parent) {
             let parentFQ = symbolFQ[parent.rawValue] ?? "_"
