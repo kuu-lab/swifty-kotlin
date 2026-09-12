@@ -12,7 +12,7 @@ extension CollectionLiteralConstructionLoweringPass {
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
         state: inout CollectionRewriteState,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
     // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
     // Kotlin source declaration and the receiver is a source Sequence object,
@@ -347,7 +347,7 @@ extension CollectionLiteralConstructionLoweringPass {
         lambdaExpr: KIRExprID,
         module: KIRModule,
         ctx: KIRContext,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> (fnPtr: KIRExprID, closureRaw: KIRExprID) {
         if let sema = ctx.sema,
            let info = module.arena.callableValueInfo(for: lambdaExpr) {

@@ -395,14 +395,19 @@ extension DataFlowSemaPhase {
             ownerFQName: classFQName,
             parentSymbol: classSymbol
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsType,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // The bundled source declaration owns the constructor once its nominal
+        // header has been predeclared. Keep the residual property stubs below,
+        // but do not create a duplicate constructor before header collection.
+        if !symbols.isSourceBackedSymbol(classSymbol) {
+            registerSyntheticConstructorStubs(
+                [SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsConstructor],
+                ownerType: SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsType,
+                context: classContext,
+                symbols: symbols,
+                types: types,
+                interner: interner
+            )
+        }
         registerSyntheticPropertyStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.rootSetStatisticsProperties,
             context: classContext,
@@ -436,18 +441,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        let classFQName = packageFQName + [interner.intern("SweepStatistics")]
-        let classContext = SyntheticStubRegistrationContext(
-            ownerFQName: classFQName,
-            parentSymbol: classSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.sweepStatisticsProperties,
-            context: classContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - GCInfo class
@@ -503,18 +496,9 @@ extension DataFlowSemaPhase {
         )
 
         let gcInfoFQName = packageFQName + [interner.intern("GCInfo")]
-        let memoryUsageFQName = packageFQName + [interner.intern("MemoryUsage")]
         let gcInfoContext = SyntheticStubRegistrationContext(
             ownerFQName: gcInfoFQName,
             parentSymbol: gcInfoSymbol
-        )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.gcInfoConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.gcInfoType,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
         )
         registerSyntheticPropertyStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.gcInfoProperties,
@@ -524,17 +508,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        let memoryUsageContext = SyntheticStubRegistrationContext(
-            ownerFQName: memoryUsageFQName,
-            parentSymbol: memoryUsageSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.memoryUsageProperties,
-            context: memoryUsageContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - Debugging object

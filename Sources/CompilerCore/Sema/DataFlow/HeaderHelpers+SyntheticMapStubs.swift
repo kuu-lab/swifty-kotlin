@@ -319,6 +319,102 @@ extension DataFlowSemaPhase {
         let mutableMapSymbol = symbols.lookup(fqName: kotlinCollectionsPkg + [interner.intern("MutableMap")])
             ?? symbols.lookupByShortName(interner.intern("MutableMap")).first
 
+        // Keep runtime-backed placeholders for Map's six abstract members so
+        // the bundled Map declaration can claim the existing symbols while
+        // preserving their ABI links. The source declaration intentionally
+        // remains abstract; these links are used for runtime map boxes when a
+        // call is made through a Map-typed receiver.
+        func registerPropertyMember(
+            name: String,
+            propertyType: TypeID,
+            externalLinkName: String
+        ) {
+            let memberName = interner.intern(name)
+            let memberFQName = mapFQName + [memberName]
+            if let existing = symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
+                guard let symbol = symbols.symbol(symbolID) else { return false }
+                return symbol.kind == .property
+                    && symbols.parentSymbol(for: symbolID) == mapInterfaceSymbol
+            }) {
+                symbols.setPropertyType(propertyType, for: existing)
+                symbols.setExternalLinkName(externalLinkName, for: existing)
+                return
+            }
+            let memberSymbol = symbols.define(
+                kind: .property,
+                name: memberName,
+                fqName: memberFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(mapInterfaceSymbol, for: memberSymbol)
+            symbols.setPropertyType(propertyType, for: memberSymbol)
+            symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
+        }
+
+        if let setSymbol {
+            let entriesType = types.make(.classType(ClassType(
+                classSymbol: setSymbol,
+                args: [.out(entryType)],
+                nullability: .nonNull
+            )))
+            let keysType = types.make(.classType(ClassType(
+                classSymbol: setSymbol,
+                args: [.out(keyType)],
+                nullability: .nonNull
+            )))
+            registerPropertyMember(
+                name: "entries",
+                propertyType: entriesType,
+                externalLinkName: "__kk_map_entries"
+            )
+            registerPropertyMember(
+                name: "keys",
+                propertyType: keysType,
+                externalLinkName: "__kk_map_keys"
+            )
+        }
+        let valuesType = types.make(.classType(ClassType(
+            classSymbol: collectionInterfaceSymbol,
+            args: [.out(valueType)],
+            nullability: .nonNull
+        )))
+        registerPropertyMember(
+            name: "size",
+            propertyType: types.intType,
+            externalLinkName: "kk_map_size"
+        )
+        registerPropertyMember(
+            name: "values",
+            propertyType: valuesType,
+            externalLinkName: "__kk_map_values"
+        )
+        let isEmptyName = interner.intern("isEmpty")
+        let isEmptyFQName = mapFQName + [isEmptyName]
+        if symbols.lookup(fqName: isEmptyFQName) == nil {
+            let isEmptySymbol = symbols.define(
+                kind: .function,
+                name: isEmptyName,
+                fqName: isEmptyFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+            symbols.setParentSymbol(mapInterfaceSymbol, for: isEmptySymbol)
+            symbols.setExternalLinkName("kk_map_is_empty", for: isEmptySymbol)
+            symbols.setFunctionSignature(
+                FunctionSignature(
+                    receiverType: selfMapType,
+                    parameterTypes: [],
+                    returnType: types.booleanType,
+                    typeParameterSymbols: [keyTypeParamSymbol, valueTypeParamSymbol],
+                    classTypeParameterCount: 2
+                ),
+                for: isEmptySymbol
+            )
+        }
+
         func registerMember(
             name: String,
             externalLinkName: String,
@@ -901,7 +997,9 @@ extension DataFlowSemaPhase {
         kotlinCollectionsPkg: [InternedString],
         mapInterfaceSymbol: SymbolID,
         keyTypeParamSymbol _: SymbolID,
-        valueTypeParamSymbol _: SymbolID
+        valueTypeParamSymbol _: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) {
         let mutableMapName = interner.intern("MutableMap")
         let mutableMapFQName = kotlinCollectionsPkg + [mutableMapName]
@@ -942,8 +1040,15 @@ extension DataFlowSemaPhase {
         let valueType = types.make(.typeParam(TypeParamType(symbol: mutableValueParamSymbol, nullability: .nonNull)))
         types.setNominalTypeParameterSymbols([mutableKeyParamSymbol, mutableValueParamSymbol], for: mutableMapSymbol)
         types.setNominalTypeParameterVariances([.invariant, .invariant], for: mutableMapSymbol)
-        symbols.setSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.out(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+        // Map's own K is invariant (only V is `out`), so the MutableMap -> Map
+        // supertype edge must project K as invariant too. Projecting it `.out`
+        // made `isProjectionSubtype` reject any Map<K, V> view of a MutableMap
+        // (composedProjection passes an invariant declaration's use-site
+        // projection through unchanged, so `.out(K)` never satisfies an
+        // `.invariant(K)` target) -- masked everywhere else because existing
+        // MutableMap-to-Map widenings route through AbstractMap instead.
+        symbols.setSupertypeTypeArgs([.invariant(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
+        types.setNominalSupertypeTypeArgs([.invariant(keyType), .out(valueType)], for: mutableMapSymbol, supertype: mapInterfaceSymbol)
 
         // The source-backed AbstractMutableMap declaration names the official
         // nested MutableMap.MutableEntry type. Keep this nominal entry shell in
@@ -1045,7 +1150,9 @@ extension DataFlowSemaPhase {
             mapInterfaceSymbol: mapInterfaceSymbol,
             mutableMapSymbol: mutableMapSymbol,
             keyTypeParamSymbol: mutableKeyParamSymbol,
-            valueTypeParamSymbol: mutableValueParamSymbol
+            valueTypeParamSymbol: mutableValueParamSymbol,
+            bundledIndex: bundledIndex,
+            skipStats: skipStats
         )
 
         let members: [(name: String, params: [TypeID], ret: TypeID, external: String, flags: SymbolFlags)] = [
@@ -1107,7 +1214,9 @@ extension DataFlowSemaPhase {
         mapInterfaceSymbol: SymbolID,
         mutableMapSymbol: SymbolID,
         keyTypeParamSymbol: SymbolID,
-        valueTypeParamSymbol: SymbolID
+        valueTypeParamSymbol: SymbolID,
+        bundledIndex: BundledDeclarationIndex = .empty,
+        skipStats: SyntheticStubSkipStatsCollector? = nil
     ) -> TypeID {
         let mutableEntryName = interner.intern("MutableEntry")
         let mutableMapFQName = kotlinCollectionsPkg + [interner.intern("MutableMap")]
@@ -1188,7 +1297,19 @@ extension DataFlowSemaPhase {
 
         let setValueName = interner.intern("setValue")
         let setValueFQName = mutableEntryFQName + [setValueName]
-        if symbols.lookup(fqName: setValueFQName) == nil {
+        if shouldSkipSyntheticStub(
+            bundledIndex: bundledIndex,
+            ownerFQName: mutableEntryFQName,
+            name: setValueName,
+            arity: 1
+        ) {
+            skipStats?.recordSkip(
+                ownerFQName: mutableEntryFQName,
+                name: setValueName,
+                arity: 1,
+                interner: interner
+            )
+        } else if symbols.lookup(fqName: setValueFQName) == nil {
             let setValueSymbol = symbols.define(
                 kind: .function,
                 name: setValueName,

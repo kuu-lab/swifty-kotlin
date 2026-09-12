@@ -618,6 +618,7 @@ jobs:
           DIFF_LOG_PASS: "0"
           KOTLINC_REF_CACHE_DIR: ${{ runner.temp }}/kotlinc-ref-cache
           KOTLINC_DEP_DIR: ${{ runner.temp }}/kotlin-tools
+          KSWIFTK_KIR_VERIFY: "1"
         run: |
           DIFF_WORKERS="$(nproc)" \
             bash Scripts/diff_kotlinc.sh \

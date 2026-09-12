@@ -4,10 +4,10 @@
 
 import Foundation
 
-// CharSequence.get occupies method slot 0 and CharSequence.length occupies
-// property getter slot 1. Runtime-created String boxes need both entries so
-// interface-typed calls use the same dispatch contract as source-defined
-// CharSequence implementations.
+// CharSequence.get occupies method slot 0, CharSequence.subSequence occupies
+// method slot 1, and CharSequence.length occupies property getter slot 2.
+// Runtime-created String boxes need all three entries so interface-typed calls
+// use the same dispatch contract as source-defined CharSequence implementations.
 private let runtimeCharSequenceInterfaceTypeID: Int64 =
     runtimeStableNominalTypeID(fqName: "kotlin.CharSequence")
 private let runtimeCharSequenceGetMethod: @convention(c) (Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, index, outThrown in
@@ -16,6 +16,9 @@ private let runtimeCharSequenceGetMethod: @convention(c) (Int, Int, UnsafeMutabl
 private let runtimeCharSequenceLengthGetter: @convention(c) (Int, UnsafeMutablePointer<Int>?) -> Int = { raw, outThrown in
     outThrown?.pointee = 0
     return kk_char_sequence_length(raw)
+}
+private let runtimeCharSequenceSubSequenceMethod: @convention(c) (Int, Int, Int, UnsafeMutablePointer<Int>?) -> Int = { raw, startIndex, endIndex, outThrown in
+    kk_char_sequence_subSequence(raw, startIndex, endIndex, outThrown)
 }
 
 func runtimeRegisterCharSequenceItable(_ raw: Int) {
@@ -34,6 +37,12 @@ func runtimeRegisterCharSequenceItable(_ raw: Int) {
         raw,
         0,
         1,
+        unsafeBitCast(runtimeCharSequenceSubSequenceMethod, to: Int.self)
+    )
+    _ = kk_object_register_itable_method(
+        raw,
+        0,
+        2,
         unsafeBitCast(runtimeCharSequenceLengthGetter, to: Int.self)
     )
 }
@@ -224,6 +233,34 @@ public func kk_char_sequence_get(
     return Int(codeUnits[indexRaw])
 }
 
+@_cdecl("kk_char_sequence_subSequence")
+public func kk_char_sequence_subSequence(
+    _ sequenceRaw: Int,
+    _ startIndex: Int,
+    _ endIndex: Int,
+    _ outThrown: UnsafeMutablePointer<Int>?
+) -> Int {
+    outThrown?.pointee = 0
+    guard let text = runtimeCharSequenceText(from: sequenceRaw) else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateIllegalArgumentException(message: "Value is not a CharSequence")
+        )
+        return 0
+    }
+    let codeUnits = Array(text.utf16)
+    guard startIndex >= 0, endIndex >= startIndex, endIndex <= codeUnits.count else {
+        runtimeSetThrown(
+            outThrown,
+            runtimeAllocateStringIndexOutOfBoundsException(
+                message: "startIndex=\(startIndex), endIndex=\(endIndex), length=\(codeUnits.count)"
+            )
+        )
+        return 0
+    }
+    return runtimeMakeStringRaw(String(decoding: codeUnits[startIndex ..< endIndex], as: UTF16.self))
+}
+
 @_cdecl("kk_string_get_flat")
 public func kk_string_get_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -271,29 +308,3 @@ public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
 // Kotlin source (Stdlib/kotlin/text/StringComparison.kt); the
 // kk_string_compareToIgnoreCase / kk_string_contentEquals /
 // kk_string_contentEquals_ignoreCase bridges were removed.
-
-// MARK: - STDLIB-TEXT-FN-044: String.random()
-
-@_cdecl("__kk_string_random")
-public func __kk_string_random(_ strRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
-    }
-    let index = Int.random(in: 0 ..< codeUnits.count)
-    return kk_box_char(Int(codeUnits[index]))
-}
-
-@_cdecl("__kk_string_random_random")
-public func __kk_string_random_random(_ strRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    outThrown?.pointee = 0
-    let codeUnits = runtimeStringUTF16CodeUnits(strRaw)
-    guard !codeUnits.isEmpty else {
-        runtimeSetThrown(outThrown, runtimeAllocateNoSuchElementException(message: "Char sequence is empty."))
-        return 0
-    }
-    let index = runtimeRandomIndex(count: codeUnits.count, randomRaw: randomRaw)
-    return kk_box_char(Int(codeUnits[index]))
-}
