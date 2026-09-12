@@ -19,7 +19,6 @@ symbol fq=golden.sema.stringTakeWhile.$6.source[kind=vparam] kind=valueParameter
 symbol fq=golden.sema.stringTakeWhile.$6.threshold[kind=vparam] kind=valueParameter vis=private flags=_
 symbol fq=golden.sema.stringTakeWhile[kind=fun;params=String,Char] kind=function vis=public flags=_ sig=recv=_ params=[String,Char] ret=String
 symbol fq=golden.sema.stringTake[kind=fun;params=String,Int] kind=function vis=public flags=_ sig=recv=_ params=[String,Int] ret=String
-symbol fq=kotlin.CharSequence[kind=iface] kind=interface vis=public flags=_ type=kotlin.CharSequence
 file fstdlib_kotlin_text_CharSequence_take package=golden.sema
   decl golden.sema.charSequenceTake[kind=fun;params=kotlin.CharSequence,Int] fun charSequenceTake sym=golden.sema.charSequenceTake[kind=fun;params=kotlin.CharSequence,Int]
   decl golden.sema.charSequenceTakeLast[kind=fun;params=kotlin.CharSequence,Int] fun charSequenceTakeLast sym=golden.sema.charSequenceTakeLast[kind=fun;params=kotlin.CharSequence,Int]
