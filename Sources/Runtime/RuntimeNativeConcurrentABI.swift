@@ -1,9 +1,9 @@
 import Dispatch
 import Foundation
 
-// MARK: - Native Concurrent ABI (STDLIB-NATIVE-CONCURRENT-ABI-001..006)
+// MARK: - Native Concurrent ABI (STDLIB-NATIVE-CONCURRENT-ABI-001..007)
 //
-// Implements the seven runtime entry-points required by the Kotlin/Native
+// Implements the runtime entry-points required by the Kotlin/Native
 // concurrent standard library:
 //
 //   ABI-001  Worker.id              — kk_worker_id
@@ -14,6 +14,9 @@ import Foundation
 //   ABI-003  TransferMode           — kk_transfer_object  (SAFE freezes; UNSAFE is pass-through)
 //   ABI-004  FreezableAtomicReference<T> — kk_freezable_atomic_ref_create / _load / _store / _is_frozen
 //   ABI-005  Worker.executeAfter    — kk_worker_execute_after
+//   ABI-006  Worker receiver helpers — kk_worker_process_queue / kk_worker_park /
+//                                      kk_worker_platform_thread_id /
+//                                      kk_worker_as_cpointer
 //
 // Deferred / known limitations:
 //   • TransferMode SAFE: full cycle-detection DFS over the managed object graph
@@ -127,6 +130,12 @@ final class RuntimeFutureBox: @unchecked Sendable {
         return _ready
     }
 
+    var isAvailableForConsumption: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _ready && !_consumed
+    }
+
     var stateRaw: Int {
         lock.lock()
         defer { lock.unlock() }
@@ -232,6 +241,131 @@ public func kk_future_consume(_ futureHandle: Int) -> Int {
         return 0
     }
     return box.consume()
+}
+
+// MARK: - KSP-1216 package-level bridges
+
+/// The modern memory manager no longer detaches object graphs. Keep the raw
+/// managed reference as the opaque NativePtr token consumed by attach.
+@_cdecl("__kk_native_concurrent_detach_object_graph")
+public func __kk_native_concurrent_detach_object_graph(_ modeRaw: Int, _ valueRaw: Int) -> Int {
+    _ = modeRaw
+    return valueRaw
+}
+
+/// Reattaches the opaque token produced by detachObjectGraphInternal.
+@_cdecl("__kk_native_concurrent_attach_object_graph")
+public func __kk_native_concurrent_attach_object_graph(_ stableRaw: Int) -> Int {
+    stableRaw
+}
+
+/// Consumes a Future through the source-backed package helper.
+@_cdecl("__kk_native_concurrent_consume_future")
+public func __kk_native_concurrent_consume_future(_ futureHandle: Int) -> Int {
+    kk_future_consume(futureHandle)
+}
+
+/// Runtime-owned thread scheduling for the source-backed executeImpl wrapper.
+@_cdecl("__kk_native_concurrent_execute_impl")
+public func __kk_native_concurrent_execute_impl(
+    _ workerHandle: Int,
+    _ modeRaw: Int,
+    _ jobArgumentRaw: Int,
+    _ jobPointerHandle: Int
+) -> Int {
+    _ = modeRaw
+    guard workerHandle != 0,
+          let workerPointer = UnsafeMutableRawPointer(bitPattern: workerHandle),
+          let worker = tryCast(workerPointer, to: RuntimeWorkerBox.self)
+    else {
+        return 0
+    }
+
+    let jobAddress: UInt
+    if let pointerBox = resolveCPointerBox(from: jobPointerHandle) {
+        jobAddress = pointerBox.address
+    } else {
+        jobAddress = UInt(bitPattern: jobPointerHandle)
+    }
+    guard jobAddress != 0,
+          let jobPointer = UnsafeRawPointer(bitPattern: jobAddress)
+    else {
+        return 0
+    }
+
+    typealias JobFunction = @convention(c) (Int) -> Int
+    let job = unsafeBitCast(jobPointer, to: JobFunction.self)
+    let futureHandle = kk_future_new()
+    let submitted = worker.execute {
+        _ = kk_future_complete(futureHandle, job(jobArgumentRaw))
+    }
+    return submitted ? futureHandle : 0
+}
+
+private func nativeConcurrentReadyFutureHandles(_ futuresHandle: Int) -> [Int] {
+    guard let futures = runtimeCollectionElements(from: futuresHandle) else {
+        return []
+    }
+    return futures.filter { futureHandle in
+        guard let pointer = UnsafeMutableRawPointer(bitPattern: futureHandle),
+              let future = tryCast(pointer, to: RuntimeFutureBox.self)
+        else {
+            return false
+        }
+        return future.isAvailableForConsumption
+    }
+}
+
+/// Waits until at least one Future can be consumed or the timeout expires.
+@_cdecl("__kk_native_concurrent_wait_for_multiple_futures")
+public func __kk_native_concurrent_wait_for_multiple_futures(
+    _ futuresHandle: Int,
+    _ timeoutMillis: Int
+) -> Int {
+    let deadline = timeoutMillis >= 0
+        ? DispatchTime.now() + .milliseconds(timeoutMillis)
+        : nil
+    while true {
+        let ready = nativeConcurrentReadyFutureHandles(futuresHandle)
+        if !ready.isEmpty {
+            return registerRuntimeObject(RuntimeSetBox(elements: ready))
+        }
+        if let deadline, DispatchTime.now() >= deadline {
+            return registerRuntimeObject(RuntimeSetBox(elements: []))
+        }
+        Thread.sleep(forTimeInterval: 0.001)
+    }
+}
+
+/// Starts a worker without exposing the adjacent Worker.Companion API surface.
+@_cdecl("__kk_native_concurrent_start_worker")
+public func __kk_native_concurrent_start_worker(_ errorReportingRaw: Int, _ nameRaw: Int) -> Int {
+    _ = errorReportingRaw
+    return kk_worker_new(nameRaw)
+}
+
+/// Terminates and joins a worker used by withWorker.
+@_cdecl("__kk_native_concurrent_terminate_worker")
+public func __kk_native_concurrent_terminate_worker(_ workerHandle: Int) -> Int {
+    let futureHandle = kk_worker_request_termination(workerHandle, 1)
+    if futureHandle != 0 {
+        _ = kk_future_result(futureHandle)
+    }
+    return 0
+}
+
+/// Blocks until a previously requested worker termination becomes visible.
+@_cdecl("__kk_native_concurrent_wait_worker_termination")
+public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) -> Int {
+    guard let pointer = UnsafeMutableRawPointer(bitPattern: workerHandle),
+          let worker = tryCast(pointer, to: RuntimeWorkerBox.self)
+    else {
+        return 0
+    }
+    while !worker.isTerminated {
+        Thread.sleep(forTimeInterval: 0.001)
+    }
+    return 0
 }
 
 // MARK: - ABI-003  TransferMode
@@ -384,23 +518,80 @@ public func kk_freezable_atomic_ref_is_frozen(_ refHandle: Int) -> Int {
     return box.isFrozen ? 1 : 0
 }
 
-// MARK: - ABI-005  Worker.executeAfter(delayNs, op)
+// MARK: - Worker receiver helpers
 
-/// Schedule a closure to run on a Worker after `delayNs` nanoseconds.
+/// Process jobs already queued for a Worker.
+@_cdecl("kk_worker_process_queue")
+public func kk_worker_process_queue(_ workerHandle: Int) -> Int {
+    guard workerHandle != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: workerHandle),
+          let worker = tryCast(ptr, to: RuntimeWorkerBox.self)
+    else {
+        return 0
+    }
+    return worker.processQueue() ? 1 : 0
+}
+
+/// Park the current Worker thread for a timeout in microseconds.
+@_cdecl("kk_worker_park")
+public func kk_worker_park(
+    _ workerHandle: Int,
+    _ timeoutMicroseconds: Int,
+    _ processRaw: Int
+) -> Int {
+    guard workerHandle != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: workerHandle),
+          let worker = tryCast(ptr, to: RuntimeWorkerBox.self)
+    else {
+        return 0
+    }
+    return worker.park(
+        timeoutMicroseconds: timeoutMicroseconds,
+        process: processRaw != 0
+    ) ? 1 : 0
+}
+
+/// Return the platform thread ID servicing the Worker queue.
+@_cdecl("kk_worker_platform_thread_id")
+public func kk_worker_platform_thread_id(_ workerHandle: Int) -> Int {
+    guard workerHandle != 0,
+          let ptr = UnsafeMutableRawPointer(bitPattern: workerHandle),
+          let worker = tryCast(ptr, to: RuntimeWorkerBox.self)
+    else {
+        return 0
+    }
+    return Int(truncatingIfNeeded: worker.platformThreadID())
+}
+
+/// Return a COpaquePointer whose address is the Worker's stable ID.
+@_cdecl("kk_worker_as_cpointer")
+public func kk_worker_as_cpointer(_ workerHandle: Int) -> Int {
+    let workerID = kk_worker_id(workerHandle)
+    guard workerID > 0 else {
+        return 0
+    }
+    return kk_copaque_pointer_new(workerID)
+}
+
+// MARK: - ABI-006  Worker.executeAfter(afterMicroseconds, operation)
+
+/// Schedule a closure to run on a Worker after `afterMicroseconds` microseconds.
 ///
 /// Uses `DispatchQueue.asyncAfter` on the Worker's underlying serial queue.
-/// The closure is represented by the legacy delayed-worker `(fnPtr, closureRaw)` ABI.
+/// The closure is represented by the standard closure-thunk `(fnPtr, closureRaw)`
+/// ABI (`KKClosureThunkEntryPoint`): `fnPtr` takes `(closureRaw, outThrown)` and
+/// returns an (unused, for a `Unit`-returning operation) `Int`.
 ///
 /// - Parameters:
 ///   - workerHandle: handle produced by `kk_worker_new`.
-///   - delayNs:      delay in nanoseconds (0 means "as soon as possible").
-///   - fnPtr:        C function pointer `(Int) -> Int` for the closure body.
+///   - afterMicroseconds: delay in microseconds (0 means "as soon as possible").
+///   - fnPtr:        C function pointer for the closure body.
 ///   - closureRaw:   opaque closure capture handle passed to `fnPtr`.
 /// - Returns: 1 if scheduled, 0 if the worker is terminated or `fnPtr` is null.
 @_cdecl("kk_worker_execute_after")
 public func kk_worker_execute_after(
     _ workerHandle: Int,
-    _ delayNs: Int,
+    _ afterMicroseconds: Int,
     _ fnPtr: Int,
     _ closureRaw: Int
 ) -> Int {
@@ -416,14 +607,33 @@ public func kk_worker_execute_after(
     guard fnPtr != 0 else {
         return 0
     }
-    typealias WorkFn = @convention(c) (Int) -> Int
-    let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: fnPtr)!, to: WorkFn.self)
-    let captured = closureRaw
-    let deadline: DispatchTime = delayNs > 0
-        ? DispatchTime.now() + .nanoseconds(delayNs)
+    guard afterMicroseconds >= 0 else {
+        return 0
+    }
+    // `fnPtr`/`closureRaw` could in principle arrive as a
+    // `kk_function_create_0`-wrapped function-value handle rather than a raw
+    // (fnPtr, closureRaw) pair — see `resolveFunctionValuePair`. Resolve on
+    // the calling thread so the deferred closure below only ever captures a
+    // raw pair.
+    let resolved = resolveFunctionValuePair(fnPtr: fnPtr, closureRaw: closureRaw)
+    // A compiled Kotlin closure body always follows the standard
+    // KKClosureThunkEntryPoint convention — (closureRaw, outThrown) -> Int,
+    // matching runtimeInvokeClosureThunk elsewhere in this file — never the
+    // 1-argument `(Int) -> Int` this used to declare here. Calling a 2-arg
+    // callee as if it took 1 arg leaves its `outThrown` parameter register
+    // holding whatever the caller last put there, so `operation`'s generated
+    // adapter (which unconditionally writes `outThrown?.pointee = 0` on the
+    // no-exception path) stores through that garbage address and crashes.
+    let fn = unsafeBitCast(UnsafeRawPointer(bitPattern: resolved.fnPtr)!, to: KKClosureThunkEntryPoint.self)
+    let captured = resolved.closureRaw
+    let deadline: DispatchTime = afterMicroseconds > 0
+        ? DispatchTime.now() + .microseconds(afterMicroseconds)
         : .now()
     let submitted = worker.executeAfter(deadline: deadline) {
-        _ = fn(captured)
+        // Fire-and-forget: executeAfter's Kotlin signature returns Unit with
+        // no Future, so there is nothing to report a thrown exception to.
+        var thrown = 0
+        _ = fn(captured, &thrown)
     }
     return submitted ? 1 : 0
 }

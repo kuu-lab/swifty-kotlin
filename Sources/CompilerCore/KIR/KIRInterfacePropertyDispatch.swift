@@ -211,14 +211,14 @@ private func kirFindOverridePropertyGetter(
 /// itable, alongside the method registrations emitted for the same interfaces.
 /// The interface itself is already registered by the method-registration pass
 /// (`kk_object_register_itable_iface`), so this only appends the getter slots.
-func appendObjectItablePropertyGetterRegistrations(
+func appendObjectItablePropertyGetterRegistrations<C: RangeReplaceableCollection>(
     objectValue: KIRExprID,
     nominalSymbol: SymbolID,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    instructions: inout [KIRInstruction]
-) {
+    instructions: inout C
+) where C.Element == KIRInstruction {
     guard let objectLayout = sema.symbols.nominalLayout(for: nominalSymbol) else {
         return
     }

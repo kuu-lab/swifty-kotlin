@@ -2,6 +2,32 @@
 
 /// Member-call argument normalization and instruction emission helpers.
 extension CallLowerer {
+    func sequenceBuilderRuntimeCalleeName(
+        chosenCallee: SymbolID?,
+        calleeName: InternedString,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> InternedString? {
+        guard let chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              symbol.fqName.count == 4,
+              symbol.fqName[0] == interner.intern("kotlin"),
+              symbol.fqName[1] == interner.intern("sequences"),
+              symbol.fqName[2] == interner.intern("SequenceScope")
+        else {
+            return nil
+        }
+
+        switch interner.resolve(calleeName) {
+        case "yield":
+            return interner.intern("__kk_sequence_builder_yield")
+        case "yieldAll":
+            return interner.intern("__kk_sequence_builder_yieldAll")
+        default:
+            return nil
+        }
+    }
+
     func tryFoldConstMemberProperty(
         _ exprID: ExprID,
         receiverExpr: ExprID,
@@ -386,6 +412,20 @@ extension CallLowerer {
             )
             finalArguments = [finalArguments[0], finalArguments[1]] + producerArgs + jobArgs
         }
+        if loweredCallee == interner.intern("kk_worker_execute_after"),
+           finalArguments.count == 3,
+           sourceArgExprs.count == 2
+        {
+            let operationArgs = makeClosureThunkExpandedArguments(
+                loweredArgID: finalArguments[2],
+                argExprID: sourceArgExprs[1],
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions
+            )
+            finalArguments = [finalArguments[0], finalArguments[1]] + operationArgs
+        }
         let isComparatorBinarySearch: Bool = {
             guard loweredCallee == interner.intern("binarySearch"),
                   let chosenCallee,
@@ -607,7 +647,15 @@ extension CallLowerer {
         if (loweredCallee == calleeName && !isRuntimeBridgedCallee)
             || listIteratorInheritedDispatch
             || isImportedLibraryLink
-            || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true,
+            || chosenCallee.map({ isClockRuntimeVirtualBridge($0, sema: sema) }) == true
+            || chosenCallee.map({
+                isIteratorRuntimeVirtualBridge(
+                    $0,
+                    receiverTypeID: sema.bindings.exprTypes[receiver.expr],
+                    sema: sema,
+                    interner: interner
+                )
+            }) == true,
            let inst = tryEmitVirtualDispatch(
                chosenCallee: chosenCallee, calleeName: loweredCallee,
                receiverExpr: receiver.expr, loweredReceiverID: receiver.loweredID,

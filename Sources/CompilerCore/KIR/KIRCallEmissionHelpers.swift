@@ -1,11 +1,11 @@
 @discardableResult
-func emitNonThrowingCall(
+func emitNonThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
     arg: KIRExprID,
     resultType: TypeID?,
     arena: KIRArena,
-    into instructions: inout [KIRInstruction]
-) -> KIRExprID {
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
     let result = arena.appendTemporary(type: resultType)
     emitNonThrowingCall(
         callee: callee,
@@ -27,7 +27,7 @@ func emitNonThrowingCall(
 /// `kk_tag_value_class_box` for value classes, `kk_enum_box_ordinal` +
 /// `$enumOrdinalToName$<encodedFqName>` for enums). Returns `value` unchanged when no
 /// boxing is needed.
-func boxValueForAnySlot(
+func boxValueForAnySlot<C: RangeReplaceableCollection>(
     _ value: KIRExprID,
     sourceType: TypeID,
     types: TypeSystem,
@@ -37,8 +37,8 @@ func boxValueForAnySlot(
     resultType: TypeID? = nil,
     requireNonNull: Bool = false,
     boxingCalleeTable: BoxingCalleeTable? = nil,
-    into instructions: inout [KIRInstruction]
-) -> KIRExprID {
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
     let rawKind = types.kind(of: sourceType)
     let resolvedKind = resolveValueClassKind(rawKind, types: types, symbols: symbols)
     let table = boxingCalleeTable ?? BoxingCalleeTable(interner: interner)
@@ -62,13 +62,13 @@ func boxValueForAnySlot(
     return boxedResult
 }
 
-func emitNonThrowingCall(
+func emitNonThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
     arg: KIRExprID,
     result: KIRExprID,
     symbol: SymbolID? = nil,
-    into instructions: inout [KIRInstruction]
-) {
+    into instructions: inout C
+) where C.Element == KIRInstruction {
     instructions.append(.call(
         symbol: symbol,
         callee: callee,
@@ -82,12 +82,12 @@ func emitNonThrowingCall(
 /// Emits a runtime bridge call whose trailing `outThrown` channel must be
 /// present even when the enclosing Kotlin function has no local catch block.
 /// Try-lowering may route the call to its local exception slot later.
-func emitThrowingCall(
+func emitThrowingCall<C: RangeReplaceableCollection>(
     callee: InternedString,
     arg: KIRExprID,
     result: KIRExprID,
-    into instructions: inout [KIRInstruction]
-) {
+    into instructions: inout C
+) where C.Element == KIRInstruction {
     instructions.append(.call(
         symbol: nil,
         callee: callee,
@@ -141,14 +141,14 @@ func resolveDestructuringComponentCallee(
 /// comparisons are unrelated to the values()/entries element bug this
 /// exists for, and `kk_unbox_int` treats its null sentinel as ordinal 0,
 /// which would misclassify a null as the first enum entry.
-func unboxIfEnumTyped(
+func unboxIfEnumTyped<C: RangeReplaceableCollection>(
     _ exprID: KIRExprID,
     staticType: TypeID?,
     sema: SemaModule,
     arena: KIRArena,
     interner: StringInterner,
-    into instructions: inout [KIRInstruction]
-) -> KIRExprID {
+    into instructions: inout C
+) -> KIRExprID where C.Element == KIRInstruction {
     guard let staticType,
           case let .classType(classType) = sema.types.kind(of: staticType),
           classType.nullability == .nonNull,
@@ -183,7 +183,7 @@ func unboxIfEnumTyped(
 /// incorrectly succeed. `rawSourceKind` must be the *unresolved* kind (i.e.
 /// computed before resolving a value class to its underlying primitive) so
 /// the value class identity is still visible.
-func emitBoxCallWithValueClassTag(
+func emitBoxCallWithValueClassTag<C: RangeReplaceableCollection>(
     boxCallee: InternedString,
     value: KIRExprID,
     rawSourceKind: TypeKind,
@@ -193,8 +193,8 @@ func emitBoxCallWithValueClassTag(
     symbols: SymbolTable?,
     interner: StringInterner,
     arena: KIRArena,
-    into instructions: inout [KIRInstruction]
-) {
+    into instructions: inout C
+) where C.Element == KIRInstruction {
     func emitPlainBoxCall() {
         instructions.append(.call(
             symbol: nil, callee: boxCallee, arguments: [value],
@@ -269,7 +269,7 @@ func emitBoxCallWithValueClassTag(
 /// may not exist yet. Codegen resolves unnamed calls by scanning every KIR
 /// function for one whose name and arity match (`resolveUnnamedInternalFunction`),
 /// which by then includes the synthesized helper regardless of pass order.
-func emitEnumOrdinalBoxCall(
+func emitEnumOrdinalBoxCall<C: RangeReplaceableCollection>(
     ordinal: KIRExprID,
     classSymbol: SymbolID,
     result: KIRExprID,
@@ -278,8 +278,8 @@ func emitEnumOrdinalBoxCall(
     symbols: SymbolTable,
     interner: StringInterner,
     arena: KIRArena,
-    into instructions: inout [KIRInstruction]
-) {
+    into instructions: inout C
+) where C.Element == KIRInstruction {
     guard let classSym = symbols.symbol(classSymbol),
           classSym.kind == .enumClass,
           !classSym.flags.contains(.synthetic)

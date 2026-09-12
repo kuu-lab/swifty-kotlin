@@ -14,6 +14,21 @@ func runtimeFunctionValueBox(from rawValue: Int) -> RuntimeFunctionValueBox? {
     return tryCast(ptr, to: RuntimeFunctionValueBox.self)
 }
 
+/// Resolves `fnPtr`/`closureRaw` regardless of whether the caller arrived as
+/// a raw (fnPtr, closureRaw) pair or as a `kk_function_create_N`-wrapped
+/// function-value handle in `fnPtr` (with `closureRaw` then unused/0). Native
+/// bridges that must defer invocation — e.g. queue a job onto another thread
+/// instead of calling it inline — should resolve the pair with this *before*
+/// capturing it into the deferred closure, so that closure only ever holds a
+/// raw pair with no lingering dependency on the wrapper box's lifetime.
+@inline(__always)
+func resolveFunctionValuePair(fnPtr: Int, closureRaw: Int) -> (fnPtr: Int, closureRaw: Int) {
+    guard let box = runtimeFunctionValueBox(from: fnPtr) else {
+        return (fnPtr, closureRaw)
+    }
+    return (box.fnPtr, box.closureRaw)
+}
+
 private func runtimeFunctionInvokeInvalidArity(expected: Int, actual: Int) -> Int {
     runtimeAllocateThrowable(message: "Function invoke arity mismatch: expected \(expected), got \(actual)")
 }

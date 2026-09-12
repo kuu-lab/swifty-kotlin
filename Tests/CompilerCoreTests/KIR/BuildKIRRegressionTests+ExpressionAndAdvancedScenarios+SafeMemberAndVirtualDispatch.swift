@@ -6,6 +6,8 @@ import Testing
 extension BuildKIRRegressionTests {
     // BUG-211: an interface property read must remain an itable dispatch in
     // KIR. The backend then boxes the receiver before doing the dynamic lookup.
+    // CharSequence.length is the property getter after `get` (slot 0) and
+    // `subSequence` (slot 1), so KIR must use method slot 2.
     @Test func testBug211CharSequenceLengthUsesDynamicItableDispatch() throws {
         let source = """
         fun lengthOf(value: CharSequence): Int = value.length
@@ -16,6 +18,20 @@ extension BuildKIRRegressionTests {
             try runToKIR(ctx)
 
             let module = try #require(ctx.kir)
+            let sema = try #require(ctx.sema)
+            // Slot is vtableSize-relative (kirInterfacePropertyGetterSlots), so derive it
+            // from production code instead of hardcoding — it shifts when CharSequence gains a method.
+            let charSequenceFQ = ["kotlin", "CharSequence"].map { ctx.interner.intern($0) }
+            let lengthFQ = charSequenceFQ + [ctx.interner.intern("length")]
+            let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: charSequenceFQ))
+            let lengthSymbol = try #require(sema.symbols.lookup(fqName: lengthFQ))
+            let expectedSlot = try #require(kirInterfacePropertyGetterSlot(
+                interfaceProperty: lengthSymbol,
+                interfaceSymbol: charSequenceSymbol,
+                sema: sema,
+                interner: ctx.interner
+            ))
+
             let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
             let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
                 guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
@@ -25,7 +41,7 @@ extension BuildKIRRegressionTests {
             }
 
             #expect(dispatches.contains { dispatch in
-                if case .itableDynamic(_, 1) = dispatch { return true }
+                if case .itableDynamic(_, expectedSlot) = dispatch { return true }
                 return false
             })
         }
@@ -52,6 +68,32 @@ extension BuildKIRRegressionTests {
 
             #expect(dispatches.contains { dispatch in
                 if case .itableDynamic(_, 0) = dispatch { return true }
+                return false
+            })
+        }
+    }
+
+    // KSP-1390: CharSequence.subSequence must use the adjacent dynamic method slot.
+    @Test func testKsp1390CharSequenceSubSequenceUsesDynamicItableDispatch() throws {
+        let source = """
+        fun subSequenceOf(value: CharSequence): CharSequence = value.subSequence(0, 1)
+        """
+
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            try runToKIR(ctx)
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "subSequenceOf", in: module, interner: ctx.interner)
+            let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
+                    return nil
+                }
+                return dispatch
+            }
+
+            #expect(dispatches.contains { dispatch in
+                if case .itableDynamic(_, 1) = dispatch { return true }
                 return false
             })
         }

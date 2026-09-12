@@ -19,7 +19,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         listExprIDs: inout Set<Int32>,
         arrayExprIDs: inout Set<Int32>,
         sequenceExprIDs: inout Set<Int32>,
-        loweredBody: inout [KIRInstruction]
+        loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // Non-tracked array receivers are now classified by static type via
         // classifyReceiverByStaticType (LOWERING-001) before reaching here.

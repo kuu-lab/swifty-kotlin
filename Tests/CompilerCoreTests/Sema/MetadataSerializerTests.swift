@@ -603,5 +603,122 @@ struct MetadataSerializerTests {
         #expect(myEnumRecord != nil)
         #expect(myEnumRecord?.nominalSupertypeSignatures.isEmpty == false)
     }
+
+    /// `$enumConstructorProperty$` helpers are the only representation of an
+    /// enum constructor-property read; without export, consumers of a .kklib
+    /// emit an unresolvable placeholder call (undefined symbol at link time).
+    @Test func testEnumConstructorPropertyHelperIsExportedForSourceBackedEnum() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let native = interner.intern("native")
+        let site = CompilerCore.SourceRange(start: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 0), end: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 1))
+
+        let enumSymbol = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("CpuArchitecture"),
+            fqName: [kotlin, native, interner.intern("CpuArchitecture")],
+            declSite: site,
+            visibility: .public
+        )
+        let propSymbol = symbols.define(
+            kind: .property,
+            name: interner.intern("bitness"),
+            fqName: [kotlin, native, interner.intern("CpuArchitecture"), interner.intern("bitness")],
+            declSite: site,
+            visibility: .public
+        )
+        symbols.setParentSymbol(enumSymbol, for: propSymbol)
+
+        let helperName = interner.intern("$enumConstructorProperty$bitness")
+        let helperSymbol = symbols.define(
+            kind: .function,
+            name: helperName,
+            fqName: [kotlin, native, interner.intern("CpuArchitecture"), helperName],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: helperSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.anyType], returnType: types.intType, isSuspend: false),
+            for: helperSymbol
+        )
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_bitness_42"],
+            includeNonPublic: true,
+            includeSynthetic: false
+        )
+
+        let helperRecord = try #require(records.first { $0.fqName == "kotlin.native.CpuArchitecture.$enumConstructorProperty$bitness" })
+        #expect(helperRecord.externalLinkName == "kk_fn__enumConstructorProperty_bitness_42")
+    }
+
+    /// Bundled stdlib enums may reuse a synthetic nominal shell (synthetic
+    /// flag + nil declSite) while remaining source-backed via a tracked
+    /// sourceFileID. Their ctor-prop helpers must still export.
+    @Test func testEnumConstructorPropertyHelperIsExportedForShellBackedEnum() throws {
+        let encoder = MetadataEncoder()
+        let interner = StringInterner()
+        let symbols = SymbolTable()
+        let types = TypeSystem()
+        let kotlin = interner.intern("kotlin")
+        let site = CompilerCore.SourceRange(start: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 0), end: CompilerCore.SourceLocation(file: FileID(rawValue: 1), offset: 1))
+
+        let enumSymbol = symbols.define(
+            kind: .enumClass,
+            name: interner.intern("TransferMode"),
+            fqName: [kotlin, interner.intern("TransferMode")],
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic]
+        )
+        symbols.setSourceFileID(FileID(rawValue: 7), for: enumSymbol)
+
+        let helperName = interner.intern("$enumConstructorProperty$value")
+        let helperSymbol = symbols.define(
+            kind: .function,
+            name: helperName,
+            fqName: [kotlin, interner.intern("TransferMode"), helperName],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: helperSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(parameterTypes: [types.anyType], returnType: types.anyType, isSuspend: false),
+            for: helperSymbol
+        )
+        // A synthetic helper without the ctor-prop prefix stays excluded.
+        let otherHelper = symbols.define(
+            kind: .function,
+            name: interner.intern("$otherHelper"),
+            fqName: [kotlin, interner.intern("TransferMode"), interner.intern("$otherHelper")],
+            declSite: site,
+            visibility: .public,
+            flags: [.synthetic, .static]
+        )
+        symbols.setParentSymbol(enumSymbol, for: otherHelper)
+
+        let records = encoder.buildRecords(
+            symbols: symbols,
+            types: types,
+            moduleName: "Stdlib",
+            interner: interner,
+            functionLinkNames: [helperSymbol: "kk_fn__enumConstructorProperty_value_9"],
+            includeNonPublic: true,
+            includeSynthetic: false
+        )
+
+        #expect(records.contains { $0.fqName == "kotlin.TransferMode.$enumConstructorProperty$value" })
+        #expect(!records.contains { $0.fqName == "kotlin.TransferMode.$otherHelper" })
+    }
 }
 #endif

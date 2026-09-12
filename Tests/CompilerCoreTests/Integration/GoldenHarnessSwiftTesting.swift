@@ -1,7 +1,9 @@
 #if canImport(Testing)
+import CompilerCore
 import Foundation
 import GoldenHarnessSupport
 import Testing
+import TestStdlibCache
 
 struct GoldenHarnessCaseBatch: Sendable, CustomTestStringConvertible {
     let cases: [GoldenHarnessCase]
@@ -134,13 +136,40 @@ struct GoldenDiagnosticsGoldenTests {
     }
 }
 
+/// Path of the shared prebuilt stdlib `.kklib`, prepared once per test
+/// process. Feeding it to each golden worker makes every case resolve stdlib
+/// symbols from serialized metadata instead of re-running the bundled-stdlib
+/// source pipeline (the dominant per-case cost). `nil` keeps the historical
+/// source-injection behavior, e.g. when the artifact cannot be built locally.
+private func goldenStdlibLibraryPath() -> String? {
+    TestStdlibCache.shared.prepare()
+    return CompilerOptions.defaultStdlibLibraryPath
+}
+
 private func runGoldenTests(suiteName: String, batch: GoldenHarnessCaseBatch) throws {
     let results = try GoldenHarness.renderBatchInSubprocess(
         suiteName: suiteName,
-        sourcePaths: batch.cases.map(\.sourcePath)
+        sourcePaths: batch.cases.map(\.sourcePath),
+        stdlibLibraryPath: goldenStdlibLibraryPath()
     )
 
     for (caseFile, result) in zip(batch.cases, results) {
+        if let specErrorDescription = caseFile.specErrorDescription {
+            Issue.record("Invalid .golden-spec for \(caseFile.basename): \(specErrorDescription)")
+            continue
+        }
+        // RF-GOLDEN-012: the profile a spec pins must be the profile the
+        // worker actually ran with — a silent downgrade would verify the
+        // golden against a different stdlib surface than the spec records.
+        let expectedProfile = caseFile.spec?.stdlibProfile?.rawValue
+        if result.resolvedProfile != expectedProfile {
+            let specProfile = expectedProfile ?? "implicit"
+            let workerProfile = result.resolvedProfile ?? "implicit"
+            Issue.record(
+                "Resolved stdlib profile mismatch for \(caseFile.basename): spec expects \(specProfile), worker ran \(workerProfile)"
+            )
+            continue
+        }
         if let errorDescription = result.errorDescription {
             Issue.record("Golden worker failed for \(caseFile.basename): \(errorDescription)")
             continue

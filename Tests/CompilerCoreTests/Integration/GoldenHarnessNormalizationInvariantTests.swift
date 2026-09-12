@@ -18,10 +18,10 @@ struct GoldenHarnessNormalizationInvariantTests {
     @Test(arguments: ["Lexer", "Parser", "Sema", "Diagnostics"])
     func committedGoldensAreAlreadyNormalized(suiteName: String) throws {
         for caseFile in GoldenHarness.loadCasesOrCrash(suiteName: suiteName) {
-            let goldenURL = URL(fileURLWithPath: caseFile.sourcePath)
-                .deletingPathExtension()
-                .appendingPathExtension("golden")
-            guard let committed = try? String(contentsOf: goldenURL, encoding: .utf8) else {
+            // Spec-carrying cases resolve to `<name>.<profile>.golden`
+            // (RF-GOLDEN-012) — go through the same loader verification uses
+            // instead of assuming the legacy suffix.
+            guard let committed = try? GoldenHarness.loadExpectedGolden(sourcePath: caseFile.sourcePath) else {
                 continue
             }
             let normalized = GoldenHarness.normalizedForComparison(suiteName: suiteName, output: committed)

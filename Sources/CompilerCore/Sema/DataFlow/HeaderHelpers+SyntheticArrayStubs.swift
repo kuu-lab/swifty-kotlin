@@ -93,8 +93,10 @@ extension DataFlowSemaPhase {
         // implemented in bundled Kotlin (Stdlib/kotlin/collections/UArrays.kt), which
         // delegates to the __kk_u*Array_as*Array runtime bridges.
 
+        // KSP-791: ulongArrayOf is now source-backed (Stdlib/kotlin/ulong.kt),
+        // joining uintArrayOf, so no primitive array factory needs synthetic
+        // registration here anymore.
         let primitiveArrayFactoryTypes: [(String, String, TypeID)] = [
-            ("ulongArrayOf", "ULongArray", types.ulongType),
         ]
         for (factoryName, arrayName, elementType) in primitiveArrayFactoryTypes {
             guard let primitiveArraySymbol = symbols.lookup(fqName: kotlinPkg + [interner.intern(arrayName)]) else {

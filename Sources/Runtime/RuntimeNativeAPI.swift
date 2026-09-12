@@ -1,6 +1,22 @@
 import Dispatch
 import Foundation
 
+#if os(macOS)
+import Darwin
+#elseif os(Linux)
+import Glibc
+#endif
+
+func runtimeCurrentPlatformThreadID() -> UInt64 {
+#if os(macOS)
+    return UInt64(pthread_mach_thread_np(pthread_self()))
+#elseif os(Linux)
+    return UInt64(pthread_self())
+#else
+    return 0
+#endif
+}
+
 // MARK: - Kotlin/Native specific APIs (STDLIB-NATIVE-168)
 
 func runtimeCurrentStackTraceAddresses() -> [Int] {
@@ -935,13 +951,19 @@ public func kk_is_frozen(_ objectRaw: Int) -> Int {
 final class RuntimeWorkerBox: @unchecked Sendable {
     private let lock = NSLock()
     private let queue: DispatchQueue
-    let name: String
+    let name: String?
+    private let queueSpecificKey = DispatchSpecificKey<Void>()
     private var terminated = false
     private var pendingJobs: Int = 0
 
-    init(name: String) {
+    init(name: String?) {
         self.name = name
-        self.queue = DispatchQueue(label: "kswiftk.worker.\(name)", qos: .userInitiated)
+        let queueName = name ?? "anonymous"
+        self.queue = DispatchQueue(
+            label: "kswiftk.worker.\(queueName)",
+            qos: .userInitiated
+        )
+        self.queue.setSpecific(key: queueSpecificKey, value: ())
     }
 
     /// Submit a closure to the worker. Returns false if the worker has been terminated.
@@ -1008,16 +1030,58 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         }
         return true
     }
+
+    /// Process work already queued for this worker.
+    ///
+    /// Dispatch queues do not expose Kotlin/Native's worker event loop, so a
+    /// synchronous queue drain is the closest equivalent.  Avoid synchronizing
+    /// on the same queue because processQueue may itself be called by a worker job.
+    @discardableResult
+    func processQueue() -> Bool {
+        lock.lock()
+        let hadPendingJobs = pendingJobs > 0
+        lock.unlock()
+
+        guard DispatchQueue.getSpecific(key: queueSpecificKey) == nil else {
+            return hadPendingJobs
+        }
+        queue.sync {}
+        return hadPendingJobs
+    }
+
+    /// Park the current worker thread for the requested duration.
+    ///
+    /// The current runtime has no separate wake-up primitive, therefore an
+    /// indefinite park is represented as an immediate timeout. Timed parks
+    /// still preserve the observable delay and process flag behavior.
+    @discardableResult
+    func park(timeoutMicroseconds: Int, process: Bool) -> Bool {
+        if process {
+            _ = processQueue()
+        }
+        guard timeoutMicroseconds > 0 else {
+            return false
+        }
+        Thread.sleep(forTimeInterval: Double(timeoutMicroseconds) / 1_000_000.0)
+        return false
+    }
+
+    /// Return the platform thread currently servicing this worker queue.
+    func platformThreadID() -> UInt64 {
+        if DispatchQueue.getSpecific(key: queueSpecificKey) != nil {
+            return runtimeCurrentPlatformThreadID()
+        }
+        var threadID: UInt64 = 0
+        queue.sync {
+            threadID = runtimeCurrentPlatformThreadID()
+        }
+        return threadID
+    }
 }
 
 @_cdecl("kk_worker_new")
 public func kk_worker_new(_ nameRaw: Int) -> Int {
-    let name: String
-    if let nameStr = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw)) {
-        name = nameStr
-    } else {
-        name = "worker-\(UInt32.random(in: 0...UInt32.max))"
-    }
+    let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
     return registerRuntimeObject(RuntimeWorkerBox(name: name))
 }
 
@@ -1042,7 +1106,7 @@ public func kk_worker_execute(
     }
 
     var producerThrown = 0
-    let producedRaw = runtimeInvokeClosureThunk(
+    let producedRaw = runtimeInvokeClosureThunkMaybeWrapped(
         fnPtr: producerFnPtr,
         closureRaw: producerClosureRaw,
         outThrown: &producerThrown
@@ -1055,11 +1119,26 @@ public func kk_worker_execute(
     guard futureHandle != 0 else {
         return 0
     }
+    // `jobFnPtr`/`jobClosureRaw` can arrive as a `kk_function_create_1`-wrapped
+    // handle instead of a raw pair: CallLowerer's `kk_worker_execute` call-site
+    // expansion (CallLowerer+MemberCallEmission.swift / +ClosureAdapters.swift,
+    // `appendClosureArgumentsIfNeeded`) expands `producer` via
+    // `makeClosureThunkExpandedArguments`, which always resolves to a genuine
+    // raw pair, but expands `job` via `makeCollectionHOFExpandedArguments`,
+    // whose no-compile-time-info fallback forwards the argument expression
+    // as-is with a literal `0` closureRaw — the same fallback documented on
+    // `runtimeInvokeCollectionLambda1MaybeWrapped`. Resolve here, on the
+    // calling thread, while the handle is still reachable from this call's
+    // own arguments — see `resolveFunctionValuePair`. The queued closure
+    // below runs later on the worker's dispatch queue and captures only the
+    // resolved raw (fnPtr, closureRaw) pair, so it carries no dependency on
+    // the wrapper box surviving until the job actually executes.
+    let resolvedJob = resolveFunctionValuePair(fnPtr: jobFnPtr, closureRaw: jobClosureRaw)
     let submitted = worker.execute {
         var jobThrown = 0
         let resultRaw = runtimeInvokeCollectionLambda1(
-            fnPtr: jobFnPtr,
-            closureRaw: jobClosureRaw,
+            fnPtr: resolvedJob.fnPtr,
+            closureRaw: resolvedJob.closureRaw,
             value: producedRaw,
             outThrown: &jobThrown
         )
@@ -1104,7 +1183,10 @@ public func kk_worker_name(_ workerHandle: Int) -> Int {
     guard let worker = tryCast(ptr, to: RuntimeWorkerBox.self) else {
         return 0
     }
-    return registerRuntimeObject(RuntimeStringBox(worker.name))
+    guard let name = worker.name else {
+        return 0
+    }
+    return registerRuntimeObject(RuntimeStringBox(name))
 }
 
 // MARK: - @CName annotation (C interop export name)
