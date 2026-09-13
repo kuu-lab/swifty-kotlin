@@ -1563,6 +1563,89 @@ public fun ULongRange.forEach(action: (ULong) -> Unit) {
     for (element in this) { action(element) }
 }
 
+public fun ULongRange.reduce(operation: (ULong, ULong) -> ULong): ULong {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = iterator.next()
+    while (iterator.hasNext()) {
+        accumulator = operation(accumulator, iterator.next())
+    }
+    return accumulator
+}
+
+public fun ULongRange.reduceIndexed(operation: (Int, ULong, ULong) -> ULong): ULong {
+    val iterator = iterator()
+    if (!iterator.hasNext()) throw UnsupportedOperationException("Empty collection can't be reduced.")
+    var accumulator = iterator.next()
+    var index = 1
+    while (iterator.hasNext()) {
+        accumulator = operation(index, accumulator, iterator.next())
+        index++
+    }
+    return accumulator
+}
+
+public fun <R> ULongRange.fold(initial: R, operation: (R, ULong) -> R): R {
+    var accumulator = initial
+    for (element in this) accumulator = operation(accumulator, element)
+    return accumulator
+}
+
+public fun <R> ULongRange.foldIndexed(initial: R, operation: (Int, R, ULong) -> R): R {
+    var accumulator = initial
+    var index = 0
+    for (element in this) {
+        accumulator = operation(index, accumulator, element)
+        index++
+    }
+    return accumulator
+}
+
+public fun ULongRange.find(predicate: (ULong) -> Boolean): ULong? = firstOrNull(predicate)
+public fun ULongRange.findLast(predicate: (ULong) -> Boolean): ULong? = lastOrNull(predicate)
+
+public fun ULongRange.first(predicate: (ULong) -> Boolean): ULong {
+    for (element in this) if (predicate(element)) return element
+    throw NoSuchElementException("Collection contains no element matching the predicate.")
+}
+
+public fun ULongRange.firstOrNull(predicate: (ULong) -> Boolean): ULong? {
+    for (element in this) if (predicate(element)) return element
+    return null
+}
+
+@NoInline
+public fun ULongRange.last(predicate: (ULong) -> Boolean): ULong {
+    var found = false
+    var result = 0uL
+    for (element in this) if (predicate(element)) { result = element; found = true }
+    if (!found) throw NoSuchElementException("Collection contains no element matching the predicate.")
+    return result
+}
+
+@NoInline
+public fun ULongRange.lastOrNull(predicate: (ULong) -> Boolean): ULong? {
+    var found = false
+    var result = 0uL
+    for (element in this) if (predicate(element)) { result = element; found = true }
+    return if (found) result else null
+}
+
+public fun ULongRange.any(predicate: (ULong) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return true
+    return false
+}
+
+public fun ULongRange.all(predicate: (ULong) -> Boolean): Boolean {
+    for (element in this) if (!predicate(element)) return false
+    return true
+}
+
+public fun ULongRange.none(predicate: (ULong) -> Boolean): Boolean {
+    for (element in this) if (predicate(element)) return false
+    return true
+}
+
 public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }

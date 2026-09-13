@@ -357,7 +357,6 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
-    var kkULongRangeForEachName: InternedString { rangeLookup.kkULongRangeForEachName }
     var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
     var kkLongRangeToLongArrayName: InternedString { rangeLookup.kkLongRangeToLongArrayName }
 

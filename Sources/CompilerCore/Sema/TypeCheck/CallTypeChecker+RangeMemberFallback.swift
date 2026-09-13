@@ -523,7 +523,28 @@ extension CallTypeChecker {
     }
 
     private func isULongRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        memberName == "contains" && argCount == 1
+        if memberName == "contains" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "last"
+            || memberName == "firstOrNull" || memberName == "lastOrNull"
+        {
+            return argCount > 0
+        }
+        let sourceBacked: Set<String> = [
+            "forEach",
+            "reduce", "reduceIndexed", "fold", "foldIndexed",
+            "find", "findLast",
+            "firstOrNull", "lastOrNull",
+            "any", "all", "none",
+        ]
+        if sourceBacked.contains(memberName) {
+            if memberName == "fold" || memberName == "foldIndexed" {
+                return argCount == 2
+            }
+            return argCount == 1
+        }
+        return false
     }
 
     private func isULongRangeCrossTypeContains(
@@ -725,7 +746,8 @@ extension CallTypeChecker {
                 && isLongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
             || (rangeKind == .ulongRange
                 && isULongRangeSourceBackedHOF(memberName, argCount: args.count)
-                && isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema))
+                && (memberName != "contains"
+                    || isULongRangeCrossTypeContains(argumentTypesForSourceLookup, sema: sema)))
             || ((memberName == "random" || memberName == "randomOrNull")
                 && (rangeKind == .longRange || rangeKind == .charRange
                     || rangeKind == .uintRange || rangeKind == .ulongRange))
