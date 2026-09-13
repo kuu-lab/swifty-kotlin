@@ -82,6 +82,28 @@ struct MemberRuntimeDispatchTests {
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "kk_uint_range_step")
     }
 
+    @Test func testULongRangeHOFDispatchDefersToBundledSource() {
+        let sourceBackedMembers: [(String, Int)] = [
+            ("forEach", 1),
+            ("reduce", 1), ("reduceIndexed", 1), ("fold", 2), ("foldIndexed", 2),
+            ("find", 1), ("findLast", 1),
+            ("first", 1), ("firstOrNull", 1), ("last", 1), ("lastOrNull", 1),
+            ("any", 1), ("all", 1), ("none", 1),
+        ]
+        for member in sourceBackedMembers {
+            let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
+            #expect(
+                MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == nil,
+                "ULongRange.\(member.0) should be source-backed after KSP-1528"
+            )
+        }
+
+        // ULongProgression has not migrated yet (KSP-1530); it still shares
+        // the kk_ulong_range_* runtime prefix used before KSP-1528.
+        let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "kk_ulong_range_reduce")
+    }
+
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),

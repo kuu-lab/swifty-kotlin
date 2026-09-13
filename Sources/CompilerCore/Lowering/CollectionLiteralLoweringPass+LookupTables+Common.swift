@@ -9,7 +9,6 @@ struct CommonLookupNames {
     let sizeName: InternedString
     let getName: InternedString
     let containsName: InternedString
-    let containsAllName: InternedString
     let containsKeyName: InternedString
     let containsValueName: InternedString
     let isEmptyName: InternedString
@@ -126,10 +125,6 @@ struct CommonLookupNames {
     let distinctByName: InternedString
     let shuffledName: InternedString
     let flattenName: InternedString
-    let indexOfName: InternedString
-    let lastIndexOfName: InternedString
-    let indexOfFirstName: InternedString
-    let indexOfLastName: InternedString
     let chunkedName: InternedString
     let windowedName: InternedString
     let sortedDescendingName: InternedString
@@ -177,7 +172,6 @@ struct CommonLookupNames {
         sizeName = interner.intern("size")
         getName = interner.intern("get")
         containsName = interner.intern("contains")
-        containsAllName = interner.intern("containsAll")
         containsKeyName = interner.intern("containsKey")
         containsValueName = interner.intern("containsValue")
         isEmptyName = interner.intern("isEmpty")
@@ -292,10 +286,6 @@ struct CommonLookupNames {
         distinctByName = interner.intern("distinctBy")
         shuffledName = interner.intern("shuffled")
         flattenName = interner.intern("flatten")
-        indexOfName = interner.intern("indexOf")
-        lastIndexOfName = interner.intern("lastIndexOf")
-        indexOfFirstName = interner.intern("indexOfFirst")
-        indexOfLastName = interner.intern("indexOfLast")
         chunkedName = interner.intern("chunked")
         windowedName = interner.intern("windowed")
         sortedDescendingName = interner.intern("sortedDescending")

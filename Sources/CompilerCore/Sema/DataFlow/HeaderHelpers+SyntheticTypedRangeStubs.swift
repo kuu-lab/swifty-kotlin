@@ -150,17 +150,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         registerSyntheticIntRangeMethod(
-            named: "toIntArray",
-            ownerSymbol: classSymbol,
-            classFQName: classFQName,
-            receiverType: intRangeType,
-            parameterTypes: [],
-            returnType: syntheticPrimitiveArrayType(named: "IntArray", symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_range_toIntArray",
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticIntRangeMethod(
             named: "reversed",
             ownerSymbol: classSymbol,
             classFQName: classFQName,
@@ -577,12 +566,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let longArrayType = syntheticPrimitiveArrayType(
-            named: "LongArray",
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         // Properties: start, end, first, last, step
         for property in [
             ("start", "__kk_range_first"),
@@ -609,7 +592,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // Methods: contains, isEmpty, iterator, reversed, toList, toLongArray, random
+        // Methods: contains, isEmpty, iterator, reversed, toList, random
         registerProgressionMethod(
             named: "contains",
             ownerSymbol: classSymbol,
@@ -657,16 +640,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.longType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_long_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toLongArray",
-            ownerSymbol: classSymbol,
-            receiverType: longRangeType,
-            parameterTypes: [],
-            returnType: longArrayType,
-            externalLinkName: "kk_long_range_toLongArray",
             symbols: symbols,
             interner: interner
         )
