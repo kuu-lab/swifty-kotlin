@@ -301,7 +301,7 @@ import Testing
             val step = r.step
             val hasFive = r.contains(5)
             val reversed = r.reversed().toList()
-            val arr = r.toIntArray()
+            val arr = r.toList().toIntArray()
             for (i in r) {
                 println(i)
             }

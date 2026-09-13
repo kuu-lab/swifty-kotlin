@@ -153,6 +153,7 @@ struct CollectionLiteralLookupTables {
     var kkSetToStringName: InternedString { setLookup.kkSetToStringName }
     var kkIterableToMutableSetName: InternedString { setLookup.kkIterableToMutableSetName }
     var kkHashSetOfName: InternedString { setLookup.kkHashSetOfName }
+    var kkLinkedHashSetOfName: InternedString { setLookup.kkLinkedHashSetOfName }
     var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
@@ -357,7 +358,6 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
-    var kkULongRangeForEachName: InternedString { rangeLookup.kkULongRangeForEachName }
     var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
     var kkLongRangeToLongArrayName: InternedString { rangeLookup.kkLongRangeToLongArrayName }
 
@@ -371,74 +371,17 @@ struct CollectionLiteralLookupTables {
 
     // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
 
-    var buildListName: InternedString { builderDSLLookup.buildListName }
-    var kkBuildListName: InternedString { builderDSLLookup.kkBuildListName }
-    var kkBuildListWithCapacityName: InternedString { builderDSLLookup.kkBuildListWithCapacityName }
     var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
     var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
     var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }
 
     // MARK: - FileIO lookup names (see CollectionLiteralLoweringPass+LookupTables+FileIO.swift)
 
-    var deleteName: InternedString { fileIOLookup.deleteName }
-    var lengthName: InternedString { fileIOLookup.lengthName }
-    var fileConstructorName: InternedString { fileIOLookup.fileConstructorName }
-    var kkFileNewName: InternedString { fileIOLookup.kkFileNewName }
-    var readTextName: InternedString { fileIOLookup.readTextName }
-    var kkFileReadTextName: InternedString { fileIOLookup.kkFileReadTextName }
-    var writeTextName: InternedString { fileIOLookup.writeTextName }
-    var kkFileWriteTextName: InternedString { fileIOLookup.kkFileWriteTextName }
-    var appendTextName: InternedString { fileIOLookup.appendTextName }
-    var kkFileAppendTextName: InternedString { fileIOLookup.kkFileAppendTextName }
-    var existsName: InternedString { fileIOLookup.existsName }
-    var kkFileExistsName: InternedString { fileIOLookup.kkFileExistsName }
-    var isFileName: InternedString { fileIOLookup.isFileName }
-    var kkFileIsFileName: InternedString { fileIOLookup.kkFileIsFileName }
-    var isDirectoryName: InternedString { fileIOLookup.isDirectoryName }
-    var kkFileIsDirectoryName: InternedString { fileIOLookup.kkFileIsDirectoryName }
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
-    var forEachBlockName: InternedString { fileIOLookup.forEachBlockName }
-    var kkFileForEachBlockName: InternedString { fileIOLookup.kkFileForEachBlockName }
-    var kkFileForEachBlockBlockSizeName: InternedString { fileIOLookup.kkFileForEachBlockBlockSizeName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
     var kkPathUseLinesName: InternedString { fileIOLookup.kkPathUseLinesName }
     var kkPathUseLinesDefaultName: InternedString { fileIOLookup.kkPathUseLinesDefaultName }
     var kkPathWalkName: InternedString { fileIOLookup.kkPathWalkName }
-    var bufferedReaderName: InternedString { fileIOLookup.bufferedReaderName }
-    var kkFileBufferedReaderName: InternedString { fileIOLookup.kkFileBufferedReaderName }
-    var bufferedWriterName: InternedString { fileIOLookup.bufferedWriterName }
-    var kkFileBufferedWriterName: InternedString { fileIOLookup.kkFileBufferedWriterName }
-    var kkFileDeleteName: InternedString { fileIOLookup.kkFileDeleteName }
-    var mkdirsName: InternedString { fileIOLookup.mkdirsName }
-    var kkFileMkdirsName: InternedString { fileIOLookup.kkFileMkdirsName }
-    var listFilesName: InternedString { fileIOLookup.listFilesName }
-    var kkFileListFilesName: InternedString { fileIOLookup.kkFileListFilesName }
-    var walkName: InternedString { fileIOLookup.walkName }
-    var kkFileWalkName: InternedString { fileIOLookup.kkFileWalkName }
-    var readBytesName: InternedString { fileIOLookup.readBytesName }
-    var kkFileReadBytesName: InternedString { fileIOLookup.kkFileReadBytesName }
-    var appendBytesName: InternedString { fileIOLookup.appendBytesName }
-    var kkFileAppendBytesName: InternedString { fileIOLookup.kkFileAppendBytesName }
-    var writeBytesName: InternedString { fileIOLookup.writeBytesName }
-    var kkFileWriteBytesName: InternedString { fileIOLookup.kkFileWriteBytesName }
-    var absolutePathName: InternedString { fileIOLookup.absolutePathName }
-    var kkFileAbsolutePathName: InternedString { fileIOLookup.kkFileAbsolutePathName }
-    var canonicalPathName: InternedString { fileIOLookup.canonicalPathName }
-    var kkFileCanonicalPathName: InternedString { fileIOLookup.kkFileCanonicalPathName }
-    var kkFileLengthName: InternedString { fileIOLookup.kkFileLengthName }
-    var lastModifiedName: InternedString { fileIOLookup.lastModifiedName }
-    var kkFileLastModifiedName: InternedString { fileIOLookup.kkFileLastModifiedName }
-    var createNewFileName: InternedString { fileIOLookup.createNewFileName }
-    var kkFileCreateNewFileName: InternedString { fileIOLookup.kkFileCreateNewFileName }
-    var canReadName: InternedString { fileIOLookup.canReadName }
-    var kkFileCanReadName: InternedString { fileIOLookup.kkFileCanReadName }
-    var canWriteName: InternedString { fileIOLookup.canWriteName }
-    var kkFileCanWriteName: InternedString { fileIOLookup.kkFileCanWriteName }
-    var canExecuteName: InternedString { fileIOLookup.canExecuteName }
-    var kkFileCanExecuteName: InternedString { fileIOLookup.kkFileCanExecuteName }
-    var kkFileNewParentChildName: InternedString { fileIOLookup.kkFileNewParentChildName }
-    var printWriterName: InternedString { fileIOLookup.printWriterName }
-    var kkFilePrintWriterName: InternedString { fileIOLookup.kkFilePrintWriterName }
 
     // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
 
@@ -446,7 +389,6 @@ struct CollectionLiteralLookupTables {
     var sizeName: InternedString { commonLookup.sizeName }
     var getName: InternedString { commonLookup.getName }
     var containsName: InternedString { commonLookup.containsName }
-    var containsAllName: InternedString { commonLookup.containsAllName }
     var containsKeyName: InternedString { commonLookup.containsKeyName }
     var containsValueName: InternedString { commonLookup.containsValueName }
     var isEmptyName: InternedString { commonLookup.isEmptyName }
@@ -493,7 +435,6 @@ struct CollectionLiteralLookupTables {
     var runningReduceName: InternedString { commonLookup.runningReduceName }
     var scanReduceName: InternedString { commonLookup.scanReduceName }
     var groupByName: InternedString { commonLookup.groupByName }
-    var sortedByName: InternedString { commonLookup.sortedByName }
     var findName: InternedString { commonLookup.findName }
     var findLastName: InternedString { commonLookup.findLastName }
     var associateByName: InternedString { commonLookup.associateByName }
@@ -535,23 +476,8 @@ struct CollectionLiteralLookupTables {
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }
-    var maxByName: InternedString { commonLookup.maxByName }
-    var minName: InternedString { commonLookup.minName }
     var maxByOrNullName: InternedString { commonLookup.maxByOrNullName }
     var minByOrNullName: InternedString { commonLookup.minByOrNullName }
-    var minByName: InternedString { commonLookup.minByName }
-    var maxOfOrNullName: InternedString { commonLookup.maxOfOrNullName }
-    var minOfOrNullName: InternedString { commonLookup.minOfOrNullName }
-    var maxOfName: InternedString { commonLookup.maxOfName }
-    var minOfName: InternedString { commonLookup.minOfName }
-    var maxWithName: InternedString { commonLookup.maxWithName }
-    var maxWithOrNullName: InternedString { commonLookup.maxWithOrNullName }
-    var minWithName: InternedString { commonLookup.minWithName }
-    var minWithOrNullName: InternedString { commonLookup.minWithOrNullName }
-    var maxOfWithName: InternedString { commonLookup.maxOfWithName }
-    var maxOfWithOrNullName: InternedString { commonLookup.maxOfWithOrNullName }
-    var minOfWithName: InternedString { commonLookup.minOfWithName }
-    var minOfWithOrNullName: InternedString { commonLookup.minOfWithOrNullName }
     var dropName: InternedString { commonLookup.dropName }
     var reversedName: InternedString { commonLookup.reversedName }
     var asReversedName: InternedString { commonLookup.asReversedName }
@@ -561,15 +487,8 @@ struct CollectionLiteralLookupTables {
     var distinctByName: InternedString { commonLookup.distinctByName }
     var shuffledName: InternedString { commonLookup.shuffledName }
     var flattenName: InternedString { commonLookup.flattenName }
-    var indexOfName: InternedString { commonLookup.indexOfName }
-    var lastIndexOfName: InternedString { commonLookup.lastIndexOfName }
-    var indexOfFirstName: InternedString { commonLookup.indexOfFirstName }
-    var indexOfLastName: InternedString { commonLookup.indexOfLastName }
     var chunkedName: InternedString { commonLookup.chunkedName }
     var windowedName: InternedString { commonLookup.windowedName }
-    var sortedDescendingName: InternedString { commonLookup.sortedDescendingName }
-    var sortedByDescendingName: InternedString { commonLookup.sortedByDescendingName }
-    var sortedWithName: InternedString { commonLookup.sortedWithName }
     var partitionName: InternedString { commonLookup.partitionName }
     var takeWhileName: InternedString { commonLookup.takeWhileName }
     var dropWhileName: InternedString { commonLookup.dropWhileName }

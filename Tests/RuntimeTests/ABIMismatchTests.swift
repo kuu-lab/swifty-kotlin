@@ -89,11 +89,13 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func uintToCharBridgeABIIsRemoved() {
-        #expect(
-            !RuntimeABISpec.allFunctions.contains { $0.name == "kk_uint_to_char" },
-            "UInt.toChar does not exist in Kotlin; the bridge was a dead synthetic surface (KSP-1532)"
-        )
+    func unsignedToCharBridgeABIsRemoved() {
+        for name in ["kk_uint_to_char", "kk_ulong_to_char", "kk_ubyte_to_char", "kk_ushort_to_char"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
+            )
+        }
     }
 
     @Test

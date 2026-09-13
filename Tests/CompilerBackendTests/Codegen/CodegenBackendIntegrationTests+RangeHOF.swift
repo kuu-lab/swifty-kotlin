@@ -74,6 +74,50 @@ struct CodegenBackendRangeHOFTests {
     }
 
     @Test
+    func testCodegenULongRangeHOFExecution() throws {
+        let source = """
+        fun main() {
+            println((1uL..5uL).fold(10uL) { accumulator, value -> accumulator + value })
+            println((1uL..5uL).foldIndexed(10uL) { index, accumulator, value -> accumulator + index.toULong() + value })
+            println((1uL..5uL).reduce { accumulator, value -> accumulator + value })
+            println((1uL..5uL).reduceIndexed { index, accumulator, value -> accumulator + index.toULong() + value })
+            println((1uL..5uL).find { it % 2uL == 0uL })
+            println((1uL..5uL).findLast { it % 2uL == 0uL })
+            println((1uL..5uL).first { it > 3uL })
+            println((1uL..5uL).firstOrNull { it > 8uL })
+            println((1uL..5uL).last { it < 4uL })
+            println((1uL..5uL).lastOrNull { it > 8uL })
+            println((1uL..5uL).any { it == 5uL })
+            println((1uL..5uL).all { it > 0uL })
+            println((1uL..5uL).none { it > 5uL })
+            (1uL..3uL).forEach { print("$it ") }
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeHOFExecution",
+            expected:
+                """
+                25
+                35
+                15
+                25
+                2
+                4
+                4
+                null
+                3
+                null
+                true
+                true
+                true
+                """ + "\n1 2 3 \n"
+        )
+    }
+
+    @Test
     func testCodegenIntRangeMapNotNull() throws {
         let source = """
         fun main() {

@@ -81,11 +81,16 @@ public typealias LinkedHashMap<K, V> = MutableMap<K, V>
 /**
  * Insertion-ordered mutable set.
  *
- * Construction is lowered to the runtime set entry points (`__kk_emptySet` for
- * the empty/capacity forms, `__kk_iterable_toMutableSet` for the copy form) by
- * `CollectionLiteralLoweringPass`. The `init` block additionally attaches a
- * backing `RuntimeSetBox` to source-allocated instances (including user
- * subclasses) so `MutableSet` member calls operate on real storage.
+ * Construction is lowered to the runtime set entry points
+ * (`__kk_linked_hash_set_of` for the empty/capacity forms,
+ * `__kk_iterable_toMutableSet` for the copy form) by
+ * `CollectionLiteralLoweringPass`. Both carry `linkedHashSetRuntimeTypeID`, so
+ * the constructed instance answers `is LinkedHashSet<*>` / `is MutableSet<*>`;
+ * before BUG-254 the first form used the read-only `__kk_set_of` instead.
+ *
+ * The `init` block additionally attaches a backing `RuntimeSetBox` to
+ * source-allocated instances (including user subclasses) so `MutableSet` member
+ * calls operate on real storage.
  */
 @KsSymbolName("__kk_linked_hash_set_init")
 private external fun <E> __kkLinkedHashSetInit(set: LinkedHashSet<E>)

@@ -60,12 +60,29 @@ let hashSetRuntimeTypeID: Int64 = {
     return id
 }()
 
-// User-defined subclasses of LinkedHashSet are allocated as RuntimeObjectBox
-// instances. Keep the nominal ID available so runtimeSetBox can lazily attach
-// their storage even when library superclass initializers are not emitted.
-let linkedHashSetRuntimeTypeID = runtimeStableNominalTypeID(
-    fqName: "kotlin.collections.LinkedHashSet"
-)
+/// Nominal identity for `kotlin.collections.LinkedHashSet`.
+///
+/// User-defined subclasses of LinkedHashSet are allocated as RuntimeObjectBox
+/// instances. Keep the nominal ID available so runtimeSetBox can lazily attach
+/// their storage even when library superclass initializers are not emitted.
+///
+/// BUG-254: the mutable set factories and the LinkedHashSet constructors now tag
+/// their box with this ID, so it needs parent edges the way
+/// `hashSetRuntimeTypeID` has them -- without them `is MutableSet<*>` and
+/// `is Set<*>` would answer false on a box carrying this tag.
+/// `CollectionAliases.kt` declares `LinkedHashSet<E> : MutableSet<E>`, which
+/// extends neither HashSet nor AbstractMutableSet, so only those two edges are
+/// registered. Aligning the runtime hierarchy with Kotlin/Native's
+/// `LinkedHashSet : HashSet` needs the declaration change KSP-704 owns.
+let linkedHashSetRuntimeTypeID: Int64 = {
+    let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
+    runtimeRegisterTypeEdge(
+        childTypeID: id,
+        parentTypeID: runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableSet")
+    )
+    runtimeRegisterTypeEdge(childTypeID: id, parentTypeID: setRuntimeTypeID)
+    return id
+}()
 
 private let mapEntryRuntimeTypeID: Int64 = {
     var hash: UInt64 = 0xCBF2_9CE4_8422_2325
