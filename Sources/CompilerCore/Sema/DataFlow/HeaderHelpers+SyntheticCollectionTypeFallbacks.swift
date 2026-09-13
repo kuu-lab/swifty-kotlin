@@ -31,14 +31,18 @@ extension DataFlowSemaPhase {
 
         let typeParamName = interner.intern("E")
         let typeParamFQName = collectionFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
         let typeParamType = types.make(.typeParam(TypeParamType(
             symbol: typeParamSymbol, nullability: .nonNull
         )))
@@ -596,14 +600,18 @@ extension DataFlowSemaPhase {
 
         let typeParamName = interner.intern("E")
         let typeParamFQName = iterableFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+        let typeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: typeParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: typeParamName,
+                fqName: typeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
         types.setNominalTypeParameterSymbols([typeParamSymbol], for: iterableInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: iterableInterfaceSymbol)
 
@@ -623,14 +631,18 @@ extension DataFlowSemaPhase {
         }
         let itTypeParamName = interner.intern("T")
         let itTypeParamFQName = iteratorFQName + [itTypeParamName]
-        let itTypeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: itTypeParamName,
-            fqName: itTypeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
+        let itTypeParamSymbol: SymbolID = if let existing = symbols.lookup(fqName: itTypeParamFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .typeParameter,
+                name: itTypeParamName,
+                fqName: itTypeParamFQName,
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+        }
         types.setNominalTypeParameterSymbols([itTypeParamSymbol], for: iteratorSymbol)
         types.setNominalTypeParameterVariances([.out], for: iteratorSymbol)
         let iteratorTypeParamType = types.make(.typeParam(TypeParamType(
