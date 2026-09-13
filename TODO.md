@@ -296,14 +296,6 @@
 >
 > 2026-08-14 現 HEAD で `SyntheticBase64Stubs` / `SyntheticHexFormatStubs` は存在しないため、Base64/HexFormat 対応タスクは追加しない。
 
-- [ ] KSP-699: CollectionFactory bootstrap stub を削除し factory 関数を完全に Kotlin 化する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionFactoryStubs.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionFactories.kt`
-  - 削除/降格 kk_*: `kk_list_of_not_null`（`RuntimeCollections.swift`/`RuntimeABISpec+BridgeCoverage.swift`/`CallLowerer+CollectionFactoryCalls.swift`）を `__kk_list_of` 経由化 or 削除。`__kk_emptyList`/`__kk_list_of`/`__kk_emptySet`/`__kk_set_of`/`__kk_emptyMap`/`__kk_map_of` は source 使用継続
-  - 手順: T
-  - diff: `collection_factory_*.kt` 既存 + `listOfNotNull` ケース
-  - 前提: なし（KSP-700/703/704/705 と統合調整可）
-
 - [ ] KSP-700: core collection / iterable / Comparable / List interface shells を Kotlin 化し、旧 synthetic shell 登録を residual 責務へ分離する
   - 対象 residual: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticComparableResiduals.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionResiduals.swift`, `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListResiduals.swift`（`LateListIndexedMembers` 含む）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Comparable.kt`, `Sources/CompilerCore/Stdlib/kotlin/collections/` 新設 `Iterable.kt`/`Collection.kt`/`List.kt`/`MutableIterable.kt`/`MutableCollection.kt`/`AbstractList.kt`（既存 `MutableIterable.kt`/`AbstractCollection.kt`/`AbstractMutableCollection.kt`/`RandomAccess.kt` 活用）
@@ -427,7 +419,8 @@
 - [ ] KSP-1523: `UIntRange` の property / membership / aggregate を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_uint_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
-  - 削除/降格 kk_*: `kk_uint_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toUIntArray`（13件）
+  - 削除/降格 kk_*: `kk_uint_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`（12件）
+  - 注記: `_toUIntArray` は Kotlinize 対象から除外（実 kotlinc は `UIntRange`/`UIntProgression` に直接の `toUIntArray()` を持たない。診断は `error_range_toarray_unsupported.kt`、正常系は `Scripts/diff_cases/range_to_array_via_tolist.kt` で固定済み。synthetic member 登録は削除済みだが `kk_uint_range_toUIntArray` bridge/Lowering/RuntimeABI の削除は別 follow-up）
   - 手順: T
   - diff: `uint_range_*.kt` 既存 + 空 range（`5u..1u`）の `isEmpty`/`firstOrNull`/`sum`、`UInt.MAX_VALUE` 境界ケース
   - 前提: KSP-451, KSP-709
@@ -435,7 +428,8 @@
 - [ ] KSP-1524: `ULongRange` の property / membership / aggregate を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_ulong_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
-  - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toULongArray`（13件）
+  - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`（12件）
+  - 注記: `_toULongArray` は Kotlinize 対象から除外（実 kotlinc は `ULongRange`/`ULongProgression` に直接の `toULongArray()` を持たない。診断は `error_range_toarray_unsupported.kt`、正常系は `Scripts/diff_cases/range_to_array_via_tolist.kt` で固定済み。synthetic member 登録は削除済みだが `kk_ulong_range_toULongArray` bridge/Lowering/RuntimeABI の削除は別 follow-up）
   - 手順: T
   - diff: `ulong_range_*.kt` 既存 + `ULong.MAX_VALUE` 境界と空 range ケース
   - 前提: KSP-1523
@@ -447,14 +441,6 @@
   - 手順: T
   - diff: `ulong_range_hof*.kt` 既存 + `mapNotNull`/`filterNot` ケース
   - 前提: KSP-1524, KSP-1525
-
-- [ ] KSP-1528: `ULongRange` の fold / reduce / forEach / 述語検索 HOF を Kotlin 化する
-  - 対象スタブ: 同上（`kk_ulong_range_*`）
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
-  - 削除/降格 kk_*: `kk_ulong_range_fold`, `_foldIndexed`, `_reduce`, `_reduceIndexed`, `_forEach`, `_any`, `_all`, `_none`, `_find`, `_findLast`, `_first_predicate`, `_firstOrNull_predicate`, `_last_predicate`, `_lastOrNull_predicate`（14件）
-  - 手順: T
-  - diff: `ulong_range_fold*.kt` 既存 + `reduce` 空 range 例外ケース
-  - 前提: KSP-1526, KSP-1527
 
 - [ ] KSP-1530: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
   - 対象スタブ: 同上（`kk_ulong_*`）
