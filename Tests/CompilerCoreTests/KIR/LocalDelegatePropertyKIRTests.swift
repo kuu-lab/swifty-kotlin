@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 /// KSP-CAP-007 / BUG-014: local `by`-delegated declarations (`fun f() { val x by Prop() }`)
@@ -21,22 +20,20 @@ struct LocalDelegatePropertyKIRTests {
             println(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local custom delegate should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local custom delegate should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("getValue"),
-                "Local delegated declaration should call getValue, got: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("getValue"),
+            "Local delegated declaration should call getValue, got: \(callees)"
+        )
     }
 
     @Test func testLocalValCustomDelegatePrintsGetValueResultNotDelegateInstance() throws {
@@ -49,33 +46,31 @@ struct LocalDelegatePropertyKIRTests {
             println(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // println(Int) lowers to a runtime-specific callee (e.g. kk_println_any)
-            // rather than literally "println", so identify it positionally instead:
-            // main is `val x by IntProp(); println(x)`, so the getValue call must be
-            // followed by exactly one more call — println — that consumes its result.
-            var getValueResult: KIRExprID?
-            var lastCallArguments: [KIRExprID] = []
-            for instruction in mainBody {
-                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
-                if ctx.interner.resolve(callee) == "getValue" {
-                    getValueResult = result
-                }
-                lastCallArguments = arguments
+        // println(Int) lowers to a runtime-specific callee (e.g. kk_println_any)
+        // rather than literally "println", so identify it positionally instead:
+        // main is `val x by IntProp(); println(x)`, so the getValue call must be
+        // followed by exactly one more call — println — that consumes its result.
+        var getValueResult: KIRExprID?
+        var lastCallArguments: [KIRExprID] = []
+        for instruction in mainBody {
+            guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
+            if ctx.interner.resolve(callee) == "getValue" {
+                getValueResult = result
             }
-
-            let resolvedGetValueResult = try #require(getValueResult, "expected a getValue call in main")
-            #expect(
-                lastCallArguments.contains(resolvedGetValueResult),
-                "println should be called with getValue's result, not the Prop() instance itself"
-            )
+            lastCallArguments = arguments
         }
+
+        let resolvedGetValueResult = try #require(getValueResult, "expected a getValue call in main")
+        #expect(
+            lastCallArguments.contains(resolvedGetValueResult),
+            "println should be called with getValue's result, not the Prop() instance itself"
+        )
     }
 
     @Test func testLocalVarCustomDelegateEmitsSetValueCallOnAssignment() throws {
@@ -93,29 +88,27 @@ struct LocalDelegatePropertyKIRTests {
             println(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local custom delegate var should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local custom delegate var should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("setValue"),
-                "Assigning a local delegated var should call setValue, got: \(callees)"
-            )
-            // KSP-491: reads always dispatch a fresh getValue (no declaration-time
-            // call, no post-assignment refresh) -- only the final `println(x)`
-            // read below calls it.
-            #expect(
-                callees.filter { $0 == "getValue" }.count == 1,
-                "Expected exactly one getValue call, for the final read, got: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("setValue"),
+            "Assigning a local delegated var should call setValue, got: \(callees)"
+        )
+        // KSP-491: reads always dispatch a fresh getValue (no declaration-time
+        // call, no post-assignment refresh) -- only the final `println(x)`
+        // read below calls it.
+        #expect(
+            callees.filter { $0 == "getValue" }.count == 1,
+            "Expected exactly one getValue call, for the final read, got: \(callees)"
+        )
     }
 
     @Test func testLocalDelegateInfersPropertyTypeFromGetValueReturnType() throws {
@@ -131,16 +124,14 @@ struct LocalDelegatePropertyKIRTests {
             println(x + 1)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "x + 1 should type-check once x is correctly inferred as Int: \(diagnosticMessages)"
-            )
-        }
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "x + 1 should type-check once x is correctly inferred as Int: \(diagnosticMessages)"
+        )
     }
 
     @Test func testLocalValProvideDelegateEmitsProvideDelegateThenGetValue() throws {
@@ -160,26 +151,24 @@ struct LocalDelegatePropertyKIRTests {
             println(name)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local provideDelegate declaration should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local provideDelegate declaration should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("provideDelegate"),
-                "Local delegated declaration with a provideDelegate operator should call provideDelegate, got: \(callees)"
-            )
-            #expect(
-                callees.contains("getValue"),
-                "Local provideDelegate declaration should still call getValue on the effective delegate, got: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("provideDelegate"),
+            "Local delegated declaration with a provideDelegate operator should call provideDelegate, got: \(callees)"
+        )
+        #expect(
+            callees.contains("getValue"),
+            "Local provideDelegate declaration should still call getValue on the effective delegate, got: \(callees)"
+        )
     }
 
     @Test func testLocalValProvideDelegateGetValueReceivesProvideDelegateResult() throws {
@@ -198,33 +187,31 @@ struct LocalDelegatePropertyKIRTests {
             println(name)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            var provideDelegateResult: KIRExprID?
-            var getValueArguments: [KIRExprID] = []
-            for instruction in mainBody {
-                guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
-                switch ctx.interner.resolve(callee) {
-                case "provideDelegate":
-                    provideDelegateResult = result
-                case "getValue":
-                    getValueArguments = arguments
-                default:
-                    break
-                }
+        var provideDelegateResult: KIRExprID?
+        var getValueArguments: [KIRExprID] = []
+        for instruction in mainBody {
+            guard case let .call(_, callee, arguments, result, _, _, _, _) = instruction else { continue }
+            switch ctx.interner.resolve(callee) {
+            case "provideDelegate":
+                provideDelegateResult = result
+            case "getValue":
+                getValueArguments = arguments
+            default:
+                break
             }
-
-            let resolvedProvideResult = try #require(provideDelegateResult, "expected a provideDelegate call in main")
-            #expect(
-                getValueArguments.first == resolvedProvideResult,
-                "getValue's receiver must be provideDelegate's result (the effective delegate), not the raw factory instance"
-            )
         }
+
+        let resolvedProvideResult = try #require(provideDelegateResult, "expected a provideDelegate call in main")
+        #expect(
+            getValueArguments.first == resolvedProvideResult,
+            "getValue's receiver must be provideDelegate's result (the effective delegate), not the raw factory instance"
+        )
     }
 
     @Test func testLocalVarProvideDelegateEmitsSetValueOnEffectiveDelegate() throws {
@@ -242,26 +229,24 @@ struct LocalDelegatePropertyKIRTests {
             println(counter)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local provideDelegate var should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local provideDelegate var should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("provideDelegate"),
-                "Expected a provideDelegate call, got: \(callees)"
-            )
-            #expect(
-                callees.contains("setValue"),
-                "Assigning a local provideDelegate var should call setValue, got: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("provideDelegate"),
+            "Expected a provideDelegate call, got: \(callees)"
+        )
+        #expect(
+            callees.contains("setValue"),
+            "Assigning a local provideDelegate var should call setValue, got: \(callees)"
+        )
     }
 
     /// BUG-052: a local `val x by lazy { ... }` kept the `kk_lazy_create` handle as
@@ -278,55 +263,53 @@ struct LocalDelegatePropertyKIRTests {
             println(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            // One getValue per read: reading through the delegate's own
-            // getValue on every read (instead of caching one value at the
-            // declaration) is what keeps the initializer deferred until the
-            // first read, and lets a mutable delegate's reads observe writes.
-            #expect(
-                callees.filter { $0 == "getValue" }.count == 2,
-                "each read of a local lazy delegate must call getValue, got callees: \(callees)"
-            )
+        // One getValue per read: reading through the delegate's own
+        // getValue on every read (instead of caching one value at the
+        // declaration) is what keeps the initializer deferred until the
+        // first read, and lets a mutable delegate's reads observe writes.
+        #expect(
+            callees.filter { $0 == "getValue" }.count == 2,
+            "each read of a local lazy delegate must call getValue, got callees: \(callees)"
+        )
 
-            // println must consume getValue's result, not the delegate handle
-            // itself.
-            var derivedValues: Set<KIRExprID> = []
-            var printCallArguments: [[KIRExprID]] = []
-            for instruction in mainBody {
-                switch instruction {
-                case let .call(_, callee, arguments, result, _, _, _, _),
-                     let .virtualCall(_, callee, _, arguments, result, _, _, _):
-                    let calleeName = ctx.interner.resolve(callee)
-                    if calleeName == "getValue", let result {
-                        derivedValues.insert(result)
-                    } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
-                        derivedValues.insert(result)
-                    }
-                    if calleeName == "println" || calleeName == "__kk_print_raw" || calleeName.hasPrefix("kk_println") {
-                        printCallArguments.append(arguments)
-                    }
-                default:
-                    continue
+        // println must consume getValue's result, not the delegate handle
+        // itself.
+        var derivedValues: Set<KIRExprID> = []
+        var printCallArguments: [[KIRExprID]] = []
+        for instruction in mainBody {
+            switch instruction {
+            case let .call(_, callee, arguments, result, _, _, _, _),
+                 let .virtualCall(_, callee, _, arguments, result, _, _, _):
+                let calleeName = ctx.interner.resolve(callee)
+                if calleeName == "getValue", let result {
+                    derivedValues.insert(result)
+                } else if let result, arguments.contains(where: { derivedValues.contains($0) }) {
+                    derivedValues.insert(result)
                 }
+                if calleeName == "println" || calleeName == "__kk_print_raw" || calleeName.hasPrefix("kk_println") {
+                    printCallArguments.append(arguments)
+                }
+            default:
+                continue
             }
-            #expect(!derivedValues.isEmpty, "expected a getValue call in main")
-            #expect(
-                printCallArguments.filter { arguments in
-                    arguments.contains(where: { derivedValues.contains($0) })
-                }.count == 2,
-                "println should print the lazily computed value, not the Lazy handle"
-            )
         }
+        #expect(!derivedValues.isEmpty, "expected a getValue call in main")
+        #expect(
+            printCallArguments.filter { arguments in
+                arguments.contains(where: { derivedValues.contains($0) })
+            }.count == 2,
+            "println should print the lazily computed value, not the Lazy handle"
+        )
     }
 
     @Test func testStdlibLazyLocalDelegateInfersValueTypeFromFactory() throws {
@@ -338,13 +321,11 @@ struct LocalDelegatePropertyKIRTests {
             println(s.length)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "`s` should be inferred as String: \(diagnosticMessages)")
-        }
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "`s` should be inferred as String: \(diagnosticMessages)")
     }
 
     @Test func testStdlibObservableLocalDelegateReadsAndWritesThroughRuntime() throws {
@@ -356,25 +337,23 @@ struct LocalDelegatePropertyKIRTests {
             println(y)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local observable delegate should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local observable delegate should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(virtualCallees.contains("setValue"), "assignment must notify the delegate, got: \(virtualCallees)")
-            #expect(virtualCallees.contains("getValue"), "read must query the delegate, got: \(virtualCallees)")
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            #expect(
-                callees.contains("observable") && !callees.contains("kk_observable_create"),
-                "the Delegates.observable factory call must resolve to the real bundled implementation, got: \(callees)"
-            )
-        }
+        #expect(virtualCallees.contains("setValue"), "assignment must notify the delegate, got: \(virtualCallees)")
+        #expect(virtualCallees.contains("getValue"), "read must query the delegate, got: \(virtualCallees)")
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        #expect(
+            callees.contains("observable") && !callees.contains("kk_observable_create"),
+            "the Delegates.observable factory call must resolve to the real bundled implementation, got: \(callees)"
+        )
     }
 
     @Test func testStdlibNotNullLocalDelegateUsesRuntimeEntryPoints() throws {
@@ -386,20 +365,18 @@ struct LocalDelegatePropertyKIRTests {
             println(w)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local notNull delegate should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local notNull delegate should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(virtualCallees.contains("setValue"), "got: \(virtualCallees)")
-            #expect(virtualCallees.contains("getValue"), "got: \(virtualCallees)")
-        }
+        #expect(virtualCallees.contains("setValue"), "got: \(virtualCallees)")
+        #expect(virtualCallees.contains("getValue"), "got: \(virtualCallees)")
     }
 
     @Test func testLocalLazyDelegateInitializerIsNotForcedAtDeclaration() throws {
@@ -410,45 +387,43 @@ struct LocalDelegatePropertyKIRTests {
             println(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "local lazy delegate should compile without errors: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
-            let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let virtualCallees = extractVirtualCallees(from: mainBody, interner: ctx.interner)
 
-            // Position getValue among *all* instructions (not just one callee
-            // kind) so it can be compared against the first println call.
-            var getValueIndex: Int?
-            var firstPrintIndex: Int?
-            for (index, instruction) in mainBody.enumerated() {
-                switch instruction {
-                case let .call(_, callee, _, _, _, _, _, _),
-                     let .virtualCall(_, callee, _, _, _, _, _, _):
-                    let name = ctx.interner.resolve(callee)
-                    if name == "getValue", getValueIndex == nil {
-                        getValueIndex = index
-                    }
-                    if (name == "println" || name.hasPrefix("kk_println")), firstPrintIndex == nil {
-                        firstPrintIndex = index
-                    }
-                default:
-                    continue
+        // Position getValue among *all* instructions (not just one callee
+        // kind) so it can be compared against the first println call.
+        var getValueIndex: Int?
+        var firstPrintIndex: Int?
+        for (index, instruction) in mainBody.enumerated() {
+            switch instruction {
+            case let .call(_, callee, _, _, _, _, _, _),
+                 let .virtualCall(_, callee, _, _, _, _, _, _):
+                let name = ctx.interner.resolve(callee)
+                if name == "getValue", getValueIndex == nil {
+                    getValueIndex = index
                 }
+                if (name == "println" || name.hasPrefix("kk_println")), firstPrintIndex == nil {
+                    firstPrintIndex = index
+                }
+            default:
+                continue
             }
-            let resolvedGetValueIndex = try #require(getValueIndex, "expected a getValue call, callees: \(callees), virtual: \(virtualCallees)")
-            let resolvedFirstPrintIndex = try #require(firstPrintIndex, "expected a println call")
-
-            #expect(
-                resolvedGetValueIndex > resolvedFirstPrintIndex,
-                "the value must only be read at the read site, not forced at the declaration"
-            )
         }
+        let resolvedGetValueIndex = try #require(getValueIndex, "expected a getValue call, callees: \(callees), virtual: \(virtualCallees)")
+        let resolvedFirstPrintIndex = try #require(firstPrintIndex, "expected a println call")
+
+        #expect(
+            resolvedGetValueIndex > resolvedFirstPrintIndex,
+            "the value must only be read at the read site, not forced at the declaration"
+        )
     }
 
     @Test func testLocalLazyDelegateCapturedByLambdaReadsThroughGetValue() throws {
@@ -462,29 +437,27 @@ struct LocalDelegatePropertyKIRTests {
             println(f())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
-            #expect(!(ctx.diagnostics.hasError), "capturing a local lazy delegate should compile: \(diagnosticMessages)")
+        let diagnosticMessages = ctx.diagnostics.diagnostics.map(\.message)
+        #expect(!(ctx.diagnostics.hasError), "capturing a local lazy delegate should compile: \(diagnosticMessages)")
 
-            let module = try #require(ctx.kir)
-            var sawGetValue = false
-            module.arena.transformFunctions { function in
-                for instruction in function.body {
-                    switch instruction {
-                    case let .call(_, callee, _, _, _, _, _, _),
-                         let .virtualCall(_, callee, _, _, _, _, _, _):
-                        if ctx.interner.resolve(callee) == "getValue" { sawGetValue = true }
-                    default:
-                        continue
-                    }
+        let module = try #require(ctx.kir)
+        var sawGetValue = false
+        module.arena.transformFunctions { function in
+            for instruction in function.body {
+                switch instruction {
+                case let .call(_, callee, _, _, _, _, _, _),
+                     let .virtualCall(_, callee, _, _, _, _, _, _):
+                    if ctx.interner.resolve(callee) == "getValue" { sawGetValue = true }
+                default:
+                    continue
                 }
-                return function
             }
-            #expect(sawGetValue, "a lambda reading a captured lazy local should call getValue")
+            return function
         }
+        #expect(sawGetValue, "a lambda reading a captured lazy local should call getValue")
     }
 }
 #endif

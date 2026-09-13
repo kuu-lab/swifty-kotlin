@@ -41,29 +41,6 @@ struct SyntheticStubSurfaceSpecTests {
         return semaResult
     }
 
-    private func assertFunction(
-        named name: String,
-        ownerFQName: [InternedString],
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        externalLinkName: String,
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) throws {
-        let symbol = try function(
-            named: name,
-            ownerFQName: ownerFQName,
-            parameterTypes: parameterTypes,
-            receiverType: receiverType,
-            sema: sema,
-            interner: interner
-        )
-        #expect(sema.symbols.externalLinkName(for: symbol) == externalLinkName)
-        let signature = try #require(sema.symbols.functionSignature(for: symbol))
-        #expect(signature.returnType == returnType)
-    }
-
     private func function(
         named name: String,
         ownerFQName: [InternedString],
