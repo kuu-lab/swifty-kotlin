@@ -405,10 +405,10 @@ The reason codes are:
 |---|---|---|---|---|
 | `Int` | `kk_int_to_byte`, `kk_int_to_float`, `kk_int_to_long`, `kk_int_to_short`, `kk_int_to_ubyte`, `kk_int_to_uint`, `kk_int_to_ulong`, `kk_int_to_ushort` | `kk_int_to_char`, `kk_int_to_double_bits` | `C-WIDTH`; `C-FP`; `B-CHAR`; `B-FP-ABI` | KSP-1536 |
 | `Long` | `kk_long_to_byte`, `kk_long_to_double`, `kk_long_to_float`, `kk_long_to_int`, `kk_long_to_short`, `kk_long_to_ubyte`, `kk_long_to_uint`, `kk_long_to_ulong`, `kk_long_to_ushort` | `kk_long_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1537 |
-| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | `kk_uint_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1532 |
-| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | `kk_ulong_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1533 |
-| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | `kk_ubyte_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1534 |
-| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | `kk_ushort_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1535 |
+| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | — | `C-WIDTH`; `C-FP` | KSP-1532 |
+| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | — | `C-WIDTH`; `C-FP` | KSP-1533 |
+| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | — | `C-WIDTH`; `C-FP` | KSP-1534 |
+| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | — | `C-WIDTH`; `C-FP` | KSP-1535 |
 | `Float` | — | `kk_float_to_char`, `kk_float_to_int`, `kk_float_to_long`, `kk_float_to_double_bits` | `B-CHAR`; `B-FP-SAT`; `B-FP-ABI` | KSP-1538 |
 | `Double` | `kk_double_to_float` | `kk_double_to_char`, `kk_double_to_int`, `kk_double_to_long` | `C-FP`; `B-CHAR`; `B-FP-SAT` | KSP-1538 |
 | `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
@@ -460,6 +460,34 @@ uniqueness, `Scripts/check_todo_ids.sh`, `git diff --check`, and docs marker
 set checks are part of this PR. Build, full test, Golden, kotlinc diff, and
 runtime ABI execution are intentionally not run because this task changes only
 `TODO.md` and this documentation table.
+
+#### KSP-1534/1535 correction: unsigned `toChar()` is not real Kotlin API
+
+KSP-1531 classified `kk_ubyte_to_char`/`kk_ushort_to_char` (and
+`kk_uint_to_char`/`kk_ulong_to_char`) as `(b)` under `B-CHAR` on the
+assumption that the unsigned types have a `toChar()` member like their
+signed counterparts. Verified against kotlinc-jvm 2.4.20, kotlinc-native
+2.4.0, and the `UShort.kt`/`Number.kt` sources shipped in that kotlinc's
+`kotlin-stdlib-sources.jar` (this stable, long-unchanged part of the API
+surface is not expected to differ from the CI-pinned kotlinc 2.3.10):
+`UInt`/`ULong`/`UByte`/`UShort` all implement only `Comparable<T>`, never
+`Number` — `toChar()` does not exist on any of them, not even as a
+deprecated member.
+
+`UInt.toChar()`/`ULong.toChar()` already failed to resolve in kswiftc (no
+bug there, just a stale classification). `UByte.toChar()`/`UShort.toChar()`
+incorrectly compiled: `Subtyping.swift`'s `primitive <: Number` rule listed
+`.ubyte`/`.ushort` alongside the real `Number` subtypes, so ordinary member
+lookup found the inherited (deprecated) `kotlin.Number.toChar` for those two
+receivers. KIR lowering's separate `(calleeStr, receiverType, resultType)`
+fast path then redirected the call to `kk_ubyte_to_char`/`kk_ushort_to_char`
+— a representation-preserving no-op — independently of what Sema had
+resolved, so the wrong resolution never surfaced as an observably wrong
+value. Fixed by removing `.ubyte`/`.ushort` from the subtyping rule, and by
+removing the now-unreachable `kk_ubyte_to_char`/`kk_ushort_to_char` bridges
+(KSP-1534/1535). `kk_uint_to_char`/`kk_ulong_to_char` were already
+unreachable before this fix (Sema rejected the call for an unrelated
+reason) and remain as pending dead-code removal for KSP-1532/1533.
 
 ### RF-STUB-002 reference cleanup recipe
 

@@ -552,37 +552,26 @@
   - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
   - 前提: KSP-1529
 
-- [ ] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UInt 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
-  - 削除/降格 kk_*: `kk_uint_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` 既存 + `UInt.MAX_VALUE.toInt()`（ラップ）と `toDouble()` の丸めケース
-  - 前提: KSP-1531
+- [ ] KSP-1532: `UInt` の `kk_uint_to_char` 死蔵ブリッジを削除する
+  - **KSP-1531 の分類を訂正**（2026-09-13、KSP-1535 調査中に発覚）: `UInt` に `toChar()` は実 Kotlin API として存在しない（kotlinc/kotlinc-native で `unresolved reference` を確認。`docs/stdlib-pipeline.md` の「KSP-1534/1535 correction」参照）。kswiftc も現状 `KSWIFTK-SEMA-0024: Unresolved member function` で正しく拒否しており Sema 側の不具合はない。残作業は `kk_uint_to_char`（Runtime 実体・RuntimeABI spec・CallLowerer 3ファイルの `("toChar", uintType, charType)` ケース）に残る死蔵参照の削除のみ。Kotlin source 新設は不要
+  - 手順: 削除 → `bash Scripts/validate_runtime_abi_links.sh` で dangling 参照なしを確認
+  - 前提: なし
 
-- [ ] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した ULong 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ulong_to_char`（`kk_ulong_to_uint`/`kk_ulong_to_long` は現行シンボルなし、representation-preserving copy。 (c) の7件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
-  - 前提: KSP-1531, KSP-1532
+- [ ] KSP-1533: `ULong` の `kk_ulong_to_char` 死蔵ブリッジを削除する
+  - **KSP-1531 の分類を訂正**: KSP-1532 と同じ理由（`ULong.toChar()` は実 API になく、kswiftc も既に正しく拒否）。残作業は `kk_ulong_to_char`（Runtime 実体・RuntimeABI spec・CallLowerer 3ファイルの `("toChar", ulongType, charType)` ケース）の死蔵参照削除のみ
+  - 手順: 削除 → `bash Scripts/validate_runtime_abi_links.sh`
+  - 前提: なし
 
-- [ ] KSP-1534: `UByte` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UByte 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ubyte_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UByte(200).toByte()` 符号反転ケース
-  - 前提: KSP-1531, KSP-1532
+- [x] KSP-1534: `UByte.toChar()` の誤コンパイルを修正する
+  - **KSP-1531 の分類を訂正**: `UByte` に `toChar()` は実 Kotlin API として存在しない。原因は `Subtyping.swift` の `primitive <: Number` 判定が `.ubyte`/`.ushort` を実際の `Number` 派生型（`.int`/`.long`/`.float`/`.double`/`.byte`/`.short`、コメントはこの6型のみ列挙）と一緒に扱っていたバグ。このため `UByte.toChar()` が非推奨の `kotlin.Number.toChar` へ誤って解決し、KIR lowering 側の別経路が独立に `kk_ubyte_to_char` へリダイレクトしていた（2経路が無関係に同じ呼び出しを別々に誤処理していた）
+  - 修正: `Subtyping.swift` から `.ubyte`/`.ushort` を削除。`kk_ubyte_to_char`（Runtime/RuntimeABI/CallLowerer 3ファイル）を削除、`checkBuiltinDeprecation` の到達不能な unsigned エントリも削除
+  - テスト: `UByteSourceMigrationTests.ubyteToCharIsUnresolved`、`ABIMismatchTests.unsignedToCharBridgeABIsRemoved`、`CoercionRuntimeTests` 既存ケース更新、`Scripts/diff_cases/unsigned_to_char_conversions.kt`（新規、正しいイディオム `toInt().toChar()` / `Char(UShort)` を確認）
+  - 前提: なし
 
-- [ ] KSP-1535: `UShort` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UShort 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ushort_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
-  - 前提: KSP-1531, KSP-1532
+- [x] KSP-1535: `UShort.toChar()` の誤コンパイルを修正する
+  - **KSP-1531 の分類を訂正**: KSP-1534 と同一バグ・同一修正（`Subtyping.swift` の同じ1行）。詳細は KSP-1534 参照、`docs/stdlib-pipeline.md` の「KSP-1534/1535 correction」に根本原因の全体像を記載
+  - テスト: `UShortSourceMigrationTests.ushortToCharIsUnresolved` ほか KSP-1534 と共通
+  - 前提: なし
 
 - [ ] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（845行。KSP-701/KSP-665 の分離先で、呼び出し元は `HeaderHelpers+SyntheticCollectionResiduals.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ）。対象は `registerSyntheticCollectionStub`/`registerSyntheticMutableCollectionStub`/`registerSyntheticIterableStub`（`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` 型シェルと `isEmpty`/`contains`/`random`/`randomOrNull`/`add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`/`iterator`/`hasNext`/`next` メンバ）。`registerSyntheticAbstractCollectionStub`/`registerSyntheticAbstractMutableCollectionStub`/`registerSyntheticMutableIterableStub`（`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable`）は既に bundled Kotlin source を再利用する fallback 専用のため対象外——`MutableIterable.iterator()` の covariant override は `MutableIterable.kt` のコメント通り BUG-200（library metadata が再型付けを表現できない）で compiler 残置と結論済みだが、具象クラス側の override は KSP-1070 で source-backed 化済みのため同様に対象外

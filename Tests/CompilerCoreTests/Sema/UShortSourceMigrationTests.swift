@@ -37,5 +37,39 @@ struct UShortSourceMigrationTests {
 
         #expect(constructors.count == 1, "Expected one bundled UShort(Short) constructor, found \(constructors)")
     }
+
+    /// KSP-1535: `UShort` has no `toChar()` member in real Kotlin — verified
+    /// against kotlinc and kotlinc-native, and against the `UShort.kt`
+    /// shipped in kotlin-stdlib-sources.jar (only `Comparable<UShort>`, no
+    /// `Number`). Subtyping.swift previously listed `.ushort` alongside the
+    /// genuine `Number` subtypes, so this incorrectly resolved to the
+    /// deprecated `kotlin.Number.toChar` instead of failing to resolve.
+    @Test
+    func ushortToCharIsUnresolved() throws {
+        let ctx = makeContextFromSource("""
+        fun convert(value: UShort): Char = value.toChar()
+        """)
+        try runSema(ctx)
+        let unresolved = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0024" }
+        #expect(
+            !unresolved.isEmpty,
+            "Expected UShort.toChar() to be unresolved, matching kotlinc: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    /// KSP-1535 root cause: `UShort` must not satisfy a `Number` upper
+    /// bound. kotlinc rejects `val n: Number = someUShort` outright.
+    @Test
+    func ushortIsNotSubtypeOfNumber() throws {
+        let ctx = makeContextFromSource("""
+        fun convert(value: UShort): Number = value
+        """)
+        try runSema(ctx)
+        let typeErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-TYPE-0001" }
+        #expect(
+            !typeErrors.isEmpty,
+            "Expected UShort to not satisfy a Number upper bound: \(ctx.diagnostics.diagnostics)"
+        )
+    }
 }
 #endif

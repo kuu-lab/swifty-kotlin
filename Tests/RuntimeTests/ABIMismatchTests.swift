@@ -89,6 +89,16 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func unsignedToCharBridgeABIsRemoved() {
+        for name in ["kk_ubyte_to_char", "kk_ushort_to_char"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed: UByte/UShort have no toChar() in real Kotlin (KSP-1534/1535)"
+            )
+        }
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)

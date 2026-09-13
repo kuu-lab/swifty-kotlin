@@ -37,5 +37,37 @@ struct UByteSourceMigrationTests {
 
         #expect(constructors.count == 1, "Expected one bundled UByte(Byte) constructor, found \(constructors)")
     }
+
+    /// KSP-1534: `UByte` has no `toChar()` member in real Kotlin. See the
+    /// matching `UShortSourceMigrationTests.ushortToCharIsUnresolved` for the
+    /// shared root cause (Subtyping.swift misclassified `.ubyte`/`.ushort`
+    /// as `<: Number`).
+    @Test
+    func ubyteToCharIsUnresolved() throws {
+        let ctx = makeContextFromSource("""
+        fun convert(value: UByte): Char = value.toChar()
+        """)
+        try runSema(ctx)
+        let unresolved = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-SEMA-0024" }
+        #expect(
+            !unresolved.isEmpty,
+            "Expected UByte.toChar() to be unresolved, matching kotlinc: \(ctx.diagnostics.diagnostics)"
+        )
+    }
+
+    /// KSP-1534 root cause: `UByte` must not satisfy a `Number` upper
+    /// bound. kotlinc rejects `val n: Number = someUByte` outright.
+    @Test
+    func ubyteIsNotSubtypeOfNumber() throws {
+        let ctx = makeContextFromSource("""
+        fun convert(value: UByte): Number = value
+        """)
+        try runSema(ctx)
+        let typeErrors = ctx.diagnostics.diagnostics.filter { $0.code == "KSWIFTK-TYPE-0001" }
+        #expect(
+            !typeErrors.isEmpty,
+            "Expected UByte to not satisfy a Number upper bound: \(ctx.diagnostics.diagnostics)"
+        )
+    }
 }
 #endif

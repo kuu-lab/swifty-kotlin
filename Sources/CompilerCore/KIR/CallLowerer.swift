@@ -1800,8 +1800,6 @@ final class CallLowerer {
         case ("toUShort", sema.types.ushortType, sema.types.ushortType): nil
         case ("toChar", sema.types.uintType, sema.types.charType): interner.intern("kk_uint_to_char")
         case ("toChar", sema.types.ulongType, sema.types.charType): interner.intern("kk_ulong_to_char")
-        case ("toChar", sema.types.ubyteType, sema.types.charType): interner.intern("kk_ubyte_to_char")
-        case ("toChar", sema.types.ushortType, sema.types.charType): interner.intern("kk_ushort_to_char")
         case ("toChar", sema.types.charType, sema.types.charType): nil
         default: nil
         }
