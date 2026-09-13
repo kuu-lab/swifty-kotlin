@@ -58,11 +58,13 @@ extension DataFlowSemaPhase {
             types.setNominalDirectSupertypes(javaSupertypes, for: javaIOCloseableSymbol)
         }
 
-        // FileIO stubs are registered before bundled headers. They initially
-        // use the Java anchor, then switch to the source-backed common symbol.
+        // java.io stream stubs are registered before bundled headers. They
+        // initially use the Java anchor, then switch to the source-backed
+        // common symbol. `PrintWriter` was removed by CLEANUP-STUB-107 (it was
+        // reachable only via the now-deleted `File.printWriter()` factory).
         let syntheticJavaIOCloseableTypes = [
             "Reader", "BufferedReader", "Writer", "BufferedWriter",
-            "InputStream", "OutputStream", "PrintWriter",
+            "InputStream", "OutputStream",
         ]
         for name in syntheticJavaIOCloseableTypes {
             let fqName = [

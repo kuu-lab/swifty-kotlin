@@ -11,13 +11,12 @@ struct RuntimeBufferedWriterTests {
         try "old-content".write(to: fileURL, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
-        #expect(fileRaw != 0)
+        let pathRaw = runtimeTestPathHandle(fileURL.path)
+        #expect(pathRaw != 0)
 
         var thrown = 0
-        let writerRaw = __kk_file_bufferedWriter(fileRaw, &thrown)
+        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("hello"), &thrown) == 0)
         #expect(thrown == 0)
@@ -36,13 +35,12 @@ struct RuntimeBufferedWriterTests {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
-        #expect(fileRaw != 0)
+        let pathRaw = runtimeTestPathHandle(fileURL.path)
+        #expect(pathRaw != 0)
 
         var thrown = 0
-        let writerRaw = __kk_file_bufferedWriter(fileRaw, &thrown)
+        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("created"), &thrown) == 0)
         #expect(thrown == 0)
@@ -57,13 +55,12 @@ struct RuntimeBufferedWriterTests {
         let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let fileRaw = runtimeTestFileHandle(fileURL.path)
-        #expect(fileRaw != 0)
+        let pathRaw = runtimeTestPathHandle(fileURL.path)
+        #expect(pathRaw != 0)
 
         var thrown = 0
-        let writerRaw = __kk_file_bufferedWriter(fileRaw, &thrown)
+        let writerRaw = kk_path_bufferedWriter(pathRaw, 0, kk_box_int(8192), 0)
         #expect(writerRaw != 0)
-        #expect(thrown == 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("日本語テスト"), &thrown) == 0)
         #expect(thrown == 0)
@@ -169,12 +166,11 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let fileRaw = __kk_file_new(makeStringRaw(fileURL.path))
-        #expect(fileRaw != 0)
+        let pathRaw = kk_path_new(makeStringRaw(fileURL.path))
+        #expect(pathRaw != 0)
 
-        let streamRaw = __kk_file_outputStream(fileRaw, &thrown)
+        let streamRaw = kk_path_outputStream(pathRaw, 0)
         #expect(streamRaw != 0)
-        #expect(thrown == 0)
 
         // charsetRaw = 0 corresponds to UTF-8 (mirrors Charsets.UTF_8).
         let writerRaw = __kk_output_stream_bufferedWriter(streamRaw, 0)
@@ -198,12 +194,14 @@ struct RuntimeBufferedWriterTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         var thrown = 0
-        let fileRaw = __kk_file_new(makeStringRaw(fileURL.path))
-        #expect(fileRaw != 0)
-        let streamRaw = __kk_file_outputStream(fileRaw, &thrown)
+        let pathRaw = kk_path_new(makeStringRaw(fileURL.path))
+        #expect(pathRaw != 0)
+        let streamRaw = kk_path_outputStream(pathRaw, 0)
         #expect(streamRaw != 0)
 
-        let writerRaw = __kk_output_stream_bufferedWriter_default(streamRaw)
+        // __kk_output_stream_bufferedWriter_default (File's no-charset-arg facade) is gone;
+        // charsetRaw = 0 selects the same UTF-8 default on the surviving charset-taking primitive.
+        let writerRaw = __kk_output_stream_bufferedWriter(streamRaw, 0)
         #expect(writerRaw != 0)
 
         #expect(__kk_buffered_writer_write(writerRaw, makeStringRaw("默认 utf-8"), &thrown) == 0)
@@ -219,10 +217,6 @@ struct RuntimeBufferedWriterTests {
             let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
             return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
         }
-    }
-
-    private func runtimeTestFileHandle(_ path: String) -> Int {
-        __kk_file_new(makeStringRaw(path))
     }
 
     private func runtimeTestPathHandle(_ path: String) -> Int {

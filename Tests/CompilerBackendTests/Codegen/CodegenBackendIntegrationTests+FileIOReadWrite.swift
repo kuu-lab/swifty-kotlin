@@ -5,67 +5,34 @@ import Foundation
 import Testing
 
 // STDLIB-030: kotlin.io common - File read/write codegen tests
+//
+// CLEANUP-STUB-107 removed java.io.File's writeText/readText/appendText/delete
+// synthetic members, so this suite's original write+read and append+read
+// cases (which depended entirely on those dead members) were deleted. Only
+// `testCodegenFileReadLines` survives: `File.readLines()` is a Kotlin-source
+// extension (Stdlib/kotlin/io/FileIO.kt) that calls the runtime's
+// `__kk_file_readText` directly rather than the removed `readText()` member,
+// so it remains alive. Its setup now writes the fixture file from the host
+// side (matching the pattern already used elsewhere in this test target)
+// since `File.delete()`/`writeText()` are no longer available from Kotlin.
 @Suite
 struct CodegenBackendFileIOReadWriteTests {
 
-    @Test func testCodegenFileWriteTextAndReadText() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val path = "/tmp/kswiftk_file_rw_codegen.txt"
-            val file = File(path)
-            file.delete()
-
-            file.writeText("hello world")
-            val text = file.readText()
-            println(text)
-
-            file.delete()
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "FileWriteReadText", expected: "hello world\n")
-    }
-
-    @Test func testCodegenFileAppendText() throws {
-        let source = """
-        import java.io.File
-
-        fun main() {
-            val path = "/tmp/kswiftk_file_append_text_codegen.txt"
-            val file = File(path)
-            file.delete()
-
-            file.writeText("line1\n")
-            file.appendText("line2\n")
-            val text = file.readText()
-            print(text)
-
-            file.delete()
-        }
-        """
-
-        try assertKotlinOutput(source, moduleName: "FileAppendText", expected: "line1\nline2\n")
-    }
-
     @Test func testCodegenFileReadLines() throws {
+        let tmpPath = "/tmp/kswiftk_file_read_lines_codegen.txt"
+        try "alpha\nbeta\ngamma".write(toFile: tmpPath, atomically: true, encoding: .utf8)
+
         let source = """
         import java.io.File
 
         fun main() {
-            val path = "/tmp/kswiftk_file_read_lines_codegen.txt"
-            val file = File(path)
-            file.delete()
-            file.writeText("alpha\nbeta\ngamma")
+            val file = File("\(tmpPath)")
 
             val lines = file.readLines()
             println(lines.size)
             for (line in lines) {
                 println(line)
             }
-
-            file.delete()
         }
         """
 

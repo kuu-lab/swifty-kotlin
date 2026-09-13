@@ -148,8 +148,12 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
             ) else { return }
             phase.patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "FileIO") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
+        // CLEANUP-STUB-107 removed File's own target-out facade; what remains
+        // (bare File shell + shared Reader/Writer/Stream primitives) is
+        // permanent scaffolding for Path/FileSystemException, not a delete
+        // candidate, so this is tagged (c) rather than (a).
+        SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "JavaIOStream") { phase, symbols, types, interner, _ in
+            phase.registerSyntheticJavaIOStreamStubs(symbols: symbols, types: types, interner: interner)
         },
         SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
             phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
