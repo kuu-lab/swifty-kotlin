@@ -89,6 +89,16 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func unsignedToCharBridgeABIsRemoved() {
+        for name in ["kk_uint_to_char", "kk_ulong_to_char", "kk_ubyte_to_char", "kk_ushort_to_char"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
+            )
+        }
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
