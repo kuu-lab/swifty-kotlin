@@ -38,9 +38,6 @@ fun singleCustom(): Char {
     return source.single()
 }
 
-fun singleOrNullEmpty(source: CharSequence): Char? =
-    source.singleOrNull()
-
 fun directNonLocal(source: CharSequence): Char {
     source.singleOrNull { return '!' }
     return '?'
@@ -58,10 +55,5 @@ fun capturedNonLocal(source: CharSequence, captured: Char): Char {
 
 fun nullableNonLocal(source: CharSequence?, captured: Char): Char {
     source?.singleOrNull { return captured }
-    return '?'
-}
-
-fun discardedNonLocal(source: CharSequence): Char {
-    source.singleOrNull { return '!' }
     return '?'
 }

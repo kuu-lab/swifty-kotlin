@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 /// REFL-003: Tests for KFunction / KProperty type identity on callable references.
@@ -157,19 +156,17 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("kk_callable_ref_tag_kfunction"),
-                "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("kk_callable_ref_tag_kfunction"),
+            "KIR main body should contain kk_callable_ref_tag_kfunction call. Callees: \(callees)"
+        )
     }
 
     /// KSP-496 follow-up: a bare `::member` reference to a member property
@@ -190,19 +187,17 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let rBody = try findKIRFunctionBody(named: "r", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: rBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let rBody = try findKIRFunctionBody(named: "r", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: rBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("kk_array_set"),
-                "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("kk_array_set"),
+            "Expected the bare ::v reference's wrapper to store a captured receiver (kk_array_set). Callees: \(callees)"
+        )
     }
 
     @Test func testKIREmitsKPropertyTagForPropertyCallableRef() throws {
@@ -214,26 +209,24 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            // Property callable refs are lowered inline in main.
-            let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-                return extractCallees(from: function.body, interner: ctx.interner)
-            }
-            // Verify the property ref is tagged with the KProperty tag.
-            #expect(
-                allCallees.contains("kk_callable_ref_tag_kproperty"),
-                "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
-            )
-            // Verify it does not accidentally tag as kfunction.
-            #expect(
-                !(allCallees.contains("kk_callable_ref_tag_kfunction")),
-                "Property callable ref should NOT be tagged as KFunction."
-            )
+        let module = try #require(ctx.kir)
+        // Property callable refs are lowered inline in main.
+        let allCallees = findAllKIRFunctions(in: module).flatMap { function in
+            return extractCallees(from: function.body, interner: ctx.interner)
         }
+        // Verify the property ref is tagged with the KProperty tag.
+        #expect(
+            allCallees.contains("kk_callable_ref_tag_kproperty"),
+            "Property callable ref should be tagged as KProperty. Callees: \(allCallees)"
+        )
+        // Verify it does not accidentally tag as kfunction.
+        #expect(
+            !(allCallees.contains("kk_callable_ref_tag_kfunction")),
+            "Property callable ref should NOT be tagged as KFunction."
+        )
     }
 
     @Test func testKIRKFunctionTagIncludesCorrectNameAndArity() throws {
@@ -245,65 +238,63 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            // Find the tagging call and verify its arguments.
-            let tagCall = mainBody.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
-                }
-                return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
+        // Find the tagging call and verify its arguments.
+        let tagCall = mainBody.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                return false
             }
-            guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
-                Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
-                return
-            }
+            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
+        }
+        guard case let .call(_, _, arguments, _, _, _, _, _) = tagCall else {
+            Issue.record("Expected kk_callable_ref_tag_kfunction call in main body.")
+            return
+        }
 
-            // arguments[0] = callable value, arguments[1] = name,
-            // arguments[2] = return type, arguments[3] = arity,
-            // arguments[4] = isSuspend flag.
-            #expect(arguments.count == 5)
+        // arguments[0] = callable value, arguments[1] = name,
+        // arguments[2] = return type, arguments[3] = arity,
+        // arguments[4] = isSuspend flag.
+        #expect(arguments.count == 5)
 
-            // Verify the name argument is the string "add".
-            if let nameExpr = module.arena.expr(arguments[1]),
-               case let .stringLiteral(nameInterned) = nameExpr
-            {
-                #expect(ctx.interner.resolve(nameInterned) == "add")
-            } else {
-                Issue.record("Second argument to tag call should be string literal 'add'.")
-            }
+        // Verify the name argument is the string "add".
+        if let nameExpr = module.arena.expr(arguments[1]),
+           case let .stringLiteral(nameInterned) = nameExpr
+        {
+            #expect(ctx.interner.resolve(nameInterned) == "add")
+        } else {
+            Issue.record("Second argument to tag call should be string literal 'add'.")
+        }
 
-            // Verify the return type argument is the compact Int descriptor.
-            if let returnTypeExpr = module.arena.expr(arguments[2]),
-               case let .stringLiteral(returnTypeInterned) = returnTypeExpr
-            {
-                #expect(ctx.interner.resolve(returnTypeInterned) == "Int")
-            } else {
-                Issue.record("Third argument to tag call should be string literal 'Int'.")
-            }
+        // Verify the return type argument is the compact Int descriptor.
+        if let returnTypeExpr = module.arena.expr(arguments[2]),
+           case let .stringLiteral(returnTypeInterned) = returnTypeExpr
+        {
+            #expect(ctx.interner.resolve(returnTypeInterned) == "Int")
+        } else {
+            Issue.record("Third argument to tag call should be string literal 'Int'.")
+        }
 
-            // Verify the arity argument is 2 (two value parameters).
-            if let arityExpr = module.arena.expr(arguments[3]),
-               case let .intLiteral(arityValue) = arityExpr
-            {
-                #expect(arityValue == 2, "::add has arity 2 (a, b).")
-            } else {
-                Issue.record("Fourth argument to tag call should be int literal for arity.")
-            }
+        // Verify the arity argument is 2 (two value parameters).
+        if let arityExpr = module.arena.expr(arguments[3]),
+           case let .intLiteral(arityValue) = arityExpr
+        {
+            #expect(arityValue == 2, "::add has arity 2 (a, b).")
+        } else {
+            Issue.record("Fourth argument to tag call should be int literal for arity.")
+        }
 
-            // Non-suspend callable refs should emit an isSuspend flag of 0.
-            if let suspendExpr = module.arena.expr(arguments[4]),
-               case let .intLiteral(isSuspendValue) = suspendExpr
-            {
-                #expect(isSuspendValue == 0, "::add is not a suspend function.")
-            } else {
-                Issue.record("Fifth argument to tag call should be int literal for isSuspend.")
-            }
+        // Non-suspend callable refs should emit an isSuspend flag of 0.
+        if let suspendExpr = module.arena.expr(arguments[4]),
+           case let .intLiteral(isSuspendValue) = suspendExpr
+        {
+            #expect(isSuspendValue == 0, "::add is not a suspend function.")
+        } else {
+            Issue.record("Fifth argument to tag call should be int literal for isSuspend.")
         }
     }
 
@@ -318,19 +309,17 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: mainBody, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: mainBody, interner: ctx.interner)
 
-            #expect(
-                callees.contains("kk_callable_ref_tag_kfunction"),
-                "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
-            )
-        }
+        #expect(
+            callees.contains("kk_callable_ref_tag_kfunction"),
+            "Bound callable ref box::plus should emit KFunction tag. Callees: \(callees)"
+        )
     }
 
     // MARK: - Non-throwing verification
@@ -344,25 +333,23 @@ struct CallableRefTypeIdentityTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            let tagCall = mainBody.first { instruction in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                    return false
-                }
-                return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
+        let tagCall = mainBody.first { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                return false
             }
-            guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
-                Issue.record("Expected kk_callable_ref_tag_kfunction call.")
-                return
-            }
-            #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
+            return ctx.interner.resolve(callee) == "kk_callable_ref_tag_kfunction"
         }
+        guard case let .call(_, _, _, _, canThrow, _, _, _) = tagCall else {
+            Issue.record("Expected kk_callable_ref_tag_kfunction call.")
+            return
+        }
+        #expect(!(canThrow), "Callable ref tagging call should be non-throwing.")
     }
 }
 #endif

@@ -8,23 +8,6 @@ struct CoroutineSyntheticStubTests {
 
     // MARK: - Path-aware expression search helpers
 
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
     @Test
     func testCoroutineSyntheticStubs() throws {
         let sources: [String] = [
@@ -524,7 +507,7 @@ struct CoroutineSyntheticStubTests {
                 let samplePath = paths[3]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError))
-                let callExpr = try #require(firstExprIDInPath(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else {
@@ -544,7 +527,7 @@ struct CoroutineSyntheticStubTests {
                 let samplePath = paths[4]
                 _ = samplePath
                 #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-                let suspendCall = try #require(firstExprIDInPath(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                let suspendCall = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else {
@@ -561,7 +544,7 @@ struct CoroutineSyntheticStubTests {
                 let samplePath = paths[5]
                 _ = samplePath
                 #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-                let suspendCall = try #require(firstExprIDInPath(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                let suspendCall = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .call(calleeExpr, _, _, _) = expr,
                           case let .nameRef(calleeName, _) = ast.arena.expr(calleeExpr)
                     else {
@@ -578,7 +561,7 @@ struct CoroutineSyntheticStubTests {
                 let samplePath = paths[6]
                 _ = samplePath
                 #expect(ctx.diagnostics.diagnostics.isEmpty, "\(ctx.diagnostics.diagnostics)")
-                _ = try #require(firstExprIDInPath(in: ast, path: samplePath, ctx: ctx) { _, expr in
+                _ = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                     guard case let .memberCall(_, calleeName, _, _, _) = expr else {
                         return false
                     }

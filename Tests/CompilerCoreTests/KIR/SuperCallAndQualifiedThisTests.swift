@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 // MARK: - Helper to extract isSuperCall flags from KIR instructions
@@ -52,21 +51,19 @@ struct SuperCallAndQualifiedThisTests {
             override fun greet(): String = super.greet()
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            #expect(!(ctx.diagnostics.hasError),
-                           "Expected super call program to compile without sema errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
+        #expect(!(ctx.diagnostics.hasError),
+                       "Expected super call program to compile without sema errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
 
-            let module = try #require(ctx.kir)
-            // Both Base.greet and Child.greet exist; search across all overrides
-            let flags = extractSuperCallFlagsAcrossOverrides(named: "greet", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        // Both Base.greet and Child.greet exist; search across all overrides
+        let flags = extractSuperCallFlagsAcrossOverrides(named: "greet", in: module, interner: ctx.interner)
 
-            // The overridden greet() should contain a call to greet with isSuperCall=true
-            let superGreetCall = flags.first { $0.callee == "greet" && $0.isSuperCall }
-            #expect(superGreetCall != nil, "Expected a call to 'greet' with isSuperCall=true in Child.greet() body, got: \(flags)")
-        }
+        // The overridden greet() should contain a call to greet with isSuperCall=true
+        let superGreetCall = flags.first { $0.callee == "greet" && $0.isSuperCall }
+        #expect(superGreetCall != nil, "Expected a call to 'greet' with isSuperCall=true in Child.greet() body, got: \(flags)")
     }
 
     @Test func testRegularMemberCallHasIsSuperCallFalse() throws {
@@ -76,22 +73,20 @@ struct SuperCallAndQualifiedThisTests {
             fun callGreet(): String = this.greet()
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            #expect(!(ctx.diagnostics.hasError),
-                           "Expected regular call program to compile without errors.")
+        #expect(!(ctx.diagnostics.hasError),
+                       "Expected regular call program to compile without errors.")
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "callGreet", in: module, interner: ctx.interner)
-            let flags = extractSuperCallFlags(from: body, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "callGreet", in: module, interner: ctx.interner)
+        let flags = extractSuperCallFlags(from: body, interner: ctx.interner)
 
-            let greetCall = flags.first { $0.callee == "greet" }
-            #expect(greetCall != nil, "Expected a call to 'greet' in callGreet() body.")
-            #expect(!(greetCall?.isSuperCall ?? true),
-                           "Expected this.greet() to have isSuperCall=false, got: \(flags)")
-        }
+        let greetCall = flags.first { $0.callee == "greet" }
+        #expect(greetCall != nil, "Expected a call to 'greet' in callGreet() body.")
+        #expect(!(greetCall?.isSuperCall ?? true),
+                       "Expected this.greet() to have isSuperCall=false, got: \(flags)")
     }
 
     // MARK: - isSuperCall through lowering pipeline
@@ -105,23 +100,20 @@ struct SuperCallAndQualifiedThisTests {
             override fun greet(): String = super.greet()
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            #expect(!(ctx.diagnostics.hasError),
-                           "Expected super call program to compile and lower without errors.")
+        #expect(!(ctx.diagnostics.hasError),
+                       "Expected super call program to compile and lower without errors.")
 
-            let module = try #require(ctx.kir)
-            // Search across all overrides of 'greet'
-            let flags = extractSuperCallFlagsAcrossOverrides(named: "greet", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        // Search across all overrides of 'greet'
+        let flags = extractSuperCallFlagsAcrossOverrides(named: "greet", in: module, interner: ctx.interner)
 
-            // After full lowering, the super call should still have isSuperCall=true
-            let superGreetCall = flags.first { $0.callee == "greet" && $0.isSuperCall }
-            #expect(superGreetCall != nil,
-                            "Expected isSuperCall=true to survive full lowering pipeline, got: \(flags)")
-        }
+        // After full lowering, the super call should still have isSuperCall=true
+        let superGreetCall = flags.first { $0.callee == "greet" && $0.isSuperCall }
+        #expect(superGreetCall != nil,
+                        "Expected isSuperCall=true to survive full lowering pipeline, got: \(flags)")
     }
 
     @Test func testIsSuperCallPreservedThroughABILowering() throws {
@@ -134,22 +126,19 @@ struct SuperCallAndQualifiedThisTests {
             override fun process(x: Any): Any = super.process(x)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            #expect(!(ctx.diagnostics.hasError),
-                           "Expected ABI boxing super call to compile and lower without errors.")
+        #expect(!(ctx.diagnostics.hasError),
+                       "Expected ABI boxing super call to compile and lower without errors.")
 
-            let module = try #require(ctx.kir)
-            // Search across all overrides of 'process'
-            let flags = extractSuperCallFlagsAcrossOverrides(named: "process", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        // Search across all overrides of 'process'
+        let flags = extractSuperCallFlagsAcrossOverrides(named: "process", in: module, interner: ctx.interner)
 
-            let processCall = flags.first { $0.callee == "process" && $0.isSuperCall }
-            #expect(processCall != nil,
-                            "Expected isSuperCall=true to survive ABI lowering with boxing, got: \(flags)")
-        }
+        let processCall = flags.first { $0.callee == "process" && $0.isSuperCall }
+        #expect(processCall != nil,
+                        "Expected isSuperCall=true to survive ABI lowering with boxing, got: \(flags)")
     }
 
     // MARK: - Qualified this@Label
@@ -163,15 +152,13 @@ struct SuperCallAndQualifiedThisTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runSema(ctx)
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-            // Should compile without errors — this@Outer resolves to Outer type
-            let hasError = ctx.diagnostics.diagnostics.contains { $0.severity == .error }
-            #expect(!(hasError),
-                           "Expected this@Outer in nested class to resolve without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
-        }
+        // Should compile without errors — this@Outer resolves to Outer type
+        let hasError = ctx.diagnostics.diagnostics.contains { $0.severity == .error }
+        #expect(!(hasError),
+                       "Expected this@Outer in nested class to resolve without errors, got: \(ctx.diagnostics.diagnostics.map(\.message))")
     }
 
     @Test func testUnresolvedQualifiedThisEmitsDiagnostic() throws {
@@ -182,12 +169,10 @@ struct SuperCallAndQualifiedThisTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runSema(ctx)
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
 
-            assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
-        }
+        assertHasDiagnostic("KSWIFTK-SEMA-0053", in: ctx)
     }
 
     // MARK: - KIR dump format
@@ -201,17 +186,15 @@ struct SuperCallAndQualifiedThisTests {
             override fun greet(): String = super.greet()
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
+        let module = try #require(ctx.kir)
 
-            // The full dump should include 'super=1' for the super.greet() call
-            let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-            #expect(dumpOutput.contains("super=1"),
-                          "Expected KIR dump to contain 'super=1' for super call, got:\n\(dumpOutput)")
-        }
+        // The full dump should include 'super=1' for the super.greet() call
+        let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        #expect(dumpOutput.contains("super=1"),
+                      "Expected KIR dump to contain 'super=1' for super call, got:\n\(dumpOutput)")
     }
 
     @Test func testKIRDumpDoesNotIncludeSuperTagForRegularCalls() throws {
@@ -219,15 +202,13 @@ struct SuperCallAndQualifiedThisTests {
         fun greet(): String = "hello"
         fun main() = greet()
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-            #expect(!(dumpOutput.contains("super=1")),
-                           "Regular call dump should not contain 'super=1', got:\n\(dumpOutput)")
-        }
+        let module = try #require(ctx.kir)
+        let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        #expect(!(dumpOutput.contains("super=1")),
+                       "Regular call dump should not contain 'super=1', got:\n\(dumpOutput)")
     }
 
     @Test func testKIRDumpFormatIncludesQualifiedSuperTag() throws {
@@ -242,17 +223,15 @@ struct SuperCallAndQualifiedThisTests {
             fun callLeft(): String = super<Left>.default1()
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
+        let module = try #require(ctx.kir)
 
-            // The full dump should include 'qualifiedSuper=' for the super<Left>.default1() call
-            let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
-            #expect(dumpOutput.contains("qualifiedSuper="),
-                          "Expected KIR dump to contain 'qualifiedSuper=' for qualified super call, got:\n\(dumpOutput)")
-        }
+        // The full dump should include 'qualifiedSuper=' for the super<Left>.default1() call
+        let dumpOutput = module.dump(interner: ctx.interner, symbols: ctx.sema?.symbols)
+        #expect(dumpOutput.contains("qualifiedSuper="),
+                      "Expected KIR dump to contain 'qualifiedSuper=' for qualified super call, got:\n\(dumpOutput)")
     }
 }
 #endif

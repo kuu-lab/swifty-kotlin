@@ -55,8 +55,8 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "ABIRawBool", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ABIRawBool", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
@@ -115,8 +115,8 @@ extension LoweringABIAndPropertyRegressionTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "ABIBoxedBool", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ABIBoxedBool", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
