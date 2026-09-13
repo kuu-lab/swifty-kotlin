@@ -1209,24 +1209,11 @@ extension DataFlowSemaPhase {
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
         let skipStats = SyntheticStubSkipStatsCollector()
-        let shouldClearContextOnReturn =
-            !BundledSyntheticStubRegistration.preBundledPass
-            && !BundledSyntheticStubRegistration.postBundledPass
         defer {
-            if shouldClearContextOnReturn {
-                BundledSyntheticStubRegistration.clear()
-            }
+            BundledSyntheticStubRegistration.clear()
         }
         BundledSyntheticStubRegistration.bundledIndex = bundledIndex
         BundledSyntheticStubRegistration.types = types
-        if BundledSyntheticStubRegistration.postBundledPass {
-            registerSyntheticPostBundledMemberStubs(
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-            return
-        }
         let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
         let kotlinPropertiesPkg = ensureKotlinPropertiesPackage(symbols: symbols, interner: interner)
         let registryContext = SyntheticDelegateStubRegistryContext(
@@ -1243,62 +1230,6 @@ extension DataFlowSemaPhase {
             context: registryContext
         )
         skipStats.logIfEnabled()
-    }
-
-    /// Replay deferred extension-member stub registration after bundled headers are indexed.
-    func registerSyntheticPostBundledMemberStubs(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let bundledIndex = BundledSyntheticStubRegistration.bundledIndex
-        let skipStats = SyntheticStubSkipStatsCollector()
-        defer {
-            skipStats.logIfEnabled()
-        }
-        let kotlinPkg = ensureKotlinPackage(symbols: symbols, interner: interner)
-        registerSyntheticCollectionStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
-        patchKFunctionParametersType(symbols: symbols, types: types, interner: interner)
-        patchKTypeArgumentsType(symbols: symbols, types: types, interner: interner)
-        patchKTypeParameterUpperBoundsType(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeProgressionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticRangeUntilStubs(symbols: symbols, types: types, interner: interner)
-        if types.comparableInterfaceSymbol == nil {
-            registerSyntheticComparableStub(symbols: symbols, types: types, interner: interner)
-        }
-        registerSyntheticStringStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCharStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticMathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoroutineStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex
-        )
-        registerSyntheticExceptionStubs(symbols: symbols, types: types, interner: interner, kotlinPkg: kotlinPkg)
-        registerSyntheticDurationStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticInstantStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticClockStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticExperimentalTimeStubs(symbols: symbols, types: types, interner: interner, bundledIndex: bundledIndex)
-        registerSyntheticTODOAndIOStubs(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            bundledIndex: bundledIndex
-        )
-        patchKPropertyFunctionSupertypes(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty0FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        patchKMutableProperty1FunctionSupertype(symbols: symbols, types: types, interner: interner)
-        registerSyntheticFileIOStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
-        registerSyntheticBucketedExtendedStdlibStubs(symbols: symbols, types: types, interner: interner)
     }
 
     /// Register the synthetic `kotlin.Any` and `kotlin.Annotation` built-in stubs.
