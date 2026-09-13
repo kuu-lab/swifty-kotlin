@@ -31,6 +31,14 @@ func diagnosticsForPath(
     return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
 }
 
+func diagnosticsForPath(
+    _ path: String,
+    withCode code: String,
+    in ctx: CompilationContext
+) -> [Diagnostic] {
+    diagnosticsForPath(path, in: ctx).filter { $0.code == code }
+}
+
 // The `CompilationContext` overloads below snapshot `ctx.diagnostics` once and
 // delegate to the `[Diagnostic]` form, so a failure is reported at the calling
 // test rather than inside this file.
@@ -52,11 +60,8 @@ func assertHasDiagnostic(
     in diagnostics: [Diagnostic],
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    #expect(
-        diagnostics.contains { $0.code == code },
-        "Expected diagnostic \(code), got: \(diagnostics.map(\.code))",
-        sourceLocation: sourceLocation
-    )
+    let found = diagnostics.contains { $0.code == code }
+    #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 
 func assertNoDiagnostic(
@@ -72,11 +77,8 @@ func assertNoDiagnostic(
     in diagnostics: [Diagnostic],
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
-    #expect(
-        !diagnostics.contains { $0.code == code },
-        "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))",
-        sourceLocation: sourceLocation
-    )
+    let found = diagnostics.contains { $0.code == code }
+    #expect(!(found), "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 
 func assertDiagnosticCount(
@@ -95,10 +97,6 @@ func assertDiagnosticCount(
     sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let count = diagnostics.filter { $0.code == code }.count
-    #expect(
-        count == expected,
-        "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))",
-        sourceLocation: sourceLocation
-    )
+    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 #endif

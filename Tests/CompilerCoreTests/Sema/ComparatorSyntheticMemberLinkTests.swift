@@ -5,18 +5,6 @@ import Testing
 
 @Suite
 struct ComparatorSyntheticMemberLinkTests {
-    private func allExprIDs(
-        in ast: ASTModule,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID), predicate(exprID, expr) else {
-                return nil
-            }
-            return exprID
-        }
-    }
 
     private func sourceBackedComparatorExtension(
         named name: String,
@@ -35,39 +23,6 @@ struct ComparatorSyntheticMemberLinkTests {
             }
             return symbol.fqName.map { interner.resolve($0) } == ["kotlin", "Comparator"]
         }
-    }
-
-    // MARK: - Path-aware expression search helpers
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
-    private func allExprIDs(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var result: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { result.append(exprID) }
-        }
-        return result
     }
 
     // MARK: - Consolidated source-backed comparator member link tests
@@ -248,7 +203,6 @@ struct ComparatorSyntheticMemberLinkTests {
 
             do {
 
-                let samplePath = paths[0]
 
                 let symbolID = try #require(sourceBackedComparatorExtension(
                     named: "thenComparator",
@@ -263,7 +217,6 @@ struct ComparatorSyntheticMemberLinkTests {
 
             do {
 
-                let samplePath = paths[0]
 
                 let symbolID = try #require(sourceBackedComparatorExtension(
                     named: "thenDescending",

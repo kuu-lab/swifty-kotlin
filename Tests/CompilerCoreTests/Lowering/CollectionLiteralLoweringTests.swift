@@ -7,59 +7,21 @@ import Testing
 struct CollectionLiteralLoweringTests {
     // MARK: - Helper
 
-    private func makeKIRContext(interner: StringInterner) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "CollLiteralTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner
-        )
-    }
-
     private func makeModuleWithCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {
         let v0 = arena.appendExpr(.temporary(0))
         let v1 = arena.appendExpr(.temporary(1))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(symbol: nil, callee: callee, arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
+        return makeModule(body: [
+            .call(symbol: nil, callee: callee, arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+            .returnUnit,
+        ], interner: interner, arena: arena)
     }
 
     private func makeModuleWithZeroArgCall(callee: InternedString, interner: StringInterner, arena: KIRArena) -> (KIRModule, KIRDeclID) {
         let result = arena.appendExpr(.temporary(0))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
+        return makeModule(body: [
+            .call(symbol: nil, callee: callee, arguments: [], result: result, canThrow: false, thrownResult: nil),
+            .returnUnit,
+        ], interner: interner, arena: arena)
     }
 
     private func makeModuleWithRangeReceiverCall(
@@ -71,45 +33,29 @@ struct CollectionLiteralLoweringTests {
         let end = arena.appendExpr(.temporary(1))
         let range = arena.appendExpr(.temporary(2))
         let result = arena.appendExpr(.temporary(3))
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("main"),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: [
-                .call(
-                    symbol: nil,
-                    callee: interner.intern("kk_op_rangeTo"),
-                    arguments: [start, end],
-                    result: range,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .call(
-                    symbol: nil,
-                    callee: callee,
-                    arguments: [range],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
+        return makeModule(body: [
+            .call(
+                symbol: nil,
+                callee: interner.intern("kk_op_rangeTo"),
+                arguments: [start, end],
+                result: range,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .call(
+                symbol: nil,
+                callee: callee,
+                arguments: [range],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ),
+            .returnUnit,
+        ], interner: interner, arena: arena)
     }
 
     private func runPass(module: KIRModule, kirCtx: KIRContext) throws {
         try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
-    }
-
-    private func calleesInDecl(_ declID: KIRDeclID, module: KIRModule, interner: StringInterner) -> [String] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return extractCallees(from: fn.body, interner: interner)
     }
 
     @Test
@@ -1169,22 +1115,13 @@ struct CollectionLiteralLoweringTests {
     ) -> (KIRContext, TypeSystem, SymbolTable) {
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let bindings = BindingTable()
         let diag = DiagnosticEngine()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diag).ctx
-        let options = CompilerOptions(
+        let sema = makeSemaModule(symbols: symbols, types: types, diagnostics: diag).ctx
+        let ctx = makeKIRContext(
             moduleName: "CollLiteralTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let ctx = KIRContext(
-            diagnostics: diag,
-            options: options,
             interner: interner,
-            sema: sema
+            sema: sema,
+            diagnostics: diag
         )
         return (ctx, types, symbols)
     }
@@ -1227,58 +1164,6 @@ struct CollectionLiteralLoweringTests {
     /// Build a one-function module with a single virtualCall on a receiver
     /// whose static type is `receiverTypeName` (e.g. "List", "Set", "Map"),
     /// run the lowering pass, and return the resulting callees.
-    private func buildAndLowerVirtualCall(
-        receiverTypeName: String,
-        callee: String,
-        fqNameComponents: [String]? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws -> [String] {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
-
-        let symbolID = defineNominalSymbol(
-            name: receiverTypeName,
-            interner: interner,
-            symbols: symbols,
-            fqNameComponents: fqNameComponents
-        )
-        let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
-
-        let paramExpr = arena.appendExpr(.symbolRef(SymbolID(rawValue: 100)), type: receiverType)
-        let resultExpr = arena.appendExpr(.temporary(1))
-
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern("foo"),
-            params: [KIRParameter(symbol: SymbolID(rawValue: 100), type: receiverType)],
-            returnType: types.unitType,
-            body: [
-                .constValue(result: paramExpr, value: .symbolRef(SymbolID(rawValue: 100))),
-                .virtualCall(
-                    symbol: nil,
-                    callee: interner.intern(callee),
-                    receiver: paramExpr,
-                    arguments: [],
-                    result: resultExpr,
-                    canThrow: false,
-                    thrownResult: nil,
-                    dispatch: .vtable(slot: 0)
-                ),
-                .returnUnit,
-            ],
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-
-        try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
-
-        return calleesInDecl(declID, module: module, interner: interner)
-    }
-
     @Test
     func testVirtualCallOnListTypedParameterRewritesToKkListSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "List", callee: "size")
@@ -1341,17 +1226,21 @@ struct CollectionLiteralLoweringTests {
 
     /// Build a one-function module with a virtualCall that has arguments,
     /// on a receiver whose static type is `receiverTypeName`.
-    private func buildAndLowerVirtualCallWithArgs(
+    private func buildAndLowerVirtualCall(
         receiverTypeName: String,
         callee: String,
-        argCount: Int = 0
+        argCount: Int = 0,
+        fqNameComponents: [String]? = nil
     ) throws -> [String] {
         let interner = StringInterner()
         let arena = KIRArena()
         let (ctx, types, symbols) = makeKIRContextWithSema(interner: interner)
 
         let symbolID = defineNominalSymbol(
-            name: receiverTypeName, interner: interner, symbols: symbols
+            name: receiverTypeName,
+            interner: interner,
+            symbols: symbols,
+            fqNameComponents: fqNameComponents
         )
         let receiverType = types.make(.classType(ClassType(classSymbol: symbolID)))
 
@@ -1416,7 +1305,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnArrayTypedParameterDoesNotRewriteArrayHOFToRuntime() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Array", callee: "all", argCount: 1
         )
         #expect(!callees.contains("kk_array_all"),
@@ -1434,7 +1323,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListContains() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "contains", argCount: 1
         )
         #expect(
@@ -1445,7 +1334,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSetTypedParameterRewritesToKkSetContains() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Set", callee: "contains", argCount: 1
         )
         #expect(
@@ -1483,7 +1372,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnListTypedParameterDoesNotRewriteToKkListIndexOf() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "List", callee: "indexOf", argCount: 1
         )
         #expect(
@@ -1503,7 +1392,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceToCollection() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "toCollection", argCount: 1
         )
         #expect(
@@ -1514,7 +1403,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapTo", argCount: 2
         )
         #expect(
@@ -1525,7 +1414,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapNotNullTo", argCount: 2
         )
         #expect(
@@ -1536,7 +1425,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedTo", argCount: 2
         )
         #expect(
@@ -1547,7 +1436,7 @@ struct CollectionLiteralLoweringTests {
 
     @Test
     func testVirtualCallOnSequenceTypedParameterDoesNotRewriteToKkSequenceMapIndexedNotNullTo() throws {
-        let callees = try buildAndLowerVirtualCallWithArgs(
+        let callees = try buildAndLowerVirtualCall(
             receiverTypeName: "Sequence", callee: "mapIndexedNotNullTo", argCount: 2
         )
         #expect(
