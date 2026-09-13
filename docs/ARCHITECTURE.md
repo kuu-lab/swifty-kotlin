@@ -197,7 +197,7 @@ Tests/
 
 ### Codegen 実行テスト資産 (fixture 駆動)
 
-Codegen 統合テスト（`Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+*`）は、
+Codegen 統合テスト（`Tests/CompilerBackendTests/Codegen/CodegenBackend*Tests.swift`）は、
 Kotlin ソースを `kswiftc` でコンパイル・実行し stdout を突き合わせるものが大半で、
 1 ケースにつき同型のボイラープレート（`let source = ...` / `assertKotlinOutput(...)`）が重複していた。
 これを削減するため fixture 駆動ハーネス `CodegenBackendFixtureTests`
@@ -213,10 +213,28 @@ Kotlin ソースを `kswiftc` でコンパイル・実行し stdout を突き合
 
 > **ガイドライン: 新規 Codegen 実行テストは fixture 必須。**
 > `.kt` をコンパイル・実行して stdout を比較する新規 Codegen テストは、原則として
-> 個別の `CodegenBackendIntegrationTests+*.swift` を新設せず、`Fixtures/` に
+> 個別の `CodegenBackend*Tests.swift` を新設せず、`Fixtures/` に
 > `<領域>/<ケース名>/<ケース名>.kt` + `expected.txt` を追加して `CodegenBackendFixtureTests`
 > に検出させる。stdout 比較に収まらない検証（KIR ダンプ・callee 検査・診断など）が必要な場合に限り
 > 従来の XCTest メソッドを書く。既存ケースの fixture 化は領域単位で順次進める（RF-TEST-002）。
+
+### テストファイル名は suite 型名と一致させる
+
+`--filter` は suite の**型名**（`@Suite struct` / XCTestCase クラス名）に掛かり、ファイル名は一切参照しない。
+したがって 1 ファイル = 1 suite の場合、**ファイル名は宣言している suite 型名と同じにする**。
+
+`Base+Suffix.swift` という名前は「`Base` の extension」を意味する場合にのみ使う。
+`extension Base` を含まないのに `Base+Suffix.swift` と名付けると、
+`--filter Base` がそのファイルのテストを 1 件も選ばないのに、`swift_test.sh` は
+`All tests passed.` を出して exit 0 で終わる（0 件マッチはエラーにならない）ため、
+未実行を成功と誤認する。`--filter` を書く前に対象ファイルの型名を確認すること:
+
+```bash
+grep -nE "@Suite|^struct|^final class|extension " <file>   # @Suite struct X は1行形式が主流
+```
+
+1 ファイルが複数 suite を宣言する場合（`RuntimeNativeConcurrentTests.swift` など）は
+領域名で束ねてよい。ヘルパーのみのファイルは `Base+Helper.swift` のままでよい。
 
 ### テスト実行コマンド
 
