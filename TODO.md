@@ -137,9 +137,15 @@
     - `supportsIterableWindowedTransformReceiver` は値渡し read-only ヘルパーのためシグネチャ不変のまま callsite で `state.listExprIDs` 等を渡す（同ファイル内の分類操作 API 化は本項の範囲外）。source-backed 呼び出し判定（`isSourceBackedSequenceCall`）と toMap 例外ブリッジの経路選択は未変更 — STATE-009 が扱う「静的型由来と runtime 由来の区別」には踏み込まず、新たに静的 Sequence 型を runtime handle の証拠として登録する変更もなし。
     - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。ベースは `claude/rf-lower-state-004`。
     - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（sequence virtual-call の非 rewrite 契約8ケース等を含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 同値 API 置換のみのため CI に委ねた。
-- [ ] RF-LOWER-STATE-008: property virtual-callの分類参照をstate APIへ寄せる（前提: STATE-004）
+- [x] RF-LOWER-STATE-008: property virtual-callの分類参照をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Properties.swift` と対応テストのみ。List / Map / Set / File / Path等の分類参照を移し、既存の型・symbolガードを保持する。
   - 完了条件: `size`等の同名propertyを持つユーザー型がcollectionへ誤分類されず、未分類時のfallbackが不変。property lowering全体やsource API移行は混ぜない。
+  - 完了根拠（配線のみ。emit する KIR・callee・ガード条件は一切不変）:
+    - `rewriteCollectionPropertyVirtualCall` の4つの集合引数（`listExprIDs` / `setExprIDs` / `mapExprIDs` / `arrayExprIDs` — いずれも値渡し read-only）を `state: CollectionRewriteState` 1個へ畳んだ。葉は分類を書き換えないので `inout` ではなく値渡し（従来の値渡し契約をそのまま対応付け）。dispatcher の callsite は `state: state`。
+    - 分類参照は `state.contains(.list/.set/.map/.array, receiver)` へ置き換え。`size`/`count`/`contains`/`isEmpty` の型別 callee 選択と分岐順序（list→set→map→array）は不変。同名 property を持つユーザー型は集合に登録されないため誤分類されない従来のガード構造を保持。未分類時は `return false` で dispatcher のフォールバックへ戻る挙動も不変。
+    - これで virtual-call 葉5種のうち Array（STATE-005）・Range（006）・Sequence（007）・Property（008）が state API 化。残る葉は `rewriteListHOFVirtualCall` / `rewriteFileMemberVirtualCall` / `classifyReceiverByStaticType` と、`run` ループ内の直接参照（iterator 系）— いずれも後続 STATE 項または STATE-010 の範囲。
+    - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。ベースは `claude/rf-lower-state-004`。
+    - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（`testVirtualCallOn*TypedParameter*` の size/isEmpty/contains 経路を直接カバー）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 同値 API 置換のみのため CI に委ねた。
 - [ ] RF-LOWER-STATE-009: Sequenceの静的型とruntime由来を分類段階で区別する（前提: STATE-003・007）
   - 対象: `+StaticTypeClassification.swift` と `+PreScan.swift` のSequence分類・既知producer追跡、対応テスト。source宣言・既知runtime factory / bridge・引数・copyについて、確認できるfactsだけを記録する。
   - 完了条件: 同じSequence型でもsourceオブジェクト / `RuntimeSequenceBox` / unknownを区別でき、分岐や再代入で根拠が失われた値を既知として扱わない。一般的なCFG固定点解析まで必要なら別IDへ分割し、推測で分類を補わない。CALL-014が消費できる契約を固定する。

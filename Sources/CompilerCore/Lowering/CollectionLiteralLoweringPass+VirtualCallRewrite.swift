@@ -163,8 +163,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if rewriteCollectionPropertyVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, lookup: lookup,
-            listExprIDs: state.listExprIDs, setExprIDs: state.setExprIDs, mapExprIDs: state.mapExprIDs,
-            arrayExprIDs: state.arrayExprIDs,
+            state: state,
             loweredBody: &loweredBody
         ) { return true }
 
