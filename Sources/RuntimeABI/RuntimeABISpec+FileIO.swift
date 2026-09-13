@@ -4,10 +4,23 @@ public extension RuntimeABISpec {
     // MARK: - File I/O (STDLIB-320/321/322/323)
 
     static let fileIOFunctions: [RuntimeABIFunctionSpec] = [
+        // File must stay constructible for kotlin.io.FileSystemException (KSP-619)
+        // and Files.kt's resolveSibling/normalize (KSP-483); see CLEANUP-STUB-107.
         RuntimeABIFunctionSpec(
             name: "__kk_file_new",
             parameters: [
                 RuntimeABIParameter(name: "pathRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "FileIO",
+            isThrowing: false
+        ),
+        // STDLIB-IO-087: File(parent, child) constructor
+        RuntimeABIFunctionSpec(
+            name: "__kk_file_new_parent_child",
+            parameters: [
+                RuntimeABIParameter(name: "parentRaw", type: .intptr),
+                RuntimeABIParameter(name: "childRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "FileIO",
@@ -23,129 +36,6 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_file_writeText",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_appendText",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_readLines",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_readBytes",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-FN-001: File.appendBytes(array: ByteArray)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_appendBytes",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // MIGRATION-IO-001: File.writeBytes(array: ByteArray)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_writeBytes",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_forEachLine",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-FN-016: File.forEachBlock — single-arg overload (default blockSize)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_forEachBlock",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-FN-016: File.forEachBlock — two-arg overload (explicit blockSize)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_forEachBlock_blockSize",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "blockSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_exists",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_isFile",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_isDirectory",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_file_path",
             parameters: [
                 RuntimeABIParameter(name: "fileRaw", type: .intptr),
@@ -154,77 +44,7 @@ public extension RuntimeABISpec {
             section: "FileIO",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_delete",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_mkdirs",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_listFiles",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_walk",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        // STDLIB-IO-FN-015: File.copyTo(target, overwrite, bufferSize)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_copyTo",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "targetRaw", type: .intptr),
-                RuntimeABIParameter(name: "overwriteRaw", type: .intptr),
-                RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-FN-012: File.copyRecursively(target, overwrite)
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_copyRecursively",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "targetRaw", type: .intptr),
-                RuntimeABIParameter(name: "overwriteRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
         // STDLIB-567: File.bufferedReader()
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_bufferedReader",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
         RuntimeABIFunctionSpec(
             name: "__kk_buffered_reader_readLine",
             parameters: [
@@ -316,15 +136,6 @@ public extension RuntimeABISpec {
         ),
         // STDLIB-IO-091/093: BufferedWriter
         RuntimeABIFunctionSpec(
-            name: "__kk_file_bufferedWriter",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_buffered_writer_write",
             parameters: [
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
@@ -375,24 +186,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
                 RuntimeABIParameter(name: "bufferSizeRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_inputStream",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_outputStream",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
             ],
             returnType: .intptr,
@@ -601,24 +394,6 @@ public extension RuntimeABISpec {
             returnType: .intptr,
             section: "FileIO"
         ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_output_stream_bufferedWriter_default",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-FN-027: PrintWriter
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_printWriter",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
         // STDLIB-IO-FN-004: OutputStream.buffered() / buffered(bufferSize)
         RuntimeABIFunctionSpec(
             name: "__kk_output_stream_buffered",
@@ -641,67 +416,11 @@ public extension RuntimeABISpec {
             section: "FileIO"
         ),
         RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_print",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_println",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_println_no_arg",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_reader_copyTo_default",
             parameters: [
                 RuntimeABIParameter(name: "readerRaw", type: .intptr),
                 RuntimeABIParameter(name: "writerRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_write",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "textRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_flush",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_print_writer_close",
-            parameters: [
-                RuntimeABIParameter(name: "writerRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "FileIO"
@@ -759,118 +478,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "FileIO"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_resource_stream_read",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_resource_stream_close",
-            parameters: [
-                RuntimeABIParameter(name: "streamRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_useLines",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "closureRaw", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "FileIO"
-        ),
-        // STDLIB-IO-087: Additional File operations
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_new_parent_child",
-            parameters: [
-                RuntimeABIParameter(name: "parentRaw", type: .intptr),
-                RuntimeABIParameter(name: "childRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_absolutePath",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_canonicalPath",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_length",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_lastModified",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_createNewFile",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_canRead",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_canWrite",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_file_canExecute",
-            parameters: [
-                RuntimeABIParameter(name: "fileRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "FileIO",
-            isThrowing: false
         ),
     ]
 

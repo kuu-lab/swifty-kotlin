@@ -10,9 +10,10 @@ import Testing
 /// twice — once in `CollectionLiteralLoweringPass+CallRewrite.swift` for direct
 /// calls and once in `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
-/// chains agreed on 91 API names and diverged on twenty more plus the shape of
-/// the array-conversion check, and nothing in either file recorded which
-/// divergences were deliberate. These tests fix both halves: the four callee
+/// chains agreed on 102 API names at extraction time and diverged on nine more
+/// plus the shape of the array-conversion check, and nothing in either file
+/// recorded which divergences were deliberate. RF-LOWER-CALL-009/010/011 have
+/// since narrowed the agreement to 63 names and grown the divergence to 19. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
 /// difference.
 @Suite
@@ -212,7 +213,9 @@ struct SourceBackedCallPreservationPolicyTests {
                 "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull",
                 "reduceRightIndexed", "reduceRightIndexedOrNull", "scanReduce",
                 "isEmpty", "iterator",
-                "toList", "toIntArray", "average", "chunked", "windowed",
+                // RF-LOWER-CALL-011 (#6763) left `sorted` here alone out of the
+                // List sort/extrema family, for the Range/progression consumer.
+                "toList", "toIntArray", "average", "sorted", "chunked", "windowed",
                 "random", "randomOrNull",
             ],
             "got: \(resolved.sorted())"
@@ -227,11 +230,37 @@ struct SourceBackedCallPreservationPolicyTests {
     /// this count means an API family moved in or out of the policy, which
     /// RF-LOWER-CALL-008 onwards must do deliberately. RF-LOWER-CALL-010
     /// dropped the five search names (`indexOf`, `lastIndexOf`, `indexOfFirst`,
-    /// `indexOfLast`, `containsAll`) that had no downstream rewrite.
+    /// `indexOfLast`, `containsAll`) that had no downstream rewrite, and
+    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names.
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 86, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 63, "got \(policy.sharedAggregateNames.count)")
+    }
+
+    /// RF-LOWER-CALL-011 removed the List sort/extrema family from the direct
+    /// chain but left `sorted` in the virtual one for its Range consumer. The
+    /// sets are what carry that asymmetry now, and a merge that restored the
+    /// deleted names would not change lowered KIR — these names guard nothing —
+    /// so nothing but this assertion would catch the regression.
+    ///
+    /// Only the four names whose `CollectionLiteralLookupTables` properties
+    /// outlived RF-LOWER-CALL-011 can regress silently; it deleted the other
+    /// nineteen properties outright, so naming those would not compile.
+    /// `max` / `maxOrNull` / `minOrNull` survive for
+    /// +CallRewriteSequenceTerminals.swift and must stay out of both sets.
+    @Test
+    func sortExtremaNamesAreGoneExceptVirtualOnlySorted() {
+        let (policy, lookup, _) = Self.makePolicy()
+        #expect(!policy.sharedAggregateNames.contains(lookup.sortedName))
+        #expect(policy.virtualOnlyAggregateNames.contains(lookup.sortedName))
+        for name in [lookup.maxName, lookup.maxOrNullName, lookup.minOrNullName] {
+            #expect(!policy.sharedAggregateNames.contains(name))
+            #expect(!policy.virtualOnlyAggregateNames.contains(name))
+        }
+        // `minByOrNull` / `maxByOrNull` were never in that block — Map group.
+        #expect(policy.sharedAggregateNames.contains(lookup.minByOrNullName))
+        #expect(policy.sharedAggregateNames.contains(lookup.maxByOrNullName))
     }
 
     /// The array-conversion asymmetry the old code left unsaid: the direct path

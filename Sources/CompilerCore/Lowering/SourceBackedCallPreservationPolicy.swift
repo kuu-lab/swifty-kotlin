@@ -51,7 +51,7 @@ extension SourceBackedCalleeResolution {
 /// RF-LOWER-CALL-007: `CollectionLiteralConstructionLoweringPass` (direct
 /// calls) and `CollectionVirtualCallRewriteLoweringPass` (virtual dispatch)
 /// each carried their own copy of this decision as a `||` chain of interned
-/// name comparisons. The copies agreed on 91 API names and diverged on twenty
+/// name comparisons. The copies agreed on 63 API names and diverged on nineteen
 /// more plus the shape of the array-conversion check, and nothing in either
 /// file said so. Here the agreement is one set, each divergence is its own
 /// named set, and the decision order of both original predicates is preserved
@@ -120,31 +120,14 @@ struct SourceBackedCallPreservationPolicy {
             lookup.sumOfName,
             lookup.maxByOrNullName,
             lookup.minByOrNullName,
-            // KSP-426: List sorting/extrema are bundled Kotlin source and must
-            // not be redirected to the removed kk_list_* runtime exports.
-            lookup.sortedName,
-            lookup.sortedByName,
-            lookup.sortedByDescendingName,
-            lookup.sortedDescendingName,
-            lookup.sortedWithName,
-            lookup.maxName,
-            lookup.maxByName,
-            lookup.maxOfName,
-            lookup.maxOfOrNullName,
-            lookup.maxOfWithName,
-            lookup.maxOfWithOrNullName,
-            lookup.maxOrNullName,
-            lookup.maxWithName,
-            lookup.maxWithOrNullName,
-            lookup.minName,
-            lookup.minByName,
-            lookup.minOfName,
-            lookup.minOfOrNullName,
-            lookup.minOfWithName,
-            lookup.minOfWithOrNullName,
-            lookup.minOrNullName,
-            lookup.minWithName,
-            lookup.minWithOrNullName,
+            // RF-LOWER-CALL-011 (#6763) removed the KSP-426 block of 23 List
+            // `sorted*` / `min*` / `max*` names from both chains. They were
+            // meant to keep the bundled declarations in ListSortingHOF.kt and
+            // ListExtremaHOF.kt off the legacy kk_list_* exports, but every
+            // rewrite reachable from here sits behind an outer member-name gate
+            // that never listed them, so they short-circuited nothing.
+            // `minByOrNull` stays in the Map group above, and `sorted` survives
+            // in `virtualOnlyAggregateNames` for its Range consumer.
             // KSP-421: List transform HOFs have Kotlin source implementations.
             lookup.mapName,
             lookup.mapIndexedName,
@@ -218,6 +201,9 @@ struct SourceBackedCallPreservationPolicy {
             lookup.toListName,
             lookup.toIntArrayName,
             lookup.averageName,
+            // RF-LOWER-CALL-011 kept `sorted` on the virtual side alone: the
+            // Range/progression consumer here still keys on it.
+            lookup.sortedName,
             lookup.chunkedName,
             lookup.windowedName,
             interner.intern("random"),

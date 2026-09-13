@@ -244,8 +244,36 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter Fiction
 | 時点 | 追跡対象 | 合計 | root 内訳 |
 |---|---|---:|---|
 | 2026-09-03 CLEANUP-STUB-110 | `.synthetic` フラグ付き残留サーフェス | 2529 | `kotlin=1746`, `java=214`, `kotlinx=191`, `CancellationException=1`（その他の内部生成 root を含む） |
+| 2026-09-13 CLEANUP-STUB-107 | `.synthetic` フラグ付き残留サーフェス | 2271 | `kotlin=1540`, `java=146`, `kotlinx=191`, `CancellationException=1`, `__ObjectLiteral_*`（102 root, 合計393） |
 
 `Files` synthetic registration、16 個の `__kk_files_*` runtime export/ABI parity、専用 diff case を削除した。
 `FileTime` は Path metadata API が共有するため、`RuntimeFileTimeBox` / `__kk_fileTime_toMillis` と
 `FileTime.toMillis` の Path 側登録を保持した。`java.io.File` の `file_isDirectory_test.kt` は
 CLEANUP-STUB-107 の surface であり、誤って削除していない。
+
+## 2026-09-13 CLEANUP-STUB-107（`java.io.File` 自身のメンバ facade 削除）
+
+実行コマンドは上表と同一。上段からの差分（kotlin -206, java -68）は本タスク単独の効果ではない
+点に注意——この10日間に master へ着地した無関係な並行クリーンアップ（RF-LOWER-CALL 系等）の分も
+含まれており、着手直前のベースラインを本タスクでは計測していないため、本タスクの取り分だけを厳密に
+分離することはできない。
+
+本タスクで削除したのは `java.io.File` **自身のメンバ facade**（`readText`/`writeText`/`appendText`/
+`exists`/`isFile`/`isDirectory`/`forEachBlock`/`bufferedReader`/`bufferedWriter`/`printWriter`/`walk`/
+`listFiles`/`delete`/`mkdirs`/`readBytes`/`appendBytes`/`writeBytes`/`absolutePath`/`canonicalPath`/
+`length`/`lastModified`/`createNewFile`/`canRead`/`canWrite`/`canExecute`/`copyTo`/`copyRecursively`）
+と対応する Runtime `__kk_file_*` cdecl・`RuntimeABISpec+FileIO.swift`/`+ABIParity.swift` エントリ。
+File の bare shell・`path` プロパティ・コンストラクタ2種（`__kk_file_new`/`__kk_file_new_parent_child`）
+は **削除していない**——`kotlin.io.FileSystemException` 系（KSP-619）と `Files.kt`（KSP-483）の
+`resolveSibling`/`normalize` が実際に `File` を構築・受け渡す実働コンシューマであり、File を
+non-constructible にするとこの2系統が壊れるため（詳細は `TODO.md` の CLEANUP-STUB-107 エントリ）。
+
+副次発見として、`java.io.OutputStream`・bare `Writer`（Buffered 抜き）はユーザーの Kotlin コードから
+一切構築できない状態になっていることが判明した。唯一の producer だった `File.outputStream()`/
+`File.bufferedWriter()` を本タスクで削除した一方、`kotlin.io.path.Path` 側にも同名の producer は
+登録されていない（`HeaderHelpers+SyntheticPathStubs.swift` は bare class anchor のみで member
+function を持たない）。この2型自体の Sema 登録・Runtime cdecl・ABI spec は「(c) 削除しない」判断で
+そのまま残したため、上記カウントには影響していない——到達不能になった事実と surface が残っている
+事実は独立している。影響を受けたテスト（`OutputStream*FunctionTests.swift` 3件、
+`ReaderCopyToFunctionTests.swift`）は削除した。CLEANUP-STUB-115（Path 本体削除）着手時に、Path 側へ
+producer を追加するか、この一式ごと (a) target-out として削除するかの判断が必要。
