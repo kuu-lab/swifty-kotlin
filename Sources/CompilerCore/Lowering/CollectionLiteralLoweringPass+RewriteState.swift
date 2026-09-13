@@ -50,6 +50,18 @@ extension CollectionLiteralLoweringSupport {
                 .runtimeRepresentation
             }
         }
+
+        /// The classification a tracked static type implies.
+        init(_ trackedStaticType: CollectionLiteralTrackedStaticTypeKind) {
+            switch trackedStaticType {
+            case .list: self = .list
+            case .set: self = .set
+            case .map: self = .map
+            case .array: self = .array
+            case .sequence: self = .sequence
+            case .string: self = .string
+            }
+        }
     }
 
     /// Every classification known about a single expression.
@@ -117,9 +129,9 @@ extension CollectionLiteralLoweringSupport {
     /// instead would make every `contains` rebuild a set, which measured 150x
     /// slower at 200 expressions per function and 12000x at 4000. And the
     /// per-classification sets have to be *stored* properties for now, because
-    /// the registry still hands several of them to one callee as separate
-    /// `inout` arguments — Swift allows that only for distinct storage, not for
-    /// computed views. RF-LOWER-STATE-003 and 004 remove those argument lists,
+    /// the virtual-call dispatcher still hands thirteen of them to one callee as
+    /// separate `inout` arguments — Swift allows that only for distinct storage,
+    /// not for computed views. RF-LOWER-STATE-004 removes that argument list,
     /// after which the named sets can become views over a single container.
     ///
     /// ``membership(of:)`` and ``mutateMembership(of:_:)`` are the only places
@@ -280,8 +292,29 @@ extension CollectionLiteralLoweringSupport {
             tagResult(.map, result, temporary: temporary)
         }
 
+        /// Record the classification implied by a tracked static type, so
+        /// callers that resolve a `CollectionLiteralTrackedStaticTypeKind` do
+        /// not each name a set.
+        mutating func tag(_ expr: KIRExprID, as kind: CollectionLiteralTrackedStaticTypeKind) {
+            insert(Classification(kind), expr)
+        }
+
         mutating func propagateCopy(from: KIRExprID, to: KIRExprID) {
             copyFacts(from: from, to: to)
+        }
+
+        /// Add what a copy proves while the pre-scan is still seeding this
+        /// state, keeping facts the destination already carries from an
+        /// earlier seed such as its static type.
+        ///
+        /// The pre-scan walks one function body forward from an empty state,
+        /// so a destination already classified here was classified by a
+        /// previous seed rather than by the value this copy overwrites.
+        /// ``propagateCopy(from:to:)`` applies the replacement when the rewrite
+        /// reaches the same copy, which keeps the classification visible to the
+        /// instructions that precede it.
+        mutating func seedCopy(from: KIRExprID, to: KIRExprID) {
+            self[to] = self[to].union(self[from])
         }
     }
 }

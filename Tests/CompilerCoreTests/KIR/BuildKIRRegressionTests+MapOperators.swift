@@ -16,18 +16,16 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("minus"), "Expected Map.minus(key) to lower to bundled source minus, got: \(callees)")
-            #expect(!callees.contains("kk_map_minus"), "Map.minus(key) must not use legacy kk_map_minus, got: \(callees)")
-            #expect(!callees.contains("kk_op_sub"), "Map.minus(key) must not fall back to generic subtraction, got: \(callees)")
-        }
+        #expect(callees.contains("minus"), "Expected Map.minus(key) to lower to bundled source minus, got: \(callees)")
+        #expect(!callees.contains("kk_map_minus"), "Map.minus(key) must not use legacy kk_map_minus, got: \(callees)")
+        #expect(!callees.contains("kk_op_sub"), "Map.minus(key) must not fall back to generic subtraction, got: \(callees)")
     }
 
     @Test func testMapMinusSequenceAndArrayLowerToBundledSource() throws {
@@ -39,18 +37,16 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            let sourceMinusCalls = callees.filter { $0 == "minus" }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        let sourceMinusCalls = callees.filter { $0 == "minus" }
 
-            #expect(sourceMinusCalls.count >= 2, "Expected Sequence and Array Map.minus calls to remain source-backed, got: \(callees)")
-            #expect(!callees.contains("kk_map_minus"), "Map.minus(Sequence/Array) must not use legacy kk_map_minus, got: \(callees)")
-        }
+        #expect(sourceMinusCalls.count >= 2, "Expected Sequence and Array Map.minus calls to remain source-backed, got: \(callees)")
+        #expect(!callees.contains("kk_map_minus"), "Map.minus(Sequence/Array) must not use legacy kk_map_minus, got: \(callees)")
     }
 }
 #endif

@@ -5,45 +5,6 @@ import Testing
 @Suite
 struct SemanticsAndUtilitiesRegressionTests {
 
-    // MARK: - Path-aware expression search helpers
-
-    private func memberCallExprIDsInPath(
-        named name: String,
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
-
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
     // MARK: - Consolidated Semantics and Utilities Regression tests
     @Test
     func testSemanticsAndUtilitiesRegression() throws {
@@ -411,8 +372,8 @@ struct SemanticsAndUtilitiesRegressionTests {
                         sema.symbols.symbol(candidate)?.fqName == [interner.intern("sample2"), interner.intern("Config"), interner.intern("Builder"), interner.intern("port")]
                     }, "Expected Config.Builder.port to be visible among candidates")
 
-                let hostCall = try #require(memberCallExprIDsInPath(named: "host", in: ast, path: samplePath, ctx: ctx, interner: interner).first)
-                let portCall = try #require(memberCallExprIDsInPath(named: "port", in: ast, path: samplePath, ctx: ctx, interner: interner).first)
+                let hostCall = try #require(memberCallExprIDs(named: "host", in: ast, path: samplePath, ctx: ctx, interner: interner).first)
+                let portCall = try #require(memberCallExprIDs(named: "port", in: ast, path: samplePath, ctx: ctx, interner: interner).first)
                 let hostExprType = sema.bindings.exprTypes[hostCall]
                 let portExprType = sema.bindings.exprTypes[portCall]
 

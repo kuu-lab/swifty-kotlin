@@ -69,8 +69,8 @@ extension LoweringABIAndPropertyRegressionTests {
             _ = testArena.appendDecl(.function(targetFn))
             let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: testArena)
 
-            let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-            _ = try runLowering(module: module, interner: interner, moduleName: "ABIBoxAll_\(index)", sema: sema)
+            let sema = makeSemaModule(symbols: symbols, types: types).ctx
+            try runLowering(module: module, interner: interner, moduleName: "ABIBoxAll_\(index)", sema: sema)
 
             let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
             let callees = extractCallees(from: lowered.body, interner: interner)
@@ -107,8 +107,8 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(function))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "ABICopyNullableBox", sema: sema)
+        let sema = makeSemaModule(types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ABICopyNullableBox", sema: sema)
 
         let lowered = try findKIRFunction(named: "copyNullableBox", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
@@ -132,8 +132,7 @@ extension LoweringABIAndPropertyRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "NarrowedIntCopy", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
