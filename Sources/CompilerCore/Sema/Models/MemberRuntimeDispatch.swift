@@ -396,6 +396,19 @@ enum MemberRuntimeDispatch {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
             return "kk_char_range_\(charMember)"
         }
+        if kind == .ulongRange {
+            let sourceBacked: Set<String> = [
+                "forEach",
+                "reduce", "reduceIndexed", "fold", "foldIndexed",
+                "find", "findLast",
+                "first_predicate", "firstOrNull_predicate",
+                "last_predicate", "lastOrNull_predicate",
+                "any", "all", "none",
+            ]
+            if sourceBacked.contains(member) {
+                return nil
+            }
+        }
         if kind.isULongRangeLike {
             return "kk_ulong_range_\(member)"
         }
