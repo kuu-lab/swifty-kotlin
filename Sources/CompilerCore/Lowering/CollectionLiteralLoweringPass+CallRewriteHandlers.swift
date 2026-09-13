@@ -37,9 +37,8 @@ extension CollectionLiteralConstructionLoweringPass {
         // RF-LOWER-CALL-008: `filter` / `filterNot` used to need explicit
         // exclusions here so the source-backed List declarations survived. They
         // have no `.list` surface spec since KSP-421, so the lookup below already
-        // returns nil for them. `count` keeps its guard until RF-LOWER-CALL-010.
+        // returns nil for them. `count`'s guard was removed by RF-LOWER-CALL-010.
         if state.listExprIDs.contains(receiverID.rawValue),
-           call.callee != lookup.countName,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
         {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
@@ -106,7 +105,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapValuesName
             || callee == lookup.mapKeysName
             || callee == lookup.toListName
-            || callee == lookup.countName
     }
 
     private func closureRawArgument(
