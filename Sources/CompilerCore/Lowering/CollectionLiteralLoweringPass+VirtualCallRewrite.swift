@@ -100,8 +100,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
             // RF-LOWER-CALL-011 removed the KSP-426 block that mirrored the 25
             // List `sorted*` / `min*` / `max*` names from
             // `+CallRewrite.swift`.  See the note there: none of them is

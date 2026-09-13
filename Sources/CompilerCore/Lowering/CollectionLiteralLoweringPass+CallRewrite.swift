@@ -67,8 +67,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
             // RF-LOWER-CALL-011 dropped the KSP-426 block that listed all 25
             // List `sorted*` / `min*` / `max*` names here.  It was meant to keep
             // those bundled Kotlin declarations (`ListSortingHOF.kt`,

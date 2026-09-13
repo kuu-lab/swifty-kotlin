@@ -127,8 +127,6 @@ extension CollectionLiteralConstructionLoweringPass {
         case lookup.filterName: lookup.kkMapFilterName
         case lookup.forEachName: lookup.kkMapForEachName
         case lookup.flatMapName: lookup.kkMapFlatMapName
-        case lookup.maxByOrNullName: lookup.kkMapMaxByOrNullName
-        case lookup.minByOrNullName: lookup.kkMapMinByOrNullName
         case lookup.anyName: lookup.kkMapAnyName
         case lookup.allName: lookup.kkMapAllName
         case lookup.noneName: lookup.kkMapNoneName

@@ -246,13 +246,15 @@ struct ListSortExtremaLoweringRoutingTests {
 
     // MARK: - the receivers whose rewrites are still live
 
-    /// `maxByOrNull` / `minByOrNull` are the two extrema names still listed in
-    /// both policies, because they are shared with the Map group that
-    /// RF-LOWER-CALL-012 owns.  They are as unreachable as the rest —
-    /// `mapHOFRuntimeName` in `+CallRewriteHandlers.swift` maps them to
-    /// `kk_map_maxByOrNull` / `kk_map_minByOrNull`, but `isCollectionHOFMemberName`
-    /// gates that function and never lists them, and neither export has a
-    /// `@_cdecl` anyway.  Either way the Map source call must survive.
+    /// `maxByOrNull` / `minByOrNull` were the two extrema names RF-LOWER-CALL-011
+    /// left in both policies, because they belong to the Map group that
+    /// RF-LOWER-CALL-012 owns.  CALL-012 then removed them along with the Map
+    /// rewrite they guarded: `mapHOFRuntimeName` in `+CallRewriteHandlers.swift`
+    /// mapped them to `kk_map_maxByOrNull` / `kk_map_minByOrNull`, but
+    /// `isCollectionHOFMemberName` gates that function and never listed them,
+    /// and neither export has a `@_cdecl`.  Nothing claims the names now, so the
+    /// Map source call reaches the default `loweredBody.append` — this test
+    /// still pins the same observable outcome from either side of that change.
     @Test
     func mapExtremaKeepTheirSourceCallAndNotTheMapRuntimeRewrite() throws {
         let source = """

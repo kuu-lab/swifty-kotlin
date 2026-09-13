@@ -74,10 +74,9 @@ extension CollectionLiteralConstructionLoweringPass {
             }
             if state.mapExprIDs.contains(receiverID.rawValue),
                callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
+               || callee == lookup.flatMapName
                || callee == lookup.anyName || callee == lookup.allName
                || callee == lookup.noneName
-               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
             {
                 let closureRawID: KIRExprID
                 if arguments.count == 3 {
