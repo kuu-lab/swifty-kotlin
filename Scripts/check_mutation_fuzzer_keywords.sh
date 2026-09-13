@@ -43,7 +43,10 @@ import sys
 token_model_path, mutator_path = sys.argv[1], sys.argv[2]
 
 swift_source = open(token_model_path, encoding="utf-8").read()
-match = re.search(r"public enum Keyword: String, Sendable \{(.*?)\n\}", swift_source, re.S)
+# Match the declaration without pinning its conformance list, so adding a
+# protocol (CaseIterable, Hashable, ...) cannot break this check: only the
+# `case` lines it extracts below are what this script is actually comparing.
+match = re.search(r"public enum Keyword:[^{]*\{(.*?)\n\}", swift_source, re.S)
 if match is None:
     raise SystemExit(f"Could not find `Keyword` enum in {token_model_path}")
 swift_keywords = set(re.findall(r"case\s+`?([A-Za-z_][A-Za-z0-9_]*)`?", match.group(1)))
