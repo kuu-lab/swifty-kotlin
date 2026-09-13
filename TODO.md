@@ -552,7 +552,9 @@
   - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
   - 前提: KSP-1529
 
-- [ ] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
+- [x] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
+  - 完了記録（2026-09-13）: `UInt.toChar()` は Kotlin 2.3.10 に存在しない（kotlinc 2.4.20 で `unresolved reference`、GitHub `v2.3.10` タグの `UInt.kt` にもメンバなし、`UInt::class.members` のリフレクション列挙にも現れない）ことを実機確認した。Sema にも `kotlin.toChar(receiver=UInt)` を解決する経路が無く（`SyntheticCoercionStubs.swift` に登録なし、`CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift` の `toChar` fast path も `uintType` を含まない）、`kswiftc` で `1u.toChar()` を実際にコンパイルすると `KSWIFTK-SEMA-0024: Unresolved member function 'toChar'` になることを確認済み。したがって `Numbers.kt` への追加は行わず、Sema から到達不能だった残骸 —— `Sources/Runtime/RuntimeNumericCoercion.swift` の `kk_uint_to_char`、`RuntimeABISpec+NumericConversion.swift` の ABI 登録、`CallLowerer.swift`/`+SafeMemberCalls.swift`/`+LegacyMemberLikeCalls.swift` 3箇所の `("toChar", uintType, charType)` switch ケース、`Helpers+Deprecation.swift` の `deprecatedReceiverTypes` 内 `uintType` エントリ —— を削除した。(c) 判定の残り9件（`toByte`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）は fast-path 経由の compiler intrinsic のまま変更していない。`docs/stdlib-pipeline.md` §9 の `UInt` 行はこの完了記録を正式な記録とし、表自体は KSP-1536〜1539 の前例に倣い未更新（表を機械的に読むテスト/スクリプトは無いことを確認済み）。
+  - 回帰: `UIntConversionMemberCallTests`（(c) 3件の型チェック固定 + `toChar` unresolved 固定）、`ABIMismatchTests.uintToCharBridgeABIIsRemoved`、`Scripts/diff_cases/unsigned_conversions.kt`（新規、`UInt.MAX_VALUE.toInt()`/`toDouble()`/`toLong()` と `toInt().toChar().code` の kotlinc 一致を固定）。
   - 対象: KSP-1531 で (b) と判定した UInt 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
   - 削除/降格 kk_*: `kk_uint_to_char`（(c) の9件は compiler intrinsic owner として残す）
@@ -562,26 +564,26 @@
 
 - [ ] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
   - 対象: KSP-1531 で (b) と判定した ULong 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
+  - 実装先: KSP-1532 の完了記録を参照（`UInt.toChar()` は 2.3.10 に存在せず削除方針となったため、`Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` に追記した先例ファイルは無い）。着手時に `ULong.toChar()` が 2.3.10 に実在するか（kotlinc + GitHub `v2.3.10` タグの `ULong.kt` + `ULong::class.members`）を必ず再検証すること — KSP-1532 と同じ「実在しない」結果になる可能性が高い
   - 削除/降格 kk_*: `kk_ulong_to_char`（`kk_ulong_to_uint`/`kk_ulong_to_long` は現行シンボルなし、representation-preserving copy。 (c) の7件は compiler intrinsic owner として残す）
   - 手順: T
-  - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
+  - diff: `unsigned_conversions.kt`（KSP-1532 で新設済み）+ `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1534: `UByte` の数値変換メンバを Kotlin 化する
   - 対象: KSP-1531 で (b) と判定した UByte 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
+  - 実装先: KSP-1532 の完了記録を参照（先例ファイルは無い）。着手時に `UByte.toChar()` が 2.3.10 に実在するか必ず再検証すること
   - 削除/降格 kk_*: `kk_ubyte_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UByte(200).toByte()` 符号反転ケース
+  - diff: `unsigned_conversions.kt`（KSP-1532 で新設済み）+ `UByte(200).toByte()` 符号反転ケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1535: `UShort` の数値変換メンバを Kotlin 化する
   - 対象: KSP-1531 で (b) と判定した UShort 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
+  - 実装先: KSP-1532 の完了記録を参照（先例ファイルは無い）。着手時に `UShort.toChar()` が 2.3.10 に実在するか必ず再検証すること
   - 削除/降格 kk_*: `kk_ushort_to_char`（(c) の9件は compiler intrinsic owner として残す）
   - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
+  - diff: `unsigned_conversions.kt`（KSP-1532 で新設済み）+ `UShort` 境界値ケース
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する
