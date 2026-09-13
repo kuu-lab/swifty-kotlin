@@ -1,0 +1,4 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.Pair[kind=class;gen=2]
+target=kotlin.Pair.<init>[kind=ctor;recv=kotlin.Pair<T0,T1>;params=T0,T1;gen=2]

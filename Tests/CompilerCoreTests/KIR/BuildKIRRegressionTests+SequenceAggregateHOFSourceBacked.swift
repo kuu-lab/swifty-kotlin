@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -9,20 +8,18 @@ extension BuildKIRRegressionTests {
         fun main(): Int = maxOf(1, 2)
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected runtime-backed bundled stdlib call to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected runtime-backed bundled stdlib call to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
 
-            let module = try #require(ctx.kir)
-            let functionNames = Set(findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) })
+        let module = try #require(ctx.kir)
+        let functionNames = Set(findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) })
 
-            #expect(functionNames.contains("main"), "Expected user entry point to be emitted")
-            #expect(!functionNames.contains("maxOf"), "Expected bundled kotlin.comparisons.maxOf body to stay runtime-backed")
-        }
+        #expect(functionNames.contains("main"), "Expected user entry point to be emitted")
+        #expect(!functionNames.contains("maxOf"), "Expected bundled kotlin.comparisons.maxOf body to stay runtime-backed")
     }
 
     @Test func testRuntimeBackedStdlibNameInUserSourceStillEmitsFunction() throws {
@@ -34,20 +31,18 @@ extension BuildKIRRegressionTests {
         fun main(): String = maxOf("left", "right")
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected user-defined kotlin.comparisons.maxOf to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected user-defined kotlin.comparisons.maxOf to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
 
-            let module = try #require(ctx.kir)
-            let functionNames = Set(findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) })
+        let module = try #require(ctx.kir)
+        let functionNames = Set(findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) })
 
-            #expect(functionNames.contains("main"), "Expected user entry point to be emitted")
-            #expect(functionNames.contains("maxOf"), "Expected user-defined kotlin.comparisons.maxOf to be emitted")
-        }
+        #expect(functionNames.contains("main"), "Expected user entry point to be emitted")
+        #expect(functionNames.contains("maxOf"), "Expected user-defined kotlin.comparisons.maxOf to be emitted")
     }
 
     @Test func testSequenceAggregateHOFsUseBundledSourceBackedCalls() throws {
@@ -68,23 +63,21 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Sequence association/groupBy source to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Sequence association/groupBy source to compile without diagnostics, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
 
-            let module = try #require(ctx.kir)
-            let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let sourceBackedCallees = Set(extractCallees(from: mainBody, interner: ctx.interner))
-            for expected in ["associateBy", "groupBy"] {
-                #expect(
-                    sourceBackedCallees.contains(expected),
-                    "Expected Sequence.\(expected) to bind to bundled source, got: \(sourceBackedCallees.sorted())"
-                )
-            }
+        let module = try #require(ctx.kir)
+        let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let sourceBackedCallees = Set(extractCallees(from: mainBody, interner: ctx.interner))
+        for expected in ["associateBy", "groupBy"] {
+            #expect(
+                sourceBackedCallees.contains(expected),
+                "Expected Sequence.\(expected) to bind to bundled source, got: \(sourceBackedCallees.sorted())"
+            )
         }
     }
 }

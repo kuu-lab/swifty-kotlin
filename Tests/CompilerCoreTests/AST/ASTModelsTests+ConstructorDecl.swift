@@ -2,8 +2,7 @@
 @testable import CompilerCore
 import Testing
 
-@Suite
-struct ASTModelsTestsPart2 {
+extension ASTModelsTests {
     @Test
     func testConstructorDeclAndDelegationCallInitializers() {
         let interner = StringInterner()

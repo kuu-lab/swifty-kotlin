@@ -453,7 +453,7 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("Sequence"),
             ]
             guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
-                #expect(false, "Sequence symbol not found")
+                #expect(Bool(false), "Sequence symbol not found")
                 return
             }
             let allSymbols = sema.symbols.lookupAll(fqName: packageFQName)
@@ -539,7 +539,7 @@ extension ListSyntheticMemberLinkTests {
                 ctx.interner.intern("Sequence"),
             ]
             guard let sequenceSymbol = sema.symbols.lookup(fqName: sequenceFQName) else {
-                #expect(false, "Sequence symbol not found")
+                #expect(Bool(false), "Sequence symbol not found")
                 return
             }
             let candidates = sema.symbols.lookupAll(fqName: packageFQName).filter { symbolID in

@@ -1,11 +1,7 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
-/// STDLIB-REFLECT-067: KClass kind/modifier boolean introspection
-/// (`isData` / `isSealed` / `isValue`) lowering.
-///
 /// KSP-496 moved these to ordinary Kotlin extension properties
 /// (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt), so `main`'s
 /// KIR body now calls the Kotlin getter (e.g. `isData`) directly — the
@@ -13,29 +9,20 @@ import Testing
 /// getter's own KIR function body. These tests assert that `main` resolves
 /// to the getter (i.e. does not fall through to an undefined symbol) for
 /// both receiver forms:
-/// - a compile-time class literal (`Foo::class.isData`), and
-/// - a stored `KClass<T>` variable (`val k: KClass<Foo> = Foo::class; k.isData`),
-///   which exercises the `.classType`-wrapping-KClass receiver representation.
 @Suite
 struct KClassBooleanIntrospectionTests {
 
     private func calleesForMain(_ source: String) throws -> Set<String> {
-        var result: Set<String>?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected source to type-check, got: \(ctx.diagnostics.diagnostics)"
-            )
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            result = Set(extractCallees(from: body, interner: ctx.interner))
-        }
-        return try #require(result)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Expected source to type-check, got: \(ctx.diagnostics.diagnostics)"
+        )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        return Set(extractCallees(from: body, interner: ctx.interner))
     }
-
-    // MARK: - Class-literal receiver
 
     @Test func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {
         let callees = try calleesForMain("""
@@ -106,9 +93,6 @@ struct KClassBooleanIntrospectionTests {
             )
         }
     }
-
-    // MARK: - Stored KClass<T> variable receiver (regression for the
-    // `.classType`-wrapping-KClass receiver guard).
 
     @Test func testVariableReceiverIsDataEmitsRuntimeCall() throws {
         let callees = try calleesForMain("""

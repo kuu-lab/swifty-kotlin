@@ -9,6 +9,8 @@ enum GoldenHarnessDumpError: Error, CustomStringConvertible {
     case missingSyntaxTree
     case missingAST
     case missingSema
+    case missingStdlibArtifact
+    case targetsNotAllowedHere(String)
 
     var description: String {
         switch self {
@@ -16,6 +18,10 @@ enum GoldenHarnessDumpError: Error, CustomStringConvertible {
         case .missingSyntaxTree: "syntax tree not available after parse"
         case .missingAST: "AST not available after frontend"
         case .missingSema: "sema module not available"
+        case .missingStdlibArtifact:
+            "case spec pins stdlib-profile=artifact but no stdlib .kklib path was provided (\(GoldenHarness.stdlibLibraryEnvironmentKey))"
+        case let .targetsNotAllowedHere(suite):
+            "case spec carries target= directives, which only the Sema suite renders (not \(suite))"
         }
     }
 }
@@ -73,13 +79,16 @@ enum GoldenHarnessDump {
     static func dumpSema(
         sourcePath: String,
         preInjectedFiles: [(path: String, contents: Data)] = [],
-        stdlibLibraryPath: String? = nil
+        stdlibLibraryPath: String? = nil,
+        caseSpec: GoldenHarnessCaseSpec? = nil
     ) throws -> String {
+        let stdlib = try resolveStdlibMode(spec: caseSpec, stdlibLibraryPath: stdlibLibraryPath)
         let ctx = makeCompilationContext(
             inputs: [sourcePath],
             moduleName: "GoldenSema",
             emit: .kirDump,
-            stdlibLibraryPath: stdlibLibraryPath
+            includeStdlib: stdlib.includeStdlib,
+            stdlibLibraryPath: stdlib.libraryPath
         )
         for (path, contents) in preInjectedFiles {
             _ = ctx.sourceManager.addFile(path: path, contents: contents, origin: .bundledStdlib)
@@ -97,14 +106,41 @@ enum GoldenHarnessDump {
             throw GoldenHarnessDumpError.missingSourceFile
         }
 
-        return renderSemaOutput(
+        return try renderSemaOutput(
             ast: ast,
             sema: sema,
             interner: ctx.interner,
             sourceManager: ctx.sourceManager,
             sourceFileID: sourceFileID,
-            diagnostics: ctx.diagnostics
+            diagnostics: ctx.diagnostics,
+            caseSpec: caseSpec
         )
+    }
+
+    /// Maps a spec's `stdlib-profile` onto the `includeStdlib` /
+    /// `stdlibLibraryPath` options (RF-GOLDEN-012). A spec-free case keeps the
+    /// historical implicit behavior: artifact path when the environment
+    /// provides one, bundled-source injection otherwise. `.artifact` requires
+    /// the path to be present — falling back to source injection would compile
+    /// a different stdlib surface than the spec's golden records.
+    static func resolveStdlibMode(
+        spec: GoldenHarnessCaseSpec?,
+        stdlibLibraryPath: String?
+    ) throws -> (includeStdlib: Bool, libraryPath: String?) {
+        guard let profile = spec?.stdlibProfile else {
+            return (true, stdlibLibraryPath)
+        }
+        switch profile {
+        case .artifact:
+            guard let stdlibLibraryPath else {
+                throw GoldenHarnessDumpError.missingStdlibArtifact
+            }
+            return (false, stdlibLibraryPath)
+        case .source:
+            return (true, nil)
+        case .noStdlib:
+            return (false, nil)
+        }
     }
 
     // MARK: - Stable sema rendering
@@ -115,8 +151,9 @@ enum GoldenHarnessDump {
         interner: StringInterner,
         sourceManager: SourceManager,
         sourceFileID: FileID,
-        diagnostics: DiagnosticEngine
-    ) -> String {
+        diagnostics: DiagnosticEngine,
+        caseSpec: GoldenHarnessCaseSpec?
+    ) throws -> String {
         let ctx = StableRenderContext(sema: sema, interner: interner, ast: ast, sourceManager: sourceManager)
 
         // 1. Render body lines (files, decls, exprs) first to track referenced symbols
@@ -175,7 +212,23 @@ enum GoldenHarnessDump {
             sourceFileID: sourceFileID
         )
 
-        return (symbolLines + bodyLines + diagnosticLines).joined(separator: "\n") + "\n"
+        var outputLines = symbolLines + bodyLines + diagnosticLines
+        if let caseSpec, !caseSpec.targets.isEmpty {
+            // RF-GOLDEN-011: dedicated target section — the stdlib surface a
+            // case claims responsibility for, kept out of the ordinary
+            // symbol/expr body so fixtures stop snapshotting the surface
+            // implicitly. Resolution failures throw before anything is
+            // emitted, so UPDATE_GOLDEN never writes a truncated section.
+            outputLines.append(GoldenHarnessTargetSection.sectionHeader)
+            outputLines.append(contentsOf: try GoldenHarnessTargetSection.render(
+                targets: caseSpec.targets,
+                ctx: ctx,
+                sema: sema,
+                sourceManager: sourceManager,
+                interner: interner
+            ))
+        }
+        return outputLines.joined(separator: "\n") + "\n"
     }
 
     // A Sema golden case is expected to type-check cleanly; a case that's
@@ -315,12 +368,21 @@ enum GoldenHarnessDump {
         return line
     }
 
-    static func dumpDiagnostics(sourcePath: String, stdlibLibraryPath: String? = nil) throws -> String {
+    static func dumpDiagnostics(
+        sourcePath: String,
+        stdlibLibraryPath: String? = nil,
+        caseSpec: GoldenHarnessCaseSpec? = nil
+    ) throws -> String {
+        if let caseSpec, !caseSpec.targets.isEmpty {
+            throw GoldenHarnessDumpError.targetsNotAllowedHere("Diagnostics")
+        }
+        let stdlib = try resolveStdlibMode(spec: caseSpec, stdlibLibraryPath: stdlibLibraryPath)
         let ctx = makeCompilationContext(
             inputs: [sourcePath],
             moduleName: "GoldenDiag",
             emit: .kirDump,
-            stdlibLibraryPath: stdlibLibraryPath
+            includeStdlib: stdlib.includeStdlib,
+            stdlibLibraryPath: stdlib.libraryPath
         )
         do {
             try runFrontend(ctx)

@@ -115,7 +115,7 @@ extension CallTypeChecker {
         // Let normal overload resolution report invalid labels instead of
         // accepting them through the legacy range fallback. The source-backed
         // contains overloads all use Kotlin's `value` parameter name.
-        if (isTypedIntRangeReceiver || isTypedLongRangeReceiver),
+        if (isTypedIntRangeReceiver || isTypedLongRangeReceiver || isTypedUIntRangeReceiver),
            memberName == "contains",
            args.contains(where: { argument in
                guard let label = argument.label else { return false }
@@ -449,6 +449,9 @@ extension CallTypeChecker {
     }
 
     private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
+        if memberName == "contains" {
+            return argCount == 1
+        }
         if memberName == "iterator" {
             return argCount == 0
         }
@@ -809,6 +812,16 @@ extension CallTypeChecker {
             ).filter {
                 isIntRangeCrossTypeContainsCandidate($0, sema: sema)
             }
+        } else if memberName == "contains", rangeKind == .uintRange {
+            collectScopedRangeUserExtensionCandidates(
+                named: calleeName,
+                receiverType: sourceLookupReceiverType,
+                ctx: ctx,
+                sema: sema,
+                interner: interner
+            ).filter {
+                isUIntRangeCrossTypeContainsCandidate($0, sema: sema)
+            }
         } else if memberName == "contains",
                   rangeKind == .longRange,
                   !isLongRangeLiteralArgument
@@ -1061,6 +1074,37 @@ extension CallTypeChecker {
             return false
         }
         return [sema.types.byteType, sema.types.longType, sema.types.shortType]
+            .contains(signature.parameterTypes[0])
+    }
+
+    func hasUIntRangeSourceBackedContainsCandidate(
+        receiverType: TypeID,
+        argumentType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        collectRangeSourceExtensionCandidates(
+            named: interner.intern("contains"),
+            receiverType: receiverType,
+            sema: sema,
+            interner: interner
+        ).contains { candidate in
+            guard let signature = sema.symbols.functionSignature(for: candidate),
+                  signature.parameterTypes.count == 1
+            else {
+                return false
+            }
+            return signature.parameterTypes[0] == argumentType
+        }
+    }
+
+    func isUIntRangeCrossTypeContainsCandidate(_ candidate: SymbolID, sema: SemaModule) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: candidate),
+              signature.parameterTypes.count == 1
+        else {
+            return false
+        }
+        return [sema.types.ubyteType, sema.types.ulongType, sema.types.ushortType]
             .contains(signature.parameterTypes[0])
     }
 

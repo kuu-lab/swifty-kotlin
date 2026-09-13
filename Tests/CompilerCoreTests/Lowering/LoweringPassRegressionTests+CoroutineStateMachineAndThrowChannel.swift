@@ -22,8 +22,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "CoroutineBuilderCPS", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let functions = findAllKIRFunctions(in: module)
@@ -76,8 +75,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderYieldAllLegacy", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let functions = findAllKIRFunctions(in: module)
@@ -105,8 +103,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SequenceBuilderRangeLoopCPS", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let functions = findAllKIRFunctions(in: module)
@@ -167,22 +164,7 @@ extension LoweringPassRegressionTests {
 
         let suspendID = arena.appendDecl(.function(suspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [suspendID])], arena: arena)
-        let options = CompilerOptions(
-            moduleName: "CoroutineSpill",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        let ctx = CompilationContext(
-            options: options,
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "CoroutineSpill")
 
         let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: module, interner: interner)
 
@@ -223,8 +205,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "CoroutineIntrinsicRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let loweredProbe = try findKIRFunction(named: "kk_suspend_probe", in: module, interner: ctx.interner)
@@ -309,22 +290,7 @@ extension LoweringPassRegressionTests {
         let suspendID = arena.appendDecl(.function(suspendFunction))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [suspendID])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "CoroutineContinuationType",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
-
-        try LoweringPhase().run(ctx)
+        let ctx = try runLowering(module: module, interner: interner, moduleName: "CoroutineContinuationType", sema: makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx, diagnostics: diagnostics)
 
         let sema = try #require(ctx.sema)
         let continuationTypeSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
@@ -430,21 +396,7 @@ extension LoweringPassRegressionTests {
         _ = arena.appendDecl(.function(leafFunction))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "CoroutineThrowFlags",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "CoroutineThrowFlags")
 
         let loweredMain = try findKIRFunction(named: "main", in: module, interner: interner)
         let loweredTop = try findKIRFunction(named: "kk_suspend_top", in: module, interner: interner)
@@ -478,8 +430,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "SuspendCoroutineLowering", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let loweredSuspend = try #require(findAllKIRFunctions(in: module).first { function in

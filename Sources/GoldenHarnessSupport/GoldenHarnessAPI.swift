@@ -9,15 +9,32 @@ import Glibc
 public struct GoldenHarnessCase: Sendable {
     public let sourcePath: String
     public let basename: String
+    /// Parsed `<name>.golden-spec` when present (RF-GOLDEN-011/012). Nil when
+    /// the case has no spec — or when the spec failed to parse, in which case
+    /// `specErrorDescription` carries the reason so verification can fail
+    /// loudly instead of silently rendering legacy output.
+    public let spec: GoldenHarnessCaseSpec?
+    public let specErrorDescription: String?
 }
 
 public struct GoldenHarnessBatchResult: Codable, Sendable {
     public let sourcePath: String
+    /// The `stdlib-profile` the case's spec pinned for this render
+    /// (RF-GOLDEN-012), so the test side can verify the intended mode was
+    /// actually used rather than silently falling back. Nil for spec-free
+    /// cases (legacy implicit behavior).
+    public let resolvedProfile: String?
     public let output: String?
     public let errorDescription: String?
 
-    public init(sourcePath: String, output: String?, errorDescription: String?) {
+    public init(
+        sourcePath: String,
+        resolvedProfile: String? = nil,
+        output: String?,
+        errorDescription: String?
+    ) {
         self.sourcePath = sourcePath
+        self.resolvedProfile = resolvedProfile
         self.output = output
         self.errorDescription = errorDescription
     }
@@ -29,6 +46,7 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
     case workerFailed(Int32, String)
     case workerTimedOut(String)
     case invalidWorkerOutput(String)
+    case invalidCaseSpec(String)
 
     var description: String {
         switch self {
@@ -44,6 +62,8 @@ enum GoldenHarnessAPIError: Error, CustomStringConvertible {
             return "Golden worker timed out\(suffix)"
         case let .invalidWorkerOutput(details):
             return "Golden worker returned invalid output: \(details)"
+        case let .invalidCaseSpec(details):
+            return details
         }
     }
 }
@@ -63,7 +83,12 @@ public enum GoldenHarness {
     public static func loadCasesOrCrash(suiteName: String) -> [GoldenHarnessCase] {
         do {
             return try GoldenHarnessCaseDiscovery.loadCases(suite: try suite(named: suiteName)).map {
-                GoldenHarnessCase(sourcePath: $0.sourcePath, basename: $0.basename)
+                GoldenHarnessCase(
+                    sourcePath: $0.sourcePath,
+                    basename: $0.basename,
+                    spec: $0.spec,
+                    specErrorDescription: $0.specLoadError
+                )
             }
         } catch {
             preconditionFailure("GoldenHarness case discovery failed for \(suiteName): \(error)")
@@ -79,9 +104,11 @@ public enum GoldenHarness {
     /// occurrence indices) baked in.
     public static func render(suiteName: String, sourcePath: String) throws -> String {
         let resolvedSuite = try suite(named: suiteName)
+        let caseFile = caseFile(sourcePath: sourcePath)
+        let spec = try validatedCaseSpec(caseFile, suite: resolvedSuite)
         let stdlibLibraryPath = ProcessInfo.processInfo.environment[stdlibLibraryEnvironmentKey]
         if stdlibLibraryPath == nil, resolvedSuite == .sema || resolvedSuite == .diagnostics {
-            warnAboutMissingStdlibLibraryPath(suite: resolvedSuite, sourcePath: sourcePath)
+            warnAboutMissingStdlibLibraryPath(suite: resolvedSuite, sourcePath: sourcePath, caseSpec: spec)
         }
         let raw: String = switch resolvedSuite {
         case .lexer:
@@ -89,11 +116,41 @@ public enum GoldenHarness {
         case .parser:
             try GoldenHarnessDump.dumpParser(sourcePath: sourcePath)
         case .sema:
-            try GoldenHarnessDump.dumpSema(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath)
+            try GoldenHarnessDump.dumpSema(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath, caseSpec: spec)
         case .diagnostics:
-            try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath)
+            try GoldenHarnessDump.dumpDiagnostics(sourcePath: sourcePath, stdlibLibraryPath: stdlibLibraryPath, caseSpec: spec)
         }
         return normalizedForComparison(suite: resolvedSuite, output: raw)
+    }
+
+    /// The `stdlib-profile` a case's spec pins, resolved from the same
+    /// adjacent `.golden-spec` `render` reads. The batch worker reports this
+    /// per case so the test side can verify the intended profile actually
+    /// ran (RF-GOLDEN-012).
+    public static func resolvedStdlibProfile(forSourcePath sourcePath: String) -> GoldenStdlibProfile? {
+        caseFile(sourcePath: sourcePath).spec?.stdlibProfile
+    }
+
+    /// A spec that fails to parse, or that carries `target=` outside the Sema
+    /// suite, must fail the case rather than silently degrade to legacy
+    /// output — that is exactly how a broken spec would otherwise mask the
+    /// coverage it was added to provide.
+    private static func validatedCaseSpec(
+        _ caseFile: GoldenHarnessCaseFile,
+        suite: GoldenHarnessGoldenSuite
+    ) throws -> GoldenHarnessCaseSpec? {
+        if let specLoadError = caseFile.specLoadError {
+            throw GoldenHarnessAPIError.invalidCaseSpec(specLoadError)
+        }
+        guard let spec = caseFile.spec else {
+            return nil
+        }
+        if !spec.targets.isEmpty, suite != .sema {
+            throw GoldenHarnessAPIError.invalidCaseSpec(
+                "\(caseFile.sourcePath): 'target' directives are only valid for the Sema suite, not \(suite.rawValue)"
+            )
+        }
+        return spec
     }
 
     /// Bundled-source fallback (no artifact) compiles the stdlib `.kt` sources
@@ -107,7 +164,17 @@ public enum GoldenHarness {
     /// `stdlibLibraryEnvironmentKey`'s doc comment. A prior investigation lost
     /// real time to exactly this when invoking `GoldenHarnessWorker` directly
     /// from a shell without the env var, so flag it instead of failing silent.
-    private static func warnAboutMissingStdlibLibraryPath(suite: GoldenHarnessGoldenSuite, sourcePath: String) {
+    /// Spec-carrying cases pin their profile explicitly: `.artifact` fails in
+    /// the dump when the path is missing, and `source`/`no-stdlib` intend the
+    /// non-artifact mode, so only spec-free (legacy implicit) cases warn.
+    private static func warnAboutMissingStdlibLibraryPath(
+        suite: GoldenHarnessGoldenSuite,
+        sourcePath: String,
+        caseSpec: GoldenHarnessCaseSpec?
+    ) {
+        guard caseSpec?.stdlibProfile == nil else {
+            return
+        }
         let message = """
         warning: \(stdlibLibraryEnvironmentKey) is not set; rendering \(suite.rawValue) for \
         \(sourcePath) via bundled-source stdlib compilation. This does not match CI's \

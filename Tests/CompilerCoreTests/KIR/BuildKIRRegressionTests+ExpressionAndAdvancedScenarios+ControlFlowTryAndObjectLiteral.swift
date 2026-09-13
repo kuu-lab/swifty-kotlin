@@ -1,16 +1,17 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
 
-    private static nonisolated(unsafe) var _sharedControlFlowCtx: (ctx: CompilationContext, paths: [String])?
-
-    private func sharedControlFlowTuple(at index: Int) throws -> (ctx: CompilationContext, path: String) {
-        if let cached = Self._sharedControlFlowCtx {
-            return (cached.ctx, cached.paths[index])
-        }
+    /// All ten `sampleN` snippets compile into one context, so every test here
+    /// shares it; `ctx.options.inputs[n]` recovers `sampleN`'s path for the one
+    /// test that scopes an AST search to a single file.
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedControlFlowCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -121,35 +122,27 @@ extension BuildKIRRegressionTests {
             }
             """
         ]
-        var result: CompilationContext?
-        var capturedPaths: [String]?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-            capturedPaths = paths
-        }
-        let ctx = try #require(result)
-        let paths = try #require(capturedPaths)
-        Self._sharedControlFlowCtx = (ctx, paths)
-        return (ctx, paths[index])
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
+        return ctx
+    }
+
+    private func sharedControlFlowCtx() throws -> CompilationContext {
+        try Self._sharedControlFlowCtx.get()
     }
 
     @Test
     func testIfExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 0)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test0", in: module, interner: ctx.interner)
 
         // .select was removed; verify control flow guards side-effect branches
-        let sideEffectCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "sideEffect0"
-        }
-        #expect(sideEffectCalls.count == 2, "Both branches should have sideEffect0 calls in IR")
+        let sideEffectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "sideEffect0" }
+        #expect(sideEffectCallsCount == 2, "Both branches should have sideEffect0 calls in IR")
 
-        let jumpIfEqualCount = body.filter { if case .jumpIfEqual = $0 { return true }; return false }.count
+        let jumpIfEqualCount = body.count { if case .jumpIfEqual = $0 { return true }; return false }
         #expect(jumpIfEqualCount >= 1, "Condition should guard branch entry via jumpIfEqual")
     }
 
@@ -157,13 +150,13 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testIfExprReturnInUnselectedBranchDoesNotLeak() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 1)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "earlyReturn1", in: module, interner: ctx.interner)
 
         // .select was removed; return-in-branch uses control flow with labels/jumps
-        let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+        let labelCount = body.count { if case .label = $0 { return true }; return false }
         #expect(labelCount >= 2, "return-in-branch needs labels for control flow")
 
         let hasReturnValue = body.contains { if case .returnValue = $0 { return true }; return false }
@@ -174,19 +167,16 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testWhenExprSideEffectsDoNotLeakFromUnselectedBranch() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 2)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "test2", in: module, interner: ctx.interner)
 
         // .select was removed; verify control flow guards side-effect2 branches
-        let effectCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "effect2"
-        }
-        #expect(effectCalls.count == 3, "All 3 branches should have effect2 calls in IR")
+        let effectCallsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "effect2" }
+        #expect(effectCallsCount == 3, "All 3 branches should have effect2 calls in IR")
 
-        let labelCount = body.filter { if case .label = $0 { return true }; return false }.count
+        let labelCount = body.count { if case .label = $0 { return true }; return false }
         #expect(labelCount >= 3, "Each branch needs labels for control flow")
     }
 
@@ -194,13 +184,13 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchFinallyLoweringUsesOrderedTypeDispatchAndThrownSlotRouting() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 3)
+        let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
         let module = try #require(ctx.kir)
 
-        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: path))
+        let sourceFileID = try #require(ctx.sourceManager.fileID(forPath: ctx.options.inputs[3]))
         let tryExprID = try #require(firstExprID(in: ast) { exprID, expr in
             guard ast.arena.exprRange(exprID)?.start.file == sourceFileID else {
                 return false
@@ -345,7 +335,7 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchUnknownTokenUsesRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 4)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo4", in: module, interner: ctx.interner)
@@ -392,18 +382,15 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchMultipleClausesUnknownTokenUsesRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 5)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo5", in: module, interner: ctx.interner)
 
         // Verify that kk_op_is is called for each typed catch clause.
         // Use >= numberOfTypedClauses to be resilient against future lowering changes.
-        let opIsCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_op_is"
-        }
-        #expect(opIsCalls.count >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        #expect(opIsCount >= 2, "Expected at least one kk_op_is call per typed catch clause for runtime type check fallback.")
     }
 
 
@@ -411,24 +398,28 @@ extension BuildKIRRegressionTests {
 
     @Test
     func testTryCatchCatchAllDoesNotEmitRuntimeTypeCheck() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 6)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "demo6", in: module, interner: ctx.interner)
 
         // catch-all should not require runtime type checking
-        let opIsCalls = body.filter { instruction in
-            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
-            return ctx.interner.resolve(callee) == "kk_op_is"
-        }
-        #expect(opIsCalls.count == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
+        let opIsCount = extractCallees(from: body, interner: ctx.interner).count { $0 == "kk_op_is" }
+        #expect(opIsCount == 0, "catch-all (Any) should not emit kk_op_is runtime type check.")
     }
 
 
 
+    // KSP-CAP-018: `object : Marker {}` -- an object literal whose body
+    // declares no members -- used to get no `ObjectDecl` from the parser and so
+    // lowered through a separate generated `kk_object_literal_N` factory whose
+    // body allocated with `classID = 0` and no `NominalLayout`: no supertype
+    // edges, no itable/vtable registration, and no superclass constructor call.
+    // It now takes the same inline path as a literal with members, allocating
+    // with its own stable nominal type ID.
     @Test
-    func testBuildKIRLowersObjectLiteralToGeneratedFactoryReturningRuntimeObjectEntity() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 7)
+    func testBuildKIRLowersEmptyBodyObjectLiteralToInlineRuntimeObjectEntity() throws {
+        let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
@@ -439,70 +430,65 @@ extension BuildKIRRegressionTests {
             interner: ctx.interner
         ))
         let makeBody = try findKIRFunctionBody(named: "make7", in: module, interner: ctx.interner)
-        let objectFactoryCall = try #require(makeBody.first { instruction in
+
+        #expect(!extractCallees(from: makeBody, interner: ctx.interner).contains {
+            $0.hasPrefix("kk_object_literal_")
+        })
+
+        let allocationCall = try #require(makeBody.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee).hasPrefix("kk_object_literal_")
+            return ctx.interner.resolve(callee) == "kk_object_new"
         })
-
-        guard case let .call(factorySymbol, callee, arguments, result, _, _, _, _) = objectFactoryCall else {
-            Issue.record("Expected object literal to lower to generated factory call.")
+        guard case let .call(_, _, arguments, result, _, _, _, _) = allocationCall else {
+            Issue.record("Expected object literal to lower to a kk_object_new call.")
             return
         }
 
-        let generatedFactorySymbol = try #require(factorySymbol)
-        #expect(generatedFactorySymbol.rawValue != 0)
-        #expect(generatedFactorySymbol != .invalid)
-        #expect(ctx.interner.resolve(callee).hasPrefix("kk_object_literal_"))
-        #expect(arguments.isEmpty)
+        // `kk_object_new(slotCount, classID)`. The old factory path hardcoded
+        // `classID` to 0, which left runtime type checks and dispatch with no
+        // way to identify the literal's type.
+        #expect(arguments.count == 2)
+        if case let .intLiteral(classID)? = module.arena.expr(arguments[1]) {
+            #expect(classID != 0, "Expected the object literal's own stable nominal type ID.")
+        } else {
+            Issue.record("Expected a constant classID argument to kk_object_new.")
+        }
+
         let resultExprID = try #require(result)
         #expect(module.arena.exprType(resultExprID) == sema.bindings.exprTypes[makeExprID])
         if case .unit? = module.arena.expr(resultExprID) {
             Issue.record("Object literal must not lower to unit.")
         }
 
-        let generatedFactoryDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
-            guard case let .function(function) = decl else {
-                return false
-            }
-            return function.symbol == generatedFactorySymbol
-        }))
-        guard case let .function(generatedFactory) = module.arena.declarations[generatedFactoryDeclIndex] else {
-            Issue.record("Expected generated object factory function declaration.")
+        // The literal now has an anonymous class type of its own (it used to
+        // just take on its supertype), and that nominal is emitted and
+        // reachable from the module's file decl list.
+        let objectValueType = try #require(sema.bindings.exprTypes[makeExprID])
+        guard case let .classType(objectClassType) = sema.types.kind(of: objectValueType) else {
+            Issue.record("Expected the object literal to have its own anonymous class type.")
             return
         }
-        let hasAllocationRuntimeCall = generatedFactory.body.contains { instruction in
-            guard case let .call(_, loweredCallee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            let calleeName = ctx.interner.resolve(loweredCallee)
-            return calleeName == "kk_alloc" || calleeName == "kk_array_new" || calleeName == "kk_object_new"
-        }
-        #expect(
-            hasAllocationRuntimeCall,
-            "Expected generated object factory to include allocation runtime call."
-        )
+        let objectSymbol = objectClassType.classSymbol
+        let objectSymbolName = try #require(sema.symbols.symbol(objectSymbol)?.name)
+        #expect(ctx.interner.resolve(objectSymbolName).hasPrefix("__ObjectLiteral_"))
 
-        let generatedNominalDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
+        let nominalDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
             guard case let .nominalType(nominal) = decl else {
                 return false
             }
-            return sema.symbols.symbol(nominal.symbol) == nil
+            return nominal.symbol == objectSymbol
         }))
-
-        let generatedFactoryDeclID = KIRDeclID(rawValue: Int32(generatedFactoryDeclIndex))
-        let generatedNominalDeclID = KIRDeclID(rawValue: Int32(generatedNominalDeclIndex))
         let fileDeclIDs = Set(module.files.flatMap(\.decls))
-        #expect(fileDeclIDs.contains(generatedFactoryDeclID))
-        #expect(fileDeclIDs.contains(generatedNominalDeclID))
+        #expect(fileDeclIDs.contains(KIRDeclID(rawValue: Int32(nominalDeclIndex))))
     }
 
 
 
     @Test
     func testBuildKIRObjectLiteralStoredPropertyReadUsesNonThrowingFastPath() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 8)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main8", in: module, interner: ctx.interner)
@@ -516,14 +502,64 @@ extension BuildKIRRegressionTests {
 
 
     @Test
+    // KSP-CAP-018: this test only checked that the *call site* named `get`,
+    // never what the accessor it calls actually does — so it kept passing while
+    // Sema left the getter body's `seed` unbound and KIR lowered it to `.unit`,
+    // making `instance.value` return 1 instead of 8. The emitted accessor's own
+    // body is now checked too: it must load `seed` from the instance and must
+    // not contain a `.unit` constant standing in for an unresolved identifier.
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
-        let (ctx, path) = try sharedControlFlowTuple(at: 9)
+        let ctx = try sharedControlFlowCtx()
 
         let module = try #require(ctx.kir)
         let body = try findKIRFunctionBody(named: "main9", in: module, interner: ctx.interner)
         let callNames = extractCallees(from: body, interner: ctx.interner)
         #expect(!(callNames.contains("kk_array_get")))
         #expect(callNames.contains("get"))
+
+        // Every accessor this fixture emits is a one-parameter `get` function.
+        // Check their bodies, not just the call site: the bug left the getter
+        // body with a `.unit` constant standing in for the unresolved `seed`,
+        // and no instance read at all.
+        let getterBodies = module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
+            guard case let .function(function) = decl,
+                  ctx.interner.resolve(function.name) == "get",
+                  function.params.count == 1
+            else {
+                return nil
+            }
+            return function.body
+        }
+        #expect(!getterBodies.isEmpty, "Expected the object literal's `get` accessor to be emitted.")
+
+        func containsUnitConstant(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .constValue(_, value) = instruction else {
+                    return false
+                }
+                if case .unit = value {
+                    return true
+                }
+                return false
+            }
+        }
+        func readsInstanceField(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                    return false
+                }
+                return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            }
+        }
+
+        #expect(
+            getterBodies.contains(where: readsInstanceField),
+            "Expected a custom getter body to read its sibling property off the instance."
+        )
+        #expect(
+            !getterBodies.contains(where: containsUnitConstant),
+            "A `.unit` constant in an accessor body means an identifier went unresolved."
+        )
     }
 
 

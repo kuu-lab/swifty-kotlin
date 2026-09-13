@@ -1,0 +1,4 @@
+version=1
+stdlib-profile=artifact
+target=kotlin.Any[kind=class]
+target=kotlin.Any.<init>[kind=ctor;params=]

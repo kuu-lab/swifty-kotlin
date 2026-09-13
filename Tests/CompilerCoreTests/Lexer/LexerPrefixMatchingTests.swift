@@ -17,12 +17,7 @@ struct LexerPrefixMatchingTests {
         ("?", [Symbol.question]),
     ])
     func adjacentSymbolsKeepLongestMatchAndByteRanges(source: String, expected: [Symbol]) {
-        let diagnostics = DiagnosticEngine()
-        let lexer = KotlinLexer(
-            file: FileID(rawValue: 0), source: Data(source.utf8),
-            interner: StringInterner(), diagnostics: diagnostics
-        )
-        let tokens = lexer.lexAll()
+        let (tokens, _, diagnostics) = lex(source)
         #expect(tokens.map(\.kind) == expected.map { .symbol($0) } + [.eof])
         #expect(!diagnostics.hasError)
         var start = 0

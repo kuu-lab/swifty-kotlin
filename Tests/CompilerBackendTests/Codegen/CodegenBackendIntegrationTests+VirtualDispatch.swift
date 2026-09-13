@@ -221,5 +221,103 @@ struct CodegenBackendVirtualDispatchTests {
             expected: "topLevelInt\n7\nhi\n10\n42\n42\n7\n"
         )
     }
+
+    // KSP-496 byproduct bug: a property callable reference consumed as a
+    // plain function value (assigned to a function-typed variable, or passed
+    // to a higher-order function) reached the generic callable-value path,
+    // which used the *property* symbol as the call target. A property symbol
+    // has no emitted function behind it, so codegen fell back to declaring an
+    // external function named after the property and the program failed to
+    // link (`Undefined symbols: "_v"`). The reference must call the generated
+    // property-reference accessor instead — the same one the KProperty0/1
+    // wrapper objects use. Linking is the failure mode, so this has to run.
+    @Test
+    func testPropertyReferenceInFunctionPositionCallsTheAccessor() throws {
+        let source = """
+        class Sample(val v: Int) {
+            val doubled: Int get() = v * 2
+        }
+        class Counter(var w: Int)
+        object Config { val level: Int = 42 }
+
+        val topLevelConst: Int = 7
+        var topLevelVar: Int = 9
+
+        fun main() {
+            val unbound: (Sample) -> Int = Sample::v
+            println(unbound(Sample(1)))
+
+            println(listOf(Sample(1), Sample(2)).map(Sample::v))
+
+            val sample = Sample(3)
+            val bound: () -> Int = sample::v
+            println(bound())
+
+            val customGetter: (Sample) -> Int = Sample::doubled
+            println(customGetter(Sample(4)))
+
+            val mutableMember: (Counter) -> Int = Counter::w
+            println(mutableMember(Counter(5)))
+
+            val singleton: () -> Int = Config::level
+            println(singleton())
+
+            val topConst: () -> Int = ::topLevelConst
+            println(topConst())
+
+            val topVar: () -> Int = ::topLevelVar
+            println(topVar())
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "PropertyReferenceFunctionPositionRuntime",
+            expected: "1\n[1, 2]\n3\n8\n5\n42\n7\n9\n"
+        )
+    }
+
+    // KSP-496 byproduct bug (same root shape, different consumer): a property
+    // callable reference in a fun-interface argument position was typed as the
+    // interface by Sema but never marked as a SAM conversion — only the
+    // function-reference branch did that (BUG-164). Without the mark,
+    // lowerCallableRefExpr skipped the wrapper object that carries the itable
+    // entry and handed the raw tagged callable to the interface parameter, so
+    // the interface call panicked at runtime ("Virtual dispatch failed: method
+    // not found in vtable/itable"). A lambda and a function reference in the
+    // same position are included as the contrast cases that already worked;
+    // the bound `instance::member` shape is the one that exercises the SAM
+    // thunk with a captured receiver *and* the substituted accessor target.
+    @Test
+    func testPropertyReferenceSamConversionDispatchesThroughTheInterface() throws {
+        let source = """
+        class Sample(val v: Int)
+
+        fun interface IntFromSample {
+            fun apply(sample: Sample): Int
+        }
+
+        fun interface IntSupplier {
+            fun get(): Int
+        }
+
+        fun useSam(f: IntFromSample): Int = f.apply(Sample(11))
+
+        fun useSupplier(f: IntSupplier): Int = f.get()
+
+        fun readV(sample: Sample): Int = sample.v
+
+        fun main() {
+            println(useSam(Sample::v))
+            println(useSam(::readV))
+            println(useSam { sample -> sample.v })
+            println(useSupplier(Sample(3)::v))
+        }
+        """
+        try assertKotlinOutput(
+            source,
+            moduleName: "PropertyReferenceSamConversionRuntime",
+            expected: "11\n11\n11\n3\n"
+        )
+    }
 }
 #endif

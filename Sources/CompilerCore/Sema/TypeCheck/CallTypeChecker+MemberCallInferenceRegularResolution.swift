@@ -911,6 +911,33 @@ extension CallTypeChecker {
                 }
             } else if interner.resolve(calleeName) == "contains",
                       let rangeSourceMemberLookupType,
+                      rangeReceiverKind == .uintRange
+            {
+                collectScopedRangeUserExtensionCandidates(
+                    named: calleeName,
+                    receiverType: rangeSourceMemberLookupType,
+                    ctx: ctx,
+                    sema: sema,
+                    interner: interner
+                ).filter { candidate in
+                    guard isUIntRangeCrossTypeContainsCandidate(candidate, sema: sema),
+                          args.count == 1,
+                          argTypes.count == 1,
+                          let signature = sema.symbols.functionSignature(for: candidate),
+                          signature.parameterTypes[0] == argTypes[0]
+                    else {
+                        return false
+                    }
+                    guard let label = args[0].label else { return true }
+                    guard signature.valueParameterSymbols.count == 1,
+                          let parameter = sema.symbols.symbol(signature.valueParameterSymbols[0])
+                    else {
+                        return false
+                    }
+                    return parameter.name == label
+                }
+            } else if interner.resolve(calleeName) == "contains",
+                      let rangeSourceMemberLookupType,
                       rangeReceiverKind == .longRange,
                       !isLongRangeLiteralContainsCall
             {

@@ -3,14 +3,10 @@ import Foundation
 import Testing
 
 // MARK: - STDLIB-UUID-ABI-001/002: Uuid.fromLongs and Uuid.fromByteArray source declarations
-//
-// Verifies that fromLongs(msb, lsb) and fromByteArray(byteArray) companion factory
 // methods are sourced from Stdlib/kotlin/uuid/Uuid.kt without pure runtime links.
 
 @Suite
 struct UuidFromLongsFromByteArraySemaTests {
-
-    // MARK: - Shared sema fixture
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
@@ -27,8 +23,6 @@ struct UuidFromLongsFromByteArraySemaTests {
         Self._sharedSema = semaResult
         return semaResult
     }
-
-    // MARK: - Lookup helpers
 
     private func allExternalLinks(
         fqPath: [String],

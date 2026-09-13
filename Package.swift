@@ -73,6 +73,7 @@ let package = Package(
             sources: [
                 "GoldenHarnessAPI.swift",
                 "GoldenHarnessCaseDiscovery.swift",
+                "GoldenHarnessCaseSpec.swift",
                 "GoldenHarnessDump.swift",
                 "GoldenHarnessExprFormat.swift",
                 "GoldenHarnessGoldenFileIO.swift",
@@ -83,6 +84,7 @@ let package = Package(
                 "GoldenHarnessStableRenderContext.swift",
                 "GoldenHarnessSymbolOrigin.swift",
                 "GoldenHarnessSyntaxFormat.swift",
+                "GoldenHarnessTargetSection.swift",
             ]
         ),
         .executableTarget(

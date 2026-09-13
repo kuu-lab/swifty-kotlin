@@ -35,20 +35,15 @@ struct NativeConcurrentTopLevelSourceTests {
         let context = try sharedContext()
         let sema = try #require(context.sema)
         let package = ["kotlin", "native", "concurrent"]
-        // FreezableAtomicReference is already source-backed by KSP-1236
-        // (its constructor ships in Stdlib/kotlin/native/concurrent/
-        // FreezableAtomicReference/Stdlib.kt), AtomicLong is already
-        // source-backed by KSP-1222 (Stdlib/kotlin/native/concurrent/
-        // AtomicLong/Stdlib.kt), AtomicNativePtr is already source-backed
-        // by KSP-1224 (Stdlib/kotlin/native/concurrent/AtomicNativePtr/
-        // Stdlib.kt), AtomicReference is already source-backed by
-        // KSP-1226 (Stdlib/kotlin/native/concurrent/AtomicReference/
-        // Stdlib.kt), MutableData is already source-backed by KSP-1243
-        // (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt), and
+        // FreezableAtomicReference (KSP-1236), AtomicLong (KSP-1222),
+        // AtomicNativePtr (KSP-1224) and AtomicReference (KSP-1226) are all
+        // already source-backed by Stdlib/kotlin/native/concurrent/Atomics.kt,
+        // MutableData is already source-backed by KSP-1243
+        // (Stdlib/kotlin/native/concurrent/MutableData.kt), and
         // WorkerBoundReference's constructor is already source-backed by
-        // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference/
-        // Stdlib.kt), so all six are intentionally absent from this
-        // synthetic-anchor inventory.
+        // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt),
+        // so all six are intentionally absent from this synthetic-anchor
+        // inventory.
         let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
             "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
         ]
@@ -166,20 +161,23 @@ struct NativeConcurrentTopLevelSourceTests {
         let context = try sharedContext()
         let sema = try #require(context.sema)
         let package = ["kotlin", "native", "concurrent"]
-        let expectedArities = [
-            "atomicLazy": 1,
-            "attachObjectGraphInternal": 1,
-            "consumeFuture": 1,
-            "detachObjectGraphInternal": 2,
-            "executeImpl": 4,
-            "freeze": 0,
-            "waitForMultipleFutures": 2,
-            "waitWorkerTermination": 1,
-            "withWorker": 3,
+        // KSP-1541: each top level lives in the bundled file its upstream
+        // kotlin-native owner declares it in.
+        let expectedOwners: [String: (arity: Int, file: String)] = [
+            "atomicLazy": (1, "Lazy.kt"),
+            "attachObjectGraphInternal": (1, "Internal.kt"),
+            "consumeFuture": (1, "Internal.kt"),
+            "detachObjectGraphInternal": (2, "Internal.kt"),
+            "executeImpl": (4, "Internal.kt"),
+            "freeze": (0, "Freezing.kt"),
+            "waitForMultipleFutures": (2, "Future.kt"),
+            "waitWorkerTermination": (1, "Internal.kt"),
+            "withWorker": (3, "Worker.kt"),
         ]
-        let sourcePath = "__bundled_kotlin/native/concurrent/Stdlib.kt"
 
-        for (name, arity) in expectedArities {
+        for (name, expected) in expectedOwners {
+            let (arity, file) = expected
+            let sourcePath = "__bundled_kotlin/native/concurrent/\(file)"
             let candidates = sema.symbols.lookupAll(
                 fqName: (package + [name]).map(context.interner.intern)
             ).filter { symbol in

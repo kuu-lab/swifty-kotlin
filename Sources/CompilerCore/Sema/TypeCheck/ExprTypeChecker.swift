@@ -690,6 +690,109 @@ final class ExprTypeChecker {
             }
         }
 
+        // KSP-1290: mirror the IntRange handling above for UIntRange so a
+        // user's cross-type contains extension keeps normal overload
+        // priority over the bundled UByte/UShort/ULong wrappers.
+        if let rangeSourceReceiverType = driver.callChecker.sourceLevelRangeMemberLookupType(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ),
+        MemberRuntimeDispatch.rangeReceiverKind(
+            receiverExpr: containerExpr,
+            receiverType: containerType,
+            sema: sema,
+            interner: interner
+        ) == .uintRange {
+            let scopedRangeUserCandidates = driver.callChecker
+                .collectScopedRangeUserExtensionCandidates(
+                    named: containsName,
+                    receiverType: rangeSourceReceiverType,
+                    ctx: ctx,
+                    sema: sema,
+                    interner: interner
+                )
+                .filter { candidate in
+                    guard let symbol = sema.symbols.symbol(candidate),
+                          symbol.flags.contains(SymbolFlags.operatorFunction)
+                    else {
+                        return false
+                    }
+                    return driver.callChecker.isUIntRangeCrossTypeContainsCandidate(
+                        candidate,
+                        sema: sema
+                    )
+                }
+            if !scopedRangeUserCandidates.isEmpty {
+                let resolved = ctx.resolver.resolveCall(
+                    candidates: scopedRangeUserCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                )
+                if let chosen = resolved.chosenCallee {
+                    sema.bindings.bindCall(
+                        exprID,
+                        binding: CallBinding(
+                            chosenCallee: chosen,
+                            substitutedTypeArguments: resolved.substitutedTypeArguments
+                                .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                                .map { _, value in value },
+                            parameterMapping: resolved.parameterMapping
+                        )
+                    )
+                    return
+                }
+                let hasBundledRangeCandidate = driver.callChecker
+                    .hasUIntRangeSourceBackedContainsCandidate(
+                        receiverType: rangeSourceReceiverType,
+                        argumentType: sema.types.makeNonNullable(elementType),
+                        sema: sema,
+                        interner: interner
+                    )
+                let rangeMemberCandidates = driver.helpers
+                    .collectMemberFunctionCandidates(
+                        named: containsName,
+                        receiverType: rangeSourceReceiverType,
+                        sema: sema,
+                        interner: interner
+                    )
+                    .filter { candidate in
+                        guard let symbol = sema.symbols.symbol(candidate),
+                              symbol.flags.contains(SymbolFlags.operatorFunction),
+                              let signature = sema.symbols.functionSignature(for: candidate)
+                        else {
+                            return false
+                        }
+                        return signature.parameterTypes.count == 1
+                    }
+                let hasApplicableRangeMember = ctx.resolver.resolveCall(
+                    candidates: rangeMemberCandidates,
+                    call: CallExpr(
+                        range: range,
+                        calleeName: containsName,
+                        args: [CallArg(type: elementType)]
+                    ),
+                    expectedType: nil,
+                    implicitReceiverType: rangeSourceReceiverType,
+                    ctx: ctx.semaCtx
+                ).chosenCallee != nil
+                if !hasBundledRangeCandidate,
+                   !hasApplicableRangeMember,
+                   let diagnostic = resolved.diagnostic
+                {
+                    ctx.semaCtx.diagnostics.emit(diagnostic)
+                    return
+                }
+            }
+        }
+
         // Kotlin gives a bare integer literal the Long context required by
         // LongRange.contains(Long). An explicitly typed Int remains an Int
         // and can therefore select a user LongRange.contains(Int) extension.

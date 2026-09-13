@@ -31,8 +31,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassInterpolation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let sema = try #require(ctx.sema)
@@ -74,8 +73,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ValueClassConcat", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let sema = try #require(ctx.sema)
@@ -119,8 +117,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "DataClassFieldToString", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let sema = try #require(ctx.sema)
@@ -172,8 +169,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassNoOwnToString", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let sema = try #require(ctx.sema)

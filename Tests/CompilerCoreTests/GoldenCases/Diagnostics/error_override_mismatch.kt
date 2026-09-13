@@ -8,13 +8,13 @@ open class Base {
 
 class Child : Base() {
     // ERROR: Return type mismatch in override
-    override fun method(): String = "wrong"  // KSWIFTK-SEMA-0030: return type of override is incompatible with base type
+    override fun method(): String = "wrong"  // KSWIFTK-SEMA-OVERRIDE-RETURN: override of 'method' has incompatible return type (expected subtype of Int, found String)
 
     // ERROR: Overriding val with incompatible type
-    override val prop: String = "wrong"  // KSWIFTK-SEMA-0031: type of 'prop' is not a subtype of the overridden property type
+    override val prop: String = "wrong"  // NOT YET DIAGNOSED: kotlinc errors that 'prop: String' is not a subtype of the overridden 'prop: Number'; KSwiftK emits nothing
 
     // ERROR: Overriding non-open (final) function
-    override fun finalMethod(): String = "overriding final"  // KSWIFTK-SEMA-0032: 'finalMethod' hides member but cannot be overridden
+    override fun finalMethod(): String = "overriding final"  // KSWIFTK-SEMA-FINAL: 'finalMethod' in 'Base' is final and cannot be overridden
 
     // This method is not declared in Base, so it is not an override and needs no keyword.
     fun anotherMethod(): Int = 1  // OK: new method, no override required
@@ -26,7 +26,7 @@ interface IBase {
 
 class BadImpl : IBase {
     // ERROR: Missing override for interface method
-    fun interfaceMethod(): String = "wrong return type"  // KSWIFTK-SEMA-0033: 'interfaceMethod' clashes with method in IBase
+    fun interfaceMethod(): String = "wrong return type"  // KSWIFTK-SEMA-ABSTRACT on the class line: without `override`, 'interfaceMethod' stays unimplemented
 }
 
 // Overriding val with var is explicitly allowed in Kotlin (widening is permitted).
@@ -45,7 +45,7 @@ open class TypeBase {
 }
 
 class TypeChild : TypeBase() {
-    override val count: String = "wrong"  // KSWIFTK-SEMA-0031: type of 'count' is not a subtype of the overridden property type
+    override val count: String = "wrong"  // NOT YET DIAGNOSED: kotlinc errors that 'count: String' is not a subtype of the overridden 'count: Number'; KSwiftK emits nothing
 }
 
 fun main() {}

@@ -29,7 +29,7 @@ import Testing
 /// | symbol-level annotations | only `file` line `annotations=` | dedicated stdlib golden section (RF-GOLDEN-011) |
 /// | ABI / externalLinkName / runtime export | **not emitted** | `RuntimeABIExternalLinkValidationTests` + `Scripts/validate_runtime_abi_links.sh` |
 /// | 実行 profile（source / artifact / no-stdlib） | not modeled | RF-GOLDEN-012 case identity |
-/// | error diagnostics / `<error>` types | 15 + 3 pinned cases | no new case may join the inventory without review |
+/// | error diagnostics / `<error>` types | pinned case sets | no new case may join the inventory without review |
 ///
 @Suite("GoldenHarness.MetadataContract")
 struct GoldenHarnessMetadataContractTests {
@@ -104,6 +104,7 @@ struct GoldenHarnessMetadataContractTests {
         "stdlib_kotlin_collections_Map_min.kt",
         "stdlib_kotlin_collections_n_build.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
+        "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "stdlib_kotlin_native_SymbolName_n_n.kt",
         "use_site_variance.kt",
         "variance_violation.kt",
@@ -113,9 +114,15 @@ struct GoldenHarnessMetadataContractTests {
     func errorDiagnosticInventoryIsPinned() throws {
         let goldens = try Self.semaGoldenContents()
         let actual = Set(goldens.filter { $0.value.contains("diagnostic severity=error") }.keys)
+        // No new case may join the inventory without review.
         #expect(
-            actual == Self.errorDiagnosticCaseBasenames,
-            Comment(rawValue: "error-diagnostic inventory changed: new=\(actual.subtracting(Self.errorDiagnosticCaseBasenames).sorted()), removed=\(Self.errorDiagnosticCaseBasenames.subtracting(actual).sorted())")
+            actual.isSubset(of: Self.errorDiagnosticCaseBasenames),
+            Comment(rawValue: "new error-diagnostic cases joined the inventory: \(actual.subtracting(Self.errorDiagnosticCaseBasenames).sorted())")
+        )
+        // Pinned entries must keep emitting errors — a stale entry is drift to fix.
+        #expect(
+            Self.errorDiagnosticCaseBasenames.isSubset(of: actual),
+            Comment(rawValue: "pinned error-diagnostic cases no longer emit errors: \(Self.errorDiagnosticCaseBasenames.subtracting(actual).sorted())")
         )
     }
 
@@ -124,6 +131,7 @@ struct GoldenHarnessMetadataContractTests {
     private static let errorTypeCaseBasenames: Set<String> = [
         "inner_class.kt",
         "stdlib_kotlin_ranges_IntRange_cross_contains_n.kt",
+        "stdlib_kotlin_ranges_UIntRange_cross_contains_n.kt",
         "use_site_variance.kt",
     ]
 
@@ -132,8 +140,12 @@ struct GoldenHarnessMetadataContractTests {
         let goldens = try Self.semaGoldenContents()
         let actual = Set(goldens.filter { $0.value.contains("<error>") }.keys)
         #expect(
-            actual == Self.errorTypeCaseBasenames,
-            Comment(rawValue: "`<error>`-type inventory changed: \(actual.sorted())")
+            actual.isSubset(of: Self.errorTypeCaseBasenames),
+            Comment(rawValue: "new `<error>`-type cases joined the inventory: \(actual.subtracting(Self.errorTypeCaseBasenames).sorted())")
+        )
+        #expect(
+            Self.errorTypeCaseBasenames.isSubset(of: actual),
+            Comment(rawValue: "pinned `<error>`-type cases no longer render `<error>`: \(Self.errorTypeCaseBasenames.subtracting(actual).sorted())")
         )
     }
 
@@ -181,8 +193,12 @@ struct GoldenHarnessMetadataContractTests {
         // The emitted vocabulary is exactly the pinned set — nothing may be
         // added (e.g. `throwingFunction`) or silently dropped.
         #expect(
-            emitted == Self.ordinaryFlagVocabulary,
-            Comment(rawValue: "golden flag vocabulary changed: new=\(emitted.subtracting(Self.ordinaryFlagVocabulary).sorted()), lost=\(Self.ordinaryFlagVocabulary.subtracting(emitted).sorted())")
+            emitted.isSubset(of: Self.ordinaryFlagVocabulary),
+            Comment(rawValue: "golden flag vocabulary gained entries: \(emitted.subtracting(Self.ordinaryFlagVocabulary).sorted())")
+        )
+        #expect(
+            Self.ordinaryFlagVocabulary.isSubset(of: emitted),
+            Comment(rawValue: "golden flag vocabulary silently lost entries: \(Self.ordinaryFlagVocabulary.subtracting(emitted).sorted())")
         )
     }
 
@@ -215,15 +231,18 @@ struct GoldenHarnessMetadataContractTests {
 
     /// Metadata classes the ordinary renderer does not emit today. Pinning
     /// their absence documents what the dedicated stdlib golden (RF-GOLDEN-011)
-    /// must own instead of a quiet extension of this format.
+    /// must own instead of a quiet extension of this format. Cases carrying a
+    /// `.golden-spec` emit a dedicated `section stdlib-targets` that owns these
+    /// tokens, so the check is scoped to the ordinary output above it.
     @Test
     func notEmittedMetadataClassesStayAbsent() throws {
         let goldens = try Self.semaGoldenContents()
         let forbidden = ["supertype=", "underlyingType=", "declaredVariance=", "externalLinkName=", "origin="]
         for (name, text) in goldens {
+            let ordinary = text.components(separatedBy: "section stdlib-targets").first ?? text
             for token in forbidden {
                 #expect(
-                    !text.contains(token),
+                    !ordinary.contains(token),
                     Comment(rawValue: "\(name) gained \(token) in the ordinary golden")
                 )
             }

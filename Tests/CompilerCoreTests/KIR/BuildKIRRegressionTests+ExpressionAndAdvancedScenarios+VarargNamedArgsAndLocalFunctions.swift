@@ -1,14 +1,14 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
 
-    private static nonisolated(unsafe) var _sharedVarargCtx: CompilationContext?
-
-    private func sharedVarargCtx() throws -> CompilationContext {
-        if let cached = Self._sharedVarargCtx { return cached }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedVarargCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -81,21 +81,20 @@ extension BuildKIRRegressionTests {
             }
             """
         ]
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedVarargCtx = ctx
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
         return ctx
     }
 
-    private static nonisolated(unsafe) var _sharedVarargLoweringCtx: CompilationContext?
+    private func sharedVarargCtx() throws -> CompilationContext {
+        try Self._sharedVarargCtx.get()
+    }
 
-    private func sharedVarargLoweringCtx() throws -> CompilationContext {
-        if let cached = Self._sharedVarargLoweringCtx { return cached }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedVarargLoweringCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample4
@@ -103,16 +102,13 @@ extension BuildKIRRegressionTests {
             fun main4() = sum(1, 2, 3)
             """
         ]
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedVarargLoweringCtx = ctx
+        let ctx = makeContextFromSources(sources)
+        try runToLowering(ctx)
         return ctx
+    }
+
+    private func sharedVarargLoweringCtx() throws -> CompilationContext {
+        try Self._sharedVarargLoweringCtx.get()
     }
     @Test
     func testVarargNamedArgSkipsToVarargParameter() throws {
@@ -138,27 +134,22 @@ extension BuildKIRRegressionTests {
             collect(*arr)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try LoadSourcesPhase().run(ctx)
-            try LexPhase().run(ctx)
-            try ParsePhase().run(ctx)
-            try BuildASTPhase().run(ctx)
+        let ctx = makeContextFromSource(source)
+        try runFrontend(ctx)
 
-            let ast = try #require(ctx.ast)
-            // Check that at least one CallArgument has isSpread == true
-            var foundSpread = false
-            for index in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(index))
-                guard let expr = ast.arena.expr(exprID) else { continue }
-                if case let .call(_, _, args, _) = expr {
-                    for arg in args where arg.isSpread {
-                        foundSpread = true
-                    }
+        let ast = try #require(ctx.ast)
+        // Check that at least one CallArgument has isSpread == true
+        var foundSpread = false
+        for index in ast.arena.exprs.indices {
+            let exprID = ExprID(rawValue: Int32(index))
+            guard let expr = ast.arena.expr(exprID) else { continue }
+            if case let .call(_, _, args, _) = expr {
+                for arg in args where arg.isSpread {
+                    foundSpread = true
                 }
             }
-            #expect(foundSpread, "Expected parser to set isSpread flag for *arr argument.")
         }
+        #expect(foundSpread, "Expected parser to set isSpread flag for *arr argument.")
     }
 
     @Test

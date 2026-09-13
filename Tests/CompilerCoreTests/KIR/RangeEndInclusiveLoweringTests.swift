@@ -1,0 +1,47 @@
+#if canImport(Testing)
+@testable import CompilerCore
+import Testing
+
+/// KSP-652: `ClosedRange.endInclusive` reads on concrete ranges used to fall through the range
+/// property lowering (only the legacy `end` alias was mapped), so KIR emitted a call to a bare
+/// `endInclusive` symbol and linking failed with `undefined reference to 'endInclusive'`.
+@Suite
+struct RangeEndInclusiveLoweringTests {
+    private func callNames(in source: String, function: String) throws -> [String] {
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: function, in: module, interner: ctx.interner)
+        return extractCallees(from: body, interner: ctx.interner)
+    }
+
+    @Test func testIntRangeEndInclusiveLowersToRuntimeGetter() throws {
+        let names = try callNames(
+            in: """
+            fun bounds(): Int {
+                val range = 1..5
+                return range.endInclusive - range.start
+            }
+            """,
+            function: "bounds"
+        )
+        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for IntRange.endInclusive, got: \(names)")
+        #expect(names.contains("__kk_range_first"), "Expected __kk_range_first for IntRange.start, got: \(names)")
+        #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
+    }
+
+    @Test func testLongRangeEndInclusiveLowersToTypedRuntimeGetter() throws {
+        let names = try callNames(
+            in: """
+            fun bounds(): Long {
+                val range = 1L..5L
+                return range.endInclusive - range.start
+            }
+            """,
+            function: "bounds"
+        )
+        #expect(names.contains("__kk_range_last"), "Expected __kk_range_last for LongRange.endInclusive, got: \(names)")
+        #expect(!names.contains("endInclusive"), "endInclusive must not be emitted as a bare callee, got: \(names)")
+    }
+}
+#endif

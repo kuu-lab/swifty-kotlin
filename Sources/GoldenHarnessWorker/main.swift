@@ -38,6 +38,7 @@ struct GoldenHarnessWorkerMain {
             do {
                 return GoldenHarnessBatchResult(
                     sourcePath: sourcePath,
+                    resolvedProfile: GoldenHarness.resolvedStdlibProfile(forSourcePath: sourcePath)?.rawValue,
                     output: try GoldenHarness.render(
                         suiteName: suiteName,
                         sourcePath: sourcePath
@@ -47,6 +48,7 @@ struct GoldenHarnessWorkerMain {
             } catch {
                 return GoldenHarnessBatchResult(
                     sourcePath: sourcePath,
+                    resolvedProfile: GoldenHarness.resolvedStdlibProfile(forSourcePath: sourcePath)?.rawValue,
                     output: nil,
                     errorDescription: String(describing: error)
                 )

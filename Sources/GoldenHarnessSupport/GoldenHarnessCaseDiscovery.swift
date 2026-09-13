@@ -3,11 +3,33 @@ import Foundation
 struct GoldenHarnessCaseFile: Sendable {
     var sourcePath: String { sourceURL.path }
     let sourceURL: URL
-    var goldenURL: URL { sourceURL.deletingPathExtension().appendingPathExtension("golden") }
+    /// Parsed `<name>.golden-spec`, or nil when absent. A spec that failed to
+    /// parse leaves this nil and records `specLoadError`; `goldenURL` then
+    /// falls back to the legacy name so one broken spec cannot take down
+    /// discovery for the whole suite.
+    let spec: GoldenHarnessCaseSpec?
+    let specLoadError: String?
+    /// Spec-carrying cases pin their stdlib profile into the golden filename
+    /// (`<name>.<profile>.golden`, RF-GOLDEN-012) so the same fixture's
+    /// artifact/source/no-stdlib snapshots never overwrite each other.
+    var goldenURL: URL {
+        let base = sourceURL.deletingPathExtension()
+        guard let profile = spec?.stdlibProfile else {
+            return base.appendingPathExtension("golden")
+        }
+        return base.appendingPathExtension("\(profile.rawValue).golden")
+    }
     var basename: String { sourceURL.lastPathComponent }
 
     init(sourceURL: URL) {
         self.sourceURL = sourceURL
+        do {
+            spec = try GoldenHarnessCaseSpec.load(forSourceURL: sourceURL)
+            specLoadError = nil
+        } catch {
+            spec = nil
+            specLoadError = String(describing: error)
+        }
     }
 }
 

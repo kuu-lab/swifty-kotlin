@@ -15,13 +15,14 @@ KSwiftK は **SwiftPM の単一リポジトリ**で、長期稼働するアプ�
 
 ### 必須環境変数（Linux）
 
-CI の [`.github/actions/setup-swift-llvm/action.yml`](.github/actions/setup-swift-llvm/action.yml) と同じ考え方:
+CI の [`.github/actions/setup-llvm/action.yml`](.github/actions/setup-llvm/action.yml) と同じ考え方（このアクションは `llvm-config` から下記を導出する）:
 
 | 変数 | 用途 |
 |------|------|
 | `C_INCLUDE_PATH` | `llvm-config --includedir`（例: `/usr/lib/llvm-18/include`） |
 | `LIBRARY_PATH` | `llvm-config --libdir` |
 | `KSWIFTK_LLVM_DYLIB` | `libLLVM*.so` の実ファイル（例: `/usr/lib/llvm-18/lib/libLLVM.so.1`） |
+| `LD_LIBRARY_PATH` | 同じ `libdir`（CI の setup-llvm が設定する） |
 
 `llvm-dev` が入っていれば、シェル起動時に `llvm-config` から上記を組み立てるのが安全。
 
