@@ -256,8 +256,20 @@
   - **副産物の修正（2026-09-13）**: 空ボディ検証中に発見した「object 式の abstract メンバ実装漏れが無検査」を同 PR 内で修正。`object : Animal() {}`（`abstract fun speak()`）や `object : Flyable { val unrelated = 1 }`（`fun fly()` 未実装）は kotlinc がエラーにするが kswiftc は素通ししていた。原因は (a) の vtable slot 欠落と同じ構造で、名前付き nominal 用の検査（`Inheritance.validateAbstractOverrides`、`runValidationPasses` 実行）が object 式の symbol 生成より前に走るため object 式には一切届いていなかった。`collectInheritedAbstractMembers` と新設の `unimplementedAbstractMembers` を `Sources/CompilerCore/Sema/DataFlow/AbstractMemberCompleteness.swift` へ抽出（`VtableOverrideMatching.swift` と同じ共有化パターン）し、`Inheritance.swift` と `ExprTypeChecker+ObjectLiteralInference.swift` の両方から呼ぶ。`collectInheritedAbstractMembers` の戻り値は symbol ID 順にソートして診断順を決定的にした（従来は `Dictionary.values` 順で非決定的。既存 golden に変化なし）。
     偽陽性リスクの実測: 一時プローブ（warning 版）で bundled stdlib の object 式 102 個と `Scripts/diff_cases/` を走査し、新診断の発火は 0 件。`Iterator`/`Sequence` を実装する stdlib 形の object 式（`CodegenBackendSequenceEdgeCasesTests` 60件ほか）も全て PASS。
     回帰: `Tests/CompilerCoreTests/GoldenCases/Diagnostics/error_abstract_instantiation.kt` に abstract class 版・interface 版・正常版の3ケースを追加（旧ファイルにあった `KSWIFTK-SEMA-0313` 期待コメントは未実装コードだったため実コード `KSWIFTK-SEMA-ABSTRACT` に訂正）。
+  - **副産物の修正2（2026-09-13）**: object 式のメンバ本体で、同一行のセミコロン区切り複数文が `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` になっていたバグを修正（正しい Kotlin の拒否。診断は真因から遠く原因不明に見える）。object 式のメンバはトークン列を切り出して別の `KotlinParser` で再パースする方式で、その前処理（`parseObjectLiteralFunctionDecl`/`parseObjectLiteralPropertyDecl`）がメンバ間の区切り `;` を落とすため**深さを見ずに全セミコロンを filter** しており、メンバ本体内の文区切りまで消していた。`fun bump(): Int { i = i + 1; return i }` が `{ i = i + 1 return i }` になり一つの不正な文として解釈される。同じ2文を改行で分けると通る（フォーマット依存）。`strippingMemberSeparatorSemicolons`（深さ0のみ除去）を新設し、本体を含みうる4箇所（メンバ関数 / プロパティ / `by` デリゲート式 / `=` 初期化子）で使用。残る2箇所（`parseObjectLiteralBareHeader` / `objectLiteralRangeNeedsBraceContinuation`）はヘッダ prefix 判定と深さ非依存の述語のため一律除去のまま。
+    発見経路: KSP-CAP-018 の検証中に `object : Iterator<Int> { ... override fun next(): Int { i += 1; return i } }` が通らないことから。当初 `Iterator` のジェネリクス問題に見えたが、同じ2文を `;` 区切り／改行区切りにした2ケースの比較で**フォーマット差のみ**と判明。
+    回帰: `Scripts/diff_cases/object_literal_class_inheritance.kt` にセミコロン区切り本体・初期化子内ラムダのケースを追加、`CodegenBackendIntegrationTests+ObjectLiteralClassInheritance.swift` に対応する2テストを追加（13/13 PASS）。
   - **未解消（別途対応が必要、本 PR のスコープ外）**:
-    1. 名前付き（非リテラル）`object : Base(x) { ... }` 宣言は本項目の対象外（症状1は名前付きでも再現しないが、症状2のコンストラクタ実引数破棄と、加えて base 型変数経由での virtual dispatch がレシーバに誤った定数値を積む別バグ — 発見元 p9、`.symbolRef` 定数が `loadGlobal` の代わりに使われている — が残存。詳細未起票、必要になったら新規 CAP として切り出す）
+    1. **（2026-09-13 新規発見・未修正）** object 式の **custom accessor 本体が Sema で型検査されていない**。`ensureObjectLiteralSymbol`（`ExprTypeChecker+ObjectLiteralInference.swift`）はプロパティ初期化子（`propertyDecl.initializer`）とメンバ関数本体（`typeCheckFunctionDecl`）だけを辿り、`propertyDecl.getter`/`setter` の本体を一切訪れない。このため accessor 本体の識別子に `sema.bindings.identifierSymbols` の束縛が付かず、KIR 側（`ExprLowerer+ControlFlowAndBlocks.swift` の `isObjectLiteralPropertySymbol` 分岐）に到達できず `.unit` にフォールバックする。最小再現: `val instance = object { val seed: Int = 7; val value: Int get() = seed + 1 }` に対し `instance.value` が `1`（kotlinc は `8`。`seed` が `unit` として読まれ `kk_op_add(unit, 1)` になる）。KIR 実測:
+       ```
+       decl function get params=1        // value の custom getter
+         const r3=symbolRef(<receiver>)
+         const r4=unit                   // ← seed が unit に落ちている
+         const r5=intLiteral(1)
+         call kk_op_add args=[r4, r5]
+       ```
+       メンバ**関数**経由なら正常（`fun value(): Int = seed + 1` は 8）、名前付きクラスの custom getter も正常。既存テスト `testBuildKIRObjectLiteralCustomGetterUsesAccessorCall` は callee 名が `get` であることだけを検証しており値を見ないため、このバグを長く見逃していた。修正は accessor 本体を `objectCtx` で型検査する（メンバ関数本体と同型）方向だが、`field` 束縛・capture 解析への波及があるため別タスク。
+    2. 名前付き（非リテラル）`object : Base(x) { ... }` 宣言は本項目の対象外（症状1は名前付きでも再現しないが、症状2のコンストラクタ実引数破棄と、加えて base 型変数経由での virtual dispatch がレシーバに誤った定数値を積む別バグ — 発見元 p9、`.symbolRef` 定数が `loadGlobal` の代わりに使われている — が残存。詳細未起票、必要になったら新規 CAP として切り出す）
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
 

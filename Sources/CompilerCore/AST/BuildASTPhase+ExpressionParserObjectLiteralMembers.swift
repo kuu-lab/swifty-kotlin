@@ -74,7 +74,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralFunctionDecl(from tokens: ArraySlice<Token>) -> FunDecl? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard sanitized.contains(where: { $0.kind == .keyword(.fun) }) else {
             return nil
         }
@@ -98,6 +98,35 @@ extension BuildASTPhase.ExpressionParser {
             interner: interner,
             astArena: astArena
         )
+    }
+
+    /// Drops only the statement-separator semicolons *between* object literal
+    /// members (and any trailing one), keeping semicolons nested inside a
+    /// member's own body. A member function separates its statements with them
+    /// on a single line — `fun bump(): Int { i = i + 1; return i }` — and
+    /// stripping those made the re-parsed body collapse into one malformed
+    /// statement, surfacing as `KSWIFTK-TYPE-0001` on the member declaration.
+    /// The same applies to accessor bodies and to lambdas inside a property
+    /// initializer or `by` delegate expression.
+    private func strippingMemberSeparatorSemicolons(
+        _ tokens: some Sequence<Token>
+    ) -> [Token] {
+        var depth = 0
+        var result: [Token] = []
+        for token in tokens {
+            switch token.kind {
+            case .symbol(.lBrace), .symbol(.lParen), .symbol(.lBracket):
+                depth += 1
+            case .symbol(.rBrace), .symbol(.rParen), .symbol(.rBracket):
+                depth -= 1
+            case .symbol(.semicolon) where depth <= 0:
+                continue
+            default:
+                break
+            }
+            result.append(token)
+        }
+        return result
     }
 
     private func objectLiteralMemberParseTokens(from tokens: [Token]) -> [Token] {
@@ -125,7 +154,7 @@ extension BuildASTPhase.ExpressionParser {
     }
 
     private func parseObjectLiteralPropertyDecl(from tokens: ArraySlice<Token>) -> PropertyDecl? {
-        let sanitized = tokens.filter { $0.kind != .symbol(.semicolon) }
+        let sanitized = strippingMemberSeparatorSemicolons(tokens)
         guard let first = sanitized.first, let last = sanitized.last else {
             return nil
         }
@@ -145,7 +174,7 @@ extension BuildASTPhase.ExpressionParser {
         if !suffixTokens.isEmpty {
             switch suffixTokens[0].kind {
             case .softKeyword(.by):
-                let delegateTokens = Array(suffixTokens.dropFirst()).filter { $0.kind != .symbol(.semicolon) }
+                let delegateTokens = strippingMemberSeparatorSemicolons(suffixTokens.dropFirst())
                 guard let parsedDelegateExpr = parseObjectLiteralExpression(from: delegateTokens) else {
                     return nil
                 }
@@ -348,7 +377,7 @@ extension BuildASTPhase.ExpressionParser {
         case .symbol(.assign):
             let exprStart = startIndex + 1
             let nextAccessorIndex = topLevelAccessorStartIndex(in: tokens, from: exprStart) ?? tokens.count
-            let exprTokens = Array(tokens[exprStart ..< nextAccessorIndex]).filter { $0.kind != .symbol(.semicolon) }
+            let exprTokens = strippingMemberSeparatorSemicolons(tokens[exprStart ..< nextAccessorIndex])
             guard let exprID = parseObjectLiteralExpression(from: exprTokens),
                   let range = astArena.exprRange(exprID)
             else {

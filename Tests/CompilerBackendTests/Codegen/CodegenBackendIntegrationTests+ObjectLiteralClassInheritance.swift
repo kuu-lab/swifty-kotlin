@@ -42,6 +42,15 @@
 //     expression-bodied function: a lambda whose entire body was the bare
 //     object literal expression (`{ object : Base(x) { ... } }`) mis-parsed
 //     `object` as a new named declaration.
+// (8) `parseObjectLiteralFunctionDecl`/`parseObjectLiteralPropertyDecl` re-parse
+//     a member's tokens with a fresh `KotlinParser`, and stripped *every*
+//     semicolon first to drop the separator between members. That also removed
+//     the statement separators inside the member's own body, so a single-line
+//     multi-statement body (`fun bump(): Int { i = i + 1; return i }`)
+//     re-parsed as one malformed statement and failed with
+//     `KSWIFTK-TYPE-0001: Type constraint could not be satisfied` -- valid
+//     Kotlin rejected, with a diagnostic pointing nowhere near the cause. The
+//     same line formatted across two lines compiled fine.
 // (7) An object literal declaring *no* members (`object : Base(x) {}`) got no
 //     `ObjectDecl` at all -- `parseObjectLiteralDecl` returned `nil` for an
 //     empty body -- so it took `ObjectLiteralLowerer`'s no-decl path, which
@@ -268,6 +277,40 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
             source,
             moduleName: "EmptyObjectLiteralSupertypeRegistration",
             expected: "true\n8\nCounter(3)\ntrue\n"
+        )
+    }
+
+    @Test
+    func testObjectLiteralMemberBodyKeepsSingleLineSemicolonSeparatedStatements() throws {
+        let source = """
+        fun mk(): Iterator<Int> = object : Iterator<Int> {
+            var i = 0
+            override fun hasNext(): Boolean = i < 3
+            override fun next(): Int { i = i + 1; return i }
+        }
+        fun main() {
+            val it = mk()
+            while (it.hasNext()) { println(it.next()) }
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralSemicolonBody", expected: "1\n2\n3\n"
+        )
+    }
+
+    @Test
+    func testObjectLiteralInitializerLambdaKeepsNestedSemicolons() throws {
+        let source = """
+        open class Base { open fun r(): String = "base" }
+        fun mk(): Base = object : Base() {
+            val viaLambda: Int = run { val a = 1; a + 41 }
+            fun computed(): Int { val b = 2; return b * 21 }
+            override fun r(): String = "" + viaLambda + "/" + computed()
+        }
+        fun main() { println(mk().r()) }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralNestedSemicolons", expected: "42/42\n"
         )
     }
 }

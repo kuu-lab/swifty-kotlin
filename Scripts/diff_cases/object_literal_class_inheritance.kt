@@ -95,6 +95,23 @@ fun makeBoth(n: Int): Counter = object : Counter(n), Tagged {}
 // still capture it even though the literal has no member bodies to scan.
 fun makeCounterLater(start: Int): () -> Counter = { object : Counter(start) {} }
 
+// An object literal's members are re-parsed from their own token slice, and
+// every semicolon used to be stripped first to drop the separator between
+// members -- which also removed the statement separators inside a member's own
+// body, so a single-line multi-statement body failed to type-check.
+open class Ticker(val step: Int) {
+    open fun tick(): Int = step
+    open fun report(): String = "base"
+}
+
+fun makeTicker(step: Int): Ticker = object : Ticker(step) {
+    var seen = 0
+    val viaLambda: Int = run { val one = 1; one + step }
+    override fun tick(): Int { seen = seen + step; return seen }
+    fun doubled(): Int { val half = seen; return half * 2 }
+    override fun report(): String = "" + doubled() + "/" + viaLambda
+}
+
 fun main() {
     val vehicle = makeVehicle("car")
     println(vehicle.name)
@@ -135,4 +152,9 @@ fun main() {
     println(both is Tagged)
 
     println(makeCounterLater(11)().doubled)
+
+    val ticker = makeTicker(4)
+    println(ticker.tick())
+    println(ticker.tick())
+    println(ticker.report())
 }
