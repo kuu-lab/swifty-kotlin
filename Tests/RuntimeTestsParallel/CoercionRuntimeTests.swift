@@ -186,33 +186,6 @@ struct CoercionRuntimeTests {
         #expect(kk_int_to_char(0x10FFFF) == 0xFFFF)
     }
 
-    @Test
-    func testUIntToCharConversion() {
-        #expect(kk_uint_to_char(65) == 65)
-        #expect(kk_uint_to_char(0x1F600) == 0xF600)
-        #expect(kk_uint_to_char(0x110000) == 0)
-    }
-
-    @Test
-    func testULongToCharConversion() {
-        #expect(kk_ulong_to_char(65) == 65)
-        #expect(kk_ulong_to_char(0x1F600) == 0xF600)
-        #expect(kk_ulong_to_char(0x110000) == 0)
-    }
-
-    @Test
-    func testUByteToCharConversion() {
-        #expect(kk_ubyte_to_char(65) == 65)
-        #expect(kk_ubyte_to_char(255) == 255)
-    }
-
-    @Test
-    func testUShortToCharConversion() {
-        #expect(kk_ushort_to_char(65) == 65)
-        #expect(kk_ushort_to_char(0x1F600) == 0x1F600)
-        #expect(kk_ushort_to_char(65535) == 65535)
-    }
-
     // MARK: - Additional Conversion Tests (STDLIB-PRIM-002)
 
     @Test
@@ -261,13 +234,11 @@ struct CoercionRuntimeTests {
         let asLong = kk_ubyte_to_long(asUByte)
         let asUInt = kk_ubyte_to_uint(asUByte)
         let asULong = kk_ubyte_to_ulong(asUByte)
-        let asChar = kk_ubyte_to_char(asUByte)
 
         #expect(backToInt == original)
         #expect(asLong == original)
         #expect(asUInt == original)
         #expect(asULong == original)
-        #expect(asChar == original)
     }
 
     @Test
@@ -278,13 +249,11 @@ struct CoercionRuntimeTests {
         let asLong = kk_ushort_to_long(asUShort)
         let asUInt = kk_ushort_to_uint(asUShort)
         let asULong = kk_ushort_to_ulong(asUShort)
-        let asChar = kk_ushort_to_char(asUShort)
 
         #expect(backToInt == original)
         #expect(asLong == original)
         #expect(asUInt == original)
         #expect(asULong == original)
-        #expect(asChar == original)
     }
 
 }

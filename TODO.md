@@ -574,37 +574,13 @@
   - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
   - 前提: KSP-1529
 
-- [ ] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UInt 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
-  - 削除/降格 kk_*: `kk_uint_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` 既存 + `UInt.MAX_VALUE.toInt()`（ラップ）と `toDouble()` の丸めケース
-  - 前提: KSP-1531
+- [x] ~~KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する~~ **前提が誤りと判明、close**（2026-09-13）。「対象」として挙げられていた (b) 判定の `kk_uint_to_char` は、実在する `UInt.toChar()` メンバを裏付けるものではなかった——kotlinc は `UInt` に `toChar()` を持たず、kswiftc の Sema も元からこの呼び出しを解決していなかった（KSP-1531 の分類は Runtime `@_cdecl` 存在とKIR lowering table 内の文字列一致だけで機械的に収集されたもので、実際に呼び出し可能かは確認されていなかった）。KSP-1534 の調査で発覚、`kk_uint_to_char` は到達不能な dead code として削除済み。詳細: `docs/stdlib-pipeline.md` の「KSP-1534 correction」節。
 
-- [ ] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した ULong 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ulong_to_char`（`kk_ulong_to_uint`/`kk_ulong_to_long` は現行シンボルなし、representation-preserving copy。 (c) の7件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `ULong.MAX_VALUE.toDouble()` の精度、`toInt()` の切り詰めケース
-  - 前提: KSP-1531, KSP-1532
+- [x] ~~KSP-1533: `ULong` の数値変換メンバを Kotlin 化する~~ **前提が誤りと判明、close**（2026-09-13）。KSP-1532 と同じ誤り（`kk_ulong_to_char` も実在しない `ULong.toChar()` を裏付けない）。`kk_ulong_to_char` は到達不能な dead code として削除済み。詳細: `docs/stdlib-pipeline.md` の「KSP-1534 correction」節。
 
-- [ ] KSP-1534: `UByte` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UByte 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ubyte_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UByte(200).toByte()` 符号反転ケース
-  - 前提: KSP-1531, KSP-1532
+- [x] ~~KSP-1534: `UByte` の数値変換メンバを Kotlin 化する~~ **前提が誤りと判明、close**（2026-09-13）。「対象」の `kk_ubyte_to_char` は実在する `UByte.toChar()` を裏付けなかった——kotlinc に `UByte.toChar()` は無く、`UByte` は `kotlin.Number` を継承しない。ただし kswiftc では BUG-251（`Subtyping.swift` の `primitive <: Number` ルールが `.ubyte, .ushort` を誤って `Number` サブタイプに含めていた）により `someUByte.toChar()` が継承された `Number.toChar()` へ誤って解決され、"動いているように見えていた"。BUG-251 を修正し、`kk_ubyte_to_char` を到達不能な dead code として削除。回帰: `Tests/CompilerCoreTests/GoldenCases/Diagnostics/unsigned_types_not_number.kt`。詳細: `docs/stdlib-pipeline.md` の「KSP-1534 correction」節、BUG-251 本体。
 
-- [ ] KSP-1535: `UShort` の数値変換メンバを Kotlin 化する
-  - 対象: KSP-1531 で (b) と判定した UShort 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
-  - 実装先: KSP-1532 と同じ実装先ファイル
-  - 削除/降格 kk_*: `kk_ushort_to_char`（(c) の9件は compiler intrinsic owner として残す）
-  - 手順: T
-  - diff: `unsigned_conversions*.kt` + `UShort` 境界値ケース
-  - 前提: KSP-1531, KSP-1532
+- [x] ~~KSP-1535: `UShort` の数値変換メンバを Kotlin 化する~~ **前提が誤りと判明、close**（2026-09-13）。KSP-1534 と同じ根本原因（BUG-251）で `someUShort.toChar()` が誤って `Number.toChar()` に解決されていた。BUG-251 の修正で `kk_ushort_to_char` も到達不能になり、dead code として削除。詳細: `docs/stdlib-pipeline.md` の「KSP-1534 correction」節、BUG-251 本体。
 
 - [ ] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticCollectionTypeFallbacks.swift`（845行。KSP-701/KSP-665 の分離先で、呼び出し元は `HeaderHelpers+SyntheticCollectionResiduals.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ）。対象は `registerSyntheticCollectionStub`/`registerSyntheticMutableCollectionStub`/`registerSyntheticIterableStub`（`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` 型シェルと `isEmpty`/`contains`/`random`/`randomOrNull`/`add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`/`iterator`/`hasNext`/`next` メンバ）。`registerSyntheticAbstractCollectionStub`/`registerSyntheticAbstractMutableCollectionStub`/`registerSyntheticMutableIterableStub`（`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable`）は既に bundled Kotlin source を再利用する fallback 専用のため対象外——`MutableIterable.iterator()` の covariant override は `MutableIterable.kt` のコメント通り BUG-200（library metadata が再型付けを表現できない）で compiler 残置と結論済みだが、具象クラス側の override は KSP-1070 で source-backed 化済みのため同様に対象外
@@ -690,6 +666,10 @@
   - 発見元: 本 PR（`#6572` のコンフリクト解消、KSP-1250）で BUG-248 の修正検証中、`executeAfter` でも同種のクラッシュが再現し、lldb 調査で別原因と判明。
 
 - [ ] BUG-250: 関数型プロパティを直接呼び出せない。最小再現: `class Holder(val f: (Int) -> Int)` に対し `fun main() { val h = Holder({ x -> if (x > 0) x else -x }); println(h.f(3)) }` は Kotlin 2.3.10 なら `3` を出力するが、本コンパイラは `error KSWIFTK-KIR-0003: KIR verifier: main: call to 'f' does not resolve to a module function, an external link name, or a runtime ABI function` でコンパイルに失敗する（exit 1）。`h.f.invoke(3)` と明示的に書くと今度は `error KSWIFTK-SEMA-0024: Unresolved member function 'invoke'.` になる。`val g = h.f` でローカルに束縛してから `g(3)` と呼ぶと正しく `3` を出力するため、プロパティ getter 自体と関数値の呼び出し自体は動いており、欠落しているのは「メンバー参照に続く呼び出し括弧を、関数型プロパティの読み取り + invoke へ解釈する経路」のみ。Sema がこの式を名前 `f` のメンバー**関数**呼び出しとして解決し、KIR が `callee="f"` の `.call` を出すため（正しくは getter の結果を receiver にした `kk_function_invoke`）、KIRVerifier の `unresolvableCallee` 検査に掛かる。発見元: RF-LOWER-INLINE-002 で `InlineLoweringPass` の直接ラムダ展開経路（caller 本体に残った `kk_function_invoke` を展開する経路）に Kotlin ソースから到達する入力を探す過程で、クラスに保持した関数値の呼び出しを試して発覚（base `a6d031b066` の baseline バイナリでも同一症状のため本 PR で導入した挙動ではない）。今回修正しない理由: 修正には Sema のメンバー解決で「メンバー関数が見つからないが同名の関数型プロパティが存在する場合にプロパティ読み取り + invoke へ書き換える」経路の新設と、関数型に対する `invoke` メンバーの導入が必要で、Sema のオーバーロード解決層の変更にあたる。ラベル走査・再配置と採番状態の分離という当該 PR の安全な修正範囲を超えるため、BUG-239 と同じ方針で追跡する。
+
+- [x] BUG-251: `UByte`/`UShort` が `kotlin.Number` のサブタイプとして誤って型検査を通過していた。原因: `Subtyping.swift` の `primitive <: Number` ルール（`case .int, .long, .float, .double, .ubyte, .ushort, .byte, .short:`）が、実際の Kotlin では `Number` を継承しない unsigned 型 `.ubyte`/`.ushort` を、継承する6型（Int/Long/Float/Double/Byte/Short）と同列に列挙していた。症状: `val n: Number = someUByte` がコンパイルに成功し、さらに `someUByte.toChar()` が `Number.toChar()`（`Number/Stdlib.kt` の `@Deprecated` 宣言）へ誤って継承解決され、"kotlin.Number.toChar is deprecated" という誤った警告付きで実行できていた（実際の kotlinc はどちらも拒否: `unresolved reference 'toChar'` / `initializer type mismatch`。UInt/ULong は元々このルールの対象外で無関係、影響なし）。最小再現: `fun main() { val ub: UByte = 200u; val n: Number = ub; println(ub.toChar().code) }`。このルールは DEBT-SEMA-002（#4440）で `.ubyte, .ushort` を含む形で導入され、後続の BUG-187（#5665）が `.byte, .short` を正しく追加した際も見過ごされていた。`CallLowerer+NumberConversionMemberCalls.swift` のコメントは「UByte/UShort も Subtyping.swift 経由で Number に conform する」ことを既知の前提として書かれており、根本原因を疑われずに回避されていた形跡がある。修正: 該当 `case` から `.ubyte, .ushort` を削除。副作用として到達不能になった `kk_uint_to_char`/`kk_ulong_to_char`/`kk_ubyte_to_char`/`kk_ushort_to_char`（KIR lowering 3ファイル分の switch case・Runtime `@_cdecl`・RuntimeABI spec 登録）を削除し、`docs/stdlib-pipeline.md` の KSP-1531 分類テーブルを訂正。
+  - 回帰テスト: `Tests/CompilerCoreTests/GoldenCases/Diagnostics/unsigned_types_not_number.kt`（UByte/UShort/UInt/ULong の4型すべてで `Number` への代入と `toChar()` 呼び出しが拒否されることを固定）。
+  - 発見元: KSP-1534（UByte の数値変換メンバ Kotlin 化）着手時、分類対象の `kk_ubyte_to_char` が実際に到達可能な Kotlin コードから呼ばれるか kotlinc と突き合わせて検証した際に発覚。番号注記: 当初 BUG-250 として起票したが、`master` に並行マージされた別の BUG-250（関数型プロパティ呼び出し）と番号衝突したため BUG-251 へ振り直し。
 
 - [ ] `isImportedInterfaceMember`（`Sources/CompilerCore/KIR/CallLowerer+MemberCallDefaultsAndResolution.swift:210`、KSP-611 のコメント付きで定義）は、importedLibrary 経由のインターフェースメンバーを判定する目的で書かれたが、呼び出し元が一つも存在しない未配線のデッドコード。発見元: PR #6621（KSP-1070、`MutableIterable.iterator()` の実行時ディスパッチ修正）の調査中、まさにこの関数が対処しようとしていたのと同種の問題（imported library 経由の abstract メンバーの externalLinkName が誤って直接呼び出しに使われる）を `NativeEmitter+FunctionEmission.swift` の `.call` 命令処理に別実装したが、既存のこの関数へ統合するか、削除するかの判断はしていない。今回対応しない理由: 統合するには呼び出し元候補（`CallLowerer` 側の member call lowering 経路）への配線と、その影響範囲（他の imported interface member 解決への副作用の有無）の調査が必要で、スコープを超える。
 
