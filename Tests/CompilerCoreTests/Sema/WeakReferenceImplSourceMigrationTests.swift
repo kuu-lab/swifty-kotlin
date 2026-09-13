@@ -54,7 +54,7 @@ struct WeakReferenceImplSourceMigrationTests {
         #expect(receiverClass.classSymbol == classSymbol)
 
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: getSymbol))
-        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/native/ref/Stdlib.kt")
+        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/native/ref/WeakPrivate.kt")
     }
 }
 #endif

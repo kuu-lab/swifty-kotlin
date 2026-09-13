@@ -26,8 +26,6 @@ struct SyntheticStubSurfaceSpecTests {
         #expect(signature.valueParameterIsVararg == [false])
     }
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
     private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -37,7 +35,6 @@ struct SyntheticStubSurfaceSpecTests {
             result = (sema, ctx.interner)
         }
         let semaResult = try #require(result)
-        Self._sharedSema = semaResult
         return semaResult
     }
 

@@ -73,5 +73,58 @@ struct BundledStdlibOrderingTests {
             #expect(!bundledPaths.contains("__bundled_kotlin/random/JavaRandomInterop.kt"))
         }
     }
+
+    /// KSP-1541: `kotlin.native` bundled sources use kotlin-native's own
+    /// filenames. The two artifact shapes this replaced — a `<Type>/Stdlib.kt`
+    /// or `<Type>/<Type>.kt` directory per declaration — have no counterpart
+    /// upstream, so neither may come back.
+    @Test
+    func testNativeBundledFilenamesFollowKotlinNativeLayout() throws {
+        try withTemporaryFile(contents: "fun main() {}") { path in
+            let ctx = makeCompilationContext(inputs: [path])
+
+            try LoadSourcesPhase().run(ctx)
+
+            let nativePaths = ctx.sourceManager.fileIDs()
+                .map { ctx.sourceManager.path(of: $0) }
+                .filter { $0.hasPrefix("__bundled_kotlin/native/") }
+
+            #expect(!nativePaths.isEmpty, "kotlin.native bundled sources should be injected.")
+
+            for nativePath in nativePaths {
+                let components = nativePath.split(separator: "/").map(String.init)
+                let file = try #require(components.last)
+                #expect(
+                    file != "Stdlib.kt",
+                    "\(nativePath) still uses the per-declaration Stdlib.kt artifact name."
+                )
+                if components.count >= 2 {
+                    let parent = components[components.count - 2]
+                    #expect(
+                        file != "\(parent).kt",
+                        "\(nativePath) still nests the file inside an eponymous directory."
+                    )
+                }
+            }
+
+            for expected in [
+                "__bundled_kotlin/native/BitSet.kt",
+                "__bundled_kotlin/native/Platform.kt",
+                "__bundled_kotlin/native/Runtime.kt",
+                "__bundled_kotlin/native/ThrowableExtensions.kt",
+                "__bundled_kotlin/native/concurrent/Atomics.kt",
+                "__bundled_kotlin/native/concurrent/Freezing.kt",
+                "__bundled_kotlin/native/concurrent/Internal.kt",
+                "__bundled_kotlin/native/concurrent/Lazy.kt",
+                "__bundled_kotlin/native/concurrent/ObjectTransfer.kt",
+                "__bundled_kotlin/native/ref/Cleaner.kt",
+                "__bundled_kotlin/native/ref/Weak.kt",
+                "__bundled_kotlin/native/ref/WeakPrivate.kt",
+                "__bundled_kotlin/native/runtime/GCInfo.kt",
+            ] {
+                #expect(nativePaths.contains(expected), "Missing bundled source \(expected)")
+            }
+        }
+    }
 }
 #endif
