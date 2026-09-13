@@ -137,33 +137,20 @@ import Testing
         """,
     ]
 
-    private static nonisolated(unsafe) var _positiveCtx: CompilationContext?
-    private static nonisolated(unsafe) var _negativeCtx: CompilationContext?
+    private static let _positiveCtx = Result {
+        try semaContext(for: positiveSources)
+    }
+
+    private static let _negativeCtx = Result {
+        try semaContext(for: negativeSources)
+    }
 
     private func positiveCtx() throws -> CompilationContext {
-        if let cached = Self._positiveCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.positiveSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._positiveCtx = ctx
-        return ctx
+        try Self._positiveCtx.get()
     }
 
     private func negativeCtx() throws -> CompilationContext {
-        if let cached = Self._negativeCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.negativeSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._negativeCtx = ctx
-        return ctx
+        try Self._negativeCtx.get()
     }
 
     // MARK: - Original Test Case Validation
@@ -176,7 +163,7 @@ import Testing
         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
         assertNoDiagnostic("KSWIFTK-SEMA-MODIFIER-CONFLICT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testMissingAbstractOverride() throws {
@@ -197,7 +184,7 @@ import Testing
         let ctx = try positiveCtx()
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT-OVERRIDE", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testFinalOverrideTermination() throws {
@@ -212,21 +199,21 @@ import Testing
         let ctx = try positiveCtx()
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testPrimaryConstructorOverrideVarPropertyImplementsAbstractClassMember() throws {
         let ctx = try positiveCtx()
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testMixedPrimaryConstructorAndBodyOverrideProperties() throws {
         let ctx = try positiveCtx()
 
         assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
     @Test func testMissingPrimaryConstructorOverrideStillReportsAbstractMember() throws {
@@ -247,7 +234,7 @@ import Testing
         try runSema(ctx)
 
         assertNoDiagnostic("KSWIFTK-SEMA-FINAL", in: ctx)
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
 }
