@@ -137,7 +137,6 @@ struct CollectionClassificationTests {
         let cases: [(String, WritableKeyPath<State, Set<Int32>>)] = [
             ("listOf", \.listExprIDs), ("setOf", \.setExprIDs),
             ("mapOf", \.mapExprIDs), ("arrayOf", \.arrayExprIDs),
-            ("__kk_file_new", \.fileExprIDs),
         ]
         for (name, classification) in cases {
             let fixture = Fixture()

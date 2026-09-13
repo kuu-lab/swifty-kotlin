@@ -917,12 +917,18 @@ public func kk_array_asSequence(_ arrayRaw: Int) -> Int {
 // MARK: - Iterable / Collection mutable conversion APIs (STDLIB-021)
 
 /// Generic `Iterable<T>.toMutableSet()` that accepts any collection handle (List, Set, etc.).
+/// LinkedHashSet copy-constructor storage, also used by `Iterable.toMutableSet()`.
+/// BUG-254: both callers declare a mutable result backed by LinkedHashSet, so the
+/// box carries that nominal tag rather than the read-only `Set` default.
 @_cdecl("__kk_iterable_toMutableSet")
 public func kk_iterable_toMutableSet(_ iterableRaw: Int) -> Int {
     if let values = runtimeIterableValues(from: iterableRaw) {
-        return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
+        return registerRuntimeObject(
+            RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+            typeID: linkedHashSetRuntimeTypeID
+        )
     }
-    return registerRuntimeObject(RuntimeSetBox(elements: []))
+    return registerRuntimeObject(RuntimeSetBox(elements: []), typeID: linkedHashSetRuntimeTypeID)
 }
 
 /// HashSet copy-constructor storage with an independent backing box.
