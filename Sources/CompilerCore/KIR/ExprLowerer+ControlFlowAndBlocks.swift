@@ -2494,18 +2494,14 @@ extension ExprLowerer {
             )
             let result = arena.appendTemporary(type: boundType ?? boolType)
             let rhsType = sema.bindings.exprTypes[rhsExpr]
+            // KSP-1523: UInt used to get its own branch here (`kk_uint_range_contains`),
+            // gated on `rhsType == uintType` — but `rhsType` is the range's own type
+            // (e.g. UIntRange), never its element type, so that comparison was always
+            // false. UInt now falls through to the same `appendContainsCall` path as
+            // every other range, which resolves to the shared `__kk_range_contains`
+            // bridge (safe: UInt always fits the Int64 fields it operates on).
             if let rhsType = rhsType,
-               sema.types.makeNonNullable(rhsType) == sema.types.uintType {
-                instructions.append(.call(
-                    symbol: nil,
-                    callee: interner.intern("kk_uint_range_contains"),
-                    arguments: [rhsID, lhsID],
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-            } else if let rhsType = rhsType,
-                      sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
+               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(rhsType) == sema.types.ulongType {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_ulong_range_contains"),
@@ -2538,17 +2534,17 @@ extension ExprLowerer {
             )
             let notInRhsType = sema.bindings.exprTypes[rhsExpr]
             let notInContainsCallee: String
+            // KSP-1523: see the `inExpr` case above — the analogous UInt branch here
+            // was gated on the same always-false `rhsType == uintType` check and has
+            // been folded away; UInt falls through to `appendContainsCall` below.
             if let notInRhsType = notInRhsType,
-               sema.types.makeNonNullable(notInRhsType) == sema.types.uintType {
-                notInContainsCallee = "kk_uint_range_contains"
-            } else if let notInRhsType = notInRhsType,
-                      sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
+               sema.bindings.isULongRangeExpr(rhsExpr) || sema.types.makeNonNullable(notInRhsType) == sema.types.ulongType {
                 notInContainsCallee = "kk_ulong_range_contains"
             } else {
                 notInContainsCallee = "kk_op_contains"
             }
             let containsResult = arena.appendTemporary(type: boolType)
-            if notInContainsCallee == "kk_uint_range_contains" || notInContainsCallee == "kk_ulong_range_contains" {
+            if notInContainsCallee == "kk_ulong_range_contains" {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern(notInContainsCallee),

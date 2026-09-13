@@ -40,7 +40,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         // first / last / start / endInclusive / endExclusive / count — simple property access (STDLIB-092 / STDLIB-RANGE-034)
         if callee == lookup.firstName || callee == lookup.startName, arguments.isEmpty {
-            let firstName = isULongRange ? lookup.kkULongRangeFirstName : (isUIntRange ? interner.intern("kk_uint_range_first") : lookup.kkRangeFirstName)
+            // KSP-1523: UIntRange receivers never reach this pass (their
+            // constructing callee, e.g. __kk_uint_rangeTo, is not one of the
+            // names PreScan checks when populating rangeExprIDs — see the
+            // guard at the top of this function), so the old isUIntRange arm
+            // here was unreachable independent of `isUIntRange`'s own
+            // always-false type check. Confirmed by nm on a comprehensive
+            // real-kklib probe covering all 13 KSP-1523 members.
+            let firstName = isULongRange ? lookup.kkULongRangeFirstName : lookup.kkRangeFirstName
             loweredBody.append(.call(
                 symbol: nil, callee: firstName,
                 arguments: [receiver], result: result,
@@ -49,7 +56,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.lastName || callee == lookup.endInclusiveName, arguments.isEmpty {
-            let lastName = isULongRange ? lookup.kkULongRangeLastName : (isUIntRange ? interner.intern("kk_uint_range_last") : lookup.kkRangeLastName)
+            // KSP-1523: see the `first`/`start` case above — same unreachable arm.
+            let lastName = isULongRange ? lookup.kkULongRangeLastName : lookup.kkRangeLastName
             loweredBody.append(.call(
                 symbol: nil, callee: lastName,
                 arguments: [receiver], result: result,
@@ -66,8 +74,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.countName, arguments.isEmpty {
+            // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             loweredBody.append(.call(
-                symbol: nil, callee: isUIntRange ? interner.intern("kk_uint_range_count") : lookup.kkRangeCountName,
+                symbol: nil, callee: lookup.kkRangeCountName,
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
@@ -75,7 +84,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         // STDLIB-637: isEmpty / sum
         if callee == lookup.isEmptyName, arguments.isEmpty {
-            let isEmptyName = isULongRange ? lookup.kkULongRangeIsEmptyName : (isUIntRange ? interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
+            // KSP-1523: see the `first`/`start` case above — same unreachable arm.
+            let isEmptyName = isULongRange ? lookup.kkULongRangeIsEmptyName : lookup.kkRangeIsEmptyName
             loweredBody.append(.call(
                 symbol: nil, callee: isEmptyName,
                 arguments: [receiver], result: result,
@@ -84,17 +94,19 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.sumName, arguments.isEmpty {
+            // KSP-1523: see the `first`/`start` case above — same unreachable arm.
             loweredBody.append(.call(
-                symbol: nil, callee: isUIntRange ? interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
+                symbol: nil, callee: lookup.kkRangeSumName,
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
             return true
         }
 
-        // contains — signed ranges use the bundled kk_range_contains; unsigned keep per-type helpers
+        // contains — signed and UInt ranges share the bundled __kk_range_contains; ULong keeps its own helper
         if callee == lookup.containsName, arguments.count == 1 {
-            let containsName = isULongRange ? lookup.kkULongRangeContainsName : (isUIntRange ? interner.intern("kk_uint_range_contains") : interner.intern("__kk_range_contains"))
+            // KSP-1523: see the `first`/`start` case above — same unreachable arm.
+            let containsName = isULongRange ? lookup.kkULongRangeContainsName : interner.intern("__kk_range_contains")
             loweredBody.append(.call(
                 symbol: nil, callee: containsName,
                 arguments: [receiver, arguments[0]], result: result,
@@ -105,13 +117,13 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         // toList — returns a List (STDLIB-091 / STDLIB-290 / STDLIB-524)
         if callee == lookup.toListName, arguments.isEmpty {
+            // KSP-1523: see the `first`/`start` case above — the isUIntRange
+            // arm here was equally unreachable.
             let toListCallee: InternedString
             if isCharRange {
                 toListCallee = lookup.kkCharRangeToListName
             } else if isULongRange {
                 toListCallee = lookup.kkULongRangeToListName
-            } else if isUIntRange {
-                toListCallee = interner.intern("kk_uint_range_toList")
             } else {
                 toListCallee = lookup.kkRangeToListName
             }
@@ -124,14 +136,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        if callee == interner.intern("toUIntArray"), arguments.isEmpty, isUIntRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: interner.intern("kk_uint_range_toUIntArray"),
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
+        // KSP-1523: a UIntRange.toUIntArray() gate used to live here
+        // (`isUIntRange` as a full condition, not just a ternary arm) but
+        // was unreachable for the same structural reason as the other
+        // members above — deleted rather than folded since toUIntArray has
+        // no signed/ULong analogue to fall back to. `toUIntArray()` isn't
+        // actually a UIntRange member in real Kotlin (it's on
+        // `Collection<UInt>`, and UIntRange is only `Iterable<UInt>`);
+        // confirmed via diff_kotlinc.sh, so it was removed from RangeHOF.kt
+        // too rather than kept as a source-backed declaration.
 
         // toULongArray — returns a ULongArray (STDLIB-RANGE-037)
         if callee == lookup.toULongArrayName, arguments.isEmpty, isULongRange {
@@ -381,8 +394,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.firstOrNullName, arguments.isEmpty {
+            // KSP-1523: the isUIntRange arm here was unreachable for the same
+            // structural reason as the other members above (see `first`/`start`).
             let firstOrNullName = isULongRange ? interner.intern("kk_ulong_range_firstOrNull")
-                : (isUIntRange ? interner.intern("kk_uint_range_firstOrNull") : interner.intern("kk_range_firstOrNull"))
+                : interner.intern("kk_range_firstOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: firstOrNullName,
                 arguments: [receiver], result: result,
@@ -419,8 +434,10 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.lastOrNullName, arguments.isEmpty {
+            // KSP-1523: the isUIntRange arm here was unreachable for the same
+            // structural reason as the other members above (see `first`/`start`).
             let lastOrNullName = isULongRange ? interner.intern("kk_ulong_range_lastOrNull")
-                : (isUIntRange ? interner.intern("kk_uint_range_lastOrNull") : interner.intern("kk_range_lastOrNull"))
+                : interner.intern("kk_range_lastOrNull")
             loweredBody.append(.call(
                 symbol: nil, callee: lastOrNullName,
                 arguments: [receiver], result: result,
@@ -520,11 +537,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.averageName, arguments.isEmpty {
+            // KSP-1523: the isUIntRange arm here was unreachable for the same
+            // structural reason as the other members above (see `first`/`start`).
             let averageName: InternedString
             if isULongRange {
                 averageName = interner.intern("kk_ulong_range_average")
-            } else if isUIntRange {
-                averageName = interner.intern("kk_uint_range_average")
             } else if isLongRange {
                 averageName = interner.intern("kk_long_range_average")
             } else {
@@ -535,11 +552,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
         if callee == lookup.sortedName, arguments.isEmpty {
+            // KSP-1523: the isUIntRange arm here was unreachable for the same
+            // structural reason as the other members above (see `first`/`start`).
             let sortedName: InternedString
             if isULongRange {
                 sortedName = interner.intern("kk_ulong_range_sorted")
-            } else if isUIntRange {
-                sortedName = interner.intern("kk_uint_range_sorted")
             } else if isLongRange {
                 sortedName = interner.intern("kk_long_range_sorted")
             } else if isCharRange {
@@ -555,7 +572,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
         // reversed — returns a range (STDLIB-093)
         if callee == lookup.reversedName, arguments.isEmpty {
-            let reversedName = isULongRange ? lookup.kkULongRangeReversedName : (isUIntRange ? interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
+            // KSP-1523: the isUIntRange arm here was unreachable for the same
+            // structural reason as the other members above (see `first`/`start`).
+            let reversedName = isULongRange ? lookup.kkULongRangeReversedName : lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil, callee: reversedName,
                 arguments: [receiver], result: result,

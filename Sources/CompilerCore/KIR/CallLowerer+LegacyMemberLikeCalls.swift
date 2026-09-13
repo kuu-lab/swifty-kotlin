@@ -451,34 +451,32 @@ extension CallLowerer {
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
+                // KSP-1523: `first`/`last` (and their `start`/`end`/`endInclusive`
+                // aliases) can use the shared `__kk_range_first`/`__kk_range_last`
+                // bridge for UInt too, same as signed ranges: both operate on the
+                // same RuntimeRangeBox, and UInt's full value range always fits the
+                // non-negative half of the box's Int64 fields. ULong keeps its own
+                // bridge below (values above Int64.max need unsigned comparisons).
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_first"
-                            : "__kk_range_first"))
+                        : "__kk_range_first")
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
                 case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_last"
-                            : "__kk_range_last"))
+                        : "__kk_range_last")
                 case "endExclusive":
                     interner.intern("__kk_range_endExclusive")
                 case "first":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_first"
-                            : "__kk_range_first"))
+                        : "__kk_range_first")
                 case "last":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_last"
-                            : "__kk_range_last"))
+                        : "__kk_range_last")
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_step"

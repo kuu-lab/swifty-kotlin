@@ -82,6 +82,28 @@ struct MemberRuntimeDispatchTests {
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "kk_uint_range_step")
     }
 
+    // KSP-1523: none of these 13 members may resolve to a kk_uint_range_*
+    // name — those Runtime bridges were deleted, and `rangeRuntimeName`'s
+    // per-member string interpolation (`"kk_uint_range_\(member)"`) would
+    // silently reconstruct a name for a symbol that no longer exists if any
+    // of them fell through the `.uintRange` sourceBacked allowlist.
+    @Test func testUIntRangeKSP1523MembersNeverResolveToDeletedRuntimeNames() {
+        let members: [(String, Int)] = [
+            ("contains", 1), ("isEmpty", 0), ("first", 0), ("last", 0),
+            ("firstOrNull", 0), ("lastOrNull", 0), ("count", 0), ("sum", 0),
+            ("average", 0), ("reversed", 0), ("sorted", 0), ("toList", 0),
+            ("toUIntArray", 0),
+        ]
+        for member in members {
+            let key = MemberDispatchKey(receiverKind: .uintRange, memberName: member.0, arity: member.1)
+            let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
+            #expect(
+                resolved?.hasPrefix("kk_uint_range_") != true,
+                "UIntRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
+            )
+        }
+    }
+
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
         let cases: [(MemberDispatchReceiverKind, String, Int, String)] = [
             (.iterable, "firstNotNullOf", 1, "__kk_iterable_firstNotNullOf"),

@@ -47,31 +47,25 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types
         )
-        let progressionType = syntheticNominalType(
-            named: "UIntProgression",
-            in: rangesFQName,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         let iteratorType = syntheticIteratorType(
             elementType: types.uintType,
             symbols: symbols,
             types: types,
             interner: interner
         )
-        let uintArrayType = syntheticNominalType(
-            named: "UIntArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1523: these externalLinkNames are dead metadata for codegen — a
+        // property access on a UIntRange-typed receiver is intercepted earlier,
+        // in CallLowerer+LegacyMemberLikeCalls.swift, via the reliable
+        // `sema.bindings.isUIntRangeExpr` marker, which already emits
+        // `__kk_range_first`/`__kk_range_last` directly. Sema still needs a
+        // registered property here so expressions like `r.first` type-check as
+        // UInt. Keep the link names aligned to the bridge that's actually used
+        // so they don't dangle on a symbol slated for removal.
         for property in [
-            ("start", "kk_uint_range_first"),
-            ("end", "kk_uint_range_last"),
-            ("first", "kk_uint_range_first"),
-            ("last", "kk_uint_range_last"),
+            ("start", "__kk_range_first"),
+            ("end", "__kk_range_last"),
+            ("first", "__kk_range_first"),
+            ("last", "__kk_range_last"),
             ("endExclusive", "__kk_range_endExclusive"),
         ] {
             registerProgressionProperty(
@@ -92,26 +86,13 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerProgressionMethod(
-            named: "contains",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [types.uintType],
-            returnType: types.booleanType,
-            externalLinkName: "kk_uint_range_contains",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "isEmpty",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.booleanType,
-            externalLinkName: "kk_uint_range_isEmpty",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `contains`/`isEmpty` registration here. `isEmpty`
+        // resolves via the shared `ClosedRange<T>` interface member (see
+        // `closedRangeInterfaceRuntimeName` in
+        // CallLowerer+MemberCallDefaultsAndResolution.swift). Confirmed by KIR
+        // probe: both member names reach `__kk_range_contains`/`__kk_range_isEmpty`
+        // for variable- and literal-receiver call shapes with no class-level
+        // registration for either name.
         registerProgressionMethod(
             named: "iterator",
             ownerSymbol: classSymbol,
@@ -122,56 +103,18 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "reversed",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: progressionType,
-            externalLinkName: "kk_uint_range_reversed",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toList",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toUIntArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: uintArrayType,
-            externalLinkName: "kk_uint_range_toUIntArray",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "firstOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_firstOrNull",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "lastOrNull",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.makeNullable(types.uintType),
-            externalLinkName: "kk_uint_range_lastOrNull",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `reversed`/`toList`/`firstOrNull`/`lastOrNull`
+        // registrations here — all four now have bundled Kotlin declarations
+        // in RangeHOF.kt. Confirmed dead by marker probe (ZZZ-tagged
+        // externalLinkNames, rebuilt, comprehensive real-kklib nm +
+        // `--emit kir` check: zero occurrences; the Sema golden suite is
+        // also unaffected by their removal). `toUIntArray`'s registration
+        // was removed here too, but for a different reason: it isn't a
+        // real UIntRange member in Kotlin at all — `toUIntArray()` is a
+        // `Collection<UInt>` member, and UIntRange is `Iterable<UInt>` but
+        // not `Collection` (confirmed via diff_kotlinc.sh: real kotlinc
+        // rejects it) — so it was dropped entirely rather than migrated to
+        // RangeHOF.kt.
         registerProgressionMethod(
             named: "take",
             ownerSymbol: classSymbol,
@@ -192,26 +135,14 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        registerProgressionMethod(
-            named: "average",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: types.doubleType,
-            externalLinkName: "kk_uint_range_average",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "sorted",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
-            externalLinkName: "kk_uint_range_sorted",
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-1523: no `sorted` registration here either — same
+        // bundled-overlap reasoning and marker-probe confirmation as above
+        // (bundled in RangeHOF.kt). `average`'s registration was removed
+        // here too, but has no bundled declaration to fall back to — real
+        // kotlinc rejects `UIntRange.average()` (it exists only for
+        // `Iterable<Byte/Short/Int/Long/Float/Double>`, confirmed via
+        // diff_kotlinc.sh), so it was dropped entirely rather than
+        // migrated.
         registerSyntheticConstructor(
             ownerSymbol: classSymbol,
             ownerType: rangeType,

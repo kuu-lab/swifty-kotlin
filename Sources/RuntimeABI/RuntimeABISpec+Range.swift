@@ -722,24 +722,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_reversed",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_toList",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_uint_range_iterator",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
@@ -953,71 +935,7 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_contains",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_first",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_last",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_uint_range_step",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_isEmpty",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_count",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_sum",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_toUIntArray",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -1127,14 +1045,6 @@ public extension RuntimeABISpec {
             section: "Range"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_firstOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_uint_range_last_predicate",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
@@ -1152,14 +1062,6 @@ public extension RuntimeABISpec {
                 RuntimeABIParameter(name: "lambdaRaw", type: .intptr),
                 RuntimeABIParameter(name: "captureRaw", type: .intptr),
                 RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_range_lastOrNull",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Range"

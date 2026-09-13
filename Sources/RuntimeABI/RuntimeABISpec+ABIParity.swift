@@ -641,19 +641,11 @@ public extension RuntimeABISpec {
             p("objectRaw", .intptr),
             p("modeRaw", .intptr),
         ]),
-        abiParitySpec("kk_uint_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_uint_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_uint_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_uint_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
