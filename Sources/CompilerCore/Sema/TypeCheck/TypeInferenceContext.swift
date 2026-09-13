@@ -97,6 +97,16 @@ struct TypeInferenceContext: CustomStringConvertible {
     func enteringLambdaBody() -> TypeInferenceContext {
         var copy = self
         copy.lambdaDepth += 1
+        // Lambda bodies open a new control-flow scope, like local function
+        // bodies do: a `break`/`continue` written directly in a lambda cannot
+        // reach a loop enclosing the lambda, because non-local break/continue
+        // is not implemented in Lowering (BUG-253) — the jump is dropped and a
+        // valid program silently becomes an infinite loop or a wrong result.
+        // Resetting the loop stacks makes KSWIFTK-SEMA-0018 / -0019 reject it.
+        // A loop *inside* the lambda re-increments `loopDepth`, so
+        // `run { while (true) { ... break } }` keeps compiling.
+        copy.loopDepth = 0
+        copy.loopLabelStack = []
         return copy
     }
 
