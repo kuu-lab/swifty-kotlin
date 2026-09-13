@@ -3,15 +3,15 @@
 import Testing
 
 @Suite
-struct KIRLowererPart2CoverageTests {
-    @Test func testLambdaLowererPart2TraversesNestedExpressionsAndDetectsImplicitReceiver() {
-        let fixture = makeDirectKIRFixture()
+struct LambdaLowererDirectCoverageTests {
+    @Test func testLambdaLowererTraversesNestedExpressionsAndDetectsImplicitReceiver() {
+        let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
         let typeRefID = fixture.astArena.appendTypeRef(
             .named(path: [fixture.interner.intern("Int")], args: [], nullable: false)
         )
 
-        let capturedSymbol = defineSymbol(
+        let capturedSymbol = defineSemanticSymbol(
             in: fixture,
             kind: .valueParameter,
             fqName: ["pkg", "captured"]
@@ -202,12 +202,12 @@ struct KIRLowererPart2CoverageTests {
         )
     }
 
-    @Test func testLambdaLowererPart2CaptureHelpersCoverBranchPaths() {
-        let fixture = makeDirectKIRFixture()
+    @Test func testLambdaLowererCaptureHelpersCoverBranchPaths() {
+        let fixture = makeKIRDirectLoweringFixture()
 
-        let localSymbol = defineSymbol(in: fixture, kind: .local, fqName: ["pkg", "local"])
-        let parameterSymbol = defineSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "param"])
-        let classSymbol = defineSymbol(in: fixture, kind: .class, fqName: ["pkg", "Nominal"])
+        let localSymbol = defineSemanticSymbol(in: fixture, kind: .local, fqName: ["pkg", "local"])
+        let parameterSymbol = defineSemanticSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "param"])
+        let classSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["pkg", "Nominal"])
 
         let localExpr = fixture.kirArena.appendExpr(.temporary(0), type: fixture.types.anyType)
         fixture.driver.ctx.localValuesBySymbol[localSymbol] = localExpr
@@ -308,88 +308,5 @@ struct KIRLowererPart2CoverageTests {
         )
         #expect(nonCapturable == nil)
     }
-}
-
-struct DirectKIRFixture {
-    let interner: StringInterner
-    let symbols: SymbolTable
-    let types: TypeSystem
-    let bindings: BindingTable
-    let sema: SemaModule
-    let astArena: ASTArena
-    let ast: ASTModule
-    let kirArena: KIRArena
-    let driver: KIRLoweringDriver
-
-    func makeShared(
-        propertyConstantInitializers: [SymbolID: KIRExprKind] = [:]
-    ) -> KIRLoweringSharedContext {
-        KIRLoweringSharedContext(
-            ast: ast,
-            sema: sema,
-            arena: kirArena,
-            interner: interner,
-            propertyConstantInitializers: propertyConstantInitializers
-        )
-    }
-}
-
-func makeDirectKIRFixture() -> DirectKIRFixture {
-    let interner = StringInterner()
-    let diagnostics = DiagnosticEngine()
-    let symbols = SymbolTable()
-    let types = TypeSystem()
-    let bindings = BindingTable()
-    let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
-
-    let astArena = ASTArena()
-    let file = ASTFile(
-        fileID: FileID(rawValue: 0),
-        packageFQName: [interner.intern("pkg")],
-        imports: [],
-        topLevelDecls: [],
-        scriptBody: []
-    )
-    let ast = ASTModule(
-        files: [file],
-        arena: astArena,
-        declarationCount: 0,
-        tokenCount: 0
-    )
-
-    let kirArena = KIRArena()
-    let loweringContext = KIRLoweringContext()
-    loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
-    let driver = KIRLoweringDriver(ctx: loweringContext)
-
-    return DirectKIRFixture(
-        interner: interner,
-        symbols: symbols,
-        types: types,
-        bindings: bindings,
-        sema: sema,
-        astArena: astArena,
-        ast: ast,
-        kirArena: kirArena,
-        driver: driver
-    )
-}
-
-func defineSymbol(
-    in fixture: DirectKIRFixture,
-    kind: SymbolKind,
-    fqName: [String],
-    flags: SymbolFlags = []
-) -> SymbolID {
-    precondition(!fqName.isEmpty)
-    let interned = fqName.map { fixture.interner.intern($0) }
-    return fixture.symbols.define(
-        kind: kind,
-        name: interned.last!,
-        fqName: interned,
-        declSite: nil,
-        visibility: .public,
-        flags: flags
-    )
 }
 #endif

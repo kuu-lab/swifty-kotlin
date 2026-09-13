@@ -5,14 +5,101 @@ import Testing
 
 @Suite
 struct LoweringPassRegressionTests {
+    // MARK: - Shared lowering fixture
+
+    struct LoweringRewriteFixture {
+        let interner: StringInterner
+        let module: KIRModule
+        let mainID: KIRDeclID
+        let emptyID: KIRDeclID
+    }
+
+    func makeLoweringRewriteFixture() throws -> LoweringRewriteFixture {
+        let interner = StringInterner()
+        let arena = KIRArena()
+
+        let mainSym = SymbolID(rawValue: 10)
+        let inlineSym = SymbolID(rawValue: 11)
+        let suspendSym = SymbolID(rawValue: 12)
+        let emptySym = SymbolID(rawValue: 13)
+
+        let v0 = arena.appendExpr(.temporary(0))
+        let v1 = arena.appendExpr(.temporary(1))
+        let v2 = arena.appendExpr(.temporary(2))
+        let v3 = arena.appendExpr(.temporary(3))
+        let vFalse = arena.appendExpr(.boolLiteral(false))
+
+        let mainFn = KIRFunction(
+            symbol: mainSym,
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(symbol: nil, callee: interner.intern("kk_range_iterator"), arguments: [v0], result: v3, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("kk_for_lowered"), arguments: [v3], result: v1, canThrow: false, thrownResult: nil),
+                .constValue(result: vFalse, value: .boolLiteral(false)),
+                .jumpIfEqual(lhs: v0, rhs: vFalse, target: 800),
+                .jump(801),
+                .label(800),
+                .copy(from: v2, to: v1),
+                .label(801),
+                .call(symbol: nil, callee: interner.intern("get"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("set"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("<lambda>"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("inlineTarget"), arguments: [], result: v1, canThrow: false, thrownResult: nil),
+                .call(symbol: nil, callee: interner.intern("suspendTarget"), arguments: [v0], result: v1, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let inlineFn = KIRFunction(
+            symbol: inlineSym,
+            name: interner.intern("inlineTarget"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [.returnUnit],
+            isSuspend: false,
+            isInline: true
+        )
+        let suspendFn = KIRFunction(
+            symbol: suspendSym,
+            name: interner.intern("suspendTarget"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(symbol: suspendSym, callee: interner.intern("suspendTarget"), arguments: [], result: v2, canThrow: false, thrownResult: nil),
+                .returnValue(v2),
+            ],
+            isSuspend: true,
+            isInline: false
+        )
+        let emptyFn = KIRFunction(
+            symbol: emptySym,
+            name: interner.intern("empty"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let mainID = arena.appendDecl(.function(mainFn))
+        _ = arena.appendDecl(.function(inlineFn))
+        _ = arena.appendDecl(.function(suspendFn))
+        let emptyID = arena.appendDecl(.function(emptyFn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID, emptyID])], arena: arena)
+
+        try runLowering(module: module, interner: interner, moduleName: "Lowering")
+
+        return LoweringRewriteFixture(interner: interner, module: module, mainID: mainID, emptyID: emptyID)
+    }
+
     @Test
     func testLoweringRewritesMainCallSites() throws {
         let fixture = try makeLoweringRewriteFixture()
 
-        guard case let .function(loweredMain)? = fixture.module.arena.decl(fixture.mainID) else {
-            Issue.record("expected lowered main function")
-            return
-        }
+        let loweredMain = try requireTestValue(fixture.module.arena.decl(fixture.mainID)?.function, "expected lowered main function")
 
         let callees = extractCallees(from: loweredMain.body, interner: fixture.interner)
         #expect(callees.contains("__kk_uint_range_iterator"), "Callees: \(callees)")
@@ -93,10 +180,7 @@ struct LoweringPassRegressionTests {
     func testLoweringNormalizesEmptyFunctionBody() throws {
         let fixture = try makeLoweringRewriteFixture()
 
-        guard case let .function(loweredEmpty)? = fixture.module.arena.decl(fixture.emptyID) else {
-            Issue.record("expected lowered empty function")
-            return
-        }
+        let loweredEmpty = try requireTestValue(fixture.module.arena.decl(fixture.emptyID)?.function, "expected lowered empty function")
         #expect(loweredEmpty.body.last == .returnUnit)
         #expect(!loweredEmpty.body.isEmpty)
     }
@@ -154,20 +238,9 @@ struct LoweringPassRegressionTests {
         _ = arena.appendDecl(.function(suspendOneArg))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let ctx = makeCompilationContext(
-            inputs: [],
-            moduleName: "CoroutineOverloadRewrite",
-            emit: .kirDump,
-            interner: interner
-        )
-        ctx.kir = module
+        try runLowering(module: module, interner: interner, moduleName: "CoroutineOverloadRewrite")
 
-        try LoweringPhase().run(ctx)
-
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let rawSuspendCalls = loweredCaller.body.contains { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
@@ -223,15 +296,7 @@ struct LoweringPassRegressionTests {
 
         let suspendID = arena.appendDecl(.function(suspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [suspendID])], arena: arena)
-        let ctx = makeCompilationContext(
-            inputs: [],
-            moduleName: "CoroutineCFG",
-            emit: .kirDump,
-            interner: interner
-        )
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "CoroutineCFG")
 
         let loweredSuspend = try findKIRFunction(named: "kk_suspend_suspendTarget", in: module, interner: interner)
 
@@ -354,9 +419,13 @@ struct LoweringPassRegressionTests {
 
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             let module = try #require(ctx.kir)
+            // Scanned once and shared below: no scenario mutates `module`.
+            let allFunctions = findAllKIRFunctions(in: module)
+            let allCallees = allFunctions.flatMap { function in
+                extractCallees(from: function.body, interner: ctx.interner)
+            }
 
             // testRangeRandomCallsKeepRandomArgument
             do {
@@ -419,17 +488,11 @@ struct LoweringPassRegressionTests {
             }
             // testCoroutineScopeNoLongerLowersToScopeRun
             do {
-                let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-                    extractCallees(from: function.body, interner: ctx.interner)
-                }
                 #expect(!allCallees.contains("kk_coroutine_scope_run"), "coroutineScope must not lower to the removed kk_coroutine_scope_run")
                 #expect(!allCallees.contains("kk_supervisor_scope_run"), "supervisorScope must not lower to the removed kk_supervisor_scope_run")
             }
             // testNonInlineCallIsNotRedirectedToSameNamedInlineOverload
             do {
-                let allCallees = findAllKIRFunctions(in: module).flatMap { function in
-                    extractCallees(from: function.body, interner: ctx.interner)
-                }
                 #expect(
                     !allCallees.contains("__kk_lock_withLock"),
                     "Mutex.withLock must not be inlined into the Lock.withLock bridge"
@@ -437,8 +500,6 @@ struct LoweringPassRegressionTests {
             }
             // testCoroutineLoweringRewritesSuspendLocalFunctionCalls
             do {
-                let allFunctions = findAllKIRFunctions(in: module)
-
                 let loweredOuter = try #require(allFunctions.first(where: { function in
                     ctx.interner.resolve(function.name) == "kk_suspend_outerSuspendHost"
                 }))
@@ -473,7 +534,7 @@ struct LoweringPassRegressionTests {
                 )
                 #expect(mainCallees.contains("kk_type_register_iface"), "Callees: \(mainCallees)")
 
-                let functionNames = findAllKIRFunctions(in: module).map { ctx.interner.resolve($0.name) }
+                let functionNames = allFunctions.map { ctx.interner.resolve($0.name) }
                 #expect(
                     functionNames.filter { $0.hasPrefix("kk_sam_ref_thunk_") }.count == 2,
                     "Functions: \(functionNames.filter { $0.hasPrefix("kk_sam_") })"

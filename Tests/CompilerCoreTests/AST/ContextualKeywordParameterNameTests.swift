@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 /// Regression coverage for value parameters / primary-constructor properties
@@ -14,47 +13,7 @@ import Testing
 @Suite
 struct ContextualKeywordParameterNameTests {
     private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
-        let fakePath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".kt").path
-        let ctx = makeCompilationContext(inputs: [fakePath], includeStdlib: false)
-        _ = ctx.sourceManager.addFile(path: fakePath, contents: Data(source.utf8))
-        try runFrontend(ctx)
-        return (try #require(ctx.ast), ctx)
-    }
-
-    private func firstFunDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> FunDecl? {
-        ast.arena.declarations().compactMap { decl -> FunDecl? in
-            guard case let .funDecl(funDecl) = decl else { return nil }
-            return funDecl
-        }.first { interner.resolve($0.name) == name }
-    }
-
-    private func firstClassDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> ClassDecl? {
-        ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case let .classDecl(classDecl) = decl else { return nil }
-            return classDecl
-        }.first { interner.resolve($0.name) == name }
-    }
-
-    private func firstObjectDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> ObjectDecl? {
-        ast.arena.declarations().compactMap { decl -> ObjectDecl? in
-            guard case let .objectDecl(objectDecl) = decl else { return nil }
-            return objectDecl
-        }.first { interner.resolve($0.name) == name }
-    }
-
-    private func firstInterfaceDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> InterfaceDecl? {
-        ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
-            guard case let .interfaceDecl(interfaceDecl) = decl else { return nil }
-            return interfaceDecl
-        }.first { interner.resolve($0.name) == name }
-    }
-
-    private func firstTypeAliasDecl(named name: String, in ast: ASTModule, interner: StringInterner) -> TypeAliasDecl? {
-        ast.arena.declarations().compactMap { decl -> TypeAliasDecl? in
-            guard case let .typeAliasDecl(typeAliasDecl) = decl else { return nil }
-            return typeAliasDecl
-        }.first { interner.resolve($0.name) == name }
+        try buildASTModule(from: source, includeStdlib: false)
     }
 
     @Test

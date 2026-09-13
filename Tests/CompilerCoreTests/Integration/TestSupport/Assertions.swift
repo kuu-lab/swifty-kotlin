@@ -25,6 +25,14 @@ func diagnosticsForPath(
     return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
 }
 
+func diagnosticsForPath(
+    _ path: String,
+    withCode code: String,
+    in ctx: CompilationContext
+) -> [Diagnostic] {
+    diagnosticsForPath(path, in: ctx).filter { $0.code == code }
+}
+
 func assertHasDiagnostic(
     _ code: String,
     in ctx: CompilationContext,
@@ -37,11 +45,10 @@ func assertHasDiagnostic(
 func assertHasDiagnostic(
     _ code: String,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let found = diagnostics.contains { $0.code == code }
-    #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map(\.code))")
+    #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 
 func assertNoDiagnostic(
@@ -56,32 +63,29 @@ func assertNoDiagnostic(
 func assertNoDiagnostic(
     _ code: String,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let found = diagnostics.contains { $0.code == code }
-    #expect(!(found), "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))")
+    #expect(!(found), "Unexpected diagnostic \(code), got: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 
 func assertDiagnosticCount(
     _ code: String,
     expected: Int,
     in ctx: CompilationContext,
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let count = ctx.diagnostics.diagnostics.filter { $0.code == code }.count
-    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))")
+    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(ctx.diagnostics.diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 
 func assertDiagnosticCount(
     _ code: String,
     expected: Int,
     in diagnostics: [Diagnostic],
-    file: StaticString = #filePath,
-    line: UInt = #line
+    sourceLocation: Testing.SourceLocation = #_sourceLocation
 ) {
     let count = diagnostics.filter { $0.code == code }.count
-    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))")
+    #expect(count == expected, "Expected \(expected) diagnostic(s) with code \(code), got \(count). All diagnostics: \(diagnostics.map(\.code))", sourceLocation: sourceLocation)
 }
 #endif

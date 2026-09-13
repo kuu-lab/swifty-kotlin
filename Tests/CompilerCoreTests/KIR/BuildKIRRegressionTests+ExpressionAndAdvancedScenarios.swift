@@ -187,37 +187,35 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "LoopIR", emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source, moduleName: "LoopIR")
+        try runToKIR(ctx)
 
-            let kir = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "loop", in: kir, interner: ctx.interner)
+        let kir = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "loop", in: kir, interner: ctx.interner)
 
-            let labelCount = body.filter { instruction in
-                if case .label = instruction { return true }
-                return false
-            }.count
-            // while/do-while/for each need loop-start + loop-end labels;
-            // 3 loops need at least 4 labels (some may share via break/continue)
-            #expect(labelCount >= 4)
+        let labelCount = body.filter { instruction in
+            if case .label = instruction { return true }
+            return false
+        }.count
+        // while/do-while/for each need loop-start + loop-end labels;
+        // 3 loops need at least 4 labels (some may share via break/continue)
+        #expect(labelCount >= 4)
 
-            let jumpCount = body.filter { instruction in
-                if case .jump = instruction { return true }
-                if case .jumpIfEqual = instruction { return true }
-                return false
-            }.count
-            // Each loop has conditional jump + unconditional jump-back;
-            // 3 loops need at least 4 jumps
-            #expect(jumpCount >= 4)
+        let jumpCount = body.filter { instruction in
+            if case .jump = instruction { return true }
+            if case .jumpIfEqual = instruction { return true }
+            return false
+        }.count
+        // Each loop has conditional jump + unconditional jump-back;
+        // 3 loops need at least 4 jumps
+        #expect(jumpCount >= 4)
 
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(!callees.contains("kk_range_iterator"), "Array for-loop should not use kk_range_iterator, got: \(callees)")
-            #expect(!callees.contains("kk_range_hasNext"), "Array for-loop should not use kk_range_hasNext, got: \(callees)")
-            #expect(!callees.contains("kk_range_next"), "Array for-loop should not use kk_range_next, got: \(callees)")
-            #expect(callees.contains("__kk_array_size"), "Array for-loop should call __kk_array_size, got: \(callees)")
-            #expect(callees.contains("kk_array_get_inbounds"), "Array for-loop should call kk_array_get_inbounds, got: \(callees)")
-        }
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(!callees.contains("kk_range_iterator"), "Array for-loop should not use kk_range_iterator, got: \(callees)")
+        #expect(!callees.contains("kk_range_hasNext"), "Array for-loop should not use kk_range_hasNext, got: \(callees)")
+        #expect(!callees.contains("kk_range_next"), "Array for-loop should not use kk_range_next, got: \(callees)")
+        #expect(callees.contains("__kk_array_size"), "Array for-loop should call __kk_array_size, got: \(callees)")
+        #expect(callees.contains("kk_array_get_inbounds"), "Array for-loop should call kk_array_get_inbounds, got: \(callees)")
     }
 
     // MARK: - Reified Type Token Scenarios

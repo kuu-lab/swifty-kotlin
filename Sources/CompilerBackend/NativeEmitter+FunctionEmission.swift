@@ -2729,10 +2729,17 @@ extension NativeEmitter {
                 } else if sourceExternalFunction != nil {
                     sourceExternalFunction
                 } else {
+                    // Virtual calls go through `fptr`, so this declaration only carries
+                    // the indirect-call type. Fold arity into the name: a property getter
+                    // and an unrelated same-named method (e.g. "get") can share
+                    // `externalCalleeName` in one body, and the plain-name cache would
+                    // size both to the larger arity.
                     declareExternalFunction(
-                        named: externalCalleeName,
-                        argumentCount: argumentValues.count,
-                        appendThrownChannel: shouldAppendThrownChannel
+                        named: "\(externalCalleeName)__v\(argumentValues.count)",
+                        parameterTypes: Array<LLVMCAPIBindings.LLVMTypeRef?>(
+                            repeating: int64Type, count: argumentValues.count
+                        ) + (shouldAppendThrownChannel ? [outThrownPointerType] : []),
+                        returnType: int64Type
                     )
                 }
 
