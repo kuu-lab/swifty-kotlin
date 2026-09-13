@@ -251,11 +251,6 @@ public func kk_uint_to_char(_ value: Int) -> Int {
     Int(UInt16(truncatingIfNeeded: value))
 }
 
-@_cdecl("kk_ulong_to_char")
-public func kk_ulong_to_char(_ value: Int) -> Int {
-    Int(UInt16(truncatingIfNeeded: value))
-}
-
 @_cdecl("kk_ubyte_to_char")
 public func kk_ubyte_to_char(_ value: Int) -> Int {
     // UByte is always in valid range for Char

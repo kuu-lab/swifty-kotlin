@@ -193,12 +193,11 @@ struct CoercionRuntimeTests {
         #expect(kk_uint_to_char(0x110000) == 0)
     }
 
-    @Test
-    func testULongToCharConversion() {
-        #expect(kk_ulong_to_char(65) == 65)
-        #expect(kk_ulong_to_char(0x1F600) == 0xF600)
-        #expect(kk_ulong_to_char(0x110000) == 0)
-    }
+    // KSP-1533: kk_ulong_to_char was removed — ULong.toChar() has no Sema
+    // binding (Kotlin's unsigned types don't extend Number and never
+    // declared this member), so the bridge was dead. See
+    // ABIMismatchTests.ulongToCharBridgeABIIsRemoved and
+    // UnsignedPrimitiveMemberCallTests for the enforcing coverage.
 
     @Test
     func testUByteToCharConversion() {

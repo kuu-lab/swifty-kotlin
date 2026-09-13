@@ -414,6 +414,37 @@ The reason codes are:
 | `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
 <!-- KSP-1531-SYMBOLS-END -->
 
+> 2026-09-13 correction (KSP-1533): the `toChar` `(b)` cell for the `UInt` /
+> `ULong` / `UByte` / `UShort` rows above is misclassified. Unsigned types do
+> not extend `kotlin.Number` and never declared a `toChar()` member —
+> confirmed against `kotlinc-jvm 2.4.20` (`unresolved reference`) and against
+> kswiftc itself (`KSWIFTK-SEMA-0024`, with no matching entry in
+> `HeaderHelpers+SyntheticCoercionStubs.swift` or in the `toChar` fast-path of
+> `CallTypeChecker+MemberCallInferenceRegularPrimitiveSpecials.swift`). The
+> `kk_uint_to_char` / `kk_ulong_to_char` / `kk_ubyte_to_char` /
+> `kk_ushort_to_char` `CallLowerer` cases were therefore dead: the KSP-1531
+> audit took "a `CallLowerer` case exists" as proof of Sema reachability
+> without checking that Sema ever produces the binding. KSP-1533 removed
+> `kk_ulong_to_char` (its `CallLowerer` dispatch, `Runtime` `@_cdecl`, and
+> `RuntimeABI` spec entry) outright rather than migrating it to Kotlin source;
+> KSP-1532/1534/1535 should re-verify their own `toChar` premise the same way
+> before implementing. The table itself is left as the frozen KSP-1531
+> snapshot, matching how the already-completed KSP-1536/1537/1538/1539 rows
+> were handled.
+>
+> The same audit also caught a second, unrelated misclassification while
+> exercising the `(c)`-owned `ULong` conversions adjacent to the deleted
+> `kk_ulong_to_char`: `kk_ulong_to_uint` (noted above as "no current symbol,
+> representation-preserving copy") was wired as a same-width `Long<->ULong`
+> style 64-to-64 identity, but `ULong.toUInt()` is a 64-to-32 narrowing that
+> needs an actual truncating mask. Any `ULong` value with a nonzero high 32
+> bits (e.g. `ULong.MAX_VALUE`) kept its full 64-bit payload, so `toString()`
+> and `==` produced garbage while `+` happened to look correct (addition's
+> mandatory 32-bit wraparound masks the result regardless of dirty input
+> bits). Fixed by routing to the existing `kk_long_to_uint`, which already
+> truncates via `UInt32(truncatingIfNeeded:)` on the same raw-register
+> representation — no new Runtime/RuntimeABI surface.
+
 The table is grounded in the current implementations. `RuntimeNumericCoercion`
 uses fixed-width truncating or representation-preserving operations for the
 integer `(c)` group, while its Char and floating-to-Char paths implement code
