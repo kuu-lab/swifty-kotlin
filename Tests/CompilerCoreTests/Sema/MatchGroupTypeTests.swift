@@ -13,8 +13,6 @@ struct MatchGroupTypeTests {
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner, CompilationContext)?
 
-    // MARK: - Shared sema fixture
-
     private func sharedSema() throws -> (SemaModule, StringInterner, CompilationContext) {
         if let cached = Self._sharedSema { return cached }
         var result: (SemaModule, StringInterner, CompilationContext)?

@@ -3,11 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - AST Equivalence Regression Tests (P5-58)
-
-// Verify that decl/expr counts and source ranges remain consistent
-// after BuildAST optimisation changes.
-
 @Suite
 struct ASTEquivalenceRegressionTests {
     // MARK: - Helpers
@@ -68,7 +63,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 54 bundled stdlib functions (37 collections + 17 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount, "Expected 56 top-level declarations (2 user + 54 bundled stdlib)")
         #expect(ast.arena.exprs.count >= 2, "Expected at least 2 expressions")
 
@@ -97,9 +91,7 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
-        // At least: localDecl(a), localDecl(b), compoundAssign, returnExpr, + body expressions
         #expect(ast.arena.exprs.count >= 6)
 
         assertAllExprRangesValid(in: ast)
@@ -127,7 +119,6 @@ struct ASTEquivalenceRegressionTests {
         let counterClass = classDecls[0]
         assertValidSourceRange(counterClass.range, label: "Counter class")
 
-        // Should have member decls: property(count), fun(increment), fun(get)
         #expect(counterClass.memberFunctions.count >= 2)
         #expect(counterClass.memberProperties.count >= 1)
     }
@@ -152,9 +143,7 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
-        // localDecl(a), localDecl(b), forExpr, localDecl(tmp), localAssign(a), localAssign(b), returnExpr etc.
         #expect(ast.arena.exprs.count >= 8)
 
         assertAllExprRangesValid(in: ast)
@@ -181,7 +170,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 3 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
         #expect(ast.arena.exprs.count >= 6)
 
@@ -228,7 +216,6 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // 2 user declarations + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 2 + bundledStdlibDeclarationCount)
 
         assertAllExprRangesValid(in: ast)
@@ -259,10 +246,8 @@ struct ASTEquivalenceRegressionTests {
         """
         let (ast, _) = try buildAST(from: source)
 
-        // class + factorial + main + 24 bundled stdlib functions (7 collections + 13 text)
         #expect(ast.declarationCount == 3 + bundledStdlibDeclarationCount)
 
-        // Verify ALL decl ranges are valid
         for decl in ast.arena.declarations() {
             switch decl {
             case let .funDecl(f):
@@ -282,7 +267,6 @@ struct ASTEquivalenceRegressionTests {
             }
         }
 
-        // Verify ALL expr ranges are valid
         assertAllExprRangesValid(in: ast)
     }
 

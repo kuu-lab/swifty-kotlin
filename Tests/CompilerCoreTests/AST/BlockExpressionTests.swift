@@ -3,11 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - Block Expression Multi-Statement Evaluation Tests
-
-// Covers: P5-47 — block expression with multiple statements + trailing expression
-// Spec references: J6, J9, J11
-
 @Suite
 struct BlockExpressionTests {
     // Every case below must compile to KIR without errors. Since they share a
@@ -195,8 +190,6 @@ struct BlockExpressionTests {
         #expect(!(sema.bindings.exprTypes.isEmpty))
     }
 
-    // MARK: - AST: single expression block always produces blockExpr
-
     @Test
     func testSingleExpressionBlockProducesBlockExprNode() throws {
         let source = """
@@ -320,8 +313,6 @@ struct BlockExpressionTests {
         )
         #expect(trailing != nil, "Expected trailing `a + b` expression to survive")
     }
-
-    // MARK: - AST structure: blockExpr has statements and trailing expression
 
     @Test
     func testBlockExprASTStructure() throws {
