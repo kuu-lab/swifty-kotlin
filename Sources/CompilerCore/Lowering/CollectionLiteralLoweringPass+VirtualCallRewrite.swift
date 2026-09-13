@@ -102,31 +102,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
-            // KSP-426: List sorting/extrema are bundled Kotlin source.
-            || callee == lookup.sortedName
-            || callee == lookup.sortedByName
-            || callee == lookup.sortedByDescendingName
-            || callee == lookup.sortedDescendingName
-            || callee == lookup.sortedWithName
-            || callee == lookup.maxName
-            || callee == lookup.maxByName
-            || callee == lookup.maxOfName
-            || callee == lookup.maxOfOrNullName
-            || callee == lookup.maxOfWithName
-            || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.maxOrNullName
-            || callee == lookup.maxWithName
-            || callee == lookup.maxWithOrNullName
-            || callee == lookup.minName
-            || callee == lookup.minByName
-            || callee == lookup.minByOrNullName
-            || callee == lookup.minOfName
-            || callee == lookup.minOfOrNullName
-            || callee == lookup.minOfWithName
-            || callee == lookup.minOfWithOrNullName
-            || callee == lookup.minOrNullName
-            || callee == lookup.minWithName
-            || callee == lookup.minWithOrNullName
+            // RF-LOWER-CALL-011 removed the KSP-426 block that mirrored the 25
+            // List `sorted*` / `min*` / `max*` names from
+            // `+CallRewrite.swift`.  See the note there: none of them is
+            // reachable by a rewrite, so the enumeration guarded nothing, and
+            // dropping it leaves post-lowering KIR byte-identical.  `sorted`
+            // stays listed once with the KSP-453/454 Range/progression names
+            // below — that is the entry `+VirtualCallRewrite+Range.swift`
+            // consumes — and `maxByOrNull` / `minByOrNull` stay in the group
+            // above as RF-LOWER-CALL-012 territory.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
