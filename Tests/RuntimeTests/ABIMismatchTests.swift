@@ -89,11 +89,13 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func ulongToCharBridgeABIIsRemoved() {
-        #expect(
-            !RuntimeABISpec.allFunctions.contains { $0.name == "kk_ulong_to_char" },
-            "ULong.toChar() has no Sema binding (unsigned types don't extend Number and never declared this member), so KSP-1533 removed the dead bridge instead of migrating it"
-        )
+    func unsignedToCharBridgeABIsRemoved() {
+        for name in ["kk_uint_to_char", "kk_ulong_to_char", "kk_ubyte_to_char", "kk_ushort_to_char"] {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
+            )
+        }
     }
 
     @Test
