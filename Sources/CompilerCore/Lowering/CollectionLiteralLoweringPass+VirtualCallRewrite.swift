@@ -146,8 +146,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             context: context,
-            listExprIDs: &state.listExprIDs, setExprIDs: &state.setExprIDs, mapExprIDs: &state.mapExprIDs, sequenceExprIDs: &state.sequenceExprIDs,
-            arrayExprIDs: state.arrayExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         ) { return true }
 
