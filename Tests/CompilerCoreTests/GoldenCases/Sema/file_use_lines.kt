@@ -1,7 +1,8 @@
 // RF-FIXTURE-015: File.useLines takes a (List<out String>) -> R block and
 // propagates the generic R to the call result (List<String> and Int here).
 // File construction and the count/toList calls are vehicles for the result
-// type; execution is covered by Scripts/diff_cases/file_uselines.kt.
+// type; execution is covered by
+// Tests/CompilerBackendTests/Codegen/CodegenBackendIntegrationTests+FileUseLinesForEachLine.swift.
 package golden.sema
 
 import java.io.File

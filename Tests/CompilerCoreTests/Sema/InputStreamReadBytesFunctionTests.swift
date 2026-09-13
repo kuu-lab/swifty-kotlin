@@ -6,9 +6,12 @@ import Testing
 /// STDLIB-IO-FN-029: Validates that `InputStream.readBytes()` resolves through
 /// Sema for the `java.io.InputStream` receiver and produces a `ByteArray`
 /// value (modelled in the runtime as `List<Int>`).  The synthetic stub is
-/// registered in `HeaderHelpers+SyntheticTODOAndIOStubs.swift` and binds to the
-/// runtime helper `__kk_input_stream_readAllBytes` declared in
+/// registered in `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` and binds to
+/// the runtime helper `__kk_input_stream_readAllBytes` declared in
 /// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
+///
+/// CLEANUP-STUB-107 removed `File.inputStream()`, so the receiver here is
+/// obtained via the still-alive `String.byteInputStream()` instead of a File.
 ///
 /// The receiver is NOT closed by `readBytes()` — callers are expected to wrap
 /// the call in `.use { it.readBytes() }`.  These tests pin down both the
@@ -21,29 +24,26 @@ struct InputStreamReadBytesFunctionTests {
     private static let sharedSources: [String] = [
         """
         package sample0
-        import java.io.File
 
-        fun loadAll(file: File) {
-            val stream = file.inputStream()
+        fun loadAll(text: String) {
+            val stream = text.byteInputStream()
             val result = stream.readBytes()
         }
         """,
         """
         package sample1
         import java.io.BufferedInputStream
-        import java.io.File
 
-        fun loadAll(file: File) {
-            val buffered: BufferedInputStream = file.inputStream().buffered()
+        fun loadAll(text: String) {
+            val buffered: BufferedInputStream = text.byteInputStream().buffered()
             val result = buffered.readBytes()
         }
         """,
         """
         package sample2
-        import java.io.File
 
-        fun loadAll(file: File) {
-            val result = file.inputStream().use { stream ->
+        fun loadAll(text: String) {
+            val result = text.byteInputStream().use { stream ->
                 stream.readBytes()
             }
         }

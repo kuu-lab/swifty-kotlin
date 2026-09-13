@@ -11,7 +11,9 @@ import Testing
 //   - println / print / readLine / readln / readlnOrNull stubs
 //   - StringBuilder.appendLine member
 //   - String.lineSequence member
-//   - File.useLines / File.forEachLine / File.bufferedReader helpers
+//   - File.useLines / File.forEachLine helpers (CLEANUP-STUB-107 removed
+//     File.bufferedReader() and the rest of File's own filesystem-operation
+//     member facade; only these two Kotlin-source-backed helpers remain)
 //
 // Edges exercised for .use { }:
 //   closes resource on normal return, on exception, on null receiver short-circuit,
@@ -283,41 +285,6 @@ struct KotlinIOCommonEdgeCaseTests {
             }
             """,
             """
-            package sample26
-            import java.io.File
-
-            fun main26() {
-                val reader = File("/dev/null").bufferedReader()
-                val line = reader.readLine()
-                reader.close()
-                println(line)
-            }
-            """,
-            """
-            package sample27
-            import java.io.File
-
-            fun main27() {
-                val f = File("/tmp/kswiftk-io.txt")
-                val text: String = f.readText()
-                f.appendText(text)
-                val bytes = f.readBytes()
-                println(bytes)
-            }
-            """,
-            """
-            package sample28
-            import java.io.File
-
-            fun main28() {
-                val f = File("/tmp/kswiftk-io.txt")
-                val source = f.inputStream()
-                val sink = f.outputStream()
-                println(source)
-                println(sink)
-            }
-            """,
-            """
             package sample29
             import java.io.File
 
@@ -361,15 +328,6 @@ struct KotlinIOCommonEdgeCaseTests {
             package sample32
             fun main32() {
                 val x: Unit = println("unit-check")
-            }
-            """,
-            """
-            package sample33
-            import java.io.File
-
-            fun main33() {
-                val c: Closeable = File("/dev/null").bufferedReader()
-                c.close()
             }
             """
         ]
@@ -824,45 +782,6 @@ struct KotlinIOCommonEdgeCaseTests {
         #expect(
             !(ctx.diagnostics.hasError),
             "File.forEachLine { } should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-    }
-
-
-    // MARK: - File.bufferedReader
-
-
-    @Test
-    func testFileBufferedReaderResolves() throws {
-        let ctx = try sharedIOCtx()
-        #expect(
-            !(ctx.diagnostics.hasError),
-            "File.bufferedReader() and BufferedReader.readLine() / close() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-    }
-
-
-    // MARK: - File read / append helpers
-
-
-    @Test
-    func testFileReadAppendAndByteHelpersResolve() throws {
-        let ctx = try sharedIOCtx()
-        #expect(
-            !(ctx.diagnostics.hasError),
-            "File.readText(), appendText(), and readBytes() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
-        )
-    }
-
-
-    // MARK: - File stream helpers
-
-
-    @Test
-    func testFileInputAndOutputStreamResolve() throws {
-        let ctx = try sharedIOCtx()
-        #expect(
-            !(ctx.diagnostics.hasError),
-            "File.inputStream() and outputStream() should resolve: \(ctx.diagnostics.diagnostics.map(\.message))"
         )
     }
 

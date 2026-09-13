@@ -791,9 +791,9 @@ extension CallTypeChecker {
     ///
     /// As a fallback for synthetic IO types (BufferedReader, BufferedWriter, InputStream,
     /// OutputStream) that implement Closeable through the nominal supertype chain registered
-    /// by registerSyntheticFileIOStubs, we also accept any class type whose class symbol
+    /// by registerSyntheticJavaIOStreamStubs, we also accept any class type whose class symbol
     /// has a `close()` member function registered with no parameters — this ensures that
-    /// `file.bufferedReader().use { }` and similar patterns resolve correctly.
+    /// `path.bufferedReader().use { }` and similar patterns resolve correctly.
     func isCloseableReceiver(_ receiverType: TypeID, sema: SemaModule) -> Bool {
         guard let autoCloseableType = sema.types.closeableTypeID else {
             return false
@@ -818,7 +818,7 @@ extension CallTypeChecker {
         // Fallback: check if the class explicitly declares AutoCloseable or Closeable
         // in its registered supertype list.  This handles synthetic IO types
         // (BufferedReader, BufferedWriter, InputStream, OutputStream) whose supertypes
-        // are registered via registerSyntheticFileIOStubs / setDirectSupertypes, without
+        // are registered via registerSyntheticJavaIOStreamStubs / setDirectSupertypes, without
         // accidentally treating every class that happens to define close() as closeable.
         let closeableSymbols: [SymbolID] = [
             sema.types.closeableInterfaceSymbol,

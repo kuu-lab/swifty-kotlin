@@ -1,269 +1,41 @@
-/// Synthetic stubs for java.io.File type.
+/// Synthetic stubs for the shared `java.io` stream primitives (`Reader`/
+/// `Writer`/`InputStream`/`OutputStream` families) plus `java.io.File`'s
+/// bare nominal shell.
 ///
-/// Covers:
-/// - STDLIB-320: `File(String)` constructor, `readText`, and `writeText`
-/// - STDLIB-664: `appendText(text: String)` member function
-/// - STDLIB-321: `name`, `path` properties; `exists()`, `isFile()`, `isDirectory()` query methods
-/// - STDLIB-322: buffered-reader `forEachLine(action:)` member function
-/// - STDLIB-323: `delete()`, `mkdirs()`, `listFiles()`, `walk()` filesystem operations
-/// - STDLIB-664: `appendText(text: String)` member function
-/// - STDLIB-567: `bufferedReader()` returning `BufferedReader` with `readLine()`, `readLines()`, `close()`
+/// CLEANUP-STUB-107 removed `java.io.File`'s own filesystem-operation
+/// *members* — `readText`/`writeText`/`appendText`,
+/// `exists`/`isFile`/`isDirectory`, `delete`/`mkdirs`/`listFiles`/`walk`,
+/// `bufferedReader`/`bufferedWriter`/`inputStream`/`outputStream`/
+/// `printWriter` factories, `copyTo`/`copyRecursively`, `PrintWriter`, and
+/// `kotlin.io.createTempDir`/`createTempFile` — as target-out JVM-only
+/// surface — see TODO.md. What remains here is kept because other surfaces
+/// still depend on it:
 ///
-/// `File.readLines`, `File.forEachLine`, and `File.useLines` are bundled Kotlin
-/// source APIs; only their underlying file-content bridge remains synthetic.
-///
-/// Each stub registers the java.io.File class, its constructor, member properties,
-/// and member functions in the symbol table so that name resolution and type
-/// checking succeed without requiring a full java.io runtime on the classpath.
+/// - `File`'s two constructors (`File(path)` / `File(parent, child)`) and its
+///   `path` property are NOT removed: `Stdlib/kotlin/io/Files.kt` (KSP-483)
+///   builds new `File` values (`resolveSibling`/`normalize`), and
+///   `kotlin.io.FileSystemException`'s `file`/`other` properties (KSP-619)
+///   are typed `File`/`File?` with real call sites (e.g.
+///   `AccessDeniedException(File(path))`). Without a constructor, `File`
+///   would be a type nothing could ever produce.
+/// - `Reader`/`BufferedReader`/`Writer`/`BufferedWriter`/`InputStream`/
+///   `OutputStream`/`ByteArrayInputStream`/`SequenceInputStream`/
+///   `BufferedInputStream` are reused by File-independent `kotlin.io`
+///   extensions (`String.byteInputStream()`, `ByteArray.inputStream()`,
+///   `InputStream.copyTo()`, etc). NOTE: despite bare class-symbol anchors
+///   for `BufferedReader`/`BufferedWriter`/`OutputStream` existing in
+///   `HeaderHelpers+SyntheticPathStubs.swift`, `Path` does not currently
+///   register `bufferedReader()`/`bufferedWriter()`/`outputStream()` as
+///   callable members — those anchors have no producer today. Since
+///   `File.outputStream()`/`bufferedWriter()` were this compiler's only
+///   producers of a bare `OutputStream`/`Writer`, those two types are
+///   currently unconstructible from Kotlin source (CLEANUP-STUB-115 territory).
+/// - `ClassLoader` resource access and `Charset` are unrelated to `File` but
+///   were historically co-located in this file; left untouched here.
 
 extension DataFlowSemaPhase {
 
-    func registerSyntheticFileIOBootstrap(
-        kotlinIOPkg: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        // --- java.io.File (STDLIB-320) ---
-        let javaIOPkg = ensureSyntheticPackageHierarchy(
-            fqName: [interner.intern("java"), interner.intern("io")],
-            symbols: symbols
-        )
-        let fileSymbol = ensureClassSymbol(
-            named: "File",
-            in: javaIOPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        let fileType = types.make(.classType(ClassType(
-            classSymbol: fileSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(fileType, for: fileSymbol)
-        let deprecatedCreateTempDirAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"Avoid creating temporary directories in the default temp location with this function due to too wide permissions on the newly created directory. Use kotlin.io.path.createTempDirectory instead.\"",
-                    "replaceWith = ReplaceWith(\"kotlin.io.path.createTempDirectory(prefix)\")",
-                    "level = DeprecationLevel.ERROR",
-                ]
-            ),
-        ]
-        let deprecatedCreateTempFileAnnotations = [
-            MetadataAnnotationRecord(
-                annotationFQName: "kotlin.Deprecated",
-                arguments: [
-                    "message = \"Avoid creating temporary files in the default temp location with this function due to too wide permissions on the newly created file. Use kotlin.io.path.createTempFile instead or resort to java.io.File.createTempFile.\"",
-                    "replaceWith = ReplaceWith(\"kotlin.io.path.createTempFile(prefix, suffix)\")",
-                    "level = DeprecationLevel.ERROR",
-                ]
-            ),
-        ]
-        registerSyntheticTopLevelFunction(
-            named: "createTempDir",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempDir_default",
-            annotations: deprecatedCreateTempDirAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempDir",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "prefix", type: types.stringType)],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempDir_prefix",
-            annotations: deprecatedCreateTempDirAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempDir",
-            packageFQName: kotlinIOPkg,
-            parameters: [
-                (name: "prefix", type: types.stringType),
-                (name: "suffix", type: types.makeNullable(types.stringType)),
-            ],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempDir_prefix_suffix",
-            annotations: deprecatedCreateTempDirAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempDir",
-            packageFQName: kotlinIOPkg,
-            parameters: [
-                (name: "prefix", type: types.stringType),
-                (name: "suffix", type: types.makeNullable(types.stringType)),
-                (name: "directory", type: types.makeNullable(fileType)),
-            ],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempDir",
-            annotations: deprecatedCreateTempDirAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempFile",
-            packageFQName: kotlinIOPkg,
-            parameters: [],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempFile_default",
-            annotations: deprecatedCreateTempFileAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempFile",
-            packageFQName: kotlinIOPkg,
-            parameters: [(name: "prefix", type: types.stringType)],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempFile_prefix",
-            annotations: deprecatedCreateTempFileAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempFile",
-            packageFQName: kotlinIOPkg,
-            parameters: [
-                (name: "prefix", type: types.stringType),
-                (name: "suffix", type: types.makeNullable(types.stringType)),
-            ],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempFile_prefix_suffix",
-            annotations: deprecatedCreateTempFileAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticTopLevelFunction(
-            named: "createTempFile",
-            packageFQName: kotlinIOPkg,
-            parameters: [
-                (name: "prefix", type: types.stringType),
-                (name: "suffix", type: types.makeNullable(types.stringType)),
-                (name: "directory", type: types.makeNullable(fileType)),
-            ],
-            returnType: fileType,
-            externalLinkName: "__kk_io_createTempFile",
-            annotations: deprecatedCreateTempFileAnnotations,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // File(path: String) constructor
-        registerSyntheticConstructor(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            externalLinkName: "__kk_file_new",
-            parameters: [(name: "path", type: types.stringType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // readText(): String
-        registerSyntheticSystemMember(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            name: "readText",
-            externalLinkName: "__kk_file_readText",
-            returnType: types.stringType,
-            parameters: [],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // writeText(text: String): Unit
-        registerSyntheticSystemMember(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            name: "writeText",
-            externalLinkName: "__kk_file_writeText",
-            returnType: types.unitType,
-            parameters: [(name: "text", type: types.stringType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // appendText(text: String): Unit
-        registerSyntheticSystemMember(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            name: "appendText",
-            externalLinkName: "__kk_file_appendText",
-            returnType: types.unitType,
-            parameters: [(name: "text", type: types.stringType)],
-            symbols: symbols,
-            interner: interner
-        )
-
-    }
-
-    private func registerSyntheticConstructor(
-        ownerSymbol: SymbolID,
-        ownerType: TypeID,
-        externalLinkName: String,
-        parameters: [(name: String, type: TypeID)],
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
-            return
-        }
-        let initName = interner.intern("<init>")
-        let ctorFQName = ownerInfo.fqName + [initName]
-        let hasMatchingConstructor = symbols.lookupAll(fqName: ctorFQName).contains { symbolID in
-            guard let symbol = symbols.symbol(symbolID),
-                  symbol.kind == .constructor,
-                  let signature = symbols.functionSignature(for: symbolID)
-            else {
-                return false
-            }
-            return signature.parameterTypes == parameters.map(\.type)
-        }
-        guard !hasMatchingConstructor else {
-            return
-        }
-        let ctorSymbol = symbols.define(
-            kind: .constructor,
-            name: initName,
-            fqName: ctorFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(ownerSymbol, for: ctorSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: ctorSymbol)
-        var valueParameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let paramSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: ctorFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(ctorSymbol, for: paramSymbol)
-            valueParameterSymbols.append(paramSymbol)
-        }
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                parameterTypes: parameters.map(\.type),
-                returnType: ownerType,
-                valueParameterSymbols: valueParameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: valueParameterSymbols.count),
-                valueParameterIsVararg: Array(repeating: false, count: valueParameterSymbols.count)
-            ),
-            for: ctorSymbol
-        )
-    }
-
-    func registerSyntheticFileIOStubs(
+    func registerSyntheticJavaIOStreamStubs(
         symbols: SymbolTable,
         types: TypeSystem,
         interner: StringInterner
@@ -274,6 +46,9 @@ extension DataFlowSemaPhase {
             interner: interner
         )
         let javaIOPkgSymbol = symbols.lookup(fqName: javaIOPkg)
+
+        // MARK: - File (bare shell + path + constructors only; see header doc)
+
         let fileSymbol = ensureClassSymbol(
             named: "File",
             in: javaIOPkg,
@@ -288,23 +63,12 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(fileType, for: fileSymbol)
 
-        // List<File> type for listFiles return
         let listSymbol = resolveListSymbol(symbols: symbols, interner: interner)
         if listSymbol == nil {
-            assertionFailure("kotlin.collections.List symbol not found; File IO stubs will use Any as fallback")
+            assertionFailure("kotlin.collections.List symbol not found; java.io stream stubs will use Any as fallback")
         }
-        let listOfFileType: TypeID = if let listSym = listSymbol {
-            types.make(.classType(ClassType(
-                classSymbol: listSym,
-                args: [.out(fileType)],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-        let nullableListOfFileType = types.makeNullable(listOfFileType)
 
-        // List<String> type for readLines return
+        // List<String> type for BufferedReader.readLines()/useLines() return
         let listOfStringType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
@@ -315,7 +79,7 @@ extension DataFlowSemaPhase {
             types.anyType
         }
 
-        // (String) -> Unit function type for forEachLine action parameter
+        // (String) -> Unit function type for BufferedReader.forEachLine action parameter
         let stringToUnitType = types.make(.functionType(FunctionType(
             params: [types.stringType],
             returnType: types.unitType,
@@ -323,42 +87,13 @@ extension DataFlowSemaPhase {
             nullability: .nonNull
         )))
 
-        // MARK: - File(String) constructor (STDLIB-320)
-
-        registerFileConstructor(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("path", types.stringType)],
-            externalLinkName: "__kk_file_new",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File(parent, child) constructor (STDLIB-IO-087)
-
-        registerFileConstructor(
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("parent", types.stringType), ("child", types.stringType)],
-            externalLinkName: "__kk_file_new_parent_child",
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File properties (STDLIB-321)
-
-        // KSP-483: `name` is migrated to Kotlin source (Stdlib/kotlin/io/Files.kt,
-        // auto-loaded by LoadSourcesPhase) as a pure-logic extension property
-        // derived from `path`. Direct compat stub removed.
-
-        // KSP-483: `nameWithoutExtension` is migrated to Kotlin source
-        // (Stdlib/kotlin/io/Files.kt). Direct compat stub removed.
-
         // KSP-483: `path` reads File's internal state, so it stays a direct
-        // synthetic member (not migrated). A Kotlin-source extension property
-        // named `path` would collide with the `kotlin.io.path` package FQName
-        // in this compiler's symbol table, so the other 12 pure-logic members
-        // below read `path` through this member instead of a bridge.
+        // synthetic member (not migrated to Kotlin source). A Kotlin-source
+        // extension property named `path` would collide with the
+        // `kotlin.io.path` package FQName in this compiler's symbol table.
+        // Consumed by `Stdlib/kotlin/io/Files.kt`'s pure-logic extension
+        // properties, `FileIO.kt`'s line-iteration helpers, and by
+        // `kotlin.io.FileSystemException.file`/`.other` (KSP-619).
         registerFileMemberProperty(
             named: "path",
             externalLinkName: "__kk_file_path",
@@ -368,172 +103,33 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - Additional File properties (STDLIB-IO-087)
+        // File must stay constructible even though its own member facade
+        // (readText/exists/bufferedReader/etc., STDLIB-320/321) was removed:
+        // `kotlin.io.FileSystemException` and friends (KSP-619) take `File`
+        // parameters, and `Files.kt`'s `resolveSibling`/`normalize` (KSP-483)
+        // build new `File` values from a path. Without a constructor, none
+        // of that source-backed surface could ever be exercised.
+        registerFileConstructor(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [("path", types.stringType)],
+            externalLinkName: "__kk_file_new",
+            symbols: symbols,
+            interner: interner
+        )
+        registerFileConstructor(
+            ownerSymbol: fileSymbol,
+            ownerType: fileType,
+            parameters: [("parent", types.stringType), ("child", types.stringType)],
+            externalLinkName: "__kk_file_new_parent_child",
+            symbols: symbols,
+            interner: interner
+        )
 
-        registerFileMemberProperty(
-            named: "absolutePath",
-            externalLinkName: "__kk_file_absolutePath",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberProperty(
-            named: "canonicalPath",
-            externalLinkName: "__kk_file_canonicalPath",
-            ownerSymbol: fileSymbol,
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
         let nullableStringType = types.makeNullable(types.stringType)
-
-        // KSP-483: `parent` and `extension` are migrated to Kotlin source
-        // (Stdlib/kotlin/io/Files.kt) as pure-logic extension properties
-        // derived from `path`. Direct compat stubs removed.
-
-        // MARK: - File query methods (STDLIB-321)
-
-        registerFileMemberFunction(
-            named: "exists",
-            externalLinkName: "__kk_file_exists",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "isFile",
-            externalLinkName: "__kk_file_isFile",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "isDirectory",
-            externalLinkName: "__kk_file_isDirectory",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - Additional File query/operation methods (STDLIB-IO-087)
-
-        registerFileMemberFunction(
-            named: "createNewFile",
-            externalLinkName: "__kk_file_createNewFile",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "length",
-            externalLinkName: "__kk_file_length",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.longType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "lastModified",
-            externalLinkName: "__kk_file_lastModified",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.longType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "canRead",
-            externalLinkName: "__kk_file_canRead",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "canWrite",
-            externalLinkName: "__kk_file_canWrite",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "canExecute",
-            externalLinkName: "__kk_file_canExecute",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // KSP-483: `resolveSibling` (File/String overloads), `normalize`,
-        // `startsWith` (File/String overloads), and `toRelativeString` are
-        // migrated to Kotlin source (Stdlib/kotlin/io/Files.kt) as pure-logic
-        // functions derived from `path`. Direct compat stubs removed.
-
-        // MARK: - File read/write methods (STDLIB-320)
-        // KSP-484 keeps line iteration in bundled Kotlin source; these methods
-        // remain synthetic OS bridges used by that source and public byte/text APIs.
-
-        registerFileMemberFunction(
-            named: "readText",
-            externalLinkName: "__kk_file_readText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "writeText",
-            externalLinkName: "__kk_file_writeText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File.appendText() (STDLIB-664)
-
-        registerFileMemberFunction(
-            named: "appendText",
-            externalLinkName: "__kk_file_appendText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        // MARK: - File.readBytes() (STDLIB-665)
-
-        // ByteArray is represented as List<Int> in the runtime
         let intType = types.intType
+
+        // ByteArray is represented as List<Int> in the runtime.
         let listOfIntType: TypeID = if let listSym = listSymbol {
             types.make(.classType(ClassType(
                 classSymbol: listSym,
@@ -543,208 +139,15 @@ extension DataFlowSemaPhase {
         } else {
             types.anyType
         }
-        registerFileMemberFunction(
-            named: "readBytes",
-            externalLinkName: "__kk_file_readBytes",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: listOfIntType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File.appendBytes() (STDLIB-IO-FN-001)
-        //
-        // Kotlin signature: `fun File.appendBytes(array: ByteArray): Unit`
-        // ByteArray is represented internally as List<Int>; we register both
-        // the ByteArray-typed overload (user-facing) and List<Int> (internal)
-        // so that both `byteArrayOf(...)` and `listOf(...)` argument styles resolve.
-
         let byteArrayFQName: [InternedString] = [interner.intern("kotlin"), interner.intern("ByteArray")]
-        let appendBytesByteArrayType: TypeID
-        if let byteArraySymbol = symbols.lookup(fqName: byteArrayFQName) {
-            appendBytesByteArrayType = types.make(.classType(ClassType(
-                classSymbol: byteArraySymbol, args: [], nullability: .nonNull
-            )))
-        } else {
-            appendBytesByteArrayType = listOfIntType
-        }
-        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
-            registerFileMemberFunction(
-                named: "appendBytes",
-                externalLinkName: "__kk_file_appendBytes",
-                ownerSymbol: fileSymbol,
-                ownerType: fileType,
-                parameters: [("array", arrayParamType)],
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
 
-        // MARK: - File.writeBytes() (MIGRATION-IO-001)
-        //
-        // Kotlin signature: `fun File.writeBytes(array: ByteArray): Unit`
-
-        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
-            registerFileMemberFunction(
-                named: "writeBytes",
-                externalLinkName: "__kk_file_writeBytes",
-                ownerSymbol: fileSymbol,
-                ownerType: fileType,
-                parameters: [("array", arrayParamType)],
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // MARK: - MIGRATION-IO-001: Private C-bridge stubs called from BundledStdlib
-
-        registerFileMemberFunction(
-            named: "__kk_file_readText",
-            externalLinkName: "__kk_file_readText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.stringType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "__kk_file_writeText",
-            externalLinkName: "__kk_file_writeText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "__kk_file_appendText",
-            externalLinkName: "__kk_file_appendText",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "__kk_file_readBytes",
-            externalLinkName: "__kk_file_readBytes",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: listOfIntType,
-            symbols: symbols,
-            interner: interner
-        )
-        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
-            registerFileMemberFunction(
-                named: "__kk_file_appendBytes",
-                externalLinkName: "__kk_file_appendBytes",
-                ownerSymbol: fileSymbol,
-                ownerType: fileType,
-                parameters: [("array", arrayParamType)],
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-        for arrayParamType in [appendBytesByteArrayType, listOfIntType] {
-            registerFileMemberFunction(
-                named: "__kk_file_writeBytes",
-                externalLinkName: "__kk_file_writeBytes",
-                ownerSymbol: fileSymbol,
-                ownerType: fileType,
-                parameters: [("array", arrayParamType)],
-                returnType: types.unitType,
-                symbols: symbols,
-                interner: interner
-            )
-        }
-
-        // MARK: - File.forEachBlock(action) and File.forEachBlock(blockSize, action) (STDLIB-IO-FN-016)
-        let byteArrayToIntToUnitType = types.make(.functionType(FunctionType(
-            params: [listOfIntType, types.intType],
-            returnType: types.unitType,
-            isSuspend: false,
-            nullability: .nonNull
-        )))
-        registerFileMemberFunction(
-            named: "forEachBlock",
-            externalLinkName: "__kk_file_forEachBlock",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("action", byteArrayToIntToUnitType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "forEachBlock",
-            externalLinkName: "__kk_file_forEachBlock_blockSize",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [("blockSize", types.intType), ("action", byteArrayToIntToUnitType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File filesystem operations (STDLIB-323)
-
-        registerFileMemberFunction(
-            named: "delete",
-            externalLinkName: "__kk_file_delete",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "mkdirs",
-            externalLinkName: "__kk_file_mkdirs",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: types.booleanType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "listFiles",
-            externalLinkName: "__kk_file_listFiles",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: nullableListOfFileType,
-            symbols: symbols,
-            interner: interner
-        )
-        registerFileMemberFunction(
-            named: "walk",
-            externalLinkName: "__kk_file_walk",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: listOfFileType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - Reader / BufferedReader types and File.bufferedReader() (STDLIB-567)
+        // MARK: - Reader / BufferedReader types (STDLIB-567)
 
         // `java.io.Reader` is the abstract supertype of `BufferedReader` and is
         // the receiver of `kotlin.io` extension functions such as
         // `Reader.readText()` (STDLIB-IO-FN-033). We register it as a synthetic
-        // class so that extension calls on any concrete reader instance (which
-        // is currently always a `BufferedReader`) resolve correctly.
+        // class so that extension calls on any concrete reader instance
+        // resolve correctly.
         let readerSymbol = ensureClassSymbol(
             named: "Reader",
             in: javaIOPkg,
@@ -769,18 +172,6 @@ extension DataFlowSemaPhase {
         )))
         symbols.setPropertyType(readerType, for: readerSymbol)
         symbols.setPropertyType(bufferedReaderType, for: bufferedReaderSymbol)
-
-        // File.bufferedReader() -> BufferedReader
-        registerFileMemberFunction(
-            named: "bufferedReader",
-            externalLinkName: "__kk_file_bufferedReader",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: bufferedReaderType,
-            symbols: symbols,
-            interner: interner
-        )
 
         // BufferedReader.readLine() -> String?
         registerFileMemberFunction(
@@ -820,16 +211,14 @@ extension DataFlowSemaPhase {
 
         // Register BufferedReader as a Reader/Closeable subtype.
         // - Reader supertype lets `Reader.readText()` (STDLIB-IO-FN-033) resolve
-        //   when invoked on a `BufferedReader` value (the only concrete reader
-        //   currently produced by `File.bufferedReader()` etc.).
+        //   when invoked on a `BufferedReader` value.
         // - Closeable supertype (STDLIB-IO-093) lets `.use {}` work:
-        //   `file.bufferedReader().use { reader -> ... }`.
+        //   `path.bufferedReader().use { reader -> ... }`.
         let readerCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
         symbols.setDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
         types.setNominalDirectSupertypes([readerCloseableSymbol], for: readerSymbol)
         symbols.setDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
         types.setNominalDirectSupertypes([readerSymbol, readerCloseableSymbol], for: bufferedReaderSymbol)
-        // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091)
 
         // BufferedReader.read() -> Int  (STDLIB-IO-091)
         registerFileMemberFunction(
@@ -900,9 +289,9 @@ extension DataFlowSemaPhase {
         // Kotlin declares `useLines` as an extension function on `kotlin.io.Reader`
         // (which `BufferedReader` extends). The lambda is invoked with the receiver's
         // remaining lines as a `Sequence<String>`, and the reader is closed before
-        // the function returns. We model the lambda parameter as `List<String>` for
-        // parity with the existing `File.useLines` stub — both flow through the same
-        // runtime helper shape (lines materialised eagerly into a `RuntimeListBox`).
+        // the function returns. We model the lambda parameter as `List<String>`,
+        // flowing through the same runtime helper shape (lines materialised
+        // eagerly into a `RuntimeListBox`).
         let listOfStringToAnyTypeBR = types.make(.functionType(FunctionType(
             params: [listOfStringType],
             returnType: types.anyType,
@@ -924,8 +313,7 @@ extension DataFlowSemaPhase {
         //
         // Kotlin declares `forEachLine` as an extension function on `kotlin.io.Reader`
         // (which `BufferedReader` extends). The lambda receives each line as a `String`
-        // and returns `Unit`. We model it as a member of `java.io.BufferedReader` so
-        // user code can call `file.bufferedReader().forEachLine { line -> ... }`.
+        // and returns `Unit`. We model it as a member of `java.io.BufferedReader`.
         // Unlike `useLines`, the reader is NOT automatically closed after iteration.
         registerFileMemberFunction(
             named: "forEachLine",
@@ -938,7 +326,7 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // MARK: - BufferedWriter type and File.bufferedWriter() (STDLIB-IO-091/093)
+        // MARK: - Writer / BufferedWriter types (STDLIB-IO-091/093)
 
         let writerSymbol = ensureClassSymbol(
             named: "Writer",
@@ -971,18 +359,6 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([writerCloseableSymbol], for: writerSymbol)
         symbols.setDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
         types.setNominalDirectSupertypes([writerSymbol, writerCloseableSymbol], for: bufferedWriterSymbol)
-
-        // File.bufferedWriter() -> BufferedWriter
-        registerFileMemberFunction(
-            named: "bufferedWriter",
-            externalLinkName: "__kk_file_bufferedWriter",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: bufferedWriterType,
-            symbols: symbols,
-            interner: interner
-        )
 
         // BufferedWriter.write(text: String) -> Unit
         registerFileMemberFunction(
@@ -1034,7 +410,7 @@ extension DataFlowSemaPhase {
 
         // MARK: - InputStream / OutputStream (STDLIB-IO-092)
 
-        // MARK: - Resource access (STDLIB-IO-093)
+        // MARK: - Resource access (STDLIB-IO-093; unrelated to File, historically co-located)
 
         let javaLangPkg = ensurePackage(
             path: ["java", "lang"],
@@ -1114,37 +490,6 @@ extension DataFlowSemaPhase {
         symbols.setDirectSupertypes([inputStreamSymbol], for: byteArrayInputStreamSymbol)
         types.setNominalDirectSupertypes([inputStreamSymbol], for: byteArrayInputStreamSymbol)
         let nullableInputStreamType = types.makeNullable(inputStreamType)
-        let listIntType: TypeID = if let listSym = listSymbol {
-            types.make(.classType(ClassType(
-                classSymbol: listSym,
-                args: [.out(types.intType)],
-                nullability: .nonNull
-            )))
-        } else {
-            types.anyType
-        }
-
-        registerFileMemberFunction(
-            named: "inputStream",
-            externalLinkName: "__kk_file_inputStream",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: inputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        registerFileMemberFunction(
-            named: "outputStream",
-            externalLinkName: "__kk_file_outputStream",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: outputStreamType,
-            symbols: symbols,
-            interner: interner
-        )
 
         registerFileConstructor(
             ownerSymbol: sequenceInputStreamSymbol,
@@ -1158,7 +503,7 @@ extension DataFlowSemaPhase {
         registerFileConstructor(
             ownerSymbol: byteArrayInputStreamSymbol,
             ownerType: byteArrayInputStreamType,
-            parameters: [("buffer", listIntType)],
+            parameters: [("buffer", listOfIntType)],
             externalLinkName: "__kk_bytearrayinputstream_new",
             symbols: symbols,
             interner: interner
@@ -1254,11 +599,10 @@ extension DataFlowSemaPhase {
         //   public fun InputStream.readBytes(): ByteArray
         //
         // Reads all remaining bytes from `this` and returns them as a freshly
-        // allocated ByteArray.  We model ByteArray as List<Int>, matching the
-        // representation used by File.readBytes() / Path.readBytes().
+        // allocated ByteArray. We model ByteArray as List<Int>.
         //
         // Note: this extension does NOT close the receiver — callers typically
-        // wrap the call in `.use { it.readBytes() }`.  Sema only needs to
+        // wrap the call in `.use { it.readBytes() }`. Sema only needs to
         // resolve the call shape; the runtime drains the stream.
         registerFileMemberFunction(
             named: "readBytes",
@@ -1563,10 +907,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        // KSP-483: `invariantSeparatorsPath` is migrated to Kotlin source
-        // (Stdlib/kotlin/io/Files.kt) as a pure-logic extension property
-        // derived from `path`. Direct compat stub removed.
-
         // MARK: - OutputStream.bufferedWriter(charset) (STDLIB-IO-FN-009)
         //
         // Kotlin signature: `public fun OutputStream.bufferedWriter(
@@ -1603,135 +943,6 @@ extension DataFlowSemaPhase {
             externalLinkName: "__kk_output_stream_bufferedWriter",
             valueParameterHasDefaultValues: [true],
             valueParameterIsVararg: [false],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - PrintWriter type and File.printWriter() (STDLIB-IO-FN-027)
-
-        let printWriterSymbol = ensureClassSymbol(
-            named: "PrintWriter",
-            in: javaIOPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        if let javaIOPkgSymbol {
-            symbols.setParentSymbol(javaIOPkgSymbol, for: printWriterSymbol)
-        }
-        let printWriterType = types.make(.classType(ClassType(
-            classSymbol: printWriterSymbol, args: [], nullability: .nonNull
-        )))
-        symbols.setPropertyType(printWriterType, for: printWriterSymbol)
-
-        // Register PrintWriter as a Closeable subtype so that .use {} works
-        let printWriterCloseableSymbol = types.ioCloseableInterfaceSymbol ?? javaIOCloseableSymbol
-        symbols.setDirectSupertypes([printWriterCloseableSymbol], for: printWriterSymbol)
-        types.setNominalDirectSupertypes([printWriterCloseableSymbol], for: printWriterSymbol)
-
-        // File.printWriter() -> PrintWriter
-        registerFileMemberFunction(
-            named: "printWriter",
-            externalLinkName: "__kk_file_printWriter",
-            ownerSymbol: fileSymbol,
-            ownerType: fileType,
-            parameters: [],
-            returnType: printWriterType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.print(text: String) -> Unit
-        registerFileMemberFunction(
-            named: "print",
-            externalLinkName: "__kk_print_writer_print",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.println(text: String) -> Unit
-        registerFileMemberFunction(
-            named: "println",
-            externalLinkName: "__kk_print_writer_println",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.println() -> Unit  (no-arg overload)
-        registerFileMemberFunction(
-            named: "println",
-            externalLinkName: "__kk_print_writer_println_no_arg",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.write(text: String) -> Unit
-        registerFileMemberFunction(
-            named: "write",
-            externalLinkName: "__kk_print_writer_write",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [("text", types.stringType)],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.flush() -> Unit
-        registerFileMemberFunction(
-            named: "flush",
-            externalLinkName: "__kk_print_writer_flush",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // PrintWriter.close() -> Unit
-        registerFileMemberFunction(
-            named: "close",
-            externalLinkName: "__kk_print_writer_close",
-            ownerSymbol: printWriterSymbol,
-            ownerType: printWriterType,
-            parameters: [],
-            returnType: types.unitType,
-            symbols: symbols,
-            interner: interner
-        )
-
-        // MARK: - File.copyTo(target, overwrite, bufferSize) (STDLIB-IO-FN-015)
-        //
-        // Kotlin signature: `public fun File.copyTo(
-        //     target: File,
-        //     overwrite: Boolean = false,
-        //     bufferSize: Int = DEFAULT_BUFFER_SIZE
-        // ): File` declared in the `kotlin.io` package.
-        registerKotlinIOExtensionFunction(
-            named: "copyTo",
-            packageFQName: kotlinIOPkg,
-            receiverType: fileType,
-            parameters: [
-                ("target", fileType),
-                ("overwrite", types.booleanType),
-                ("bufferSize", types.intType),
-            ],
-            returnType: fileType,
-            externalLinkName: "__kk_file_copyTo",
-            valueParameterHasDefaultValues: [false, true, true],
-            valueParameterIsVararg: [false, false, false],
             symbols: symbols,
             interner: interner
         )
@@ -1867,7 +1078,6 @@ extension DataFlowSemaPhase {
         // STDLIB-IO-FN-007: kotlin.io.InputStream.bufferedReader(charset)
         // Top-level extension function on java.io.InputStream returning BufferedReader.
         // Signature: fun InputStream.bufferedReader(charset: Charset = Charsets.UTF_8): BufferedReader
-        // charsetFQName is already defined above (line 1042) as kotlinTextPkg + ["Charset"]
         let resolvedCharsetType: TypeID = {
             if let charsetSymbol = symbols.lookup(fqName: charsetFQName) {
                 return types.make(.classType(ClassType(
@@ -1887,38 +1097,6 @@ extension DataFlowSemaPhase {
             returnType: bufferedReaderType,
             externalLinkName: "__kk_input_stream_bufferedReader",
             valueParameterHasDefaultValues: [true],
-            symbols: symbols,
-            interner: interner
-        )
-
-        // KSP-483: `isRooted` is migrated to Kotlin source (Stdlib/kotlin/io/Files.kt)
-        // as a pure-logic extension property derived from `path`. Direct compat
-        // stub removed.
-
-        // MARK: - File.copyRecursively(target, overwrite) (STDLIB-IO-FN-012)
-        //
-        // Kotlin signature:
-        //   public fun File.copyRecursively(
-        //       target: File,
-        //       overwrite: Boolean = false,
-        //       onError: (File, IOException) -> OnErrorAction = { _, exception -> throw exception }
-        //   ): Boolean
-        //
-        // This stub covers the primary (target, overwrite) overload.  The `onError`
-        // lambda parameter is not modelled here; callers relying on the default
-        // error handler (re-throw) are fully supported by the runtime implementation.
-        registerKotlinIOExtensionFunction(
-            named: "copyRecursively",
-            packageFQName: kotlinIOPkg,
-            receiverType: fileType,
-            parameters: [
-                ("target", fileType),
-                ("overwrite", types.booleanType),
-            ],
-            returnType: types.booleanType,
-            externalLinkName: "__kk_file_copyRecursively",
-            valueParameterHasDefaultValues: [false, true],
-            valueParameterIsVararg: [false, false],
             symbols: symbols,
             interner: interner
         )
@@ -2100,7 +1278,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-
     func registerFileMemberFunction(
         named name: String,
         externalLinkName: String,
@@ -2250,9 +1427,9 @@ extension DataFlowSemaPhase {
 
     /// Register a top-level Kotlin extension function in `packageFQName` with the
     /// provided receiver. Mirrors `registerPathExtensionFunction` from
-    /// `HeaderHelpers+SyntheticPathStubs.swift`, scoped to FileIO so that
+    /// `HeaderHelpers+SyntheticPathStubs.swift`, scoped to this file so that
     /// extensions on `InputStream` / `OutputStream` can live next to the rest
-    /// of the FileIO stubs without leaking helpers between extension files.
+    /// of the java.io stream stubs without leaking helpers between extension files.
     private func registerExtensionFunction(
         named name: String,
         packageFQName: [InternedString],
