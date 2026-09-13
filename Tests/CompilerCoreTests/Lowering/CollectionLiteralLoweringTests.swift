@@ -889,10 +889,16 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
-    // MARK: - buildSet rewriting (STDLIB-072)
+    // MARK: - buildSet is no longer rewritten (RF-LOWER-CALL-005)
 
+    /// In production `buildSet` resolves to the bundled `CollectionBuilders.kt`
+    /// declaration and is left alone — `BuilderDSLLoweringRoutingTests` pins
+    /// that from source.  RF-LOWER-CALL-005 removed the legacy
+    /// `__kk_build_set` rewrite, so even this hand-built `symbol: nil` shape —
+    /// the branch that used to short-circuit `isStdlibBuilderDSLCall` to
+    /// `true` — must now pass through untouched.
     @Test
-    func testBuildSetRewrittenToKkBuildSet() throws {
+    func testBuildSetIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildSet")
@@ -902,12 +908,15 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildSet"), "buildSet should be rewritten")
-        #expect(callees.contains("__kk_build_set"), "buildSet should become __kk_build_set")
+        #expect(callees.contains("buildSet"), "buildSet should not be rewritten; callees: \(callees)")
+        #expect(
+            !callees.contains("__kk_build_set"),
+            "the legacy __kk_build_set rewrite must not come back; callees: \(callees)"
+        )
     }
 
     @Test
-    func testBuildSetCapacityRewrittenToKkBuildSetWithCapacity() throws {
+    func testBuildSetCapacityIsNotRewritten() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -939,37 +948,28 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildSet"), "buildSet(capacity) should be rewritten")
+        #expect(callees.contains("buildSet"), "buildSet(capacity) should not be rewritten; callees: \(callees)")
         #expect(
-            callees.contains("__kk_build_set_with_capacity"),
-            "buildSet(capacity) should become __kk_build_set_with_capacity"
+            !callees.contains("__kk_build_set_with_capacity"),
+            "the legacy __kk_build_set_with_capacity rewrite must not come back; callees: \(callees)"
         )
     }
 
-    // MARK: - buildMap rewriting (STDLIB-071)
+    // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
 
-    @Test
-    func testBuildMapRewrittenToKkBuildMap() throws {
+    /// `buildMap` is supplied entirely by `CollectionBuilders.kt`, so the
+    /// legacy `__kk_build_map*` rewrite was removed.  These cases use the
+    /// `symbol: nil` hand-built shape that used to bypass every guard in
+    /// `isStdlibBuilderDSLCall` via `guard let symbol else { return true }` —
+    /// the strongest input the rewrite ever accepted.  It must now fall
+    /// through untouched, which only holds while `buildMap` stays out of
+    /// `builderDSLNames`.
+    @Test(arguments: [1, 2])
+    func testBuildMapIsNotRewrittenToRuntimeBuilder(argumentCount: Int) throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let callee = interner.intern("buildMap")
-        let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
-        #expect(callees.contains("__kk_build_map"), "buildMap should become __kk_build_map")
-    }
-
-    @Test
-    func testBuildMapCapacityRewrittenToKkBuildMapWithCapacity() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let arg0 = arena.appendExpr(.temporary(0))
-        let arg1 = arena.appendExpr(.temporary(1))
-        let result = arena.appendExpr(.temporary(2))
+        let arguments = (0 ..< argumentCount).map { arena.appendExpr(.temporary(Int32($0))) }
+        let result = arena.appendExpr(.temporary(Int32(argumentCount)))
         let fn = KIRFunction(
             symbol: SymbolID(rawValue: 1),
             name: interner.intern("main"),
@@ -979,7 +979,7 @@ struct CollectionLiteralLoweringTests {
                 .call(
                     symbol: nil,
                     callee: interner.intern("buildMap"),
-                    arguments: [arg0, arg1],
+                    arguments: arguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -996,10 +996,14 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildMap"), "buildMap(capacity) should be rewritten")
+        #expect(callees.contains("buildMap"), "buildMap must stay a plain call; callees: \(callees)")
         #expect(
-            callees.contains("__kk_build_map_with_capacity"),
-            "buildMap(capacity) should become __kk_build_map_with_capacity"
+            !callees.contains("__kk_build_map"),
+            "the __kk_build_map rewrite is deleted; callees: \(callees)"
+        )
+        #expect(
+            !callees.contains("__kk_build_map_with_capacity"),
+            "the __kk_build_map_with_capacity rewrite is deleted; callees: \(callees)"
         )
     }
 

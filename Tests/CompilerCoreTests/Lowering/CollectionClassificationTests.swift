@@ -42,13 +42,7 @@ struct CollectionClassificationTests {
             var state = State()
             CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
                 function: function, lookup: CollectionLiteralLookupTables(interner: interner),
-                arena: arena, sema: sema, interner: interner,
-                listExprIDs: &state.listExprIDs, setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs, arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs, rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs, ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs, fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
+                arena: arena, sema: sema, interner: interner, state: &state
             )
             return state
         }
@@ -166,6 +160,20 @@ struct CollectionClassificationTests {
         ]))
         #expect(state.stringExprIDs == [string.rawValue, copy.rawValue])
         #expect(state.listExprIDs.isEmpty && state.arrayExprIDs.isEmpty)
+    }
+
+    @Test
+    func seedingKeepsAStaticTypeWhenTheCopiedValueIsUnclassified() {
+        let fixture = Fixture()
+        let storage = fixture.arena.appendTemporary(
+            type: fixture.classType(["kotlin", "collections", "List"])
+        )
+        let unknown = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([.copy(from: unknown, to: storage)]))
+
+        // The static type still holds for the instructions that precede the
+        // copy; dropping the seed here is the rewrite's job, not the seed's.
+        #expect(state.listExprIDs == [storage.rawValue])
     }
 
     @Test
