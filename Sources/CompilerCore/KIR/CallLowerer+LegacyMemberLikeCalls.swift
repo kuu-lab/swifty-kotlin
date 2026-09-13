@@ -1019,8 +1019,6 @@ extension CallLowerer {
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
             case ("toChar", uintType, charType): interner.intern("kk_uint_to_char")
             case ("toChar", ulongType, charType): interner.intern("kk_ulong_to_char")
-            case ("toChar", ubyteType, charType): interner.intern("kk_ubyte_to_char")
-            case ("toChar", ushortType, charType): interner.intern("kk_ushort_to_char")
             case ("toChar", charType, charType): nil // identity
             default: nil
             }
