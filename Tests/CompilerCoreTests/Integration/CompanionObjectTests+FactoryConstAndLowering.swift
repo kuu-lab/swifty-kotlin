@@ -3,8 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - CLASS-001: End-to-end companion object (factory, const val, singleton)
-
 extension CompanionObjectTests {
 
     @Test func testFactoryConstAndLoweringSema() throws {
@@ -78,7 +76,6 @@ extension CompanionObjectTests {
                 let sample0Path = paths[0]
                 let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for Foo.create(), got: \(sampleDiags.map(\.code))"
@@ -90,7 +87,6 @@ extension CompanionObjectTests {
             do {
                 let sample1Path = paths[1]
                 let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
-
 
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
@@ -104,7 +100,6 @@ extension CompanionObjectTests {
                 let sample2Path = paths[2]
                 let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors, got: \(sampleDiags.map(\.code))"
@@ -117,7 +112,6 @@ extension CompanionObjectTests {
                 let sample3Path = paths[3]
                 let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no errors for named companion factory, got: \(sampleDiags.map(\.code))"
@@ -127,25 +121,6 @@ extension CompanionObjectTests {
 
         }
     }
-
-
-    /// Verify `Foo.create()` companion factory resolves through sema with no errors.
-
-
-
-
-    /// Verify `Foo.MAX_COUNT` const val access resolves through sema with no errors.
-
-
-
-
-    /// Combined: factory function + const val in the same companion, used from main.
-
-
-
-
-    /// Verify companion factory + const val lowers to KIR with companion init synthesized.
-
 
     @Test func testCompanionFactoryAndConstValKIRLowering() throws {
         let source = """
@@ -174,23 +149,16 @@ extension CompanionObjectTests {
             ctx.interner.resolve(function.name)
         }
 
-        // Companion initializer must be synthesized
         #expect(
             functionNames.contains(where: { $0.hasPrefix("__companion_init_") }),
             "Expected synthesized companion initializer, got: \(functionNames)"
         )
 
-        // The create function must be lowered
         #expect(
             functionNames.contains("create"),
             "Expected companion function 'create' in KIR, got: \(functionNames)"
         )
     }
-
-
-
-    /// Verify exactly one companion singleton init function is synthesized.
-
 
     @Test func testCompanionSingletonInitSynthesizedExactlyOnce() throws {
         let source = """
@@ -224,16 +192,6 @@ extension CompanionObjectTests {
         )
     }
 
-
-
-    /// Named companion object should resolve factory calls via `ClassName.factoryFn()`.
-
-
-
-
-    /// Companion lowering through the full pipeline including LoweringPhase.
-
-
     @Test func testCompanionObjectFullPipelineLowering() throws {
         let source = """
         class Foo(val x: Int) {
@@ -256,11 +214,6 @@ extension CompanionObjectTests {
         )
     }
 
-
-
-    /// Companion object with property initializer generates correct KIR body.
-
-
     @Test func testCompanionPropertyInitializerInKIRBody() throws {
         let source = """
         class Config {
@@ -281,8 +234,6 @@ extension CompanionObjectTests {
             )
 
             let module = try #require(ctx.kir)
-            // Find the companion init function and verify it has a copy instruction
-            // (property initialization writes the initial value)
             let expectedInitName = try companionInitializerName(forOwnerNamed: "Config", in: ctx)
             let companionInitFn = findAllKIRFunctions(in: module).compactMap { function -> KIRFunction? in
                 let name = ctx.interner.resolve(function.name)
@@ -297,8 +248,6 @@ extension CompanionObjectTests {
         }
     }
 
-
-
     private func companionInitializerName(
         forOwnerNamed ownerName: String,
         in ctx: CompilationContext
@@ -308,7 +257,6 @@ extension CompanionObjectTests {
         let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: ownerSymbol))
         return "__companion_init_\(ownerSymbol.rawValue)_\(companionSymbol.rawValue)"
     }
-
 
 }
 #endif

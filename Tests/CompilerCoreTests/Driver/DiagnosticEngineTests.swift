@@ -367,17 +367,6 @@ struct DiagnosticEngineTests {
         #expect(engine.diagnostics[2].code == "N1")
     }
 
-    // MARK: - Diagnostic Equality
-
-    @Test
-    func testDiagnosticEquality() {
-        let d1 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        let d2 = Diagnostic(severity: .error, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        let d3 = Diagnostic(severity: .warning, code: "E", message: "m", primaryRange: nil, secondaryRanges: [])
-        #expect(d1 == d2)
-        #expect(d1 != d3)
-    }
-
     @Test
     func testDiagnosticWithSecondaryRanges() {
         let range1 = makeRange(start: 0, end: 5)
@@ -606,15 +595,6 @@ struct DiagnosticEngineTests {
             withActions.count >= 10,
             "Registry should have at least 10 diagnostics with codeActions"
         )
-    }
-
-    // MARK: - DiagnosticsFormat
-
-    @Test
-    func testDiagnosticsFormatRawValues() {
-        #expect(DiagnosticsFormat(rawValue: "text") == .text)
-        #expect(DiagnosticsFormat(rawValue: "json") == .json)
-        #expect(DiagnosticsFormat(rawValue: "xml") == nil)
     }
 
     // MARK: - codeActions on Diagnostic

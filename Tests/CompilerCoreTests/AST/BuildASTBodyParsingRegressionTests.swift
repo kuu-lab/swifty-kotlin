@@ -3,10 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - BuildAST BodyParsing Regression Tests
-
-// Target: BuildASTPhase+BodyParsing.swift (56.9%)
-
 @Suite
 struct BuildASTBodyParsingRegressionTests {
 

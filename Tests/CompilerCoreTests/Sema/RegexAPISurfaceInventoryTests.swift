@@ -3,23 +3,8 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-REGEX-001: kotlin.text.Regex API Surface Inventory
-//
-// This file catalogues *every* Regex-related symbol that the sema layer registers
-// as a synthetic stub and verifies that:
-//   • the symbol exists in the symbol table after sema
-//   • it is wired to the expected ABI / external-link name
-//   • class-member lookups use the correct fully-qualified path
-//     (kotlin.text.<ClassName>.<member>)
-//   • top-level constructor overloads and companion methods are all present
-//
-// Scope: signature-level / sema-level only — runtime correctness is covered by
-//        RuntimeRegexTests and STDLIB-REGEX-003 (commit #1208).
-
 @Suite
 struct RegexAPISurfaceInventoryTests {
-
-    // MARK: - Shared sema fixture
 
     private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
 
@@ -141,9 +126,6 @@ struct RegexAPISurfaceInventoryTests {
         return ctxAndPaths
     }
 
-    // MARK: - Lookup helpers
-
-    /// External link for a kotlin.text-level symbol (top-level or class member).
     private func externalLink(
         fqPath: [String],
         sema: SemaModule,
@@ -154,7 +136,6 @@ struct RegexAPISurfaceInventoryTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    /// All external links registered under the given FQ path.
     private func allExternalLinks(
         fqPath: [String],
         sema: SemaModule,

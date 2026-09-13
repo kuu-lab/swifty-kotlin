@@ -3,8 +3,6 @@
 import Foundation
 import Testing
 
-// MARK: - STDLIB-OBJ-016: Companion Object Private Access Tests
-
 extension CompanionObjectTests {
 
     @Test func testPrivateAccessSema() throws {
@@ -217,7 +215,6 @@ extension CompanionObjectTests {
                 let sample0Path = paths[0]
                 let sampleDiags = diagnosticsForPath(sample0Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for companion accessing private constructor, got: \(sampleDiags.map(\.code))"
@@ -229,7 +226,6 @@ extension CompanionObjectTests {
             do {
                 let sample1Path = paths[1]
                 let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
-
 
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
@@ -243,7 +239,6 @@ extension CompanionObjectTests {
                 let sample2Path = paths[2]
                 let sampleDiags = diagnosticsForPath(sample2Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for companion accessing private method, got: \(sampleDiags.map(\.code))"
@@ -255,7 +250,6 @@ extension CompanionObjectTests {
             do {
                 let sample3Path = paths[3]
                 let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
-
 
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
@@ -269,7 +263,6 @@ extension CompanionObjectTests {
                 let sample4Path = paths[4]
                 let sampleDiags = diagnosticsForPath(sample4Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for factory pattern with private constructor, got: \(sampleDiags.map(\.code))"
@@ -281,7 +274,6 @@ extension CompanionObjectTests {
             do {
                 let sample5Path = paths[5]
                 let sampleDiags = diagnosticsForPath(sample5Path, in: ctx)
-
 
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
@@ -295,7 +287,6 @@ extension CompanionObjectTests {
                 let sample6Path = paths[6]
                 let sampleDiags = diagnosticsForPath(sample6Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Nested objects currently share the enclosing class's private access rules"
@@ -307,7 +298,6 @@ extension CompanionObjectTests {
             do {
                 let sample7Path = paths[7]
                 let sampleDiags = diagnosticsForPath(sample7Path, in: ctx)
-
 
                         #expect(
                             sampleDiags.contains(where: { $0.severity == .error }),
@@ -321,7 +311,6 @@ extension CompanionObjectTests {
                 let sample8Path = paths[8]
                 let sampleDiags = diagnosticsForPath(sample8Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for companion extension function, got: \(sampleDiags.map(\.code))"
@@ -333,7 +322,6 @@ extension CompanionObjectTests {
             do {
                 let sample9Path = paths[9]
                 let sampleDiags = diagnosticsForPath(sample9Path, in: ctx)
-
 
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
@@ -347,7 +335,6 @@ extension CompanionObjectTests {
                 let sample10Path = paths[10]
                 let sampleDiags = diagnosticsForPath(sample10Path, in: ctx)
 
-
                         #expect(
                             !(sampleDiags.contains(where: { $0.severity == .error })),
                             "Expected no sema errors for named companion extension function, got: \(sampleDiags.map(\.code))"
@@ -357,50 +344,6 @@ extension CompanionObjectTests {
 
         }
     }
-
-
-    /// Verify companion object can access private constructor
-
-
-
-
-    /// Verify companion object can access private properties
-
-
-
-
-    /// Verify companion object can access private methods
-
-
-
-
-    /// Verify class can access companion's private members
-
-
-
-
-    /// Verify companion with private constructor and factory pattern
-
-
-
-
-    /// Verify companion access to private constructor with parameters
-
-
-
-
-    /// Verify that non-companion objects cannot access private members
-
-
-
-
-    /// Verify that external code cannot access private constructor directly
-
-
-
-
-    /// Verify KIR lowering works with private constructor access
-
 
     @Test func testCompanionPrivateConstructorKIRLowering() throws {
         let source = """
@@ -431,21 +374,6 @@ extension CompanionObjectTests {
             "Expected companion factory function in KIR, got: \(functionNames)"
         )
     }
-
-
-
-    /// Verify companion extension functions work
-
-
-
-
-    /// Verify companion extension properties work
-
-
-
-
-    /// Verify named companion extension functions
-
 
 }
 #endif
