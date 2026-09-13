@@ -112,11 +112,6 @@ struct CollectionLiteralLoweringRegistry {
 
     func run(module: KIRModule, ctx: KIRContext, recordAs loweringName: String) throws {
         let lookup = lookupRegistry.tables
-        let builderLambdaKinds = constructionPass.collectBuilderLambdaKinds(
-            module: module,
-            lookup: lookup,
-            ctx: ctx
-        )
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated = function
@@ -149,7 +144,6 @@ struct CollectionLiteralLoweringRegistry {
                         canThrow: canThrow,
                         thrownResult: thrownResult,
                         function: function,
-                        builderLambdaKinds: builderLambdaKinds,
                         module: module,
                         ctx: ctx,
                         lookup: lookup,

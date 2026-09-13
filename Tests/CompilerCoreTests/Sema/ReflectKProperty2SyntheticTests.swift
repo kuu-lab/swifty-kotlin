@@ -4,13 +4,19 @@ import Testing
 
 @Suite
 struct ReflectKProperty2SyntheticTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static let fixture = SemaFixture(surface: "KProperty2")
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
+    }
+
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     private static let sourceSemaSources: [String] = [
@@ -50,29 +56,10 @@ struct ReflectKProperty2SyntheticTests {
     }
 
     private func makeSema(
-        source: String = "fun noop() {}"
+        sources: [String],
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KProperty2 surface to resolve cleanly, got: \(diagnostics)"))
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
-    }
-
-    private func makeSema(sources: [String]) throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            let diagnostics = ctx.diagnostics.diagnostics.map { "\($0.code): \($0.message)" }.joined(separator: " | ")
-            #expect(!(ctx.diagnostics.hasError), Comment(rawValue: "Expected KProperty2 surface to resolve cleanly, got: \(diagnostics)"))
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+        try Self.fixture.make(sources: sources, sourceLocation: sourceLocation)
     }
 
     @Test func testKProperty2SurfaceIsRegistered() throws {

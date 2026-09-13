@@ -225,11 +225,13 @@ struct SourceBackedCallPreservationPolicyTests {
 
     /// The shared set is the direct-call predicate's list verbatim. A change in
     /// this count means an API family moved in or out of the policy, which
-    /// RF-LOWER-CALL-008 onwards must do deliberately.
+    /// RF-LOWER-CALL-008 onwards must do deliberately. RF-LOWER-CALL-010
+    /// dropped the five search names (`indexOf`, `lastIndexOf`, `indexOfFirst`,
+    /// `indexOfLast`, `containsAll`) that had no downstream rewrite.
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 91, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 86, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// The array-conversion asymmetry the old code left unsaid: the direct path

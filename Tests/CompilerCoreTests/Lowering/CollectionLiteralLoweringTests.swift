@@ -774,10 +774,14 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_hash_set_of"), "hashSetOf should become __kk_hash_set_of")
     }
 
-    // MARK: - buildList rewriting (STDLIB-070)
+    // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
 
+    /// `symbol: nil` used to take the unconditional `return true` branch of
+    /// `isStdlibBuilderDSLCall` and rewrite to `__kk_build_list`.  Both
+    /// overloads now come from `CollectionBuilders.kt`, so the legacy runtime
+    /// entry point is gone and even a nil-symbol call must be left alone.
     @Test
-    func testBuildListRewrittenToKkBuildList() throws {
+    func testBuildListIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildList")
@@ -787,12 +791,17 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("__kk_build_list"), "buildList should become __kk_build_list")
+        #expect(callees.contains("buildList"), "buildList must survive the pass unrewritten")
+        #expect(
+            !callees.contains("__kk_build_list"),
+            "the legacy __kk_build_list rewrite was removed; callees: \(callees)"
+        )
     }
 
+    /// Capacity counterpart of the above: the two-argument shape used to map to
+    /// `__kk_build_list_with_capacity`.
     @Test
-    func testBuildListCapacityRewrittenToKkBuildListWithCapacity() throws {
+    func testBuildListCapacityIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -824,10 +833,10 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
+        #expect(callees.contains("buildList"), "buildList(capacity) must survive the pass unrewritten")
         #expect(
-            callees.contains("__kk_build_list_with_capacity"),
-            "buildList(capacity) should become __kk_build_list_with_capacity"
+            !callees.contains("__kk_build_list_with_capacity"),
+            "the legacy __kk_build_list_with_capacity rewrite was removed; callees: \(callees)"
         )
     }
 

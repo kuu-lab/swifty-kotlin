@@ -176,12 +176,7 @@ struct SourceBackedCallPreservationPolicy {
             // KSP-423: List search and predicate HOFs have Kotlin source implementations.
             lookup.findName,
             lookup.findLastName,
-            lookup.indexOfName,
-            lookup.lastIndexOfName,
-            lookup.indexOfFirstName,
-            lookup.indexOfLastName,
             lookup.containsName,
-            lookup.containsAllName,
             lookup.countName,
             lookup.anyName,
             lookup.allName,
