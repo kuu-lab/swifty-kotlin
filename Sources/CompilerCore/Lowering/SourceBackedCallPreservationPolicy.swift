@@ -51,7 +51,7 @@ extension SourceBackedCalleeResolution {
 /// RF-LOWER-CALL-007: `CollectionLiteralConstructionLoweringPass` (direct
 /// calls) and `CollectionVirtualCallRewriteLoweringPass` (virtual dispatch)
 /// each carried their own copy of this decision as a `||` chain of interned
-/// name comparisons. The copies agreed on 102 API names and diverged on nine
+/// name comparisons. The copies agreed on 91 API names and diverged on twenty
 /// more plus the shape of the array-conversion check, and nothing in either
 /// file said so. Here the agreement is one set, each divergence is its own
 /// named set, and the decision order of both original predicates is preserved
@@ -92,23 +92,12 @@ struct SourceBackedCallPreservationPolicy {
 
     init(lookup: CollectionLiteralLookupTables, interner: StringInterner) {
         sharedAggregateNames = [
-            lookup.foldName,
-            lookup.foldRightName,
-            lookup.reduceName,
-            lookup.reduceOrNullName,
             lookup.scanName,
             lookup.scanIndexedName,
-            lookup.scanReduceName,
             lookup.runningFoldName,
             lookup.runningFoldIndexedName,
             lookup.runningReduceName,
             lookup.runningReduceIndexedName,
-            lookup.foldIndexedName,
-            lookup.foldRightIndexedName,
-            lookup.reduceRightName,
-            lookup.reduceRightOrNullName,
-            lookup.reduceRightIndexedName,
-            lookup.reduceRightIndexedOrNullName,
             lookup.reduceIndexedName,
             lookup.reduceIndexedOrNullName,
             lookup.filterName,
@@ -207,6 +196,26 @@ struct SourceBackedCallPreservationPolicy {
         ]
 
         virtualOnlyAggregateNames = [
+            // RF-LOWER-CALL-009 (#6762) removed these eleven from the direct
+            // chain: nothing downstream of the direct path keys on them any
+            // more, since the List-side legacy bridges are gone. The virtual
+            // guard still lists them because the `sequenceExprIDs`-gated
+            // branches in +CallRewriteHOFAccumulations.swift remain reachable
+            // there, and whether those should fire for a source-backed
+            // declaration whose receiver is a RuntimeSequenceBox is the
+            // KSP-441 question RF-LOWER-CALL-014 owns. So they are virtual-only
+            // rather than gone.
+            lookup.foldName,
+            lookup.foldIndexedName,
+            lookup.foldRightName,
+            lookup.foldRightIndexedName,
+            lookup.reduceName,
+            lookup.reduceOrNullName,
+            lookup.reduceRightName,
+            lookup.reduceRightOrNullName,
+            lookup.reduceRightIndexedName,
+            lookup.reduceRightIndexedOrNullName,
+            lookup.scanReduceName,
             // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
             lookup.isEmptyName,
             lookup.iteratorName,

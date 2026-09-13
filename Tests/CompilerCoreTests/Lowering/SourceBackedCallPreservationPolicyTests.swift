@@ -10,7 +10,7 @@ import Testing
 /// twice — once in `CollectionLiteralLoweringPass+CallRewrite.swift` for direct
 /// calls and once in `CollectionLiteralLoweringPass+VirtualCallRewrite.swift`
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
-/// chains agreed on 102 API names and diverged on nine more plus the shape of
+/// chains agreed on 91 API names and diverged on twenty more plus the shape of
 /// the array-conversion check, and nothing in either file recorded which
 /// divergences were deliberate. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
@@ -206,6 +206,11 @@ struct SourceBackedCallPreservationPolicyTests {
         let resolved = Set(policy.virtualOnlyAggregateNames.map { interner.resolve($0) })
         #expect(
             resolved == [
+                // RF-LOWER-CALL-009 (#6762) left these eleven on the virtual
+                // path only.
+                "fold", "foldIndexed", "foldRight", "foldRightIndexed",
+                "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull",
+                "reduceRightIndexed", "reduceRightIndexedOrNull", "scanReduce",
                 "isEmpty", "iterator",
                 "toList", "toIntArray", "average", "chunked", "windowed",
                 "random", "randomOrNull",
@@ -224,7 +229,7 @@ struct SourceBackedCallPreservationPolicyTests {
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 102, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 91, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// The array-conversion asymmetry the old code left unsaid: the direct path
@@ -262,7 +267,7 @@ struct SourceBackedCallPreservationPolicyTests {
         ]
         for (resolution, expected) in states {
             let preserved = policy.preservesDirectCall(
-                callee: lookup.foldName,
+                callee: lookup.groupByName,
                 resolution: resolution,
                 receiverIsTrackedArrayLiteral: false,
                 receiverIsTrackedRuntimeSequence: false,
@@ -278,7 +283,7 @@ struct SourceBackedCallPreservationPolicyTests {
     @Test
     func directCallDoesNotPreserveVirtualOnlyNames() {
         let (policy, _, interner) = Self.makePolicy()
-        for name in ["chunked", "windowed", "average", "isEmpty", "random"] {
+        for name in ["chunked", "windowed", "average", "isEmpty", "random", "fold", "reduce"] {
             #expect(
                 !policy.preservesDirectCall(
                     callee: interner.intern(name),
@@ -372,9 +377,9 @@ struct SourceBackedCallPreservationPolicyTests {
     /// receiver through the shared iterator bridge, so a Sequence receiver does
     /// not disqualify it.
     @Test
-    func directCallSequenceExceptionsDoNotCoverFlatMapOrFold() {
+    func directCallSequenceExceptionsDoNotCoverFlatMapOrGroupBy() {
         let (policy, lookup, _) = Self.makePolicy()
-        for callee in [lookup.flatMapName, lookup.flatMapIndexedName, lookup.foldName] {
+        for callee in [lookup.flatMapName, lookup.flatMapIndexedName, lookup.groupByName] {
             #expect(
                 policy.preservesDirectCall(
                     callee: callee,

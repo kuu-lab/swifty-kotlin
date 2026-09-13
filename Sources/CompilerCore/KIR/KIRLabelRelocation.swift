@@ -46,7 +46,10 @@ enum KIRLabelRelocation {
         return highest
     }
 
-    private static func labelIDs(of instruction: KIRInstruction) -> [Int32] {
+    /// Every label ID `instruction` defines or references. The single place
+    /// that enumerates the label-carrying instruction cases, so a new one
+    /// cannot be relocated by one caller and missed by another.
+    static func labelIDs(of instruction: KIRInstruction) -> [Int32] {
         switch instruction {
         case let .label(id):
             return [id]
@@ -61,7 +64,9 @@ enum KIRLabelRelocation {
         }
     }
 
-    private static func rewriteLabels(
+    /// Applies `mapping` to every label ID in `instruction`, leaving IDs the
+    /// mapping does not mention untouched.
+    static func rewriteLabels(
         of instruction: KIRInstruction,
         mapping: [Int32: Int32]
     ) -> KIRInstruction {

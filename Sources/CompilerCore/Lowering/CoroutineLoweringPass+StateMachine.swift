@@ -1,4 +1,8 @@
 
+/// Label base for coroutine state machine dispatch labels, chosen to avoid
+/// collision with user labels and tailrec loop-head labels.
+let coroutineDispatchLabelBase: Int32 = 1000
+
 struct StateMachineTypeContext {
     let continuationType: TypeID
     let anyType: TypeID
@@ -83,7 +87,12 @@ extension CoroutineLoweringPass {
             )
         )
 
-        for block in stateBlocks {
+        // Only the entry block and actual suspension continuations can be
+        // entered from the dispatcher. Ordinary CFG blocks depend on values
+        // defined by their predecessors and have no spill reload prologue.
+        for block in stateBlocks where block.resumeLabel == stateBlocks.first?.resumeLabel
+            || transitionsByResumeLabel[block.resumeLabel] != nil
+        {
             let expectedResumeExpr = module.arena.appendTemporary(type: intType
             )
             lowered.append(.constValue(result: expectedResumeExpr, value: .intLiteral(block.resumeLabel)))
@@ -393,7 +402,7 @@ extension CoroutineLoweringPass {
     }
 
     func stateDispatchLabel(for resumeLabel: Int64) -> Int32 {
-        Int32(1000 + resumeLabel)
+        coroutineDispatchLabelBase + Int32(resumeLabel)
     }
 
     struct IndexedInstruction {

@@ -8,72 +8,7 @@ import Testing
 @Suite
 struct AnyTypeFallbackTests {
 
-    // MARK: - Per-source diagnostic helpers
-
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
     // MARK: - Path-aware expression search helpers
-
-    private func firstUserObjectLiteralDeclIDInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager
-    ) -> DeclID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .objectLiteral(_, declID, _) = expr,
-                  let declID,
-                  let range = ast.arena.exprRange(exprID),
-                  sourceManager.path(of: range.start.file) == path
-            else { continue }
-            return declID
-        }
-        return nil
-    }
-
-    private func findMainBodyStatementsInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager,
-        interner: StringInterner
-    ) -> [ExprID]? {
-        guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
-        for file in ast.files {
-            guard file.fileID == fileID else { continue }
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl,
-                      interner.resolve(function.name) == "main",
-                      case let .block(statements, _) = function.body
-                else { continue }
-                return statements
-            }
-        }
-        return nil
-    }
 
     @Test
     func testAnyTypeFallbacks() throws {
@@ -134,7 +69,7 @@ struct AnyTypeFallbackTests {
             // === testObjectLiteralPropertyWithInitializerInfersConcreteType ===
             do {
                 let sample0Diagnostics = diagnosticsForPath(paths[0], in: ctx)
-                guard let declID = firstUserObjectLiteralDeclIDInPath(in: ast, path: paths[0], sourceManager: ctx.sourceManager),
+                guard let declID = firstUserObjectLiteralDeclID(in: ast, path: paths[0], sourceManager: ctx.sourceManager),
                       let decl = ast.arena.decl(declID),
                       case let .objectDecl(objectDecl) = decl,
                       let propertyDeclID = objectDecl.memberProperties.first,
@@ -154,7 +89,7 @@ struct AnyTypeFallbackTests {
             // === testObjectLiteralPropertyWithTypeAnnotationUsesAnnotatedType ===
             do {
                 let sample1Diagnostics = diagnosticsForPath(paths[1], in: ctx)
-                guard let declID = firstUserObjectLiteralDeclIDInPath(in: ast, path: paths[1], sourceManager: ctx.sourceManager),
+                guard let declID = firstUserObjectLiteralDeclID(in: ast, path: paths[1], sourceManager: ctx.sourceManager),
                       let decl = ast.arena.decl(declID),
                       case let .objectDecl(objectDecl) = decl,
                       let propertyDeclID = objectDecl.memberProperties.first,
@@ -172,7 +107,7 @@ struct AnyTypeFallbackTests {
             // === testCallableRefResolvedNoDiagnostic ===
             do {
                 let sample2Diagnostics = diagnosticsForPath(paths[2], in: ctx)
-                let mainBody = try #require(findMainBodyStatementsInPath(in: ast, path: paths[2], sourceManager: ctx.sourceManager, interner: interner))
+                let mainBody = try #require(findMainBodyStatements(in: ast, path: paths[2], sourceManager: ctx.sourceManager, interner: interner))
                 for exprID in mainBody {
                     guard let expr = ast.arena.expr(exprID),
                           case let .localDecl(_, _, _, initializer, _, _) = expr,

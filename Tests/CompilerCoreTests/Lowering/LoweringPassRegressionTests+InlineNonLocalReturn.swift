@@ -154,25 +154,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         // The non-local return should have been converted to a real returnValue.
         // We expect at least 2: one from the non-local return conversion and one
@@ -249,25 +233,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturnUnit",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturnUnit")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         // Should have at least 2 returnUnit instructions: one from the non-local
         // return conversion and one from the caller's own return statement.
@@ -358,25 +326,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         // Should have returnValue instructions from both the non-local
         // return path and the caller's own return.
@@ -467,25 +419,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNoNonLocal",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNoNonLocal")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         // Inline call should be expanded -- no call to addOne remains.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
@@ -582,25 +518,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineUnitMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineUnitMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         // The inline call should be expanded.
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
