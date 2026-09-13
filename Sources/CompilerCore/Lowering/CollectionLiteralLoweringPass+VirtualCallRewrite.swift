@@ -194,19 +194,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         origCanThrow: Bool,
         origThrownResult: KIRExprID?,
         context: VirtualCallRewriteContext,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>,
-        pathExprIDs: inout Set<Int32>,
-        iteratorBuilderExprIDs: Set<Int32>,
-        indexingIterableExprIDs: inout Set<Int32>,
-        listIteratorExprIDs: inout Set<Int32>,
+        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
@@ -218,9 +206,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // the concrete list value still requires the shared list iterator ABI.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
+           state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue) || state.indexingIterableExprIDs.contains(receiver.rawValue)
         {
-            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+            let iterCallee = state.indexingIterableExprIDs.contains(receiver.rawValue)
                 ? lookup.kkIndexingIterableIteratorName
                 : lookup.kkListIteratorName
             loweredBody.append(.call(
@@ -232,7 +220,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if iterCallee == lookup.kkListIteratorName, let result {
-                listIteratorExprIDs.insert(result.rawValue)
+                state.listIteratorExprIDs.insert(result.rawValue)
             }
             return true
         }
@@ -241,7 +229,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // Keep their bridge calls direct even though Iterator itself is now
         // source-backed; user-defined Iterator implementations still use the
         // normal virtual dispatch path.
-        if iteratorBuilderExprIDs.contains(receiver.rawValue) {
+        if state.iteratorBuilderExprIDs.contains(receiver.rawValue) {
             let semanticMemberName = symbol
                 .flatMap { context.sema?.symbols.symbol($0)?.name }
                 ?? callee
@@ -284,19 +272,19 @@ extension CollectionVirtualCallRewriteLoweringPass {
         classifyReceiverByStaticType(
             receiver: receiver,
             context: context,
-            listExprIDs: &listExprIDs,
-            setExprIDs: &setExprIDs,
-            mapExprIDs: &mapExprIDs,
-            arrayExprIDs: &arrayExprIDs,
-            sequenceExprIDs: &sequenceExprIDs
+            listExprIDs: &state.listExprIDs,
+            setExprIDs: &state.setExprIDs,
+            mapExprIDs: &state.mapExprIDs,
+            arrayExprIDs: &state.arrayExprIDs,
+            sequenceExprIDs: &state.sequenceExprIDs
         )
 
         if rewriteArrayVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
-            listExprIDs: &listExprIDs, arrayExprIDs: &arrayExprIDs,
-            sequenceExprIDs: &sequenceExprIDs,
+            listExprIDs: &state.listExprIDs, arrayExprIDs: &state.arrayExprIDs,
+            sequenceExprIDs: &state.sequenceExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -306,8 +294,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             context: context,
-            listExprIDs: &listExprIDs, setExprIDs: &setExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
-            arrayExprIDs: arrayExprIDs,
+            listExprIDs: &state.listExprIDs, setExprIDs: &state.setExprIDs, mapExprIDs: &state.mapExprIDs, sequenceExprIDs: &state.sequenceExprIDs,
+            arrayExprIDs: state.arrayExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -315,17 +303,17 @@ extension CollectionVirtualCallRewriteLoweringPass {
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, context: context,
-            listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,
-            setExprIDs: &setExprIDs, sequenceExprIDs: &sequenceExprIDs,
-            indexingIterableExprIDs: &indexingIterableExprIDs,
+            listExprIDs: &state.listExprIDs, mapExprIDs: &state.mapExprIDs,
+            setExprIDs: &state.setExprIDs, sequenceExprIDs: &state.sequenceExprIDs,
+            indexingIterableExprIDs: &state.indexingIterableExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
         if rewriteCollectionPropertyVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, lookup: lookup,
-            listExprIDs: listExprIDs, setExprIDs: setExprIDs, mapExprIDs: mapExprIDs,
-            arrayExprIDs: arrayExprIDs,
+            listExprIDs: state.listExprIDs, setExprIDs: state.setExprIDs, mapExprIDs: state.mapExprIDs,
+            arrayExprIDs: state.arrayExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -333,9 +321,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // stdlib list/set iterator calls directly to the shared iterator helper.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
+           state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue) || state.indexingIterableExprIDs.contains(receiver.rawValue)
         {
-            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+            let iterCallee = state.indexingIterableExprIDs.contains(receiver.rawValue)
                 ? lookup.kkIndexingIterableIteratorName
                 : lookup.kkListIteratorName
             loweredBody.append(.call(
@@ -347,7 +335,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if iterCallee == lookup.kkListIteratorName, let result {
-                listIteratorExprIDs.insert(result.rawValue)
+                state.listIteratorExprIDs.insert(result.rawValue)
             }
             return true
         }
@@ -357,9 +345,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             sema: context.sema, interner: context.interner,
-            rangeExprIDs: &rangeExprIDs, charRangeExprIDs: &charRangeExprIDs,
-            ulongRangeExprIDs: &ulongRangeExprIDs,
-            listExprIDs: &listExprIDs,
+            rangeExprIDs: &state.rangeExprIDs, charRangeExprIDs: &state.charRangeExprIDs,
+            ulongRangeExprIDs: &state.ulongRangeExprIDs,
+            listExprIDs: &state.listExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -368,7 +356,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
 
         // toTypedArray() on array → __kk_array_copyOf (result is Array)
-        if callee == lookup.toTypedArrayName, arguments.isEmpty, arrayExprIDs.contains(receiver.rawValue) {
+        if callee == lookup.toTypedArrayName, arguments.isEmpty, state.arrayExprIDs.contains(receiver.rawValue) {
             let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
@@ -380,20 +368,20 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
+                state.arrayExprIDs.insert(result.rawValue)
+                state.arrayExprIDs.insert(toArrayResult.rawValue)
                 loweredBody.append(.copy(from: toArrayResult, to: result))
             }
             return true
         }
 
         // --- Rewrite File member virtual calls (STDLIB-320) ---
-        if fileExprIDs.contains(receiver.rawValue) {
+        if state.fileExprIDs.contains(receiver.rawValue) {
             if rewriteFileMemberVirtualCall(
                 callee: callee, receiver: receiver, arguments: arguments,
                 result: result, origCanThrow: origCanThrow,
                 origThrownResult: origThrownResult, lookup: lookup,
-                listExprIDs: &listExprIDs,
+                listExprIDs: &state.listExprIDs,
                 loweredBody: &loweredBody
             ) { return true }
         }
