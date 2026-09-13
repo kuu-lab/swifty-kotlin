@@ -558,7 +558,8 @@
 - [ ] KSP-1523: `UIntRange` の property / membership / aggregate を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_uint_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
-  - 削除/降格 kk_*: `kk_uint_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toUIntArray`（13件）
+  - 削除/降格 kk_*: `kk_uint_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`（12件）
+  - 注記: `_toUIntArray` は Kotlinize 対象から除外（実 kotlinc は `UIntRange`/`UIntProgression` に直接の `toUIntArray()` を持たない。診断は `error_range_toarray_unsupported.kt`、正常系は `Scripts/diff_cases/range_to_array_via_tolist.kt` で固定済み。synthetic member 登録は削除済みだが `kk_uint_range_toUIntArray` bridge/Lowering/RuntimeABI の削除は別 follow-up）
   - 手順: T
   - diff: `uint_range_*.kt` 既存 + 空 range（`5u..1u`）の `isEmpty`/`firstOrNull`/`sum`、`UInt.MAX_VALUE` 境界ケース
   - 前提: KSP-451, KSP-709
@@ -566,7 +567,8 @@
 - [ ] KSP-1524: `ULongRange` の property / membership / aggregate を Kotlin 化する
   - 対象スタブ: `Sources/CompilerCore/Sema/Models/MemberRuntimeDispatch.swift` の `kk_ulong_range_*` 名前生成、`HeaderHelpers+SyntheticUnsignedRangeStubs.swift` の該当メンバ登録
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeMembership.kt` 追記（unsigned 版）
-  - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`, `_toULongArray`（13件）
+  - 削除/降格 kk_*: `kk_ulong_range_contains`, `_isEmpty`, `_first`, `_last`, `_firstOrNull`, `_lastOrNull`, `_count`, `_sum`, `_average`, `_reversed`, `_sorted`, `_toList`（12件）
+  - 注記: `_toULongArray` は Kotlinize 対象から除外（実 kotlinc は `ULongRange`/`ULongProgression` に直接の `toULongArray()` を持たない。診断は `error_range_toarray_unsupported.kt`、正常系は `Scripts/diff_cases/range_to_array_via_tolist.kt` で固定済み。synthetic member 登録は削除済みだが `kk_ulong_range_toULongArray` bridge/Lowering/RuntimeABI の削除は別 follow-up）
   - 手順: T
   - diff: `ulong_range_*.kt` 既存 + `ULong.MAX_VALUE` 境界と空 range ケース
   - 前提: KSP-1523
