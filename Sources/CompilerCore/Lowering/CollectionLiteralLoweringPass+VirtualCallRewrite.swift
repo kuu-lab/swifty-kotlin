@@ -102,31 +102,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.sumOfName
             || callee == lookup.maxByOrNullName
             || callee == lookup.minByOrNullName
-            // KSP-426: List sorting/extrema are bundled Kotlin source.
-            || callee == lookup.sortedName
-            || callee == lookup.sortedByName
-            || callee == lookup.sortedByDescendingName
-            || callee == lookup.sortedDescendingName
-            || callee == lookup.sortedWithName
-            || callee == lookup.maxName
-            || callee == lookup.maxByName
-            || callee == lookup.maxOfName
-            || callee == lookup.maxOfOrNullName
-            || callee == lookup.maxOfWithName
-            || callee == lookup.maxOfWithOrNullName
-            || callee == lookup.maxOrNullName
-            || callee == lookup.maxWithName
-            || callee == lookup.maxWithOrNullName
-            || callee == lookup.minName
-            || callee == lookup.minByName
-            || callee == lookup.minByOrNullName
-            || callee == lookup.minOfName
-            || callee == lookup.minOfOrNullName
-            || callee == lookup.minOfWithName
-            || callee == lookup.minOfWithOrNullName
-            || callee == lookup.minOrNullName
-            || callee == lookup.minWithName
-            || callee == lookup.minWithOrNullName
+            // RF-LOWER-CALL-011 removed the KSP-426 block that mirrored the 25
+            // List `sorted*` / `min*` / `max*` names from
+            // `+CallRewrite.swift`.  See the note there: none of them is
+            // reachable by a rewrite, so the enumeration guarded nothing, and
+            // dropping it leaves post-lowering KIR byte-identical.  `sorted`
+            // stays listed once with the KSP-453/454 Range/progression names
+            // below — that is the entry `+VirtualCallRewrite+Range.swift`
+            // consumes — and `maxByOrNull` / `minByOrNull` stay in the group
+            // above as RF-LOWER-CALL-012 territory.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
@@ -375,104 +359,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // --- Rewrite File member virtual calls (STDLIB-320) ---
-        if state.fileExprIDs.contains(receiver.rawValue) {
-            if rewriteFileMemberVirtualCall(
-                callee: callee, receiver: receiver, arguments: arguments,
-                result: result, origCanThrow: origCanThrow,
-                origThrownResult: origThrownResult, lookup: lookup,
-                listExprIDs: &state.listExprIDs,
-                loweredBody: &loweredBody
-            ) { return true }
-        }
-
         return false
-    }
-
-    // MARK: - File member operations (STDLIB-320)
-
-    private func rewriteFileMemberVirtualCall(
-        callee: InternedString,
-        receiver: KIRExprID,
-        arguments: [KIRExprID],
-        result: KIRExprID?,
-        origCanThrow: Bool,
-        origThrownResult: KIRExprID?,
-        lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        loweredBody: inout KIRLoweringEmitContext
-    ) -> Bool {
-        let kkCallee: InternedString?
-
-        switch callee {
-        case lookup.readTextName:
-            kkCallee = lookup.kkFileReadTextName
-        case lookup.writeTextName:
-            kkCallee = lookup.kkFileWriteTextName
-        case lookup.existsName:
-            kkCallee = lookup.kkFileExistsName
-        case lookup.isFileName:
-            kkCallee = lookup.kkFileIsFileName
-        case lookup.isDirectoryName:
-            kkCallee = lookup.kkFileIsDirectoryName
-        // STDLIB-IO-FN-016: forEachBlock — arity-based dispatch (virtual call path, args excludes receiver)
-        case lookup.forEachBlockName:
-            kkCallee = arguments.isEmpty
-                ? lookup.kkFileForEachBlockName
-                : lookup.kkFileForEachBlockBlockSizeName
-        case lookup.bufferedReaderName:
-            // Only rewrite argument-less bufferedReader(); the runtime function
-            // __kk_file_bufferedReader does not accept charset/bufferSize args.
-            kkCallee = arguments.isEmpty ? lookup.kkFileBufferedReaderName : nil
-        case lookup.bufferedWriterName:
-            // Only rewrite argument-less bufferedWriter(); the runtime function
-            // __kk_file_bufferedWriter does not accept charset/bufferSize args.
-            kkCallee = arguments.isEmpty ? lookup.kkFileBufferedWriterName : nil
-        case lookup.printWriterName:
-            // Only rewrite argument-less printWriter(); the runtime function
-            // __kk_file_printWriter does not accept charset/bufferSize args.
-            kkCallee = arguments.isEmpty ? lookup.kkFilePrintWriterName : nil
-        case lookup.walkName:
-            kkCallee = lookup.kkFileWalkName
-        case lookup.listFilesName:
-            kkCallee = lookup.kkFileListFilesName
-        case lookup.deleteName:
-            kkCallee = lookup.kkFileDeleteName
-        case lookup.mkdirsName:
-            kkCallee = lookup.kkFileMkdirsName
-        case lookup.readBytesName:
-            kkCallee = lookup.kkFileReadBytesName
-        case lookup.appendTextName:
-            kkCallee = lookup.kkFileAppendTextName
-        default:
-            kkCallee = nil
-        }
-
-        guard let target = kkCallee else { return false }
-
-        // Methods that pass extra arguments beyond the receiver
-        let needsExtraArgs = callee == lookup.forEachBlockName
-            || callee == lookup.writeTextName
-            || callee == lookup.appendTextName
-        let memberArgs = needsExtraArgs ?
-            [receiver] + arguments :
-            [receiver]
-
-        loweredBody.append(.call(
-            symbol: nil,
-            callee: target,
-            arguments: memberArgs,
-            result: result,
-            canThrow: origCanThrow,
-            thrownResult: origThrownResult
-        ))
-
-        // Track results that produce lists (readLines/readBytes return List)
-        if callee == lookup.readBytesName, let result {
-            listExprIDs.insert(result.rawValue)
-        }
-
-        return true
     }
 
     private func rewriteListHOFVirtualCall(
