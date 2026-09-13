@@ -1023,12 +1023,6 @@ extension CallLowerer {
             case ("toUShort", longType, ushortType): interner.intern("kk_long_to_ushort")
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
-            case ("toChar", uintType, charType): interner.intern("kk_uint_to_char")
-            // KSP-1533: ULong.toChar() has no Sema binding (Kotlin's unsigned
-            // types don't extend Number and never declared this member;
-            // verified against kotlinc 2.4.20 and KSWIFTK-SEMA-0024). Dead case.
-            case ("toChar", ubyteType, charType): interner.intern("kk_ubyte_to_char")
-            case ("toChar", ushortType, charType): interner.intern("kk_ushort_to_char")
             case ("toChar", charType, charType): nil // identity
             default: nil
             }

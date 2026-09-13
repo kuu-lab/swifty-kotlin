@@ -1803,12 +1803,6 @@ final class CallLowerer {
         case ("toUShort", sema.types.uintType, sema.types.ushortType): interner.intern("kk_uint_to_ushort")
         case ("toUShort", sema.types.ulongType, sema.types.ushortType): interner.intern("kk_ulong_to_ushort")
         case ("toUShort", sema.types.ushortType, sema.types.ushortType): nil
-        case ("toChar", sema.types.uintType, sema.types.charType): interner.intern("kk_uint_to_char")
-        // KSP-1533: ULong.toChar() has no Sema binding (Kotlin's unsigned types
-        // don't extend Number and never declared this member; verified against
-        // kotlinc 2.4.20 and KSWIFTK-SEMA-0024). This case was dead.
-        case ("toChar", sema.types.ubyteType, sema.types.charType): interner.intern("kk_ubyte_to_char")
-        case ("toChar", sema.types.ushortType, sema.types.charType): interner.intern("kk_ushort_to_char")
         case ("toChar", sema.types.charType, sema.types.charType): nil
         default: nil
         }

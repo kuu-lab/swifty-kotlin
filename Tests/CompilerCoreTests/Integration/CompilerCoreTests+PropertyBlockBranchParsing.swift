@@ -11,30 +11,6 @@ import Testing
 // CST, so `val v = if (c) { "yes" } else { "no" }` silently evaluated to
 // undefined behaviour on the false path.
 extension CompilerCoreTests {
-    private func memberProperty(
-        named name: String,
-        ofClass className: String,
-        in ast: ASTModule,
-        interner: StringInterner
-    ) -> PropertyDecl? {
-        for file in ast.files {
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .classDecl(classDecl) = decl,
-                      interner.resolve(classDecl.name) == className
-                else { continue }
-                for propertyDeclID in classDecl.memberProperties {
-                    guard let propertyDecl = ast.arena.decl(propertyDeclID),
-                          case let .propertyDecl(property) = propertyDecl,
-                          interner.resolve(property.name) == name
-                    else { continue }
-                    return property
-                }
-            }
-        }
-        return nil
-    }
-
     @Test func testTopLevelPropertyIfElseInitializerKeepsElseBranch() throws {
         let source = """
         val topLevelIf = if (1 > 2) { "yes" } else { "no" }

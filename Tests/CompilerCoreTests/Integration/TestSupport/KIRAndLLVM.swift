@@ -51,11 +51,12 @@ func extractThrowFlags(
     CompilerTestSupport.extractThrowFlags(from: body, interner: interner)
 }
 
-func firstExprID(
+private func exprID(
     in ast: ASTModule,
+    scanning indices: some Sequence<Int>,
     where predicate: (ExprID, Expr) -> Bool
 ) -> ExprID? {
-    for index in ast.arena.exprs.indices {
+    for index in indices {
         let exprID = ExprID(rawValue: Int32(index))
         guard let expr = ast.arena.expr(exprID) else { continue }
         if predicate(exprID, expr) { return exprID }
@@ -63,17 +64,37 @@ func firstExprID(
     return nil
 }
 
+func firstExprID(
+    in ast: ASTModule,
+    where predicate: (ExprID, Expr) -> Bool
+) -> ExprID? {
+    exprID(in: ast, scanning: ast.arena.exprs.indices, where: predicate)
+}
+
 func lastExprID(
     in ast: ASTModule,
     where predicate: (ExprID, Expr) -> Bool
 ) -> ExprID? {
-    for index in ast.arena.exprs.indices.reversed() {
-        let exprID = ExprID(rawValue: Int32(index))
-        guard let expr = ast.arena.expr(exprID) else { continue }
-        if predicate(exprID, expr) { return exprID }
-    }
-    return nil
+    exprID(in: ast, scanning: ast.arena.exprs.indices.reversed(), where: predicate)
 }
+
+/// First call expression whose callee is a bare name reference to `name`.
+func nameRefCallExprID(
+    named name: String,
+    in ast: ASTModule,
+    interner: StringInterner
+) -> ExprID? {
+    firstExprID(in: ast) { _, expr in
+        guard case let .call(calleeExprID, _, _, _) = expr,
+              let calleeExpr = ast.arena.expr(calleeExprID),
+              case let .nameRef(calleeName, _) = calleeExpr
+        else {
+            return false
+        }
+        return interner.resolve(calleeName) == name
+    }
+}
+
 extension KIRDecl {
     /// The wrapped function, or `nil` when this declaration is not a function.
     var function: KIRFunction? {

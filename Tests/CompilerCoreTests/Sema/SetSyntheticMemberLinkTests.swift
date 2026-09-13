@@ -8,8 +8,6 @@ import Testing
 struct SetSyntheticMemberLinkTests {
     private static let binaryMembers = ["intersect", "union", "subtract"]
 
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
     private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -19,7 +17,6 @@ struct SetSyntheticMemberLinkTests {
             result = (sema, ctx.interner)
         }
         let semaResult = try #require(result)
-        Self._sharedSema = semaResult
         return semaResult
     }
 

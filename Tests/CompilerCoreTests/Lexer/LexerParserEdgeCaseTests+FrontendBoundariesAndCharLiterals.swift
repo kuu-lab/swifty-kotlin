@@ -21,15 +21,14 @@ extension LexerParserEdgeCaseTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runFrontend(ctx)
 
             #expect(ctx.syntaxTree != nil)
-            #expect(ctx.ast != nil)
             #expect(!(ctx.tokens.isEmpty))
 
             let ast = try #require(ctx.ast)
-            #expect(ast.files.count >= 3)
+            #expect(ast.files.count == 1)
             #expect(ast.declarationCount >= 6)
             #expect(!(ctx.diagnostics.hasError))
         }
@@ -43,20 +42,12 @@ extension LexerParserEdgeCaseTests {
         """
 
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
+            let ctx = makeCompilationContext(inputs: [path], includeStdlib: false)
             try runFrontend(ctx)
 
             let ast = try #require(ctx.ast)
-            let declarations = ast.arena.declarations()
-            #expect(declarations.count >= 2)
-
-            let names: [String] = declarations.compactMap { decl in
-                guard case let .funDecl(funDecl) = decl else {
-                    return nil
-                }
-                return ctx.interner.resolve(funDecl.name)
-            }
-            #expect(names.contains("good"))
+            #expect(ast.arena.declarations().count == 2)
+            #expect(topLevelFunction(named: "good", in: ast, interner: ctx.interner) != nil)
         }
     }
 
@@ -87,21 +78,17 @@ extension LexerParserEdgeCaseTests {
 
             let sema = try #require(ctx.sema)
             let all = sema.symbols.allSymbols()
-            let elem = all.first(where: { symbol in
-                symbol.kind == .typeAlias &&
-                    ctx.interner.resolve(symbol.name) == "Elem" &&
-                    symbol.fqName.count >= 2 &&
-                    ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Box"
-            })
-            let value = all.first(where: { symbol in
-                symbol.kind == .typeAlias &&
-                    ctx.interner.resolve(symbol.name) == "Value" &&
-                    symbol.fqName.count >= 2 &&
-                    ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == "Holder"
-            })
+            func hasNestedTypeAlias(_ name: String, nestedIn parent: String) -> Bool {
+                all.contains { symbol in
+                    symbol.kind == .typeAlias &&
+                        ctx.interner.resolve(symbol.name) == name &&
+                        symbol.fqName.count >= 2 &&
+                        ctx.interner.resolve(symbol.fqName[symbol.fqName.count - 2]) == parent
+                }
+            }
 
-            #expect(elem != nil)
-            #expect(value != nil)
+            #expect(hasNestedTypeAlias("Elem", nestedIn: "Box"))
+            #expect(hasNestedTypeAlias("Value", nestedIn: "Holder"))
         }
     }
 
@@ -114,7 +101,7 @@ extension LexerParserEdgeCaseTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
+            #expect(!(ctx.diagnostics.hasError))
         }
     }
 
@@ -127,7 +114,7 @@ extension LexerParserEdgeCaseTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
+            #expect(!(ctx.diagnostics.hasError))
         }
     }
 
@@ -141,7 +128,7 @@ extension LexerParserEdgeCaseTests {
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.diagnostics.contains { $0.severity == .error }))
+            #expect(!(ctx.diagnostics.hasError))
         }
     }
 
@@ -160,41 +147,25 @@ extension LexerParserEdgeCaseTests {
         """
 
         try withTemporaryFiles(contents: [fileA, fileB]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runFrontend(ctx)
 
             let ast = try #require(ctx.ast)
-            let userFileCount = 2
-            #expect(ast.files.count >= userFileCount + 2)
+            #expect(ast.files.count == 2)
 
             #expect(ctx.tokensByFile.count == ast.files.count)
             #expect(ctx.syntaxTrees.count == ast.files.count)
 
             for (_, fileTokens) in ctx.tokensByFile {
-                #expect(fileTokens.last.map { $0.kind == .eof } ?? false)
+                #expect(fileTokens.last?.kind == .eof)
             }
 
-            // Skip bundled stdlib files, user files are at the end
-            let file0 = ast.files[ast.files.count - 2]
-            let file1 = ast.files[ast.files.count - 1]
+            let file0 = ast.files[0]
+            let file1 = ast.files[1]
             #expect(file0.fileID != file1.fileID)
 
-            let file0DeclNames = file0.topLevelDecls.compactMap { declID -> String? in
-                guard let decl = ast.arena.decl(declID) else { return nil }
-                switch decl {
-                case let .funDecl(f): return ctx.interner.resolve(f.name)
-                case let .classDecl(c): return ctx.interner.resolve(c.name)
-                default: return nil
-                }
-            }
-            let file1DeclNames = file1.topLevelDecls.compactMap { declID -> String? in
-                guard let decl = ast.arena.decl(declID) else { return nil }
-                switch decl {
-                case let .funDecl(f): return ctx.interner.resolve(f.name)
-                case let .objectDecl(o): return ctx.interner.resolve(o.name)
-                default: return nil
-                }
-            }
+            let file0DeclNames = topLevelDeclNames(of: file0, in: ast, interner: ctx.interner)
+            let file1DeclNames = topLevelDeclNames(of: file1, in: ast, interner: ctx.interner)
 
             #expect(file0DeclNames.contains("greet"))
             #expect(file0DeclNames.contains("Greeter"))
@@ -216,11 +187,11 @@ extension LexerParserEdgeCaseTests {
         """
 
         try withTemporaryFiles(contents: [fileA, fileB]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runFrontend(ctx)
 
             let ast = try #require(ctx.ast)
-            #expect(ast.files.count >= 4)
+            #expect(ast.files.count == 2)
 
             let allFunNames = ast.arena.declarations().compactMap { decl -> String? in
                 guard case let .funDecl(f) = decl else { return nil }
@@ -228,7 +199,6 @@ extension LexerParserEdgeCaseTests {
             }
             #expect(allFunNames.contains("alpha"))
             #expect(allFunNames.contains("beta"))
-            #expect(allFunNames.count >= 2)
 
             #expect(ctx.syntaxTrees.count == ast.files.count)
             for (_, cst, root) in ctx.syntaxTrees {
@@ -250,31 +220,21 @@ extension LexerParserEdgeCaseTests {
         """
 
         try withTemporaryFiles(contents: [fileA, fileB]) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
+            let ctx = makeCompilationContext(inputs: paths, includeStdlib: false)
             try runFrontend(ctx)
 
             let ast = try #require(ctx.ast)
-            #expect(ast.files.count >= 4)
+            #expect(ast.files.count == 2)
             #expect(ctx.syntaxTrees.count == ast.files.count)
 
             let rootKinds = ctx.syntaxTrees.map { $0.1.node($0.2).kind }
             #expect(rootKinds.contains(.kotlinFile))
             #expect(rootKinds.contains(.script))
 
-            let scriptFile = ast.files.first(where: { !$0.scriptBody.isEmpty })
-            #expect(scriptFile != nil)
+            #expect(ast.files.contains { !$0.scriptBody.isEmpty })
 
-            // Find user's .kt file — the last non-script file added (after bundled stdlib)
-            let kotlinFile = ast.files.last(where: { $0.scriptBody.isEmpty })
-            #expect(kotlinFile != nil)
-            let kotlinDeclNames = (kotlinFile?.topLevelDecls ?? []).compactMap { declID -> String? in
-                guard let decl = ast.arena.decl(declID) else { return nil }
-                switch decl {
-                case let .funDecl(f): return ctx.interner.resolve(f.name)
-                case let .classDecl(c): return ctx.interner.resolve(c.name)
-                default: return nil
-                }
-            }
+            let kotlinFile = try #require(ast.files.first(where: { $0.scriptBody.isEmpty }))
+            let kotlinDeclNames = topLevelDeclNames(of: kotlinFile, in: ast, interner: ctx.interner)
             #expect(kotlinDeclNames.contains("helper"))
             #expect(kotlinDeclNames.contains("MyClass"))
 
@@ -286,62 +246,31 @@ extension LexerParserEdgeCaseTests {
     func testCharEscapeSequencesProduceCorrectScalarValues() {
         let source = "'\\t' '\\n' '\\r' '\\\\' '\\'' '\\\"' '\\$'"
         let result = lex(source)
-        let charValues = result.tokens.compactMap { token -> UInt32? in
-            if case let .charLiteral(value) = token.kind { return value }
-            return nil
-        }
-        #expect(charValues == [9, 10, 13, 92, 39, 34, 36])
+        #expect(charValues(in: result.tokens) == [9, 10, 13, 92, 39, 34, 36])
         #expect(!(result.diagnostics.hasError))
     }
 
     @Test
     func testUnicodeEscapeInCharLiteralProducesCorrectScalar() {
-        let source = "'\\u0041' '\\u0000' '\\uFFFF' '\\u2764'"
+        // A bare 'A' and its \u0041 escape must both land on 65.
+        let source = "'A' '\\u0041' '\\u0000' '\\uFFFF' '\\u2764'"
         let result = lex(source)
-        let charValues = result.tokens.compactMap { token -> UInt32? in
-            if case let .charLiteral(value) = token.kind { return value }
-            return nil
-        }
-        // \u0041 = 'A' = 65, \u0000 = 0, \uFFFF = 65535, \u2764 = 10084
-        #expect(charValues == [65, 0, 65535, 10084])
+        #expect(charValues(in: result.tokens) == [65, 65, 0, 65535, 10084])
         #expect(!(result.diagnostics.hasError))
-    }
-
-    @Test
-    func testUnicodeEscapeU0041EqualsCharA() {
-        let sourceA = "'A'"
-        let sourceUnicode = "'\\u0041'"
-        let resultA = lex(sourceA)
-        let resultUnicode = lex(sourceUnicode)
-        let valueA = resultA.tokens.compactMap { token -> UInt32? in
-            if case let .charLiteral(value) = token.kind { return value }
-            return nil
-        }.first
-        let valueUnicode = resultUnicode.tokens.compactMap { token -> UInt32? in
-            if case let .charLiteral(value) = token.kind { return value }
-            return nil
-        }.first
-        #expect(valueA == valueUnicode)
-        #expect(valueA == 65)
     }
 
     @Test
     func testInvalidEscapeSequenceEmitsDiagnostic() {
         let source = "'\\q'"
         let result = lex(source)
-        let codes = Set(result.diagnostics.diagnostics.map(\.code))
-        #expect(codes.contains("KSWIFTK-LEX-0003"))
+        assertHasDiagnostic("KSWIFTK-LEX-0003", in: result.diagnostics.diagnostics)
     }
 
     @Test
     func testCharLiteralSupportsSingleNonASCIIScalar() {
         let source = "'あ'"
         let result = lex(source)
-        let charValues = result.tokens.compactMap { token -> UInt32? in
-            if case let .charLiteral(value) = token.kind { return value }
-            return nil
-        }
-        #expect(charValues == [0x3042])
+        #expect(charValues(in: result.tokens) == [0x3042])
         #expect(!(result.diagnostics.hasError))
     }
 
@@ -349,18 +278,16 @@ extension LexerParserEdgeCaseTests {
     func testCharLiteralEmptyAndMultipleCharactersEmitLex0003() {
         let source = "'' 'ab'"
         let result = lex(source)
-        let codeCounts = Dictionary(grouping: result.diagnostics.diagnostics, by: \.code).mapValues(\.count)
-        #expect(codeCounts["KSWIFTK-LEX-0003"] == 2)
-        #expect(codeCounts["KSWIFTK-LEX-0002"] == nil)
+        assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 2, in: result.diagnostics.diagnostics)
+        assertNoDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
     }
 
     @Test
     func testCharLiteralUnicodeEscapeRequiresUXXXXForm() {
         let source = "'\\u{0041}' '\\u12G4'"
         let result = lex(source)
-        let codeCounts = Dictionary(grouping: result.diagnostics.diagnostics, by: \.code).mapValues(\.count)
-        #expect(codeCounts["KSWIFTK-LEX-0003"] == 2)
-        #expect(codeCounts["KSWIFTK-LEX-0002"] == nil)
+        assertDiagnosticCount("KSWIFTK-LEX-0003", expected: 2, in: result.diagnostics.diagnostics)
+        assertNoDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
     }
 
     @Test
@@ -379,24 +306,12 @@ extension LexerParserEdgeCaseTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            // Find binary expressions and check their types
-            var binaryTypes: [String] = []
-            for index in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(index))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .binary(op, _, _, _) = expr,
-                      let exprType = sema.bindings.exprTypes[exprID]
-                else {
-                    continue
-                }
-                let typeName = sema.types.renderType(exprType)
-                binaryTypes.append("\(op):\(typeName)")
-            }
+            let binaryTypes = binaryExprTypes(ast: ast, sema: sema)
 
             // 'a' + 1 -> Char, 'z' - 'a' -> Int, 'z' - 1 -> Char
             #expect(binaryTypes.contains("add:Char"), "Expected 'a' + 1 to produce Char, got: \(binaryTypes)")
-            #expect(binaryTypes.contains { $0 == "subtract:Int" }, "Expected 'z' - 'a' to produce Int, got: \(binaryTypes)")
-            #expect(binaryTypes.contains { $0 == "subtract:Char" }, "Expected 'z' - 1 to produce Char, got: \(binaryTypes)")
+            #expect(binaryTypes.contains("subtract:Int"), "Expected 'z' - 'a' to produce Int, got: \(binaryTypes)")
+            #expect(binaryTypes.contains("subtract:Char"), "Expected 'z' - 1 to produce Char, got: \(binaryTypes)")
             #expect(!(ctx.diagnostics.hasError))
         }
     }
@@ -439,18 +354,7 @@ extension LexerParserEdgeCaseTests {
             let ast = try #require(ctx.ast)
             let sema = try #require(ctx.sema)
 
-            var binaryTypes: [String] = []
-            for index in ast.arena.exprs.indices {
-                let exprID = ExprID(rawValue: Int32(index))
-                guard let expr = ast.arena.expr(exprID),
-                      case let .binary(op, _, _, _) = expr,
-                      let exprType = sema.bindings.exprTypes[exprID]
-                else {
-                    continue
-                }
-                let typeName = sema.types.renderType(exprType)
-                binaryTypes.append("\(op):\(typeName)")
-            }
+            let binaryTypes = binaryExprTypes(ast: ast, sema: sema)
 
             // Int + Int -> Int, Double + Int -> Double, Long - Int -> Long,
             // String + Int -> String, Float * Int -> Float
@@ -479,6 +383,22 @@ extension LexerParserEdgeCaseTests {
         }
         #expect(topLevel == [.packageHeader, .funDecl, .propertyDecl])
         #expect(!(parsed.diagnostics.hasError))
+    }
+}
+
+/// `"<op>:<renderedType>"` for every binary expression in the arena, in arena
+/// order. Note this spans bundled stdlib expressions too, which is why callers
+/// assert with `contains` rather than on the whole list.
+private func binaryExprTypes(ast: ASTModule, sema: SemaModule) -> [String] {
+    ast.arena.exprs.indices.compactMap { index in
+        let exprID = ExprID(rawValue: Int32(index))
+        guard let expr = ast.arena.expr(exprID),
+              case let .binary(op, _, _, _) = expr,
+              let exprType = sema.bindings.exprTypes[exprID]
+        else {
+            return nil
+        }
+        return "\(op):\(sema.types.renderType(exprType))"
     }
 }
 #endif

@@ -28,7 +28,7 @@ struct MutableDataSourceMigrationTests {
             #expect(sema.symbols.isSourceBackedSymbol(mutableDataSymbol))
 
             let sourceFileID = try #require(sema.symbols.sourceFileID(for: mutableDataSymbol))
-            let expectedSourcePath = "__bundled_kotlin/native/concurrent/MutableData/Stdlib.kt"
+            let expectedSourcePath = "__bundled_kotlin/native/concurrent/MutableData.kt"
             #expect(ctx.sourceManager.path(of: sourceFileID) == expectedSourcePath)
 
             let mutableDataType = sema.types.make(.classType(ClassType(
