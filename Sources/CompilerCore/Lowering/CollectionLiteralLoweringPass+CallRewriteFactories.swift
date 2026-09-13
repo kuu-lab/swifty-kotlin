@@ -34,8 +34,6 @@ extension CollectionLiteralConstructionLoweringPass {
         result: KIRExprID?,
         canThrow: Bool,
         thrownResult: KIRExprID?,
-        function: KIRFunction,
-        builderLambdaKinds: [InternedString: InternedString],
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
@@ -94,6 +92,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
@@ -160,6 +159,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
@@ -236,11 +236,13 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+            // `mutableSetConstructorNames` holds only HashSet and LinkedHashSet,
+            // so the non-HashSet case here is LinkedHashSet() / LinkedHashSet(capacity).
             loweredBody.append(.call(
                 symbol: nil,
                 callee: isHashSetConstructor
                     ? lookup.kkHashSetOfName
-                    : lookup.kkSetOfName,
+                    : lookup.kkLinkedHashSetOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
                 canThrow: false,
@@ -347,7 +349,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
             } else if count == 0 {
                 // Mutable/hash/linked set factories produce a fresh instance via
-                // the shared set storage, with HashSet retaining its nominal tag.
+                // the shared set storage, each keeping its own nominal tag:
+                // hashSetOf is a HashSet, mutableSetOf/linkedSetOf a LinkedHashSet
+                // (BUG-254 -- `__kk_set_of` is shared with the read-only `setOf`,
+                // so it must stay on the `Set` identity).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -356,7 +361,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     symbol: nil,
                     callee: callee == lookup.hashSetOfName
                         ? lookup.kkHashSetOfName
-                        : lookup.kkSetOfName,
+                        : lookup.kkLinkedHashSetOfName,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -420,6 +425,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     ? lookup.kkHashSetOfName
                     : callee == lookup.setOfNotNullName
                     ? lookup.kkSetOfNotNullName
+                    : callee == lookup.mutableSetOfName || callee == lookup.linkedSetOfName
+                    ? lookup.kkLinkedHashSetOfName
                     : lookup.kkSetOfName
                 loweredBody.append(.call(
                     symbol: nil,
@@ -549,39 +556,12 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // Sequence factories are lowered through their bundled Kotlin source.
 
-        // --- Rewrite builder DSL calls to kk_build_* runtime helpers (STDLIB-002) ---
-        if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
-            let kkCallee: InternedString = switch callee {
-            case lookup.buildListName:
-                arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
-            case lookup.buildMapName:
-                arguments.count == 2 ? lookup.kkBuildMapWithCapacityName : lookup.kkBuildMapName
-            default: callee
-            }
-            let builderResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: kkCallee,
-                arguments: arguments,
-                result: builderResult,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if callee == lookup.buildListName, let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(builderResult.rawValue)
-            }
-            if callee == lookup.buildMapName, let result {
-                state.mapExprIDs.insert(result.rawValue)
-                state.mapExprIDs.insert(builderResult.rawValue)
-            }
-            if let result {
-                loweredBody.append(.copy(from: builderResult, to: result))
-            }
-            return true
-        }
-
+        // The builder DSL rewrite to `__kk_build_*` runtime helpers (STDLIB-002)
+        // is gone: RF-LOWER-CALL-004 (list), -005 (set) and -006 (map) removed
+        // every arm, so `buildList` / `buildSet` / `buildMap` all lower through
+        // `CollectionBuilders.kt`.  `isStdlibBuilderDSLCall` itself still has a
+        // caller in `scanBuilderLambdaEntries`; retiring the shared predicate
+        // and `BuilderDSLLookupNames` is RF-LOWER-CALL-015.
 
         return false
     }

@@ -212,13 +212,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let ulongArrayType = syntheticNominalType(
-            named: "ULongArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         for property in [
             ("start", "kk_ulong_range_first"),
             ("endInclusive", "kk_ulong_range_last"),
@@ -291,16 +284,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_ulong_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toULongArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: ulongArrayType,
-            externalLinkName: "kk_ulong_range_toULongArray",
             symbols: symbols,
             interner: interner
         )

@@ -14,7 +14,7 @@ struct BundledStdlibDiagnosticsTests {
 
             let bundledDiagnostics = ctx.diagnostics.diagnostics.filter { diagnostic in
                 guard let range = diagnostic.primaryRange else { return false }
-                return ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+                return !isUserSourceRange(range, in: ctx)
             }
 
             let bundledErrors = bundledDiagnostics.filter { $0.severity == .error }

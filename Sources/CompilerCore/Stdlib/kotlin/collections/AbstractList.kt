@@ -9,7 +9,8 @@ package kotlin.collections
 
 // KSP-697: source-backed nominal shell. The abstract indexed contract is kept
 // here for concrete subclasses; the List interface's indexed bridge remains in
-// the compiler residual registry until KSP-699.
+// the compiler residual registry
+// (HeaderHelpers+SyntheticListResiduals.registerListGetOperator) until KSP-700.
 public abstract class AbstractList<out E> protected constructor() : AbstractCollection<E>(), List<E> {
     public abstract override operator fun get(index: Int): E
 }

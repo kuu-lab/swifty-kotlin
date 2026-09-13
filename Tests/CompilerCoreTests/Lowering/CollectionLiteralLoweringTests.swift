@@ -117,8 +117,11 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_list_of"), "listOf should become __kk_list_of")
     }
 
+    /// KSP-699: `mutableListOf` declares a `MutableList` result, so it takes the
+    /// ArrayList-tagged bridge like `arrayListOf`. `__kk_list_of` tags its box as
+    /// the read-only `List`, which made `is MutableList` answer false.
     @Test
-    func testMutableListOfRewrittenToKkListOf() throws {
+    func testMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -129,7 +132,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf should be rewritten")
-        #expect(callees.contains("__kk_list_of"), "mutableListOf should become __kk_list_of")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf should become __kk_array_list_of; got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf must not keep the read-only List tag")
     }
 
     @Test
@@ -574,7 +581,7 @@ struct CollectionLiteralLoweringTests {
     // MARK: - Zero-arg mutable factory rewriting
 
     @Test
-    func testZeroArgMutableListOfRewrittenToKkListOf() throws {
+    func testZeroArgMutableListOfRewrittenToKkArrayListOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableListOf")
@@ -585,7 +592,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableListOf"), "mutableListOf() should be rewritten")
-        #expect(callees.contains("__kk_list_of"), "mutableListOf() should become __kk_list_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_array_list_of"),
+            "mutableListOf() should become __kk_array_list_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_list_of"), "mutableListOf() must not keep the read-only List tag")
     }
 
     @Test
@@ -603,8 +614,12 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_array_list_of"), "arrayListOf() should become __kk_array_list_of (fresh mutable)")
     }
 
+    /// BUG-254: `mutableSetOf` declares a `MutableSet` result backed by
+    /// LinkedHashSet, so it takes the LinkedHashSet-tagged bridge. `__kk_set_of`
+    /// is shared with the read-only `setOf` and tags its box as `Set`, which made
+    /// `is MutableSet` / `is LinkedHashSet` answer false.
     @Test
-    func testZeroArgMutableSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgMutableSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableSetOf")
@@ -615,11 +630,15 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableSetOf"), "mutableSetOf() should be rewritten")
-        #expect(callees.contains("__kk_set_of"), "mutableSetOf() should become __kk_set_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "mutableSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "mutableSetOf() must not keep the read-only Set tag")
     }
 
     @Test
-    func testZeroArgLinkedSetOfRewrittenToKkSetOf() throws {
+    func testZeroArgLinkedSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedSetOf")
@@ -630,7 +649,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf() should be rewritten")
-        #expect(callees.contains("__kk_set_of"), "linkedSetOf() should become __kk_set_of (fresh mutable)")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "linkedSetOf() should become __kk_linked_hash_set_of (fresh mutable); got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "linkedSetOf() must not keep the read-only Set tag")
     }
 
     @Test
@@ -745,7 +768,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testLinkedSetOfRewrittenToKkSetOf() throws {
+    func testLinkedSetOfRewrittenToKkLinkedHashSetOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedSetOf")
@@ -756,7 +779,11 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedSetOf"), "linkedSetOf should be rewritten")
-        #expect(callees.contains("__kk_set_of"), "linkedSetOf should become __kk_set_of")
+        #expect(
+            callees.contains("__kk_linked_hash_set_of"),
+            "linkedSetOf should become __kk_linked_hash_set_of; got: \(callees)"
+        )
+        #expect(!callees.contains("__kk_set_of"), "linkedSetOf must not keep the read-only Set tag")
     }
 
     @Test
@@ -774,10 +801,14 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_hash_set_of"), "hashSetOf should become __kk_hash_set_of")
     }
 
-    // MARK: - buildList rewriting (STDLIB-070)
+    // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
 
+    /// `symbol: nil` used to take the unconditional `return true` branch of
+    /// `isStdlibBuilderDSLCall` and rewrite to `__kk_build_list`.  Both
+    /// overloads now come from `CollectionBuilders.kt`, so the legacy runtime
+    /// entry point is gone and even a nil-symbol call must be left alone.
     @Test
-    func testBuildListRewrittenToKkBuildList() throws {
+    func testBuildListIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("buildList")
@@ -787,12 +818,17 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList should be rewritten")
-        #expect(callees.contains("__kk_build_list"), "buildList should become __kk_build_list")
+        #expect(callees.contains("buildList"), "buildList must survive the pass unrewritten")
+        #expect(
+            !callees.contains("__kk_build_list"),
+            "the legacy __kk_build_list rewrite was removed; callees: \(callees)"
+        )
     }
 
+    /// Capacity counterpart of the above: the two-argument shape used to map to
+    /// `__kk_build_list_with_capacity`.
     @Test
-    func testBuildListCapacityRewrittenToKkBuildListWithCapacity() throws {
+    func testBuildListCapacityIsNotRewrittenToLegacyRuntime() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let arg0 = arena.appendExpr(.temporary(0))
@@ -824,10 +860,10 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildList"), "buildList(capacity) should be rewritten")
+        #expect(callees.contains("buildList"), "buildList(capacity) must survive the pass unrewritten")
         #expect(
-            callees.contains("__kk_build_list_with_capacity"),
-            "buildList(capacity) should become __kk_build_list_with_capacity"
+            !callees.contains("__kk_build_list_with_capacity"),
+            "the legacy __kk_build_list_with_capacity rewrite was removed; callees: \(callees)"
         )
     }
 
@@ -955,30 +991,21 @@ struct CollectionLiteralLoweringTests {
         )
     }
 
-    // MARK: - buildMap rewriting (STDLIB-071)
+    // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
 
-    @Test
-    func testBuildMapRewrittenToKkBuildMap() throws {
+    /// `buildMap` is supplied entirely by `CollectionBuilders.kt`, so the
+    /// legacy `__kk_build_map*` rewrite was removed.  These cases use the
+    /// `symbol: nil` hand-built shape that used to bypass every guard in
+    /// `isStdlibBuilderDSLCall` via `guard let symbol else { return true }` —
+    /// the strongest input the rewrite ever accepted.  It must now fall
+    /// through untouched, which only holds while `buildMap` stays out of
+    /// `builderDSLNames`.
+    @Test(arguments: [1, 2])
+    func testBuildMapIsNotRewrittenToRuntimeBuilder(argumentCount: Int) throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let callee = interner.intern("buildMap")
-        let (module, declID) = makeModuleWithCall(callee: callee, interner: interner, arena: arena)
-        let ctx = makeKIRContext(interner: interner)
-
-        try runPass(module: module, kirCtx: ctx)
-
-        let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildMap"), "buildMap should be rewritten")
-        #expect(callees.contains("__kk_build_map"), "buildMap should become __kk_build_map")
-    }
-
-    @Test
-    func testBuildMapCapacityRewrittenToKkBuildMapWithCapacity() throws {
-        let interner = StringInterner()
-        let arena = KIRArena()
-        let arg0 = arena.appendExpr(.temporary(0))
-        let arg1 = arena.appendExpr(.temporary(1))
-        let result = arena.appendExpr(.temporary(2))
+        let arguments = (0 ..< argumentCount).map { arena.appendExpr(.temporary(Int32($0))) }
+        let result = arena.appendExpr(.temporary(Int32(argumentCount)))
         let fn = KIRFunction(
             symbol: SymbolID(rawValue: 1),
             name: interner.intern("main"),
@@ -988,7 +1015,7 @@ struct CollectionLiteralLoweringTests {
                 .call(
                     symbol: nil,
                     callee: interner.intern("buildMap"),
-                    arguments: [arg0, arg1],
+                    arguments: arguments,
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -1005,10 +1032,14 @@ struct CollectionLiteralLoweringTests {
         try runPass(module: module, kirCtx: ctx)
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
-        #expect(!callees.contains("buildMap"), "buildMap(capacity) should be rewritten")
+        #expect(callees.contains("buildMap"), "buildMap must stay a plain call; callees: \(callees)")
         #expect(
-            callees.contains("__kk_build_map_with_capacity"),
-            "buildMap(capacity) should become __kk_build_map_with_capacity"
+            !callees.contains("__kk_build_map"),
+            "the __kk_build_map rewrite is deleted; callees: \(callees)"
+        )
+        #expect(
+            !callees.contains("__kk_build_map_with_capacity"),
+            "the __kk_build_map_with_capacity rewrite is deleted; callees: \(callees)"
         )
     }
 

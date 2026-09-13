@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 10, "character": 13 },
+        "end": { "line": 10, "character": 31 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toIntArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 13, "character": 13 },
+        "end": { "line": 13, "character": 38 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toIntArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 16, "character": 13 },
+        "end": { "line": 16, "character": 34 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toLongArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 19, "character": 13 },
+        "end": { "line": 19, "character": 41 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toLongArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 22, "character": 13 },
+        "end": { "line": 22, "character": 34 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toUIntArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 25, "character": 13 },
+        "end": { "line": 25, "character": 41 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toUIntArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 28, "character": 13 },
+        "end": { "line": 28, "character": 37 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toULongArray'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_range_toarray_unsupported.kt",
+      "range": {
+        "start": { "line": 31, "character": 13 },
+        "end": { "line": 31, "character": 44 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0024",
+      "source": "kswiftk",
+      "message": "Unresolved member function 'toULongArray'.",
+      "codeActions": []
+    }
+  ]
+}

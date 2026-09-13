@@ -9,27 +9,19 @@ import Testing
 /// `__kk_writer_buffered_default` / `__kk_writer_buffered` runtime symbols.
 @Suite
 struct WriterBufferedFunctionTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static let fixture = SemaFixture(surface: "Writer.buffered")
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
     }
 
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Writer.buffered surface should resolve without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            result = (try #require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test
