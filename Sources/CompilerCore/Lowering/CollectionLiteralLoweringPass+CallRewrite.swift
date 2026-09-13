@@ -24,23 +24,29 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        guard callee == lookup.foldName
-            || callee == lookup.foldRightName
-            || callee == lookup.reduceName
-            || callee == lookup.reduceOrNullName
-            || callee == lookup.scanName
+        // RF-LOWER-CALL-009: of the accumulation family only the eight names
+        // below still have a downstream rewrite — the `sequenceExprIDs`-gated
+        // branches in +CallRewriteHOFAccumulations.swift.  Whether those should
+        // fire for a source-backed declaration whose receiver is a
+        // RuntimeSequenceBox is the KSP-441 question RF-LOWER-CALL-014 owns
+        // (compare the map/filter exclusions at the end of this guard), so they
+        // keep the short-circuit unchanged here.
+        //
+        // fold / foldIndexed / foldRight / foldRightIndexed / reduce /
+        // reduceOrNull / reduceRight / reduceRightOrNull / reduceRightIndexed /
+        // reduceRightIndexedOrNull / scanReduce had no downstream rewrite left
+        // to short-circuit: the List-side legacy bridges are gone (nothing emits
+        // kk_list_fold* / kk_list_scan* any more — they survive as
+        // RuntimeABISpec-only entries) and Sequence/Range accumulation routing
+        // happens in CallLowerer, which hands this pass an already-`kk_`-named
+        // callee.  Their source-preservation contract is pinned by
+        // ListAccumulationSourcePreservationTests instead of by this list.
+        guard callee == lookup.scanName
             || callee == lookup.scanIndexedName
-            || callee == lookup.scanReduceName
             || callee == lookup.runningFoldName
             || callee == lookup.runningFoldIndexedName
             || callee == lookup.runningReduceName
             || callee == lookup.runningReduceIndexedName
-            || callee == lookup.foldIndexedName
-            || callee == lookup.foldRightIndexedName
-            || callee == lookup.reduceRightName
-            || callee == lookup.reduceRightOrNullName
-            || callee == lookup.reduceRightIndexedName
-            || callee == lookup.reduceRightIndexedOrNullName
             || callee == lookup.reduceIndexedName
             || callee == lookup.reduceIndexedOrNullName
             || callee == lookup.filterName

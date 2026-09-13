@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -19,21 +18,19 @@ extension BuildKIRRegressionTests {
             source.measureTimedValue { "value" }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callees.contains("measureTime"), "Expected a call to bundled TimeSource.measureTime")
-            #expect(
-                callees.contains("measureTimedValue"),
-                "Expected a call to bundled TimeSource.measureTimedValue"
-            )
-            #expect(!callees.contains("__kk_time_source_mark_now"))
-        }
+        #expect(callees.contains("measureTime"), "Expected a call to bundled TimeSource.measureTime")
+        #expect(
+            callees.contains("measureTimedValue"),
+            "Expected a call to bundled TimeSource.measureTimedValue"
+        )
+        #expect(!callees.contains("__kk_time_source_mark_now"))
     }
 
     /// KSP-1475: compiler-only contract DSL lambdas must not leave runtime KIR.
@@ -55,26 +52,24 @@ extension BuildKIRRegressionTests {
             println(contractProbe { "ok" })
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let allCallees = module.arena.declarations.compactMap { declaration -> KIRFunction? in
-                guard case let .function(function) = declaration else { return nil }
-                return function
-            }.flatMap { function in
-                extractCallees(from: function.body, interner: ctx.interner)
-            }
-            #expect(
-                !allCallees.contains("contract"),
-                "Compiler-only contract call must not be emitted into KIR: \(allCallees)"
-            )
-            #expect(
-                !allCallees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }),
-                "Contract effect enum access must not emit constructor-property helpers: \(allCallees)"
-            )
+        let module = try #require(ctx.kir)
+        let allCallees = module.arena.declarations.compactMap { declaration -> KIRFunction? in
+            guard case let .function(function) = declaration else { return nil }
+            return function
+        }.flatMap { function in
+            extractCallees(from: function.body, interner: ctx.interner)
         }
+        #expect(
+            !allCallees.contains("contract"),
+            "Compiler-only contract call must not be emitted into KIR: \(allCallees)"
+        )
+        #expect(
+            !allCallees.contains(where: { $0.hasPrefix("$enumConstructorProperty$") }),
+            "Contract effect enum access must not emit constructor-property helpers: \(allCallees)"
+        )
     }
 }
 #endif
