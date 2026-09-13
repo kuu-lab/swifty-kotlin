@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 /// KSP-496 moved these to ordinary Kotlin extension properties
@@ -14,19 +13,15 @@ import Testing
 struct KClassBooleanIntrospectionTests {
 
     private func calleesForMain(_ source: String) throws -> Set<String> {
-        var result: Set<String>?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !(ctx.diagnostics.hasError),
-                "Expected source to type-check, got: \(ctx.diagnostics.diagnostics)"
-            )
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            result = Set(extractCallees(from: body, interner: ctx.interner))
-        }
-        return try #require(result)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !(ctx.diagnostics.hasError),
+            "Expected source to type-check, got: \(ctx.diagnostics.diagnostics)"
+        )
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        return Set(extractCallees(from: body, interner: ctx.interner))
     }
 
     @Test func testClassLiteralIsDataEmitsRuntimeCallAndMetadata() throws {

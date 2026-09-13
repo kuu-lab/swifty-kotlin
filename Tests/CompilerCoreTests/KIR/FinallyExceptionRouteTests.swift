@@ -18,50 +18,48 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-            let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool, hasThrownResult: Bool)? in
-                guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instr,
-                      ctx.interner.resolve(callee) == "cleanup"
-                else { return nil }
-                return (index: index, canThrow: canThrow, hasThrownResult: thrownResult != nil)
-            }
-
-            #expect(
-                cleanupCalls.count >= 1,
-                "Expected at least one inlined cleanup() call"
-            )
-
-            let rethrowIndices = body.indices.filter { index in
-                if case .rethrow = body[index] { return true }
-                return false
-            }
-
-            let returnValueIndices = body.indices.filter { index in
-                if case .returnValue = body[index] { return true }
-                return false
-            }
-
-            let inlinedCleanupCalls = cleanupCalls.filter { call in
-                returnValueIndices.contains { retIdx in call.index < retIdx }
-            }
-
-            let hasThrowAwareInlinedCleanup = inlinedCleanupCalls.contains { $0.canThrow }
-            #expect(
-                hasThrowAwareInlinedCleanup,
-                "Inlined finally cleanup() should be wrapped with throw-aware handling (canThrow: true)"
-            )
-
-            #expect(
-                rethrowIndices.count >= 1,
-                "Expected at least one rethrow instruction for inlined finally exception routing"
-            )
+        let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool, hasThrownResult: Bool)? in
+            guard case let .call(_, callee, _, _, canThrow, thrownResult, _, _) = instr,
+                  ctx.interner.resolve(callee) == "cleanup"
+            else { return nil }
+            return (index: index, canThrow: canThrow, hasThrownResult: thrownResult != nil)
         }
+
+        #expect(
+            cleanupCalls.count >= 1,
+            "Expected at least one inlined cleanup() call"
+        )
+
+        let rethrowIndices = body.indices.filter { index in
+            if case .rethrow = body[index] { return true }
+            return false
+        }
+
+        let returnValueIndices = body.indices.filter { index in
+            if case .returnValue = body[index] { return true }
+            return false
+        }
+
+        let inlinedCleanupCalls = cleanupCalls.filter { call in
+            returnValueIndices.contains { retIdx in call.index < retIdx }
+        }
+
+        let hasThrowAwareInlinedCleanup = inlinedCleanupCalls.contains { $0.canThrow }
+        #expect(
+            hasThrowAwareInlinedCleanup,
+            "Inlined finally cleanup() should be wrapped with throw-aware handling (canThrow: true)"
+        )
+
+        #expect(
+            rethrowIndices.count >= 1,
+            "Expected at least one rethrow instruction for inlined finally exception routing"
+        )
     }
 
     @Test func testBreakInTryCatchFinallyRoutesExceptionOutward() throws {
@@ -92,23 +90,21 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-            let returnValueIndices = body.indices.filter { index in
-                if case .returnValue = body[index] { return true }
-                return false
-            }
-
-            let hasReturnValue = !returnValueIndices.isEmpty
-            #expect(hasReturnValue, "Expected at least one returnValue instruction")
-
-            #expect(!body.isEmpty, "Expected non-empty function body")
+        let returnValueIndices = body.indices.filter { index in
+            if case .returnValue = body[index] { return true }
+            return false
         }
+
+        let hasReturnValue = !returnValueIndices.isEmpty
+        #expect(hasReturnValue, "Expected at least one returnValue instruction")
+
+        #expect(!body.isEmpty, "Expected non-empty function body")
     }
 
     @Test func testNestedTryFinallyExceptionRouting() throws {
@@ -127,41 +123,39 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "compute", in: module, interner: ctx.interner)
 
-            let innerCalls = body.filter { instr in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
-                return ctx.interner.resolve(callee) == "inner"
-            }
-            let outerCalls = body.filter { instr in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
-                return ctx.interner.resolve(callee) == "outer"
-            }
-
-            #expect(
-                innerCalls.count >= 1,
-                "Expected at least one inner() call"
-            )
-            #expect(
-                outerCalls.count >= 1,
-                "Expected at least one outer() call"
-            )
-
-            let rethrowCount = body.filter { instr in
-                if case .rethrow = instr { return true }
-                return false
-            }.count
-
-            #expect(
-                rethrowCount >= 1,
-                "Expected rethrow instructions for nested finally exception routing"
-            )
+        let innerCalls = body.filter { instr in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
+            return ctx.interner.resolve(callee) == "inner"
         }
+        let outerCalls = body.filter { instr in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instr else { return false }
+            return ctx.interner.resolve(callee) == "outer"
+        }
+
+        #expect(
+            innerCalls.count >= 1,
+            "Expected at least one inner() call"
+        )
+        #expect(
+            outerCalls.count >= 1,
+            "Expected at least one outer() call"
+        )
+
+        let rethrowCount = body.filter { instr in
+            if case .rethrow = instr { return true }
+            return false
+        }.count
+
+        #expect(
+            rethrowCount >= 1,
+            "Expected rethrow instructions for nested finally exception routing"
+        )
     }
 
     @Test func testContinueInTryCatchFinallyRoutesExceptionOutward() throws {
@@ -215,78 +209,74 @@ struct FinallyExceptionRouteTests {
             }
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
 
-            var depth = 0
-            var maxDepth = 0
-            var sawCallAtNestedDepth = false
-            for instr in body {
-                switch instr {
-                case .beginFinallyGuard:
-                    depth += 1
-                    maxDepth = max(maxDepth, depth)
-                case .endFinallyGuard:
-                    depth -= 1
-                case .call where depth >= 2:
-                    sawCallAtNestedDepth = true
-                default:
-                    break
-                }
+        var depth = 0
+        var maxDepth = 0
+        var sawCallAtNestedDepth = false
+        for instr in body {
+            switch instr {
+            case .beginFinallyGuard:
+                depth += 1
+                maxDepth = max(maxDepth, depth)
+            case .endFinallyGuard:
+                depth -= 1
+            case .call where depth >= 2:
+                sawCallAtNestedDepth = true
+            default:
+                break
             }
-
-            #expect(depth == 0, "beginFinallyGuard/endFinallyGuard must be balanced")
-            #expect(
-                maxDepth >= 2,
-                "Expected usePinned's block-call guard nested inside the outer try's own body guard"
-            )
-            #expect(
-                sawCallAtNestedDepth,
-                "Expected the usePinned block-call itself inside the doubly-guarded region"
-            )
         }
+
+        #expect(depth == 0, "beginFinallyGuard/endFinallyGuard must be balanced")
+        #expect(
+            maxDepth >= 2,
+            "Expected usePinned's block-call guard nested inside the outer try's own body guard"
+        )
+        #expect(
+            sawCallAtNestedDepth,
+            "Expected the usePinned block-call itself inside the doubly-guarded region"
+        )
     }
 
     // break/continue paths share the same assertion structure
     private func assertInlinedFinallyIsThrowAware(source: String, functionName: String) throws {
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
 
-            let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
-                guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
-                      ctx.interner.resolve(callee) == "cleanup"
-                else { return nil }
-                return (index: index, canThrow: canThrow)
-            }
-
-            #expect(
-                cleanupCalls.count >= 1,
-                Comment(rawValue: "Expected at least one inlined cleanup() call for finally on \(functionName)")
-            )
-
-            let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
-            #expect(
-                hasThrowAwareCleanup,
-                Comment(rawValue: "Inlined finally cleanup() should be throw-aware for \(functionName)")
-            )
-
-            let rethrowCount = body.filter { instr in
-                if case .rethrow = instr { return true }
-                return false
-            }.count
-            #expect(
-                rethrowCount >= 1,
-                Comment(rawValue: "Expected at least one rethrow for inlined finally exception routing on \(functionName)")
-            )
+        let cleanupCalls = body.enumerated().compactMap { (index, instr) -> (index: Int, canThrow: Bool)? in
+            guard case let .call(_, callee, _, _, canThrow, _, _, _) = instr,
+                  ctx.interner.resolve(callee) == "cleanup"
+            else { return nil }
+            return (index: index, canThrow: canThrow)
         }
+
+        #expect(
+            cleanupCalls.count >= 1,
+            Comment(rawValue: "Expected at least one inlined cleanup() call for finally on \(functionName)")
+        )
+
+        let hasThrowAwareCleanup = cleanupCalls.contains { $0.canThrow }
+        #expect(
+            hasThrowAwareCleanup,
+            Comment(rawValue: "Inlined finally cleanup() should be throw-aware for \(functionName)")
+        )
+
+        let rethrowCount = body.filter { instr in
+            if case .rethrow = instr { return true }
+            return false
+        }.count
+        #expect(
+            rethrowCount >= 1,
+            Comment(rawValue: "Expected at least one rethrow for inlined finally exception routing on \(functionName)")
+        )
     }
 }
 #endif

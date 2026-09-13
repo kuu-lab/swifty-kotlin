@@ -1,14 +1,14 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
 
-    private static nonisolated(unsafe) var _sharedLocalFunctionCtx: CompilationContext?
-
-    private func sharedLocalFunctionCtx() throws -> CompilationContext {
-        if let cached = Self._sharedLocalFunctionCtx { return cached }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedLocalFunctionCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -161,21 +161,20 @@ extension BuildKIRRegressionTests {
             }
             """
         ]
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runToKIR(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedLocalFunctionCtx = ctx
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
         return ctx
     }
 
-    private static nonisolated(unsafe) var _sharedLocalFunctionErrorCtx: CompilationContext?
+    private func sharedLocalFunctionCtx() throws -> CompilationContext {
+        try Self._sharedLocalFunctionCtx.get()
+    }
 
-    private func sharedLocalFunctionErrorCtx() throws -> CompilationContext {
-        if let cached = Self._sharedLocalFunctionErrorCtx { return cached }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedLocalFunctionErrorCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample9
@@ -188,15 +187,13 @@ extension BuildKIRRegressionTests {
             }
             """
         ]
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runToKIR(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedLocalFunctionErrorCtx = ctx
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
         return ctx
+    }
+
+    private func sharedLocalFunctionErrorCtx() throws -> CompilationContext {
+        try Self._sharedLocalFunctionErrorCtx.get()
     }
 
     @Test
@@ -362,22 +359,6 @@ extension BuildKIRRegressionTests {
             ctx.diagnostics.hasError,
             "Local function should not be visible outside its defining top-level function: \(ctx.diagnostics.diagnostics.map(\.message))"
         )
-    }
-
-    func firstExprID(
-        in ast: ASTModule,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else {
-                continue
-            }
-            if predicate(exprID, expr) {
-                return exprID
-            }
-        }
-        return nil
     }
 }
 #endif

@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -13,38 +12,36 @@ extension BuildKIRRegressionTests {
         fun lengthOf(value: CharSequence): Int = value.length
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let sema = try #require(ctx.sema)
-            // Slot is vtableSize-relative (kirInterfacePropertyGetterSlots), so derive it
-            // from production code instead of hardcoding — it shifts when CharSequence gains a method.
-            let charSequenceFQ = ["kotlin", "CharSequence"].map { ctx.interner.intern($0) }
-            let lengthFQ = charSequenceFQ + [ctx.interner.intern("length")]
-            let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: charSequenceFQ))
-            let lengthSymbol = try #require(sema.symbols.lookup(fqName: lengthFQ))
-            let expectedSlot = try #require(kirInterfacePropertyGetterSlot(
-                interfaceProperty: lengthSymbol,
-                interfaceSymbol: charSequenceSymbol,
-                sema: sema,
-                interner: ctx.interner
-            ))
+        let module = try #require(ctx.kir)
+        let sema = try #require(ctx.sema)
+        // Slot is vtableSize-relative (kirInterfacePropertyGetterSlots), so derive it
+        // from production code instead of hardcoding — it shifts when CharSequence gains a method.
+        let charSequenceFQ = ["kotlin", "CharSequence"].map { ctx.interner.intern($0) }
+        let lengthFQ = charSequenceFQ + [ctx.interner.intern("length")]
+        let charSequenceSymbol = try #require(sema.symbols.lookup(fqName: charSequenceFQ))
+        let lengthSymbol = try #require(sema.symbols.lookup(fqName: lengthFQ))
+        let expectedSlot = try #require(kirInterfacePropertyGetterSlot(
+            interfaceProperty: lengthSymbol,
+            interfaceSymbol: charSequenceSymbol,
+            sema: sema,
+            interner: ctx.interner
+        ))
 
-            let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
-            let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
-                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
-                    return nil
-                }
-                return dispatch
+        let body = try findKIRFunctionBody(named: "lengthOf", in: module, interner: ctx.interner)
+        let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
+                return nil
             }
-
-            #expect(dispatches.contains { dispatch in
-                if case .itableDynamic(_, expectedSlot) = dispatch { return true }
-                return false
-            })
+            return dispatch
         }
+
+        #expect(dispatches.contains { dispatch in
+            if case .itableDynamic(_, expectedSlot) = dispatch { return true }
+            return false
+        })
     }
 
     // KSP-817: an interface operator member must remain a dynamic itable call.
@@ -53,24 +50,22 @@ extension BuildKIRRegressionTests {
         fun getAt(value: CharSequence): Char = value[0]
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "getAt", in: module, interner: ctx.interner)
-            let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
-                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
-                    return nil
-                }
-                return dispatch
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "getAt", in: module, interner: ctx.interner)
+        let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
+                return nil
             }
-
-            #expect(dispatches.contains { dispatch in
-                if case .itableDynamic(_, 0) = dispatch { return true }
-                return false
-            })
+            return dispatch
         }
+
+        #expect(dispatches.contains { dispatch in
+            if case .itableDynamic(_, 0) = dispatch { return true }
+            return false
+        })
     }
 
     // KSP-1390: CharSequence.subSequence must use the adjacent dynamic method slot.
@@ -79,24 +74,22 @@ extension BuildKIRRegressionTests {
         fun subSequenceOf(value: CharSequence): CharSequence = value.subSequence(0, 1)
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "subSequenceOf", in: module, interner: ctx.interner)
-            let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
-                guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
-                    return nil
-                }
-                return dispatch
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "subSequenceOf", in: module, interner: ctx.interner)
+        let dispatches = body.compactMap { instruction -> KIRDispatchKind? in
+            guard case let .virtualCall(_, _, _, _, _, _, _, dispatch) = instruction else {
+                return nil
             }
-
-            #expect(dispatches.contains { dispatch in
-                if case .itableDynamic(_, 1) = dispatch { return true }
-                return false
-            })
+            return dispatch
         }
+
+        #expect(dispatches.contains { dispatch in
+            if case .itableDynamic(_, 1) = dispatch { return true }
+            return false
+        })
     }
 
     @Test func testDirectSafeMemberCallConstFoldNonNullAndNullablePaths() {

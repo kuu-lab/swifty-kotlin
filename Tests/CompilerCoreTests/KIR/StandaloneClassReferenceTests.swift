@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 @Suite
@@ -14,41 +13,36 @@ struct StandaloneClassReferenceTests {
             println(kc)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone T::class after inline expansion, got: \(callees)"
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_kclass_create"),
+            "Expected __kk_kclass_create for standalone T::class after inline expansion, got: \(callees)"
+        )
     }
 
     @Test func testStandaloneConcreteAndPrimitiveClassRefsEmitKClassCreate() throws {
-        let types = ["String", "Int", "Long", "Double", "Boolean"]
-        for typeName in types {
+        for typeName in ["String", "Int", "Long", "Double", "Boolean"] {
             let source = """
             fun main() {
                 val kc = \(typeName)::class
                 println(kc)
             }
             """
-            try withTemporaryFile(contents: source) { path in
-                let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-                try runToKIR(ctx)
+            let ctx = makeContextFromSource(source)
+            try runToKIR(ctx)
 
-                let module = try #require(ctx.kir)
-                let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-                let callees = extractCallees(from: body, interner: ctx.interner)
-                #expect(
-                    callees.contains("__kk_kclass_create"),
-                    "Expected __kk_kclass_create for standalone \(typeName)::class, got: \(callees)"
-                )
-            }
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(
+                callees.contains("__kk_kclass_create"),
+                Comment(rawValue: "Expected __kk_kclass_create for standalone \(typeName)::class, got: \(callees)")
+            )
         }
     }
 
@@ -64,22 +58,20 @@ struct StandaloneClassReferenceTests {
         inline fun <reified T> typeNameOf(): String = T::class.simpleName ?: "unknown"
         fun main() = println(typeNameOf<Int>())
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("simpleName"),
-                "Chained T::class.simpleName should resolve to the Kotlin simpleName getter, got: \(callees)"
-            )
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Chained T::class.simpleName should emit __kk_kclass_create (box creation, then dispatch to the simpleName getter), got: \(callees)"
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("simpleName"),
+            "Chained T::class.simpleName should resolve to the Kotlin simpleName getter, got: \(callees)"
+        )
+        #expect(
+            callees.contains("__kk_kclass_create"),
+            "Chained T::class.simpleName should emit __kk_kclass_create (box creation, then dispatch to the simpleName getter), got: \(callees)"
+        )
     }
 
     @Test func testStandaloneUserClassRefEmitsKClassCreate() throws {
@@ -90,18 +82,16 @@ struct StandaloneClassReferenceTests {
             println(kc)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for standalone MyClass::class, got: \(callees)"
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_kclass_create"),
+            "Expected __kk_kclass_create for standalone MyClass::class, got: \(callees)"
+        )
     }
 
     @Test func testFindAssociatedObjectLowersToRuntimeCall() throws {
@@ -118,18 +108,16 @@ struct StandaloneClassReferenceTests {
             println(associated)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_find_associated_object"),
-                "Expected findAssociatedObject to lower to __kk_kclass_find_associated_object, got: \(callees)"
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_kclass_find_associated_object"),
+            "Expected findAssociatedObject to lower to __kk_kclass_find_associated_object, got: \(callees)"
+        )
     }
 
     @Test func testThisClassRefEmitsKClassCreate() throws {
@@ -142,18 +130,16 @@ struct StandaloneClassReferenceTests {
             println(f.getKClass())
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "getKClass", in: module, interner: ctx.interner)
-            let callees = extractCallees(from: body, interner: ctx.interner)
-            #expect(
-                callees.contains("__kk_kclass_create"),
-                "Expected __kk_kclass_create for this::class, got: \(callees)"
-            )
-        }
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "getKClass", in: module, interner: ctx.interner)
+        let callees = extractCallees(from: body, interner: ctx.interner)
+        #expect(
+            callees.contains("__kk_kclass_create"),
+            "Expected __kk_kclass_create for this::class, got: \(callees)"
+        )
     }
 
     @Test func testRuntimeTypeCheckTokenEncodesAdditionalPrimitives() {
@@ -167,8 +153,8 @@ struct StandaloneClassReferenceTests {
         for (kind, expectedBase, label) in cases {
             let type = types.make(.primitive(kind, .nonNull))
             let encoded = RuntimeTypeCheckToken.encode(type: type, sema: sema, interner: interner)
-            #expect(encoded & 0xFF == expectedBase, "\(label) should encode with base \(expectedBase)")
-            #expect(encoded != 0, "\(label) token must not be unknownBase (0)")
+            #expect(encoded & 0xFF == expectedBase, Comment(rawValue: "\(label) should encode with base \(expectedBase)"))
+            #expect(encoded != 0, Comment(rawValue: "\(label) token must not be unknownBase (0)"))
         }
     }
 
@@ -179,29 +165,27 @@ struct StandaloneClassReferenceTests {
             println(kc)
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            for instruction in body {
-                guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { continue }
-                if ctx.interner.resolve(callee) == "__kk_kclass_create" {
-                    guard let resultID = result,
-                          let resultType = module.arena.exprType(resultID) else {
-                        Issue.record("__kk_kclass_create result has no stored type")
-                        return
-                    }
-                    if case .kClassType = ctx.sema!.types.kind(of: resultType) {
-                        return
-                    }
-                    Issue.record("Expected KClass type for __kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        for instruction in body {
+            guard case let .call(_, callee, _, result, _, _, _, _) = instruction else { continue }
+            if ctx.interner.resolve(callee) == "__kk_kclass_create" {
+                guard let resultID = result,
+                      let resultType = module.arena.exprType(resultID) else {
+                    Issue.record("__kk_kclass_create result has no stored type")
                     return
                 }
+                if case .kClassType = ctx.sema!.types.kind(of: resultType) {
+                    return
+                }
+                Issue.record("Expected KClass type for __kk_kclass_create result, got type kind: \(ctx.sema!.types.kind(of: resultType))")
+                return
             }
-            Issue.record("__kk_kclass_create call not found in main body")
         }
+        Issue.record("__kk_kclass_create call not found in main body")
     }
 
     /// KSP-496: `cast`/`safeCast` are bundled Kotlin extensions
@@ -213,23 +197,21 @@ struct StandaloneClassReferenceTests {
         extensionName: String,
         runtimeCallee: String
     ) throws {
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            for functionName in functions {
-                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                let callees = extractCallees(from: body, interner: ctx.interner)
-                #expect(
-                    callees.contains(extensionName),
-                    "Expected \(functionName) to call the bundled Kotlin \(extensionName) extension"
-                )
-                #expect(
-                    !callees.contains(runtimeCallee),
-                    "Expected \(functionName) not to emit \(runtimeCallee) directly"
-                )
-            }
+        let module = try #require(ctx.kir)
+        for functionName in functions {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+            #expect(
+                callees.contains(extensionName),
+                "Expected \(functionName) to call the bundled Kotlin \(extensionName) extension"
+            )
+            #expect(
+                !callees.contains(runtimeCallee),
+                "Expected \(functionName) not to emit \(runtimeCallee) directly"
+            )
         }
     }
 
