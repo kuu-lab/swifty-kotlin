@@ -43,69 +43,67 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            // Executable KIR includes bundled stdlib bodies; kirDump consumer
-            // modules intentionally omit them in favor of the stdlib artifact.
-            let context = makeCompilationContext(inputs: [path], emit: .executable)
-            try runToKIR(context)
+        // Executable KIR includes bundled stdlib bodies; kirDump consumer
+        // modules intentionally omit them in favor of the stdlib artifact.
+        let context = makeContextFromSource(source, emit: .executable)
+        try runToKIR(context)
 
-            let sema = try #require(context.sema)
-            let module = try #require(context.kir)
-            let consumerBody = try findKIRFunctionBody(
-                named: "nativeConcurrentProbe",
-                in: module,
-                interner: context.interner
+        let sema = try #require(context.sema)
+        let module = try #require(context.kir)
+        let consumerBody = try findKIRFunctionBody(
+            named: "nativeConcurrentProbe",
+            in: module,
+            interner: context.interner
+        )
+        let consumerCallees = Set(extractCallees(from: consumerBody, interner: context.interner))
+        for callee in [
+            "atomicLazy", "freeze", "waitForMultipleFutures",
+            "waitWorkerTermination", "withWorker",
+        ] {
+            #expect(
+                consumerCallees.contains(callee),
+                "Expected consumer KIR to retain source call to \(callee); got \(consumerCallees)"
             )
-            let consumerCallees = Set(extractCallees(from: consumerBody, interner: context.interner))
-            for callee in [
-                "atomicLazy", "freeze", "waitForMultipleFutures",
-                "waitWorkerTermination", "withWorker",
-            ] {
-                #expect(
-                    consumerCallees.contains(callee),
-                    "Expected consumer KIR to retain source call to \(callee); got \(consumerCallees)"
-                )
-            }
+        }
 
-            let bridgeExpectations: [String: Set<String>] = [
-                "attachObjectGraphInternal": ["__kk_native_concurrent_attach_object_graph"],
-                "consumeFuture": ["__kk_native_concurrent_consume_future"],
-                "detachObjectGraphInternal": ["__kk_native_concurrent_detach_object_graph"],
-                "executeImpl": ["__kk_native_concurrent_execute_impl"],
-                "waitForMultipleFutures": ["__kk_native_concurrent_wait_for_multiple_futures"],
-                "waitWorkerTermination": ["__kk_native_concurrent_wait_worker_termination"],
-                "withWorker": [
-                    "__kk_native_concurrent_start_worker",
-                    "__kk_native_concurrent_terminate_worker",
-                ],
-            ]
-            let package = ["kotlin", "native", "concurrent"]
-            let functions = findAllKIRFunctions(in: module)
+        let bridgeExpectations: [String: Set<String>] = [
+            "attachObjectGraphInternal": ["__kk_native_concurrent_attach_object_graph"],
+            "consumeFuture": ["__kk_native_concurrent_consume_future"],
+            "detachObjectGraphInternal": ["__kk_native_concurrent_detach_object_graph"],
+            "executeImpl": ["__kk_native_concurrent_execute_impl"],
+            "waitForMultipleFutures": ["__kk_native_concurrent_wait_for_multiple_futures"],
+            "waitWorkerTermination": ["__kk_native_concurrent_wait_worker_termination"],
+            "withWorker": [
+                "__kk_native_concurrent_start_worker",
+                "__kk_native_concurrent_terminate_worker",
+            ],
+        ]
+        let package = ["kotlin", "native", "concurrent"]
+        let functions = findAllKIRFunctions(in: module)
 
-            for (name, expectedBridges) in bridgeExpectations {
-                let symbols = sema.symbols.lookupAll(
-                    fqName: (package + [name]).map(context.interner.intern)
-                ).filter { symbol in
-                    guard let fileID = sema.symbols.sourceFileID(for: symbol) else {
-                        return false
-                    }
-                    // KSP-1541 distributed these top levels across the bundled
-                    // files their upstream kotlin-native owners declare them in;
-                    // BundledStdlibOrderingTests pins the individual filenames.
-                    return context.sourceManager.path(of: fileID)
-                        .hasPrefix("__bundled_kotlin/native/concurrent/")
+        for (name, expectedBridges) in bridgeExpectations {
+            let symbols = sema.symbols.lookupAll(
+                fqName: (package + [name]).map(context.interner.intern)
+            ).filter { symbol in
+                guard let fileID = sema.symbols.sourceFileID(for: symbol) else {
+                    return false
                 }
-                let symbol = try #require(symbols.first, "Expected source symbol for \(name)")
-                let function = try #require(
-                    functions.first { $0.symbol == symbol },
-                    "Expected KIR body for \(name)"
-                )
-                let callees = Set(extractCallees(from: function.body, interner: context.interner))
-                #expect(
-                    expectedBridges.isSubset(of: callees),
-                    "Expected \(name) to route through \(expectedBridges); got \(callees)"
-                )
+                // KSP-1541 distributed these top levels across the bundled
+                // files their upstream kotlin-native owners declare them in;
+                // BundledStdlibOrderingTests pins the individual filenames.
+                return context.sourceManager.path(of: fileID)
+                    .hasPrefix("__bundled_kotlin/native/concurrent/")
             }
+            let symbol = try #require(symbols.first, "Expected source symbol for \(name)")
+            let function = try #require(
+                functions.first { $0.symbol == symbol },
+                "Expected KIR body for \(name)"
+            )
+            let callees = Set(extractCallees(from: function.body, interner: context.interner))
+            #expect(
+                expectedBridges.isSubset(of: callees),
+                "Expected \(name) to route through \(expectedBridges); got \(callees)"
+            )
         }
     }
 }

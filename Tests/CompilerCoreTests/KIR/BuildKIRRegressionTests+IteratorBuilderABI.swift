@@ -19,26 +19,24 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let argumentCounts = findAllKIRFunctions(in: module).flatMap { function -> [Int] in
-                function.body.compactMap { instruction -> Int? in
-                    guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
-                          ctx.interner.resolve(callee) == "__kk_iterator_builder_build"
-                    else { return nil }
-                    return arguments.count
-                }
+        let module = try #require(ctx.kir)
+        let argumentCounts = findAllKIRFunctions(in: module).flatMap { function -> [Int] in
+            function.body.compactMap { instruction -> Int? in
+                guard case let .call(_, callee, arguments, _, _, _, _, _) = instruction,
+                      ctx.interner.resolve(callee) == "__kk_iterator_builder_build"
+                else { return nil }
+                return arguments.count
             }
-
-            #expect(!argumentCounts.isEmpty, "Expected an __kk_iterator_builder_build call")
-            #expect(
-                argumentCounts.allSatisfy { $0 == 1 },
-                "Iterator builder must receive exactly the builder lambda, got argument counts: \(argumentCounts)"
-            )
         }
+
+        #expect(!argumentCounts.isEmpty, "Expected an __kk_iterator_builder_build call")
+        #expect(
+            argumentCounts.allSatisfy { $0 == 1 },
+            "Iterator builder must receive exactly the builder lambda, got argument counts: \(argumentCounts)"
+        )
     }
 }
 #endif

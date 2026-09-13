@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 /// BUG-165: top-level property initializers are lowered under their own
@@ -12,17 +11,15 @@ import Testing
 struct TopLevelInitializerLabelKIRTests {
     private func mainLabelIDs(in source: String) throws -> [Int32] {
         var labels: [Int32] = []
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(!(ctx.diagnostics.hasError),
-                    "source should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            labels = body.compactMap { instruction in
-                if case let .label(id) = instruction { return id }
-                return nil
-            }
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(!(ctx.diagnostics.hasError),
+                "source should compile without errors: \(ctx.diagnostics.diagnostics.map(\.message))")
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        labels = body.compactMap { instruction in
+            if case let .label(id) = instruction { return id }
+            return nil
         }
         return labels
     }
