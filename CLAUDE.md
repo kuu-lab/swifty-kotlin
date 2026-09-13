@@ -19,7 +19,7 @@ bash Scripts/swift_test.sh --filter SmokeTests           # スモークテスト
 bash Scripts/swift_test.sh --filter Golden               # ゴールデン全部（Swift Testing: Lexer / Parser / Sema / Diagnostics）。`Golden` はシンボル名の部分一致
 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden  # Sema ゴールデンのみ（`Golden.Sema` は @Suite 表示名のため --filter に効かない。型名で指定する）
 bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一 XCTest クラス（フロントエンド）
-bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要）
+bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要: macOS は brew の /opt/homebrew/opt/llvm を自動探索、別所は KSWIFTK_LLVM_DYLIB で指定）
 .build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
 ```
 
@@ -72,7 +72,7 @@ bash Scripts/swift_test.sh --filter Golden
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 ```
 
-`Scripts/loc_report.sh` が存在する HEAD では、変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数、Runtime の `kk_cdecl_count` / `__kk_cdecl_count` の悪化がないことは（動作確認とは別のチェックとして）引き続き確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。`kk_` 減 + `__kk_` 増の降格ペアは理由コード付きなら許容するが、`__kk_cdecl_count` の純増は§13-2の理由コードと影響範囲をPR本文に明記する。その他の意図的な悪化も、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
+`Scripts/loc_report.sh` で変更前後の TSV を比較し、ディレクトリ別行数、`HeaderHelpers+Synthetic*` 合計行数、KIR/Lowering TODO/FIXME 数、`"kk_` リテラル数、`interner.resolve == "..."` 数、Runtime の `kk_cdecl_count` / `__kk_cdecl_count` の悪化がないことは（動作確認とは別のチェックとして）引き続き確認する（ベースラインは [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md)）。`kk_` 減 + `__kk_` 増の降格ペアは理由コード付きなら許容するが、`__kk_cdecl_count` の純増は§13-2の理由コードと影響範囲をPR本文に明記する。その他の意図的な悪化も、PR 本文に理由・影響範囲・フォローアップ TODO を明記する。
 
 ## 長時間ゲートの委譲と自己検証
 
@@ -100,13 +100,16 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 - `KSwiftKCLI` → `kswiftc` / `LSPServer` + `KSwiftLSPCLI` → `kswift-lsp`
 - `Runtime` — GC・coroutine・boxing / `RuntimeABI` — ABI 契約の共有境界
 - `GoldenHarnessSupport` / `GoldenHarnessWorker` — ゴールデンテストハーネス
-- `Stdlib/kotlin/` — Kotlin ソース化された stdlib（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
+- `Sources/CompilerCore/Stdlib/kotlin/` — Kotlin ソース化された stdlib。`Bundle.module` リソースとして同梱（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
+- `CompilerTestSupport` / `TestStdlibCache` — テスト共有ヘルパーと、bundled stdlib を一度だけ `.kklib` にプリコンパイルして全テストで再利用するキャッシュ
+- `Tests/RuntimeTestsParallel` — 並列実行できる Runtime テストの分離ターゲット（`RuntimeTests` 本体は CI で直列実行）
+- `Tests/CrashCorpus` / `Tests/ARCH-025` — テストターゲットではないフィクスチャ。前者は mutation fuzzer の最小化クラッシュ入力（`.expect` 付き）、後者は JetBrains Kotlin testData のサブセット台帳（CI 非接続）
 
 詳細なディレクトリマップ・フェーズ仕様・タスク別ナビゲーションは → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## コーディング規約
 
-- Swift 6.2（`swift-tools-version: 6.2` / Swift language mode 6）, macOS 12+, 4スペースインデント
+- `swift-tools-version: 6.2` / Swift language mode 6（CI ツールチェーンは Swift 6.3）, macOS 12+, 4スペースインデント
 - 型/enum/プロトコル: `UpperCamelCase`、関数/変数: `lowerCamelCase`
 - フォーマッタ未設定 — 既存ファイルのスタイルに従う
 - コミットメッセージ: 短く命令形（例: "Add ...", "Fix ..."）
