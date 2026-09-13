@@ -3,6 +3,16 @@
 package kotlin.native.concurrent
 
 import kotlin.internal.KsSymbolName
+import kotlin.native.internal.__nativeConcurrentWaitForMultipleFutures
+
+@ObsoleteWorkersApi
+public enum class FutureState(public val value: Int) {
+    INVALID(0),
+    SCHEDULED(1),
+    COMPUTED(2),
+    CANCELLED(3),
+    THROWN(4)
+}
 
 @KsSymbolName("kk_future_consume")
 @PublishedApi
@@ -60,3 +70,9 @@ public value class Future<T> @PublishedApi internal constructor(public val id: I
 
     override fun toString(): String = "future $id"
 }
+
+@ObsoleteWorkersApi
+public fun <T> waitForMultipleFutures(
+    futures: Collection<Future<T>>,
+    timeoutMillis: Int
+): Set<Future<T>> = __nativeConcurrentWaitForMultipleFutures(futures, timeoutMillis)

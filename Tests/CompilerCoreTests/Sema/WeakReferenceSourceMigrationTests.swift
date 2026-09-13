@@ -6,7 +6,7 @@ import Testing
 /// KSP-1256: WeakReference receiver APIs must come from bundled Kotlin source.
 @Suite
 struct WeakReferenceSourceMigrationTests {
-    private let sourcePath = "__bundled_kotlin/native/ref/WeakReference/WeakReference.kt"
+    private let sourcePath = "__bundled_kotlin/native/ref/Weak.kt"
 
     @Test
     func weakReferenceMembersAreBundledSourceDefinitions() throws {
