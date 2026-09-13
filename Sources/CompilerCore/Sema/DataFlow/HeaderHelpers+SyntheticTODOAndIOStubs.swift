@@ -26,28 +26,10 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        registerSyntheticSequenceBuilderStub(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
 
-        // Sequence factory functions are source-backed (KSP-651).
-        // STDLIB-331/564: iterator {} builder → Iterator<T>
-        // Registered with SequenceScope<T> receiver so yield() resolves inside the lambda.
-        registerSyntheticIteratorBuilderStub(
-            packageFQName: kotlinSequencesPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        // STDLIB-330: sequence { yield(x) } builder
-        registerSyntheticSequenceBuilderStub(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1519: sequence {} / iterator {} builder top-level functions are
+        // source-backed (Stdlib/kotlin/sequences/SequenceBuilder.kt). Sequence
+        // factory functions are source-backed too (KSP-651).
 
         registerSyntheticSequenceResidualMembers(
             symbols: symbols,
@@ -224,66 +206,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             types: types,
             interner: interner
-        )
-    }
-
-    func registerSequenceScopeMember(
-        named name: String,
-        sequenceScopeSymbol: SymbolID,
-        sequenceScopeFQName: [InternedString],
-        receiverType: TypeID,
-        parameters: [(name: String, type: TypeID)],
-        returnType: TypeID,
-        externalLinkName: String,
-        symbols: SymbolTable,
-        interner: StringInterner
-    ) {
-        let memberName = interner.intern(name)
-        let memberFQName = sequenceScopeFQName + [memberName]
-        let parameterTypes = parameters.map(\.type)
-        if symbols.lookupAll(fqName: memberFQName).contains(where: { symbolID in
-            symbols.functionSignature(for: symbolID)?.parameterTypes == parameterTypes
-        }) {
-            return
-        }
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(sequenceScopeSymbol, for: memberSymbol)
-        symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-        var parameterSymbols: [SymbolID] = []
-        for parameter in parameters {
-            let parameterName = interner.intern(parameter.name)
-            let parameterSymbol = symbols.define(
-                kind: .valueParameter,
-                name: parameterName,
-                fqName: memberFQName + [parameterName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-            parameterSymbols.append(parameterSymbol)
-        }
-
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: parameterTypes,
-                returnType: returnType,
-                valueParameterSymbols: parameterSymbols,
-                valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
         )
     }
 

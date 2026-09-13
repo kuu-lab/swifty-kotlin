@@ -1,6 +1,6 @@
 # diff_kotlinc skip inventory
 
-最終更新: 2026-08-25
+最終更新: 2026-09-13
 
 この文書は `Scripts/diff_cases` の `DEBT-DIFF-*` 付き `SKIP-DIFF` / `KSWIFTK_DIFF_IGNORE` を、JVM kotlinc reference に戻すべきケースと、別 runner / 別テストへ移すべきケースへ分けるための棚卸しである。
 
@@ -41,6 +41,7 @@ find Scripts/diff_cases -type f \( -name '*.kt' -o -name '*.kts' \) -print0 \
 | DEBT-DIFF-007 | 11 | compile-exit parity fix により顕在化した両失敗ケース | diagnostic golden / owner / 実装へ個別に triage（2026-07-29 に 72→37 まで棚卸し・一部修正済み。2026-07-31 に `enum_entries_function.kt` を追加解除、`enum_basic.kt`/`enum_edge_cases.kt`/`array_hof.kt`/`string_chunked_windowed.kt`/`windowed_step_partial.kt` の root cause を一部実装・範囲縮小。2026-08-02 に DEADCODE-014（#5206）で5件追加解除、マージ時再計測で36。2026-08-13 にさらに19件追加解除（テスト入力ミス/common stdlib gap 修正）して36→16 へ。2026-08-18 に `list_binary_search_compare.kt`・`mock_objects.kt` を追加解除して16→14へ。2026-09-04 に現行 `SKIP-DIFF (DEBT-DIFF-007)` タグを実測して11件へ更新し、`flow_builders.kt` を解除。詳細は該当節） |
 | DEBT-DIFF-008 | 0（2026-08-20 時点） | primitive Number virtual dispatch 未実装（解消済み） | — |
 | DEBT-DIFF-009 | 1 | script mode 失敗系 exit code 規約差異（`kotlinc -script` の SCRIPT_EXECUTION_ERROR=3 vs kswiftc panic exit=1） | 詳細は下記節。ref/candidate 双方の実行モデルが構造的に異なるため keep skip |
+| DEBT-DIFF-010 | 1 | `sequence {}`/`iterator {}` builder の `yieldAll(sequence)` が遅延評価順序を保持しない（coroutine producer/consumer 間の suspend 伝播ギャップ） | BUG-255。`RuntimeSequenceCoroutine` へ「サブイテレータへ委譲中」状態を追加する coroutine ランタイム再設計が必要。詳細は下記節 |
 
 ## DEBT-DIFF-001: reference target / classpath / runtime-only
 
@@ -361,6 +362,40 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 | case | 結果 |
 | --- | --- |
 | `script_runtime_exception_before_output.kt` | `SKIP-DIFF` — 分類修正の診断に使った最小 repro として保持。`--force-run-skipped` で `script exit mismatch: ref=3 candidate=1` と正しく報告されることを確認済み（旧実装では `compile exit mismatch: ref=3 candidate=0` と誤診断し、stderr も両側空で表示されていた） |
+
+## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ
+
+KSP-1519（`sequence`/`iterator` builder トップレベル関数の Kotlin 化）のテスト追加（ticket が要求する「yieldAll(sequence) の遅延評価順序ケース」）で発見。`Sources/Runtime/` は KSP-1519 で一切変更していないため同 PR が原因ではなく、分岐元コミット `3e3545a536` から存在する既存バグと確認済み（`git diff 3e3545a536 -- Sources/Runtime/` はゼロ差分。詳細な原因分析は BUG-255 を参照）。
+
+| case | 結果 |
+| --- | --- |
+| `sequence_yieldall_lazy_order.kt` | `SKIP-DIFF` — real kotlinc と kswiftc の出力が構造的に発散する最小 repro として保持 |
+
+症状（`bash Scripts/diff_kotlinc.sh --keep-temp Scripts/diff_cases/sequence_yieldall_lazy_order.kt`）:
+
+```
+--- ref_run_stdout.norm
++++ cand_run_stdout.norm
+@@ -1,7 +1,9 @@
+ start
+ outer:before
+ inner:1
+-1
+ inner:2
++inner:3
++outer:after
++1
+ 2
+ stop early
+```
+
+real kotlinc は `next()` を呼ぶたびに要素を1個ずつ pull して producer 側と interleave するが、kswiftc は最初の `next()` が返る前に、内側シーケンス全体（`inner:3` まで）はおろか外側 builder 自身の `yieldAll` 呼び出し以降の残り本体（`outer:after`）まで同期的に実行し尽くす。
+
+根本原因（`Sources/Runtime/RuntimeSequenceBuilders.swift` の `__kk_sequence_builder_yieldAll`）: CPS 経路（`RuntimeSequenceCoroutineBuilderProxy` 分岐）は `runtimeTraverseSequence(seq, ...) { elem in _ = proxy.coroutine.yieldValue(elem); return true }` で内側シーケンスをネイティブ Swift クロージャコールバックとして同期的に traverse し、`yieldValue` が CPS producer 用に返す `COROUTINE_SUSPENDED` センチネルを `_ = ...` で握り潰す。legacy thread-backed 経路（`runtimeSequenceBuilderBox` 分岐）も `builder.elements.append(contentsOf: elements)` で全要素を即時 materialize しており、両経路とも構造的に eager。
+
+KIR 実測（`--emit kir`）で、`yieldAll(inner)` は `call __kk_sequence_builder_yieldAll symbol=yieldAll args=[builder, innerSeq] thrown=true` という単一呼び出しへ解決され、`innerSeq` は先行する `.iterator()` 呼び出しの結果ではなく捕捉済みローカルへの直接参照（`symbolRef`）であることを確認した。`SequenceScope.kt` の `yieldAll(sequence: Sequence<T>): Unit = yieldAll(sequence.iterator())` という Kotlin source 委譲本体（`.iterator()` を経由するはず）は実行されていない（dead code）。`symbol` が nil でなく `thrown=true` である点から、`CollectionLiteralLoweringPass+CallRewriteSequenceBuilders.swift` の raw-name 書き換え分岐（`symbol: nil, canThrow: false` を設定）ではなく、`CallLowerer+MemberCallEmission.swift` の `sequenceBuilderRuntimeCalleeName`（解決済み symbol の owner が `kotlin.sequences.SequenceScope` であれば通常の member-call emission 時にコールバック名を runtime bridge へ差し替える経路）が実際に発火しているとみられる。`yield`/`yieldAll` のディスパッチには他にも独立した機構が存在する: `CallTypeChecker+BuilderDSL.swift:1107-1129` にも `externalLinkName == "__kk_sequence_builder_yieldAll"` を条件にした専用オーバーロード選択があるが、`rg -n 'externalLinkName' Sources/CompilerCore/Sema/ | rg -i 'sequence|yield'` で確認した限り、現行コードベースには `SequenceScope.yieldAll` のいずれのオーバーロードにもこの externalLinkName を設定する setter が存在せず、この選択ロジックは常に false（到達不能）と確認済み。いずれの経路でも「元の Kotlin 引数をそのまま runtime bridge へ転送し、委譲 body 自体は実行しない」という結果は同じであり、dead-body の結論と runtime 側の根本原因は変わらない。
+
+次アクション: `RuntimeSequenceCoroutine`（`Sources/Runtime/RuntimeTypes.swift`）へ「サブイテレータへ委譲中」状態を追加し、`nextElement()`/`nextElementAsync()` がこの状態を消費側 pull のたびにチェックして初めて内側シーケンスから1要素引き出す設計に変更する（CPS・legacy thread 両 producer 経路と `RuntimeSequence.swift` の `.lazyBuilder` traversal に影響する coroutine ランタイム自体の再設計）。BUG-255 で追跡。
 
 ## 解除手順
 
