@@ -89,6 +89,14 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func uintToCharBridgeABIIsRemoved() {
+        #expect(
+            !RuntimeABISpec.allFunctions.contains { $0.name == "kk_uint_to_char" },
+            "UInt.toChar does not exist in Kotlin; the bridge was a dead synthetic surface (KSP-1532)"
+        )
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)
