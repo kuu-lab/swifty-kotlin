@@ -464,6 +464,19 @@ extension MemberLowerer {
         if let receiverBinding = driver.ctx.activeImplicitReceiver() {
             body.append(.constValue(result: receiverBinding.exprID, value: .symbolRef(receiverBinding.symbol)))
         }
+        // KSP-CAP-018: an accessor body is its own KIR function with its own
+        // scope, so an outer local captured by an object literal has to be
+        // read back out of the instance field it was stored into — the same
+        // no-op-for-named-classes step `lowerSingleMemberFunction` already
+        // performs (KSP-CAP-001). Without it the accessor body referenced a
+        // symbol that had no value in this scope.
+        driver.objectLiteralLowerer.restoreObjectLiteralCaptures(
+            forMemberFunction: propertySymbol,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &body.instructions
+        )
 
         switch accessorBody {
         case let .block(exprIDs, _):

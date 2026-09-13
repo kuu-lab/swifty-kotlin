@@ -31,6 +31,35 @@ extension LambdaLowerer {
         return semanticSymbol.kind == .valueParameter || semanticSymbol.kind == .local
     }
 
+    /// The expression roots of an accessor body, for the capture traversals
+    /// below. A `FunctionBody` is either a block of statements or a single
+    /// expression; `.unit` (an accessor with no body of its own) has none.
+    func accessorBodyRootExprs(_ body: FunctionBody) -> [ExprID] {
+        switch body {
+        case let .block(exprIDs, _): exprIDs
+        case let .expr(exprID, _): [exprID]
+        case .unit: []
+        }
+    }
+
+    /// Every expression root across all of an object literal's property
+    /// accessor bodies (KSP-CAP-018).
+    func objectLiteralAccessorRootExprs(_ objectDecl: ObjectDecl, ast: ASTModule) -> [ExprID] {
+        var roots: [ExprID] = []
+        for propertyID in objectDecl.memberProperties {
+            guard let decl = ast.arena.decl(propertyID),
+                  case let .propertyDecl(property) = decl
+            else {
+                continue
+            }
+            for accessorBody in [property.getter?.body, property.setter?.body] {
+                guard let accessorBody else { continue }
+                roots.append(contentsOf: accessorBodyRootExprs(accessorBody))
+            }
+        }
+        return roots
+    }
+
     func captureValueExpr(
         for symbol: SymbolID,
         sema: SemaModule,
@@ -104,6 +133,25 @@ extension LambdaLowerer {
             }
             for arg in objectDecl.superTypeConstructorArgs {
                 collectBoundIdentifierSymbols(in: arg.expr, ast: ast, sema: sema, referenced: &referenced, seen: &seen)
+            }
+            // KSP-CAP-018: an accessor body's captures are materialized into
+            // the literal's instance fields at construction time, which happens
+            // in this lambda's body — so the value has to reach the lambda
+            // first. Member *function* bodies need no equivalent entry here.
+            for propertyID in objectDecl.memberProperties {
+                guard let propertyDecl = ast.arena.decl(propertyID),
+                      case let .propertyDecl(property) = propertyDecl
+                else {
+                    continue
+                }
+                for accessorBody in [property.getter?.body, property.setter?.body] {
+                    guard let accessorBody else { continue }
+                    for rootExprID in accessorBodyRootExprs(accessorBody) {
+                        collectBoundIdentifierSymbols(
+                            in: rootExprID, ast: ast, sema: sema, referenced: &referenced, seen: &seen
+                        )
+                    }
+                }
             }
 
         case let .stringTemplate(parts, _):
@@ -331,8 +379,15 @@ extension LambdaLowerer {
             else {
                 return false
             }
-            return objectDecl.superTypeConstructorArgs.contains {
+            if objectDecl.superTypeConstructorArgs.contains(where: {
                 containsImplicitReceiverReference(in: $0.expr, ast: ast)
+            }) {
+                return true
+            }
+            // KSP-CAP-018: see the accessor-body note in
+            // `collectBoundIdentifierSymbols`.
+            return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains {
+                containsImplicitReceiverReference(in: $0, ast: ast)
             }
 
         case let .stringTemplate(parts, _):

@@ -69,7 +69,7 @@ struct BitSetSourceMigrationTests {
         #expect(bitSet.kind == .class)
         #expect(!bitSet.flags.contains(.synthetic))
         #expect(sema.symbols.isSourceBackedSymbol(bitSetID))
-        #expect(sourcePath(for: bitSetID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet/Stdlib.kt") == true)
+        #expect(sourcePath(for: bitSetID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet.kt") == true)
 
         let functionCounts: [(name: String, count: Int)] = [
             ("and", 1),
@@ -100,7 +100,7 @@ struct BitSetSourceMigrationTests {
                 #expect(sema.symbols.isSourceBackedSymbol(symbolID))
                 #expect(!sema.symbols.symbol(symbolID)!.flags.contains(.synthetic))
                 #expect(sema.symbols.externalLinkName(for: symbolID) == nil)
-                #expect(sourcePath(for: symbolID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet/Stdlib.kt") == true)
+                #expect(sourcePath(for: symbolID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet.kt") == true)
             }
         }
 
@@ -114,7 +114,7 @@ struct BitSetSourceMigrationTests {
             #expect(sema.symbols.isSourceBackedSymbol(propertyID))
             #expect(!sema.symbols.symbol(propertyID)!.flags.contains(.synthetic))
             #expect(sema.symbols.externalLinkName(for: propertyID) == nil)
-            #expect(sourcePath(for: propertyID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet/Stdlib.kt") == true)
+            #expect(sourcePath(for: propertyID, sema: sema, ctx: ctx)?.hasSuffix("native/BitSet.kt") == true)
             let expectedType = name == "size" || name == "lastTrueIndex"
                 ? sema.types.intType
                 : sema.types.booleanType

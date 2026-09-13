@@ -88,8 +88,11 @@ extension BuildKIRRegressionTests {
                 guard let fileID = sema.symbols.sourceFileID(for: symbol) else {
                     return false
                 }
+                // KSP-1541 distributed these top levels across the bundled
+                // files their upstream kotlin-native owners declare them in;
+                // BundledStdlibOrderingTests pins the individual filenames.
                 return context.sourceManager.path(of: fileID)
-                    == "__bundled_kotlin/native/concurrent/Stdlib.kt"
+                    .hasPrefix("__bundled_kotlin/native/concurrent/")
             }
             let symbol = try #require(symbols.first, "Expected source symbol for \(name)")
             let function = try #require(

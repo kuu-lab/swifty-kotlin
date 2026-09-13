@@ -52,6 +52,32 @@
       "source": "kswiftk",
       "message": "Unresolved function 'PartialImpl'.",
       "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 38, "character": 10 },
+        "end": { "line": 38, "character": 30 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Object expression must override abstract member 'speak'.",
+      "codeActions": []
+    },
+    {
+      "file": "error_abstract_instantiation.kt",
+      "range": {
+        "start": { "line": 41, "character": 19 },
+        "end": { "line": 43, "character": 1 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-ABSTRACT",
+      "source": "kswiftk",
+      "message": "Object expression must override abstract member 'fly'.",
+      "codeActions": []
     }
   ]
 }
