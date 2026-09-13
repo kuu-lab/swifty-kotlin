@@ -6,118 +6,7 @@ import Testing
 @Suite
 struct DiagnosticCodeCoverageTests {}
 
-// MARK: - LEX-0004
-
 extension DiagnosticCodeCoverageTests {
-
-    // MARK: - Per-source diagnostic helpers
-
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func diagnosticsForPath(
-        _ path: String,
-        withCode code: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
-    }
-
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    // MARK: - Path-aware expression search helpers
-
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
-    private func lastExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        var result: ExprID?
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { result = exprID }
-        }
-        return result
-    }
-
-    private func allExprIDsInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
-        }
-        return results
-    }
-
-    private func memberCallExprIDsInPath(
-        named name: String,
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
 
     // MARK: - Consolidated runFrontend clean tests
 
@@ -150,8 +39,6 @@ extension DiagnosticCodeCoverageTests {
             let ctx = makeCompilationContext(inputs: paths)
 
             try runFrontend(ctx)
-
-            let interner = ctx.interner
 
             // === testLex0004NotEmittedForTripleQuotedString ===
 
@@ -213,8 +100,6 @@ extension DiagnosticCodeCoverageTests {
             let ctx = makeCompilationContext(inputs: paths)
 
             try runFrontend(ctx)
-
-            let interner = ctx.interner
 
             // === testLex0004UnescapedNewlineInStringLiteral ===
 
@@ -577,7 +462,7 @@ extension DiagnosticCodeCoverageTests {
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
-            let sema = try #require(ctx.sema)
+            _ = try #require(ctx.sema)
 
             // === testSema0021SuperDelegationWithoutSuperclass ===
 
