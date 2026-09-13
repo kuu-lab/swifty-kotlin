@@ -38,13 +38,6 @@ public func kk_long_range_toList(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_long_range_toLongArray")
-public func kk_long_range_toLongArray(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_long_range_toLongArray") { range in
-        runtimeSignedRangeToArray(range)
-    }
-}
-
 @_cdecl("__kk_long_range_randomOrNull")
 public func __kk_long_range_randomOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeRandomOrNullEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, randomRaw: nil,
@@ -156,13 +149,6 @@ public func kk_long_range_sorted(_ rangeRaw: Int) -> Int {
 }
 
 // MARK: - IntRange toIntArray (STDLIB-RANGE-034)
-
-@_cdecl("kk_range_toIntArray")
-public func kk_range_toIntArray(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeSignedRangeHOFKind.self, rangeRaw, functionName: "kk_range_toIntArray") { range in
-        runtimeSignedRangeToArray(range)
-    }
-}
 
 // MARK: - ULongRange count, iterator, hasNext, next (STDLIB-RANGE-037)
 
@@ -341,31 +327,6 @@ func runtimeRangeBox(from rawValue: Int) -> RuntimeRangeBox? {
         return nil
     }
     return tryCast(pointer, to: RuntimeRangeBox.self)
-}
-
-private func runtimeSignedRangeToArray(_ range: RuntimeRangeBox) -> Int {
-    var current = range.first
-    var elements: [Int] = []
-    if range.step > 0 {
-        while current <= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    } else if range.step < 0 {
-        while current >= range.last {
-            elements.append(current)
-            let (next, overflow) = current.addingReportingOverflow(range.step)
-            if overflow { break }
-            current = next
-        }
-    }
-    let box = RuntimeArrayBox(length: elements.count)
-    for (index, element) in elements.enumerated() {
-        box.elements[index] = element
-    }
-    return registerRuntimeObject(box)
 }
 
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {

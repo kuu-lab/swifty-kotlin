@@ -124,45 +124,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        if callee == interner.intern("toUIntArray"), arguments.isEmpty, isUIntRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: interner.intern("kk_uint_range_toUIntArray"),
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
-        // toULongArray — returns a ULongArray (STDLIB-RANGE-037)
-        if callee == lookup.toULongArrayName, arguments.isEmpty, isULongRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkULongRangeToULongArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
-        // toLongArray — returns a LongArray (STDLIB-RANGE-035)
-        if callee == lookup.toLongArrayName, arguments.isEmpty {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkLongRangeToLongArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
-        // toIntArray — returns an IntArray (STDLIB-RANGE-034)
-        if callee == lookup.toIntArrayName, arguments.isEmpty, !isCharRange, !isULongRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeToIntArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
         if callee == lookup.iteratorName, arguments.isEmpty {
             loweredBody.append(.call(
                 symbol: nil, callee: lookup.kkRangeIteratorName,

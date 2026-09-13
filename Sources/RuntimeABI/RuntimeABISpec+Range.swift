@@ -516,15 +516,6 @@ public extension RuntimeABISpec {
             section: "Range",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_range_toIntArray",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
         // Progression fromClosedRange (STDLIB-RANGE-039)
         RuntimeABIFunctionSpec(
             name: "__kk_int_progression_fromClosedRange",
@@ -617,15 +608,6 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_long_range_toList",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_long_range_toLongArray",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
             ],
@@ -1017,15 +999,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_uint_range_toUIntArray",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "kk_uint_range_forEach",
             parameters: [
                 RuntimeABIParameter(name: "rangeRaw", type: .intptr),
@@ -1295,15 +1268,6 @@ public extension RuntimeABISpec {
             ],
             returnType: .intptr,
             section: "Range"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_range_toULongArray",
-            parameters: [
-                RuntimeABIParameter(name: "rangeRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Range",
-            isThrowing: false
         ),
         RuntimeABIFunctionSpec(
             name: "kk_ulong_range_mapIndexed",

@@ -45,7 +45,6 @@ struct RangeLookupNames {
     let kkRangeReversedName: InternedString
     let kkRangeIsEmptyName: InternedString
     let kkRangeSumName: InternedString
-    let kkRangeToIntArrayName: InternedString
     let kkRangeTakeName: InternedString
     let kkRangeDropName: InternedString
     let kkRangeAverageName: InternedString
@@ -63,14 +62,12 @@ struct RangeLookupNames {
     let kkULongRangeStepName: InternedString
     let kkULongRangeIsEmptyName: InternedString
     let kkULongRangeReversedName: InternedString
-    let kkULongRangeToULongArrayName: InternedString
     let kkULongRangeCountName: InternedString
     let kkULongRangeIteratorName: InternedString
     let kkULongRangeHasNextName: InternedString
     let kkULongRangeNextName: InternedString
     let kkULongRangeForEachName: InternedString
     let kkULongRangeMapName: InternedString
-    let kkLongRangeToLongArrayName: InternedString
 
     init(interner: StringInterner) {
         kkRangeIteratorName = interner.intern("kk_range_iterator")
@@ -112,7 +109,6 @@ struct RangeLookupNames {
         kkRangeReversedName = interner.intern("__kk_range_reversed")
         kkRangeIsEmptyName = interner.intern("__kk_range_isEmpty")
         kkRangeSumName = interner.intern("__kk_range_sum")
-        kkRangeToIntArrayName = interner.intern("kk_range_toIntArray")
         kkRangeTakeName = interner.intern("kk_range_take")
         kkRangeDropName = interner.intern("kk_range_drop")
         kkRangeAverageName = interner.intern("kk_range_average")
@@ -130,13 +126,11 @@ struct RangeLookupNames {
         kkULongRangeStepName = interner.intern("kk_ulong_range_step")
         kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
         kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
-        kkULongRangeToULongArrayName = interner.intern("kk_ulong_range_toULongArray")
         kkULongRangeCountName = interner.intern("kk_ulong_range_count")
         kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
         kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
         kkULongRangeNextName = interner.intern("kk_ulong_range_next")
         kkULongRangeForEachName = interner.intern("kk_ulong_range_forEach")
         kkULongRangeMapName = interner.intern("kk_ulong_range_map")
-        kkLongRangeToLongArrayName = interner.intern("kk_long_range_toLongArray")
     }
 }
