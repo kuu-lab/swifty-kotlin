@@ -679,7 +679,6 @@ extension LoweringPassRegressionTests {
 
         let ctx = try runLowering(module: module, interner: interner, moduleName: "LauncherLambdaCaptureTest")
 
-        // Should generate a thunk for the lambda (1 capture param)
         let thunkFunctions = findAllKIRFunctions(in: module).compactMap { fn -> KIRFunction? in
             return interner.resolve(fn.name).hasPrefix("kk_launcher_thunk_") ? fn : nil
         }
@@ -691,7 +690,6 @@ extension LoweringPassRegressionTests {
         #expect(thunkCallees.contains("kk_coroutine_launcher_arg_get"))
         #expect(thunkCallees.contains(where: { $0.hasPrefix("kk_suspend_") }))
 
-        // Main should use the _with_cont path and store capture via arg_set
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
         #expect(mainCallees.contains("kk_coroutine_continuation_new"))
@@ -759,7 +757,6 @@ extension LoweringPassRegressionTests {
 
         let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "expected lowered main function")
         let mainCallees = extractCallees(from: loweredMain.body, interner: interner)
-        // Zero-arg path: should use kk_kxmini_run_blocking, NOT _with_cont
         #expect(mainCallees.contains("kk_kxmini_run_blocking"))
         #expect(!mainCallees.contains("kk_kxmini_run_blocking_with_cont"))
         #expect(!mainCallees.contains("kk_coroutine_launcher_arg_set"))
@@ -768,7 +765,6 @@ extension LoweringPassRegressionTests {
 
     @Test
     func testCoroutineLauncherLaunchWithSuspendLambdaCapturesGeneratesThunk() throws {
-        // Verify that launch correctly handles lambdas with captures
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()

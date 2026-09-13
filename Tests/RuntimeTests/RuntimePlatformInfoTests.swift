@@ -2,34 +2,23 @@
 import Testing
 @testable import Runtime
 
-/// Tests for `kotlin.native.Platform` runtime APIs:
-/// `kk_platform_osFamily`, `kk_platform_cpuArchitecture`,
-/// `kk_platform_canAccessUnaligned`, `kk_platform_isLittleEndian`,
-/// and `kk_platform_getAvailableProcessors`.
-///
-/// `memoryModel` and `isDebugBinary` runtime coverage lives in
-/// RuntimePlatformTests.swift.
 @Suite
 struct RuntimePlatformInfoTests {
 
     // MARK: - OsFamily
 
-    /// On macOS the host OS family ordinal must equal 1 (MACOSX).
     @Test
     func testOsFamilyOnMacOSReturnsMACOSX() {
         let ordinal = kk_platform_osFamily(0)
         let unboxed = kk_unbox_int(ordinal)
 #if os(macOS)
-        // OsFamily.macosx == 1
         #expect(unboxed == 1, "Expected OsFamily.MACOSX (1) on macOS, got \(unboxed)")
 #else
-        // On non-macOS platforms (e.g. Linux CI), the ordinal will reflect the host OS.
         #expect(unboxed >= 0, "OsFamily ordinal must be non-negative")
         #expect(unboxed <= 8, "OsFamily ordinal must be within the defined range [0,8]")
 #endif
     }
 
-    /// The ordinal must be within the known enum range [0, 8].
     @Test
     func testOsFamilyOrdinalIsWithinKnownRange() {
         let ordinal = kk_unbox_int(kk_platform_osFamily(0))
@@ -37,7 +26,6 @@ struct RuntimePlatformInfoTests {
         #expect(ordinal <= 8, "OsFamily ordinal \(ordinal) is outside the defined range [0,8]")
     }
 
-    /// Repeated calls must return the identical boxed value (singleton cache).
     @Test
     func testOsFamilyIsStableAcrossRepeatedCalls() {
         let first  = kk_platform_osFamily(0)
@@ -45,7 +33,6 @@ struct RuntimePlatformInfoTests {
         #expect(first == second, "kk_platform_osFamily should return a stable cached value")
     }
 
-    /// The platform argument is ignored; passing different values still returns the same ordinal.
     @Test
     func testOsFamilyIgnoresPlatformArgument() {
         let a = kk_unbox_int(kk_platform_osFamily(0))
@@ -71,7 +58,6 @@ struct RuntimePlatformInfoTests {
 #endif
     }
 
-    /// The ordinal must be within the known enum range [0, 7].
     @Test
     func testCpuArchitectureOrdinalIsWithinKnownRange() {
         let ordinal = kk_unbox_int(kk_platform_cpuArchitecture(0))
@@ -79,7 +65,6 @@ struct RuntimePlatformInfoTests {
         #expect(ordinal <= 7, "CpuArchitecture ordinal \(ordinal) is outside the defined range [0,7]")
     }
 
-    /// Repeated calls must return the identical boxed value (singleton cache).
     @Test
     func testCpuArchitectureIsStableAcrossRepeatedCalls() {
         let first  = kk_platform_cpuArchitecture(0)
@@ -87,7 +72,6 @@ struct RuntimePlatformInfoTests {
         #expect(first == second)
     }
 
-    /// The platform argument is ignored.
     @Test
     func testCpuArchitectureIgnoresPlatformArgument() {
         let a = kk_unbox_int(kk_platform_cpuArchitecture(0))
@@ -97,7 +81,6 @@ struct RuntimePlatformInfoTests {
 
     // MARK: - isLittleEndian
 
-    /// Apple platforms (macOS arm64 and x86_64) and Linux x86_64 are little-endian.
     @Test
     func testIsLittleEndianIsTrueOnApplePlatforms() {
         let result = kk_platform_isLittleEndian(0)
@@ -108,14 +91,12 @@ struct RuntimePlatformInfoTests {
 #endif
     }
 
-    /// The result must be a boolean-like integer: 0 or 1.
     @Test
     func testIsLittleEndianReturnsBooleanInt() {
         let result = kk_platform_isLittleEndian(0)
         #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
     }
 
-    /// Repeated calls must be consistent (idempotent).
     @Test
     func testIsLittleEndianIsIdempotent() {
         let first  = kk_platform_isLittleEndian(0)
@@ -123,7 +104,6 @@ struct RuntimePlatformInfoTests {
         #expect(first == second)
     }
 
-    /// The platform argument is ignored.
     @Test
     func testIsLittleEndianIgnoresPlatformArgument() {
         let a = kk_platform_isLittleEndian(0)
@@ -133,7 +113,6 @@ struct RuntimePlatformInfoTests {
 
     // MARK: - canAccessUnaligned
 
-    /// On x86_64 and arm64, unaligned access is permitted (returns 1).
     @Test
     func testCanAccessUnalignedIsTrueOnCommonArchitectures() {
         let result = kk_platform_canAccessUnaligned(0)
@@ -144,14 +123,12 @@ struct RuntimePlatformInfoTests {
 #endif
     }
 
-    /// The result must be a boolean-like integer: 0 or 1.
     @Test
     func testCanAccessUnalignedReturnsBooleanInt() {
         let result = kk_platform_canAccessUnaligned(0)
         #expect(result == 0 || result == 1, "Expected 0 or 1, got \(result)")
     }
 
-    /// Repeated calls must be consistent.
     @Test
     func testCanAccessUnalignedIsIdempotent() {
         let first  = kk_platform_canAccessUnaligned(0)
@@ -159,7 +136,6 @@ struct RuntimePlatformInfoTests {
         #expect(first == second)
     }
 
-    /// The platform argument is ignored.
     @Test
     func testCanAccessUnalignedIgnoresPlatformArgument() {
         let a = kk_platform_canAccessUnaligned(0)
@@ -169,8 +145,6 @@ struct RuntimePlatformInfoTests {
 
     // MARK: - isLittleEndian / canAccessUnaligned consistency
 
-    /// On architectures where canAccessUnaligned is true, isLittleEndian is also
-    /// always true on all currently supported Apple targets.
     @Test
     func testIsLittleEndianAndCanAccessUnalignedAreConsistentOnApplePlatforms() {
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
@@ -183,65 +157,24 @@ struct RuntimePlatformInfoTests {
 
     // MARK: - getAvailableProcessors
 
-    /// Available processors must be at least 1.
     @Test
     func testGetAvailableProcessorsReturnsAtLeastOne() {
         let count = kk_platform_getAvailableProcessors(0)
         #expect(count >= 1)
     }
 
-    /// Available processors must be a plausible upper bound (≤ 1024).
     @Test
     func testGetAvailableProcessorsIsPlausible() {
         let count = kk_platform_getAvailableProcessors(0)
         #expect(count <= 1024, "Unexpectedly large processor count: \(count)")
     }
 
-    /// Repeated calls must agree (stable within a process).
     @Test
     func testGetAvailableProcessorsIsStable() {
         let first  = kk_platform_getAvailableProcessors(0)
         let second = kk_platform_getAvailableProcessors(0)
         #expect(first == second)
     }
-
-    // MARK: - Enum stability: OsFamily raw values
-
-    /// OsFamily enum ordinals are part of the ABI and must not change.
-    @Test
-    func testOsFamilyEnumOrdinalStability() {
-        // Ordinals are checked by decoding the boxed value from the runtime.
-        // We can only observe the host platform's value here, but we verify
-        // that the returned ordinal is non-negative and within the declared range.
-        let ordinal = kk_unbox_int(kk_platform_osFamily(0))
-        #expect(ordinal >= 0)
-        // If the host is macOS the value must be 1 per the spec.
-#if os(macOS)
-        #expect(ordinal == 1, "OsFamily.MACOSX must be 1 (ABI stability)")
-#endif
-    }
-
-    /// CpuArchitecture enum ordinals are part of the ABI and must not change.
-    @Test
-    func testCpuArchitectureEnumOrdinalStability() {
-        let ordinal = kk_unbox_int(kk_platform_cpuArchitecture(0))
-        #expect(ordinal >= 0)
-#if arch(arm64)
-        #expect(ordinal == 2, "CpuArchitecture.ARM64 must be 2 (ABI stability)")
-#elseif arch(x86_64)
-        #expect(ordinal == 4, "CpuArchitecture.X64 must be 4 (ABI stability)")
-#endif
-    }
 }
 
-// MARK: - Previously known gaps (now implemented in RuntimePlatform.swift via #1285)
-//
-// The following `kotlin.native.Platform` properties are now implemented:
-//
-//   • Platform.memoryModel  — implemented as kk_platform_memoryModel returning a boxed
-//     MemoryModel ordinal. Supports EXPERIMENTAL (0), STRICT (1), RELAXED (2) via
-//     compile-time flags. Tests in RuntimePlatformTests.swift.
-//
-//   • Platform.isDebugBinary — implemented as kk_platform_isDebugBinary using
-//     _isDebugAssertConfiguration(). Tests in RuntimePlatformTests.swift.
 #endif
