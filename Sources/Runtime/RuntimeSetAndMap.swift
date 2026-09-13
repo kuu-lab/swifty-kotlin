@@ -28,6 +28,23 @@ public func kk_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
     )
 }
 
+/// BUG-254: storage for the mutable set factories (`mutableSetOf`,
+/// `linkedSetOf`) and the `LinkedHashSet()` / `LinkedHashSet(capacity)`
+/// constructors. `__kk_set_of` stays on the read-only `Set` identity because it
+/// is shared with `setOf`, so these callers need their own nominal tag for
+/// `is MutableSet<*>` / `is LinkedHashSet<*>` to answer true.
+@_cdecl("__kk_linked_hash_set_of")
+public func kk_linked_hash_set_of(_ arrayRaw: Int, _ count: Int) -> Int {
+    var elements: [Int] = []
+    if count > 0, let array = runtimeArrayBox(from: arrayRaw) {
+        elements = Array(array.elements.prefix(count))
+    }
+    return registerRuntimeObject(
+        RuntimeSetBox(elements: runtimeDeduplicatePreservingOrder(elements)),
+        typeID: linkedHashSetRuntimeTypeID
+    )
+}
+
 @_cdecl("__kk_set_of_not_null")
 public func kk_set_of_not_null(_ arrayRaw: Int, _ count: Int) -> Int {
     var elements: [Int] = []

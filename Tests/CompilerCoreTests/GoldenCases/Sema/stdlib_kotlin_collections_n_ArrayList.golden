@@ -18,7 +18,7 @@ expr e@4:18 call callee=e@4:18#1 args=[_:e@4:28] type=kotlin.collections.ArrayLi
 expr e@4:5 localDecl copied mutable=0 type=_ init=e@4:18 type=Unit ref=__local_2.copied[kind=local]
 expr e@5:51 int(1) type=Int
 expr e@5:54 int(2) type=Int
-expr e@5:39 call callee=e@5:39#1 args=[_:e@5:51,_:e@5:54] type=kotlin.collections.ArrayList<Int> call=kotlin.collections.arrayListOf[kind=fun;params=*Any;gen=1] targs=[Int]
+expr e@5:39 call callee=e@5:39#1 args=[_:e@5:51,_:e@5:54] type=kotlin.collections.ArrayList<Int> call=kotlin.collections.arrayListOf[kind=fun;params=*T0;gen=1] targs=[Int]
 expr e@5:5 localDecl fromFactory mutable=0 type=ArrayList<Int> init=e@5:39 type=Unit ref=__local_3.fromFactory[kind=local]
 expr e@6:37 name(empty) type=kotlin.collections.ArrayList<Int> ref=__local_0.empty[kind=local]
 expr e@6:5 localDecl mutable mutable=0 type=MutableList<Int> init=e@6:37 type=Unit ref=__local_4.mutable[kind=local]
