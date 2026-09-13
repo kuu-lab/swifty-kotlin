@@ -273,6 +273,65 @@ struct IterableSumSourceMigrationTests {
         }
         #expect(receiverClass.classSymbol == listSymbol)
     }
+
+    /// BUG-256: `ListCollectionOps.kt` only declares a concrete `List<Int>.sum()`
+    /// overload (kept by `concreteListSumKeepsListSourceBinding` above, for
+    /// KSP-428/994 historical reasons). Before this fix, a concrete `List<T>`
+    /// receiver for any other element type -- e.g. `List<UInt>` -- never
+    /// bound at all: `bindBundledListSourceFunction` found no matching
+    /// `List<UInt>.sum()` declaration, and the generic `Iterable<T>.sum()`
+    /// fallback refused List-like receivers by its own guard. The unbound
+    /// call leaked an unresolved `sum` callee through to the linker
+    /// (KSWIFTK-LINK-0001), reproduced by
+    /// `Scripts/diff_cases/list_sum_non_int_element.kt`.
+    @Test
+    func concreteListSumForNonIntElementFallsBackToIterableBinding() throws {
+        let source = """
+        fun main() {
+            println(listOf(1u, 2u, 3u).sum())
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, Comment(rawValue: diagnosticSummary(in: ctx)))
+        let ast = try #require(ctx.ast)
+        let sema = try #require(ctx.sema)
+        let userFileID = try #require(ctx.sourceManager.fileIDs().first {
+            ctx.sourceManager.origin(of: $0) == .user
+        })
+        let sumCallID = try #require(ast.arena.exprs.indices.compactMap { index -> ExprID? in
+            let id = ExprID(rawValue: Int32(index))
+            guard case let .memberCall(_, callee, _, _, _) = ast.arena.expr(id),
+                  ctx.interner.resolve(callee) == "sum",
+                  let range = ast.arena.exprRange(id),
+                  range.start.file == userFileID
+            else {
+                return nil
+            }
+            return id
+        }.first)
+        let binding = try #require(
+            sema.bindings.callBinding(for: sumCallID),
+            "listOf(1u, 2u, 3u).sum() must bind to a real callee, not leak a bare `sum` link name"
+        )
+        let chosen = try #require(sema.symbols.symbol(binding.chosenCallee))
+        #expect(ctx.interner.resolve(chosen.name) == "sum")
+        let fileID = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))
+        #expect(ctx.sourceManager.path(of: fileID) == sourcePath)
+        #expect(sema.symbols.externalLinkName(for: binding.chosenCallee) == nil)
+        let signature = try #require(sema.symbols.functionSignature(for: binding.chosenCallee))
+        #expect(signature.returnType == sema.types.uintType)
+        #expect(signature.parameterTypes.isEmpty)
+        #expect(sema.bindings.exprTypes[sumCallID] == sema.types.uintType)
+        let receiver = try #require(signature.receiverType)
+        let iterableFQName = ["kotlin", "collections", "Iterable"].map(ctx.interner.intern)
+        let iterableSymbol = try #require(sema.symbols.lookup(fqName: iterableFQName))
+        guard case let .classType(receiverClass) = sema.types.kind(of: receiver) else {
+            Issue.record("Expected the generic Iterable<UInt> overload for a List<UInt> receiver.")
+            return
+        }
+        #expect(receiverClass.classSymbol == iterableSymbol)
+    }
 }
 
 private func sourceFunctionName(at line: Int, source: String) -> String? {

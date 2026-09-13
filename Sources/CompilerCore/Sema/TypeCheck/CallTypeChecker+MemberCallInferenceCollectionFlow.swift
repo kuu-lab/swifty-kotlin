@@ -727,16 +727,17 @@ extension CallTypeChecker {
             return finalType
         }
 
-        /// Bind the source-backed `Iterable<T>.sum()` overload without allowing a
-        /// concrete List overload to win. The regular collection fast path only
-        /// knows the historical Int result, while the Iterable family has ten
-        /// receiver-element/return-type pairs.
+        /// Bind the source-backed `Iterable<T>.sum()` overload. The caller
+        /// tries the concrete `List<Int>.sum()` fast path first for List-like
+        /// receivers (BUG-256: that path only has an `Int` overload in
+        /// ListCollectionOps.kt, so every other element type falls through to
+        /// this function); call order, not a guard here, keeps the List fast
+        /// path from being overridden when it already bound.
         func bindBundledIterableSumSource() -> TypeID? {
             guard !isSequenceReceiver,
                   !isRangeReceiver,
                   isCollectionReceiver,
-                  args.isEmpty,
-                  !receiverClassifier.isConcreteListLikeType(receiverType)
+                  args.isEmpty
             else {
                 return nil
             }
@@ -2818,6 +2819,16 @@ extension CallTypeChecker {
                                     typeArguments: [],
                                     receiverElementType: sema.types.intType
                                 )
+                            } else if !bound {
+                                // BUG-256: ListCollectionOps.kt only declares a
+                                // concrete `List<Int>.sum()` overload, so every
+                                // other element type (UInt, ULong, Long,
+                                // Double, ...) falls back to the generic
+                                // Iterable<T>.sum() family instead of being
+                                // left unbound (which used to reach codegen as
+                                // an unresolved `sum` callee and fail at link
+                                // time).
+                                _ = bindBundledIterableSumSource()
                             }
                         } else {
                             _ = bindBundledIterableSumSource()
