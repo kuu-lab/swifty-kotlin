@@ -4,8 +4,6 @@ import Testing
 
 @Suite
 struct SemaphoreSyntheticMemberLinkTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
     private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -15,7 +13,6 @@ struct SemaphoreSyntheticMemberLinkTests {
             result = (sema, ctx.interner)
         }
         let semaResult = try #require(result)
-        Self._sharedSema = semaResult
         return semaResult
     }
 

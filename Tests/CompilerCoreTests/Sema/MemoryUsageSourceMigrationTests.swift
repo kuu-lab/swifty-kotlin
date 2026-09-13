@@ -26,7 +26,7 @@ struct MemoryUsageSourceMigrationTests {
             #expect(!classInfo.flags.contains(.synthetic))
             #expect(sema.symbols.isSourceBackedSymbol(classSymbol))
             let classFileID = try #require(sema.symbols.sourceFileID(for: classSymbol))
-            #expect(ctx.sourceManager.path(of: classFileID) == "__bundled_kotlin/native/runtime/MemoryUsage/Stdlib.kt")
+            #expect(ctx.sourceManager.path(of: classFileID) == "__bundled_kotlin/native/runtime/GCInfo.kt")
 
             let constructors = sema.symbols.lookupAll(
                 fqName: memoryUsageFQName + [ctx.interner.intern("<init>")]
@@ -54,7 +54,7 @@ struct MemoryUsageSourceMigrationTests {
             #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
             #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
             let propertyFileID = try #require(sema.symbols.sourceFileID(for: propertySymbol))
-            #expect(ctx.sourceManager.path(of: propertyFileID) == "__bundled_kotlin/native/runtime/MemoryUsage/Stdlib.kt")
+            #expect(ctx.sourceManager.path(of: propertyFileID) == "__bundled_kotlin/native/runtime/GCInfo.kt")
             #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.longType)
         }
     }
