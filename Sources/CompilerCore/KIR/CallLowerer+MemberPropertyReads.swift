@@ -764,6 +764,22 @@ extension CallLowerer {
         ) != nil
     }
 
+    /// Whether an object-literal property is read by calling its `get`
+    /// accessor rather than by loading its instance field directly. Shared by
+    /// the explicit-receiver read (`tryLowerObjectLiteralStoredPropertyRead`)
+    /// and the implicit-receiver one (`ExprLowerer+ControlFlowAndBlocks.swift`)
+    /// so the two cannot disagree: a `call get` that
+    /// `ObjectLiteralLowerer.lowerObjectLiteralPropertyAccessors` never emits
+    /// becomes an undefined-`_get` link error, and a field load on a computed
+    /// property reads a slot nothing ever writes (KSP-CAP-018 symptom 2 — the
+    /// implicit path used to always take the field load).
+    ///
+    /// The `getter.body != .unit` test matches that emitter's own condition
+    /// exactly. Delegated properties are included even though the emitter skips
+    /// them: object-literal property delegation is unimplemented end to end
+    /// (the delegate expression is never stored either), and failing loudly at
+    /// link time is preferable to silently reading an unwritten slot. See the
+    /// KSP-CAP-018 ledger entry.
     func objectLiteralPropertyUsesAccessor(
         _ propertySymbol: SymbolID,
         ast: ASTModule,
@@ -777,7 +793,10 @@ extension CallLowerer {
             else {
                 continue
             }
-            return propertyDecl.getter != nil || propertyDecl.delegateExpression != nil
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                return true
+            }
+            return propertyDecl.delegateExpression != nil
         }
         return false
     }
