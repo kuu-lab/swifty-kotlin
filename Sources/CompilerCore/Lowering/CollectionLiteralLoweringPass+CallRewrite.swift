@@ -50,9 +50,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.reduceIndexedName
             || callee == lookup.reduceIndexedOrNullName
             || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterNotNullName
-            || callee == lookup.filterIndexedName
             || callee == lookup.associateName
             || callee == lookup.associateByName
             || callee == lookup.associateWithName
@@ -95,19 +92,16 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.minOrNullName
             || callee == lookup.minWithName
             || callee == lookup.minWithOrNullName
-            // KSP-421: List transform HOFs have Kotlin source implementations.
+            // RF-LOWER-CALL-008: the List transform/filter HOFs are source-backed
+            // (KSP-421) and `StdlibSurfaceSpec.listHOFMembers` carries no runtime
+            // link for them, so no List rewrite can claim those callees any more
+            // and they need no name entry here. `map` / `filter` / `flatMap` /
+            // `flatMapIndexed` / `flatten` stay because the Map receiver rewrite
+            // (`kk_map_*`) and the Sequence pipeline/terminal rewrites still key
+            // off these names; Map is RF-LOWER-CALL-012 and Sequence is -014.
             || callee == lookup.mapName
-            || callee == lookup.mapIndexedName
-            || callee == lookup.mapNotNullName
-            || callee == lookup.mapIndexedNotNullName
-            || callee == lookup.mapToName
-            || callee == lookup.mapIndexedToName
-            || callee == lookup.mapNotNullToName
-            || callee == lookup.mapIndexedNotNullToName
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
-            || callee == lookup.flatMapToName
-            || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
             // KSP-430: Map higher-order functions have Kotlin source implementations.
             || callee == lookup.mapValuesName
