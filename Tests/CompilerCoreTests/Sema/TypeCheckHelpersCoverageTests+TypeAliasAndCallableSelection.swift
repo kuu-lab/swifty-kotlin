@@ -202,7 +202,6 @@ extension TypeCheckHelpersCoverageTests {
     func testMemberCallableSelection() {
         let fixture = makeHelpersFixture()
         let helpers = TypeCheckHelpers()
-        let range = makeRange()
 
         let base = fixture.symbols.define(
             kind: .class,

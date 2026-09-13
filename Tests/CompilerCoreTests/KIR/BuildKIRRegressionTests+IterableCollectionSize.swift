@@ -13,32 +13,29 @@ extension BuildKIRRegressionTests {
         fun knownOrDefault(values: Iterable<Int>): Int = values.collectionSizeOrDefault(23)
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected collection-size helper KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected collection-size helper KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+
+        let module = try #require(ctx.kir)
+        let cases = [
+            (function: "knownOrNull", callee: "collectionSizeOrNull"),
+            (function: "knownOrDefault", callee: "collectionSizeOrDefault"),
+        ]
+        for item in cases {
+            let body = try findKIRFunctionBody(
+                named: item.function,
+                in: module,
+                interner: ctx.interner
             )
-
-            let module = try #require(ctx.kir)
-            let cases = [
-                (function: "knownOrNull", callee: "collectionSizeOrNull"),
-                (function: "knownOrDefault", callee: "collectionSizeOrDefault"),
-            ]
-            for item in cases {
-                let body = try findKIRFunctionBody(
-                    named: item.function,
-                    in: module,
-                    interner: ctx.interner
-                )
-                let callees = Set(extractCallees(from: body, interner: ctx.interner))
-                #expect(callees.contains(item.callee), "\(item.function): \(callees.sorted())")
-                #expect(!callees.contains("kk_\(item.callee)"))
-                #expect(!callees.contains("__kk_\(item.callee)"))
-            }
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+            #expect(callees.contains(item.callee), "\(item.function): \(callees.sorted())")
+            #expect(!callees.contains("kk_\(item.callee)"))
+            #expect(!callees.contains("__kk_\(item.callee)"))
         }
     }
 }

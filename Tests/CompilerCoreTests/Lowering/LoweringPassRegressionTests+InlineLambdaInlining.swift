@@ -116,23 +116,13 @@ private struct InlineLambdaTestContext {
             arena: arena
         )
         let sema = makeSemaModule(symbols: symbols, types: types, bindings: bindings, diagnostics: diagnostics).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: moduleName,
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
+        try runLowering(
+            module: module,
+            interner: interner,
+            moduleName: moduleName,
+            sema: sema,
+            diagnostics: diagnostics
         )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
 
         guard case let .function(loweredMain)? = module.arena.decl(mainDeclID) else {
             throw NSError(domain: "Test", code: 1, userInfo: [

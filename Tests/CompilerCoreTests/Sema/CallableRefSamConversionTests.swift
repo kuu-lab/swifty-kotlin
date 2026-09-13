@@ -27,7 +27,7 @@ struct CallableRefSamConversionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Callable reference passed to a fun interface parameter should type-check, got: \\(errors)"
+            "Callable reference passed to a fun interface parameter should type-check, got: \(errors)"
         )
     }
 
@@ -50,7 +50,7 @@ struct CallableRefSamConversionTests {
         let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Callable reference in a SAM constructor should type-check, got: \\(errors)"
+            "Callable reference in a SAM constructor should type-check, got: \(errors)"
         )
     }
 }

@@ -50,59 +50,57 @@ extension BuildKIRRegressionTests {
             "decodeIntoByteArray",
         ]
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToLowering(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToLowering(ctx)
 
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Base64 range APIs should lower without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
-            let module = try #require(ctx.kir)
-            let calls: [(String, SymbolID)] = findAllKIRFunctions(in: module).flatMap { function in
-                function.body.compactMap { instruction -> (String, SymbolID)? in
-                    switch instruction {
-                    case let .call(symbol, callee, _, _, _, _, _, _),
-                         let .virtualCall(symbol, callee, _, _, _, _, _, _):
-                        guard let symbol, expectedNames.contains(ctx.interner.resolve(callee)) else {
-                            return nil
-                        }
-                        return (ctx.interner.resolve(callee), symbol)
-                    default:
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Base64 range APIs should lower without diagnostics: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
+        let module = try #require(ctx.kir)
+        let calls: [(String, SymbolID)] = findAllKIRFunctions(in: module).flatMap { function in
+            function.body.compactMap { instruction -> (String, SymbolID)? in
+                switch instruction {
+                case let .call(symbol, callee, _, _, _, _, _, _),
+                     let .virtualCall(symbol, callee, _, _, _, _, _, _):
+                    guard let symbol, expectedNames.contains(ctx.interner.resolve(callee)) else {
                         return nil
                     }
+                    return (ctx.interner.resolve(callee), symbol)
+                default:
+                    return nil
                 }
             }
-            let names = Set(calls.map(\.0))
+        }
+        let names = Set(calls.map(\.0))
+        #expect(
+            calls.count == 8,
+            "Expected one KIR call for each Base64 overload, got: \(calls)"
+        )
+        #expect(
+            names == expectedNames,
+            "Expected all Base64 API names in consumer KIR, got: \(names.sorted())"
+        )
+
+        let sema = try #require(ctx.sema)
+        for (name, symbol) in calls {
             #expect(
-                calls.count == 8,
-                "Expected one KIR call for each Base64 overload, got: \(calls)"
+                sema.symbols.isSourceBackedSymbol(symbol),
+                "Base64.\(name) must resolve to a bundled Kotlin source declaration"
             )
             #expect(
-                names == expectedNames,
-                "Expected all Base64 API names in consumer KIR, got: \(names.sorted())"
-            )
-
-            let sema = try #require(ctx.sema)
-            for (name, symbol) in calls {
-                #expect(
-                    sema.symbols.isSourceBackedSymbol(symbol),
-                    "Base64.\(name) must resolve to a bundled Kotlin source declaration"
-                )
-                #expect(
-                    sema.symbols.externalLinkName(for: symbol) == nil,
-                    "Base64.\(name) must not carry a runtime bridge link"
-                )
-            }
-
-            let calleeNames = findAllKIRFunctions(in: module).flatMap {
-                extractCallees(from: $0.body, interner: ctx.interner)
-            }
-            #expect(
-                calleeNames.allSatisfy { !$0.hasPrefix("kk_base64_") },
-                "Base64 consumer KIR must not reference legacy runtime bridges: \(calleeNames)"
+                sema.symbols.externalLinkName(for: symbol) == nil,
+                "Base64.\(name) must not carry a runtime bridge link"
             )
         }
+
+        let calleeNames = findAllKIRFunctions(in: module).flatMap {
+            extractCallees(from: $0.body, interner: ctx.interner)
+        }
+        #expect(
+            calleeNames.allSatisfy { !$0.hasPrefix("kk_base64_") },
+            "Base64 consumer KIR must not reference legacy runtime bridges: \(calleeNames)"
+        )
     }
 }
 #endif
