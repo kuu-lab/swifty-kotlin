@@ -11,39 +11,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-    // count with predicate: [receiver, lambda, closureRaw?]
-    if callee == lookup.countName {
-        if arguments.count == 2 || arguments.count == 3 {
-            let receiverID = arguments[0]
-            let lambdaID = arguments[1]
-            if state.listExprIDs.contains(receiverID.rawValue) {
-                let kkName: InternedString = callee
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
-        }
-    }
-
     // reduceIndexed: args = [receiver, lambda, closureRaw?]
     if callee == lookup.reduceIndexedName || callee == lookup.kkSequenceReduceIndexedName, arguments.count == 2 || arguments.count == 3 {
         let receiverID = arguments[0]

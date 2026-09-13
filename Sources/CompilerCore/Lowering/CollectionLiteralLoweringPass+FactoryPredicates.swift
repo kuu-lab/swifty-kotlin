@@ -186,25 +186,6 @@ extension CollectionLiteralConstructionLoweringPass {
         }
     }
 
-    func isJavaIOFileMember(
-        symbol: SymbolID?,
-        ctx: KIRContext,
-        interner: StringInterner
-    ) -> Bool {
-        guard let symbol,
-              let resolved = ctx.sema?.symbols.symbol(symbol)
-        else {
-            return false
-        }
-
-        let javaIOFilePrefix: [InternedString] = [
-            interner.intern("java"),
-            interner.intern("io"),
-            interner.intern("File"),
-        ]
-        return resolved.fqName.starts(with: javaIOFilePrefix)
-    }
-
     /// True when the resolved callee is a bundled Kotlin source declaration
     /// or an imported library symbol, meaning the lowering pass should not
     /// rewrite it to a `kk_*` runtime helper.
