@@ -68,7 +68,6 @@ struct RangeLookupNames {
     let kkULongRangeIteratorName: InternedString
     let kkULongRangeHasNextName: InternedString
     let kkULongRangeNextName: InternedString
-    let kkULongRangeForEachName: InternedString
     let kkULongRangeMapName: InternedString
     let kkLongRangeToLongArrayName: InternedString
 
@@ -135,7 +134,6 @@ struct RangeLookupNames {
         kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
         kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
         kkULongRangeNextName = interner.intern("kk_ulong_range_next")
-        kkULongRangeForEachName = interner.intern("kk_ulong_range_forEach")
         kkULongRangeMapName = interner.intern("kk_ulong_range_map")
         kkLongRangeToLongArrayName = interner.intern("kk_long_range_toLongArray")
     }

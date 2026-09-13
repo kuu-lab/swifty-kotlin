@@ -397,91 +397,11 @@ public func kk_ulong_range_filterNot(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw
                          functionName: "kk_ulong_range_filterNot", operation: RuntimeUnsignedRangeHOFKind.filterNot)
 }
 
-@_cdecl("kk_ulong_range_reduce")
-public func kk_ulong_range_reduce(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                  _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_reduce", operation: RuntimeUnsignedRangeHOFKind.reduce)
-}
-
-@_cdecl("kk_ulong_range_reduceIndexed")
-public func kk_ulong_range_reduceIndexed(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                         _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_reduceIndexed", operation: RuntimeUnsignedRangeHOFKind.reduceIndexed)
-}
-
-@_cdecl("kk_ulong_range_fold")
-public func kk_ulong_range_fold(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeFoldHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, initialValue, fnPtr, closureRaw, outThrown,
-                             functionName: "kk_ulong_range_fold", operation: RuntimeUnsignedRangeHOFKind.fold)
-}
-
-@_cdecl("kk_ulong_range_foldIndexed")
-public func kk_ulong_range_foldIndexed(_ rangeRaw: Int, _ initialValue: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                       _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeFoldHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, initialValue, fnPtr, closureRaw, outThrown,
-                             functionName: "kk_ulong_range_foldIndexed", operation: RuntimeUnsignedRangeHOFKind.foldIndexed)
-}
-
-@_cdecl("kk_ulong_range_find")
-public func kk_ulong_range_find(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeFirstMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                                functionName: "kk_ulong_range_find", orNull: true)
-}
-
-@_cdecl("kk_ulong_range_findLast")
-public func kk_ulong_range_findLast(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                    _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeLastMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                               functionName: "kk_ulong_range_findLast", orNull: true)
-}
-
-@_cdecl("kk_ulong_range_first_predicate")
-public func kk_ulong_range_first_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                           _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeFirstMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                                functionName: "kk_ulong_range_first_predicate", orNull: false)
-}
-
-@_cdecl("kk_ulong_range_firstOrNull_predicate")
-public func kk_ulong_range_firstOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                                 _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeFirstMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                                functionName: "kk_ulong_range_firstOrNull_predicate", orNull: true)
-}
-
 @_cdecl("kk_ulong_range_firstOrNull")
 public func kk_ulong_range_firstOrNull(_ rangeRaw: Int) -> Int {
     runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_ulong_range_firstOrNull") { range in
         RuntimeUnsignedRangeHOFKind.firstOrNull(range)
     }
-}
-
-@_cdecl("kk_ulong_range_last_predicate")
-public func kk_ulong_range_last_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                          _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeLastMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                               functionName: "kk_ulong_range_last_predicate", orNull: false)
-}
-
-@_cdecl("kk_ulong_range_lastOrNull_predicate")
-public func kk_ulong_range_lastOrNull_predicate(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeLastMatchEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                               functionName: "kk_ulong_range_lastOrNull_predicate", orNull: true)
 }
 
 @_cdecl("kk_ulong_range_lastOrNull")
@@ -513,30 +433,6 @@ public func __kk_ulong_range_random(_ rangeRaw: Int, _ outThrown: UnsafeMutableP
 public func __kk_ulong_range_random_random(_ rangeRaw: Int, _ randomRaw: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     runtimeRangeRandomEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, randomRaw, outThrown,
                             functionName: "__kk_ulong_range_random_random")
-}
-
-@_cdecl("kk_ulong_range_any")
-public func kk_ulong_range_any(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_any", operation: RuntimeUnsignedRangeHOFKind.any)
-}
-
-@_cdecl("kk_ulong_range_all")
-public func kk_ulong_range_all(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                               _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_all", operation: RuntimeUnsignedRangeHOFKind.all)
-}
-
-@_cdecl("kk_ulong_range_none")
-public func kk_ulong_range_none(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
-                                _ outThrown: UnsafeMutablePointer<Int>?) -> Int
-{
-    runtimeRangeHOFEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, fnPtr, closureRaw, outThrown,
-                         functionName: "kk_ulong_range_none", operation: RuntimeUnsignedRangeHOFKind.none)
 }
 
 @_cdecl("kk_ulong_range_chunked")

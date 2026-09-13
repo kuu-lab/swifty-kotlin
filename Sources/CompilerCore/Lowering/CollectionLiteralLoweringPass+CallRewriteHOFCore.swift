@@ -138,12 +138,9 @@ extension CollectionLiteralConstructionLoweringPass {
                     // STDLIB-RANGE-037: use ULong-specific map for unsigned ranges
                     kkName = isULongRange ? lookup.kkULongRangeMapName : lookup.kkRangeMapName
                 } else {
-                    // forEach: use ULong, char, or default range variant
-                    if isULongRange {
-                        kkName = lookup.kkULongRangeForEachName
-                    } else {
-                        kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
-                    }
+                    // forEach: source-backed for ULongRange since KSP-1528; use char
+                    // or default range variant otherwise.
+                    kkName = isCharRange ? lookup.kkCharRangeForEachName : lookup.kkRangeForEachName
                 }
                 let hofResult = module.arena.appendTemporary(type: nil
                 )
