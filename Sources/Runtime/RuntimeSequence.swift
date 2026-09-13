@@ -2836,16 +2836,25 @@ public func kk_sequence_toMutableList(_ seqRaw: Int) -> Int {
     return registerRuntimeObject(RuntimeListBox(values: values))
 }
 
+// BUG-254: keep these on the same nominal tags as the Iterable terminals
+// (`__kk_iterable_toMutableSet` / `__kk_iterable_toHashSet`) so the declared
+// return type answers `is` the same way on both receivers.
 @_cdecl("kk_sequence_toMutableSet")
 public func kk_sequence_toMutableSet(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+        typeID: linkedHashSetRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_sequence_toHashSet")
 public func kk_sequence_toHashSet(_ seqRaw: Int) -> Int {
     let values = runtimeSequenceSourceValuesOrPanic(from: seqRaw, caller: #function)
-    return registerRuntimeObject(RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)))
+    return registerRuntimeObject(
+        RuntimeSetBox(values: runtimeDeduplicatePreservingOrder(values)),
+        typeID: hashSetRuntimeTypeID
+    )
 }
 
 @_cdecl("kk_sequence_toCollection")

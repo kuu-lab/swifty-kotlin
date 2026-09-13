@@ -153,6 +153,7 @@ struct CollectionLiteralLookupTables {
     var kkSetToStringName: InternedString { setLookup.kkSetToStringName }
     var kkIterableToMutableSetName: InternedString { setLookup.kkIterableToMutableSetName }
     var kkHashSetOfName: InternedString { setLookup.kkHashSetOfName }
+    var kkLinkedHashSetOfName: InternedString { setLookup.kkLinkedHashSetOfName }
     var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
