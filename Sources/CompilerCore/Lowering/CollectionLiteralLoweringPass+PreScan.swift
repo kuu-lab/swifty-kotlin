@@ -265,6 +265,7 @@ extension CollectionLiteralLoweringSupport {
             state.listExprIDs.insert(result.rawValue)
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
+                    || callee == lookup.kkLinkedHashSetOfName
                     || callee == lookup.kkSetOfNotNullName {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)

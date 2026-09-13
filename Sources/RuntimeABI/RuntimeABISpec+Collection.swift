@@ -208,6 +208,18 @@ public extension RuntimeABISpec {
             section: "Collection",
             isThrowing: false
         ),
+        // BUG-254: nominal-tag bridge for the mutable set factories and the
+        // LinkedHashSet constructors, mirroring `__kk_hash_set_of`.
+        RuntimeABIFunctionSpec(
+            name: "__kk_linked_hash_set_of",
+            parameters: [
+                RuntimeABIParameter(name: "arrayRaw", type: .intptr),
+                RuntimeABIParameter(name: "count", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Collection",
+            isThrowing: false
+        ),
         // STDLIB-410: emptySet
         RuntimeABIFunctionSpec(
             name: "__kk_emptySet",

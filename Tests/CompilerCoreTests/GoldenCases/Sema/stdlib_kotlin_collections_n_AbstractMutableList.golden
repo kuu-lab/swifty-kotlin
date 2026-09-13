@@ -49,7 +49,7 @@ expr e@15:9#1 memberCall recv=e@15:9 callee=removeAt args=[_:e@15:28#2] type=Int
 expr e@20:39 int(1) type=Int
 expr e@20:42 int(2) type=Int
 expr e@20:45 int(3) type=Int
-expr e@20:27 call callee=e@20:27#1 args=[_:e@20:39,_:e@20:42,_:e@20:45] type=kotlin.collections.ArrayList<Int> call=kotlin.collections.arrayListOf[kind=fun;params=*Any;gen=1] targs=[Int]
+expr e@20:27 call callee=e@20:27#1 args=[_:e@20:39,_:e@20:42,_:e@20:45] type=kotlin.collections.ArrayList<Int> call=kotlin.collections.arrayListOf[kind=fun;params=*T0;gen=1] targs=[Int]
 expr e@23:17 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Probe.storage[kind=prop]
 expr e@23:17#1 memberCall recv=e@23:17 callee=size args=[] type=Int ref=kotlin.collections.ArrayList.size[kind=prop]
 expr e@25:41 name(storage) type=kotlin.collections.ArrayList<Int> ref=golden.sema.Probe.storage[kind=prop]

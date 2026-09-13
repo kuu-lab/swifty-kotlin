@@ -188,12 +188,12 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlin/collections/ArrayDeque.kt), so no synthetic stub is
         // registered for it here.
 
-        registerSyntheticCollectionFactoryStubs(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
+        // KSP-699: the collection factory functions (listOf / setOf / mapOf and
+        // their mutable, arrayList, hashSet and hashMap variants) are declared by
+        // Stdlib/kotlin/collections/CollectionFactories.kt, hash.kt and linked.kt,
+        // so no bootstrap stub is registered for them here. Their call sites still
+        // take the shared factory lowering path (CallLowerer+CollectionFactoryCalls
+        // / CollectionLiteralLoweringPass) for element boxing and runtime tags.
 
         registerSyntheticArrayStubs(
             symbols: symbols, types: types, interner: interner,

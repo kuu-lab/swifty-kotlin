@@ -94,6 +94,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
@@ -160,6 +161,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     ))
                 }
                 let runtimeCallee = callee == lookup.arrayListOfName
+                    || callee == lookup.mutableListOfName
                     ? lookup.kkArrayListOfName
                     : lookup.kkListOfName
                 loweredBody.append(.call(
@@ -236,11 +238,13 @@ extension CollectionLiteralConstructionLoweringPass {
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: nullExpr, value: .intLiteral(0)))
+            // `mutableSetConstructorNames` holds only HashSet and LinkedHashSet,
+            // so the non-HashSet case here is LinkedHashSet() / LinkedHashSet(capacity).
             loweredBody.append(.call(
                 symbol: nil,
                 callee: isHashSetConstructor
                     ? lookup.kkHashSetOfName
-                    : lookup.kkSetOfName,
+                    : lookup.kkLinkedHashSetOfName,
                 arguments: [nullExpr, zeroExpr],
                 result: result,
                 canThrow: false,
@@ -347,7 +351,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
             } else if count == 0 {
                 // Mutable/hash/linked set factories produce a fresh instance via
-                // the shared set storage, with HashSet retaining its nominal tag.
+                // the shared set storage, each keeping its own nominal tag:
+                // hashSetOf is a HashSet, mutableSetOf/linkedSetOf a LinkedHashSet
+                // (BUG-254 -- `__kk_set_of` is shared with the read-only `setOf`,
+                // so it must stay on the `Set` identity).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -356,7 +363,7 @@ extension CollectionLiteralConstructionLoweringPass {
                     symbol: nil,
                     callee: callee == lookup.hashSetOfName
                         ? lookup.kkHashSetOfName
-                        : lookup.kkSetOfName,
+                        : lookup.kkLinkedHashSetOfName,
                     arguments: [nullExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -420,6 +427,8 @@ extension CollectionLiteralConstructionLoweringPass {
                     ? lookup.kkHashSetOfName
                     : callee == lookup.setOfNotNullName
                     ? lookup.kkSetOfNotNullName
+                    : callee == lookup.mutableSetOfName || callee == lookup.linkedSetOfName
+                    ? lookup.kkLinkedHashSetOfName
                     : lookup.kkSetOfName
                 loweredBody.append(.call(
                     symbol: nil,
