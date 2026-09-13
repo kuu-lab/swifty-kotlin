@@ -3,6 +3,8 @@
 package kotlin.native.concurrent
 
 import kotlin.internal.KsSymbolName
+import kotlin.native.internal.__nativeConcurrentStartWorker
+import kotlin.native.internal.__nativeConcurrentTerminateWorker
 import kotlinx.cinterop.COpaquePointer
 import kotlinx.cinterop.ExperimentalForeignApi
 
@@ -92,3 +94,17 @@ public fun Worker.equals(other: Any?): Boolean =
 public fun Worker.hashCode(): Int = id
 
 public fun Worker.toString(): String = "Worker $name"
+
+@ObsoleteWorkersApi
+public inline fun <R> withWorker(
+    name: String? = null,
+    errorReporting: Boolean = true,
+    block: Worker.() -> R
+): R {
+    val worker = __nativeConcurrentStartWorker(errorReporting, name)
+    try {
+        return worker.block()
+    } finally {
+        __nativeConcurrentTerminateWorker(worker)
+    }
+}

@@ -380,6 +380,15 @@
   - 背景: `docs/stdlib-pipeline.md` §6「既存の機能スライス名（`ListFilterHOF.kt` 等）は当該モジュールの M フェーズ完了時に統合・リネームする」を実行するタスク。2026-08-18 時点では text（M1: `KSP-693` 未完了）/collections（M3: `KSP-426`/`KSP-428` 未完了）を含む複数のモジュールがまだ (b) 残ありで対象外（着手時に §9 棚卸し表で全モジュールを再確認すること）
   - 着手条件: `docs/stdlib-pipeline.md` §9 の3分類棚卸し表を rg で再確認し、対象モジュールの (b) 行（未移行の合成スタブ登録）が 0 件であること。モジュール単体で条件を満たせば、そのモジュールだけ先行して統合・リネームしてよい（粒度ルールにより 1 モジュール = 1 PR に分割可）
   - 手順: (1) 対象モジュール配下の機能スライスファイル（例: `collections/ListFilterHOF.kt`, `text/StringBasics.kt` 等）を本家 kotlin-stdlib のファイル名・配置（例: `collections/Collections.kt`, `text/Strings.kt`）へ統合・リネーム（`docs/stdlib-pipeline.md` §6）。挙動変更ゼロが条件 (2) `UPDATE_GOLDEN=1` で golden 更新し `git diff -- Tests/CompilerCoreTests/GoldenCases` が機械的差分のみであることを確認 (3) 共通ゲート G green
+  - 監査手法: `Sources/CompilerCore/Stdlib/kotlin/` の Apache 帰属ヘッダ（`Derived from kotlin-stdlib <...>` / `Derived from kotlin-native <...>`）が宣言する本家パスの basename と実ファイル名を機械照合すると、リネーム候補が証拠付きで列挙できる（2026-09-13 時点で 49 件不一致）。ヘッダが無い・曖昧な場合は JetBrains/kotlin の該当タグ（`v2.3.10`）のディレクトリ一覧と宣言位置で裏取りする
+  - 進捗:
+    - (1) 2026-09-07 #6587: `random/JavaRandomInterop.kt` → `random/PlatformRandom.kt`（単一ファイル）
+    - (2) 2026-09-13 #6780: `kotlin/native/` モジュール全体。per-type ディレクトリ artifact（`<Type>/Stdlib.kt` / `<Type>/<Type>.kt`）22 件を撤去し、v2.3.10 の宣言オーナーへ統合（`Platform.kt` ← OsFamily/CpuArchitecture、`Annotations.kt` ← SymbolName、`concurrent/Atomics.kt` ← AtomicLong/AtomicNativePtr/AtomicReference/FreezableAtomicReference、`concurrent/Future.kt` ← FutureState/waitForMultipleFutures、`concurrent/ObjectTransfer.kt` ← TransferMode、`concurrent/Freezing.kt` ← FreezingException/freeze、`concurrent/Lazy.kt` ← atomicLazy、`concurrent/Internal.kt` ← attach/detachObjectGraphInternal・consumeFuture・executeImpl・waitWorkerTermination、`concurrent/Worker.kt` ← withWorker、`ref/Weak.kt`/`ref/WeakPrivate.kt`/`ref/Cleaner.kt`、`runtime/GCInfo.kt` ← MemoryUsage/RootSetStatistics/SweepStatistics、`BitSet.kt`/`Runtime.kt`/`ThrowableExtensions.kt`/`runtime/GC.kt`/`runtime/NativeRuntimeApi.kt`/`concurrent/MutableData.kt`/`concurrent/WorkerBoundReference.kt`）。enforcing: `BundledStdlibOrderingTests.testNativeBundledFilenamesFollowKotlinNativeLayout` が `native/` 配下の `Stdlib.kt` 名と eponymous ディレクトリを拒否する
+  - native 残件（本タスク内のフォローアップ）:
+    - `native/Annotations.kt` の `ObsoleteNativeApi` は本家では `native/ObsoleteNativeApi.kt` 単独ファイル。`native/ObjCInterop.kt` の `ObjCName` は本家 `native/Annotations.kt` 所属。`FreezingIsDeprecated` は v2.3.10 の `kotlin-native/runtime/.../kotlin/native/` に無く、`libraries/stdlib/native-wasm/` 側の確認が必要
+    - `native/internal/NativeConcurrentBridges.kt` は `__kk_*` ブリッジ専用の KSwiftK 独自ファイルで本家対応物なし（リネーム対象外）
+    - `[x]` 済みタスクの完了メモは旧ファイル名のまま残している（#6745 の完了エントリ削除と衝突させないため）。未完了タスクの「実装先 .kt」は本 PR で本家オーナーへ読み替え済み
+  - 他モジュールの残件: ルート `kotlin/` パッケージに帰属ヘッダ由来の不一致が 15 件（`Annotations.kt` / `annotations/OptIn.kt` / `properties/PropertyReferenceDelegates.kt` 等への統合）あるが、`HeaderHelpers+SyntheticArrayStubs.swift` / `+SyntheticCoercionStubs.swift` の (b) 残があるため着手条件未達。`collections` / `text` / `sequences` / `ranges` / `time` / `io` も (b) 残ありで対象外。`uuid` / `io/encoding` / `comparisons` / `properties` / `contracts` は (b) 0 かつ既に本家名で対象外
 
 ### KSP-W6: 追補モジュール移行（ギャップ監査 2026-07-10。手順は全て T。粒度ルール適用済み = 1タスク1PR）
 
@@ -2963,7 +2972,7 @@
 
 - [ ] KSP-1191: kotlin.native top-level の未実装 stdlib API を実装する（27 件）
   - 対象: `kotlin.native` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: 宣言ごとに本家 kotlin-native のオーナーファイルへ追加する（`Annotations.kt`: CName/EagerInitialization/NoInline/SymbolName/ObjCName/HiddenFromObjC/HidesFromObjC/RefinesInSwift/ShouldRefineInSwift、`BitSet.kt`: BitSet、`Blob.kt`: ImmutableBlob/immutableBlobOf、`ObsoleteNativeApi.kt`: ObsoleteNativeApi、`Platform.kt`: OsFamily/CpuArchitecture/MemoryModel/Platform/isExperimentalMM、`Runtime.kt`: IncorrectDereferenceException/initRuntimeIfNeeded/{get,set}UnhandledExceptionHook/processUnhandledException/terminateWithUnhandledException、`simd.kt`: vectorOf。いずれも `Sources/CompilerCore/Stdlib/kotlin/native/` 直下。KSP-1541 で旧 `native/Stdlib.kt` 等の per-type ディレクトリ名は廃止済み）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -2999,7 +3008,7 @@
 
 - [ ] KSP-1192: kotlin.native.ImmutableBlob の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native` / receiver `ImmutableBlob`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ImmutableBlob.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Blob.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ImmutableBlob_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3048,7 +3057,7 @@
 
 - [ ] KSP-1203: kotlin.native.ImmutableBlob.ImmutableBlob の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.ImmutableBlob` / receiver `ImmutableBlob`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ImmutableBlob/ImmutableBlob.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Blob.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ImmutableBlob_ImmutableBlob_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3060,7 +3069,7 @@
 
 - [ ] KSP-1215: kotlin.native.SymbolName.SymbolName の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.SymbolName` / receiver `SymbolName`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/SymbolName/SymbolName.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/Annotations.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_SymbolName_SymbolName_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_SymbolName_SymbolName_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_SymbolName_SymbolName_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3108,7 +3117,7 @@
 
 - [ ] KSP-1217: kotlin.native.concurrent.CPointer の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.concurrent` / receiver `CPointer`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/CPointer.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Continuation.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_CPointer_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_CPointer_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_CPointer_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3120,7 +3129,7 @@
 
 - [ ] KSP-1218: kotlin.native.concurrent.Collection の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent` / receiver `Collection`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Collection.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Future.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Collection_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Collection_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Collection_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3130,7 +3139,7 @@
 
 - [ ] KSP-1219: kotlin.native.concurrent.DetachedObjectGraph の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent` / receiver `DetachedObjectGraph`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/DetachedObjectGraph.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3140,7 +3149,7 @@
 
 - [ ] KSP-1220: kotlin.native.concurrent.AtomicInt top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.concurrent.AtomicInt` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/AtomicInt/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicInt_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicInt_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicInt_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3150,7 +3159,7 @@
 
 - [ ] KSP-1221: kotlin.native.concurrent.AtomicInt.AtomicInt の未実装 stdlib API を実装する（8 件）
   - 対象: `kotlin.native.concurrent.AtomicInt` / receiver `AtomicInt`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/AtomicInt/AtomicInt.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicInt_AtomicInt_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicInt_AtomicInt_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicInt_AtomicInt_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3178,7 +3187,7 @@
 
 - [ ] KSP-1223: kotlin.native.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.native.concurrent.AtomicLong` / receiver `AtomicLong`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/AtomicLong/AtomicLong.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3208,7 +3217,7 @@
 
 - [ ] KSP-1225: kotlin.native.concurrent.AtomicNativePtr.AtomicNativePtr の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.native.concurrent.AtomicNativePtr` / receiver `AtomicNativePtr`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/AtomicNativePtr/AtomicNativePtr.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicNativePtr_AtomicNativePtr_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3232,7 +3241,7 @@
 
 - [ ] KSP-1227: kotlin.native.concurrent.AtomicReference.AtomicReference の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.concurrent.AtomicReference` / receiver `AtomicReference`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/AtomicReference/AtomicReference.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicReference_AtomicReference_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicReference_AtomicReference_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicReference_AtomicReference_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3245,7 +3254,7 @@
 
 - [ ] KSP-1234: kotlin.native.concurrent.DetachedObjectGraph top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/DetachedObjectGraph/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3256,7 +3265,7 @@
 
 - [ ] KSP-1235: kotlin.native.concurrent.DetachedObjectGraph.DetachedObjectGraph の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.concurrent.DetachedObjectGraph` / receiver `DetachedObjectGraph`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/DetachedObjectGraph/DetachedObjectGraph.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/ObjectTransfer.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_DetachedObjectGraph_DetachedObjectGraph_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_DetachedObjectGraph_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_DetachedObjectGraph_DetachedObjectGraph_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3267,7 +3276,7 @@
 
 - [ ] KSP-1237: kotlin.native.concurrent.FreezableAtomicReference.FreezableAtomicReference の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.concurrent.FreezableAtomicReference` / receiver `FreezableAtomicReference`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/FreezableAtomicReference/FreezableAtomicReference.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_FreezableAtomicReference_FreezableAtomicReference_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_FreezableAtomicReference_FreezableAtomicReference_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_FreezableAtomicReference_FreezableAtomicReference_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3308,7 +3317,7 @@
 
 - [ ] KSP-1244: kotlin.native.concurrent.MutableData.MutableData の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.native.concurrent.MutableData` / receiver `MutableData`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/MutableData/MutableData.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/MutableData.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_MutableData_MutableData_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_MutableData_MutableData_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_MutableData_MutableData_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3348,7 +3357,7 @@
 
 - [ ] KSP-1251: kotlin.native.concurrent.Worker.Companion.Companion の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.concurrent.Worker.Companion` / receiver `Companion`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Worker/Companion/Companion.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Worker.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_Worker_Companion_Companion_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_Worker_Companion_Companion_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_Worker_Companion_Companion_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3373,7 +3382,7 @@
 
 - [ ] KSP-1253: kotlin.native.concurrent.WorkerBoundReference.WorkerBoundReference の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.concurrent.WorkerBoundReference` / receiver `WorkerBoundReference`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/WorkerBoundReference/WorkerBoundReference.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_WorkerBoundReference_WorkerBoundReference_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_WorkerBoundReference_WorkerBoundReference_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_WorkerBoundReference_WorkerBoundReference_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3385,7 +3394,7 @@
 
 - [ ] KSP-1255: kotlin.native.ref.WeakReference top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.ref.WeakReference` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ref/WeakReference/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ref/Weak.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ref_WeakReference_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ref_WeakReference_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ref_WeakReference_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3431,7 +3440,7 @@
 
 - [ ] KSP-1259: kotlin.native.runtime top-level の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.native.runtime` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/Stdlib.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: 宣言ごとに本家 kotlin-native のオーナーファイルへ追加する（`runtime/Debugging.kt`: Debugging、`runtime/GC.kt`: GC、`runtime/GCInfo.kt`: GCInfo/MemoryUsage/RootSetStatistics/SweepStatistics、`runtime/NativeRuntimeApi.kt`: NativeRuntimeApi。いずれも `Sources/CompilerCore/Stdlib/kotlin/native/` 配下。KSP-1541 で per-type ディレクトリ名は廃止済み）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3447,7 +3456,7 @@
 
 - [ ] KSP-1260: kotlin.native.runtime.Debugging.Debugging の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.runtime.Debugging` / receiver `Debugging`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/Debugging/Debugging.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/Debugging.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_Debugging_Debugging_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_Debugging_Debugging_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_Debugging_Debugging_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3459,7 +3468,7 @@
 
 - [ ] KSP-1262: kotlin.native.runtime.GC.GC の未実装 stdlib API を実装する（22 件）
   - 対象: `kotlin.native.runtime.GC` / receiver `GC`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC/GC.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_GC_GC_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_GC_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_GC_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3490,7 +3499,7 @@
 
 - [ ] KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor.MainThreadFinalizerProcessor の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.runtime.GC.MainThreadFinalizerProcessor` / receiver `MainThreadFinalizerProcessor`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC/MainThreadFinalizerProcessor/MainThreadFinalizerProcessor.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_GC_MainThreadFinalizerProcessor_MainThreadFinalizerProcessor_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_MainThreadFinalizerProcessor_MainThreadFinalizerProcessor_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_GC_MainThreadFinalizerProcessor_MainThreadFinalizerProcessor_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3514,7 +3523,7 @@
 
 - [ ] KSP-1265: kotlin.native.runtime.GCInfo.GCInfo の未実装 stdlib API を実装する（15 件）
   - 対象: `kotlin.native.runtime.GCInfo` / receiver `GCInfo`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo/GCInfo.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_GCInfo_GCInfo_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_GCInfo_GCInfo_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_GCInfo_GCInfo_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3538,7 +3547,7 @@
 
 - [~] KSP-1267: kotlin.native.runtime.MemoryUsage.MemoryUsage の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.MemoryUsage` / receiver `MemoryUsage`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/MemoryUsage/MemoryUsage.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3561,7 +3570,7 @@
 
 - [ ] KSP-1270: kotlin.native.runtime.RootSetStatistics.RootSetStatistics の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.runtime.RootSetStatistics` / receiver `RootSetStatistics`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/RootSetStatistics/RootSetStatistics.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_RootSetStatistics_RootSetStatistics_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_RootSetStatistics_RootSetStatistics_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_RootSetStatistics_RootSetStatistics_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
@@ -3585,7 +3594,7 @@
 
 - [~] KSP-1272: kotlin.native.runtime.SweepStatistics.SweepStatistics の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.runtime.SweepStatistics` / receiver `SweepStatistics`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/SweepStatistics/SweepStatistics.kt`（該当ファイルが無ければ新規作成）
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。

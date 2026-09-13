@@ -76,7 +76,7 @@ struct GCInfoSourceMigrationTests {
             let classFileID = try #require(sema.symbols.sourceFileID(for: classSymbol))
             #expect(
                 ctx.sourceManager.path(of: classFileID)
-                    == "__bundled_kotlin/native/runtime/GCInfo/Stdlib.kt"
+                    == "__bundled_kotlin/native/runtime/GCInfo.kt"
             )
 
             let constructors = sema.symbols.lookupAll(

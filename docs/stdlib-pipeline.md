@@ -106,6 +106,12 @@ Kotlin ソースに実体がある呼び出しは通常の関数解決・KIR 展
 - **ファイル名も本家へ収斂させる**: 新規・移行時は本家のファイル名（例: `text/Strings.kt`,
   `collections/Collections.kt`）に寄せる。既存の機能スライス名（`ListFilterHOF.kt` 等)は
   当該モジュールの M フェーズ完了時に統合・リネームする
+- **宣言ごとのディレクトリを作らない**: 本家は型ごとのディレクトリを持たない。
+  `native/OsFamily/OsFamily.kt` や `runtime/MemoryUsage/Stdlib.kt` のような
+  `<Type>/Stdlib.kt` / `<Type>/<Type>.kt` は逸脱なので、宣言を本家のオーナーファイル
+  （`native/Platform.kt`, `native/runtime/GCInfo.kt` 等）へ統合する（KSP-1541）。
+  Kotlin/Native 面の本家ツリーは `kotlin-native/runtime/src/main/kotlin/kotlin/native/`
+  で、`libraries/stdlib/` ではない点に注意
 - `BundledKotlinStdlib.swift` のインライン文字列 4 本は対応する .kt ファイルへ移設し、廃止する
 
 ### ブリッジ宣言（external + 注釈）
