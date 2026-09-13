@@ -226,7 +226,7 @@
 > stdlib を本家形の Kotlin で書くために必要な言語機能の台帳。再現 .kt は各タスク着手時に `Scripts/diff_cases/` or 回帰テストへ固定する（プローブ時の最小再現はセッション記録 probes/p01〜p12b にあり、診断コードから容易に再構成可能）。完了条件は共通で「再現ケースが期待動作でコンパイル・実行され、回帰テストとして固定される + G」。
 
 - [~] KSP-CAP-004: `while(true)` CAS ループ / `Nothing` 戻り値無限ループの型検査を通す（`KSWIFTK-TYPE-0001`。PR #4984 で実装・検証済み、マージ後に [x] 化。ブロック対象: KSP-673・`AtomicMigration.kt` コメントの保留解除）
-- [~] KSP-CAP-018: object 式によるクラス継承を通す（= BUG-215）。ブロック対象: KSP-441（object 式でパイプラインを表現する方針）。2026-09-13 に最後の未解消症状（空ボディ）まで実装・検証済み、マージ後に [x] 化（残る「名前付き `object : Base(x)` 宣言」は当初から本項目のスコープ外）
+- [~] KSP-CAP-018: object 式によるクラス継承を通す（= BUG-215）。ブロック対象: KSP-441（object 式でパイプラインを表現する方針）。2026-09-13 に本項目の2症状（空ボディ含む）まで実装・検証済み、マージ後に [x] 化。下記「未解消」に残る2件は本項目の完了条件外: (1) 2026-09-13 に新規発見した object 式 custom accessor の型検査漏れ（別タスクへ切り出し済み）(2) 名前付き `object : Base(x)` 宣言（当初からスコープ外）
   - **注記**: 旧 KSP-CAP-016/017（同一症状、2026-08-06 記録）と旧 BUG-187/188 は、名前不明の TODO.md 編集（`f9dea8961c` 付近、DEBT-DIFF-005 統合コミット群）でブロッカー台帳から本文ごと消失し、`[x]` 化されないまま記録が失われていた。名前付きサブクラスのスーパークラス primary constructor 実引数伝搬（旧 KSP-CAP-016 症状の一部）は別途 `1128468186`（PR #5506, "Fix BUG-155: run superclass constructors and class-body initializers"）で修正済みと 2026-08-18 実機確認したため当該部分はクローズ、object 式経由の残り2症状のみ本項として採番し直す。
   - 症状は2系統（interface を実装する object 式のプロパティ dispatch は BUG-141 で修正済み。本項目は**クラス**継承）:
     1. 基底クラスの `open`/`abstract` メンバを object 式が override しても dispatch されない。`open class Base { open fun describe(): String = "base" }` `fun make(): Base = object : Base() { override fun describe() = "anon" }` に対し `make().describe()` が基底実装 `"base"` を返す
@@ -268,7 +268,11 @@
          const r5=intLiteral(1)
          call kk_op_add args=[r4, r5]
        ```
-       メンバ**関数**経由なら正常（`fun value(): Int = seed + 1` は 8）、名前付きクラスの custom getter も正常。既存テスト `testBuildKIRObjectLiteralCustomGetterUsesAccessorCall` は callee 名が `get` であることだけを検証しており値を見ないため、このバグを長く見逃していた。修正は accessor 本体を `objectCtx` で型検査する（メンバ関数本体と同型）方向だが、`field` 束縛・capture 解析への波及があるため別タスク。
+       メンバ**関数**経由なら正常（`fun value(): Int = seed + 1` は 8）、名前付きクラスの custom getter も正常。既存テスト `testBuildKIRObjectLiteralCustomGetterUsesAccessorCall` は callee 名が `get` であることだけを検証しており値を見ないため、このバグを長く見逃していた。なお `DeclTypeChecker.typeCheckPropertyDecl` の `typeCheckDelegate` 呼び出しに付いたコメント（DEBT-KIR-008/BUG-170）が、delegate 本体について**同じバグクラス**（Sema が本体を訪れず識別子が未束縛 → KIR が `.unit` を出す）を既に記録している。本件は object 式の accessor 本体における3例目。
+       **試行結果（2026-09-13、着手したが revert）**: `ensureObjectLiteralSymbol` のプロパティループに `driver.declChecker.typeCheckGetter`/`typeCheckSetter` の呼び出しを足すと、**外から直接読む形（`instance.value`）だけは直る**（1 → 8）。しかし以下が残り、単独では完成しないため revert した。完全修正は Sema + KIR 両側の作業になる別タスク:
+       - メンバ関数内から自分の custom getter を読む形（`override fun r(): String = "" + doubled`）は依然 0。
+       - custom getter が**継承**プロパティを読む形（`object : Ticker(s) { val doubled: Int get() = step * 2 }`）は依然 0。KIR の解決分岐は `isObjectLiteralPropertySymbol` 条件付きで、スーパークラス由来のプロパティには当たらない。
+       - custom **setter** を持つと、Sema は通るようになるが `lowerObjectLiteralPropertyGetters`（`ObjectLiteralLowerer.swift`）が getter しか lowering しないため `KSWIFTK-LINK-0001` のリンクエラーになる。つまり部分修正はコンパイルエラーをリンクエラーに置き換えるだけで改善にならない。
     2. 名前付き（非リテラル）`object : Base(x) { ... }` 宣言は本項目の対象外（症状1は名前付きでも再現しないが、症状2のコンストラクタ実引数破棄と、加えて base 型変数経由での virtual dispatch がレシーバに誤った定数値を積む別バグ — 発見元 p9、`.symbolRef` 定数が `loadGlobal` の代わりに使われている — が残存。詳細未起票、必要になったら新規 CAP として切り出す）
 
 ### KSP-W3: excludedBundledStdlibFiles 解消（前提: KSP-202。相互独立・並列可）
