@@ -337,7 +337,7 @@ import Testing
 
     // MARK: - MIGRATION-SEQ-003: Sequence terminal HOFs
 
-    func testCompile_sequence_toList() throws {
+    @Test func testCompile_sequence_toList() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 2, 3)
@@ -346,7 +346,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_toMutableList() throws {
+    @Test func testCompile_sequence_toMutableList() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf("a", "b", "c")
@@ -355,7 +355,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_toSet() throws {
+    @Test func testCompile_sequence_toSet() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 2, 2, 3)
@@ -364,7 +364,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_first() throws {
+    @Test func testCompile_sequence_first() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(10, 20, 30)
@@ -373,7 +373,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_firstOrNull() throws {
+    @Test func testCompile_sequence_firstOrNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(10, 20, 30)
@@ -382,7 +382,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_last() throws {
+    @Test func testCompile_sequence_last() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(10, 20, 30)
@@ -391,7 +391,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_lastOrNull() throws {
+    @Test func testCompile_sequence_lastOrNull() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(10, 20, 30)
@@ -400,7 +400,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_single() throws {
+    @Test func testCompile_sequence_single() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(42)
@@ -409,7 +409,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_count() throws {
+    @Test func testCompile_sequence_count() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 2, 3)
@@ -418,7 +418,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_any_noArg() throws {
+    @Test func testCompile_sequence_any_noArg() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 2, 3)
@@ -427,7 +427,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_any_predicate() throws {
+    @Test func testCompile_sequence_any_predicate() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 2, 3)
@@ -436,7 +436,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_all_predicate() throws {
+    @Test func testCompile_sequence_all_predicate() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(2, 4, 6)
@@ -445,7 +445,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_none_noArg() throws {
+    @Test func testCompile_sequence_none_noArg() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = emptySequence<Int>()
@@ -454,7 +454,7 @@ import Testing
         """)
     }
 
-    func testCompile_sequence_none_predicate() throws {
+    @Test func testCompile_sequence_none_predicate() throws {
         try assertKotlinCompilesToKIR("""
         fun main() {
             val seq = sequenceOf(1, 3, 5)

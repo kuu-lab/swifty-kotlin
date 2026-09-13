@@ -278,15 +278,12 @@ import Testing
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
-            _ = (sema, interner)
 
             // testInterfaceDefaultMethodNotMarkedAbstract
             do {
                 let samplePackage = "sample0"
-                _ = samplePackage
 
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
 
                 // The greet function should NOT have the abstractType flag
                 let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
@@ -298,10 +295,8 @@ import Testing
             // testInterfaceAbstractMethodIsMarkedAbstract
             do {
                 let samplePackage = "sample1"
-                _ = samplePackage
 
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
 
                 let greetSymbols = sema.symbols.allSymbols().filter { $0.kind == .function && interner.resolve($0.name) == "greet" && interner.resolve($0.fqName[0]) == samplePackage }
                 #expect(greetSymbols.count == 1)
@@ -311,62 +306,38 @@ import Testing
 
             // testConcreteClassInheritsDefaultMethodWithoutOverride
             do {
-                let samplePackage = "sample2"
-                _ = samplePackage
-
-
                 // No abstract override error: default method satisfies the requirement
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testConcreteClassOverridesDefaultMethod
             do {
-                let samplePackage = "sample3"
-                _ = samplePackage
-
-
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testInterfaceWithMixedAbstractAndDefaultMethods
             do {
-                let samplePackage = "sample4"
-                _ = samplePackage
-
-
                 // Dog overrides name() (abstract) and inherits sound() (default)
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testClassImplementsMultipleInterfacesWithDefaults
             do {
-                let samplePackage = "sample5"
-                _ = samplePackage
-
-
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testDefaultMethodWithBlockBody
             do {
-                let samplePackage = "sample6"
-                _ = samplePackage
-
-
                 assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testDefaultMethodCallableOnImplementingClass
             do {
-                let samplePackage = "sample7"
-                _ = samplePackage
-
-
                 let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(errors.isEmpty,
                               "Calling inherited default method should not produce errors. Got: \(errors.map(\.message))")
@@ -374,10 +345,6 @@ import Testing
 
             // testDefaultMethodCallableOnInterfaceTypedVariable
             do {
-                let samplePackage = "sample8"
-                _ = samplePackage
-
-
                 let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(errors.isEmpty,
                               "Calling default method on interface-typed var should not error. Got: \(errors.map(\.message))")
@@ -385,91 +352,56 @@ import Testing
 
             // testInterfaceAbstractProperty
             do {
-                let samplePackage = "sample9"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testInterfaceConcreteProperty
             do {
-                let samplePackage = "sample10"
-                _ = samplePackage
-
                 // Real kotlinc rejects property initializers in interfaces
                 // ("property initializers in interfaces are prohibited"), so default
                 // property values must be expressed via a getter (and a no-op setter
                 // for `var`), not `= expr`.
 
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testInterfaceComputedProperty
             do {
-                let samplePackage = "sample11"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testSuperQualifiedCall
             do {
-                let samplePackage = "sample12"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testDiamondConflictResolutionUsesFullSignature
             do {
-                let samplePackage = "sample13"
-                _ = samplePackage
-
-
                 #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testConcreteSuperclassDefaultBeatsInterfaceConflict
             do {
-                let samplePackage = "sample14"
-                _ = samplePackage
-
-
                 #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0171" })))
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testConcreteSuperclassDefaultCallResolvesWithoutAmbiguity
             do {
-                let samplePackage = "sample15"
-                _ = samplePackage
-
-
                 #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testSignatureAwareInheritedOverloadsResolveCalls
             do {
-                let samplePackage = "sample16"
-                _ = samplePackage
-
-
                 #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.code == "KSWIFTK-SEMA-0003" })))
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
 
             // testComplexInterfaceInheritance
             do {
-                let samplePackage = "sample17"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+                #expect(!ctx.diagnostics.hasError)
             }
         }
     }
@@ -504,26 +436,16 @@ import Testing
             let ctx = makeCompilationContext(inputs: paths)
             try runSema(ctx)
 
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            _ = (sema, interner)
+            _ = try #require(ctx.sema)
 
             // testConcreteClassMustOverrideAbstractInterfaceMethod
             do {
-                let samplePackage = "sample0"
-                _ = samplePackage
-
-
                 // Abstract method without body must be overridden
                 assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
             }
 
             // testMixedMethodsMissingAbstractOverrideErrors
             do {
-                let samplePackage = "sample1"
-                _ = samplePackage
-
-
                 // Dog must override the abstract name() even though sound() has a default
                 assertHasDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: ctx)
             }
@@ -602,17 +524,11 @@ import Testing
             let ctx = makeCompilationContext(inputs: paths)
             try runToLowering(ctx)
 
-            let sema = try #require(ctx.sema)
-            let interner = ctx.interner
-            _ = (sema, interner)
+            _ = try #require(ctx.sema)
 
             // testInterfaceDefaultMethodKIREmission
             do {
-                let samplePackage = "sample0"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                #expect(!ctx.diagnostics.hasError,
                                "KIR lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
                 let module = try #require(ctx.kir)
                 #expect(module.functionCount >= 1)
@@ -620,30 +536,18 @@ import Testing
 
             // testOverriddenDefaultMethodKIREmission
             do {
-                let samplePackage = "sample1"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                #expect(!ctx.diagnostics.hasError,
                                "KIR lowering with override should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
             // testDefaultMethodFullPipelineLowering
             do {
-                let samplePackage = "sample2"
-                _ = samplePackage
-
-
-                #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+                #expect(!ctx.diagnostics.hasError,
                                "Full pipeline lowering should succeed. Got: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
             // testMixedMethodsFullPipelineLowering
             do {
-                let samplePackage = "sample3"
-                _ = samplePackage
-
-
                 let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(errors.isEmpty,
                               "Mixed abstract+default pipeline should succeed. Got: \(errors.map(\.message))")

@@ -219,7 +219,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion accessing private constructor, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -232,7 +232,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion accessing private property, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -245,7 +245,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion accessing private method, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -258,7 +258,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for class accessing companion private members, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -271,7 +271,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for factory pattern with private constructor, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -284,7 +284,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for private constructor with parameters, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -297,7 +297,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Nested objects currently share the enclosing class's private access rules"
                         )
 
@@ -310,7 +310,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            sampleDiags.contains(where: { $0.severity == .error }),
+                            sampleDiags.hasError,
                             "Expected sema error for external access to private constructor"
                         )
 
@@ -323,7 +323,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion extension function, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -336,7 +336,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for companion extension property, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -349,7 +349,7 @@ extension CompanionObjectTests {
 
 
                         #expect(
-                            !(sampleDiags.contains(where: { $0.severity == .error })),
+                            !sampleDiags.hasError,
                             "Expected no sema errors for named companion extension function, got: \(sampleDiags.map(\.code))"
                         )
 
@@ -417,7 +417,7 @@ extension CompanionObjectTests {
         try runToKIR(ctx)
 
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no KIR errors for private constructor access, got: \(ctx.diagnostics.diagnostics.map(\.code))"
         )
 

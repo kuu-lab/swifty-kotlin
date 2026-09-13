@@ -141,31 +141,36 @@ struct BoxingIntegrationTests {
             let module: KIRModule = try #require(ctx.kir)
             let interner = ctx.interner
 
+            // One scan of the lowered module, shared by every fixture below.
+            let allFunctions = findAllKIRFunctions(in: module)
+            let functionsByName = Dictionary(
+                allFunctions.map { (interner.resolve($0.name), $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            /// Callee names of every `.call` in the named lowered function, in body order.
+            func calleeNames(of functionName: String) throws -> [String] {
+                let function = try requireTestValue(
+                    functionsByName[functionName],
+                    "KIR function '\(functionName)' not found in module"
+                )
+                return extractCallees(from: function.body, interner: interner)
+            }
+
             do {
-                let function = try findKIRFunction(named: "pairTripleBoxing", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "pairTripleBoxing")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(boxingCalls.count >= 4, "Should have boxed primitive arguments for Pair and Triple. Found \(boxingCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "mutableListAdd", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "mutableListAdd")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(boxingCalls.count == 1, "MutableList.add should box its primitive argument. Found \(boxingCalls.count)")
             }
 
             do {
                 var rangeResults: Set<KIRExprID> = []
-                for loweredFunction in findAllKIRFunctions(in: module) {
+                for loweredFunction in allFunctions {
                     for instruction in loweredFunction.body {
                         if case let .call(_, callee, _, result, _, _, _, _) = instruction,
                            interner.resolve(callee) == "__kk_op_rangeUntil",
@@ -177,7 +182,7 @@ struct BoxingIntegrationTests {
                 }
                 #expect(!rangeResults.isEmpty, "Expected a __kk_op_rangeUntil call in the lowered module")
 
-                let erroneousUnboxCalls = findAllKIRFunctions(in: module).flatMap { loweredFunction in
+                let erroneousUnboxCalls = allFunctions.flatMap { loweredFunction in
                     loweredFunction.body.filter { instruction in
                         if case let .call(_, callee, arguments, _, _, _, _, _) = instruction {
                             let calleeName = interner.resolve(callee)
@@ -194,75 +199,40 @@ struct BoxingIntegrationTests {
             }
 
             do {
-                let function = try findKIRFunction(named: "arrayOfBoxes", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "arrayOfBoxes")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(boxingCalls.count == 3, "arrayOf(...) should box every primitive element. Found \(boxingCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "intArrayOfValues", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "intArrayOfValues")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(boxingCalls.isEmpty, "intArrayOf(...) must not box its elements. Found \(boxingCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "arrayOfIndexedRead", in: module, interner: interner)
-                let boxCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_double_nonnull"
-                    }
-                    return false
-                }
-                let unboxCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_unbox_double"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "arrayOfIndexedRead")
+                let boxCalls = callees.filter { $0 == "kk_box_double_nonnull" }
+                let unboxCalls = callees.filter { $0 == "kk_unbox_double" }
                 #expect(!boxCalls.isEmpty, "Constructing arrayOf(1.5, 2.5) should box its elements. Found \(boxCalls.count)")
                 #expect(!unboxCalls.isEmpty, "arr[0] on Array<Double> should unbox the read element. Found \(unboxCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "arrayOfIndexedAssign", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_double_nonnull"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "arrayOfIndexedAssign")
+                let boxingCalls = callees.filter { $0 == "kk_box_double_nonnull" }
                 #expect(boxingCalls.count == 3, "arr[0] = 9.5 on Array<Double> should box the assigned value. Found \(boxingCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "intArrayOfIndexedAssign", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "intArrayOfIndexedAssign")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(boxingCalls.isEmpty, "arr[0] = 9 on an IntArray must not box the assigned value. Found \(boxingCalls.count)")
             }
 
             do {
-                let function = try findKIRFunction(named: "arrayOfSpread", in: module, interner: interner)
-                let boxingCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_int"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "arrayOfSpread")
+                let boxingCalls = callees.filter { $0 == "kk_box_int" }
                 #expect(
                     boxingCalls.count == 4,
                     "arrayOf(1, *other, 3) should box only its two non-spread literals (plus 2 for `other`). Found \(boxingCalls.count)"
@@ -270,19 +240,9 @@ struct BoxingIntegrationTests {
             }
 
             do {
-                let function = try findKIRFunction(named: "compoundAssignLong", in: module, interner: interner)
-                let boxLongNonnullCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_box_long_nonnull"
-                    }
-                    return false
-                }
-                let unboxLongCalls = function.body.filter { instruction in
-                    if case let .call(_, callee, _, _, _, _, _, _) = instruction {
-                        return interner.resolve(callee) == "kk_unbox_long"
-                    }
-                    return false
-                }
+                let callees = try calleeNames(of: "compoundAssignLong")
+                let boxLongNonnullCalls = callees.filter { $0 == "kk_box_long_nonnull" }
+                let unboxLongCalls = callees.filter { $0 == "kk_unbox_long" }
                 #expect(
                     boxLongNonnullCalls.count == 4,
                     "arr[0] += 5L on Array<Long> should box array construction and the stored result as non-null Long. Found \(boxLongNonnullCalls.count)"
@@ -291,13 +251,7 @@ struct BoxingIntegrationTests {
             }
 
             do {
-                let function = try findKIRFunction(named: "compoundAssignFloatingPoint", in: module, interner: interner)
-                let callees = function.body.compactMap { instruction -> String? in
-                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                        return nil
-                    }
-                    return interner.resolve(callee)
-                }
+                let callees = try calleeNames(of: "compoundAssignFloatingPoint")
                 #expect(callees.filter { $0 == "kk_op_dadd" }.count == 2)
                 #expect(callees.filter { $0 == "kk_op_dsub" }.count == 2)
                 #expect(callees.filter { $0 == "kk_op_dmul" }.count == 2)
@@ -316,13 +270,7 @@ struct BoxingIntegrationTests {
             }
 
             do {
-                let function = try findKIRFunction(named: "genericArrayAssign", in: module, interner: interner)
-                let callees = function.body.compactMap { instruction -> String? in
-                    guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
-                        return nil
-                    }
-                    return interner.resolve(callee)
-                }
+                let callees = try calleeNames(of: "genericArrayAssign")
                 #expect(!callees.contains("kk_op_cast"))
                 #expect(callees.contains("kk_box_int"))
                 #expect(callees.contains("kk_array_set"))
