@@ -302,7 +302,7 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
         let module = try #require(ctx.kir)
         #expect(module.functionCount >= 1)
     }
@@ -321,7 +321,7 @@ import Testing
         let ctx = makeContextFromSource(source)
         try runToKIR(ctx)
 
-        #expect(!(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })))
+        #expect(!ctx.diagnostics.hasError)
     }
 
 }

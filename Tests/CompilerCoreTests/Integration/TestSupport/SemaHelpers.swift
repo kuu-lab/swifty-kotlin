@@ -13,6 +13,21 @@ func makeSema(
     return try requireTestValue(result, "Expected makeSema result")
 }
 
+/// Compile `sources` together as one module through Sema and hand back the
+/// context. Suites that share one context across many `@Test` functions should
+/// hold the result in a `static let`, whose `swift_once` initialization compiles
+/// the bundled stdlib exactly once even though swift-testing runs those tests
+/// concurrently.
+func semaContext(for sources: [String]) throws -> CompilationContext {
+    var result: CompilationContext?
+    try withTemporaryFiles(contents: sources) { paths in
+        let ctx = makeCompilationContext(inputs: paths)
+        try runSema(ctx)
+        result = ctx
+    }
+    return try requireTestValue(result, "Expected a compilation context after running Sema")
+}
+
 func memberCallExprIDs(
     named name: String,
     in ast: ASTModule,
