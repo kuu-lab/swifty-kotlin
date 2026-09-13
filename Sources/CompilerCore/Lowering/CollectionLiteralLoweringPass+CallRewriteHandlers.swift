@@ -103,8 +103,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.anyName
             || callee == lookup.noneName
             || callee == lookup.allName
-            || callee == lookup.mapValuesName
-            || callee == lookup.mapKeysName
             || callee == lookup.toListName
             || callee == lookup.countName
     }
@@ -130,10 +128,6 @@ extension CollectionLiteralConstructionLoweringPass {
         case lookup.mapName: lookup.kkMapMapName
         case lookup.filterName: lookup.kkMapFilterName
         case lookup.forEachName: lookup.kkMapForEachName
-        case lookup.mapValuesName: lookup.kkMapMapValuesName
-        case lookup.mapKeysName: lookup.kkMapMapKeysName
-        case lookup.filterKeysName: lookup.kkMapFilterKeysName
-        case lookup.filterValuesName: lookup.kkMapFilterValuesName
         case lookup.flatMapName: lookup.kkMapFlatMapName
         case lookup.maxByOrNullName: lookup.kkMapMaxByOrNullName
         case lookup.minByOrNullName: lookup.kkMapMinByOrNullName
@@ -166,11 +160,7 @@ extension CollectionLiteralConstructionLoweringPass {
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
-        callee == lookup.mapValuesName
-            || callee == lookup.mapKeysName
-            || callee == lookup.filterName
+        callee == lookup.filterName
             || callee == lookup.filterNotName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
     }
 }

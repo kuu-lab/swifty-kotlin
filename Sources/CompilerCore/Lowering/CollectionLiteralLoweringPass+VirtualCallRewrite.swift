@@ -130,12 +130,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
-            || callee == lookup.mapValuesName
-            || callee == lookup.mapValuesToName
-            || callee == lookup.mapKeysName
-            || callee == lookup.mapKeysToName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
             || callee == lookup.forEachName
             || callee == lookup.mapToName
             || callee == lookup.mapIndexedToName
@@ -579,10 +573,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         mapExprIDs: inout Set<Int32>,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-            || callee == lookup.mapValuesName || callee == lookup.mapKeysName
-            || callee == lookup.filterKeysName || callee == lookup.filterValuesName
-        else {
+        guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName else {
             return false
         }
         guard mapExprIDs.contains(receiver.rawValue) else { return false }
@@ -606,11 +597,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             listExprIDs.insert(result.rawValue)
             listExprIDs.insert(hofResult.rawValue)
         }
-        if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
-            mapExprIDs.insert(result.rawValue)
-            mapExprIDs.insert(hofResult.rawValue)
-        }
-        if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
+        if callee == lookup.filterName || callee == lookup.filterNotName, let result {
             mapExprIDs.insert(result.rawValue)
             mapExprIDs.insert(hofResult.rawValue)
         }

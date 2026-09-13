@@ -175,10 +175,6 @@ struct CollectionLiteralLookupTables {
     var kkMapForEachName: InternedString { mapLookup.kkMapForEachName }
     var kkMapMapName: InternedString { mapLookup.kkMapMapName }
     var kkMapFilterName: InternedString { mapLookup.kkMapFilterName }
-    var kkMapFilterKeysName: InternedString { mapLookup.kkMapFilterKeysName }
-    var kkMapFilterValuesName: InternedString { mapLookup.kkMapFilterValuesName }
-    var kkMapMapValuesName: InternedString { mapLookup.kkMapMapValuesName }
-    var kkMapMapKeysName: InternedString { mapLookup.kkMapMapKeysName }
     var kkMapCountName: InternedString { mapLookup.kkMapCountName }
     var kkMapAnyName: InternedString { mapLookup.kkMapAnyName }
     var kkMapAllName: InternedString { mapLookup.kkMapAllName }
@@ -504,9 +500,7 @@ struct CollectionLiteralLookupTables {
     var associateWithToName: InternedString { commonLookup.associateWithToName }
     var groupByToName: InternedString { commonLookup.groupByToName }
     var mapValuesName: InternedString { commonLookup.mapValuesName }
-    var mapValuesToName: InternedString { commonLookup.mapValuesToName }
     var mapKeysName: InternedString { commonLookup.mapKeysName }
-    var mapKeysToName: InternedString { commonLookup.mapKeysToName }
     var filterKeysName: InternedString { commonLookup.filterKeysName }
     var filterValuesName: InternedString { commonLookup.filterValuesName }
     var zipName: InternedString { commonLookup.zipName }
