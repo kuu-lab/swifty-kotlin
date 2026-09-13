@@ -23,11 +23,10 @@ struct InputStreamBufferedFunctionTests {
             package sample0
 
                     import java.io.BufferedInputStream
-                    import java.io.File
                     import java.io.InputStream
 
-                    fun open(file: File): BufferedInputStream {
-                        val raw: InputStream = file.inputStream()
+                    fun open(text: String): BufferedInputStream {
+                        val raw: InputStream = text.byteInputStream()
                         return raw.buffered()
                     }
 
@@ -37,11 +36,10 @@ struct InputStreamBufferedFunctionTests {
             package sample1
 
                     import java.io.BufferedInputStream
-                    import java.io.File
                     import java.io.InputStream
 
-                    fun openWithSize(file: File): BufferedInputStream {
-                        val raw: InputStream = file.inputStream()
+                    fun openWithSize(text: String): BufferedInputStream {
+                        val raw: InputStream = text.byteInputStream()
                         return raw.buffered(8 * 1024)
                     }
 
@@ -51,19 +49,17 @@ struct InputStreamBufferedFunctionTests {
             package sample2
 
                     import java.io.BufferedInputStream
-                    import java.io.File
-                    import java.io.InputStream
 
-                    fun consume(file: File): Int {
-                        val buffered: BufferedInputStream = file.inputStream().buffered()
+                    fun consume(text: String): Int {
+                        val buffered: BufferedInputStream = text.byteInputStream().buffered()
                         val byte: Int = buffered.read()
                         val remaining: Int = buffered.available()
                         buffered.close()
                         return byte + remaining
                     }
 
-                    fun useIt(file: File): Int {
-                        return file.inputStream().buffered(4096).use { stream ->
+                    fun useIt(text: String): Int {
+                        return text.byteInputStream().buffered(4096).use { stream ->
                             stream.read()
                         }
                     }

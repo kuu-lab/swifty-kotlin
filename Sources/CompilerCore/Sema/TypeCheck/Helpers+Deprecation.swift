@@ -154,13 +154,10 @@ extension TypeCheckHelpers {
         }
 
         let receiver = sema.types.makeNonNullable(receiverType)
+        // No unsigned type has a real `toChar()` member.
         let deprecatedReceiverTypes: Set<TypeID> = [
             sema.types.intType,
             sema.types.longType,
-            sema.types.uintType,
-            sema.types.ulongType,
-            sema.types.ubyteType,
-            sema.types.ushortType,
         ]
         guard deprecatedReceiverTypes.contains(receiver) else {
             return
