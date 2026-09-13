@@ -502,6 +502,12 @@ extension BuildKIRRegressionTests {
 
 
     @Test
+    // KSP-CAP-018: this test only checked that the *call site* named `get`,
+    // never what the accessor it calls actually does — so it kept passing while
+    // Sema left the getter body's `seed` unbound and KIR lowered it to `.unit`,
+    // making `instance.value` return 1 instead of 8. The emitted accessor's own
+    // body is now checked too: it must load `seed` from the instance and must
+    // not contain a `.unit` constant standing in for an unresolved identifier.
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
         let ctx = try sharedControlFlowCtx()
 
@@ -510,6 +516,50 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         #expect(!(callNames.contains("kk_array_get")))
         #expect(callNames.contains("get"))
+
+        // Every accessor this fixture emits is a one-parameter `get` function.
+        // Check their bodies, not just the call site: the bug left the getter
+        // body with a `.unit` constant standing in for the unresolved `seed`,
+        // and no instance read at all.
+        let getterBodies = module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
+            guard case let .function(function) = decl,
+                  ctx.interner.resolve(function.name) == "get",
+                  function.params.count == 1
+            else {
+                return nil
+            }
+            return function.body
+        }
+        #expect(!getterBodies.isEmpty, "Expected the object literal's `get` accessor to be emitted.")
+
+        func containsUnitConstant(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .constValue(_, value) = instruction else {
+                    return false
+                }
+                if case .unit = value {
+                    return true
+                }
+                return false
+            }
+        }
+        func readsInstanceField(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                    return false
+                }
+                return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            }
+        }
+
+        #expect(
+            getterBodies.contains(where: readsInstanceField),
+            "Expected a custom getter body to read its sibling property off the instance."
+        )
+        #expect(
+            !getterBodies.contains(where: containsUnitConstant),
+            "A `.unit` constant in an accessor body means an identifier went unresolved."
+        )
     }
 
 

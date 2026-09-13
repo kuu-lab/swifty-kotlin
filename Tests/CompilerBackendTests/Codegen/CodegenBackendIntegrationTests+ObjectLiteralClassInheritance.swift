@@ -42,6 +42,20 @@
 //     expression-bodied function: a lambda whose entire body was the bare
 //     object literal expression (`{ object : Base(x) { ... } }`) mis-parsed
 //     `object` as a new named declaration.
+// (9) A property's custom accessors were invisible to Sema:
+//     `ensureObjectLiteralSymbol` walked only `propertyDecl.initializer`, so
+//     identifiers in a getter/setter body got no `identifierSymbols` binding
+//     and KIR lowered them to `.unit`. Fixing that alone was not enough --
+//     four more layers had to move: accessor bodies needed the enclosing
+//     `locals` seeded (`baseLocals`, as member function bodies already get);
+//     the implicit-receiver read path loaded a computed property's
+//     never-written instance slot instead of calling its accessor (which is
+//     why reading through a member returned 0 while the explicit-receiver read
+//     already called `get`); a property with accessors *and* storage needed a
+//     `$backing_` symbol so `field` stopped resolving back to the property
+//     itself and making the accessor recurse into itself; and the lambda
+//     capture traversals had to walk accessor bodies so an outer local used
+//     only there reaches the closure that constructs the literal.
 // (8) `parseObjectLiteralFunctionDecl`/`parseObjectLiteralPropertyDecl` re-parse
 //     a member's tokens with a fresh `KotlinParser`, and stripped *every*
 //     semicolon first to drop the separator between members. That also removed
@@ -311,6 +325,77 @@ struct CodegenBackendObjectLiteralClassInheritanceTests {
         """
         try assertKotlinOutput(
             source, moduleName: "ObjectLiteralNestedSemicolons", expected: "42/42\n"
+        )
+    }
+
+    @Test
+    func testObjectLiteralCustomGetterReadsSiblingAndInheritedProperties() throws {
+        let source = """
+        open class Ticker(val step: Int) { open fun r(): String = "base" }
+        fun mk(s: Int): Ticker = object : Ticker(s) {
+            val seed: Int = 7
+            val fromSibling: Int get() = seed + 1
+            val fromInherited: Int get() = step * 2
+            override fun r(): String = "" + fromSibling + "/" + fromInherited
+        }
+        fun main() {
+            println(mk(4).r())
+            val direct = object : Ticker(4) { val doubled: Int get() = step * 2 }
+            println(direct.doubled)
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralGetterSiblingInherited", expected: "8/8\n8\n"
+        )
+    }
+
+    @Test
+    func testObjectLiteralCustomSetterRunsThroughSeparateAndFieldBackedStorage() throws {
+        let source = """
+        open class B { open fun r(): String = "base" }
+        fun mk(): B = object : B() {
+            var backing: Int = 0
+            var viaSetter: Int
+                get() = backing * 10
+                set(v) { backing = v + 1 }
+            var viaField: Int = 0
+                get() = field * 100
+                set(v) { field = v + 2 }
+            override fun r(): String {
+                viaSetter = 3
+                viaField = 1
+                return "" + viaSetter + "/" + viaField
+            }
+        }
+        fun main() { println(mk().r()) }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralCustomSetter", expected: "40/300\n"
+        )
+    }
+
+    @Test
+    func testObjectLiteralAccessorBodyCapturesOuterLocal() throws {
+        let source = """
+        open class B { open fun r(): String = "base" }
+        fun make(x: Int): B = object : B() {
+            val tripled: Int get() = x * 3
+            override fun r(): String = "" + tripled
+        }
+        fun makeLater(x: Int): () -> B = { object : B() {
+            val tripled: Int get() = x * 3
+            override fun r(): String = "" + tripled
+        } }
+        fun main() {
+            println(make(5).r())
+            println(makeLater(6)().r())
+            val local = 7
+            val direct = object { val tripled: Int get() = local * 3 }
+            println(direct.tripled)
+        }
+        """
+        try assertKotlinOutput(
+            source, moduleName: "ObjectLiteralAccessorCapture", expected: "15\n18\n21\n"
         )
     }
 }

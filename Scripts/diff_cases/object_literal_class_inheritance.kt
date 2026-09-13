@@ -112,6 +112,46 @@ fun makeTicker(step: Int): Ticker = object : Ticker(step) {
     override fun report(): String = "" + doubled() + "/" + viaLambda
 }
 
+// Custom accessors on an object expression's properties. Sema used to visit
+// only a property's initializer, so identifiers inside a getter/setter body got
+// no symbol binding and lowered to `unit`; the implicit-receiver read path also
+// loaded a computed property's (never-written) instance slot instead of calling
+// its accessor; and no `set` accessor was emitted at all.
+open class Stepper(val step: Int) {
+    open fun report(): String = "base"
+}
+
+fun makeStepper(s: Int): Stepper = object : Stepper(s) {
+    val seed: Int = 7
+    val fromSibling: Int get() = seed + 1
+    val fromInherited: Int get() = step * 2
+    var backing: Int = 0
+    var viaSetter: Int
+        get() = backing * 10
+        set(v) { backing = v + 1 }
+    var viaField: Int = 0
+        get() = field * 100
+        set(v) { field = v + 2 }
+    override fun report(): String {
+        viaSetter = 3
+        viaField = 1
+        return "" + fromSibling + "/" + fromInherited + "/" + viaSetter + "/" + viaField
+    }
+}
+
+// An outer local referenced only from an accessor body, both directly and with
+// the literal wrapped in a lambda: the accessor is its own KIR function, so the
+// value has to be captured into an instance field and read back out.
+fun makeCaptured(x: Int): Stepper = object : Stepper(0) {
+    val tripled: Int get() = x * 3
+    override fun report(): String = "" + tripled
+}
+
+fun makeCapturedLater(x: Int): () -> Stepper = { object : Stepper(0) {
+    val tripled: Int get() = x * 3
+    override fun report(): String = "" + tripled
+} }
+
 fun main() {
     val vehicle = makeVehicle("car")
     println(vehicle.name)
@@ -157,4 +197,10 @@ fun main() {
     println(ticker.tick())
     println(ticker.tick())
     println(ticker.report())
+
+    val stepper = makeStepper(4)
+    println(stepper.report())
+
+    println(makeCaptured(5).report())
+    println(makeCapturedLater(6)().report())
 }

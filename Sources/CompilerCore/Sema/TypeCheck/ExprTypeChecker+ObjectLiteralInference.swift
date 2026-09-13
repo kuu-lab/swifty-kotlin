@@ -176,6 +176,34 @@ extension ExprTypeChecker {
                 )
             } ?? sema.types.anyType
             sema.symbols.setPropertyType(declaredType, for: propertySymbol)
+
+            // KSP-CAP-018: mirror `MemberHeaderCollection`'s backing-field rule.
+            // A property carrying accessors *and* real storage (a setter, or an
+            // initializer) needs a field symbol distinct from the property
+            // symbol, so that `field` inside its own accessor body resolves to
+            // the slot instead of back to the property — which lowers to `call
+            // get`/`call set` and makes the accessor recurse into itself. A
+            // getter-only computed property has no storage and needs none.
+            let isGetterOnlyComputed = propertyDecl.getter != nil
+                && propertyDecl.setter == nil
+                && propertyDecl.initializer == nil
+            let needsBackingField = !isGetterOnlyComputed
+                && (propertyDecl.getter != nil || propertyDecl.setter != nil)
+            if needsBackingField, propertyDecl.delegateExpression == nil {
+                let fieldName = interner.intern("$backing_\(interner.resolve(propertyDecl.name))")
+                let backingFieldSymbol = sema.symbols.define(
+                    kind: .backingField,
+                    name: fieldName,
+                    fqName: [objectDecl.name, fieldName],
+                    declSite: propertyDecl.range,
+                    visibility: .private,
+                    flags: propertyDecl.isVar ? [.mutable] : []
+                )
+                sema.symbols.setParentSymbol(objectSymbol, for: backingFieldSymbol)
+                sema.symbols.setPropertyType(declaredType, for: backingFieldSymbol)
+                sema.symbols.setSourceFileID(ctx.currentFileID, for: backingFieldSymbol)
+                sema.symbols.setBackingFieldSymbol(backingFieldSymbol, for: propertySymbol)
+            }
             propertySymbolsByDecl[propertyDeclID] = propertySymbol
         }
 
@@ -228,7 +256,7 @@ extension ExprTypeChecker {
                 )
             }
 
-            let inferredType: TypeID?
+            var inferredType: TypeID?
             if let initializer = propertyDecl.initializer {
                 let type = driver.inferExpr(
                     initializer,
@@ -247,8 +275,28 @@ extension ExprTypeChecker {
                     )
                 }
                 inferredType = type
-            } else {
-                inferredType = nil
+            }
+
+            // KSP-CAP-018: type-check the property's custom accessor bodies in
+            // the object literal's own member scope. This loop used to visit
+            // only the initializer, so identifiers inside a getter/setter body
+            // never got an `identifierSymbols` binding and KIR lowering had
+            // nothing to resolve them against — it fell back to emitting
+            // `.unit`, exactly the failure mode the `typeCheckDelegate` note in
+            // `DeclTypeChecker` describes for delegate bodies. Ordering mirrors
+            // the named path in `DeclTypeChecker.typeCheckPropertyDecl`: the
+            // getter can supply the property's type, the setter needs it final.
+            let accessorCtx = objectCtx.with(currentDeclSymbol: propertySymbol)
+            if let getter = propertyDecl.getter, getter.body != .unit {
+                inferredType = driver.declChecker.typeCheckGetter(
+                    getter,
+                    symbol: propertySymbol,
+                    inferredPropertyType: declaredType ?? inferredType,
+                    accessorCtx: accessorCtx,
+                    solver: driver.solver,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    baseLocals: outerLocalsSnapshot
+                )
             }
 
             let finalType: TypeID
@@ -265,6 +313,19 @@ extension ExprTypeChecker {
                 finalType = sema.types.errorType
             }
             sema.symbols.setPropertyType(finalType, for: propertySymbol)
+
+            if let setter = propertyDecl.setter, setter.body != .unit {
+                driver.declChecker.typeCheckSetter(
+                    setter,
+                    property: propertyDecl,
+                    symbol: propertySymbol,
+                    finalPropertyType: finalType,
+                    accessorCtx: accessorCtx,
+                    solver: driver.solver,
+                    diagnostics: ctx.semaCtx.diagnostics,
+                    baseLocals: outerLocalsSnapshot
+                )
+            }
         }
 
         // KSP-CAP-001: member function bodies resolve outer locals the same
@@ -297,6 +358,31 @@ extension ExprTypeChecker {
                 outerSymbols: outerSymbols
             ))
         }
+
+        // KSP-CAP-018: a custom accessor body is lowered as its own KIR
+        // function, exactly like a member function, so an outer local it
+        // references needs a capture field too. Property *initializers* are
+        // excluded on purpose: those are lowered inline in the enclosing
+        // function (see `lowerStoredObjectLiteralExpr`), where the local is
+        // still directly in scope.
+        for propertyDeclID in objectDecl.memberProperties {
+            guard let decl = ast.arena.decl(propertyDeclID),
+                  case let .propertyDecl(propertyDecl) = decl
+            else {
+                continue
+            }
+            for accessorBody in [propertyDecl.getter?.body, propertyDecl.setter?.body] {
+                guard let accessorBody, accessorBody != .unit else {
+                    continue
+                }
+                capturedSymbols.formUnion(driver.captureAnalyzer.collectCapturedOuterSymbols(
+                    inBody: accessorBody,
+                    ast: ast,
+                    sema: sema,
+                    outerSymbols: outerSymbols
+                ))
+            }
+        }
         if !capturedSymbols.isEmpty {
             var typesBySymbol: [SymbolID: TypeID] = [:]
             for binding in outerLocalsSnapshot.values {
@@ -324,12 +410,18 @@ extension ExprTypeChecker {
         let objectHeaderWords = inheritedLayout?.objectHeaderWords ?? 2
         var nextFieldOffset = (fieldOffsets.values.max() ?? (objectHeaderWords - 1)) + 1
         for propertyDeclID in objectDecl.memberProperties {
-            guard let propertySymbol = propertySymbolsByDecl[propertyDeclID],
-                  fieldOffsets[propertySymbol] == nil
-            else {
+            guard let propertySymbol = propertySymbolsByDecl[propertyDeclID] else {
                 continue
             }
-            fieldOffsets[propertySymbol] = nextFieldOffset
+            // KSP-CAP-018: key the slot by the backing field when the property
+            // has one, mirroring `LayoutSynthesis.synthesizeLayoutForNominal`
+            // and every `backingFieldSymbol(for:) ?? propertySymbol` lookup on
+            // the lowering side.
+            let storageSymbol = sema.symbols.backingFieldSymbol(for: propertySymbol) ?? propertySymbol
+            guard fieldOffsets[storageSymbol] == nil else {
+                continue
+            }
+            fieldOffsets[storageSymbol] = nextFieldOffset
             nextFieldOffset += 1
         }
         // KSP-CAP-001: give each captured outer local/parameter its own
