@@ -4,8 +4,6 @@ import Testing
 
 @Suite
 struct ThreadLocalSyntheticStubTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
-
     private func sharedSema() throws -> (SemaModule, StringInterner) {
         var result: (SemaModule, StringInterner)?
         try withTemporaryFile(contents: "fun noop() {}") { path in
@@ -14,7 +12,6 @@ struct ThreadLocalSyntheticStubTests {
             result = try (#require(ctx.sema), ctx.interner)
         }
         let semaResult = try #require(result)
-        Self._sharedSema = semaResult
         return semaResult
     }
 
