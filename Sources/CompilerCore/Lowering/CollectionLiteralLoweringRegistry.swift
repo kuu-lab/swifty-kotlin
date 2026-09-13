@@ -86,11 +86,6 @@ struct CollectionLiteralLoweringRegistry {
 
     func run(module: KIRModule, ctx: KIRContext, recordAs loweringName: String) throws {
         let lookup = lookupRegistry.tables
-        let builderLambdaKinds = constructionPass.collectBuilderLambdaKinds(
-            module: module,
-            lookup: lookup,
-            ctx: ctx
-        )
 
         func transformFunction(_ function: KIRFunction) -> KIRFunction {
             var updated = function
@@ -102,17 +97,7 @@ struct CollectionLiteralLoweringRegistry {
                 arena: module.arena,
                 sema: ctx.sema,
                 interner: ctx.interner,
-                listExprIDs: &state.listExprIDs,
-                setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs,
-                arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs,
-                rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs,
-                ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs,
-                fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
+                state: &state
             )
 
             var loweredBody = KIRLoweringEmitContext()
@@ -133,7 +118,6 @@ struct CollectionLiteralLoweringRegistry {
                         canThrow: canThrow,
                         thrownResult: thrownResult,
                         function: function,
-                        builderLambdaKinds: builderLambdaKinds,
                         module: module,
                         ctx: ctx,
                         lookup: lookup,

@@ -963,92 +963,37 @@ extension DataFlowSemaPhase {
         if symbolInfo.fqName == hashSetFQName {
             return
         }
-        // Collect all abstract members from the entire supertype chain
-        let abstractMembers = collectInheritedAbstractMembers(
+        // Every inherited abstract member this class still owes an
+        // implementation for. CLASS-008: members from an interface satisfied
+        // through `by` delegation are excluded.
+        let missingMembers = unimplementedAbstractMembers(
             for: symbol,
+            overriddenNames: collectOverriddenMemberNames(
+                for: symbol,
+                decl: decl,
+                ast: ast,
+                symbols: symbols
+            ),
+            delegatedInterfaces: symbols.delegatedInterfaces(forClass: symbol),
             symbols: symbols
         )
-        guard !abstractMembers.isEmpty else { return }
+        guard !missingMembers.isEmpty else { return }
 
-        // CLASS-008: Abstract members from delegated interfaces are satisfied by delegation.
-        let delegatedInterfaces = symbols.delegatedInterfaces(forClass: symbol)
-
-        // Collect the names of members that this class provides overrides for
-        let overriddenNames = collectOverriddenMemberNames(
-            for: symbol,
-            decl: decl,
-            ast: ast,
-            symbols: symbols
-        )
-
-        // Check that every abstract member name is overridden (or delegated)
-        for abstractMember in abstractMembers {
+        let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
+        let declRange: SourceRange? = switch decl {
+        case let .classDecl(cd): cd.range
+        case let .objectDecl(od): od.range
+        default: nil
+        }
+        for abstractMember in missingMembers {
             guard let abstractSym = symbols.symbol(abstractMember) else { continue }
-            // Skip if this abstract member belongs to a delegated interface
-            if let owner = symbols.parentSymbol(for: abstractMember),
-               delegatedInterfaces.contains(owner)
-            {
-                continue
-            }
-            let memberName = interner.resolve(abstractSym.name)
-            if !overriddenNames.contains(abstractSym.name) {
-                let className = symbolInfo.fqName.map { interner.resolve($0) }.joined(separator: ".")
-                let declRange: SourceRange? = switch decl {
-                case let .classDecl(cd): cd.range
-                case let .objectDecl(od): od.range
-                default: nil
-                }
-                diagnostics.error(
-                    "KSWIFTK-SEMA-ABSTRACT",
-                    "Class '\(className)' must override abstract member '\(memberName)' or be declared abstract.",
-                    range: declRange
-                )
-            }
+            diagnostics.error(
+                "KSWIFTK-SEMA-ABSTRACT",
+                "Class '\(className)' must override abstract member "
+                    + "'\(interner.resolve(abstractSym.name))' or be declared abstract.",
+                range: declRange
+            )
         }
-    }
-
-    /// Collects all abstract member symbol IDs from the entire supertype chain of a class,
-    /// filtering out those that have been concretely overridden by intermediate classes.
-    private func collectInheritedAbstractMembers(
-        for classSymbol: SymbolID,
-        symbols: SymbolTable
-    ) -> [SymbolID] {
-        var abstractMembersByName: [InternedString: SymbolID] = [:]
-        var concreteOverrideNames: Set<InternedString> = []
-        var visited: Set<SymbolID> = [classSymbol]
-        var queue = symbols.directSupertypes(for: classSymbol)
-
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
-            guard visited.insert(current).inserted else { continue }
-            guard let currentSym = symbols.symbol(current) else { continue }
-
-            let children = symbols.children(ofFQName: currentSym.fqName)
-            for childID in children {
-                guard let childSym = symbols.symbol(childID) else { continue }
-                if childSym.kind == .function || childSym.kind == .property {
-                    if childSym.flags.contains(.abstractType) {
-                        // Only record the abstract member if we haven't seen
-                        // a concrete override for this name yet.
-                        if !concreteOverrideNames.contains(childSym.name) {
-                            abstractMembersByName[childSym.name] = childID
-                        }
-                    } else {
-                        // This is a concrete member. Only treat it as satisfying
-                        // abstract requirements from higher supertypes if no closer
-                        // supertype has already (re-)abstracted this name.
-                        if abstractMembersByName[childSym.name] == nil {
-                            concreteOverrideNames.insert(childSym.name)
-                        }
-                    }
-                }
-            }
-
-            // Continue walking supertypes
-            queue.append(contentsOf: symbols.directSupertypes(for: current))
-        }
-
-        return Array(abstractMembersByName.values)
     }
 
     /// Collects the set of member names that this class provides via `override`.

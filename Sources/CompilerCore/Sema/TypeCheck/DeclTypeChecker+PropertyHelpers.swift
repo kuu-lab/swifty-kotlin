@@ -14,17 +14,26 @@ private struct ResolvedPropertyDelegateSignature {
 }
 
 extension DeclTypeChecker {
+    /// - Parameter baseLocals: Seeds the accessor body's local-name resolution
+    ///   with bindings from an enclosing scope, mirroring
+    ///   `typeCheckFunctionDecl`'s parameter of the same name. Empty for
+    ///   ordinary member properties (a named class has no enclosing local scope
+    ///   to capture). Object-literal member properties pass the enclosing
+    ///   function's `locals` so an accessor body can resolve captured outer
+    ///   variables the same way that literal's member function bodies do
+    ///   (KSP-CAP-001/KSP-CAP-018).
     func typeCheckGetter(
         _ getter: PropertyAccessorDecl,
         symbol: SymbolID,
         inferredPropertyType: TypeID?,
         accessorCtx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) -> TypeID? {
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
-        var getterLocals: LocalBindings = [:]
+        var getterLocals: LocalBindings = baseLocals
         if let fieldType = inferredPropertyType {
             let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol) ?? symbol
             getterLocals[interner.intern("field")] = (fieldType, fieldSymbol, true, true)
@@ -765,6 +774,7 @@ extension DeclTypeChecker {
         )
     }
 
+    /// - Parameter baseLocals: see `typeCheckGetter`.
     func typeCheckSetter(
         _ setter: PropertyAccessorDecl,
         property: PropertyDecl,
@@ -772,7 +782,8 @@ extension DeclTypeChecker {
         finalPropertyType: TypeID,
         accessorCtx: TypeInferenceContext,
         solver: ConstraintSolver,
-        diagnostics: DiagnosticEngine
+        diagnostics: DiagnosticEngine,
+        baseLocals: LocalBindings = [:]
     ) {
         let sema = accessorCtx.sema
         let interner = accessorCtx.interner
@@ -783,7 +794,7 @@ extension DeclTypeChecker {
                 range: setter.range
             )
         }
-        var setterLocals: LocalBindings = [:]
+        var setterLocals: LocalBindings = baseLocals
         let fieldSymbol = sema.symbols.backingFieldSymbol(for: symbol)
             ?? symbol
         setterLocals[interner.intern("field")] = (

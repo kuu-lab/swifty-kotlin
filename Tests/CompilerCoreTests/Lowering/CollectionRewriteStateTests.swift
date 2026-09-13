@@ -89,6 +89,29 @@ struct CollectionRewriteStateTests {
     }
 
     @Test
+    func seedingCopiesAddSourceFactsWithoutDroppingDestinationFacts() {
+        let source = KIRExprID(rawValue: 1)
+        let destination = KIRExprID(rawValue: 2)
+        for classification in classifications {
+            var state = State()
+            state[keyPath: classification].insert(destination.rawValue)
+
+            // The pre-scan seeds one body forward, so an unclassified source
+            // says nothing about the destination's own facts. `propagateCopy`
+            // is the operation that treats a copy as a reassignment.
+            state.seedCopy(from: source, to: destination)
+            #expect(state[keyPath: classification] == [destination.rawValue])
+
+            state[keyPath: classification].insert(source.rawValue)
+            state.seedCopy(from: source, to: destination)
+            for observed in classifications {
+                let expected: Set<Int32> = observed == classification ? [1, 2] : []
+                #expect(state[keyPath: observed] == expected)
+            }
+        }
+    }
+
+    @Test
     func selfCopyPreservesOverlappingRangeFacts() {
         let range = KIRExprID(rawValue: 1)
         var state = State()

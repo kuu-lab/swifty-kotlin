@@ -30,5 +30,20 @@ fun main() {
     val p = PartialImpl()  // KSWIFTK-SEMA-0023: unresolved function 'PartialImpl' (class is not abstract and does not implement abstract member 'speak()'; KSwiftK surfaces it as an unresolved constructor)
 }
 
+// KSP-CAP-018: an object expression is always concrete, so it must implement
+// every inherited abstract member. These went unchecked entirely -- the named
+// nominal check runs during header validation, before an object literal's
+// symbol exists.
+
 // ERROR: object expression inheriting abstract class without implementing members
-val bad = object : Animal() {}  // NOT YET DIAGNOSED: kotlinc errors that '<anonymous>' does not implement 'speak()'; KSwiftK emits nothing
+val bad = object : Animal() {}  // KSWIFTK-SEMA-ABSTRACT: must override abstract member 'speak'
+
+// ERROR: same for an unimplemented interface member, with a non-empty body
+val badInterface = object : Flyable {
+    val unrelated: Int = 1
+}  // KSWIFTK-SEMA-ABSTRACT: must override abstract member 'fly'
+
+// OK: implementing the member satisfies the contract
+val good = object : Animal() {
+    override fun speak(): String = "meow"
+}

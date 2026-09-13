@@ -71,19 +71,12 @@ import Testing
         """,
     ]
 
-    private static nonisolated(unsafe) var _sharedCtx: CompilationContext?
+    private static let _sharedCtx = Result {
+        try semaContext(for: abstractErrorSources)
+    }
 
     private func sharedCtx() throws -> CompilationContext {
-        if let cached = Self._sharedCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.abstractErrorSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedCtx = ctx
-        return ctx
+        try Self._sharedCtx.get()
     }
 
     @Test func testError_abstractClassInstantiation() throws {

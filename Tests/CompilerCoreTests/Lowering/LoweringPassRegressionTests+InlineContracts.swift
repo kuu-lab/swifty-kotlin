@@ -259,5 +259,124 @@ extension LoweringPassRegressionTests {
         let second = try expand()
         #expect(first == second)
     }
+
+    /// A `kk_function_invoke` left in the caller body is expanded on a
+    /// different code path than an ordinary inline call. Both splice labels
+    /// into the same caller, so both have to draw them from the same
+    /// allocator: numbering them independently made the second expansion
+    /// reuse the label IDs the first one had just emitted.
+    @Test
+    func testDirectLambdaInvokeAndInlineCallDoNotReuseLabelIDs() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let types = TypeSystem()
+
+        let lambdaSymbol = SymbolID(rawValue: 1)
+        let inlineSymbol = SymbolID(rawValue: 2)
+        let invokeCallee = interner.intern("kk_function_invoke")
+
+        // Both callees branch and return twice, so each expansion needs the
+        // callee's own label plus a merge label for the two exits.
+        func branchingBody(
+            param: KIRExprID,
+            zero: KIRExprID,
+            label: Int32
+        ) -> [KIRInstruction] {
+            [
+                .constValue(result: zero, value: .intLiteral(0)),
+                .jumpIfEqual(lhs: param, rhs: zero, target: label),
+                .returnValue(param),
+                .label(label),
+                .returnValue(zero),
+            ]
+        }
+
+        let lambdaParam = arena.appendTemporary(type: types.intType)
+        let lambdaZero = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let lambda = KIRFunction(
+            symbol: lambdaSymbol,
+            name: interner.intern("capturedLambda"),
+            params: [KIRParameter(symbol: SymbolID(rawValue: 11), type: types.intType)],
+            returnType: types.intType,
+            body: branchingBody(param: lambdaParam, zero: lambdaZero, label: 10001),
+            isSuspend: false,
+            isInline: false
+        )
+
+        let inlineParam = arena.appendTemporary(type: types.intType)
+        let inlineZero = arena.appendExpr(.intLiteral(0), type: types.intType)
+        let inlineCallee = KIRFunction(
+            symbol: inlineSymbol,
+            name: interner.intern("twice"),
+            params: [KIRParameter(symbol: SymbolID(rawValue: 12), type: types.intType)],
+            returnType: types.intType,
+            body: branchingBody(param: inlineParam, zero: inlineZero, label: 10001),
+            isSuspend: false,
+            isInline: true
+        )
+
+        // The caller's own label puts both numbering spaces at the same
+        // starting point, which is what the real pipeline produces: every
+        // label `ControlFlowLowerer` emits sits at 10000 or above.
+        let argument = arena.appendExpr(.intLiteral(7), type: types.intType)
+        let lambdaRef = arena.appendExpr(.symbolRef(lambdaSymbol), type: types.intType)
+        let lambdaResult = arena.appendTemporary(type: types.intType)
+        let inlineResult = arena.appendTemporary(type: types.intType)
+        let caller = KIRFunction(
+            symbol: SymbolID(rawValue: 3),
+            name: interner.intern("caller"),
+            params: [],
+            returnType: types.intType,
+            body: [
+                .label(10000),
+                .constValue(result: argument, value: .intLiteral(7)),
+                .constValue(result: lambdaRef, value: .symbolRef(lambdaSymbol)),
+                .call(
+                    symbol: nil, callee: invokeCallee,
+                    arguments: [lambdaRef, argument], result: lambdaResult,
+                    canThrow: false, thrownResult: nil
+                ),
+                .call(
+                    symbol: inlineSymbol, callee: inlineCallee.name,
+                    arguments: [argument], result: inlineResult,
+                    canThrow: false, thrownResult: nil
+                ),
+                .returnValue(inlineResult),
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+
+        let callerID = arena.appendDecl(.function(caller))
+        _ = arena.appendDecl(.function(inlineCallee))
+        _ = arena.appendDecl(.function(lambda))
+        let module = KIRModule(files: [], arena: arena)
+        let context = makeCompilationContext(inputs: [], includeStdlib: false)
+        try InlineLoweringPass().run(module: module, ctx: KIRContext(
+            diagnostics: context.diagnostics, options: context.options, interner: interner
+        ))
+
+        guard case let .function(lowered) = arena.decl(callerID) else {
+            Issue.record("Missing expanded caller")
+            return
+        }
+        // Both calls really were expanded, so both expansions contributed
+        // labels to the body being checked.
+        #expect(!lowered.body.contains { instruction in
+            guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return false }
+            return callee == invokeCallee || callee == inlineCallee.name
+        })
+
+        let definedLabels = lowered.body.compactMap { instruction -> Int32? in
+            guard case let .label(id) = instruction else { return nil }
+            return id
+        }
+        let referencedLabels = lowered.body.flatMap { KIRLabelRelocation.labelIDs(of: $0) }
+        #expect(definedLabels.count >= 4)
+        #expect(Set(definedLabels).count == definedLabels.count)
+        #expect(Set(referencedLabels).isSubset(of: Set(definedLabels)))
+        // The caller's own label keeps its ID; no expansion may take it.
+        #expect(definedLabels.filter { $0 == 10000 }.count == 1)
+    }
 }
 #endif
