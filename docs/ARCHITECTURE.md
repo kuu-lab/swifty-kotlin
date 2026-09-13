@@ -175,7 +175,9 @@ Tests/
  |    +-- Lowering/       # LoweringPassRegressionTests, VirtualDispatchTests, ...
  |    +-- Driver/         # DriverTests, DiagnosticEngineTests, SourceLocationTests, ...
  |    +-- Integration/    # SmokeTests, GoldenHarnessSwiftTesting, DeepPhasePipelineIntegrationTests
- |    +-- GoldenCases/    # .kt スナップショットフィクスチャ (Lexer/, Parser/, Sema/)
+ |    +-- GoldenCases/    # .kt スナップショットフィクスチャ (Lexer/, Parser/, Sema/, Diagnostics/)
+ |                        #   `.golden` は生成物。`stdlib_<package path>_<Type>_<member>`
+ |                        #   命名の `n` は「該当なし」。スロットの網羅は要求されない
  +-- CompilerBackendTests/     # バックエンドテスト (LLVM 必要)
  |    +-- Codegen/        # CodegenBackendIntegrationTests, LinkPhaseIntegrationTests, NameManglerTests
  |    +-- Lowering/       # LoweringCodegenRegressionTests, VirtualDispatchCodegenTests, ...

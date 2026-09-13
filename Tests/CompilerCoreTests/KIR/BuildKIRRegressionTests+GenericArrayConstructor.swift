@@ -12,14 +12,8 @@ extension BuildKIRRegressionTests {
             fun sized(): Array<String?> = Array(2)
             """
         ]
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
+        let ctx = makeContextFromSources(sources)
+        try runToLowering(ctx)
         let module = try #require(ctx.kir)
 
         let initializedBody = try findKIRFunctionBody(

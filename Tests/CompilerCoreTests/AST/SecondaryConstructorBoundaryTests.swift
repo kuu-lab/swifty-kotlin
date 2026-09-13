@@ -13,18 +13,11 @@ import Testing
 struct SecondaryConstructorBoundaryTests {
 
     private func buildAST(_ source: String) throws -> (ASTModule, CompilationContext) {
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-        let ast = try #require(ctx.ast)
-        return (ast, ctx)
+        try buildASTModule(from: source)
     }
 
     private func classDecl(named name: String, in ast: ASTModule, ctx: CompilationContext) throws -> ClassDecl {
-        let classes = ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case .classDecl(let cls) = decl else { return nil }
-            return cls
-        }
-        return try #require(classes.first { ctx.interner.resolve($0.name) == name })
+        try #require(firstClassDecl(named: name, in: ast, interner: ctx.interner))
     }
 
     @Test

@@ -6,14 +6,27 @@ import Testing
 struct SuperTypeParsingTests {
 
     private func buildAST(_ source: String) throws -> (ASTModule, CompilationContext) {
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-        let ast = try #require(ctx.ast)
-        return (ast, ctx)
+        try buildASTModule(from: source)
     }
 
-    private func isUserDecl(_ decl: some Any, range: SourceRange, in ctx: CompilationContext) -> Bool {
-        !ctx.sourceManager.path(of: range.start.file).hasPrefix("__bundled_")
+    /// First user-source class with the given name; bundled stdlib
+    /// declarations share the arena and must be skipped.
+    private func userClassDecl(named name: String, in ast: ASTModule, ctx: CompilationContext) throws -> ClassDecl {
+        try #require(ast.arena.declarations().lazy.compactMap { decl -> ClassDecl? in
+            guard case let .classDecl(cls) = decl,
+                  isUserSourceRange(cls.range, in: ctx)
+            else { return nil }
+            return cls
+        }.first { ctx.interner.resolve($0.name) == name })
+    }
+
+    private func userInterfaceDecl(named name: String, in ast: ASTModule, ctx: CompilationContext) throws -> InterfaceDecl {
+        try #require(ast.arena.declarations().lazy.compactMap { decl -> InterfaceDecl? in
+            guard case let .interfaceDecl(iface) = decl,
+                  isUserSourceRange(iface.range, in: ctx)
+            else { return nil }
+            return iface
+        }.first { ctx.interner.resolve($0.name) == name })
     }
 
     @Test
@@ -24,13 +37,7 @@ struct SuperTypeParsingTests {
 
         #expect(!ctx.diagnostics.hasError)
 
-        let interfaces = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
-            guard case .interfaceDecl(let iface) = decl,
-                  isUserDecl(iface, range: iface.range, in: ctx)
-            else { return nil }
-            return iface
-        }
-        let iface = try #require(interfaces.first { ctx.interner.resolve($0.name) == "KProperty0" })
+        let iface = try userInterfaceDecl(named: "KProperty0", in: ast, ctx: ctx)
         #expect(iface.superTypes.count == 1)
 
         let superType = try #require(ast.arena.typeRef(iface.superTypes[0]))
@@ -63,13 +70,7 @@ struct SuperTypeParsingTests {
 
         #expect(!ctx.diagnostics.hasError)
 
-        let classes = ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case .classDecl(let cls) = decl,
-                  isUserDecl(cls, range: cls.range, in: ctx)
-            else { return nil }
-            return cls
-        }
-        let cls = try #require(classes.first { ctx.interner.resolve($0.name) == "KProperty0" })
+        let cls = try userClassDecl(named: "KProperty0", in: ast, ctx: ctx)
         #expect(cls.superTypeEntries.count == 1)
 
         let superType = try #require(ast.arena.typeRef(cls.superTypeEntries[0].typeRef))
@@ -99,13 +100,7 @@ struct SuperTypeParsingTests {
 
         #expect(!ctx.diagnostics.hasError)
 
-        let classes = ast.arena.declarations().compactMap { decl -> ClassDecl? in
-            guard case .classDecl(let cls) = decl,
-                  isUserDecl(cls, range: cls.range, in: ctx)
-            else { return nil }
-            return cls
-        }
-        let child = try #require(classes.first { ctx.interner.resolve($0.name) == "Child" })
+        let child = try userClassDecl(named: "Child", in: ast, ctx: ctx)
         #expect(child.superTypeEntries.count == 1)
 
         let superType = try #require(ast.arena.typeRef(child.superTypeEntries[0].typeRef))
@@ -126,13 +121,7 @@ struct SuperTypeParsingTests {
 
         #expect(!ctx.diagnostics.hasError)
 
-        let interfaces = ast.arena.declarations().compactMap { decl -> InterfaceDecl? in
-            guard case .interfaceDecl(let iface) = decl,
-                  isUserDecl(iface, range: iface.range, in: ctx)
-            else { return nil }
-            return iface
-        }
-        let iface = try #require(interfaces.first { ctx.interner.resolve($0.name) == "Foo" })
+        let iface = try userInterfaceDecl(named: "Foo", in: ast, ctx: ctx)
         #expect(iface.superTypes.count == 1)
 
         let superType = try #require(ast.arena.typeRef(iface.superTypes[0]))

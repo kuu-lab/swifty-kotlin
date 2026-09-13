@@ -28,8 +28,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassInterpolation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -58,8 +57,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassConcatenation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -94,8 +92,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "NullableClassConcatenation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -130,8 +127,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "ClassPolyConcatenation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -166,8 +162,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "InheritedClassConcatenation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -203,8 +198,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "DataClassInterpolation", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)

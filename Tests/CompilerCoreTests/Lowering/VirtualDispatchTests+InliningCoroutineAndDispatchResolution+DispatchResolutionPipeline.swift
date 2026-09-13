@@ -152,23 +152,8 @@ extension VirtualDispatchTests {
         let callerID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "MultiArg",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "MultiArg", sema: sema)
 
         let lowered = try findKIRFunction(named: "multiArgCaller", in: module, interner: interner)
         let vcInstruction = lowered.body.first { instruction in

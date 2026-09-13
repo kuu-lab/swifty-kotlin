@@ -278,6 +278,29 @@ extension ExprLowerer {
                     return result
                 }
 
+                // KSP-CAP-018: a computed object-literal property has no
+                // instance field anyone writes, so reading it through the
+                // implicit receiver has to call its `get` accessor — this path
+                // used to fall straight through to the field load below and
+                // return the zeroed slot. The explicit-receiver read
+                // (`tryLowerObjectLiteralStoredPropertyRead`) already did this;
+                // both now share one predicate so they cannot disagree about
+                // whether an accessor exists to call.
+                if let symbol = sema.bindings.identifierSymbols[exprID],
+                   sema.bindings.isObjectLiteralPropertySymbol(symbol),
+                   driver.callLowerer.objectLiteralPropertyUsesAccessor(symbol, ast: ast, sema: sema)
+                {
+                    instructions.append(.call(
+                        symbol: symbol,
+                        callee: interner.intern("get"),
+                        arguments: [receiverExprID],
+                        result: result,
+                        canThrow: false,
+                        thrownResult: nil
+                    ))
+                    return result
+                }
+
                 if let symbol = sema.bindings.identifierSymbols[exprID],
                    sema.bindings.isObjectLiteralPropertySymbol(symbol),
                    let ownerSymbol = sema.symbols.parentSymbol(for: symbol),

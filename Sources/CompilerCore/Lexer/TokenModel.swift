@@ -69,7 +69,7 @@ public final class StringInterner: @unchecked Sendable {
     }
 }
 
-public enum Keyword: String, Sendable {
+public enum Keyword: String, CaseIterable, Sendable {
     case `as`
     case `break`
     case `class`
@@ -133,7 +133,7 @@ public enum Keyword: String, Sendable {
     case value
 }
 
-public enum SoftKeyword: String, Sendable {
+public enum SoftKeyword: String, CaseIterable, Sendable {
     case by
     case get
     case set
@@ -159,7 +159,7 @@ public enum SoftKeyword: String, Sendable {
     public static let useSiteTargetNames: Set<String> = Set(useSiteTargets.map(\.rawValue))
 }
 
-public enum Symbol: String, Sendable {
+public enum Symbol: String, CaseIterable, Sendable {
     case plus = "+"
     case minus = "-"
     case star = "*"

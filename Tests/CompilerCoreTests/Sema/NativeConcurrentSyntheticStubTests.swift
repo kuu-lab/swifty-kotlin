@@ -74,26 +74,6 @@ struct NativeConcurrentSyntheticStubTests {
         )
     }
 
-    private func memberFunction(
-        ownerPath: [String],
-        named name: String,
-        parameterTypes: [TypeID],
-        returnType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) throws -> SymbolID {
-        let ownerType = try classType(ownerPath, sema: sema, interner: interner)
-        let functionFQName = (ownerPath + [name]).map { interner.intern($0) }
-        let candidates = sema.symbols.lookupAll(fqName: functionFQName)
-        return try #require(candidates.first { candidate in
-            guard let signature = sema.symbols.functionSignature(for: candidate) else {
-                return false
-            }
-            return signature.receiverType == ownerType
-                && signature.parameterTypes == parameterTypes
-                && signature.returnType == returnType
-        }, "Expected \(ownerPath.joined(separator: ".")).\(name)")
-    }
     private func nativeContinuationInvokerType(
         sema: SemaModule,
         interner: StringInterner

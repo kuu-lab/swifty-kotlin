@@ -19,7 +19,8 @@ struct CodegenBackendCollectionBuilderDSLTests {
     /// Legacy runtime entry points the `CollectionLiteralLoweringPass` rewrite
     /// substitutes.  The trailing `(` keeps `__kk_build_list` from matching
     /// `__kk_build_list_with_capacity`, and none of them match the source-backed
-    /// `__kk_builder_*` helpers.
+    /// `__kk_builder_*` helpers.  The `set` pair is kept after
+    /// RF-LOWER-CALL-005 deleted that rewrite, as a guard against its return.
     private static let legacyBuilderIRCallees = [
         "@__kk_build_list(", "@__kk_build_list_with_capacity(",
         "@__kk_build_set(", "@__kk_build_set_with_capacity(",

@@ -12,8 +12,8 @@ interface InterfaceB {
 
 // ERROR: Class implementing both interfaces with conflicting defaults must override
 class ConflictingImpl : InterfaceA, InterfaceB {
-    // Missing override of greet() — KSWIFTK-SEMA-0090: class 'ConflictingImpl' must override 'greet()' because it inherits multiple implementations
-    // Missing override of shared() — KSWIFTK-SEMA-0090: class 'ConflictingImpl' must override 'shared()' because it inherits multiple implementations
+    // Missing override of greet() — KSWIFTK-SEMA-0171 on the class line: 'ConflictingImpl' must override 'greet' because it is inherited from multiple interfaces
+    // Missing override of shared() — KSWIFTK-SEMA-0171 on the class line: 'ConflictingImpl' must override 'shared' because it is inherited from multiple interfaces
 }
 
 // ERROR: Interface property conflict
@@ -26,7 +26,7 @@ interface PropB {
 }
 
 class PropConflict : PropA, PropB {
-    // Missing override of value — KSWIFTK-SEMA-0091: class 'PropConflict' must override 'value' because it inherits multiple implementations
+    // Missing override of value — NOT YET DIAGNOSED: kotlinc errors that 'PropConflict' must override 'value'; KSwiftK emits nothing
 }
 
 // ERROR: Diamond inheritance without resolution
@@ -43,7 +43,7 @@ interface Right : Base {
 }
 
 class Diamond : Left, Right {
-    // Missing override of method() — KSWIFTK-SEMA-0090: class 'Diamond' must override 'method()' because it inherits multiple implementations
+    // Missing override of method() — KSWIFTK-SEMA-0171 on the class line: 'Diamond' must override 'method' because it is inherited from multiple interfaces
 }
 
 fun main() {}

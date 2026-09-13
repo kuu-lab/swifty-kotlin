@@ -6,6 +6,12 @@ import Testing
 /// RF-LOWER-CALL-001: pin the *production* routing of the `buildList` /
 /// `buildSet` / `buildMap` DSL before RF-LOWER-CALL-004〜006 delete the legacy
 /// `__kk_build_*` rewrite in `CollectionLiteralLoweringPass+CallRewriteFactories.swift`.
+/// RF-LOWER-CALL-004 / -005 / -006 have since deleted every arm: none of the six
+/// `__kk_build_{list,set,map}[_with_capacity]` names exists any more as a rewrite
+/// target, a `RuntimeABISpec` entry, or a Runtime `@_cdecl`, and the rewrite block
+/// itself is gone.  All six stay in `legacyBuilderRuntimeCallees` below so the
+/// negative assertions guard against their reintroduction.  Retiring the shared
+/// `isStdlibBuilderDSLCall` / `BuilderDSLLookupNames` entry point is CALL-015.
 ///
 /// `CollectionLiteralLoweringTests` covers the same three names, but every one
 /// of those cases hand-builds `.call(symbol: nil, ...)` KIR against a
@@ -53,12 +59,7 @@ struct BuilderDSLLoweringRoutingTests {
 
     private static func runCollectionLiteralPassOnly(_ ctx: CompilationContext) throws -> KIRModule {
         let module = try #require(ctx.kir)
-        let kirCtx = KIRContext(
-            diagnostics: ctx.diagnostics,
-            options: ctx.options,
-            interner: ctx.interner,
-            sema: ctx.sema
-        )
+        let kirCtx = makeKIRContext(from: ctx)
         module.scanFeatures()
         try CollectionLiteralLoweringPass().run(module: module, ctx: kirCtx)
         return module
@@ -229,9 +230,10 @@ struct BuilderDSLLoweringRoutingTests {
     }
 
     /// `buildSet` / `buildMap` have no residual synthetic stub, so without the
-    /// bundled stdlib they do not resolve at all.  No production input can
-    /// therefore reach the `__kk_build_set*` / `__kk_build_map*` rewrites:
-    /// RF-LOWER-CALL-005/006 have no fallback consumer to preserve.
+    /// bundled stdlib they do not resolve at all.  That is why neither rewrite
+    /// had a fallback consumer to preserve: RF-LOWER-CALL-005 removed
+    /// `__kk_build_set*` outright, and RF-LOWER-CALL-006 can do the same for
+    /// `__kk_build_map*`.
     @Test
     func noStdlibHasNoBuildSetOrBuildMapEntryPoint() throws {
         let source = """

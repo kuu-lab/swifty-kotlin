@@ -100,6 +100,7 @@ func runToLowering(_ ctx: CompilationContext) throws {
 /// default here.
 func makeContextFromSource(
     _ source: String,
+    moduleName: String = "TestModule",
     frontendFlags: [String] = [],
     emit: EmitMode = .kirDump,
     allowDefaultStdlibLibrary: Bool
@@ -108,6 +109,7 @@ func makeContextFromSource(
         .appendingPathComponent(UUID().uuidString + ".kt").path
     let ctx = makeCompilationContext(
         inputs: [fakePath],
+        moduleName: moduleName,
         emit: emit,
         frontendFlags: frontendFlags,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary

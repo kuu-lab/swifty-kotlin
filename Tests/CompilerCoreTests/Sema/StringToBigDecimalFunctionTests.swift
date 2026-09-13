@@ -16,16 +16,6 @@ struct StringToBigDecimalFunctionTests {
         return sema.symbols.externalLinkName(for: symbol)
     }
 
-    private func bigDecimalType(sema: SemaModule, interner: StringInterner) throws -> TypeID {
-        let fq = ["java", "math", "BigDecimal"].map { interner.intern($0) }
-        let symbol = try #require(sema.symbols.lookup(fqName: fq))
-        return sema.types.make(.classType(ClassType(
-            classSymbol: symbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
     @Test func testToBigDecimalResolvesInSource() throws {
         let ctx = makeContextFromSource("""
         import java.math.BigDecimal

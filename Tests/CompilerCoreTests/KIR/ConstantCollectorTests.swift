@@ -34,33 +34,32 @@ struct ConstantCollectorTests {
             """
     ]
 
-    private static nonisolated(unsafe) var _sharedPosCtx: CompilationContext?
-    private static nonisolated(unsafe) var _sharedNegCtx: CompilationContext?
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedPosCtx = Result<CompilationContext, any Error> {
+        let ctx = makeContextFromSources(Self.sharedPosSources)
+        try runSema(ctx)
+        return ctx
+    }
 
     private func sharedPosCtx() throws -> CompilationContext {
-        if let cached = Self._sharedPosCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedPosSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedPosCtx = ctx
+        try Self._sharedPosCtx.get()
+    }
+
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedNegCtx = Result<CompilationContext, any Error> {
+        let ctx = makeContextFromSources(Self.sharedNegSources)
+        try runSema(ctx)
         return ctx
     }
 
     private func sharedNegCtx() throws -> CompilationContext {
-        if let cached = Self._sharedNegCtx { return cached }
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: Self.sharedNegSources) { paths in
-            let ctx = makeCompilationContext(inputs: paths)
-            try runSema(ctx)
-            result = ctx
-        }
-        let ctx = try #require(result)
-        Self._sharedNegCtx = ctx
-        return ctx
+        try Self._sharedNegCtx.get()
     }
 
     private func buildSourceByFileID(ctx: CompilationContext) -> [Int32: String] {

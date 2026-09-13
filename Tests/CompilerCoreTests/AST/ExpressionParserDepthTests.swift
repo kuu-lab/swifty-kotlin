@@ -7,17 +7,9 @@ struct ExpressionParserDepthTests {
 
     @Test("Deeply nested parenthesized expressions report a diagnostic")
     func testDeeplyNestedParenthesizedExpressionReportsDepthDiagnostic() {
-        let interner = StringInterner()
-        let arena = ASTArena()
-        let diagnostics = DiagnosticEngine()
-        let depth = BuildASTPhase.ExpressionParser.maxRecursionDepth + 1
-
-        let result = BuildASTPhase.ExpressionParser(
-            tokens: makeParenthesizedTokens(depth: depth),
-            interner: interner,
-            astArena: arena,
-            diagnostics: diagnostics
-        ).parse()
+        let (result, diagnostics) = parseParenthesized(
+            depth: BuildASTPhase.ExpressionParser.maxRecursionDepth + 1
+        )
 
         #expect(result == nil)
         #expect(diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0012" })
@@ -25,21 +17,24 @@ struct ExpressionParserDepthTests {
 
     @Test("Parenthesized expressions below the recursion limit still parse")
     func testParenthesizedExpressionBelowDepthLimitParses() {
-        let interner = StringInterner()
-        let arena = ASTArena()
-        let diagnostics = DiagnosticEngine()
         // Each nested expression enters expression, prefix, and primary parsing.
-        let depth = (BuildASTPhase.ExpressionParser.maxRecursionDepth / 3) - 1
-
-        let result = BuildASTPhase.ExpressionParser(
-            tokens: makeParenthesizedTokens(depth: depth),
-            interner: interner,
-            astArena: arena,
-            diagnostics: diagnostics
-        ).parse()
+        let (result, diagnostics) = parseParenthesized(
+            depth: (BuildASTPhase.ExpressionParser.maxRecursionDepth / 3) - 1
+        )
 
         #expect(result != nil)
         #expect(!diagnostics.diagnostics.contains { $0.code == "KSWIFTK-PARSE-0012" })
+    }
+
+    private func parseParenthesized(depth: Int) -> (result: ExprID?, diagnostics: DiagnosticEngine) {
+        let diagnostics = DiagnosticEngine()
+        let result = BuildASTPhase.ExpressionParser(
+            tokens: makeParenthesizedTokens(depth: depth),
+            interner: StringInterner(),
+            astArena: ASTArena(),
+            diagnostics: diagnostics
+        ).parse()
+        return (result, diagnostics)
     }
 
     private func makeParenthesizedTokens(depth: Int) -> [Token] {

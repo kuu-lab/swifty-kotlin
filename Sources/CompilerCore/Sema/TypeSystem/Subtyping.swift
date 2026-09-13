@@ -193,7 +193,7 @@ extension TypeSystem {
            rightClass.classSymbol == numberSym
         {
             switch leftPrimitive {
-            case .int, .long, .float, .double, .ubyte, .ushort, .byte, .short:
+            case .int, .long, .float, .double, .byte, .short:
                 return nullabilitySubtype(leftNullability, rightClass.nullability)
             default:
                 break

@@ -1,17 +1,14 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 @Suite
 struct RuntimeTypeCheckTokenTests {
 
-    // MARK: - classify() Tests
-
     @Test func testClassifyBuiltinTypes() {
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let cases: [(TypeKind, RuntimeTypeCategory, Bool)] = [
             (.any(.nonNull), .any, false),
@@ -39,7 +36,7 @@ struct RuntimeTypeCheckTokenTests {
 
     @Test func testClassifyNothingType() {
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         let nothingNonNull = types.make(.nothing(.nonNull))
         let descriptorNonNull = RuntimeTypeCheckToken.classify(type: nothingNonNull, sema: sema)
@@ -54,7 +51,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let className = interner.intern("MyClass")
         let pkgName = interner.intern("pkg")
@@ -78,7 +75,7 @@ struct RuntimeTypeCheckTokenTests {
 
     @Test func testClassifyUnknownTypes() {
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         // Function type should classify as unknown
         let intType = types.make(.primitive(.int, .nonNull))
@@ -93,13 +90,11 @@ struct RuntimeTypeCheckTokenTests {
         #expect(descriptor.category.base == RuntimeTypeCheckToken.unknownBase)
     }
 
-    // MARK: - encode() Consistency Tests
-
     @Test func testEncodeConsistencyWithClassify() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let testTypes: [TypeKind] = [
             .any(.nonNull),
@@ -131,7 +126,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testEncodeNothingUsesCanonicalLegacyTokens() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         let nothingNonNull = types.make(.nothing(.nonNull))
         #expect(
@@ -150,7 +145,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let className = interner.intern("Foo")
         let pkgName = interner.intern("bar")
@@ -178,12 +173,10 @@ struct RuntimeTypeCheckTokenTests {
         #expect(encoded == manuallyEncoded)
     }
 
-    // MARK: - simpleName() Consistency Tests
-
     @Test func testSimpleNameConsistencyWithCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         let testCases: [(TypeKind, String)] = [
             (.any(.nonNull), "Any"),
@@ -213,7 +206,7 @@ struct RuntimeTypeCheckTokenTests {
     @Test func testSimpleNameForPrimitivesNotInCategory() {
         let interner = StringInterner()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         // These primitives are handled by simpleName via direct TypeKind switch,
         // not through RuntimeTypeCategory
@@ -231,8 +224,6 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    // MARK: - Catch/Is Token Consistency Tests
-
     @Test func testCatchTokenMatchesIsToken() throws {
         let source = """
         class MyException : Exception()
@@ -244,8 +235,11 @@ struct RuntimeTypeCheckTokenTests {
             }
         }
         """
+        // Kept on the on-disk route: `firstExprID` scans the whole AST arena, and
+        // `makeContextFromSource` would register this snippet ahead of the bundled
+        // stdlib, changing which expression the scan reaches first.
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
 
             let sema = try #require(ctx.sema)
@@ -281,13 +275,11 @@ struct RuntimeTypeCheckTokenTests {
         }
     }
 
-    // MARK: - Type Alias Resolution Test
-
     @Test func testTypeAliasResolvesToCorrectToken() {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         // Simulate a type alias: typealias MyInt = Int
         // The resolved type should be Int, not a nominal type based on the alias name.
@@ -331,8 +323,11 @@ struct RuntimeTypeCheckTokenTests {
             println(k)
         }
         """
+        // Kept on the on-disk route: `firstExprID` scans the whole AST arena, and
+        // `makeContextFromSource` would register this snippet ahead of the bundled
+        // stdlib, changing which expression the scan reaches first.
         try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
+            let ctx = makeCompilationContext(inputs: [path])
             try runToKIR(ctx)
             // Not asserting `!hasError` here (unlike most tests in this file) —
             // bundled stdlib currently emits an unrelated pre-existing diagnostic
@@ -378,7 +373,7 @@ struct RuntimeTypeCheckTokenTests {
         let interner = StringInterner()
         let types = TypeSystem()
         let symbols = SymbolTable()
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
 
         let pkgName = interner.intern("pkg")
         let range = makeRange()
