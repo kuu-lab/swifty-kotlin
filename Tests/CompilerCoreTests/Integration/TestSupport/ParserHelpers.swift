@@ -1,11 +1,11 @@
 @testable import CompilerCore
 import Foundation
 
-/// Lex `source` as a single in-memory file, with no driver/pipeline involved.
+/// Lexes `source` as a single anonymous file, returning the token stream along
+/// with the interner and diagnostic engine the lexer wrote into.
 ///
 /// Pass `interner` when the test needs a pre-seeded interner (e.g. `preload`);
-/// otherwise a fresh one is created and returned so callers can resolve the
-/// `InternedString`s they get back.
+/// otherwise a fresh one is created and returned.
 func lex(
     _ source: String,
     interner: StringInterner = StringInterner(),
@@ -20,7 +20,8 @@ func lex(
     return (lexer.lexAll(), interner, diagnostics)
 }
 
-/// Lex and parse `source`, sharing one diagnostic engine across both phases.
+/// Lexes and parses `source` into a CST, returning the arena and root node
+/// alongside the interner, diagnostics and tokens they refer to.
 func parse(
     _ source: String,
     interner: StringInterner = StringInterner(),

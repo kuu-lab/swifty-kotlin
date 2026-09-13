@@ -5,154 +5,6 @@ import Testing
 @Suite
 struct NothingTypeFlowTests {
 
-    // MARK: - Per-source diagnostic helpers
-
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func diagnosticsForPath(
-        _ path: String,
-        withCode code: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
-    }
-
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    // MARK: - Path-aware expression search helpers
-
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
-    private func lastExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        var result: ExprID?
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { result = exprID }
-        }
-        return result
-    }
-
-    private func allExprIDsInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
-        }
-        return results
-    }
-
-    private func memberCallExprIDsInPath(
-        named name: String,
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
-
-    private func firstUserObjectLiteralDeclIDInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager
-    ) -> DeclID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .objectLiteral(_, declID, _) = expr,
-                  let declID,
-                  let range = ast.arena.exprRange(exprID),
-                  sourceManager.path(of: range.start.file) == path
-            else { continue }
-            return declID
-        }
-        return nil
-    }
-
-    private func findMainBodyStatementsInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager,
-        interner: StringInterner
-    ) -> [ExprID]? {
-        guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
-        for file in ast.files {
-            guard file.fileID == fileID else { continue }
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl,
-                      interner.resolve(function.name) == "main",
-                      case let .block(statements, _) = function.body
-                else { continue }
-                return statements
-            }
-        }
-        return nil
-    }
-
     // MARK: - Consolidated Sema tests
 
     @Test
@@ -241,21 +93,20 @@ struct NothingTypeFlowTests {
 
                 let sample0Path = paths[0]
 
-                let sample0Diagnostics = diagnosticsForPath(sample0Path, in: ctx)
 
-                let returnExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
+                let returnExprs = allExprIDs(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .returnExpr = expr { return true }
                     return false
                 }
-                let breakExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
+                let breakExprs = allExprIDs(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .breakExpr = expr { return true }
                     return false
                 }
-                let continueExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
+                let continueExprs = allExprIDs(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .continueExpr = expr { return true }
                     return false
                 }
-                let throwExprs = allExprIDsInPath(in: ast, path: sample0Path, ctx: ctx) { _, expr in
+                let throwExprs = allExprIDs(in: ast, path: sample0Path, ctx: ctx) { _, expr in
                     if case .throwExpr = expr { return true }
                     return false
                 }
@@ -282,18 +133,18 @@ struct NothingTypeFlowTests {
 
                 let sample1Diagnostics = diagnosticsForPath(sample1Path, in: ctx)
 
-                let allIfExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                let allIfExprIDs = allExprIDs(in: ast, path: sample1Path, ctx: ctx) { _, expr in
                     guard case .ifExpr = expr else { return false }
                     return true
                 }
                 let ifExprIDs = allIfExprIDs.filter {
                     sema.bindings.exprType(for: $0) == sema.types.intType
                 }
-                let whenExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                let whenExprIDs = allExprIDs(in: ast, path: sample1Path, ctx: ctx) { _, expr in
                     guard case .whenExpr = expr else { return false }
                     return true
                 }
-                let tryExprIDs = allExprIDsInPath(in: ast, path: sample1Path, ctx: ctx) { _, expr in
+                let tryExprIDs = allExprIDs(in: ast, path: sample1Path, ctx: ctx) { _, expr in
                     guard case .tryExpr = expr else { return false }
                     return true
                 }
@@ -323,7 +174,7 @@ struct NothingTypeFlowTests {
 
                 let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
 
-                let nullNameRef = try #require(firstExprIDInPath(in: ast, path: sample2Path, ctx: ctx) { _, expr in
+                let nullNameRef = try #require(firstExprID(in: ast, path: sample2Path, ctx: ctx) { _, expr in
                     guard case let .nameRef(name, _) = expr else { return false }
                     return interner.resolve(name) == "null"
                 })

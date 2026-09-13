@@ -278,7 +278,7 @@ extension DataFlowAndSemaRegressionTests {
     }
 
     @Test func testReifiedInlineFunctionSupportsUnsafeCastAndBoundedTypeParameter() throws {
-        let (ctx, paths) = try sharedDataFlowTryCatchCtx()
+        let (ctx, _) = try sharedDataFlowTryCatchCtx()
 
             let sema = try #require(ctx.sema)
 
@@ -314,7 +314,7 @@ extension DataFlowAndSemaRegressionTests {
     }
 
     @Test func testTryCatchExpressionInference() throws {
-        let (ctx, paths) = try sharedDataFlowTryCatchCtx()
+        let (ctx, _) = try sharedDataFlowTryCatchCtx()
             let sema = try #require(ctx.sema)
             let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
             #expect(!exprTypesEmpty)
@@ -450,7 +450,7 @@ extension DataFlowAndSemaRegressionTests {
     }
 
     @Test func testSuspendFunctionSignature() throws {
-        let (ctx, paths) = try sharedDataFlowTryCatchCtx()
+        let (ctx, _) = try sharedDataFlowTryCatchCtx()
             let sema = try #require(ctx.sema)
             let delayedSymbol = sema.symbols.allSymbols().first { symbol in
                 ctx.interner.resolve(symbol.name) == "delayed"
@@ -464,7 +464,7 @@ extension DataFlowAndSemaRegressionTests {
     }
 
     @Test func testPrintlnBuiltinInfersUnit() throws {
-        let (ctx, paths) = try sharedDataFlowTryCatchCtx()
+        let (ctx, _) = try sharedDataFlowTryCatchCtx()
             let sema = try #require(ctx.sema)
             let exprTypesEmpty = sema.bindings.exprTypes.isEmpty
             #expect(!exprTypesEmpty)
