@@ -261,23 +261,8 @@ import Testing
         let callerID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "ABIBoxVirtual",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ABIBoxVirtual", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         // Check that boxing call was inserted before the virtualCall
@@ -294,19 +279,5 @@ import Testing
         #expect(callees.contains("kk_box_int"), "Expected kk_box_int call for Int -> Any? boxing in virtualCall arg, got: \(callees)")
         #expect(callees.contains("vc:virtualAcceptAny"), "Expected virtualCall to remain after lowering, got: \(callees)")
     }
-
-    // MARK: - 11. InlineLoweringPass: virtualCall alias resolution
-
-    // MARK: - 12. Regression: existing .call instructions still work
-
-    // MARK: - 13. Coroutine lowering: extractCallInfo for virtualCall
-
-    // MARK: - 14. Virtual suspend call emits virtualCall (not .call) in state machine
-
-    // MARK: - 15. resolveVirtualDispatch: open class with subtypes -> vtable
-
-    // MARK: - 16. resolveVirtualDispatch: final class -> static dispatch (no virtualCall)
-
-    // MARK: - 17. virtualCall with multiple arguments: receiver separate, args correct count
 }
 #endif

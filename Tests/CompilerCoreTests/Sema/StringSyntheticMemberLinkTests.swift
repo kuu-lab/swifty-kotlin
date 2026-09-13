@@ -54,18 +54,6 @@ struct StringSyntheticMemberLinkTests {
         return semaResult
     }
 
-    private func allExprIDs(in ast: ASTModule, where predicate: (ExprID, Expr) -> Bool) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            if predicate(exprID, expr) {
-                results.append(exprID)
-            }
-        }
-        return results
-    }
-
     // BUG-211: CharSequence.length must be represented as an interface
     // property so bundled Kotlin reads can use the normal itable path.
     // KSP-724: The property is now source-backed from bundled Kotlin, not a
@@ -533,39 +521,6 @@ struct StringSyntheticMemberLinkTests {
                         )
                     }
         }
-    }
-
-    // MARK: - Path-aware expression search helpers
-
-    private func allExprIDs(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
-        }
-        return results
-    }
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID) else { continue }
-            guard let range = ast.arena.exprRange(exprID), ctx.sourceManager.path(of: range.start.file) == path else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
     }
 
     // MARK: - testStringSyntheticMemberLinkCleanCallExpressions

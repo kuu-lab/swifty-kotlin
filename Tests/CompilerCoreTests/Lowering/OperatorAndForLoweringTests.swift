@@ -9,53 +9,6 @@ import Testing
 struct OperatorAndForLoweringTests {
     // MARK: - Helper
 
-    private func makeKIRContext(interner: StringInterner, sema: SemaModule? = nil) -> KIRContext {
-        let options = CompilerOptions(
-            moduleName: "OpForTest",
-            inputs: [],
-            outputPath: FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString).path,
-            emit: .kirDump,
-            target: defaultTargetTriple()
-        )
-        return KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: options,
-            interner: interner,
-            sema: sema
-        )
-    }
-
-    private func makeModule(
-        body: [KIRInstruction],
-        interner: StringInterner,
-        arena: KIRArena,
-        fnName: String = "main"
-    ) -> (KIRModule, KIRDeclID) {
-        let fn = KIRFunction(
-            symbol: SymbolID(rawValue: 1),
-            name: interner.intern(fnName),
-            params: [],
-            returnType: TypeSystem().unitType,
-            body: body,
-            isSuspend: false,
-            isInline: false
-        )
-        let declID = arena.appendDecl(.function(fn))
-        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
-        return (module, declID)
-    }
-
-    private func calleesInDecl(_ declID: KIRDeclID, module: KIRModule, interner: StringInterner) -> [String] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return extractCallees(from: fn.body, interner: interner)
-    }
-
-    private func bodyInDecl(_ declID: KIRDeclID, module: KIRModule) -> [KIRInstruction] {
-        guard case let .function(fn) = module.arena.decl(declID) else { return [] }
-        return fn.body
-    }
-
     // MARK: - OperatorLoweringPass: println
 
     @Test
@@ -88,7 +41,7 @@ struct OperatorAndForLoweringTests {
         let interner = StringInterner()
         let arena = KIRArena()
         let types = TypeSystem()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(types: types).ctx
 
         let arg = arena.appendExpr(.temporary(0), type: types.charType)
         let result = arena.appendExpr(.temporary(1), type: types.unitType)

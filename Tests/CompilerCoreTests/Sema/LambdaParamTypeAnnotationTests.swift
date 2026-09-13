@@ -191,21 +191,13 @@ struct LambdaParamTypeAnnotationTests {
         return pair
     }
 
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
     @Test
     func testRawSamConstructorUsesLambdaParamAnnotations() throws {
         let (ctx, paths) = try shared()
         let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Raw SAM constructor should adopt the annotated Int parameters, got: \\(errors)"
+            "Raw SAM constructor should adopt the annotated Int parameters, got: \(errors)"
         )
     }
 
@@ -225,7 +217,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Matching call on an annotated lambda should type-check, got: \\(errors)"
+            "Matching call on an annotated lambda should type-check, got: \(errors)"
         )
     }
 
@@ -235,7 +227,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[3], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Annotation matching the expected function type should type-check, got: \\(errors)"
+            "Annotation matching the expected function type should type-check, got: \(errors)"
         )
     }
 
@@ -245,7 +237,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[4], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "Annotation contradicting the expected function type must be reported, got: \\(mismatches)"
+            "Annotation contradicting the expected function type must be reported, got: \(mismatches)"
         )
     }
 
@@ -255,7 +247,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[5], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 2,
-            "Both annotations contradicting Cmp<String> must be reported, got: \\(mismatches)"
+            "Both annotations contradicting Cmp<String> must be reported, got: \(mismatches)"
         )
     }
 
@@ -275,7 +267,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[7], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "Narrowing the expected parameter type must be reported, got: \\(mismatches)"
+            "Narrowing the expected parameter type must be reported, got: \(mismatches)"
         )
     }
 
@@ -285,7 +277,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[8], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "A non-null annotation for a nullable parameter must be reported, got: \\(mismatches)"
+            "A non-null annotation for a nullable parameter must be reported, got: \(mismatches)"
         )
     }
 
@@ -295,7 +287,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[9], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "Narrowing a declared `Any` parameter must be reported, got: \\(mismatches)"
+            "Narrowing a declared `Any` parameter must be reported, got: \(mismatches)"
         )
     }
 
@@ -305,7 +297,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[10], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "Narrowing a declared `Any` property parameter must be reported, got: \\(mismatches)"
+            "Narrowing a declared `Any` property parameter must be reported, got: \(mismatches)"
         )
     }
 
@@ -315,7 +307,7 @@ struct LambdaParamTypeAnnotationTests {
         let mismatches = diagnosticsForPath(paths[11], in: ctx).filter { $0.code == "KSWIFTK-SEMA-0025" }
         #expect(
             mismatches.count == 1,
-            "Narrowing a declared `Any` function parameter must be reported, got: \\(mismatches)"
+            "Narrowing a declared `Any` function parameter must be reported, got: \(mismatches)"
         )
     }
 
@@ -325,7 +317,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[12], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "An `Any` annotation for a declared `Any` parameter is legal, got: \\(errors)"
+            "An `Any` annotation for a declared `Any` parameter is legal, got: \(errors)"
         )
     }
 
@@ -335,7 +327,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[13], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "An unsolved accumulator type falls back to Any and must not reject the annotation, got: \\(errors)"
+            "An unsolved accumulator type falls back to Any and must not reject the annotation, got: \(errors)"
         )
     }
 
@@ -345,7 +337,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[14], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Widening annotations are legal in Kotlin, got: \\(errors)"
+            "Widening annotations are legal in Kotlin, got: \(errors)"
         )
     }
 
@@ -355,7 +347,7 @@ struct LambdaParamTypeAnnotationTests {
         let errors = diagnosticsForPath(paths[15], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Partially annotated lambda should type-check, got: \\(errors)"
+            "Partially annotated lambda should type-check, got: \(errors)"
         )
     }
 
