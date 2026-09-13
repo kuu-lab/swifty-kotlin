@@ -2,9 +2,10 @@
 @testable import CompilerCore
 import Testing
 
-extension KIRLowererPart2CoverageTests {
-    @Test func testControlFlowLowererPart2CatchBindingAndLegacyTypeResolution() {
-        let fixture = makeDirectKIRFixture()
+@Suite
+struct ControlFlowAndCallLowererDirectCoverageTests {
+    @Test func testControlFlowLowererCatchBindingAndLegacyTypeResolution() {
+        let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
 
         let catchExprID = fixture.astArena.appendExpr(.intLiteral(0, range))
@@ -15,7 +16,7 @@ extension KIRLowererPart2CoverageTests {
             range: range
         )
 
-        let boundSymbol = defineSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "e"])
+        let boundSymbol = defineSemanticSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "e"])
         let boundType = fixture.types.make(.primitive(.int, .nonNull))
         fixture.bindings.bindCatchClause(
             catchExprID,
@@ -37,7 +38,7 @@ extension KIRLowererPart2CoverageTests {
             body: fallbackExprID,
             range: range
         )
-        let fallbackSymbol = defineSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "x"])
+        let fallbackSymbol = defineSemanticSymbol(in: fixture, kind: .valueParameter, fqName: ["pkg", "x"])
         fixture.bindings.bindIdentifier(fallbackExprID, symbol: fallbackSymbol)
 
         let resolvedFallback = fixture.driver.controlFlowLowerer.resolveCatchClauseBinding(
@@ -74,7 +75,7 @@ extension KIRLowererPart2CoverageTests {
             #expect(fixture.types.kind(of: resolved) == expectedKind)
         }
 
-        let classSymbol = defineSymbol(in: fixture, kind: .class, fqName: ["CustomThrowable"])
+        let classSymbol = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["CustomThrowable"])
         let resolvedClass = fixture.driver.controlFlowLowerer.resolveLegacyCatchClauseType(
             fixture.interner.intern("CustomThrowable"),
             sema: fixture.sema,
@@ -100,8 +101,8 @@ extension KIRLowererPart2CoverageTests {
         #expect(!(fixture.driver.controlFlowLowerer.isCatchAllType(fixture.types.intType, sema: fixture.sema)))
     }
 
-    @Test func testControlFlowLowererPart2ForwardersEmitInstructions() {
-        let fixture = makeDirectKIRFixture()
+    @Test func testControlFlowLowererForwardersEmitInstructions() {
+        let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
 
         let boolType = fixture.types.make(.primitive(.boolean, .nonNull))
@@ -120,7 +121,7 @@ extension KIRLowererPart2CoverageTests {
                 range: range
             )
         )
-        let componentSymbol = defineSymbol(
+        let componentSymbol = defineSemanticSymbol(
             in: fixture,
             kind: .local,
             fqName: ["__for_destructuring_\(forExprID.rawValue)", "item"]
@@ -203,15 +204,15 @@ extension KIRLowererPart2CoverageTests {
         lowered.instructions.append(.nop)
     }
 
-    @Test func testCallLowererPart2LowersClassNameMemberValuesAsDirectSymbolRefs() {
-        let fixture = makeDirectKIRFixture()
+    @Test func testCallLowererLowersClassNameMemberValuesAsDirectSymbolRefs() {
+        let fixture = makeKIRDirectLoweringFixture()
         let range = makeRange()
 
-        let colorSym = defineSymbol(in: fixture, kind: .enumClass, fqName: ["Color"])
+        let colorSym = defineSemanticSymbol(in: fixture, kind: .enumClass, fqName: ["Color"])
         let colorType = fixture.types.make(
             .classType(ClassType(classSymbol: colorSym, args: [], nullability: .nonNull))
         )
-        let redSym = defineSymbol(in: fixture, kind: .field, fqName: ["Color", "Red"])
+        let redSym = defineSemanticSymbol(in: fixture, kind: .field, fqName: ["Color", "Red"])
         fixture.symbols.setPropertyType(colorType, for: redSym)
 
         let colorRef = fixture.astArena.appendExpr(.nameRef(fixture.interner.intern("Color"), range))
@@ -251,11 +252,11 @@ extension KIRLowererPart2CoverageTests {
             return false
         }))
 
-        let exprSym = defineSymbol(in: fixture, kind: .class, fqName: ["Expr"])
+        let exprSym = defineSemanticSymbol(in: fixture, kind: .class, fqName: ["Expr"])
         let exprType = fixture.types.make(
             .classType(ClassType(classSymbol: exprSym, args: [], nullability: .nonNull))
         )
-        let nestedObjectSym = defineSymbol(in: fixture, kind: .object, fqName: ["Expr", "A"])
+        let nestedObjectSym = defineSemanticSymbol(in: fixture, kind: .object, fqName: ["Expr", "A"])
         fixture.symbols.setParentSymbol(exprSym, for: nestedObjectSym)
         let nestedObjectType = fixture.types.make(
             .classType(ClassType(classSymbol: nestedObjectSym, args: [], nullability: .nonNull))

@@ -371,10 +371,7 @@ struct CollectionLiteralLookupTables {
 
     // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
 
-    var buildSetName: InternedString { builderDSLLookup.buildSetName }
     var buildMapName: InternedString { builderDSLLookup.buildMapName }
-    var kkBuildSetName: InternedString { builderDSLLookup.kkBuildSetName }
-    var kkBuildSetWithCapacityName: InternedString { builderDSLLookup.kkBuildSetWithCapacityName }
     var kkBuildMapName: InternedString { builderDSLLookup.kkBuildMapName }
     var kkBuildMapWithCapacityName: InternedString { builderDSLLookup.kkBuildMapWithCapacityName }
     var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }

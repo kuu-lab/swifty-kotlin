@@ -221,10 +221,7 @@ struct CollectionClassificationTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: context)
 
-        guard case let .function(lowered) = module.arena.decl(declaration) else {
-            Issue.record("The collection pass removed the probe function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(declaration)?.function, "The collection pass removed the probe function")
         let iteratorCalls = lowered.body.filter { instruction in
             guard case let .call(_, _, _, returned, _, _, _, _) = instruction else { return false }
             return returned == result

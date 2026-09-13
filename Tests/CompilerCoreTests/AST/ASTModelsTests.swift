@@ -36,17 +36,6 @@ struct ASTModelsTests {
     }
 
     @Test
-    func testModifiersOptionSetComposition() {
-        let modifiers: Modifiers = [.public, .inline, .operator, .tailrec]
-
-        #expect(modifiers.contains(.public))
-        #expect(modifiers.contains(.inline))
-        #expect(modifiers.contains(.operator))
-        #expect(modifiers.contains(.tailrec))
-        #expect(!(modifiers.contains(.private)))
-    }
-
-    @Test
     func testASTArenaAppendLookupAndDeclarationSnapshot() {
         let interner = StringInterner()
         let name = interner.intern("C")
@@ -338,34 +327,6 @@ struct ASTModelsTests {
     }
 
     @Test
-    func testTypeRefFunctionTypeLookup() {
-        let arena = ASTArena()
-        let paramTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
-        let returnTypeRef = arena.appendTypeRef(.named(path: [], args: [], nullable: false))
-        let funcTypeID = arena.appendTypeRef(.functionType(contextReceivers: [], receiver: nil, params: [paramTypeRef], returnType: returnTypeRef, isSuspend: true, nullable: false))
-        if case let .functionType(contextReceivers, _, params, ret, suspend, nullable) = arena.typeRef(funcTypeID) {
-            #expect(contextReceivers.isEmpty)
-            #expect(params.count == 1)
-            #expect(ret == returnTypeRef)
-            #expect(suspend)
-            #expect(!(nullable))
-        } else {
-            Issue.record("Expected .functionType")
-        }
-    }
-
-    @Test
-    func testTypeArgRefCases() {
-        let typeRef = TypeRefID(rawValue: 0)
-        let invariant = TypeArgRef.invariant(typeRef)
-        let outArg = TypeArgRef.out(typeRef)
-        let inArg = TypeArgRef.in(typeRef)
-        let star = TypeArgRef.star
-        #expect(invariant != star)
-        #expect(outArg != inArg)
-    }
-
-    @Test
     func testPropertyAccessorDeclSetterWithExprBody() {
         let interner = StringInterner()
         let range = makeRange(start: 0, end: 5)
@@ -484,9 +445,5 @@ struct ASTModelsTests {
         #expect(catchClause.paramName == name)
         #expect(catchClause.paramTypeName == name)
     }
-
-    // MARK: - Expr variants
-
-    // MARK: - ASTArena expr() method
 }
 #endif

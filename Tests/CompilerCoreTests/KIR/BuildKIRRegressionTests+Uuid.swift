@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
@@ -48,63 +47,61 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            for callee in [
-                "random",
-                "fromLongs",
-                "fromULongs",
-                "fromByteArray",
-                "fromUByteArray",
-                "toByteArray",
-                "toUByteArray",
-                "toLongs",
-                "toULongs",
-                "toHexDashString",
-                "generateV4",
-                "compareTo",
-            ] {
-                #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
-            }
-
-            #expect(callees.isDisjoint(with: [
-                "__kk_uuid_random",
-                "__kk_uuid_lexicalOrder",
-                "__kk_uuid_fromLongs",
-            ]))
-
-            let removedRuntimeCallees: Set<String> = [
-                "kk_uuid_fromByteArray",
-                "kk_uuid_fromLongs",
-                "kk_uuid_leastSignificantBits",
-                "kk_uuid_lexicalOrder",
-                "kk_uuid_mostSignificantBits",
-                "kk_uuid_nil",
-                "kk_uuid_parse",
-                "kk_uuid_parseHex",
-                "kk_uuid_parseHexDash",
-                "kk_uuid_parseHexDashOrNull",
-                "kk_uuid_parseHexOrNull",
-                "kk_uuid_parseOrNull",
-                "kk_uuid_random",
-                "kk_uuid_toByteArray",
-                "kk_uuid_toHexString",
-                "kk_uuid_toLongs",
-                "kk_uuid_toString",
-                "kk_uuid_variant",
-                "kk_uuid_version",
-            ]
-            #expect(
-                callees.isDisjoint(with: removedRuntimeCallees),
-                "Uuid pure logic should be Kotlinized; unexpected removed callees: \(callees.intersection(removedRuntimeCallees))"
-            )
+        for callee in [
+            "random",
+            "fromLongs",
+            "fromULongs",
+            "fromByteArray",
+            "fromUByteArray",
+            "toByteArray",
+            "toUByteArray",
+            "toLongs",
+            "toULongs",
+            "toHexDashString",
+            "generateV4",
+            "compareTo",
+        ] {
+            #expect(callees.contains(callee), "Uuid.\(callee) should remain Kotlin source-backed")
         }
+
+        #expect(callees.isDisjoint(with: [
+            "__kk_uuid_random",
+            "__kk_uuid_lexicalOrder",
+            "__kk_uuid_fromLongs",
+        ]))
+
+        let removedRuntimeCallees: Set<String> = [
+            "kk_uuid_fromByteArray",
+            "kk_uuid_fromLongs",
+            "kk_uuid_leastSignificantBits",
+            "kk_uuid_lexicalOrder",
+            "kk_uuid_mostSignificantBits",
+            "kk_uuid_nil",
+            "kk_uuid_parse",
+            "kk_uuid_parseHex",
+            "kk_uuid_parseHexDash",
+            "kk_uuid_parseHexDashOrNull",
+            "kk_uuid_parseHexOrNull",
+            "kk_uuid_parseOrNull",
+            "kk_uuid_random",
+            "kk_uuid_toByteArray",
+            "kk_uuid_toHexString",
+            "kk_uuid_toLongs",
+            "kk_uuid_toString",
+            "kk_uuid_variant",
+            "kk_uuid_version",
+        ]
+        #expect(
+            callees.isDisjoint(with: removedRuntimeCallees),
+            "Uuid pure logic should be Kotlinized; unexpected removed callees: \(callees.intersection(removedRuntimeCallees))"
+        )
     }
 
     /// KSP-508: java.util.UUID.toKotlinUuid() and the java.nio.ByteBuffer.getUuid/putUuid
@@ -131,24 +128,22 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let callees = Set(extractCallees(from: body, interner: ctx.interner))
 
-            for callee in ["toKotlinUuid", "getUuid", "putUuid"] {
-                #expect(callees.contains(callee), "kotlin.uuid.\(callee) should remain Kotlin source-backed")
-            }
-
-            #expect(callees.isDisjoint(with: [
-                "kk_uuid_getUuid",
-                "kk_uuid_toKotlinUuid",
-                "__kk_uuid_toKotlinUuid",
-            ]))
+        for callee in ["toKotlinUuid", "getUuid", "putUuid"] {
+            #expect(callees.contains(callee), "kotlin.uuid.\(callee) should remain Kotlin source-backed")
         }
+
+        #expect(callees.isDisjoint(with: [
+            "kk_uuid_getUuid",
+            "kk_uuid_toKotlinUuid",
+            "__kk_uuid_toKotlinUuid",
+        ]))
     }
 
     @Test func testUuidSizeConstantsLowerToImmediateConstants() throws {
@@ -164,24 +159,22 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
-            let intConstants = body.compactMap { instruction -> Int64? in
-                guard case let .constValue(_, value) = instruction,
-                      case let .intLiteral(intValue) = value
-                else {
-                    return nil
-                }
-                return intValue
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+        let intConstants = body.compactMap { instruction -> Int64? in
+            guard case let .constValue(_, value) = instruction,
+                  case let .intLiteral(intValue) = value
+            else {
+                return nil
             }
-
-            #expect(intConstants.contains(128), "Expected Uuid.SIZE_BITS to lower as int literal 128")
-            #expect(intConstants.contains(16), "Expected Uuid.SIZE_BYTES to lower as int literal 16")
+            return intValue
         }
+
+        #expect(intConstants.contains(128), "Expected Uuid.SIZE_BITS to lower as int literal 128")
+        #expect(intConstants.contains(16), "Expected Uuid.SIZE_BYTES to lower as int literal 16")
     }
 
     @Test func testABILoweringMarksResidualUuidBridgesAsNonThrowing() {
