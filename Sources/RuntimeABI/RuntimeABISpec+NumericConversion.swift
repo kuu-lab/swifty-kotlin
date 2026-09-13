@@ -403,42 +403,6 @@ public extension RuntimeABISpec {
             section: "NumericConversion",
             isThrowing: false
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_uint_to_char",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ulong_to_char",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ubyte_to_char",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "kk_ushort_to_char",
-            parameters: [
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "NumericConversion",
-            isThrowing: false
-        ),
         // KSP-1540 / DEBT-DIFF-008: Number.toDouble/toFloat/toLong/toInt/
         // toShort/toByte dispatch for an erased `Number`/`T : Number`
         // receiver — see CallLowerer+NumberConversionMemberCalls.swift and
