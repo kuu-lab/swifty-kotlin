@@ -60,13 +60,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let uintArrayType = syntheticNominalType(
-            named: "UIntArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         for property in [
             ("start", "kk_uint_range_first"),
             ("end", "kk_uint_range_last"),
@@ -139,16 +132,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.uintType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_uint_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toUIntArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: uintArrayType,
-            externalLinkName: "kk_uint_range_toUIntArray",
             symbols: symbols,
             interner: interner
         )
@@ -281,13 +264,6 @@ extension DataFlowSemaPhase {
             types: types,
             interner: interner
         )
-        let ulongArrayType = syntheticNominalType(
-            named: "ULongArray",
-            in: [interner.intern("kotlin")],
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
         for property in [
             ("start", "kk_ulong_range_first"),
             ("endInclusive", "kk_ulong_range_last"),
@@ -360,16 +336,6 @@ extension DataFlowSemaPhase {
             parameterTypes: [],
             returnType: syntheticListType(elementType: types.ulongType, symbols: symbols, types: types, interner: interner),
             externalLinkName: "kk_ulong_range_toList",
-            symbols: symbols,
-            interner: interner
-        )
-        registerProgressionMethod(
-            named: "toULongArray",
-            ownerSymbol: classSymbol,
-            receiverType: rangeType,
-            parameterTypes: [],
-            returnType: ulongArrayType,
-            externalLinkName: "kk_ulong_range_toULongArray",
             symbols: symbols,
             interner: interner
         )

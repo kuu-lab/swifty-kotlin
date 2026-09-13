@@ -410,7 +410,7 @@ extension CallTypeChecker {
             return argCount == 0 || argCount == 1
         }
         let sourceBacked: Set<String> = [
-            "toList", "toIntArray", "average", "sorted",
+            "toList", "average", "sorted",
             "forEach", "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
@@ -1219,7 +1219,7 @@ extension CallTypeChecker {
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
         let rangeMembers: Set = [
             "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
-            "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "forEach", "map", "mapIndexed", "mapNotNull",
+            "toList", "forEach", "map", "mapIndexed", "mapNotNull",
             "filter", "filterIndexed", "filterNot",
             "reduce", "reduceIndexed", "fold", "foldIndexed",
             "find", "findLast", "firstOrNull", "lastOrNull", "randomOrNull",
@@ -1234,7 +1234,7 @@ extension CallTypeChecker {
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "toIntArray", "toLongArray", "toUIntArray", "toULongArray", "reversed", "sum", "average", "sorted":
+        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "reversed", "sum", "average", "sorted":
             argCount == 0
         case "random":
             argCount == 0 || argCount == 1
@@ -1325,14 +1325,6 @@ extension CallTypeChecker {
             return sema.types.unitType
         case "toList":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "toIntArray":
-            return rangeMemberIntArrayType(sema: sema, interner: interner)
-        case "toLongArray":
-            return rangeMemberLongArrayType(sema: sema, interner: interner)
-        case "toUIntArray":
-            return rangeMemberUIntArrayType(sema: sema, interner: interner)
-        case "toULongArray":
-            return rangeMemberULongArrayType(sema: sema, interner: interner)
         case "filter", "filterIndexed", "filterNot":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
         case "map":
@@ -1413,62 +1405,6 @@ extension CallTypeChecker {
         return sema.types.make(.classType(ClassType(
             classSymbol: listSymbol,
             args: [.out(elementType)],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberIntArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let intArraySymbol = sema.symbols.lookupByShortName(interner.intern("IntArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: intArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberLongArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let longArraySymbol = sema.symbols.lookupByShortName(interner.intern("LongArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: longArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberUIntArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let uintArraySymbol = sema.symbols.lookupByShortName(interner.intern("UIntArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: uintArraySymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-    }
-
-    private func rangeMemberULongArrayType(
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> TypeID {
-        guard let ulongArraySymbol = sema.symbols.lookupByShortName(interner.intern("ULongArray")).first else {
-            return sema.types.anyType
-        }
-        return sema.types.make(.classType(ClassType(
-            classSymbol: ulongArraySymbol,
-            args: [],
             nullability: .nonNull
         )))
     }

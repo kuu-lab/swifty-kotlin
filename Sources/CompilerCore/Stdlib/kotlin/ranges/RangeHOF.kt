@@ -181,8 +181,6 @@ public fun IntRange.sum(): Int {
 @KsSymbolName("__kk_range_reversed")
 public external fun IntRange.reversed(): IntRange
 
-public fun IntRange.toIntArray(): IntArray = toList().toIntArray()
-
 // KSP-1285: Kotlin exposes exact IntRange overloads for the other signed
 // primitive integer types. Long values must be range-checked before narrowing.
 @kotlin.internal.InlineOnly
@@ -446,8 +444,6 @@ public fun IntProgression.sum(): Int {
 
 @KsSymbolName("__kk_range_reversed")
 public external fun IntProgression.reversed(): IntProgression
-
-public fun IntProgression.toIntArray(): IntArray = toList().toIntArray()
 
 public fun IntProgression.average(): Double {
     if (isEmpty()) return Double.NaN
