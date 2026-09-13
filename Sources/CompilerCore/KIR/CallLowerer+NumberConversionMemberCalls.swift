@@ -52,8 +52,7 @@ extension CallLowerer {
             return nil
         }
 
-        // Guard against a concrete-but-unboxed receiver (e.g. UByte/UShort,
-        // which also conform to Number per Subtyping.swift) reaching this path
+        // Guard against a concrete-but-unboxed receiver reaching this path
         // with a raw scalar instead of a heap-boxed value: only fire when the
         // receiver's static type is genuinely erased — either `Number` itself
         // or a type parameter — never a resolved concrete class/primitive.

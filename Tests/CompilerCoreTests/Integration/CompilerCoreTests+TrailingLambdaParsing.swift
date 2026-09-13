@@ -301,23 +301,9 @@ extension CompilerCoreTests {
 
             // 7
             do {
-                var memberProperty: PropertyDecl?
-                outer: for file in ast.files {
-                    for declID in file.topLevelDecls {
-                        guard let decl = ast.arena.decl(declID),
-                              case let .classDecl(classDecl) = decl
-                        else { continue }
-                        for propertyDeclID in classDecl.memberProperties {
-                            guard let propertyDecl = ast.arena.decl(propertyDeclID),
-                                  case let .propertyDecl(property) = propertyDecl,
-                                  interner.resolve(property.name) == "member"
-                            else { continue }
-                            memberProperty = property
-                            break outer
-                        }
-                    }
-                }
-                let property = try #require(memberProperty)
+                let property = try #require(
+                    memberProperty(named: "member", ofClass: "Holder", in: ast, interner: interner)
+                )
                 let initializerID = try #require(property.initializer)
                 guard let initializerExpr = ast.arena.expr(initializerID),
                       case let .call(_, typeArgs, args, _) = initializerExpr

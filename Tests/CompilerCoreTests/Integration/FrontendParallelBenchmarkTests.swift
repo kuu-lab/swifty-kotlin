@@ -40,9 +40,7 @@ struct FrontendParallelBenchmarkTests {
     /// Run frontend with the given sources and jobs count, returning elapsed time.
     private func runFrontendTimed(
         sources: [String],
-        jobs: Int,
-        file _: StaticString = #filePath,
-        line _: UInt = #line
+        jobs: Int
     ) throws -> (ctx: CompilationContext, elapsed: Double) {
         var paths: [String] = []
         let tempDir = FileManager.default.temporaryDirectory
@@ -121,13 +119,7 @@ struct FrontendParallelBenchmarkTests {
             let declNames: [String] = ast.sortedFiles.flatMap { file in
                 file.topLevelDecls.compactMap { declID -> String? in
                     guard let decl = ast.arena.decl(declID) else { return nil }
-                    switch decl {
-                    case let .classDecl(c): return ctx.interner.resolve(c.name)
-                    case let .interfaceDecl(i): return ctx.interner.resolve(i.name)
-                    case let .objectDecl(o): return ctx.interner.resolve(o.name)
-                    case let .funDecl(f): return ctx.interner.resolve(f.name)
-                    default: return nil
-                    }
+                    return topLevelDeclName(decl, interner: ctx.interner)
                 }
             }
 
@@ -171,8 +163,9 @@ struct FrontendParallelBenchmarkTests {
 
     // MARK: - Benchmarks: 10 / 50 / 100 files
 
-    @Test func testBenchmark10Files() throws {
-        let sources = generateSources(count: 10)
+    @Test(arguments: [10, 50, 100])
+    func testBenchmarkFrontendFiles(fileCount: Int) throws {
+        let sources = generateSources(count: fileCount)
         let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
         let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
 
@@ -183,71 +176,27 @@ struct FrontendParallelBenchmarkTests {
 
         let speedup = seqTime / max(parTime, 0.000001)
 
-        print("[Benchmark 10 files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
-    }
-
-    @Test func testBenchmark50Files() throws {
-        let sources = generateSources(count: 50)
-        let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
-        let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
-
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count)
-        #expect(seqAST.declarationCount == parAST.declarationCount)
-
-        let speedup = seqTime / max(parTime, 0.000001)
-
-        print("[Benchmark 50 files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
-    }
-
-    @Test func testBenchmark100Files() throws {
-        let sources = generateSources(count: 100)
-        let (seqCtx, seqTime) = try runFrontendTimed(sources: sources, jobs: 1)
-        let (parCtx, parTime) = try runFrontendTimed(sources: sources, jobs: 4)
-
-        let seqAST = try #require(seqCtx.ast)
-        let parAST = try #require(parCtx.ast)
-        #expect(seqAST.sortedFiles.count == parAST.sortedFiles.count)
-        #expect(seqAST.declarationCount == parAST.declarationCount)
-
-        let speedup = seqTime / max(parTime, 0.000001)
-
-        print("[Benchmark 100 files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
+        print("[Benchmark \(fileCount) files] sequential=\(String(format: "%.4f", seqTime))s parallel(4)=\(String(format: "%.4f", parTime))s speedup=\(String(format: "%.2f", speedup))x")
     }
 
     // MARK: - frontendJobs parsing
 
     @Test func testFrontendJobsParsing() {
-        let opts1 = CompilerOptions(
-            moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
-            target: defaultTargetTriple(), frontendFlags: ["jobs=4"]
-        )
-        #expect(opts1.frontendJobs == 4)
+        let cases: [(flags: [String], expected: Int, note: String)] = [
+            (["jobs=4"], 4, "explicit jobs=4"),
+            ([], 1, "Default should be 1 (sequential)"),
+            (["jobs=0"], 1, "jobs=0 should fall back to 1"),
+            (["jobs=1"], 1, "jobs=1 should be sequential"),
+            (["other-flag", "jobs=8"], 8, "jobs= after an unrelated flag"),
+        ]
 
-        let opts2 = CompilerOptions(
-            moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
-            target: defaultTargetTriple(), frontendFlags: []
-        )
-        #expect(opts2.frontendJobs == 1, "Default should be 1 (sequential)")
-
-        let opts3 = CompilerOptions(
-            moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
-            target: defaultTargetTriple(), frontendFlags: ["jobs=0"]
-        )
-        #expect(opts3.frontendJobs == 1, "jobs=0 should fall back to 1")
-
-        let opts5 = CompilerOptions(
-            moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
-            target: defaultTargetTriple(), frontendFlags: ["jobs=1"]
-        )
-        #expect(opts5.frontendJobs == 1, "jobs=1 should be sequential")
-
-        let opts4 = CompilerOptions(
-            moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
-            target: defaultTargetTriple(), frontendFlags: ["other-flag", "jobs=8"]
-        )
-        #expect(opts4.frontendJobs == 8)
+        for (flags, expected, note) in cases {
+            let options = CompilerOptions(
+                moduleName: "M", inputs: [], outputPath: "/tmp/out", emit: .kirDump,
+                target: defaultTargetTriple(), frontendFlags: flags
+            )
+            #expect(options.frontendJobs == expected, "\(note): flags=\(flags)")
+        }
     }
 
     // MARK: - Sequential vs parallel AST equivalence

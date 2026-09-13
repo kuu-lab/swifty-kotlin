@@ -126,12 +126,7 @@ extension CollectionLiteralConstructionLoweringPass {
             // KSP-423: List search and predicate HOFs have Kotlin source implementations.
             || callee == lookup.findName
             || callee == lookup.findLastName
-            || callee == lookup.indexOfName
-            || callee == lookup.lastIndexOfName
-            || callee == lookup.indexOfFirstName
-            || callee == lookup.indexOfLastName
             || callee == lookup.containsName
-            || callee == lookup.containsAllName
             || callee == lookup.countName
             || callee == lookup.anyName
             || callee == lookup.allName
@@ -185,7 +180,6 @@ extension CollectionLiteralConstructionLoweringPass {
         canThrow: Bool,
         thrownResult: KIRExprID?,
         function: KIRFunction,
-        builderLambdaKinds: [InternedString: InternedString],
         module: KIRModule,
         ctx: KIRContext,
         lookup: CollectionLiteralLookupTables,
@@ -205,8 +199,6 @@ extension CollectionLiteralConstructionLoweringPass {
             result: result,
             canThrow: canThrow,
             thrownResult: thrownResult,
-            function: function,
-            builderLambdaKinds: builderLambdaKinds,
             module: module,
             ctx: ctx,
             lookup: lookup,

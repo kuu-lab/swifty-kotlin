@@ -31,7 +31,6 @@ struct ServerFlowTests {
 
         let sent = LSPTestSupport.decodeMessages(from: output)
 
-        // initialize response carries server capabilities.
         let initializeResponse = sent.first { ($0["id"] as? Int) == 1 }
         #expect(initializeResponse != nil, "Expected an initialize response")
         if let result = initializeResponse?["result"] as? [String: Any],
@@ -45,7 +44,6 @@ struct ServerFlowTests {
             Issue.record("initialize result should contain capabilities")
         }
 
-        // A publishDiagnostics notification is emitted for the opened document.
         let publish = sent.first { ($0["method"] as? String) == "textDocument/publishDiagnostics" }
         #expect(publish != nil, "Expected a publishDiagnostics notification")
         if let params = publish?["params"] as? [String: Any] {
@@ -53,7 +51,6 @@ struct ServerFlowTests {
             #expect(params["diagnostics"] != nil)
         }
 
-        // shutdown response present.
         #expect(sent.contains { ($0["id"] as? Int) == 2 }, "Expected a shutdown response")
     }
 

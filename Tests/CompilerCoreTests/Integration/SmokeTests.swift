@@ -32,7 +32,7 @@ import Testing
             let result = makeTestDriver().runForTesting(options: options)
 
             #expect(result.exitCode == 1)
-            #expect(result.diagnostics.contains(where: { $0.severity == .error }))
+            #expect(result.diagnostics.hasError)
             #expect(result.diagnostics.contains(where: {
                 $0.code.hasPrefix("KSWIFTK-SEMA-") || $0.code.hasPrefix("KSWIFTK-TYPE-")
             }))

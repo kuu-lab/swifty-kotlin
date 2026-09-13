@@ -1,9 +1,11 @@
 /*
- * KSP-1254: Kotlin/Native reference API nominal declarations.
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Licensed under the Apache License, Version 2.0.
  *
- * The WeakReference constructor and members remain residual runtime-backed
- * bridges until KSP-1255/KSP-1256. This file owns only the top-level nominal
- * and factory surface required by Kotlin 2.3.10.
+ * Derived from kotlin-native <kotlin-native/runtime/src/main/kotlin/kotlin/native/ref/Cleaner.kt>.
+ *
+ * KSP-1254: the cleaner handle is runtime-owned, so the public factory keeps a
+ * private bridge instead of a synthetic member stub.
  */
 
 package kotlin.native.ref
@@ -11,14 +13,6 @@ package kotlin.native.ref
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.internal.KsSymbolName
 import kotlin.native.internal.ExportForCompiler
-
-@ExperimentalNativeApi
-public class WeakReference<T : Any> private constructor()
-
-@PublishedApi
-internal abstract class WeakReferenceImpl {
-    abstract fun get(): Any?
-}
 
 @ExperimentalNativeApi
 @SinceKotlin("1.9")
