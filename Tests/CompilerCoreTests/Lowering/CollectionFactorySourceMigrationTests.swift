@@ -16,6 +16,14 @@ import Testing
 /// `arrayListOf` / `mutableListOf` runtime-tag divergence below stayed hidden:
 /// `CallLowerer` emitted `__kk_list_of` while the fallback emitted
 /// `__kk_array_list_of`.
+///
+/// Coverage boundary: `runToKIR` is `runSema` + `BuildKIRPhase`, so it observes
+/// the callee `CallLowerer` chose and nothing the `LoweringPhase` passes do
+/// afterwards. That is the right stage for the factories -- `CallLowerer` claims
+/// them first, so its choice is what a real build emits -- but a branch that
+/// exists only in `CollectionLiteralLoweringPass` (the set/list constructors)
+/// needs `runToLowering`, or the call still carries its original callee and the
+/// assertion measures the stage boundary instead of the rewrite.
 @Suite
 struct CollectionFactorySourceMigrationTests {
     /// Every name the deleted bootstrap stub used to register, paired with the
@@ -347,6 +355,61 @@ struct CollectionFactorySourceMigrationTests {
             #expect(
                 !callees.contains("__kk_linked_hash_set_of"),
                 "hashSetOf must not take the LinkedHashSet tag; callees: \(callees)"
+            )
+        }
+    }
+
+    /// BUG-254 also covered the LinkedHashSet constructors. Unlike the factories
+    /// above, they have a single rewriter: `CallLowerer` has no constructor case,
+    /// so the branch lives only in `CollectionLiteralLoweringPass`. That pass runs
+    /// in `LoweringPhase`, which `runToKIR` stops short of -- hence `runToLowering`
+    /// here. With `runToKIR` these calls still carry their `LinkedHashSet`
+    /// constructor callee and the assertions below would describe the stage
+    /// boundary rather than the rewrite.
+    @Test
+    func linkedHashSetConstructorsUseTheLinkedHashSetTaggedBridge() throws {
+        let source = """
+        fun main() {
+            val empty = LinkedHashSet<Int>()
+            val sized = LinkedHashSet<Int>(8)
+            val copied = LinkedHashSet(listOf(1, 2))
+            val hashEmpty = HashSet<Int>()
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryLinkedHashSetConstructorTag",
+                emit: .kirDump
+            )
+            try runToLowering(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.filter { $0 == "__kk_linked_hash_set_of" }.count == 2,
+                """
+                the 0-arg and capacity LinkedHashSet constructors must use \
+                __kk_linked_hash_set_of; callees: \(callees)
+                """
+            )
+            #expect(
+                callees.contains("__kk_iterable_toMutableSet"),
+                """
+                the copy constructor must use __kk_iterable_toMutableSet, which is \
+                retagged to LinkedHashSet; callees: \(callees)
+                """
+            )
+            #expect(
+                callees.filter { $0 == "__kk_hash_set_of" }.count == 1,
+                "HashSet() must keep its own tag; callees: \(callees)"
+            )
+            #expect(
+                !callees.contains("__kk_set_of"),
+                "no set constructor may fall back to the read-only Set tag; callees: \(callees)"
             )
         }
     }
