@@ -42,12 +42,17 @@ struct PathGenericFunctionStubRemovalTests {
     }
     private static let fixture = SemaFixture(surface: "Path generic function stubs")
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        try Self.fixture.shared()
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
     }
 
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        try Self.fixture.make(source: source)
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testRemovedPathGenericFunctionStubsAreNotRegistered() throws {

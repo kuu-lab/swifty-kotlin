@@ -11,12 +11,17 @@ import Testing
 struct FileSystemExceptionStdlibTests {
     private static let fixture = SemaFixture(surface: "FileSystemException", diagnostics: .unchecked)
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        try Self.fixture.shared()
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
     }
 
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        try Self.fixture.make(source: source)
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     private func classSymbol(
