@@ -9,7 +9,6 @@ struct CommonLookupNames {
     let sizeName: InternedString
     let getName: InternedString
     let containsName: InternedString
-    let containsAllName: InternedString
     let containsKeyName: InternedString
     let containsValueName: InternedString
     let isEmptyName: InternedString
@@ -58,7 +57,6 @@ struct CommonLookupNames {
     let runningReduceName: InternedString
     let scanReduceName: InternedString
     let groupByName: InternedString
-    let sortedByName: InternedString
     let findName: InternedString
     let findLastName: InternedString
     let associateByName: InternedString
@@ -100,23 +98,8 @@ struct CommonLookupNames {
     let maxName: InternedString
     let maxOrNullName: InternedString
     let minOrNullName: InternedString
-    let maxByName: InternedString
-    let minName: InternedString
     let maxByOrNullName: InternedString
     let minByOrNullName: InternedString
-    let minByName: InternedString
-    let maxOfOrNullName: InternedString
-    let minOfOrNullName: InternedString
-    let maxOfName: InternedString
-    let minOfName: InternedString
-    let maxWithName: InternedString
-    let maxWithOrNullName: InternedString
-    let minWithName: InternedString
-    let minWithOrNullName: InternedString
-    let maxOfWithName: InternedString
-    let maxOfWithOrNullName: InternedString
-    let minOfWithName: InternedString
-    let minOfWithOrNullName: InternedString
     let dropName: InternedString
     let reversedName: InternedString
     let asReversedName: InternedString
@@ -126,15 +109,8 @@ struct CommonLookupNames {
     let distinctByName: InternedString
     let shuffledName: InternedString
     let flattenName: InternedString
-    let indexOfName: InternedString
-    let lastIndexOfName: InternedString
-    let indexOfFirstName: InternedString
-    let indexOfLastName: InternedString
     let chunkedName: InternedString
     let windowedName: InternedString
-    let sortedDescendingName: InternedString
-    let sortedByDescendingName: InternedString
-    let sortedWithName: InternedString
     let partitionName: InternedString
     let takeWhileName: InternedString
     let dropWhileName: InternedString
@@ -177,7 +153,6 @@ struct CommonLookupNames {
         sizeName = interner.intern("size")
         getName = interner.intern("get")
         containsName = interner.intern("contains")
-        containsAllName = interner.intern("containsAll")
         containsKeyName = interner.intern("containsKey")
         containsValueName = interner.intern("containsValue")
         isEmptyName = interner.intern("isEmpty")
@@ -224,7 +199,6 @@ struct CommonLookupNames {
         runningReduceName = interner.intern("runningReduce")
         scanReduceName = interner.intern("scanReduce")
         groupByName = interner.intern("groupBy")
-        sortedByName = interner.intern("sortedBy")
         findName = interner.intern("find")
         findLastName = interner.intern("findLast")
         associateByName = interner.intern("associateBy")
@@ -266,23 +240,8 @@ struct CommonLookupNames {
         maxName = interner.intern("max")
         maxOrNullName = interner.intern("maxOrNull")
         minOrNullName = interner.intern("minOrNull")
-        maxByName = interner.intern("maxBy")
-        minName = interner.intern("min")
         maxByOrNullName = interner.intern("maxByOrNull")
         minByOrNullName = interner.intern("minByOrNull")
-        minByName = interner.intern("minBy")
-        maxOfOrNullName = interner.intern("maxOfOrNull")
-        minOfOrNullName = interner.intern("minOfOrNull")
-        maxOfName = interner.intern("maxOf")
-        minOfName = interner.intern("minOf")
-        maxWithName = interner.intern("maxWith")
-        maxWithOrNullName = interner.intern("maxWithOrNull")
-        minWithName = interner.intern("minWith")
-        minWithOrNullName = interner.intern("minWithOrNull")
-        maxOfWithName = interner.intern("maxOfWith")
-        maxOfWithOrNullName = interner.intern("maxOfWithOrNull")
-        minOfWithName = interner.intern("minOfWith")
-        minOfWithOrNullName = interner.intern("minOfWithOrNull")
         dropName = interner.intern("drop")
         reversedName = interner.intern("reversed")
         asReversedName = interner.intern("asReversed")
@@ -292,15 +251,8 @@ struct CommonLookupNames {
         distinctByName = interner.intern("distinctBy")
         shuffledName = interner.intern("shuffled")
         flattenName = interner.intern("flatten")
-        indexOfName = interner.intern("indexOf")
-        lastIndexOfName = interner.intern("lastIndexOf")
-        indexOfFirstName = interner.intern("indexOfFirst")
-        indexOfLastName = interner.intern("indexOfLast")
         chunkedName = interner.intern("chunked")
         windowedName = interner.intern("windowed")
-        sortedDescendingName = interner.intern("sortedDescending")
-        sortedByDescendingName = interner.intern("sortedByDescending")
-        sortedWithName = interner.intern("sortedWith")
         partitionName = interner.intern("partition")
         takeWhileName = interner.intern("takeWhile")
         dropWhileName = interner.intern("dropWhile")

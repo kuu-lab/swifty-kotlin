@@ -7,11 +7,17 @@ import Testing
 @Suite
 struct CodegenBackendFileUseEdgeCasesTests {
 
+    // CLEANUP-STUB-107 removed java.io.File's exists/createNewFile/delete
+    // synthetic members. This test originally exercised those alongside the
+    // File-independent `use {}` scope-function coverage below; the File
+    // section (and its 5 trailing expected lines: false/true/true/true/false)
+    // was trimmed since exists()/createNewFile()/delete() no longer exist,
+    // leaving the still-valid Closeable/`use {}` edge cases (custom Closeable,
+    // exception propagation out of `use {}`, nullable receiver) intact.
     @Test
     func testCodegenCompilesFileUseEdgeCases() throws {
         let source = """
         import java.io.Closeable
-        import java.io.File
 
         class TraceResource(private val name: String) : Closeable {
             override fun close() {
@@ -37,14 +43,6 @@ struct CodegenBackendFileUseEdgeCasesTests {
 
             val nullable: TraceResource? = null
             println(nullable?.use { "nope" })
-
-            val file = File("/tmp/kswiftk_file_use_edge_cases.txt")
-            file.delete()
-            println(file.exists())
-            println(file.createNewFile())
-            println(file.exists())
-            println(file.delete())
-            println(file.exists())
         }
         """
 
@@ -60,11 +58,6 @@ struct CodegenBackendFileUseEdgeCasesTests {
                 close:fail
                 caught
                 null
-                false
-                true
-                true
-                true
-                false
                 """
                 + "\n"
         )

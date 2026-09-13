@@ -6,8 +6,6 @@ import Testing
 struct KIRLoweringContextTests {
     let ctx = KIRLoweringContext()
 
-    // MARK: - Scope Management: saveScope / restoreScope
-
     @Test func testSaveScopeReturnsSnapshotOfCurrentState() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 1)] = KIRExprID(rawValue: 10)
         ctx.currentImplicitReceiverExprID = KIRExprID(rawValue: 5)
@@ -57,8 +55,6 @@ struct KIRLoweringContextTests {
         #expect(ctx.nextLoopLabel == 15000)
     }
 
-    // MARK: - Scope Management: withNewScope
-
     @Test func testWithNewScopeResetsAndRestoresAfterBlock() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 5)] = KIRExprID(rawValue: 5)
         ctx.nextLoopLabel = 20000
@@ -99,8 +95,6 @@ struct KIRLoweringContextTests {
         }
     }
 
-    // MARK: - Scope Management: resetScopeForFunction
-
     @Test func testResetScopeForFunctionClearsAllScopeProperties() {
         ctx.localValuesBySymbol[SymbolID(rawValue: 1)] = KIRExprID(rawValue: 1)
         ctx.currentImplicitReceiverExprID = KIRExprID(rawValue: 3)
@@ -116,8 +110,6 @@ struct KIRLoweringContextTests {
         #expect(ctx.loopControlStack.isEmpty)
         #expect(ctx.nextLoopLabel == 10000)
     }
-
-    // MARK: - Label Allocation
 
     @Test func testMakeLoopLabelStartsAt10000() {
         #expect(ctx.makeLoopLabel() == 10000)
@@ -153,8 +145,6 @@ struct KIRLoweringContextTests {
         #expect(labelInsideScope == 10000, "Labels inside withNewScope should start at 10000")
         #expect(ctx.nextLoopLabel == 10002, "Labels should be restored after withNewScope")
     }
-
-    // MARK: - Callable Lowering Scope
 
     @Test func testBeginCallableLoweringScopeClearsPendingDecls() {
         ctx.pendingGeneratedCallableDeclIDs = [KIRDeclID(rawValue: 1), KIRDeclID(rawValue: 2)]
@@ -201,8 +191,6 @@ struct KIRLoweringContextTests {
 
         #expect(ctx.callableValueInfoByExprID[exprID]?.callee == callee2)
     }
-
-    // MARK: - Synthetic Symbol Management
 
     @Test func testSyntheticLambdaSymbolReturnsSameIDForSameExprID() {
         let semaModule = makeSemaModule().ctx
@@ -256,8 +244,6 @@ struct KIRLoweringContextTests {
         ctx.initializeSyntheticLambdaSymbolAllocator(sema: semaModule)
         #expect(ctx.nextSyntheticLambdaSymbolRawValue <= -60_000_000)
     }
-
-    // MARK: - Module State Reset
 
     @Test func testResetModuleStateClearsAllModuleLevelCollections() {
         let interner = StringInterner()

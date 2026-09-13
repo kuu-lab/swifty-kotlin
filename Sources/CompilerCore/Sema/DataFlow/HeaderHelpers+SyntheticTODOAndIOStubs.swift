@@ -10,8 +10,6 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         bundledIndex: BundledDeclarationIndex = .empty
     ) {
-        let kotlinIOPkg = ensureSyntheticPackageHierarchy(fqName: [interner.intern("kotlin"), interner.intern("io")], symbols: symbols)
-
         // KSP-614: print / println are implemented in Stdlib/kotlin/io/Console.kt.
         // KSP-615: readLine / readln / readlnOrNull are implemented in Stdlib/kotlin/io/Console.kt.
 
@@ -210,12 +208,11 @@ extension DataFlowSemaPhase {
         // (Stdlib/kotlin/Synchronized.kt) over the demoted __kk_synchronized
         // bridge, so no synthetic stub is registered here.
 
-        registerSyntheticFileIOBootstrap(
-            kotlinIOPkg: kotlinIOPkg,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // CLEANUP-STUB-107 removed the java.io.File bootstrap that used to run
+        // here. The bare File shell, its constructors, and
+        // createTempDir/createTempFile (real, force-deprecated stdlib
+        // functions — not File's own facade) are now registered idempotently
+        // by `registerSyntheticJavaIOStreamStubs` instead.
         // measureTime / measureTimedValue live in bundled Kotlin source
         // (Stdlib/kotlin/time/MeasureTime.kt).
 

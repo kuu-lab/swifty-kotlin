@@ -1361,6 +1361,12 @@ extension ExprTypeChecker {
                         if unboundClassType != nil {
                             sema.bindings.markUnboundCallableRef(id)
                         }
+                        markPropertyReferenceSamConversionIfNeeded(
+                            id,
+                            expectedType: expectedType,
+                            resultType: resultType,
+                            sema: sema
+                        )
                         sema.bindings.bindExprType(id, type: resultType)
                         return resultType
                     }
@@ -1442,6 +1448,12 @@ extension ExprTypeChecker {
                 }
                 sema.bindings.bindIdentifier(id, symbol: propertySymbol)
                 sema.bindings.bindCallableRefKind(id, kind: .propertyRef)
+                markPropertyReferenceSamConversionIfNeeded(
+                    id,
+                    expectedType: expectedType,
+                    resultType: resultType,
+                    sema: sema
+                )
                 sema.bindings.bindExprType(id, type: resultType)
                 return resultType
             }
@@ -1631,6 +1643,35 @@ extension ExprTypeChecker {
             args: typeArgs,
             nullability: .nonNull
         )))
+    }
+
+    /// KSP-496: a *property* callable reference used in a fun-interface
+    /// position (`fun interface IntFromC { fun apply(c: C): Int }` +
+    /// `useSam(C::v)`) needs the same SAM-conversion bookkeeping BUG-164 added
+    /// for function references. `resolvedPropertyReferenceResultType` already
+    /// adopts the interface as the reference's type, but `lowerCallableRefExpr`
+    /// only builds the wrapper object that makes interface dispatch work when
+    /// `isSamConversion` is set — without it the raw tagged callable value was
+    /// handed to the interface parameter and the call panicked at runtime
+    /// ("Virtual dispatch failed: method not found in vtable/itable").
+    private func markPropertyReferenceSamConversionIfNeeded(
+        _ id: ExprID,
+        expectedType: TypeID?,
+        resultType: TypeID,
+        sema: SemaModule
+    ) {
+        guard let expectedType,
+              resultType == expectedType,
+              let samFunctionType = driver.helpers.samFunctionType(for: expectedType, sema: sema)
+        else {
+            return
+        }
+        sema.bindings.markSamConversion(id)
+        sema.bindings.bindSamInterfaceType(id, type: expectedType)
+        sema.bindings.bindSamUnderlyingFunctionType(
+            id,
+            type: sema.types.make(.functionType(samFunctionType))
+        )
     }
 
     /// Decides the expression type for a property callable reference.

@@ -1,38 +1,5 @@
 
 extension CollectionLiteralLoweringSupport {
-    func collectBuilderLambdaKinds(
-        module: KIRModule,
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> [InternedString: InternedString] {
-        var symbolToFuncName: [SymbolID: InternedString] = [:]
-        for decl in module.arena.declarations {
-            if case let .function(funcDecl) = decl {
-                symbolToFuncName[funcDecl.symbol] = funcDecl.name
-            }
-        }
-
-        var builderLambdaKinds: [InternedString: InternedString] = [:]
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-
-            let (exprSymbolMap, entries) = scanBuilderLambdaEntries(
-                body: function.body, lookup: lookup, ctx: ctx
-            )
-
-            for entry in entries {
-                if let symbol = exprSymbolMap[entry.argID] {
-                    let lambdaName = ctx.interner.intern("kk_lambda_\(entry.argID)")
-                    builderLambdaKinds[lambdaName] = entry.callee
-                    if let funcName = symbolToFuncName[symbol] {
-                        builderLambdaKinds[funcName] = entry.callee
-                    }
-                }
-            }
-        }
-        return builderLambdaKinds
-    }
-
     func isStdlibBuilderDSLCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -59,29 +26,6 @@ extension CollectionLiteralLoweringSupport {
         // Source-backed builders resolve to CollectionBuilders.kt
         // (KSP-622, KSP-623), so the legacy rewrite never applies.
         return false
-    }
-
-    private func scanBuilderLambdaEntries(
-        body: [KIRInstruction],
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> (exprSymbolMap: [Int32: SymbolID], entries: [(argID: Int32, callee: InternedString)]) {
-        var exprSymbolMap: [Int32: SymbolID] = [:]
-        var entries: [(argID: Int32, callee: InternedString)] = []
-        for instruction in body {
-            switch instruction {
-            case let .constValue(result, .symbolRef(symbol)):
-                exprSymbolMap[result.rawValue] = symbol
-            case let .call(symbol, callee, arguments, _, _, _, _, _):
-                if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx),
-                   !arguments.isEmpty {
-                    entries.append((argID: arguments[arguments.count - 1].rawValue, callee: callee))
-                }
-            default:
-                break
-            }
-        }
-        return (exprSymbolMap, entries)
     }
 
     func collectInitialCollectionExprIDs(
@@ -234,19 +178,6 @@ extension CollectionLiteralLoweringSupport {
                 state.arrayExprIDs.insert(result.rawValue)
             }
         }
-        // STDLIB-565: Classify File constructor calls.
-        // KNOWN LIMITATION: Only direct File("...") / __kk_file_new constructor
-        // calls are seeded here.  File receivers originating from function
-        // parameters, return values, or field loads are not tracked, so their
-        // member calls will fall through to the default virtualCall path.  A
-        // future improvement could use the receiver's static type for dispatch
-        // instead of *ExprIDs membership (same pattern as the sequence rewrite
-        // limitation noted above).
-        if let result,
-           callee == lookup.fileConstructorName || callee == lookup.kkFileNewName
-        {
-            state.fileExprIDs.insert(result.rawValue)
-        }
     }
 
     private func classifyFactoryCall(
@@ -265,6 +196,7 @@ extension CollectionLiteralLoweringSupport {
             state.listExprIDs.insert(result.rawValue)
         } else if lookup.setFactoryNames.contains(callee) || lookup.mutableSetConstructorNames.contains(callee)
                     || callee == lookup.kkSetOfName
+                    || callee == lookup.kkLinkedHashSetOfName
                     || callee == lookup.kkSetOfNotNullName {
             state.setExprIDs.insert(result.rawValue)
         } else if lookup.mapFactoryNames.contains(callee) || lookup.mutableMapConstructorNames.contains(callee)

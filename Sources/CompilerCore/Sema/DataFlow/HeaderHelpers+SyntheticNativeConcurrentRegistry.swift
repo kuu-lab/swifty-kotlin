@@ -178,10 +178,9 @@ extension DataFlowSemaPhase {
         interner: StringInterner
     ) {
         // AtomicLong is intentionally excluded: it is already source-backed
-        // by KSP-1222 (Stdlib/kotlin/native/concurrent/AtomicLong/Stdlib.kt).
+        // by KSP-1222 (Stdlib/kotlin/native/concurrent/Atomics.kt).
         // AtomicNativePtr is intentionally excluded: it is already
-        // source-backed by KSP-1224 (Stdlib/kotlin/native/concurrent/
-        // AtomicNativePtr/Stdlib.kt).
+        // source-backed by KSP-1224 (same file).
         registerNativeConcurrentNominalAnchor(
             named: "AtomicInt",
             packageFQName: packageFQName,
@@ -199,9 +198,8 @@ extension DataFlowSemaPhase {
 
         // FreezableAtomicReference is intentionally excluded: it is already
         // source-backed by KSP-1236 (Stdlib/kotlin/native/concurrent/
-        // FreezableAtomicReference/Stdlib.kt). AtomicReference is
-        // intentionally excluded: it is already source-backed by KSP-1226
-        // (Stdlib/kotlin/native/concurrent/AtomicReference/Stdlib.kt).
+        // Atomics.kt). AtomicReference is intentionally excluded: it is
+        // already source-backed by KSP-1226 (same file).
 
         registerNativeConcurrentNominalAnchor(
             named: "DetachedObjectGraph",
@@ -227,10 +225,10 @@ extension DataFlowSemaPhase {
         )
 
         // MutableData is intentionally excluded: it is already source-backed
-        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData/Stdlib.kt).
+        // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData.kt).
         // WorkerBoundReference is intentionally excluded: its constructor is
         // already source-backed by KSP-1252 (Stdlib/kotlin/native/concurrent/
-        // WorkerBoundReference/Stdlib.kt); its value/worker properties remain
+        // WorkerBoundReference.kt); its value/worker properties remain
         // a separate KSP-1253 task.
 
         // NativePtr is the opaque representation used by two internal KSP-1216

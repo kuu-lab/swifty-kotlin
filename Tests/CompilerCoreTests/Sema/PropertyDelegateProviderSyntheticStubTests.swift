@@ -4,24 +4,19 @@ import Testing
 
 @Suite
 struct PropertyDelegateProviderSourceTests {
-    private static nonisolated(unsafe) var _sharedSema: (SemaModule, StringInterner)?
+    private static let fixture = SemaFixture(surface: "PropertyDelegateProvider")
 
-    private func sharedSema() throws -> (SemaModule, StringInterner) {
-        if let cached = Self._sharedSema { return cached }
-        let pair = try makeSema()
-        Self._sharedSema = pair
-        return pair
+    private func sharedSema(
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.shared(sourceLocation: sourceLocation)
     }
 
-    private func makeSema(source: String = "fun noop() {}") throws -> (SemaModule, StringInterner) {
-        var result: (SemaModule, StringInterner)?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path])
-            try runSema(ctx)
-            #expect(!ctx.diagnostics.hasError, "Unexpected diagnostics: \(ctx.diagnostics.diagnostics)")
-            result = try (#require(ctx.sema), ctx.interner)
-        }
-        return try #require(result)
+    private func makeSema(
+        source: String = "fun noop() {}",
+        sourceLocation: Testing.SourceLocation = #_sourceLocation
+    ) throws -> (SemaModule, StringInterner) {
+        try Self.fixture.make(source: source, sourceLocation: sourceLocation)
     }
 
     @Test func testPropertyDelegateProviderSurfaceIsRegistered() throws {
