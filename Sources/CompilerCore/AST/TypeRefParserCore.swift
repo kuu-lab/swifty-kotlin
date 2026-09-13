@@ -51,6 +51,22 @@ enum TypeRefParserCore {
         isTypeNameToken(kind, options: .declaration)
     }
 
+    /// True for a token that may name a declaration.
+    ///
+    /// This is deliberately wider than `isTypeLikeNameToken`: that predicate
+    /// answers for a *type* position, where `out` is the declaration-site
+    /// variance modifier and must stay reserved (`List<out T>`). A declaration
+    /// *name* position has no variance, so `out` is an ordinary identifier
+    /// there — `val out = 1` and `fun out() = 1` are valid Kotlin. `in` is not
+    /// added: it is a hard keyword, so naming something `in` needs backticks,
+    /// which arrive as `.backtickedIdentifier`.
+    static func isDeclarationNameToken(_ kind: TokenKind) -> Bool {
+        if case .softKeyword(.out) = kind {
+            return true
+        }
+        return isTypeLikeNameToken(kind)
+    }
+
     static func parseTypeRefPrefix(
         _ tokens: ArraySlice<Token>,
         interner: StringInterner,

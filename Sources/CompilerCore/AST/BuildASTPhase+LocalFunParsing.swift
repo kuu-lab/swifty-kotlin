@@ -34,7 +34,7 @@ extension BuildASTPhase {
         let funTokens = Array(statementTokens[startIndex...])
 
         guard let nameToken = funTokens.dropFirst().first(where: { token in
-            TypeRefParserCore.isTypeLikeNameToken(token.kind)
+            TypeRefParserCore.isDeclarationNameToken(token.kind)
         }),
             let name = internedIdentifier(from: nameToken, interner: interner)
         else {
