@@ -782,6 +782,80 @@ extension CallTypeChecker {
             return signature.returnType
         }
 
+        /// Select and bind one of the source-backed generic `<T> Iterable<T>.sumOf`
+        /// overloads by the already-known selector return type, substituting
+        /// each candidate's own `T` for `collectionElementType` first --
+        /// `signature.receiverType`/`parameterTypes` carry the *unsubstituted*
+        /// type parameter, so comparing them against a concrete element type
+        /// directly (as this used to do) always fails. Shared by
+        /// `bindBundledIterableSumOfSource` (first attempt, before the lambda
+        /// has been inferred) and the `List<T>.sumOf` fallback (BUG-256
+        /// sibling: `ListAggregateHOF.kt` only has Int/Long/Double concrete
+        /// overloads; the caller already inferred the lambda once against
+        /// that set, so inferring it again here would double-register the
+        /// same HOF lambda expr).
+        func bindIterableSumOfSourceForSelectorType(
+            collectionElementType: TypeID,
+            selectorReturnType: TypeID
+        ) -> TypeID? {
+            let sourceFQName = [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                calleeName,
+            ]
+            let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .function,
+                      sema.symbols.isSourceBackedSymbol(candidate),
+                      let signature = sema.symbols.functionSignature(for: candidate),
+                      signature.parameterTypes.count == 1,
+                      let signatureReceiver = signature.receiverType,
+                      receiverClassifier.isIterableLikeType(signatureReceiver),
+                      !signature.typeParameterSymbols.isEmpty
+                else {
+                    return false
+                }
+                let typeVarBySymbol = sema.types.makeTypeVarBySymbol(signature.typeParameterSymbols)
+                let substitution: [TypeVarID: TypeID] = [TypeVarID(rawValue: 0): collectionElementType]
+                let substitutedReceiver = sema.types.substituteTypeParameters(
+                    in: signatureReceiver,
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                guard extractIterableOrSequenceElementType(
+                    substitutedReceiver,
+                    sema: sema,
+                    interner: interner
+                ) == collectionElementType else {
+                    return false
+                }
+                let substitutedParam = sema.types.substituteTypeParameters(
+                    in: signature.parameterTypes[0],
+                    substitution: substitution,
+                    typeVarBySymbol: typeVarBySymbol
+                )
+                guard case let .functionType(selectorType) = sema.types.kind(of: substitutedParam),
+                      selectorType.params.count == 1,
+                      selectorType.params[0] == collectionElementType
+                else {
+                    return false
+                }
+                return selectorType.returnType == selectorReturnType
+            }
+            guard let chosen,
+                  let signature = sema.symbols.functionSignature(for: chosen)
+            else {
+                return nil
+            }
+            sema.bindings.bindCall(id, binding: CallBinding(
+                chosenCallee: chosen,
+                substitutedTypeArguments: [collectionElementType],
+                parameterMapping: [0: 0]
+            ))
+            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
+            return signature.returnType
+        }
+
         /// Bind one of the five source-backed `Iterable<T>.sumOf` overloads by
         /// the selector body's actual return type. This is the target-specific
         /// counterpart of the general collection HOF path; List and Sequence
@@ -809,47 +883,16 @@ extension CallTypeChecker {
             }
             _ = driver.inferExpr(args[0].expr, ctx: ctx, locals: &locals, expectedType: lambdaExpectedType)
             let selectorReturnType = inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
-            let sourceFQName = [
-                interner.intern("kotlin"),
-                interner.intern("collections"),
-                calleeName,
-            ]
-            let chosen = sema.symbols.lookupAll(fqName: sourceFQName).first { candidate in
-                guard let symbol = sema.symbols.symbol(candidate),
-                      symbol.kind == .function,
-                      sema.symbols.isSourceBackedSymbol(candidate),
-                      let signature = sema.symbols.functionSignature(for: candidate),
-                      signature.parameterTypes.count == 1,
-                      let signatureReceiver = signature.receiverType,
-                      receiverClassifier.isIterableLikeType(signatureReceiver),
-                      extractIterableOrSequenceElementType(
-                          signatureReceiver,
-                          sema: sema,
-                          interner: interner
-                      ) == collectionElementType,
-                      case let .functionType(selectorType) = sema.types.kind(of: signature.parameterTypes[0]),
-                      selectorType.params.count == 1,
-                      selectorType.params[0] == collectionElementType
-                else {
-                    return false
-                }
-                return selectorType.returnType == selectorReturnType
-            }
-            guard let chosen,
-                  let signature = sema.symbols.functionSignature(for: chosen)
-            else {
+            guard let returnType = bindIterableSumOfSourceForSelectorType(
+                collectionElementType: collectionElementType,
+                selectorReturnType: selectorReturnType
+            ) else {
                 return nil
             }
-            sema.bindings.bindCall(id, binding: CallBinding(
-                chosenCallee: chosen,
-                substitutedTypeArguments: [collectionElementType],
-                parameterMapping: [0: 0]
-            ))
-            sema.bindings.bindCallableTarget(id, target: .symbol(chosen))
             if let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef {
                 sema.bindings.unmarkCollectionHOFLambdaExpr(args[0].expr)
             }
-            return signature.returnType
+            return returnType
         }
 
         @discardableResult
@@ -4599,14 +4642,23 @@ extension CallTypeChecker {
                 let selectorType = isListSumOf
                     ? inferredLambdaReturnType(argExpr: args[0].expr, ast: ast, sema: sema)
                     : sema.types.intType
+                // BUG-256 sibling: List<T>.sumOf only has Int/Long/Double
+                // concrete overloads (ListAggregateHOF.kt); UInt/ULong
+                // selectors have no concrete List overload and must fall
+                // back to the generic Iterable<T>.sumOf family below
+                // instead of being silently arity-matched onto the wrong
+                // (Int) overload.
                 let supportedListSumOfType = selectorType == sema.types.intType
                     || selectorType == sema.types.longType
                     || selectorType == sema.types.doubleType
-                resultType = isListSumOf && supportedListSumOfType
+                let selectorHasIterableSumOfOverload = supportedListSumOfType
+                    || selectorType == sema.types.uintType
+                    || selectorType == sema.types.ulongType
+                resultType = isListSumOf && selectorHasIterableSumOfOverload
                     ? selectorType
                     : sema.types.intType
                 if isListSumOf,
-                   supportedListSumOfType,
+                   selectorHasIterableSumOfOverload,
                    case .lambdaLiteral = ast.arena.expr(args[0].expr)
                 {
                     // The temporary Any return type above supplies the lambda's
@@ -4626,10 +4678,10 @@ extension CallTypeChecker {
                 if isSequenceReceiver {
                     sourceBackedSequenceAggregateTypeArguments = [collectionElementType]
                 } else {
-                    let didBindSource = calleeStr == "sumOf"
+                    var didBindSource = calleeStr == "sumOf"
                         ? bindBundledListSourceFunction(
                             typeArguments: [collectionElementType],
-                            matchingParameterType: isListSumOf && supportedListSumOfType
+                            matchingParameterType: isListSumOf && selectorHasIterableSumOfOverload
                                 ? sema.types.make(.functionType(FunctionType(
                                     params: [collectionElementType],
                                     returnType: selectorType
@@ -4637,6 +4689,31 @@ extension CallTypeChecker {
                                 : nil
                         )
                         : bindBundledIterableSourceFunction(typeArguments: [collectionElementType])
+                    // BUG-256 sibling: a concrete List<T> receiver whose
+                    // selector return type has no List<T>.sumOf overload
+                    // (UInt/ULong) never matches above. Fall back to the
+                    // generic Iterable<T>.sumOf family instead of leaving
+                    // the call unbound. The lambda was already inferred
+                    // above against this same selectorType, so bind
+                    // directly by that known type rather than calling
+                    // bindBundledIterableSumOfSource() (which would
+                    // re-infer the same lambda expr).
+                    if !didBindSource,
+                       calleeStr == "sumOf",
+                       isListSumOf,
+                       !supportedListSumOfType,
+                       selectorHasIterableSumOfOverload,
+                       bindIterableSumOfSourceForSelectorType(
+                           collectionElementType: collectionElementType,
+                           selectorReturnType: selectorType
+                       ) != nil
+                    {
+                        // resultType is already `selectorType` from the
+                        // isListSumOf/selectorHasIterableSumOfOverload branch
+                        // above -- the matched Iterable<T>.sumOf overload's
+                        // return type is that same selectorType by construction.
+                        didBindSource = true
+                    }
                     if didBindSource,
                        let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                     {
