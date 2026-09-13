@@ -85,7 +85,7 @@ final class ObjectLiteralLowerer {
             // accessor for each property that overrides an interface property.
             // appendObjectItableMethodRegistrations registers these getters into
             // the interface itable so an interface-typed receiver can read them.
-            lowerObjectLiteralPropertyGetters(
+            lowerObjectLiteralPropertyAccessors(
                 objectDecl,
                 objectSymbol: objectSymbol,
                 ast: ast,
@@ -603,11 +603,15 @@ final class ObjectLiteralLowerer {
         }
     }
 
-    /// BUG-141: emit getter accessor functions for object-literal member
-    /// properties that override an interface property, so they can be dispatched
-    /// through the interface itable. Stored properties get a field-reading
-    /// getter; custom-getter properties reuse their explicit getter body.
-    private func lowerObjectLiteralPropertyGetters(
+    /// BUG-141: emit accessor functions for object-literal member properties
+    /// that override an interface property, so they can be dispatched through
+    /// the interface itable. Stored properties get a field-reading getter;
+    /// custom-getter properties reuse their explicit getter body.
+    ///
+    /// KSP-CAP-018: also emits the `set` accessor for a property that declares
+    /// one. The assignment path already lowered `obj.prop = v` to `call set`,
+    /// so a custom setter used to fail at link time with an undefined `_set`.
+    private func lowerObjectLiteralPropertyAccessors(
         _ objectDecl: ObjectDecl,
         objectSymbol: SymbolID,
         ast: ASTModule,
@@ -656,6 +660,21 @@ final class ObjectLiteralLowerer {
                     sema: sema,
                     arena: arena,
                     interner: interner,
+                    allDecls: &allDecls
+                )
+            }
+            if let setter = propertyDecl.setter, setter.body != .unit {
+                driver.memberLowerer.lowerAccessorBody(
+                    accessorBody: setter.body,
+                    propertySymbol: propertySymbol,
+                    propertyType: propertyType,
+                    accessorKind: .setter,
+                    setterParamName: setter.parameterName,
+                    ast: ast,
+                    sema: sema,
+                    arena: arena,
+                    interner: interner,
+                    propertyConstantInitializers: propertyConstantInitializers,
                     allDecls: &allDecls
                 )
             }
