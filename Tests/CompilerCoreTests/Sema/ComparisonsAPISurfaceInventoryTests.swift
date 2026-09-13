@@ -49,16 +49,6 @@ struct ComparisonsAPISurfaceInventoryTests {
 
     // MARK: - Lookup helpers
 
-    private func externalLink(
-        fqPath: [String],
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> String? {
-        let interned = fqPath.map { interner.intern($0) }
-        guard let sym = sema.symbols.lookup(fqName: interned) else { return nil }
-        return sema.symbols.externalLinkName(for: sym)
-    }
-
     private func allExternalLinks(
         fqPath: [String],
         sema: SemaModule,

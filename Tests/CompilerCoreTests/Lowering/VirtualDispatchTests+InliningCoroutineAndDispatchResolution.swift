@@ -80,23 +80,8 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(inlineFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineVirtual",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "InlineVirtual", sema: sema)
 
         let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
         // After inlining, the caller should contain a virtualCall (expanded from the inline function)
@@ -176,23 +161,8 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(targetFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "RegularCall",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "RegularCall", sema: sema)
 
         let lowered = try findKIRFunction(named: "main", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
@@ -286,23 +256,8 @@ extension VirtualDispatchTests {
         _ = arena.appendDecl(.function(unrelatedIteratorFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "ByNameFallbackRegression",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ByNameFallbackRegression", sema: sema)
 
         let lowered = try findKIRFunction(named: "caller", in: module, interner: interner)
         let callees = extractCallees(from: lowered.body, interner: interner)
@@ -473,23 +428,8 @@ extension VirtualDispatchTests {
         let outerID = arena.appendDecl(.function(outerSuspendFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID, outerID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "VirtualSuspend",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        ctx.sema = sema
-
-        try LoweringPhase().run(ctx)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "VirtualSuspend", sema: sema)
 
         // After coroutine lowering, the suspend function should be rewritten.
         // Look for the lowered suspend function (kk_suspend_outerSuspend)

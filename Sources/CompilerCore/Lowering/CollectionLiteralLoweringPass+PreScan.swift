@@ -56,33 +56,8 @@ extension CollectionLiteralLoweringSupport {
         if sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true {
             return true
         }
-        return isSourceBackedStdlibBuilderDSLCall(
-            semanticSymbol: semanticSymbol,
-            callee: callee,
-            lookup: lookup,
-            ctx: ctx
-        )
-    }
-
-    private func isSourceBackedStdlibBuilderDSLCall(
-        semanticSymbol: SemanticSymbol,
-        callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> Bool {
-        let collectionsName = ctx.interner.intern("collections")
-        let fqName = semanticSymbol.fqName
-        guard fqName.count == 3,
-              fqName[0] == lookup.kotlinName,
-              fqName[2] == callee
-        else {
-            return false
-        }
-
-        if fqName[1] == collectionsName {
-            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
-            return false
-        }
+        // Source-backed builders resolve to CollectionBuilders.kt
+        // (KSP-622, KSP-623), so the legacy rewrite never applies.
         return false
     }
 
