@@ -12,7 +12,7 @@ struct LexerParserEdgeCaseTests {
         // line comment
         /* outer /* nested */ done */
         class `hello world` value by get set field receiver param setparam delegate file where init constructor out when
-        && || == != <= >= += -= *= /= %= ++ -- ..< ?? ?. ?: ? !! :: => -> .. + - * / % ! = < > . , ; : ( ) [ ] { } @ #
+        && || == != === !== <= >= += -= *= /= %= ++ -- ..< ?? ?. ?: ? !! :: => -> .. + - * / % ! = < > . , ; : ( ) [ ] { } @ # &
         """
 
         let result = lex(source)
@@ -23,26 +23,14 @@ struct LexerParserEdgeCaseTests {
             return nil
         })
 
-        let expected: Set<Symbol> = [
-            .ampAmp, .barBar, .equalEqual, .bangEqual, .lessOrEqual, .greaterOrEqual,
-            .plusAssign, .minusAssign, .starAssign, .slashAssign, .percentAssign,
-            .plusPlus, .minusMinus, .dotDotLt, .questionQuestion, .questionDot, .questionColon,
-            .question, .bangBang, .doubleColon, .fatArrow, .arrow, .dotDot,
-            .plus, .minus, .star, .slash, .percent, .bang, .assign,
-            .lessThan, .greaterThan, .dot, .comma, .semicolon, .colon,
-            .lParen, .rParen, .lBracket, .rBracket, .lBrace, .rBrace, .at, .hash,
-        ]
-        #expect(symbols == expected)
+        #expect(symbols == Set(Symbol.allCases))
 
         #expect(result.tokens.contains { token in
             if case .backtickedIdentifier = token.kind { return true }
             return false
         })
 
-        #expect(result.tokens.contains { token in
-            if case .softKeyword(.where) = token.kind { return true }
-            return false
-        })
+        #expect(result.tokens.contains { $0.kind == .softKeyword(.where) })
 
         #expect(!(result.diagnostics.hasError))
         #expect(result.tokens.first?.leadingTrivia.contains { piece in
@@ -75,10 +63,8 @@ struct LexerParserEdgeCaseTests {
             return false
         })
 
-        let codes = Set(result.diagnostics.diagnostics.map(\.code))
-        #expect(codes.contains("KSWIFTK-LEX-0002"))
-        #expect(codes.contains("KSWIFTK-LEX-0003"))
-        #expect(!(codes.isEmpty))
+        assertHasDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
+        assertHasDiagnostic("KSWIFTK-LEX-0003", in: result.diagnostics.diagnostics)
     }
 
     @Test
@@ -91,35 +77,17 @@ struct LexerParserEdgeCaseTests {
 
         let result = lex(source)
 
-        #expect(result.tokens.contains { token in
-            if case .intLiteral("0x1F") = token.kind { return true }
-            return false
-        })
-        #expect(result.tokens.contains { token in
-            if case .intLiteral("0b101") = token.kind { return true }
-            return false
-        })
-        #expect(result.tokens.contains { token in
-            if case .longLiteral("10L") = token.kind { return true }
-            return false
-        })
-        #expect(result.tokens.contains { token in
-            if case .floatLiteral("11f") = token.kind { return true }
-            return false
-        })
-        #expect(result.tokens.contains { token in
-            if case .doubleLiteral("12D") = token.kind { return true }
-            return false
-        })
-        #expect(result.tokens.contains { token in
-            if case .charLiteral(97) = token.kind { return true }
-            return false
-        })
+        let kinds = result.tokens.map(\.kind)
+        #expect(kinds.contains(.intLiteral("0x1F")))
+        #expect(kinds.contains(.intLiteral("0b101")))
+        #expect(kinds.contains(.longLiteral("10L")))
+        #expect(kinds.contains(.floatLiteral("11f")))
+        #expect(kinds.contains(.doubleLiteral("12D")))
+        #expect(kinds.contains(.charLiteral(97)))
 
-        let codeCounts = Dictionary(grouping: result.diagnostics.diagnostics, by: \.code).mapValues(\.count)
-        #expect((codeCounts["KSWIFTK-LEX-0002"] ?? 0) >= 1)
-        #expect((codeCounts["KSWIFTK-LEX-0003"] ?? 0) >= 1)
-        #expect((codeCounts["KSWIFTK-LEX-0006"] ?? 0) >= 1)
+        assertHasDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
+        assertHasDiagnostic("KSWIFTK-LEX-0003", in: result.diagnostics.diagnostics)
+        assertHasDiagnostic("KSWIFTK-LEX-0006", in: result.diagnostics.diagnostics)
     }
 
     @Test
@@ -152,11 +120,10 @@ struct LexerParserEdgeCaseTests {
         #expect(kinds.contains(.objectDecl))
         #expect(kinds.contains(.funDecl))
         #expect(kinds.contains(.statement))
-        #expect(kinds.contains(.typeArgs) || kinds.contains(.enumEntry))
+        #expect(kinds.contains(.typeArgs))
+        #expect(kinds.contains(.enumEntry))
 
-        let warningCodes = Set(parsed.diagnostics.diagnostics.map(\.code))
-        #expect(warningCodes.contains("KSWIFTK-PARSE-0002"))
-        #expect(!(warningCodes.isEmpty))
+        assertHasDiagnostic("KSWIFTK-PARSE-0002", in: parsed.diagnostics.diagnostics)
 
         let parserForTypeArgs = KotlinParser(tokens: parsed.tokens, interner: parsed.interner, diagnostics: DiagnosticEngine())
         #expect(!parserForTypeArgs.canStartTypeArgumentsInternal(hasAnchorToken: false))
@@ -180,9 +147,8 @@ struct LexerParserEdgeCaseTests {
         #expect(templateStarts.count >= 6)
         #expect(templateEnds.count >= 4)
 
-        let codes = Set(result.diagnostics.diagnostics.map(\.code))
-        #expect(codes.contains("KSWIFTK-LEX-0001"))
-        #expect(codes.contains("KSWIFTK-LEX-0002"))
+        assertHasDiagnostic("KSWIFTK-LEX-0001", in: result.diagnostics.diagnostics)
+        assertHasDiagnostic("KSWIFTK-LEX-0002", in: result.diagnostics.diagnostics)
     }
 
     @Test
@@ -190,78 +156,34 @@ struct LexerParserEdgeCaseTests {
         let interner = StringInterner()
         let diagnostics = DiagnosticEngine()
 
-        let parserA = KotlinParser(
-            tokens: [
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .identifier(interner.intern("T"))),
-                makeToken(kind: .symbol(.greaterThan)),
-                makeToken(kind: .symbol(.lParen)),
-            ],
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        #expect(parserA.canStartTypeArgumentsInternal(hasAnchorToken: true))
+        func canStartTypeArguments(_ kinds: [TokenKind]) -> Bool {
+            KotlinParser(
+                tokens: kinds.map { makeToken(kind: $0) },
+                interner: interner,
+                diagnostics: diagnostics
+            ).canStartTypeArgumentsInternal(hasAnchorToken: true)
+        }
 
-        let parserB = KotlinParser(
-            tokens: [
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .keyword(.in)),
-                makeToken(kind: .identifier(interner.intern("T"))),
-                makeToken(kind: .symbol(.comma)),
-                makeToken(kind: .softKeyword(.out)),
-                makeToken(kind: .identifier(interner.intern("R"))),
-                makeToken(kind: .symbol(.comma)),
-                makeToken(kind: .symbol(.star)),
-                makeToken(kind: .symbol(.greaterThan)),
-                makeToken(kind: .symbol(.colon)),
-            ],
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        #expect(parserB.canStartTypeArgumentsInternal(hasAnchorToken: true))
+        let typeT = TokenKind.identifier(interner.intern("T"))
+        let typeR = TokenKind.identifier(interner.intern("R"))
+        let variancePrefix: [TokenKind] = [
+            .keyword(.in), typeT, .symbol(.comma),
+            .softKeyword(.out), typeR, .symbol(.comma),
+            .symbol(.star), .symbol(.greaterThan), .symbol(.colon),
+        ]
 
-        let parserB2 = KotlinParser(
-            tokens: [
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .keyword(.in)),
-                makeToken(kind: .identifier(interner.intern("T"))),
-                makeToken(kind: .symbol(.comma)),
-                makeToken(kind: .softKeyword(.out)),
-                makeToken(kind: .identifier(interner.intern("R"))),
-                makeToken(kind: .symbol(.comma)),
-                makeToken(kind: .symbol(.star)),
-                makeToken(kind: .symbol(.greaterThan)),
-                makeToken(kind: .symbol(.colon)),
-            ],
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        #expect(!parserB2.canStartTypeArgumentsInternal(hasAnchorToken: true))
-
-        let parserC = KotlinParser(
-            tokens: [
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .symbol(.greaterThan)),
-                makeToken(kind: .symbol(.lParen)),
-            ],
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        #expect(!parserC.canStartTypeArgumentsInternal(hasAnchorToken: true))
-
-        let parserD = KotlinParser(
-            tokens: [
-                makeToken(kind: .symbol(.lessThan)),
-                makeToken(kind: .symbol(.dot)),
-                makeToken(kind: .identifier(interner.intern("T"))),
-                makeToken(kind: .symbol(.greaterThan)),
-                makeToken(kind: .symbol(.lParen)),
-            ],
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        #expect(!parserD.canStartTypeArgumentsInternal(hasAnchorToken: true))
+        // `<T>(`
+        #expect(canStartTypeArguments([.symbol(.lessThan), typeT, .symbol(.greaterThan), .symbol(.lParen)]))
+        // `<in T, out R, *>:` — variance modifiers and a star projection
+        #expect(canStartTypeArguments([.symbol(.lessThan)] + variancePrefix))
+        // a second `<` straight after the first is not a type argument list
+        #expect(!canStartTypeArguments([.symbol(.lessThan), .symbol(.lessThan)] + variancePrefix))
+        // `<>(` — an empty list
+        #expect(!canStartTypeArguments([.symbol(.lessThan), .symbol(.greaterThan), .symbol(.lParen)]))
+        // `<.T>(` — a leading `.` cannot start a type argument
+        #expect(!canStartTypeArguments([
+            .symbol(.lessThan), .symbol(.dot), typeT, .symbol(.greaterThan), .symbol(.lParen),
+        ]))
 
         let parserE = KotlinParser(
             tokens: [
@@ -295,11 +217,11 @@ struct LexerParserEdgeCaseTests {
 
         func token(_ kind: TokenKind, leadingNewline: Bool = false) -> Token {
             defer { offset += 1 }
-            return Token(
+            return makeToken(
                 kind: kind,
-                range: makeRange(file: FileID(rawValue: 0), start: offset, end: offset + 1),
-                leadingTrivia: leadingNewline ? [.newline] : [],
-                trailingTrivia: []
+                start: offset,
+                end: offset + 1,
+                leadingTrivia: leadingNewline ? [.newline] : []
             )
         }
 
@@ -375,7 +297,6 @@ struct LexerParserEdgeCaseTests {
         let parser = KotlinParser(tokens: tokens, interner: interner, diagnostics: diagnostics)
         let parsed = parser.parseFile()
 
-        #expect(!(parsed.arena.nodes.isEmpty))
         let kinds = Set(parsed.arena.nodes.map(\.kind))
         #expect(kinds.contains(.packageHeader))
         #expect(kinds.contains(.importHeader))
@@ -388,8 +309,7 @@ struct LexerParserEdgeCaseTests {
         #expect(kinds.contains(.block))
         #expect(kinds.contains(.statement))
 
-        let codes = Set(diagnostics.diagnostics.map(\.code))
-        #expect(codes.contains("KSWIFTK-PARSE-0002"))
+        assertHasDiagnostic("KSWIFTK-PARSE-0002", in: diagnostics.diagnostics)
     }
 
     @Test
