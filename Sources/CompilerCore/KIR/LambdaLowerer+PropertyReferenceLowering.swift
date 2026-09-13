@@ -327,6 +327,43 @@ extension LambdaLowerer {
         return nil
     }
 
+    /// KSP-496: the call target a property callable reference must use when it
+    /// is consumed as a plain *function* value (`val f: (C) -> Int = C::v`,
+    /// `list.map(C::v)`, or SAM conversion) rather than as a `KProperty0/1`.
+    /// `lowerPropertyReferenceWrapperValue` only covers the KProperty shapes,
+    /// and the property symbol itself has no emitted function behind it, so
+    /// every other consumer has to fall back to the generated accessor —
+    /// otherwise codegen emits a direct call to a nonexistent symbol named
+    /// after the property and the program fails to link.
+    ///
+    /// The accessor's signature already matches both callable-reference
+    /// shapes: `(receiver) -> value` for a member property (the receiver is
+    /// the function type's single parameter for `Type::member`, or the
+    /// captured receiver for `instance::member`) and `() -> value` for a
+    /// top-level or `object`-owned one.
+    func propertyReferenceFunctionCallTarget(
+        targetSymbol: SymbolID,
+        ast: ASTModule,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind]
+    ) -> (symbol: SymbolID, name: InternedString)? {
+        guard let accessor = ensurePropertyReferenceAccessor(
+            targetSymbol: targetSymbol,
+            ast: ast,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers
+        ),
+            let getter = arena.function(for: accessor.getterSymbol)
+        else {
+            return nil
+        }
+        return (accessor.getterSymbol, getter.name)
+    }
+
     private func ensurePropertyReferenceAccessor(
         targetSymbol: SymbolID,
         ast: ASTModule,
