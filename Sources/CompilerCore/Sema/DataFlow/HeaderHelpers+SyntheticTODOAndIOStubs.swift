@@ -209,10 +209,10 @@ extension DataFlowSemaPhase {
         // bridge, so no synthetic stub is registered here.
 
         // CLEANUP-STUB-107 removed the java.io.File bootstrap that used to run
-        // here (createTempDir/createTempFile top-level functions and File's
-        // own constructor were target-out). The bare File shell it also
-        // registered is now created idempotently by
-        // `registerSyntheticJavaIOStreamStubs` instead.
+        // here. The bare File shell, its constructors, and
+        // createTempDir/createTempFile (real, force-deprecated stdlib
+        // functions — not File's own facade) are now registered idempotently
+        // by `registerSyntheticJavaIOStreamStubs` instead.
         // measureTime / measureTimedValue live in bundled Kotlin source
         // (Stdlib/kotlin/time/MeasureTime.kt).
 

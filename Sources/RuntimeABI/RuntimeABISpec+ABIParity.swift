@@ -378,6 +378,45 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        // kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR)):
+        // real stdlib functions, not File's own facade. Restored after being
+        // dropped as an unintended side effect of CLEANUP-STUB-107.
+        abiParitySpec("__kk_io_createTempDir", parameters: [
+            p("prefixRaw", .intptr),
+            p("suffixRaw", .intptr),
+            p("directoryRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempDir_default", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempDir_prefix", parameters: [
+            p("prefixRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempDir_prefix_suffix", parameters: [
+            p("prefixRaw", .intptr),
+            p("suffixRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempFile", parameters: [
+            p("prefixRaw", .intptr),
+            p("suffixRaw", .intptr),
+            p("directoryRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempFile_default", parameters: [
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempFile_prefix", parameters: [
+            p("prefixRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
+        abiParitySpec("__kk_io_createTempFile_prefix_suffix", parameters: [
+            p("prefixRaw", .intptr),
+            p("suffixRaw", .intptr),
+            p("outThrown", .nullableIntptrPointer),
+        ]),
         abiParitySpec("kk_is_frozen", parameters: [
             p("objectRaw", .intptr),
         ]),

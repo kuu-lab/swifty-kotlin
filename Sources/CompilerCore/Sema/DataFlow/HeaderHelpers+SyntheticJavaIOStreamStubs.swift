@@ -6,10 +6,9 @@
 /// *members* — `readText`/`writeText`/`appendText`,
 /// `exists`/`isFile`/`isDirectory`, `delete`/`mkdirs`/`listFiles`/`walk`,
 /// `bufferedReader`/`bufferedWriter`/`inputStream`/`outputStream`/
-/// `printWriter` factories, `copyTo`/`copyRecursively`, `PrintWriter`, and
-/// `kotlin.io.createTempDir`/`createTempFile` — as target-out JVM-only
-/// surface — see TODO.md. What remains here is kept because other surfaces
-/// still depend on it:
+/// `printWriter` factories, `copyTo`/`copyRecursively`, and `PrintWriter` —
+/// as target-out JVM-only surface — see TODO.md. What remains here is kept
+/// because other surfaces still depend on it:
 ///
 /// - `File`'s two constructors (`File(path)` / `File(parent, child)`) and its
 ///   `path` property are NOT removed: `Stdlib/kotlin/io/Files.kt` (KSP-483)
@@ -18,6 +17,13 @@
 ///   are typed `File`/`File?` with real call sites (e.g.
 ///   `AccessDeniedException(File(path))`). Without a constructor, `File`
 ///   would be a type nothing could ever produce.
+/// - `kotlin.io.createTempDir`/`createTempFile` are also NOT removed, despite
+///   an earlier pass in this same task briefly deleting them: they are real,
+///   force-deprecated (`@Deprecated(level = ERROR)`) top-level stdlib
+///   functions, not part of File's own member facade — `AnnotationSemanticTests
+///   .testAnnotationSemanticSema` exercises the deprecation-error diagnostic
+///   and its `@Suppress` escape hatch. They were only ever co-located with
+///   File's setup by historical accident (one shared bootstrap function).
 /// - `Reader`/`BufferedReader`/`Writer`/`BufferedWriter`/`InputStream`/
 ///   `OutputStream`/`ByteArrayInputStream`/`SequenceInputStream`/
 ///   `BufferedInputStream` are reused by File-independent `kotlin.io`
@@ -122,6 +128,135 @@ extension DataFlowSemaPhase {
             ownerType: fileType,
             parameters: [("parent", types.stringType), ("child", types.stringType)],
             externalLinkName: "__kk_file_new_parent_child",
+            symbols: symbols,
+            interner: interner
+        )
+
+        // `kotlin.io.createTempDir`/`createTempFile` are real (if
+        // force-deprecated since Kotlin 1.4, level=ERROR) top-level stdlib
+        // functions that return `File` — not part of File's own member
+        // facade, so CLEANUP-STUB-107 must not have removed them. They were
+        // lost as an unintended side effect of deleting the old
+        // `registerSyntheticFileIOBootstrap` call site, which happened to
+        // register them alongside File's own now-removed members; restored
+        // verbatim here. `AnnotationSemanticTests.testAnnotationSemanticSema`
+        // and `Scripts/diff_cases/deprecated_apis.kt` exercise the
+        // Deprecated(level=ERROR) diagnostic and its `@Suppress` escape hatch.
+        let createTempKotlinIOPkg = ensureSyntheticPackageHierarchy(
+            fqName: [interner.intern("kotlin"), interner.intern("io")],
+            symbols: symbols
+        )
+        let deprecatedCreateTempDirAnnotations = [
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.Deprecated",
+                arguments: [
+                    "message = \"Avoid creating temporary directories in the default temp location with this function due to too wide permissions on the newly created directory. Use kotlin.io.path.createTempDirectory instead.\"",
+                    "replaceWith = ReplaceWith(\"kotlin.io.path.createTempDirectory(prefix)\")",
+                    "level = DeprecationLevel.ERROR",
+                ]
+            ),
+        ]
+        let deprecatedCreateTempFileAnnotations = [
+            MetadataAnnotationRecord(
+                annotationFQName: "kotlin.Deprecated",
+                arguments: [
+                    "message = \"Avoid creating temporary files in the default temp location with this function due to too wide permissions on the newly created file. Use kotlin.io.path.createTempFile instead or resort to java.io.File.createTempFile.\"",
+                    "replaceWith = ReplaceWith(\"kotlin.io.path.createTempFile(prefix, suffix)\")",
+                    "level = DeprecationLevel.ERROR",
+                ]
+            ),
+        ]
+        registerSyntheticTopLevelFunction(
+            named: "createTempDir",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempDir_default",
+            annotations: deprecatedCreateTempDirAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempDir",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [(name: "prefix", type: types.stringType)],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempDir_prefix",
+            annotations: deprecatedCreateTempDirAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempDir",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [
+                (name: "prefix", type: types.stringType),
+                (name: "suffix", type: types.makeNullable(types.stringType)),
+            ],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempDir_prefix_suffix",
+            annotations: deprecatedCreateTempDirAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempDir",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [
+                (name: "prefix", type: types.stringType),
+                (name: "suffix", type: types.makeNullable(types.stringType)),
+                (name: "directory", type: types.makeNullable(fileType)),
+            ],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempDir",
+            annotations: deprecatedCreateTempDirAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempFile",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempFile_default",
+            annotations: deprecatedCreateTempFileAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempFile",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [(name: "prefix", type: types.stringType)],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempFile_prefix",
+            annotations: deprecatedCreateTempFileAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempFile",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [
+                (name: "prefix", type: types.stringType),
+                (name: "suffix", type: types.makeNullable(types.stringType)),
+            ],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempFile_prefix_suffix",
+            annotations: deprecatedCreateTempFileAnnotations,
+            symbols: symbols,
+            interner: interner
+        )
+        registerSyntheticTopLevelFunction(
+            named: "createTempFile",
+            packageFQName: createTempKotlinIOPkg,
+            parameters: [
+                (name: "prefix", type: types.stringType),
+                (name: "suffix", type: types.makeNullable(types.stringType)),
+                (name: "directory", type: types.makeNullable(fileType)),
+            ],
+            returnType: fileType,
+            externalLinkName: "__kk_io_createTempFile",
+            annotations: deprecatedCreateTempFileAnnotations,
             symbols: symbols,
             interner: interner
         )
