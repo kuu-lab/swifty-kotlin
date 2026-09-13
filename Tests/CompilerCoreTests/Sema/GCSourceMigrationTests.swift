@@ -36,7 +36,7 @@ struct GCSourceMigrationTests {
 
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: processorSymbol))
         #expect(
-            ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/native/runtime/GC/Stdlib.kt"
+            ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/native/runtime/GC.kt"
         )
     }
 }

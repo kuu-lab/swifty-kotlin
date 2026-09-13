@@ -410,8 +410,15 @@ extension BuildKIRRegressionTests {
 
 
 
+    // KSP-CAP-018: `object : Marker {}` -- an object literal whose body
+    // declares no members -- used to get no `ObjectDecl` from the parser and so
+    // lowered through a separate generated `kk_object_literal_N` factory whose
+    // body allocated with `classID = 0` and no `NominalLayout`: no supertype
+    // edges, no itable/vtable registration, and no superclass constructor call.
+    // It now takes the same inline path as a literal with members, allocating
+    // with its own stable nominal type ID.
     @Test
-    func testBuildKIRLowersObjectLiteralToGeneratedFactoryReturningRuntimeObjectEntity() throws {
+    func testBuildKIRLowersEmptyBodyObjectLiteralToInlineRuntimeObjectEntity() throws {
         let ctx = try sharedControlFlowCtx()
 
         let ast = try #require(ctx.ast)
@@ -423,63 +430,58 @@ extension BuildKIRRegressionTests {
             interner: ctx.interner
         ))
         let makeBody = try findKIRFunctionBody(named: "make7", in: module, interner: ctx.interner)
-        let objectFactoryCall = try #require(makeBody.first { instruction in
+
+        #expect(!extractCallees(from: makeBody, interner: ctx.interner).contains {
+            $0.hasPrefix("kk_object_literal_")
+        })
+
+        let allocationCall = try #require(makeBody.first { instruction in
             guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
                 return false
             }
-            return ctx.interner.resolve(callee).hasPrefix("kk_object_literal_")
+            return ctx.interner.resolve(callee) == "kk_object_new"
         })
-
-        guard case let .call(factorySymbol, callee, arguments, result, _, _, _, _) = objectFactoryCall else {
-            Issue.record("Expected object literal to lower to generated factory call.")
+        guard case let .call(_, _, arguments, result, _, _, _, _) = allocationCall else {
+            Issue.record("Expected object literal to lower to a kk_object_new call.")
             return
         }
 
-        let generatedFactorySymbol = try #require(factorySymbol)
-        #expect(generatedFactorySymbol.rawValue != 0)
-        #expect(generatedFactorySymbol != .invalid)
-        #expect(ctx.interner.resolve(callee).hasPrefix("kk_object_literal_"))
-        #expect(arguments.isEmpty)
+        // `kk_object_new(slotCount, classID)`. The old factory path hardcoded
+        // `classID` to 0, which left runtime type checks and dispatch with no
+        // way to identify the literal's type.
+        #expect(arguments.count == 2)
+        if case let .intLiteral(classID)? = module.arena.expr(arguments[1]) {
+            #expect(classID != 0, "Expected the object literal's own stable nominal type ID.")
+        } else {
+            Issue.record("Expected a constant classID argument to kk_object_new.")
+        }
+
         let resultExprID = try #require(result)
         #expect(module.arena.exprType(resultExprID) == sema.bindings.exprTypes[makeExprID])
         if case .unit? = module.arena.expr(resultExprID) {
             Issue.record("Object literal must not lower to unit.")
         }
 
-        let generatedFactoryDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
-            guard case let .function(function) = decl else {
-                return false
-            }
-            return function.symbol == generatedFactorySymbol
-        }))
-        guard case let .function(generatedFactory) = module.arena.declarations[generatedFactoryDeclIndex] else {
-            Issue.record("Expected generated object factory function declaration.")
+        // The literal now has an anonymous class type of its own (it used to
+        // just take on its supertype), and that nominal is emitted and
+        // reachable from the module's file decl list.
+        let objectValueType = try #require(sema.bindings.exprTypes[makeExprID])
+        guard case let .classType(objectClassType) = sema.types.kind(of: objectValueType) else {
+            Issue.record("Expected the object literal to have its own anonymous class type.")
             return
         }
-        let hasAllocationRuntimeCall = generatedFactory.body.contains { instruction in
-            guard case let .call(_, loweredCallee, _, _, _, _, _, _) = instruction else {
-                return false
-            }
-            let calleeName = ctx.interner.resolve(loweredCallee)
-            return calleeName == "kk_alloc" || calleeName == "kk_array_new" || calleeName == "kk_object_new"
-        }
-        #expect(
-            hasAllocationRuntimeCall,
-            "Expected generated object factory to include allocation runtime call."
-        )
+        let objectSymbol = objectClassType.classSymbol
+        let objectSymbolName = try #require(sema.symbols.symbol(objectSymbol)?.name)
+        #expect(ctx.interner.resolve(objectSymbolName).hasPrefix("__ObjectLiteral_"))
 
-        let generatedNominalDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
+        let nominalDeclIndex = try #require(module.arena.declarations.firstIndex(where: { decl in
             guard case let .nominalType(nominal) = decl else {
                 return false
             }
-            return sema.symbols.symbol(nominal.symbol) == nil
+            return nominal.symbol == objectSymbol
         }))
-
-        let generatedFactoryDeclID = KIRDeclID(rawValue: Int32(generatedFactoryDeclIndex))
-        let generatedNominalDeclID = KIRDeclID(rawValue: Int32(generatedNominalDeclIndex))
         let fileDeclIDs = Set(module.files.flatMap(\.decls))
-        #expect(fileDeclIDs.contains(generatedFactoryDeclID))
-        #expect(fileDeclIDs.contains(generatedNominalDeclID))
+        #expect(fileDeclIDs.contains(KIRDeclID(rawValue: Int32(nominalDeclIndex))))
     }
 
 
@@ -500,6 +502,12 @@ extension BuildKIRRegressionTests {
 
 
     @Test
+    // KSP-CAP-018: this test only checked that the *call site* named `get`,
+    // never what the accessor it calls actually does — so it kept passing while
+    // Sema left the getter body's `seed` unbound and KIR lowered it to `.unit`,
+    // making `instance.value` return 1 instead of 8. The emitted accessor's own
+    // body is now checked too: it must load `seed` from the instance and must
+    // not contain a `.unit` constant standing in for an unresolved identifier.
     func testBuildKIRObjectLiteralCustomGetterUsesAccessorCall() throws {
         let ctx = try sharedControlFlowCtx()
 
@@ -508,6 +516,50 @@ extension BuildKIRRegressionTests {
         let callNames = extractCallees(from: body, interner: ctx.interner)
         #expect(!(callNames.contains("kk_array_get")))
         #expect(callNames.contains("get"))
+
+        // Every accessor this fixture emits is a one-parameter `get` function.
+        // Check their bodies, not just the call site: the bug left the getter
+        // body with a `.unit` constant standing in for the unresolved `seed`,
+        // and no instance read at all.
+        let getterBodies = module.arena.declarations.compactMap { decl -> [KIRInstruction]? in
+            guard case let .function(function) = decl,
+                  ctx.interner.resolve(function.name) == "get",
+                  function.params.count == 1
+            else {
+                return nil
+            }
+            return function.body
+        }
+        #expect(!getterBodies.isEmpty, "Expected the object literal's `get` accessor to be emitted.")
+
+        func containsUnitConstant(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .constValue(_, value) = instruction else {
+                    return false
+                }
+                if case .unit = value {
+                    return true
+                }
+                return false
+            }
+        }
+        func readsInstanceField(_ instructions: [KIRInstruction]) -> Bool {
+            instructions.contains { instruction in
+                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else {
+                    return false
+                }
+                return ctx.interner.resolve(callee) == "kk_array_get_inbounds"
+            }
+        }
+
+        #expect(
+            getterBodies.contains(where: readsInstanceField),
+            "Expected a custom getter body to read its sibling property off the instance."
+        )
+        #expect(
+            !getterBodies.contains(where: containsUnitConstant),
+            "A `.unit` constant in an accessor body means an identifier went unresolved."
+        )
     }
 
 

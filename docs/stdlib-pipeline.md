@@ -106,6 +106,12 @@ Kotlin ソースに実体がある呼び出しは通常の関数解決・KIR 展
 - **ファイル名も本家へ収斂させる**: 新規・移行時は本家のファイル名（例: `text/Strings.kt`,
   `collections/Collections.kt`）に寄せる。既存の機能スライス名（`ListFilterHOF.kt` 等)は
   当該モジュールの M フェーズ完了時に統合・リネームする
+- **宣言ごとのディレクトリを作らない**: 本家は型ごとのディレクトリを持たない。
+  `native/OsFamily/OsFamily.kt` や `runtime/MemoryUsage/Stdlib.kt` のような
+  `<Type>/Stdlib.kt` / `<Type>/<Type>.kt` は逸脱なので、宣言を本家のオーナーファイル
+  （`native/Platform.kt`, `native/runtime/GCInfo.kt` 等）へ統合する（KSP-1541）。
+  Kotlin/Native 面の本家ツリーは `kotlin-native/runtime/src/main/kotlin/kotlin/native/`
+  で、`libraries/stdlib/` ではない点に注意
 - `BundledKotlinStdlib.swift` のインライン文字列 4 本は対応する .kt ファイルへ移設し、廃止する
 
 ### ブリッジ宣言（external + 注釈）
@@ -647,7 +653,14 @@ Atomic の内訳:
   `channelFlow { send(1) }` が `KSWIFTK-SEMA-0023: Unresolved function 'send'`、
   `callbackFlow { trySend(1); close() }` が `trySend`/`close` 未解決で止まり、実装済みの `emit` alias だけが `kk_flow_create`
   経由で動作した（両者とも `1` を出力）。そのため合成 Flow 宣言・Flow/Coroutine lowering 特例・未実装 ABI allowlist を削除し、
-  fiction を通常の未解決 API として明示した。real `ProducerScope` 実装は別タスクで設計する。
+  fiction を通常の未解決 API として明示した。
+  **KSP-1543 で channelFlow/callbackFlow 側も (b) 確定**（#6597, 2026-09-09 merge）: real `ProducerScope` を
+  bundled Kotlin source（`Stdlib/kotlin/coroutines/channels/ProducerScope.kt`）として定義し、`channelFlow`/`callbackFlow`
+  を `Stdlib/kotlinx/coroutines/flow/Builders.kt` で `@KsSymbolName("kk_channel_flow_create")` /
+  `@KsSymbolName("kk_callback_flow_create")` ブリッジ付き宣言へ移行。per-collection runtime channel に backing された
+  cold flow として実装し、`send`/`trySend`/`close` が real API 形で解決される。suspend `ProducerScope` receiver は
+  launcher continuation ABI を使うため、`CallTypeChecker` はオーバーロード解決後に bundled 宣言が選ばれた場合のみ
+  lambda をマークする（同名のユーザー関数は通常 ABI を維持）。`Scripts/diff_cases/flow_builders.kt` の `SKIP-DIFF` も解除済み。
 - `__kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
   KSP-499 後も internal compatibility bridge として保持
 
