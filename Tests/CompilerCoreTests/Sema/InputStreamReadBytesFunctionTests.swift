@@ -3,16 +3,6 @@
 import RuntimeABI
 import Testing
 
-/// STDLIB-IO-FN-029: Validates that `InputStream.readBytes()` resolves through
-/// Sema for the `java.io.InputStream` receiver and produces a `ByteArray`
-/// value (modelled in the runtime as `List<Int>`).  The synthetic stub is
-/// registered in `HeaderHelpers+SyntheticTODOAndIOStubs.swift` and binds to the
-/// runtime helper `__kk_input_stream_readAllBytes` declared in
-/// `Sources/RuntimeABI/RuntimeABISpec+FileIO.swift`.
-///
-/// The receiver is NOT closed by `readBytes()` — callers are expected to wrap
-/// the call in `.use { it.readBytes() }`.  These tests pin down both the
-/// stand-alone call shape and the more idiomatic `.use` pattern.
 @Suite
 struct InputStreamReadBytesFunctionTests {
 
@@ -83,10 +73,6 @@ struct InputStreamReadBytesFunctionTests {
         )
     }
 
-    /// `BufferedInputStream` is a subtype of `InputStream`, so the receiver
-    /// inheritance check should also let `readBytes()` resolve when the static
-    /// receiver type is a buffered stream.  This exercises the inheritance
-    /// path through the synthetic stub registry.
     @Test func testBufferedInputStreamReadBytesResolves() throws {
 
         let ctx = try sharedCtx()
@@ -97,10 +83,6 @@ struct InputStreamReadBytesFunctionTests {
         )
     }
 
-    /// The idiomatic Kotlin usage wraps the call in `.use { }`, which both
-    /// drains the stream and closes the resource.  Sema must resolve the
-    /// `readBytes()` invocation inside a closure body when the receiver flows
-    /// through the synthetic `Closeable.use` extension.
     @Test func testInputStreamReadBytesInsideUseBlock() throws {
 
         let ctx = try sharedCtx()
@@ -111,19 +93,7 @@ struct InputStreamReadBytesFunctionTests {
         )
     }
 
-    // MARK: - Signature / runtime link
-
-    /// Pin down the symbol-level invariants we expect from the synthetic
-    /// `InputStream.readBytes()` stub:
-    ///   - the symbol is registered under `java.io.InputStream.readBytes`
-    ///   - the receiver type is `java.io.InputStream`
-    ///   - there are no value parameters
-    ///   - the return type is `kotlin.collections.List<Int>` (the runtime's
-    ///     ByteArray representation)
     ///   - the external link name resolves to `__kk_input_stream_readAllBytes`
-    ///
-    /// Pinning these here guards against accidental renames or signature
-    /// drift that would silently break the lowering pipeline.
     @Test func testInputStreamReadBytesSignatureAndRuntimeLink() throws {
         let ctx = try sharedCtx()
         let interner = ctx.interner
@@ -168,11 +138,7 @@ struct InputStreamReadBytesFunctionTests {
         #expect(signature.valueParameterHasDefaultValues.allSatisfy { !$0 })
     }
 
-    // MARK: - Runtime ABI registration
-
     /// The runtime helper `__kk_input_stream_readAllBytes` must be declared in
-    /// the FileIO ABI spec with the (streamRaw, outThrown) signature so the
-    /// codegen pass can emit the correct extern declaration.
     @Test func testRuntimeABISpecRegistersReadAllBytes() throws {
         let spec = RuntimeABISpec.fileIOFunctions.first { $0.name == "__kk_input_stream_readAllBytes" }
         let unwrapped = try #require(

@@ -41,7 +41,7 @@ extension CompilerCoreTests {
         let ctx = makeContextFromSource(source)
         try runSema(ctx)
         #expect(
-            !(ctx.diagnostics.diagnostics.contains(where: { $0.severity == .error })),
+            !ctx.diagnostics.hasError,
             "Expected no sema errors, got: \(ctx.diagnostics.diagnostics.map { $0.message })"
         )
 
@@ -127,15 +127,9 @@ extension CompilerCoreTests {
             if case .lambdaLiteral = expr { return true }
             return false
         })
-        let addCallExprID = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .call(calleeExprID, _, _, _) = expr,
-                  let calleeExpr = ast.arena.expr(calleeExprID),
-                  case let .nameRef(calleeName, _) = calleeExpr
-            else {
-                return false
-            }
-            return ctx.interner.resolve(calleeName) == "add"
-        })
+        let addCallExprID = try #require(
+            nameRefCallExprID(named: "add", in: ast, interner: ctx.interner)
+        )
 
         let lambdaType = try #require(sema.bindings.exprTypes[lambdaExprID])
         let intType = sema.types.make(.primitive(.int, .nonNull))
@@ -170,15 +164,9 @@ extension CompilerCoreTests {
             if case .callableRef = expr { return true }
             return false
         })
-        let refCallExprID = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .call(calleeExprID, _, _, _) = expr,
-                  let calleeExpr = ast.arena.expr(calleeExprID),
-                  case let .nameRef(calleeName, _) = calleeExpr
-            else {
-                return false
-            }
-            return ctx.interner.resolve(calleeName) == "ref"
-        })
+        let refCallExprID = try #require(
+            nameRefCallExprID(named: "ref", in: ast, interner: ctx.interner)
+        )
         let targetSymbol = try #require(sema.symbols.allSymbols().first(where: { symbol in
             symbol.kind == .function && ctx.interner.resolve(symbol.name) == "target"
         })?.id)
@@ -339,15 +327,9 @@ extension CompilerCoreTests {
 
         let ast = try #require(ctx.ast)
         let sema = try #require(ctx.sema)
-        let callExprID = try #require(firstExprID(in: ast) { _, expr in
-            guard case let .call(calleeExprID, _, _, _) = expr,
-                  let calleeExpr = ast.arena.expr(calleeExprID),
-                  case let .nameRef(calleeName, _) = calleeExpr
-            else {
-                return false
-            }
-            return ctx.interner.resolve(calleeName) == "f"
-        })
+        let callExprID = try #require(
+            nameRefCallExprID(named: "f", in: ast, interner: ctx.interner)
+        )
         let callableCallBinding = try #require(sema.bindings.callableValueCalls[callExprID])
         guard case let .localValue(fParamSymbol) = callableCallBinding.target else {
             Issue.record("Callable value call should target the function-typed parameter f.")

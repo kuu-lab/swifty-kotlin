@@ -75,7 +75,7 @@ import Testing
                 let sampleDiags = diagnosticsForPath(sample1Path, in: ctx)
 
                         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
             // testWidenedTypeParameterReturnOverrideIsRejected
@@ -94,7 +94,7 @@ import Testing
                 let sampleDiags = diagnosticsForPath(sample3Path, in: ctx)
 
                         assertNoDiagnostic("KSWIFTK-SEMA-OVERRIDE-RETURN", in: sampleDiags)
-                        #expect(!(sampleDiags.contains(where: { $0.severity == .error })))
+                        #expect(!sampleDiags.hasError)
 
             }
 
