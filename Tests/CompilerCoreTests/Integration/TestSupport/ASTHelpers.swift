@@ -55,6 +55,24 @@ func topLevelProperty(
     return nil
 }
 
+/// Names of the `fun` / `class` / `object` declarations directly at the top
+/// level of `file`. Used by multi-file tests to assert that declarations landed
+/// in the file they were written in.
+func topLevelDeclNames(
+    of file: ASTFile,
+    in ast: ASTModule,
+    interner: StringInterner
+) -> [String] {
+    file.topLevelDecls.compactMap { declID in
+        switch ast.arena.decl(declID) {
+        case let .funDecl(decl): return interner.resolve(decl.name)
+        case let .classDecl(decl): return interner.resolve(decl.name)
+        case let .objectDecl(decl): return interner.resolve(decl.name)
+        default: return nil
+        }
+    }
+}
+
 // MARK: - Arena-wide declaration lookup
 
 // These scan `arena.declarations()` (all origins, including bundled stdlib),
