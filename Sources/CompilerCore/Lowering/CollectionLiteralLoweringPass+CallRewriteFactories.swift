@@ -549,33 +549,12 @@ extension CollectionLiteralConstructionLoweringPass {
 
         // Sequence factories are lowered through their bundled Kotlin source.
 
-        // --- Rewrite builder DSL calls to kk_build_* runtime helpers (STDLIB-002) ---
-        if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx) {
-            let kkCallee: InternedString = switch callee {
-            case lookup.buildListName:
-                arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
-            default: callee
-            }
-            let builderResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: kkCallee,
-                arguments: arguments,
-                result: builderResult,
-                canThrow: canThrow,
-                thrownResult: thrownResult
-            ))
-            if callee == lookup.buildListName, let result {
-                state.listExprIDs.insert(result.rawValue)
-                state.listExprIDs.insert(builderResult.rawValue)
-            }
-            if let result {
-                loweredBody.append(.copy(from: builderResult, to: result))
-            }
-            return true
-        }
-
+        // The builder DSL rewrite to `__kk_build_*` runtime helpers (STDLIB-002)
+        // is gone: RF-LOWER-CALL-004 (list), -005 (set) and -006 (map) removed
+        // every arm, so `buildList` / `buildSet` / `buildMap` all lower through
+        // `CollectionBuilders.kt`.  `isStdlibBuilderDSLCall` itself still has a
+        // caller in `scanBuilderLambdaEntries`; retiring the shared predicate
+        // and `BuilderDSLLookupNames` is RF-LOWER-CALL-015.
 
         return false
     }
