@@ -782,7 +782,7 @@ extension CallTypeChecker {
     /// Used by Reader-targeted special-case lambda inference (STDLIB-IO-FN-040)
     /// where the `useLines` extension on `kotlin.io.Reader` resolves to the
     /// synthetic `BufferedReader.useLines` stub registered by
-    /// `registerSyntheticFileIOStubs`.
+    /// `registerSyntheticJavaIOStreamStubs`.
     func isBufferedReaderType(
         _ receiverType: TypeID,
         sema: SemaModule,

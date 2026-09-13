@@ -4,17 +4,22 @@ import Testing
 
 /// STDLIB-IO-FN-033: Validates that `kotlin.io.Reader.readText()` resolves
 /// through Sema as an extension function on `java.io.Reader`. The synthetic
-/// `Reader` supertype lets concrete reader values (currently `BufferedReader`
-/// instances produced by `File.bufferedReader()`) participate in the call
-/// without explicit upcasting.
+/// `Reader` supertype lets concrete reader values (`BufferedReader`
+/// instances) participate in the call without explicit upcasting.
 ///
 /// Verifies:
 ///   1. The synthetic symbol is registered with the correct extension
 ///      receiver, parameter list, return type, and runtime link name
 ///      (`__kk_reader_readText`).
-///   2. The function resolves end-to-end when invoked on a `BufferedReader`
-///      value, including the common `File("...").bufferedReader().readText()`
-///      chain and inside a `use { }` block.
+///   2. `BufferedReader` is registered as a `Reader` subtype in the symbol
+///      table, so the extension resolves without explicit upcasting.
+///
+/// CLEANUP-STUB-107 removed `File.bufferedReader()`, which was this suite's
+/// only in-repo way to obtain a `BufferedReader` from a path; the end-to-end
+/// resolution cases that used to chain off of it (`File("...").bufferedReader().readText()`,
+/// a `use { }` block, and a plain variable binding) were removed along with
+/// it. The symbol-table checks below are unaffected since they don't need a
+/// live `BufferedReader` value.
 @Suite
 struct ReaderReadTextFunctionTests {
 
@@ -33,44 +38,6 @@ struct ReaderReadTextFunctionTests {
             """
             package sample1
             fun noop() {}
-            """,
-            // testReaderReadTextResolvesOnBufferedReaderChain
-            """
-            package sample2
-
-                    import java.io.File
-
-                    fun loadAll(): String {
-                        return File("/dev/null").bufferedReader().readText()
-                    }
-
-            """,
-            // testReaderReadTextReturnsStringInVariableBinding
-            """
-            package sample3
-
-                    import java.io.File
-
-                    fun loadAll(file: File): String {
-                        val reader = file.bufferedReader()
-                        val text: String = reader.readText()
-                        reader.close()
-                        return text
-                    }
-
-            """,
-            // testReaderReadTextWorksInsideUseBlock
-            """
-            package sample4
-
-                    import java.io.File
-
-                    fun loadAllSafely(file: File): String {
-                        return file.bufferedReader().use { reader ->
-                            reader.readText()
-                        }
-                    }
-
             """,
         ]
 
@@ -153,57 +120,6 @@ struct ReaderReadTextFunctionTests {
                 #expect(
                     directSupertypes.contains(readerSymbol),
                     Comment(rawValue: "BufferedReader must list Reader among its direct supertypes; got: \(directSupertypes)")
-                )
-
-            }
-
-            // === testReaderReadTextResolvesOnBufferedReaderChain ===
-
-            do {
-
-                let sample2Path = paths[2]
-
-                let sample2Diagnostics = diagnosticsForPath(sample2Path, in: ctx)
-
-                let errors = sample2Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    Comment(rawValue: "File(...).bufferedReader().readText() should type-check, got: " +
-                        "\(errors.map { "\($0.code): \($0.message)" })")
-                )
-
-            }
-
-            // === testReaderReadTextReturnsStringInVariableBinding ===
-
-            do {
-
-                let sample3Path = paths[3]
-
-                let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
-
-                let errors = sample3Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    Comment(rawValue: "Binding `val text: String = reader.readText()` should compile, got: " +
-                        "\(errors.map { "\($0.code): \($0.message)" })")
-                )
-
-            }
-
-            // === testReaderReadTextWorksInsideUseBlock ===
-
-            do {
-
-                let sample4Path = paths[4]
-
-                let sample4Diagnostics = diagnosticsForPath(sample4Path, in: ctx)
-
-                let errors = sample4Diagnostics.filter { $0.severity == .error }
-                #expect(
-                    errors.isEmpty,
-                    Comment(rawValue: "Reader.readText() inside a use { } block should compile, got: " +
-                        "\(errors.map { "\($0.code): \($0.message)" })")
                 )
 
             }
