@@ -131,8 +131,7 @@ extension LoweringPassRegressionTests {
         var result: CompilationContext?
         try withTemporaryFiles(contents: sources) { paths in
             let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             result = ctx
         }
 
@@ -154,16 +153,8 @@ extension LoweringPassRegressionTests {
     func testFileForEachBlockRewriteAddsClosureRawArgument() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "FileForEachBlockRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "FileForEachBlockRewrite",
             interner: interner
         )
 
@@ -202,10 +193,7 @@ extension LoweringPassRegressionTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
-        guard case let .function(lowered)? = module.arena.decl(declID) else {
-            Issue.record("expected lowered function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(declID)?.function, "expected lowered function")
 
         let forEachBlockCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
@@ -331,8 +319,7 @@ extension LoweringPassRegressionTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "FileWalkRewrite", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
             let mainBody = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
@@ -348,16 +335,8 @@ extension LoweringPassRegressionTests {
     func testPathUseLinesDefaultRewriteAddsClosureRawArgument() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "PathUseLinesDefaultRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "PathUseLinesDefaultRewrite",
             interner: interner
         )
 
@@ -388,10 +367,7 @@ extension LoweringPassRegressionTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
-        guard case let .function(lowered)? = module.arena.decl(declID) else {
-            Issue.record("expected lowered function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(declID)?.function, "expected lowered function")
 
         let useLinesCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,
@@ -413,16 +389,8 @@ extension LoweringPassRegressionTests {
     func testPathUseLinesCharsetVariantRewriteAddsClosureRawArgument() throws {
         let interner = StringInterner()
         let arena = KIRArena()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "PathUseLinesCharsetRewrite",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "PathUseLinesCharsetRewrite",
             interner: interner
         )
 
@@ -454,10 +422,7 @@ extension LoweringPassRegressionTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: ctx)
 
-        guard case let .function(lowered)? = module.arena.decl(declID) else {
-            Issue.record("expected lowered function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(declID)?.function, "expected lowered function")
 
         let useLinesCall = lowered.body.compactMap { instruction -> (arguments: [KIRExprID], canThrow: Bool)? in
             guard case let .call(_, callee, arguments, _, canThrow, _, _, _) = instruction,

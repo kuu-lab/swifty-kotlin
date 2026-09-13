@@ -206,32 +206,6 @@ struct CoroutineIntrinsicsSyntheticStubTests {
         return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID && $0.severity == .error }
     }
 
-    private func diagnosticsForPath(
-        _ path: String,
-        withCode code: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID && $0.code == code }
-    }
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
     @Test
     func testSuspendCoroutineIntrinsicsResolveInSource() throws {
         let (ctx, paths) = try sharedCtx()

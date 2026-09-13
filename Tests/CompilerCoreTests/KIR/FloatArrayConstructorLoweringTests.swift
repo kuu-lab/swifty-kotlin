@@ -13,9 +13,8 @@ struct FloatArrayConstructorLoweringTests {
             if (index == 0) 1.5f else 2.5f
         }
         fun allocate(): FloatArray = FloatArray(3)
-        """, emit: .kirDump)
-        try runToKIR(ctx)
-        try LoweringPhase().run(ctx)
+        """)
+        try runToLowering(ctx)
 
         let module = try #require(ctx.kir)
         let initializedBody = try findKIRFunctionBody(named: "initialize", in: module, interner: ctx.interner)

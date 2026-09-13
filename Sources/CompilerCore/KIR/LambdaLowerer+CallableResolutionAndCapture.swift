@@ -417,7 +417,12 @@ extension LambdaLowerer {
             else {
                 return false
             }
-            return objectDecl.superTypeConstructorArgs.contains { check($0.expr) }
+            if objectDecl.superTypeConstructorArgs.contains(where: { check($0.expr) }) {
+                return true
+            }
+            // KSP-CAP-018: see the accessor-body note in
+            // `collectBoundIdentifierSymbols`.
+            return objectLiteralAccessorRootExprs(objectDecl, ast: ast).contains { check($0) }
         default:
             return false
         }

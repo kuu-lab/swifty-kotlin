@@ -103,38 +103,12 @@ struct ExperimentalBitwiseFunctionTests {
         return pair
     }
 
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path,
-                  predicate(exprID, expr)
-            else { continue }
-            return exprID
-        }
-        return nil
-    }
-
     @Test func testByteBitwiseOperationsResolveWithoutDiagnostics() throws {
         let (ctx, paths) = try shared()
         let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected Byte bitwise operations to resolve: \\(errors.map { $0.message })"
+            "Expected Byte bitwise operations to resolve: \(errors.map { $0.message })"
         )
     }
 
@@ -143,7 +117,7 @@ struct ExperimentalBitwiseFunctionTests {
         let errors = diagnosticsForPath(paths[1], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected Short bitwise operations to resolve: \\(errors.map { $0.message })"
+            "Expected Short bitwise operations to resolve: \(errors.map { $0.message })"
         )
     }
 
@@ -164,11 +138,11 @@ struct ExperimentalBitwiseFunctionTests {
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         return ctx.interner.resolve(callee) == name
                     },
-                    "Expected \\(typeName).\\(name) member call"
+                    "Expected \(typeName).\(name) member call"
                 )
                 #expect(
                     sema.bindings.exprType(for: callExpr) == receiverType,
-                    "\\(typeName).\\(name) should keep the receiver type"
+                    "\(typeName).\(name) should keep the receiver type"
                 )
             }
         }
@@ -179,7 +153,7 @@ struct ExperimentalBitwiseFunctionTests {
         let errors = diagnosticsForPath(paths[2], in: ctx).filter { $0.severity == .error }
         #expect(
             errors.isEmpty,
-            "Expected Int bitwise operations to resolve: \\(errors.map { $0.message })"
+            "Expected Int bitwise operations to resolve: \(errors.map { $0.message })"
         )
 
         let ast = try #require(ctx.ast)

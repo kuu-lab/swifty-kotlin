@@ -1,18 +1,14 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 extension BuildKIRRegressionTests {
-    private static nonisolated(unsafe) var _sharedNativePlatformMemoryModelKIRCtx: CompilationContext?
-    private static nonisolated(unsafe) var _sharedNativePlatformKIRCtx: CompilationContext?
-    private static nonisolated(unsafe) var _sharedNativePlatformAllAPIsKIRCtx: CompilationContext?
 
-    private func sharedNativePlatformMemoryModelKIRCtx() throws -> CompilationContext {
-        if let cached = Self._sharedNativePlatformMemoryModelKIRCtx {
-            return cached
-        }
-
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedNativePlatformMemoryModelKIRCtx = Result<CompilationContext, any Error> {
         // Keep this synthetic object-property fixture isolated; combining it with the other native bridge fixtures drops the runtime call from KIR.
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -22,23 +18,21 @@ extension BuildKIRRegressionTests {
         fun main(): kotlin.native.MemoryModel = Platform.memoryModel
         """
 
-        var result: CompilationContext?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-        }
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-        let ctx = try #require(result)
-        Self._sharedNativePlatformMemoryModelKIRCtx = ctx
         return ctx
     }
 
-    private func sharedNativePlatformKIRCtx() throws -> CompilationContext {
-        if let cached = Self._sharedNativePlatformKIRCtx {
-            return cached
-        }
+    private func sharedNativePlatformMemoryModelKIRCtx() throws -> CompilationContext {
+        try Self._sharedNativePlatformMemoryModelKIRCtx.get()
+    }
 
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedNativePlatformKIRCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
@@ -208,23 +202,21 @@ extension BuildKIRRegressionTests {
             """,
         ]
 
-        var result: CompilationContext?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-        }
+        let ctx = makeContextFromSources(sources)
+        try runToKIR(ctx)
 
-        let ctx = try #require(result)
-        Self._sharedNativePlatformKIRCtx = ctx
         return ctx
     }
 
-    private func sharedNativePlatformAllAPIsKIRCtx() throws -> CompilationContext {
-        if let cached = Self._sharedNativePlatformAllAPIsKIRCtx {
-            return cached
-        }
+    private func sharedNativePlatformKIRCtx() throws -> CompilationContext {
+        try Self._sharedNativePlatformKIRCtx.get()
+    }
 
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedNativePlatformAllAPIsKIRCtx = Result<CompilationContext, any Error> {
         let source = """
         @file:OptIn(kotlin.experimental.ExperimentalNativeApi::class)
         @file:Suppress("DEPRECATION")
@@ -248,16 +240,14 @@ extension BuildKIRRegressionTests {
         }
         """
 
-        var result: CompilationContext?
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            result = ctx
-        }
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
 
-        let ctx = try #require(result)
-        Self._sharedNativePlatformAllAPIsKIRCtx = ctx
         return ctx
+    }
+
+    private func sharedNativePlatformAllAPIsKIRCtx() throws -> CompilationContext {
+        try Self._sharedNativePlatformAllAPIsKIRCtx.get()
     }
 
     @Test func testNativePlatformMemoryModelUsesTheCurrentConstant() throws {

@@ -11,22 +11,20 @@ extension BuildKIRRegressionTests {
         fun negativeOperator(values: Iterable<Int>, needle: Int): Boolean = needle !in values
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected Iterable.contains KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected Iterable.contains KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
 
-            let module = try #require(ctx.kir)
-            for functionName in ["direct", "operatorCall", "negativeOperator"] {
-                let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
-                let callees = Set(extractCallees(from: body, interner: ctx.interner))
-                #expect(callees.contains("contains"), "Expected \(functionName) to call bundled Iterable.contains")
-                #expect(!callees.contains("kk_op_contains"))
-                #expect(!callees.contains("kk_sequence_contains"))
-            }
+        let module = try #require(ctx.kir)
+        for functionName in ["direct", "operatorCall", "negativeOperator"] {
+            let body = try findKIRFunctionBody(named: functionName, in: module, interner: ctx.interner)
+            let callees = Set(extractCallees(from: body, interner: ctx.interner))
+            #expect(callees.contains("contains"), "Expected \(functionName) to call bundled Iterable.contains")
+            #expect(!callees.contains("kk_op_contains"))
+            #expect(!callees.contains("kk_sequence_contains"))
         }
     }
 
@@ -48,25 +46,23 @@ extension BuildKIRRegressionTests {
         fun compareKeys(): Boolean = same(ErasedEqKey(7, 1), ErasedEqKey(7, 2))
         """
 
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            #expect(
-                !ctx.diagnostics.hasError,
-                "Expected erased equality KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
-            )
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        #expect(
+            !ctx.diagnostics.hasError,
+            "Expected erased equality KIR to build, got: \(ctx.diagnostics.diagnostics.map(\.message))"
+        )
 
-            let module = try #require(ctx.kir)
-            let genericBody = try findKIRFunctionBody(named: "same", in: module, interner: ctx.interner)
-            #expect(genericBody.contains { instruction in
-                guard case let .binary(op, _, _, _) = instruction else { return false }
-                return op == .equal
-            })
+        let module = try #require(ctx.kir)
+        let genericBody = try findKIRFunctionBody(named: "same", in: module, interner: ctx.interner)
+        #expect(genericBody.contains { instruction in
+            guard case let .binary(op, _, _, _) = instruction else { return false }
+            return op == .equal
+        })
 
-            let callerBody = try findKIRFunctionBody(named: "compareKeys", in: module, interner: ctx.interner)
-            let callerCallees = extractCallees(from: callerBody, interner: ctx.interner)
-            #expect(callerCallees.filter { $0 == "kk_object_register_equals_override" }.count == 2)
-        }
+        let callerBody = try findKIRFunctionBody(named: "compareKeys", in: module, interner: ctx.interner)
+        let callerCallees = extractCallees(from: callerBody, interner: ctx.interner)
+        #expect(callerCallees.filter { $0 == "kk_object_register_equals_override" }.count == 2)
     }
 }
 #endif

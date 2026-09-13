@@ -161,16 +161,13 @@ struct KIRVerifierTests {
             println("hello")
         }
         """
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], moduleName: "KIRVerifierSmoke", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            let kirDiagnostics = ctx.diagnostics.diagnostics.filter {
-                $0.code == "KSWIFTK-KIR-0003"
-            }
-            #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
-            #expect(!ctx.diagnostics.hasError)
+        let ctx = makeContextFromSource(source, moduleName: "KIRVerifierSmoke")
+        try runToLowering(ctx)
+        let kirDiagnostics = ctx.diagnostics.diagnostics.filter {
+            $0.code == "KSWIFTK-KIR-0003"
         }
+        #expect(kirDiagnostics.isEmpty, "unexpected KIR verifier failures: \(kirDiagnostics)")
+        #expect(!ctx.diagnostics.hasError)
     }
 }
 #endif

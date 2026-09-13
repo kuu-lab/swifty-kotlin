@@ -20,8 +20,11 @@ extension CallLowerer {
     }
 
     /// HashSet is source-backed for its nominal API, but its instances are
-    /// RuntimeSetBox values without a Kotlin vtable. Keep the mutating and
-    /// membership operations on their runtime ABI entry points.
+    /// RuntimeSetBox values without a Kotlin vtable. Keep the mutating,
+    /// membership, and `Any`-override operations on their runtime ABI entry
+    /// points instead of the inherited AbstractCollection/AbstractMutableSet
+    /// bodies, which would dispatch through a vtable the RuntimeSetBox
+    /// receiver does not have (KSWIFTK-RUNTIME-0001 vtable lookup panic).
     func runtimeBackedSetMemberCallee(
         memberName: String,
         receiverType: TypeID,
@@ -35,6 +38,8 @@ extension CallLowerer {
                 return interner.intern("kk_any_member_equals")
             case "hashCode":
                 return interner.intern("kk_any_member_hashCode")
+            case "toString":
+                return interner.intern("__kk_set_to_string")
             default:
                 break
             }

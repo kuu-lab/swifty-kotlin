@@ -4,111 +4,50 @@ import Testing
 
 @Suite
 struct ASTContextFunctionTypeTests {
-    private func buildAST(from source: String) throws -> (ASTModule, CompilationContext) {
-        let ctx = makeContextFromSource(source)
-        try runFrontend(ctx)
-        return (try #require(ctx.ast), ctx)
+    /// Compiles a `typealias Handler = <type>` fixture and returns the
+    /// rendered underlying type. The rendered form encodes context receivers,
+    /// `suspend`, receiver, params, return type, and nullability.
+    private func renderedHandlerType(from source: String) throws -> String {
+        let (ast, ctx) = try buildASTModule(from: source)
+        let typeAliasDecl = try #require(firstTypeAliasDecl(named: "Handler", in: ast, interner: ctx.interner))
+        let underlyingType = try #require(typeAliasDecl.underlyingType)
+        return renderTypeRef(underlyingType, in: ast, interner: ctx.interner)
     }
 
     @Test
     func testBuildASTParsesContextFunctionTypeAlias() throws {
-        let source = """
+        let rendered = try renderedHandlerType(from: """
         package demo
         typealias Handler = context(A) (B) -> C
-        """
-        let (ast, ctx) = try buildAST(from: source)
-        let typeAliasDecl = try #require(ast.arena.declarations().compactMap { decl -> TypeAliasDecl? in
-            guard case let .typeAliasDecl(typeAliasDecl) = decl else { return nil }
-            return typeAliasDecl
-        }.first)
-        let underlyingType = try #require(typeAliasDecl.underlyingType)
-
-        guard case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable) = ast.arena.typeRef(underlyingType) else {
-            Issue.record("Expected function type"); return
-        }
-
-        #expect(contextReceivers.count == 1)
-        #expect(receiver == nil)
-        #expect(params.count == 1)
-        #expect(!(isSuspend))
-        #expect(!(nullable))
-        #expect(renderTypeRef(contextReceivers[0], in: ast, interner: ctx.interner) == "A")
-        #expect(renderTypeRef(params[0], in: ast, interner: ctx.interner) == "B")
-        #expect(renderTypeRef(returnType, in: ast, interner: ctx.interner) == "C")
+        """)
+        #expect(rendered == "context(A) (B) -> C")
     }
 
     @Test
     func testBuildASTParsesSuspendContextFunctionTypeAlias() throws {
-        let source = """
+        let rendered = try renderedHandlerType(from: """
         package demo
         typealias Handler = context(A, B) suspend (C, D) -> E
-        """
-        let (ast, ctx) = try buildAST(from: source)
-        let typeAliasDecl = try #require(ast.arena.declarations().compactMap { decl -> TypeAliasDecl? in
-            guard case let .typeAliasDecl(typeAliasDecl) = decl else { return nil }
-            return typeAliasDecl
-        }.first)
-        let underlyingType = try #require(typeAliasDecl.underlyingType)
-
-        guard case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable) = ast.arena.typeRef(underlyingType) else {
-            Issue.record("Expected function type"); return
-        }
-
-        #expect(contextReceivers.map { renderTypeRef($0, in: ast, interner: ctx.interner) } == ["A", "B"])
-        #expect(receiver == nil)
-        #expect(params.map { renderTypeRef($0, in: ast, interner: ctx.interner) } == ["C", "D"])
-        #expect(renderTypeRef(returnType, in: ast, interner: ctx.interner) == "E")
-        #expect(isSuspend)
-        #expect(!(nullable))
+        """)
+        #expect(rendered == "context(A, B) suspend (C, D) -> E")
     }
 
     @Test
     func testBuildASTParsesContextReceiverFunctionTypeAlias() throws {
-        let source = """
+        let rendered = try renderedHandlerType(from: """
         package demo
         typealias Handler = context(A) (Receiver) -> R
-        """
-        let (ast, ctx) = try buildAST(from: source)
-        let typeAliasDecl = try #require(ast.arena.declarations().compactMap { decl -> TypeAliasDecl? in
-            guard case let .typeAliasDecl(typeAliasDecl) = decl else { return nil }
-            return typeAliasDecl
-        }.first)
-        let underlyingType = try #require(typeAliasDecl.underlyingType)
-
-        guard case let .functionType(contextReceivers, receiver, params, returnType, isSuspend, nullable) = ast.arena.typeRef(underlyingType) else {
-            Issue.record("Expected function type"); return
-        }
-
-        #expect(contextReceivers.count == 1)
-        #expect(renderTypeRef(contextReceivers[0], in: ast, interner: ctx.interner) == "A")
-        #expect(receiver == nil)
-        #expect(params.count == 1)
-        #expect(renderTypeRef(params[0], in: ast, interner: ctx.interner) == "Receiver")
-        #expect(renderTypeRef(returnType, in: ast, interner: ctx.interner) == "R")
-        #expect(!(isSuspend))
-        #expect(!(nullable))
+        """)
+        #expect(rendered == "context(A) (Receiver) -> R")
     }
 
     @Test
     func testBuildASTParsesNestedGenericContextFunctionTypeAlias() throws {
-        let source = """
+        let rendered = try renderedHandlerType(from: """
         package demo
         typealias Handler = context(A<B>) (C<D>) -> E
-        """
-        let (ast, ctx) = try buildAST(from: source)
-        let typeAliasDecl = try #require(ast.arena.declarations().compactMap { decl -> TypeAliasDecl? in
-            guard case let .typeAliasDecl(typeAliasDecl) = decl else { return nil }
-            return typeAliasDecl
-        }.first)
-        let underlyingType = try #require(typeAliasDecl.underlyingType)
-
-        guard case let .functionType(contextReceivers, _, params, returnType, _, _) = ast.arena.typeRef(underlyingType) else {
-            Issue.record("Expected function type"); return
-        }
-
-        #expect(renderTypeRef(contextReceivers[0], in: ast, interner: ctx.interner) == "A<B>")
-        #expect(renderTypeRef(params[0], in: ast, interner: ctx.interner) == "C<D>")
-        #expect(renderTypeRef(returnType, in: ast, interner: ctx.interner) == "E")
+        """)
+        #expect(rendered == "context(A<B>) (C<D>) -> E")
     }
 
     /// KSP-603: a `context(...)` function type in the parameter list is not a
@@ -120,11 +59,8 @@ struct ASTContextFunctionTypeTests {
         package demo
         fun applyInt(block: context(Int) () -> String): String = "applyInt"
         """
-        let (ast, ctx) = try buildAST(from: source)
-        let funDecl = try #require(ast.arena.declarations().compactMap { decl -> FunDecl? in
-            guard case let .funDecl(funDecl) = decl else { return nil }
-            return funDecl
-        }.first)
+        let (ast, ctx) = try buildASTModule(from: source)
+        let funDecl = try #require(firstFunDecl(named: "applyInt", in: ast, interner: ctx.interner))
 
         #expect(funDecl.receiverType == nil)
         #expect(funDecl.valueParams.count == 1)

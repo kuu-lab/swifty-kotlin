@@ -42,13 +42,7 @@ struct CollectionClassificationTests {
             var state = State()
             CollectionLiteralLoweringSupport().collectInitialCollectionExprIDs(
                 function: function, lookup: CollectionLiteralLookupTables(interner: interner),
-                arena: arena, sema: sema, interner: interner,
-                listExprIDs: &state.listExprIDs, setExprIDs: &state.setExprIDs,
-                mapExprIDs: &state.mapExprIDs, arrayExprIDs: &state.arrayExprIDs,
-                sequenceExprIDs: &state.sequenceExprIDs, rangeExprIDs: &state.rangeExprIDs,
-                charRangeExprIDs: &state.charRangeExprIDs, ulongRangeExprIDs: &state.ulongRangeExprIDs,
-                stringExprIDs: &state.stringExprIDs, fileExprIDs: &state.fileExprIDs,
-                pathExprIDs: &state.pathExprIDs
+                arena: arena, sema: sema, interner: interner, state: &state
             )
             return state
         }
@@ -169,6 +163,20 @@ struct CollectionClassificationTests {
     }
 
     @Test
+    func seedingKeepsAStaticTypeWhenTheCopiedValueIsUnclassified() {
+        let fixture = Fixture()
+        let storage = fixture.arena.appendTemporary(
+            type: fixture.classType(["kotlin", "collections", "List"])
+        )
+        let unknown = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([.copy(from: unknown, to: storage)]))
+
+        // The static type still holds for the instructions that precede the
+        // copy; dropping the seed here is the rewrite's job, not the seed's.
+        #expect(state.listExprIDs == [storage.rawValue])
+    }
+
+    @Test
     func rangeFactoriesAndCopyChainsPreserveSpecialization() {
         let fixture = Fixture()
         let char = fixture.arena.appendTemporary(type: fixture.sema.types.charType)
@@ -221,10 +229,7 @@ struct CollectionClassificationTests {
 
         try CollectionLiteralLoweringPass().run(module: module, ctx: context)
 
-        guard case let .function(lowered) = module.arena.decl(declaration) else {
-            Issue.record("The collection pass removed the probe function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(declaration)?.function, "The collection pass removed the probe function")
         let iteratorCalls = lowered.body.filter { instruction in
             guard case let .call(_, _, _, returned, _, _, _, _) = instruction else { return false }
             return returned == result

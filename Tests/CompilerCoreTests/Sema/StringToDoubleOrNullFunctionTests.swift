@@ -19,14 +19,6 @@ struct StringToDoubleOrNullFunctionTests {
         return sema.symbols.externalLinkName(for: sym)
     }
 
-    private func externalLinks(for member: String, sema: SemaModule, interner: StringInterner) -> Set<String> {
-        let fq = ["kotlin", "text", member].map { interner.intern($0) }
-        return Set(
-            sema.symbols.lookupAll(fqName: fq)
-                .compactMap { sema.symbols.externalLinkName(for: $0) }
-        )
-    }
-
     @Test func testToDoubleOrNullResolvesInSource() throws {
         let source = """
         fun probe(text: String) {

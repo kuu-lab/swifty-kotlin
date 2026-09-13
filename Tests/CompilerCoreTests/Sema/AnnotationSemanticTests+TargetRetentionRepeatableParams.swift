@@ -13,170 +13,6 @@ import Testing
 
 extension AnnotationSemanticTests {
 
-    // MARK: - @Target enforcement on additional sites
-
-    // MARK: - @Retention(RUNTIME) metadata
-
-    // MARK: - @Repeatable allows multiple occurrences
-
-    // MARK: - @MustBeDocumented visibility in reflection
-
-    // MARK: - Getter / Setter use-site targets
-
-    // MARK: - Object and enum class targets
-
-    // MARK: - Annotation parameters: default values, named vs positional
-
-    // MARK: - @Target(ANNOTATION_CLASS) enforcement
-
-    // MARK: - Per-source diagnostic helpers
-
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func diagnosticsForPath(
-        _ path: String,
-        withCode code: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        diagnosticsForPath(path, in: ctx).filter { $0.code == code }
-    }
-
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    // MARK: - Path-aware expression search helpers
-
-    private func firstExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
-
-    private func lastExprIDInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        var result: ExprID?
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { result = exprID }
-        }
-        return result
-    }
-
-    private func allExprIDsInPath(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> [ExprID] {
-        var results: [ExprID] = []
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { results.append(exprID) }
-        }
-        return results
-    }
-
-    private func memberCallExprIDsInPath(
-        named name: String,
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        interner: StringInterner
-    ) -> [ExprID] {
-        ast.arena.exprs.indices.compactMap { index in
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .memberCall(_, callee, _, _, range) = expr,
-                  interner.resolve(callee) == name,
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else {
-                return nil
-            }
-            return exprID
-        }
-    }
-
-    private func firstUserObjectLiteralDeclIDInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager
-    ) -> DeclID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  case let .objectLiteral(_, declID, _) = expr,
-                  let declID,
-                  let range = ast.arena.exprRange(exprID),
-                  sourceManager.path(of: range.start.file) == path
-            else { continue }
-            return declID
-        }
-        return nil
-    }
-
-    private func findMainBodyStatementsInPath(
-        in ast: ASTModule,
-        path: String,
-        sourceManager: SourceManager,
-        interner: StringInterner
-    ) -> [ExprID]? {
-        guard let fileID = sourceManager.fileID(forPath: path) else { return nil }
-        for file in ast.files {
-            guard file.fileID == fileID else { continue }
-            for declID in file.topLevelDecls {
-                guard let decl = ast.arena.decl(declID),
-                      case let .funDecl(function) = decl,
-                      interner.resolve(function.name) == "main",
-                      case let .block(statements, _) = function.body
-                else { continue }
-                return statements
-            }
-        }
-        return nil
-    }
-
     // MARK: - Consolidated runSema clean tests
 
     @Test
@@ -423,7 +259,7 @@ extension AnnotationSemanticTests {
 
             try runSema(ctx)
 
-            let ast = try #require(ctx.ast)
+            _ = try #require(ctx.ast)
 
             let sema = try #require(ctx.sema)
 
@@ -544,9 +380,7 @@ extension AnnotationSemanticTests {
 
             do {
 
-                let sample7Path = paths[7]
 
-                let sample7Diagnostics = diagnosticsForPath(sample7Path, in: ctx)
 
                 let symbolID = try #require(sema.symbols.lookup(fqName: [interner.intern("sample7"), interner.intern("RuntimeAnnotation")]))
                 let annotations = sema.symbols.annotations(for: symbolID)
@@ -566,9 +400,7 @@ extension AnnotationSemanticTests {
 
             do {
 
-                let sample8Path = paths[8]
 
-                let sample8Diagnostics = diagnosticsForPath(sample8Path, in: ctx)
 
                 let symbolID = try #require(sema.symbols.lookup(fqName: [interner.intern("sample8"), interner.intern("SourceOnly")]))
                 let annotations = sema.symbols.annotations(for: symbolID)
@@ -620,9 +452,7 @@ extension AnnotationSemanticTests {
 
             do {
 
-                let sample11Path = paths[11]
 
-                let sample11Diagnostics = diagnosticsForPath(sample11Path, in: ctx)
 
                 let symbolID = try #require(sema.symbols.lookup(fqName: [interner.intern("sample11"), interner.intern("DocRequiredMark")]))
                 let annotations = sema.symbols.annotations(for: symbolID)
@@ -719,9 +549,7 @@ extension AnnotationSemanticTests {
 
             do {
 
-                let sample18Path = paths[18]
 
-                let sample18Diagnostics = diagnosticsForPath(sample18Path, in: ctx)
 
                 let symbolID = try #require(sema.symbols.lookup(fqName: [interner.intern("sample18"), interner.intern("MultiParam")]))
                 let symbol = try #require(sema.symbols.symbol(symbolID))

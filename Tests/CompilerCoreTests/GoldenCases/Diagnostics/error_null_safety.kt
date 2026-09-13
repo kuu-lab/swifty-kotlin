@@ -2,7 +2,7 @@
 
 fun main() {
     // ERROR: Assigning null to non-nullable type
-    val name: String = null  // KSWIFTK-TYPE-0020: null cannot be a value of a non-null type String
+    val name: String = null  // KSWIFTK-TYPE-0001: type constraint could not be satisfied (null is not a value of non-null String)
 
     // ERROR: Calling method on potentially null value without safe call
     val maybeNull: String? = "hello"
@@ -10,15 +10,15 @@ fun main() {
 
     // ERROR: Passing nullable where non-nullable is required
     val nullable: Int? = 10
-    requireNonNull(nullable)  // KSWIFTK-TYPE-0021: type mismatch, expected Int found Int?
+    requireNonNull(nullable)  // KSWIFTK-SEMA-0002: no viable overload found for call (Int? passed where Int expected)
 
-    // ERROR: Implicit not-null assertion on null literal
-    val x: String = null!!  // KSWIFTK-SEMA-0021: null cannot be dereferenced
+    // NOT an error: `null!!` has type Nothing, a subtype of String
+    val x: String = null!!  // no diagnostic, matching kotlinc, which compiles this silently
 
     // ERROR: Elvis operator result ignored when both sides are nullable
     val a: String? = null
     val b: String? = null
-    val c: String = a ?: b  // KSWIFTK-TYPE-0022: type mismatch, expected String found String?
+    val c: String = a ?: b  // KSWIFTK-TYPE-0001: type constraint could not be satisfied (String? where String expected)
 }
 
 fun requireNonNull(x: Int): Int = x

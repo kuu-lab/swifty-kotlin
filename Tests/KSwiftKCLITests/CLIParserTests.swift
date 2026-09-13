@@ -3,7 +3,11 @@
 @testable import KSwiftKCLI
 import Testing
 
-@Suite("CLI.Parser")
+// .serialized: parsesStdlibFlags() and
+// defaultExecutableParseHonorsProcessDefaultStdlibLibrary() both mutate the
+// process-wide CompilerOptions.defaultStdlibLibraryPath; running this
+// suite's tests concurrently races on that global.
+@Suite("CLI.Parser", .serialized)
 struct CLIParserTests {
     @Test
     func parsesMinimalInput() throws {
@@ -125,9 +129,21 @@ struct CLIParserTests {
 
     @Test
     func parsesStdlibFlags() throws {
-        // Isolate from test-process state that may have set a shared
-        // prebuilt stdlib library path; CLI flag parsing should determine
-        // includeStdlib on its own.
+        // CompilerOptions.init (CompilerTypes.swift) reads the process-wide
+        // CompilerOptions.defaultStdlibLibraryPath whenever
+        // shouldUseDefaultStdlib(...) holds, which is exactly the CLI
+        // default for the "--stdlib"/plain-args cases below (emit ==
+        // .executable, no --stdlib-library, includeStdlib == true,
+        // allowDefaultStdlibLibrary == true). If another test in this
+        // process already published a path there (e.g. via
+        // TestStdlibCache.shared.prepare(), as several CompilerCoreTests/
+        // CompilerBackendTests helpers do), CLIParser.parse would silently
+        // resolve stdlibLibraryPath from that global and flip includeStdlib
+        // to false out from under us — see
+        // defaultExecutableParseHonorsProcessDefaultStdlibLibrary below,
+        // which pins that behavior as an intentional contract. Isolate from
+        // that shared state so this test's result depends only on the CLI
+        // flags being parsed.
         let savedDefaultStdlibLibraryPath = CompilerOptions.defaultStdlibLibraryPath
         defer { CompilerOptions.defaultStdlibLibraryPath = savedDefaultStdlibLibraryPath }
         CompilerOptions.defaultStdlibLibraryPath = nil
@@ -140,6 +156,24 @@ struct CLIParserTests {
 
         let defaultOptions = try CLIParser.parse(args: ["main.kt"])
         #expect(defaultOptions.includeStdlib == true)
+    }
+
+    @Test
+    func defaultExecutableParseHonorsProcessDefaultStdlibLibrary() throws {
+        // Pins the main.swift two-phase parse contract: after resolving or
+        // building a prebuilt stdlib artifact and publishing its path to
+        // CompilerOptions.defaultStdlibLibraryPath, main.swift re-parses the
+        // same args so CompilerOptions.init picks that path up as
+        // stdlibLibraryPath and turns off source-injection stdlib
+        // inclusion. This is why parsesStdlibFlags() above must isolate
+        // itself from this same global.
+        let saved = CompilerOptions.defaultStdlibLibraryPath
+        defer { CompilerOptions.defaultStdlibLibraryPath = saved }
+        CompilerOptions.defaultStdlibLibraryPath = "/tmp/KSwiftKStdlib.kklib"
+
+        let options = try CLIParser.parse(args: ["main.kt"])
+        #expect(options.stdlibLibraryPath == "/tmp/KSwiftKStdlib.kklib")
+        #expect(options.includeStdlib == false)
     }
 
     @Test
