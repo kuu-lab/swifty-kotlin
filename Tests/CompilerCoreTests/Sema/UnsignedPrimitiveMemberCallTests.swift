@@ -120,6 +120,18 @@ struct UnsignedPrimitiveMemberCallTests {
                     }
 
             """,
+            // testUnsignedToCharIsUnresolved (KSP-1533): unsigned types don't
+            // extend kotlin.Number and never declared toChar(), so this must
+            // stay unresolved. Locks in the audit finding that kk_ulong_to_char
+            // (and its UInt/UByte/UShort siblings) was dead lowering code.
+            """
+            package sample9
+
+                    fun sample(ul: ULong) {
+                        ul.toChar()
+                    }
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -302,6 +314,18 @@ struct UnsignedPrimitiveMemberCallTests {
                 let sample3Diagnostics = diagnosticsForPath(sample3Path, in: ctx)
 
                 assertHasDiagnostic("KSWIFTK-SEMA-0024", in: sample3Diagnostics)
+
+            }
+
+            // === testUnsignedToCharIsUnresolved (KSP-1533) ===
+
+            do {
+
+                let ulongToCharPath = paths[9]
+
+                let ulongToCharDiagnostics = diagnosticsForPath(ulongToCharPath, in: ctx)
+
+                assertHasDiagnostic("KSWIFTK-SEMA-0024", in: ulongToCharDiagnostics)
 
             }
 

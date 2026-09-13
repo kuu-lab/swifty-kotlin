@@ -89,6 +89,14 @@ struct ABIMismatchTests {
     }
 
     @Test
+    func ulongToCharBridgeABIIsRemoved() {
+        #expect(
+            !RuntimeABISpec.allFunctions.contains { $0.name == "kk_ulong_to_char" },
+            "ULong.toChar() has no Sema binding (unsigned types don't extend Number and never declared this member), so KSP-1533 removed the dead bridge instead of migrating it"
+        )
+    }
+
+    @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {
             let spec = try requireSpec(name)

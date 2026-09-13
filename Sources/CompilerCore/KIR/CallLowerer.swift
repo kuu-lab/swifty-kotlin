@@ -1755,7 +1755,12 @@ final class CallLowerer {
         case ("toUInt", sema.types.charType, sema.types.uintType): nil
         case ("toUInt", sema.types.byteType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.shortType, sema.types.uintType): interner.intern("kk_int_to_uint")
-        case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
+        case ("toUInt", sema.types.uintType, sema.types.uintType): nil
+        // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the high
+        // bits away; reuse kk_long_to_uint (same raw-register representation,
+        // already truncates via UInt32(truncatingIfNeeded:)) rather than the
+        // representation-preserving identity this wrongly used before.
+        case ("toUInt", sema.types.ulongType, sema.types.uintType): interner.intern("kk_long_to_uint")
         case ("toULong", sema.types.intType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
         case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")
@@ -1799,7 +1804,9 @@ final class CallLowerer {
         case ("toUShort", sema.types.ulongType, sema.types.ushortType): interner.intern("kk_ulong_to_ushort")
         case ("toUShort", sema.types.ushortType, sema.types.ushortType): nil
         case ("toChar", sema.types.uintType, sema.types.charType): interner.intern("kk_uint_to_char")
-        case ("toChar", sema.types.ulongType, sema.types.charType): interner.intern("kk_ulong_to_char")
+        // KSP-1533: ULong.toChar() has no Sema binding (Kotlin's unsigned types
+        // don't extend Number and never declared this member; verified against
+        // kotlinc 2.4.20 and KSWIFTK-SEMA-0024). This case was dead.
         case ("toChar", sema.types.ubyteType, sema.types.charType): interner.intern("kk_ubyte_to_char")
         case ("toChar", sema.types.ushortType, sema.types.charType): interner.intern("kk_ushort_to_char")
         case ("toChar", sema.types.charType, sema.types.charType): nil

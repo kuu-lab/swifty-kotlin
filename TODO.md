@@ -553,6 +553,7 @@
   - 前提: KSP-1529
 
 - [ ] KSP-1532: `UInt` の数値変換メンバ（`toByte`/`toChar`/`toDouble`/`toFloat`/`toInt`/`toLong`/`toShort`/`toUByte`/`toULong`/`toUShort`）を Kotlin 化する
+  - 注記(2026-09-13, KSP-1533 調査で判明): UInt.toChar() は kotlinc 2.4.20 でも unresolved reference、kswiftc でも KSWIFTK-SEMA-0024 で解決不能。unsigned 型は kotlin.Number を継承せず toChar() を宣言していない。着手前に kk_uint_to_char が本当に到達可能か再検証すること。KSP-1533 の kk_ulong_to_char は同じ理由で dead と判明し Kotlin 化ではなく削除のみで完了した。toChar 以外の9メンバは実在するので対象のまま。
   - 対象: KSP-1531 で (b) と判定した UInt 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/Numbers.kt` 追記 or 新設 `kotlin/UnsignedConversions.kt`
   - 削除/降格 kk_*: `kk_uint_to_char`（(c) の9件は compiler intrinsic owner として残す）
@@ -560,7 +561,10 @@
   - diff: `unsigned_conversions*.kt` 既存 + `UInt.MAX_VALUE.toInt()`（ラップ）と `toDouble()` の丸めケース
   - 前提: KSP-1531
 
-- [ ] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
+- [x] KSP-1533: `ULong` の数値変換メンバを Kotlin 化する
+  - 完了記録: 監査の結果 ULong.toChar() は kotlinc 2.4.20 でも unresolved reference、kswiftc でも KSWIFTK-SEMA-0024 で解決不能と判明した。unsigned 型は kotlin.Number を継承せず toChar() を宣言していない。KSP-1531 の (b) 分類は CallLowerer に case が存在することを到達可能性の証拠と誤認していた。Kotlin ソースへの移行ではなく、到達不能だった kk_ulong_to_char の CallLowerer dispatch（3ファイル）・Runtime @_cdecl・RuntimeABI spec entry・直接テストを削除した。(c) の7件は compiler intrinsic owner のまま変更なし。
+  - 追加発見: この監査で要求された diff ケースを実装中に ULong.toUInt() のバグを発見・修正した。kk_ulong_to_uint は現行シンボルなしで representation-preserving copy と記載されていたが、これは Long<->ULong（64→64）と同じ扱いの誤りで、実際は 64→32 の truncating narrowing が必要だった。上位32bitがゼロでない値（ULong.MAX_VALUE 等）は toString/等価比較で壊れた値になっていた（算術演算の + は偶然マスクされ正しく見えていた）。修正は kk_long_to_uint（既に UInt32(truncatingIfNeeded:) でマスクする既存シンボル、同じ raw-register 表現）への再利用ルーティング。ABI・Runtime の新規追加なし。
+  - 回帰: UnsignedPrimitiveMemberCallTests（ul.toChar() が KSWIFTK-SEMA-0024 のまま固定）、ABIMismatchTests.ulongToCharBridgeABIIsRemoved、CodegenBackendNumericBoundariesTests.testNumericBoundaryULongToUIntTruncates、Scripts/diff_cases/unsigned_conversions.kt
   - 対象: KSP-1531 で (b) と判定した ULong 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
   - 削除/降格 kk_*: `kk_ulong_to_char`（`kk_ulong_to_uint`/`kk_ulong_to_long` は現行シンボルなし、representation-preserving copy。 (c) の7件は compiler intrinsic owner として残す）
@@ -569,6 +573,7 @@
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1534: `UByte` の数値変換メンバを Kotlin 化する
+  - 注記(2026-09-13, KSP-1533 調査で判明): unsigned 型は kotlin.Number を継承しないため UByte.toChar() も kotlinc/kswiftc いずれも解決不能の可能性が高い(未実測)。着手前に kk_ubyte_to_char が本当に到達可能か KSP-1533 と同じ手法(kotlinc probe + kswiftc probe)で再検証すること。
   - 対象: KSP-1531 で (b) と判定した UByte 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
   - 削除/降格 kk_*: `kk_ubyte_to_char`（(c) の9件は compiler intrinsic owner として残す）
@@ -577,6 +582,7 @@
   - 前提: KSP-1531, KSP-1532
 
 - [ ] KSP-1535: `UShort` の数値変換メンバを Kotlin 化する
+  - 注記(2026-09-13, KSP-1533 調査で判明): unsigned 型は kotlin.Number を継承しないため UShort.toChar() も kotlinc/kswiftc いずれも解決不能の可能性が高い(未実測)。着手前に kk_ushort_to_char が本当に到達可能か KSP-1533 と同じ手法(kotlinc probe + kswiftc probe)で再検証すること。
   - 対象: KSP-1531 で (b) と判定した UShort 受け手1件（SyntheticCoercionStubs.swift には登録せず、primitive lowerer/Runtime/ABI 経路を監査）
   - 実装先: KSP-1532 と同じ実装先ファイル
   - 削除/降格 kk_*: `kk_ushort_to_char`（(c) の9件は compiler intrinsic owner として残す）

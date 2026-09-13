@@ -956,7 +956,13 @@ extension CallLowerer {
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
-            case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
+            case ("toUInt", uintType, uintType): nil // identity
+            // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the
+            // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
+            // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
+            // on the same raw-register representation). Was wrongly treated as
+            // representation-preserving, which left garbage high bits behind.
+            case ("toUInt", ulongType, uintType): interner.intern("kk_long_to_uint")
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
             case ("toLong", ubyteType, longType): interner.intern("kk_ubyte_to_long")
@@ -1018,7 +1024,9 @@ extension CallLowerer {
             case ("toUShort", uintType, ushortType): interner.intern("kk_uint_to_ushort")
             case ("toUShort", ulongType, ushortType): interner.intern("kk_ulong_to_ushort")
             case ("toChar", uintType, charType): interner.intern("kk_uint_to_char")
-            case ("toChar", ulongType, charType): interner.intern("kk_ulong_to_char")
+            // KSP-1533: ULong.toChar() has no Sema binding (Kotlin's unsigned
+            // types don't extend Number and never declared this member;
+            // verified against kotlinc 2.4.20 and KSWIFTK-SEMA-0024). Dead case.
             case ("toChar", ubyteType, charType): interner.intern("kk_ubyte_to_char")
             case ("toChar", ushortType, charType): interner.intern("kk_ushort_to_char")
             case ("toChar", charType, charType): nil // identity
@@ -1037,7 +1045,6 @@ extension CallLowerer {
             }
             let isRepresentationPreservingConversion =
                 (calleeStr == "toLong" && nonNullReceiverType == ulongType && nonNullResultType == longType)
-                    || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && nonNullReceiverType == charType && nonNullResultType == intType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
