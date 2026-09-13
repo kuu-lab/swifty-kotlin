@@ -1,38 +1,5 @@
 
 extension CollectionLiteralLoweringSupport {
-    func collectBuilderLambdaKinds(
-        module: KIRModule,
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> [InternedString: InternedString] {
-        var symbolToFuncName: [SymbolID: InternedString] = [:]
-        for decl in module.arena.declarations {
-            if case let .function(funcDecl) = decl {
-                symbolToFuncName[funcDecl.symbol] = funcDecl.name
-            }
-        }
-
-        var builderLambdaKinds: [InternedString: InternedString] = [:]
-        for decl in module.arena.declarations {
-            guard case let .function(function) = decl else { continue }
-
-            let (exprSymbolMap, entries) = scanBuilderLambdaEntries(
-                body: function.body, lookup: lookup, ctx: ctx
-            )
-
-            for entry in entries {
-                if let symbol = exprSymbolMap[entry.argID] {
-                    let lambdaName = ctx.interner.intern("kk_lambda_\(entry.argID)")
-                    builderLambdaKinds[lambdaName] = entry.callee
-                    if let funcName = symbolToFuncName[symbol] {
-                        builderLambdaKinds[funcName] = entry.callee
-                    }
-                }
-            }
-        }
-        return builderLambdaKinds
-    }
-
     func isStdlibBuilderDSLCall(
         symbol: SymbolID?,
         callee: InternedString,
@@ -59,29 +26,6 @@ extension CollectionLiteralLoweringSupport {
         // Source-backed builders resolve to CollectionBuilders.kt
         // (KSP-622, KSP-623), so the legacy rewrite never applies.
         return false
-    }
-
-    private func scanBuilderLambdaEntries(
-        body: [KIRInstruction],
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> (exprSymbolMap: [Int32: SymbolID], entries: [(argID: Int32, callee: InternedString)]) {
-        var exprSymbolMap: [Int32: SymbolID] = [:]
-        var entries: [(argID: Int32, callee: InternedString)] = []
-        for instruction in body {
-            switch instruction {
-            case let .constValue(result, .symbolRef(symbol)):
-                exprSymbolMap[result.rawValue] = symbol
-            case let .call(symbol, callee, arguments, _, _, _, _, _):
-                if isStdlibBuilderDSLCall(symbol: symbol, callee: callee, lookup: lookup, ctx: ctx),
-                   !arguments.isEmpty {
-                    entries.append((argID: arguments[arguments.count - 1].rawValue, callee: callee))
-                }
-            default:
-                break
-            }
-        }
-        return (exprSymbolMap, entries)
     }
 
     func collectInitialCollectionExprIDs(
