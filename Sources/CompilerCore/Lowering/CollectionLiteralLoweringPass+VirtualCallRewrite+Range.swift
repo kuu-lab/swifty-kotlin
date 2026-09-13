@@ -177,8 +177,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let forEachCallee = isCharRange ? lookup.kkCharRangeForEachName
-                : (isULongRange ? interner.intern("kk_ulong_range_forEach")
-                    : (isUIntRange ? interner.intern("kk_uint_range_forEach") : lookup.kkRangeForEachName))
+                : (isUIntRange ? interner.intern("kk_uint_range_forEach") : lookup.kkRangeForEachName)
             _ = emitHOFCall(
                 kkName: forEachCallee, receiver: receiver,
                 arguments: arguments + [zeroExpr],
@@ -286,8 +285,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_reduce")
-                    : (isUIntRange ? interner.intern("kk_uint_range_reduce") : lookup.kkRangeReduceName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_reduce") : lookup.kkRangeReduceName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -300,8 +298,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_reduceIndexed")
-                    : (isUIntRange ? interner.intern("kk_uint_range_reduceIndexed") : lookup.kkRangeReduceIndexedName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_reduceIndexed") : lookup.kkRangeReduceIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -314,8 +311,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_fold")
-                    : (isUIntRange ? interner.intern("kk_uint_range_fold") : lookup.kkRangeFoldName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_fold") : lookup.kkRangeFoldName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -328,8 +324,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_foldIndexed")
-                    : (isUIntRange ? interner.intern("kk_uint_range_foldIndexed") : lookup.kkRangeFoldIndexedName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_foldIndexed") : lookup.kkRangeFoldIndexedName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -342,8 +337,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_find")
-                    : (isUIntRange ? interner.intern("kk_uint_range_find") : lookup.kkRangeFindName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_find") : lookup.kkRangeFindName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -356,8 +350,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_findLast")
-                    : (isUIntRange ? interner.intern("kk_uint_range_findLast") : lookup.kkRangeFindLastName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_findLast") : lookup.kkRangeFindLastName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -370,8 +363,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_first_predicate")
-                    : (isUIntRange ? interner.intern("kk_uint_range_first_predicate") : lookup.kkRangeFirstPredicateName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_first_predicate") : lookup.kkRangeFirstPredicateName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -394,8 +386,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_firstOrNull_predicate")
-                    : (isUIntRange ? interner.intern("kk_uint_range_firstOrNull_predicate") : lookup.kkRangeFirstOrNullPredicateName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_firstOrNull_predicate") : lookup.kkRangeFirstOrNullPredicateName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -408,8 +399,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_last_predicate")
-                    : (isUIntRange ? interner.intern("kk_uint_range_last_predicate") : lookup.kkRangeLastPredicateName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_last_predicate") : lookup.kkRangeLastPredicateName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -432,8 +422,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             _ = emitHOFCall(
-                kkName: isULongRange ? interner.intern("kk_ulong_range_lastOrNull_predicate")
-                    : (isUIntRange ? interner.intern("kk_uint_range_lastOrNull_predicate") : lookup.kkRangeLastOrNullPredicateName),
+                kkName: isUIntRange ? interner.intern("kk_uint_range_lastOrNull_predicate") : lookup.kkRangeLastOrNullPredicateName,
                 receiver: receiver,
                 arguments: arguments + [zeroExpr],
                 result: result, origCanThrow: origCanThrow,
@@ -446,12 +435,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
             let kkName: InternedString =
-                callee == lookup.anyName ? (isULongRange ? interner.intern("kk_ulong_range_any")
-                    : (isUIntRange ? interner.intern("kk_uint_range_any") : lookup.kkRangeAnyName))
-                    : callee == lookup.allName ? (isULongRange ? interner.intern("kk_ulong_range_all")
-                        : (isUIntRange ? interner.intern("kk_uint_range_all") : lookup.kkRangeAllName))
-                    : (isULongRange ? interner.intern("kk_ulong_range_none")
-                        : (isUIntRange ? interner.intern("kk_uint_range_none") : lookup.kkRangeNoneName))
+                callee == lookup.anyName ? (isUIntRange ? interner.intern("kk_uint_range_any") : lookup.kkRangeAnyName)
+                    : callee == lookup.allName ? (isUIntRange ? interner.intern("kk_uint_range_all") : lookup.kkRangeAllName)
+                    : (isUIntRange ? interner.intern("kk_uint_range_none") : lookup.kkRangeNoneName)
             _ = emitHOFCall(
                 kkName: kkName, receiver: receiver,
                 arguments: arguments + [zeroExpr],
