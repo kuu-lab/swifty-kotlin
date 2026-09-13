@@ -52,25 +52,9 @@ extension LoweringPassRegressionTests {
         _ = arena.appendDecl(.function(inlineFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [callerID])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineLowering",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineLowering")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("plusOne"))
@@ -191,22 +175,7 @@ extension LoweringPassRegressionTests {
         let pointDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: pointSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [colorDecl, baseDecl, pointDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "Synthesis",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "Synthesis", sema: sema, diagnostics: diagnostics)
 
         let functionNames = findAllKIRFunctions(in: module).map { function in
             interner.resolve(function.name)
@@ -265,22 +234,7 @@ extension LoweringPassRegressionTests {
         let colorDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: colorSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [colorDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "EnumSynthesis",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "EnumSynthesis", sema: sema, diagnostics: diagnostics)
 
         let functionNames = findAllKIRFunctions(in: module).map { function in
             interner.resolve(function.name)
@@ -440,22 +394,7 @@ extension LoweringPassRegressionTests {
         let pointDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: pointSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [pointDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataHashCode",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataHashCode", sema: sema, diagnostics: diagnostics)
 
         let functionNames = findAllKIRFunctions(in: module).map { function in
             interner.resolve(function.name)
@@ -543,22 +482,7 @@ extension LoweringPassRegressionTests {
         let emptyDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: emptySymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [emptyDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataHashCodeEmpty",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataHashCodeEmpty", sema: sema, diagnostics: diagnostics)
 
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
 
@@ -647,22 +571,7 @@ extension LoweringPassRegressionTests {
         let wrapperDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: wrapperSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [wrapperDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataHashCodeSingle",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataHashCodeSingle", sema: sema, diagnostics: diagnostics)
 
         let hashCodeFn = try findKIRFunction(named: "hashCode", in: module, interner: interner)
         let callees = extractCallees(from: hashCodeFn.body, interner: interner)
@@ -844,22 +753,7 @@ extension LoweringPassRegressionTests {
         let pointDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: pointSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [pointDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataClassSynthesis",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataClassSynthesis", sema: sema, diagnostics: diagnostics)
 
         let functionNames = findAllKIRFunctions(in: module).map { function in
             interner.resolve(function.name)
@@ -938,22 +832,7 @@ extension LoweringPassRegressionTests {
         let pointDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: pointSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [pointDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataCopyNoCtor",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataCopyNoCtor", sema: sema, diagnostics: diagnostics)
 
         // Verify copy() is synthesized with only self parameter (fallback)
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
@@ -1045,22 +924,7 @@ extension LoweringPassRegressionTests {
         let pointDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: pointSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [pointDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataCopyWithCtor",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataCopyWithCtor", sema: sema, diagnostics: diagnostics)
 
         // copy() should have self + x + y = 3 params
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
@@ -1140,22 +1004,7 @@ extension LoweringPassRegressionTests {
         let personDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: personSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [personDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataCopyMismatch",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataCopyMismatch", sema: sema, diagnostics: diagnostics)
 
         // copy() should use min(1, 2) = 1 ctor param, so self + 1 = 2 params
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
@@ -1222,22 +1071,7 @@ extension LoweringPassRegressionTests {
         let emptyDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: emptySymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [emptyDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataCopyZeroParams",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataCopyZeroParams", sema: sema, diagnostics: diagnostics)
 
         // copy() with zero ctor params should have only self param
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)
@@ -1307,22 +1141,7 @@ extension LoweringPassRegressionTests {
         let widgetDecl = arena.appendDecl(.nominalType(KIRNominalType(symbol: widgetSymbol)))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [widgetDecl])], arena: arena)
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "DataCopyWrongKind",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: diagnostics,
-            interner: interner
-        )
-        ctx.sema = sema
-        ctx.kir = module
-
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "DataCopyWrongKind", sema: sema, diagnostics: diagnostics)
 
         // Should fall back to self-returning copy (only self param)
         let copyFunction = try findKIRFunction(named: "copy", in: module, interner: interner)

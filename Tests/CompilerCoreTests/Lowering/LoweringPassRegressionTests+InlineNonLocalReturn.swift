@@ -148,25 +148,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
@@ -236,25 +220,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNonLocalReturnUnit",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNonLocalReturnUnit")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let returnUnitCount = loweredCaller.body.filter { instruction in
             if case .returnUnit = instruction { return true }
@@ -339,25 +307,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let returnValues = loweredCaller.body.compactMap { instruction -> KIRExprID? in
             guard case let .returnValue(expr) = instruction else { return nil }
@@ -438,25 +390,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineNoNonLocal",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineNoNonLocal")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("addOne"))
@@ -544,25 +480,9 @@ extension LoweringPassRegressionTests {
             arena: arena
         )
 
-        let ctx = CompilationContext(
-            options: CompilerOptions(
-                moduleName: "InlineUnitMixedReturn",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            sourceManager: SourceManager(),
-            diagnostics: DiagnosticEngine(),
-            interner: interner
-        )
-        ctx.kir = module
-        try LoweringPhase().run(ctx)
+        try runLowering(module: module, interner: interner, moduleName: "InlineUnitMixedReturn")
 
-        guard case let .function(loweredCaller)? = module.arena.decl(callerID) else {
-            Issue.record("expected lowered caller function")
-            return
-        }
+        let loweredCaller = try requireTestValue(module.arena.decl(callerID)?.function, "expected lowered caller function")
 
         let calleeNames = extractCallees(from: loweredCaller.body, interner: interner)
         #expect(!calleeNames.contains("maybeExit"), "Inline call should be expanded")

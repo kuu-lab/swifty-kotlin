@@ -56,19 +56,10 @@ extension LoweringPassRegressionTests {
             files: [KIRFile(fileID: FileID(rawValue: 0), decls: [mainID, lambdaID])],
             arena: arena
         )
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "InlineOnlyCapture", inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump, target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "InlineOnlyCapture",
             interner: interner,
-            sema: makeSemaModule(
-                symbols: SymbolTable(), types: types,
-                bindings: BindingTable(), diagnostics: DiagnosticEngine()
-            ).ctx
+            sema: makeSemaModule(types: types).ctx
         )
         let pass = LambdaClosureConversionPass()
         #expect(pass.shouldRun(module: module, ctx: ctx) == hasMarker)
@@ -116,26 +107,15 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ClosureTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "ClosureTest",
             interner: interner
         )
 
         #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
         #expect(callees.contains("kk_lambda_invoke"),
@@ -220,17 +200,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ClosureObjTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "ClosureObjTest",
             interner: interner,
             sema: sema
         )
@@ -238,10 +210,7 @@ extension LoweringPassRegressionTests {
         #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
@@ -341,26 +310,15 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "NoCaptureTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "NoCaptureTest",
             interner: interner
         )
 
         #expect(!pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
@@ -443,17 +401,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "InvokeWrapperTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InvokeWrapperTest",
             interner: interner,
             sema: sema
         )
@@ -532,16 +482,8 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "UnmatchedCaptureCallSiteTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "UnmatchedCaptureCallSiteTest",
             interner: interner
         )
 
@@ -622,17 +564,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ExprIdBoundaryTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "ExprIdBoundaryTest",
             interner: interner,
             sema: sema
         )
@@ -640,10 +574,7 @@ extension LoweringPassRegressionTests {
         #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
         #expect(callees.contains("kk_closure_invoke_\(lambdaSym.rawValue)"),
@@ -718,16 +649,8 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ThrowingLambdaTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "ThrowingLambdaTest",
             interner: interner
         )
 
@@ -824,17 +747,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "MultiCaptureTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "MultiCaptureTest",
             interner: interner,
             sema: sema
         )
@@ -842,10 +757,7 @@ extension LoweringPassRegressionTests {
         #expect(pass.shouldRun(module: module, ctx: ctx))
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         let callees = extractCallees(from: loweredMain.body, interner: interner)
 
@@ -949,17 +861,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "NonThrowingCalleeTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "NonThrowingCalleeTest",
             interner: interner,
             sema: sema
         )
@@ -1039,16 +943,8 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ZeroValueParamTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let ctx = makeKIRContext(
+            moduleName: "ZeroValueParamTest",
             interner: interner
         )
 
@@ -1127,17 +1023,9 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "SuspendFlagTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "SuspendFlagTest",
             interner: interner,
             sema: sema
         )
@@ -1224,27 +1112,16 @@ extension LoweringPassRegressionTests {
         )
 
         let pass = LambdaClosureConversionPass()
-        let sema = makeSemaModule(symbols: SymbolTable(), types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        let ctx = KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: "ClassIDTest",
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
+        let sema = makeSemaModule(types: types).ctx
+        let ctx = makeKIRContext(
+            moduleName: "ClassIDTest",
             interner: interner,
             sema: sema
         )
 
         try pass.run(module: module, ctx: ctx)
 
-        guard case let .function(loweredMain)? = module.arena.decl(mainID) else {
-            Issue.record("Expected lowered main function.")
-            return
-        }
+        let loweredMain = try requireTestValue(module.arena.decl(mainID)?.function, "Expected lowered main function.")
 
         // The lowered body should contain a class ID constant that is a large
         // positive number (FNV-1a hash). Slot count is small (3-4) and offsets

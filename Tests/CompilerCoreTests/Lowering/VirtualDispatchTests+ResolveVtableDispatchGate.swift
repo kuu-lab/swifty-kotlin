@@ -13,7 +13,7 @@ extension VirtualDispatchTests {
     /// layout slot and the parent has known subtypes.
     @Test func testResolveVtableDispatchReturnsVtableForOpenClassWithSubtypes() {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -68,7 +68,7 @@ extension VirtualDispatchTests {
             for: classSym
         )
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -92,7 +92,7 @@ extension VirtualDispatchTests {
 
     @Test func testResolveVtableDispatchExpectedSlotWhenEnabled() throws {
         let fixture = makeVtableFixture()
-        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: fixture.symbols, types: fixture.types).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)
@@ -170,7 +170,7 @@ extension VirtualDispatchTests {
             for: classSym
         )
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
         let loweringContext = KIRLoweringContext()
         loweringContext.initializeSyntheticLambdaSymbolAllocator(sema: sema)
         let driver = KIRLoweringDriver(ctx: loweringContext)

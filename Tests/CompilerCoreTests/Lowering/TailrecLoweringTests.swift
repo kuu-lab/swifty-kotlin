@@ -8,27 +8,6 @@ struct TailrecLoweringTests {
 
     // MARK: - Test Helpers
 
-    /// Create a `KIRContext` with the given module name and a shared interner.
-    /// Avoids repeating `CompilerOptions` / `DiagnosticEngine` / temp-path
-    /// boilerplate across every test.
-    private func makeKIRContext(
-        moduleName: String,
-        interner: StringInterner
-    ) -> KIRContext {
-        KIRContext(
-            diagnostics: DiagnosticEngine(),
-            options: CompilerOptions(
-                moduleName: moduleName,
-                inputs: [],
-                outputPath: FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString).path,
-                emit: .kirDump,
-                target: defaultTargetTriple()
-            ),
-            interner: interner
-        )
-    }
-
     /// Build a single-function `KIRModule`, run `TailrecLoweringPass`, and
     /// return the lowered function.
     @discardableResult
@@ -639,8 +618,7 @@ struct TailrecLoweringTests {
 
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "TailrecE2E", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
 
             let module = try #require(ctx.kir)
 
