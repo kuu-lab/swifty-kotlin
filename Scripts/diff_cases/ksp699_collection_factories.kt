@@ -4,10 +4,11 @@
 // nominal identity, mutability and element typing alongside the other
 // factories.
 //
-// `mutableSetOf(...) is MutableSet<*>` and `linkedSetOf(...) is LinkedHashSet<*>`
-// are intentionally absent: they still answer false because `__kk_set_of` tags
-// its box as the read-only `Set`, and no mutable/linked-tagged set bridge
-// exists yet. Tracked as BUG-254.
+// BUG-254 additionally pins the nominal identity of the mutable set factories and
+// the LinkedHashSet constructors. `... is HashSet<*>` is intentionally absent for
+// those: kotlinc answers true through Kotlin/Native's `LinkedHashSet : HashSet`
+// inheritance, which this compiler's `CollectionAliases.kt` does not declare
+// (`LinkedHashSet<E> : MutableSet<E>`). Aligning that hierarchy is KSP-704.
 
 fun main() {
     // arrayListOf: nominal identity + mutability + element typing
@@ -47,6 +48,36 @@ fun main() {
     println(setOf(1) is Set<*>)
     println(mutableMapOf("a" to 1) is MutableMap<*, *>)
     println(mapOf("a" to 1) is Map<*, *>)
+
+    // BUG-254: the mutable set factories declare a LinkedHashSet-backed result
+    println(mutableSetOf(1) is MutableSet<*>)
+    println(mutableSetOf(1) is LinkedHashSet<*>)
+    println(mutableSetOf(1) is Set<*>)
+    println(mutableSetOf<Int>() is MutableSet<*>)
+    println(linkedSetOf(1) is LinkedHashSet<*>)
+    println(linkedSetOf(1) is MutableSet<*>)
+    println(linkedSetOf(1) is Set<*>)
+    println(linkedSetOf<Int>() is LinkedHashSet<*>)
+
+    // BUG-254: the LinkedHashSet constructors take the same tag
+    val lhsEmpty = LinkedHashSet<Int>()
+    lhsEmpty.add(1)
+    println(lhsEmpty is LinkedHashSet<*>)
+    println(lhsEmpty is MutableSet<*>)
+    println(LinkedHashSet<Int>(4) is LinkedHashSet<*>)
+    println(LinkedHashSet(listOf(1, 2)) is LinkedHashSet<*>)
+    println(LinkedHashSet(listOf(1, 2)).size)
+
+    // BUG-254: Iterable/Sequence toMutableSet share the LinkedHashSet bridge
+    println(listOf(1, 2).toMutableSet() is MutableSet<*>)
+    println(listOf(1, 2, 2).toMutableSet().size)
+    println(sequenceOf(1, 2).toMutableSet() is MutableSet<*>)
+    println(sequenceOf(1, 2).toHashSet() is HashSet<*>)
+
+    // Read-only factories must keep the read-only tag (kotlinc answers true
+    // through the java.util mapping, which is a JVM-only implementation leak)
+    println(setOf(1) is LinkedHashSet<*>)
+    println(emptySet<Int>() is LinkedHashSet<*>)
 
     // Contents of the set/map factories whose `is` checks BUG-254 covers
     println(mutableSetOf(1, 2, 2).size)

@@ -105,7 +105,12 @@ extension CallLowerer {
             return result
 
         case "mutableSetOf", "hashSetOf", "linkedSetOf":
-            let runtimeCallee = name == "hashSetOf" ? "__kk_hash_set_of" : "__kk_set_of"
+            // Each factory keeps its own nominal tag: hashSetOf is a HashSet,
+            // mutableSetOf/linkedSetOf a LinkedHashSet. `__kk_set_of` tags the
+            // read-only `Set` and is shared with `setOf`, so routing these two
+            // there made `is MutableSet` / `is LinkedHashSet` answer false
+            // (BUG-254). Keep this in step with CollectionLiteralLoweringPass.
+            let runtimeCallee = name == "hashSetOf" ? "__kk_hash_set_of" : "__kk_linked_hash_set_of"
             if loweredArgIDs.isEmpty {
                 emitNullArrayCountCall(
                     runtimeCallee,

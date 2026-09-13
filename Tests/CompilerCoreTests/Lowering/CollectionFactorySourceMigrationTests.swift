@@ -237,6 +237,120 @@ struct CollectionFactorySourceMigrationTests {
         }
     }
 
+    /// BUG-254: `mutableSetOf` / `linkedSetOf` declare a mutable result backed by
+    /// LinkedHashSet, so they need the LinkedHashSet-tagged bridge. `__kk_set_of`
+    /// is shared with the read-only `setOf` and tags its box as `Set`, which made
+    /// `is MutableSet<*>` / `is LinkedHashSet<*>` answer false on the result
+    /// (verified against kotlinc in
+    /// `Scripts/diff_cases/ksp699_collection_factories.kt`).
+    @Test
+    func mutableSetFactoriesUseTheLinkedHashSetTaggedBridge() throws {
+        let source = """
+        fun main() {
+            val emptyMutable = mutableSetOf<Int>()
+            val filledMutable = mutableSetOf(1, 2)
+            val emptyLinked = linkedSetOf<Int>()
+            val filledLinked = linkedSetOf(1, 2)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryMutableSetTag",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.filter { $0 == "__kk_linked_hash_set_of" }.count == 4,
+                "all four mutable set factory calls must use __kk_linked_hash_set_of; callees: \(callees)"
+            )
+            #expect(
+                !callees.contains("__kk_set_of"),
+                "no mutable set factory may fall back to the read-only Set tag; callees: \(callees)"
+            )
+        }
+    }
+
+    /// The read-only set factories must keep the `Set` tag, so the fix above does
+    /// not hand them a mutable nominal identity. kotlinc answers `true` to
+    /// `setOf(1) is MutableSet<*>` only because read-only collections map onto
+    /// `java.util` types on the JVM; that leak must not be reproduced here.
+    @Test
+    func readOnlySetFactoriesKeepTheReadOnlyTag() throws {
+        let source = """
+        fun main() {
+            val a = setOf(1, 2)
+            val b = emptySet<Int>()
+            val c = setOf<Int>()
+            val d = setOfNotNull(1, null)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryReadOnlySetTag",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                !callees.contains("__kk_linked_hash_set_of"),
+                "read-only set factories must not take the LinkedHashSet tag; callees: \(callees)"
+            )
+            #expect(
+                callees.contains("__kk_emptySet") || callees.contains("__kk_set_of")
+                    || callees.contains("__kk_set_of_not_null"),
+                "read-only set factories must still reach a Set-tagged bridge; callees: \(callees)"
+            )
+        }
+    }
+
+    /// `hashSetOf` keeps its own nominal tag rather than joining the LinkedHashSet
+    /// bridge: `CollectionAliases.kt` declares HashSet and LinkedHashSet as
+    /// independent `MutableSet` implementations.
+    @Test
+    func hashSetFactoryKeepsItsOwnTaggedBridge() throws {
+        let source = """
+        fun main() {
+            val empty = hashSetOf<Int>()
+            val filled = hashSetOf(1, 2)
+        }
+        """
+        try withTemporaryFile(contents: source) { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "CollectionFactoryHashSetTag",
+                emit: .kirDump
+            )
+            try runToKIR(ctx)
+            #expect(!ctx.diagnostics.hasError, "diagnostics: \(ctx.diagnostics.diagnostics)")
+
+            let module = try #require(ctx.kir)
+            let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
+            let callees = extractCallees(from: body, interner: ctx.interner)
+
+            #expect(
+                callees.filter { $0 == "__kk_hash_set_of" }.count == 2,
+                "both hashSetOf calls must use __kk_hash_set_of; callees: \(callees)"
+            )
+            #expect(
+                !callees.contains("__kk_linked_hash_set_of"),
+                "hashSetOf must not take the LinkedHashSet tag; callees: \(callees)"
+            )
+        }
+    }
+
     /// The bootstrap stub set an `externalLinkName` on each factory symbol, so
     /// a leftover one would mean a stub is still being registered. The vararg
     /// overloads must also survive, since that is the shape the factory call
