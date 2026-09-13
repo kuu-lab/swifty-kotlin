@@ -18,6 +18,64 @@
 
 extension DataFlowSemaPhase {
 
+    // KSP-1519: relocated from HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift
+    // (deleted). Generic instance-member/top-level-function registration helpers used
+    // by the File I/O and Platform stubs below; not specific to sequences.
+    func registerSyntheticSystemMember(
+        ownerSymbol: SymbolID,
+        ownerType: TypeID,
+        name: String,
+        externalLinkName: String,
+        returnType: TypeID,
+        parameters: [(name: String, type: TypeID)],
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        guard let ownerInfo = symbols.symbol(ownerSymbol) else {
+            return
+        }
+        registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: ownerInfo.fqName,
+            parentSymbol: ownerSymbol,
+            receiverType: ownerType,
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
+        )
+    }
+
+    func registerSyntheticTopLevelFunction(
+        named name: String,
+        packageFQName: [InternedString],
+        parameters: [(name: String, type: TypeID)],
+        returnType: TypeID,
+        externalLinkName: String,
+        annotations: [MetadataAnnotationRecord] = [],
+        stdlibSpecialCallKind: StdlibSpecialCallKind? = nil,
+        symbols: SymbolTable,
+        interner: StringInterner
+    ) {
+        let functionSymbol = registerSyntheticFunctionStub(
+            named: name,
+            ownerFQName: packageFQName,
+            parentSymbol: symbols.lookup(fqName: packageFQName),
+            parameters: syntheticFunctionParameters(parameters),
+            returnType: returnType,
+            externalLinkName: externalLinkName,
+            annotations: annotations,
+            matchReturnType: true,
+            symbols: symbols,
+            interner: interner
+        )
+        if let stdlibSpecialCallKind {
+            symbols.setStdlibSpecialCallKind(stdlibSpecialCallKind, for: functionSymbol)
+        }
+    }
+
     func registerSyntheticFileIOBootstrap(
         kotlinIOPkg: [InternedString],
         symbols: SymbolTable,

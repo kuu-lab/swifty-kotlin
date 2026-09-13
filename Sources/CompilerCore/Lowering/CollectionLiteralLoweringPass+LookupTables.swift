@@ -254,8 +254,6 @@ struct CollectionLiteralLookupTables {
     var toSetName: InternedString { sequenceLookup.toSetName }
     var toMapName: InternedString { sequenceLookup.toMapName }
     var takeName: InternedString { sequenceLookup.takeName }
-    var sequenceName: InternedString { sequenceLookup.sequenceName }
-    var iteratorBuilderName: InternedString { sequenceLookup.iteratorBuilderName }
     var yieldName: InternedString { sequenceLookup.yieldName }
     var yieldAllName: InternedString { sequenceLookup.yieldAllName }
 
