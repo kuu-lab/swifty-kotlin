@@ -365,7 +365,7 @@ serialization 4件(`custom_serializer.kt`, `dataclass_serialization.kt`, `json_s
 
 ## DEBT-DIFF-010: sequence/iterator builder の yieldAll(sequence) 遅延評価順序ギャップ
 
-KSP-1519（`sequence`/`iterator` builder トップレベル関数の Kotlin 化）のテスト追加（ticket が要求する「yieldAll(sequence) の遅延評価順序ケース」）で発見。`Sources/Runtime/` は KSP-1519 で一切変更していないため同 PR が原因ではなく、分岐元コミット `3e3545a536` から存在する既存バグと確認済み（`git diff 3e3545a536 -- Sources/Runtime/` はゼロ差分。詳細な原因分析は BUG-255 を参照）。
+KSP-1519（`sequence`/`iterator` builder トップレベル関数の Kotlin 化）のテスト追加（ticket が要求する「yieldAll(sequence) の遅延評価順序ケース」）で発見。本バグの機構に関わる `__kk_sequence_builder_yieldAll`/`RuntimeSequenceCoroutine` は KSP-1519 で変更していないため同 PR が原因ではなく、分岐元コミット `3e3545a536` から存在する既存バグと確認済み（詳細な原因分析は BUG-255 を参照）。同 PR は同じファイル内の別関数 `__kk_iterator_builder_build` の ABI パラメータ数不一致（CI の `RuntimeABIExternalLinkValidationTests` で検出、本バグとは無関係）を修正しているため、`Sources/Runtime/` ディレクトリ全体としては無変更ではない。
 
 | case | 結果 |
 | --- | --- |
