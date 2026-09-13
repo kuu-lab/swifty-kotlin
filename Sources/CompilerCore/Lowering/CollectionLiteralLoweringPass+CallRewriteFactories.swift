@@ -554,8 +554,6 @@ extension CollectionLiteralConstructionLoweringPass {
             let kkCallee: InternedString = switch callee {
             case lookup.buildListName:
                 arguments.count == 2 ? lookup.kkBuildListWithCapacityName : lookup.kkBuildListName
-            case lookup.buildMapName:
-                arguments.count == 2 ? lookup.kkBuildMapWithCapacityName : lookup.kkBuildMapName
             default: callee
             }
             let builderResult = module.arena.appendTemporary(type: nil
@@ -571,10 +569,6 @@ extension CollectionLiteralConstructionLoweringPass {
             if callee == lookup.buildListName, let result {
                 state.listExprIDs.insert(result.rawValue)
                 state.listExprIDs.insert(builderResult.rawValue)
-            }
-            if callee == lookup.buildMapName, let result {
-                state.mapExprIDs.insert(result.rawValue)
-                state.mapExprIDs.insert(builderResult.rawValue)
             }
             if let result {
                 loweredBody.append(.copy(from: builderResult, to: result))
