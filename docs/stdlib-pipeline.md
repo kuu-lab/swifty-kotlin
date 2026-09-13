@@ -478,12 +478,12 @@ consumer" trap as the dead-code audits elsewhere in this document.
 For `UInt`/`ULong`, the `(b)` classification was simply mistaken from the
 start — `kswiftc` already rejected `toChar()` on those two receivers (Sema
 never resolved a member for them). For `UByte`/`UShort`, the call *did*
-resolve, but only as a side effect of BUG-250: `Subtyping.swift`'s `primitive
+resolve, but only as a side effect of BUG-251: `Subtyping.swift`'s `primitive
 <: Number` rule listed `.ubyte, .ushort` alongside the genuine `Number`
 subtypes (`Int`/`Long`/`Float`/`Double`/`Byte`/`Short`), so `UByte`/`UShort`
 inherited the abstract `Number.toChar()` declared in `Number/Stdlib.kt`
 (hence the "kotlin.Number.toChar is deprecated" diagnostic on a receiver that
-isn't a `Number` at all). BUG-250 removes `.ubyte, .ushort` from that rule;
+isn't a `Number` at all). BUG-251 removes `.ubyte, .ushort` from that rule;
 `kk_uint_to_char`/`kk_ulong_to_char`/`kk_ubyte_to_char`/`kk_ushort_to_char` and
 their KIR lowering-table entries are deleted as now-unreachable dead code.
 `Tests/CompilerCoreTests/GoldenCases/Diagnostics/unsigned_types_not_number.kt`

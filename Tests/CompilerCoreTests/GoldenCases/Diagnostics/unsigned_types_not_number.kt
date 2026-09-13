@@ -1,6 +1,6 @@
 package golden.diagnostics
 
-// BUG-250: UByte/UShort/UInt/ULong must not satisfy a `kotlin.Number` upper
+// BUG-251: UByte/UShort/UInt/ULong must not satisfy a `kotlin.Number` upper
 // bound, and must not resolve `toChar()` (a member only `Number` declares).
 // Real Kotlin deliberately keeps the unsigned integer types out of the
 // `Number` hierarchy; this file locks in the corrected rejection for all
