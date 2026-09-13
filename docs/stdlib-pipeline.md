@@ -106,6 +106,12 @@ Kotlin ソースに実体がある呼び出しは通常の関数解決・KIR 展
 - **ファイル名も本家へ収斂させる**: 新規・移行時は本家のファイル名（例: `text/Strings.kt`,
   `collections/Collections.kt`）に寄せる。既存の機能スライス名（`ListFilterHOF.kt` 等)は
   当該モジュールの M フェーズ完了時に統合・リネームする
+- **宣言ごとのディレクトリを作らない**: 本家は型ごとのディレクトリを持たない。
+  `native/OsFamily/OsFamily.kt` や `runtime/MemoryUsage/Stdlib.kt` のような
+  `<Type>/Stdlib.kt` / `<Type>/<Type>.kt` は逸脱なので、宣言を本家のオーナーファイル
+  （`native/Platform.kt`, `native/runtime/GCInfo.kt` 等）へ統合する（KSP-1541）。
+  Kotlin/Native 面の本家ツリーは `kotlin-native/runtime/src/main/kotlin/kotlin/native/`
+  で、`libraries/stdlib/` ではない点に注意
 - `BundledKotlinStdlib.swift` のインライン文字列 4 本は対応する .kt ファイルへ移設し、廃止する
 
 ### ブリッジ宣言（external + 注釈）
@@ -265,7 +271,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticCloseableStubs.swift` | 277 | (b) | `Closeable`/`use` common surface; move to Kotlin source before deleting. |
 | `HeaderHelpers+SyntheticCoercionStubs.swift` | 654 | (b)+(c) | KSP-1531 numeric conversion classification; range/coercion source migration is tracked separately. |
 | `HeaderHelpers+SyntheticCollectionFactoryStubs.swift` | 92 | (b) | KSP-627 で typealias 4 + `LinkedHashSet` を `Stdlib/kotlin/collections/CollectionAliases.kt` へ移行済み（旧 `+SyntheticCollectionTypeAliases.swift`、272行）。残るのは factory 関数の bootstrap stub のみ。 |
-| `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 845 | (c) | KSP-701/KSP-665 の分離先（`HeaderHelpers+SyntheticIterableRegistry.swift` 削除時と `+SyntheticStringTypeHelpers.swift` 削除時の残存 fallback shell が合流）。呼び出し元は `+SyntheticComparableAndCollectionStubs.swift`（KSP-700 対象）の `registerSyntheticCollectionStubs` のみ。`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable` の型登録は bundled Kotlin source を再利用する fallback 専用で対応不要。`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の型シェルと `isEmpty`/`contains`/`add`系/`iterator`/`hasNext`/`next` メンバは、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的の bridge（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）で (c) 残置。`random`/`randomOrNull` は KSP-1509 が降格予定の `kk_list_random`/`kk_list_randomOrNull` と同一ブリッジを共有。次アクション: KSP-1542。 |
+| `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` | 927 | (c) | **KSP-1542 で (c) 確定（2026-09-13。ゲート G は CI 待ち、`[x]` 化は TODO.md 側）**: KSP-701/KSP-665 の分離先。呼び出し元は `HeaderHelpers+SyntheticCollectionResiduals.swift`（KSP-700 対象、ファイル名は旧 `+SyntheticComparableAndCollectionStubs.swift` から変更済み）の `registerSyntheticCollectionStubs` と、`HeaderHelpers+SyntheticPathStubs.swift` の `?? registerSyntheticIterableStub(` 遅延呼び出し（`Iterable` 未登録時のフォールバック）の2箇所。`AbstractCollection`/`AbstractMutableCollection`/`MutableIterable`/`MutableIterator`/`MutableCollection` の型登録は bundled Kotlin source（`AbstractCollection.kt`/`AbstractMutableCollection.kt`/`MutableIterable.kt`/`MutableCollection.kt`）を再利用する fallback 専用で対応不要——`registerNominalTypeParameters`（`HeaderCollection.swift`）が名前一致時に shell の型パラメータ symbol をそのまま採用するため、Kotlin 側の型宣言が揃えば自動的に `.synthetic` フラグが外れる。`Collection`/`MutableCollection`/`Iterable`/`Iterator`/`MutableIterator` の型シェルと `isEmpty`（`__kk_collection_isEmpty`）/`size`（`__kk_collection_size`）/`contains`（`kk_op_contains`）/`containsAll`（`__kk_collection_containsAll`）/`iterator`（`kk_list_iterator`/`kk_iterable_iterator`）/`add`系（`__kk_mutable_collection_add`/`addAll`/`clear`/`remove`/`removeAll`/`retainAll`）/`hasNext`/`next`（`kk_iterator_hasNext`/`kk_iterator_next`） メンバは、List/Set/Iterator の runtime box が itable に自己登録しないため virtual dispatch を bypass する目的の bridge（`Collections.kt` の KSP-435 コメント、本ファイル内 BUG-166 コメント参照）で (c) 残置と確定。**実証**: `Scripts/diff_cases/collection_interface_set_backed_dispatch.kt`（Set-backed な `Collection`/`MutableCollection`/`Iterable` 型付きレシーバー経由の呼び出しが kotlinc と一致することを固定）を新規追加して PASS。`contains`（`kk_op_contains`）と `isEmpty`（`__kk_collection_isEmpty`）の `externalLinkName` を個別に一時的に外す実験では、失敗モードが異なることを確認した——`contains` を外すと BUG-166 コメント通り `KSWIFTK-RUNTIME-0001`（"method not found in vtable/itable"）でパニックする一方、`isEmpty` を外すとパニックせず**無言で誤った戻り値**（`emptySet<Int>().isEmpty()` が `false` を返す）になる。`isEmpty` 側のコメントは "needs externalLinkName for the same reason as contains" と理由（itable 未登録）を contains と共有すると述べるのみで、失敗モードそのものは明示していない。理由は同一だが実測の失敗モードは異なる（contains=panic、isEmpty=無言の誤答）という事実を追記する。`random`/`randomOrNull` は KSP-1509（未着手、PR なし）が降格予定の `kk_list_random`/`kk_list_randomOrNull` と同一ブリッジを共有するため削除対象に含めない。**整理内容**: `Collection`/`Iterable`/`Iterator` の型パラメータ登録（`E`/`E`/`T`）に、他4関数（`AbstractCollection`/`MutableCollection`/`AbstractMutableCollection`/`MutableIterable`）と同じ「既存シンボルがあれば再利用」ガードを追加し、`SyntheticCollectionResiduals` 経由と `SyntheticPathStubs` の `??` フォールバック経由のどちらが先に `Iterable` を要求するかという呼び出し順序に依存しない形へ統一（挙動不変。Golden Sema 92件・関連 diff_cases 15件で確認済み）。**KSP-700 への前方制約**: `Collection.kt` 新設時は型パラメータを `<out E>`、`Iterator`/`MutableIterator` 系ソースは `<out T>` で宣言すること（`registerNominalTypeParameters` は名前が一致する場合のみ shell の型パラメータ symbol を再利用するため、名前が一致しないと既存メンバーの型が孤立化する）。`Collection.kt` が揃った後もこのファイルへの追加変更は不要（Collection の shell は既に「既存シンボル再利用」パターンに揃っている）。 |
 | `HeaderHelpers+SyntheticComparableAndCollectionStubs.swift` | 631 | (b) | Core collection/comparable shells; source migration owner, with residual type hooks. |
 | `HeaderHelpers+SyntheticComparableHelpers.swift` | 168 | (c) | Helper-only file for residual comparable registration. |
 | `HeaderHelpers+SyntheticComparatorStubs.swift` | deleted | (b) | **完了・ファイル削除済み**（KSP-1520）。既存の `kotlin/Comparator.kt` を `predeclareBundledComparatorHeaders` で早期 nominal 宣言し、`String.Companion.CASE_INSENSITIVE_ORDER` の初期参照を解決する。Comparator 固有の synthetic itable/vtable anchor は不要になったが、共有 `__kk_compare_with_comparator` と runtime singleton は保持する。 |
@@ -405,10 +411,10 @@ The reason codes are:
 |---|---|---|---|---|
 | `Int` | `kk_int_to_byte`, `kk_int_to_float`, `kk_int_to_long`, `kk_int_to_short`, `kk_int_to_ubyte`, `kk_int_to_uint`, `kk_int_to_ulong`, `kk_int_to_ushort` | `kk_int_to_char`, `kk_int_to_double_bits` | `C-WIDTH`; `C-FP`; `B-CHAR`; `B-FP-ABI` | KSP-1536 |
 | `Long` | `kk_long_to_byte`, `kk_long_to_double`, `kk_long_to_float`, `kk_long_to_int`, `kk_long_to_short`, `kk_long_to_ubyte`, `kk_long_to_uint`, `kk_long_to_ulong`, `kk_long_to_ushort` | `kk_long_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1537 |
-| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | `kk_uint_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1532 |
-| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | `kk_ulong_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1533 |
-| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | `kk_ubyte_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1534 |
-| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | `kk_ushort_to_char` | `C-WIDTH`; `C-FP`; `B-CHAR` | KSP-1535 |
+| `UInt` | `kk_uint_to_byte`, `kk_uint_to_double`, `kk_uint_to_float`, `kk_uint_to_int`, `kk_uint_to_long`, `kk_uint_to_short`, `kk_uint_to_ubyte`, `kk_uint_to_ulong`, `kk_uint_to_ushort` | — (removed; see correction below) | `C-WIDTH`; `C-FP` | KSP-1532 (closed) |
+| `ULong` | `kk_ulong_to_byte`, `kk_ulong_to_double`, `kk_ulong_to_float`, `kk_ulong_to_int`, `kk_ulong_to_short`, `kk_ulong_to_ubyte`, `kk_ulong_to_ushort` | — (removed; see correction below) | `C-WIDTH`; `C-FP` | KSP-1533 (closed) |
+| `UByte` | `kk_ubyte_to_byte`, `kk_ubyte_to_double`, `kk_ubyte_to_float`, `kk_ubyte_to_int`, `kk_ubyte_to_long`, `kk_ubyte_to_short`, `kk_ubyte_to_uint`, `kk_ubyte_to_ulong`, `kk_ubyte_to_ushort` | — (removed; see correction below) | `C-WIDTH`; `C-FP` | KSP-1534 (closed) |
+| `UShort` | `kk_ushort_to_byte`, `kk_ushort_to_double`, `kk_ushort_to_float`, `kk_ushort_to_int`, `kk_ushort_to_long`, `kk_ushort_to_short`, `kk_ushort_to_ubyte`, `kk_ushort_to_uint`, `kk_ushort_to_ulong` | — (removed; see correction below) | `C-WIDTH`; `C-FP` | KSP-1535 (closed) |
 | `Float` | — | `kk_float_to_char`, `kk_float_to_int`, `kk_float_to_long`, `kk_float_to_double_bits` | `B-CHAR`; `B-FP-SAT`; `B-FP-ABI` | KSP-1538 |
 | `Double` | `kk_double_to_float` | `kk_double_to_char`, `kk_double_to_int`, `kk_double_to_long` | `C-FP`; `B-CHAR`; `B-FP-SAT` | KSP-1538 |
 | `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
@@ -460,6 +466,41 @@ uniqueness, `Scripts/check_todo_ids.sh`, `git diff --check`, and docs marker
 set checks are part of this PR. Build, full test, Golden, kotlinc diff, and
 runtime ABI execution are intentionally not run because this task changes only
 `TODO.md` and this documentation table.
+
+#### KSP-1534 correction: UInt/ULong/UByte/UShort `toChar()` was never real Kotlin API (2026-09-13)
+
+The KSP-1531 table above classified `kk_uint_to_char`, `kk_ulong_to_char`,
+`kk_ubyte_to_char`, and `kk_ushort_to_char` as `(b)` stdlib-semantics symbols
+each backing a real `toChar()` member on their receiver. That was wrong: none
+of Kotlin's four unsigned integer types declare `toChar()`, and none extend
+`kotlin.Number` (confirmed empirically against `kotlinc`, which rejects both
+`unsignedValue.toChar()` and `val n: Number = unsignedValue` for all four
+types with "unresolved reference" / "initializer type mismatch"). The KSP-1531
+audit collected symbol names mechanically (present as a Runtime `@_cdecl` and
+matched by name in the KIR lowering table) without confirming the call site
+was reachable from valid Kotlin source, which is the same "spec mirror ≠
+consumer" trap as the dead-code audits elsewhere in this document.
+
+For `UInt`/`ULong`, the `(b)` classification was simply mistaken from the
+start — `kswiftc` already rejected `toChar()` on those two receivers (Sema
+never resolved a member for them). For `UByte`/`UShort`, the call *did*
+resolve, but only as a side effect of BUG-251: `Subtyping.swift`'s `primitive
+<: Number` rule listed `.ubyte, .ushort` alongside the genuine `Number`
+subtypes (`Int`/`Long`/`Float`/`Double`/`Byte`/`Short`), so `UByte`/`UShort`
+inherited the abstract `Number.toChar()` declared in `Number/Stdlib.kt`
+(hence the "kotlin.Number.toChar is deprecated" diagnostic on a receiver that
+isn't a `Number` at all). BUG-251 removes `.ubyte, .ushort` from that rule;
+`kk_uint_to_char`/`kk_ulong_to_char`/`kk_ubyte_to_char`/`kk_ushort_to_char` and
+their KIR lowering-table entries are deleted as now-unreachable dead code.
+`Tests/CompilerCoreTests/GoldenCases/Diagnostics/unsigned_types_not_number.kt`
+locks in the corrected rejection for all four receivers. KSP-1532/1533/1534/
+1535 are closed by this correction; there is no remaining `(b)` migration for
+any of the four unsigned receiver rows.
+
+This removes 4 symbols from the KSP-1531 count above: the public
+numeric-member bridge surface is now 66 (not 70), and the lowerer inventory
+is 64 explicit names (not 68). The two member-conversion bit bridges and the
+Runtime/RuntimeABI/lowerer parity described there otherwise still hold.
 
 ### RF-STUB-002 reference cleanup recipe
 
@@ -646,7 +687,14 @@ Atomic の内訳:
   `channelFlow { send(1) }` が `KSWIFTK-SEMA-0023: Unresolved function 'send'`、
   `callbackFlow { trySend(1); close() }` が `trySend`/`close` 未解決で止まり、実装済みの `emit` alias だけが `kk_flow_create`
   経由で動作した（両者とも `1` を出力）。そのため合成 Flow 宣言・Flow/Coroutine lowering 特例・未実装 ABI allowlist を削除し、
-  fiction を通常の未解決 API として明示した。real `ProducerScope` 実装は別タスクで設計する。
+  fiction を通常の未解決 API として明示した。
+  **KSP-1543 で channelFlow/callbackFlow 側も (b) 確定**（#6597, 2026-09-09 merge）: real `ProducerScope` を
+  bundled Kotlin source（`Stdlib/kotlin/coroutines/channels/ProducerScope.kt`）として定義し、`channelFlow`/`callbackFlow`
+  を `Stdlib/kotlinx/coroutines/flow/Builders.kt` で `@KsSymbolName("kk_channel_flow_create")` /
+  `@KsSymbolName("kk_callback_flow_create")` ブリッジ付き宣言へ移行。per-collection runtime channel に backing された
+  cold flow として実装し、`send`/`trySend`/`close` が real API 形で解決される。suspend `ProducerScope` receiver は
+  launcher continuation ABI を使うため、`CallTypeChecker` はオーバーロード解決後に bundled 宣言が選ばれた場合のみ
+  lambda をマークする（同名のユーザー関数は通常 ABI を維持）。`Scripts/diff_cases/flow_builders.kt` の `SKIP-DIFF` も解除済み。
 - `__kk_flow_emit_with_timestamp`（1関数）: 用途未確認。将来の `debounce`/`sample` 系実装が必要とする可能性があるため
   KSP-499 後も internal compatibility bridge として保持
 

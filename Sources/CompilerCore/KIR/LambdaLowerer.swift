@@ -1121,6 +1121,7 @@ final class LambdaLowerer {
     private func lowerCallableRefSamWrapperValue(
         _ exprID: ExprID,
         targetSymbol: SymbolID,
+        targetName: InternedString?,
         captureArguments: [KIRExprID],
         sema: SemaModule,
         arena: KIRArena,
@@ -1171,7 +1172,7 @@ final class LambdaLowerer {
         let callResult = arena.appendTemporary(type: returnType)
         body.append(.call(
             symbol: targetSymbol,
-            callee: callableTargetName(for: targetSymbol, sema: sema, interner: interner),
+            callee: targetName ?? callableTargetName(for: targetSymbol, sema: sema, interner: interner),
             arguments: callArguments,
             result: callResult,
             canThrow: false,
@@ -1343,15 +1344,47 @@ final class LambdaLowerer {
             return propertyValue
         }
 
+        // KSP-496: a property callable reference also reaches here whenever it
+        // is consumed as a plain function value instead of a `KProperty0/1`
+        // (`val f: (C) -> Int = C::v`, `list.map(C::v)`, SAM conversion) —
+        // lowerPropertyReferenceWrapperValue above only builds the KProperty
+        // wrapper object for the four KProperty shapes. A property symbol has
+        // no emitted function behind it, so every branch below used to call a
+        // symbol named after the property itself and the program failed to
+        // link (`Undefined symbols: "_v"` for `class C(val v: Int)`). Call the
+        // generated property-reference accessor instead.
+        //
+        // Substituted *here*, after the capture decisions above and before the
+        // three call-target branches: those decisions consult
+        // `parentSymbol(for:)` on the property symbol, which the synthetic
+        // accessor symbol does not carry.
+        var callTargetSymbol = targetSymbol
+        var callTargetName: InternedString?
+        if sema.bindings.callableRefKind(for: exprID) == .propertyRef,
+           let targetSymbol,
+           let accessorTarget = propertyReferenceFunctionCallTarget(
+               targetSymbol: targetSymbol,
+               ast: ast,
+               sema: sema,
+               arena: arena,
+               interner: interner,
+               propertyConstantInitializers: propertyConstantInitializers
+           )
+        {
+            callTargetSymbol = accessorTarget.symbol
+            callTargetName = accessorTarget.name
+        }
+
         // BUG-048: A callable reference in SAM-conversion position must become an
         // object implementing the functional interface (with an itable entry), the
         // same way a SAM-converted lambda literal does.  Lowering it as a bare
         // callable value makes interface dispatch on the result fail at runtime.
         if sema.bindings.isSamConversion(exprID),
-           let targetSymbol,
+           let callTargetSymbol,
            let samValue = lowerCallableRefSamWrapperValue(
                exprID,
-               targetSymbol: targetSymbol,
+               targetSymbol: callTargetSymbol,
+               targetName: callTargetName,
                captureArguments: captureArguments,
                sema: sema,
                arena: arena,
@@ -1371,12 +1404,13 @@ final class LambdaLowerer {
 
         let callableSymbol: SymbolID
         let callableName: InternedString
-        if let targetSymbol, needsHOFWrapper {
+        if let callTargetSymbol, needsHOFWrapper {
             // Generate a HOF-ABI wrapper that delegates to the target function.
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
             callableName = syntheticLambdaName(for: exprID, interner: interner)
 
-            let targetName = callableTargetName(for: targetSymbol, sema: sema, interner: interner)
+            let targetName = callTargetName
+                ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner)
             let functionType = boundType.flatMap { typeID -> FunctionType? in
                 guard case let .functionType(ft) = sema.types.kind(of: typeID) else { return nil }
                 return ft
@@ -1427,7 +1461,7 @@ final class LambdaLowerer {
             let callResult = arena.appendTemporary(type: returnType
             )
             body.append(.call(
-                symbol: targetSymbol,
+                symbol: callTargetSymbol,
                 callee: targetName,
                 arguments: callArgExprs,
                 result: callResult,
@@ -1456,9 +1490,10 @@ final class LambdaLowerer {
                 )
             )
             driver.ctx.appendGeneratedCallableDecl(wrapperDecl)
-        } else if let targetSymbol {
-            callableSymbol = targetSymbol
-            callableName = callableTargetName(for: targetSymbol, sema: sema, interner: interner)
+        } else if let callTargetSymbol {
+            callableSymbol = callTargetSymbol
+            callableName = callTargetName
+                ?? callableTargetName(for: callTargetSymbol, sema: sema, interner: interner)
         } else {
             callableSymbol = driver.ctx.syntheticLambdaSymbol(for: exprID)
             callableName = syntheticLambdaName(for: exprID, interner: interner)
