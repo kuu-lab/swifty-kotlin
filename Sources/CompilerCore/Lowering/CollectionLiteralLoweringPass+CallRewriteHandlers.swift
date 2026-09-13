@@ -35,7 +35,6 @@ extension CollectionLiteralConstructionLoweringPass {
         let lambdaID = call.arguments[1]
 
         if state.listExprIDs.contains(receiverID.rawValue),
-           call.callee != lookup.countName,
            call.callee != lookup.filterName,
            call.callee != lookup.filterNotName,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
@@ -106,7 +105,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.mapValuesName
             || callee == lookup.mapKeysName
             || callee == lookup.toListName
-            || callee == lookup.countName
     }
 
     private func closureRawArgument(
