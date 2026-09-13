@@ -186,20 +186,6 @@ struct CoercionRuntimeTests {
         #expect(kk_int_to_char(0x10FFFF) == 0xFFFF)
     }
 
-    @Test
-    func testUIntToCharConversion() {
-        #expect(kk_uint_to_char(65) == 65)
-        #expect(kk_uint_to_char(0x1F600) == 0xF600)
-        #expect(kk_uint_to_char(0x110000) == 0)
-    }
-
-    @Test
-    func testULongToCharConversion() {
-        #expect(kk_ulong_to_char(65) == 65)
-        #expect(kk_ulong_to_char(0x1F600) == 0xF600)
-        #expect(kk_ulong_to_char(0x110000) == 0)
-    }
-
     // MARK: - Additional Conversion Tests (STDLIB-PRIM-002)
 
     @Test

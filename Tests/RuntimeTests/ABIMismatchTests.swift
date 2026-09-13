@@ -90,10 +90,10 @@ struct ABIMismatchTests {
 
     @Test
     func unsignedToCharBridgeABIsRemoved() {
-        for name in ["kk_ubyte_to_char", "kk_ushort_to_char"] {
+        for name in ["kk_uint_to_char", "kk_ulong_to_char", "kk_ubyte_to_char", "kk_ushort_to_char"] {
             #expect(
                 !RuntimeABISpec.allFunctions.contains { $0.name == name },
-                "\(name) should be removed: UByte/UShort have no toChar() in real Kotlin (KSP-1534/1535)"
+                "\(name) should be removed: no unsigned type has toChar() in real Kotlin (BUG-251)"
             )
         }
     }
