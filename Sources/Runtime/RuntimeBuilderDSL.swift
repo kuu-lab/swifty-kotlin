@@ -35,46 +35,9 @@ public func __kk_builder_map_freeze(_ raw: Int) -> Int {
     return raw
 }
 
-// `__kk_build_list` / `__kk_build_list_with_capacity` were removed together
-// with their lowering rewrite (RF-LOWER-CALL-004).  Both `buildList` overloads
-// are implemented in `CollectionBuilders.kt` on top of the
-// `__kk_builder_list_new` / `__kk_builder_list_freeze` bridges above.
-
-@_cdecl("__kk_build_map")
-public func __kk_build_map(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    __kkBuildMap(capacity: 0, fnPtr: fnPtr, outThrown: outThrown)
-}
-
-private func __kkBuildMap(
-    capacity: Int,
-    fnPtr: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_build_map called with null function pointer")
-    }
-    let mapPtr = registerRuntimeObject(RuntimeMapBox(capacity: capacity), typeID: mutableMapRuntimeTypeID)
-    var thrown = 0
-    _ = kk_function_invoke(fnPtr, mapPtr, &thrown)
-
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-    runtimeMapBox(from: mapPtr)?.freeze()
-    return mapPtr
-}
-
-@_cdecl("__kk_build_map_with_capacity")
-public func __kk_build_map_with_capacity(
-    _ capacity: Int,
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
-        return 0
-    }
-    return __kkBuildMap(capacity: capacity, fnPtr: fnPtr, outThrown: outThrown)
-}
+// The `__kk_build_list` / `__kk_build_set` / `__kk_build_map` entry points (and
+// their `_with_capacity` variants) were removed together with their lowering
+// rewrites: RF-LOWER-CALL-004 (list), -005 (set), -006 (map).  `buildList` /
+// `buildSet` / `buildMap` are implemented in `CollectionBuilders.kt` on top of
+// the `__kk_builder_*_new` / `__kk_builder_*_freeze` bridges above, which own
+// the capacity validation (`require(capacity >= 0)`) the removed helpers had.

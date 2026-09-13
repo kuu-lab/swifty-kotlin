@@ -1336,25 +1336,6 @@ public extension RuntimeABISpec {
         // their lowering rewrite (RF-LOWER-CALL-004); `buildList` is served by
         // `CollectionBuilders.kt` via `__kk_builder_list_*`.
         RuntimeABIFunctionSpec(
-            name: "__kk_build_map",
-            parameters: [
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_build_map_with_capacity",
-            parameters: [
-                RuntimeABIParameter(name: "capacity", type: .intptr),
-                RuntimeABIParameter(name: "fnPtr", type: .intptr),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .intptr,
-            section: "Collection"
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_builder_list_new",
             parameters: [
                 RuntimeABIParameter(name: "capacity", type: .intptr),
