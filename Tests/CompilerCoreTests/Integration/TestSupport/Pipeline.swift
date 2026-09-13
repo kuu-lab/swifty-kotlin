@@ -70,12 +70,14 @@ func runToLowering(_ ctx: CompilationContext) throws {
 
 func makeContextFromSource(
     _ source: String,
+    moduleName: String = "TestModule",
     frontendFlags: [String] = [],
     emit: EmitMode = .kirDump,
     allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
     CompilerTestSupport.makeContextFromSource(
         source,
+        moduleName: moduleName,
         frontendFlags: frontendFlags,
         emit: emit,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
@@ -84,6 +86,7 @@ func makeContextFromSource(
 
 func makeContextFromSources(
     _ sources: [String],
+    moduleName: String = "TestModule",
     allowDefaultStdlibLibrary: Bool = false
 ) -> CompilationContext {
     let tempDir = FileManager.default.temporaryDirectory
@@ -93,6 +96,7 @@ func makeContextFromSources(
     }
     let ctx = makeCompilationContext(
         inputs: fakePaths,
+        moduleName: moduleName,
         allowDefaultStdlibLibrary: allowDefaultStdlibLibrary
     )
     for (path, source) in zip(fakePaths, sources) {
