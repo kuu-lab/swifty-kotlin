@@ -33,10 +33,7 @@ extension LoweringPassRegressionTests {
                 sema.symbols.symbol($0)?.flags.contains(.inlineFunction) == true
             })
 
-            try InlineLoweringPass().run(module: module, ctx: KIRContext(
-                diagnostics: context.diagnostics, options: context.options,
-                interner: context.interner, sema: sema
-            ))
+            try InlineLoweringPass().run(module: module, ctx: makeKIRContext(from: context, sema: sema))
 
             let after = try findKIRFunction(named: "caller", in: module, interner: context.interner)
             let survivingSymbols = after.body.compactMap { instruction -> SymbolID? in
@@ -133,10 +130,7 @@ extension LoweringPassRegressionTests {
             diagnostics: context.diagnostics, options: context.options, interner: interner
         ))
 
-        guard case let .function(lowered) = arena.decl(callerID) else {
-            Issue.record("Missing expanded caller")
-            return
-        }
+        let lowered = try requireTestValue(arena.decl(callerID)?.function, "Missing expanded caller")
         let superCall = try #require(lowered.body.first {
             guard case let .call(_, _, _, _, _, _, isSuperCall, _) = $0 else { return false }
             return isSuperCall
@@ -188,10 +182,7 @@ extension LoweringPassRegressionTests {
                 return isSuper && superType == left
             })
 
-            try InlineLoweringPass().run(module: module, ctx: KIRContext(
-                diagnostics: context.diagnostics, options: context.options,
-                interner: context.interner, sema: sema
-            ))
+            try InlineLoweringPass().run(module: module, ctx: makeKIRContext(from: context, sema: sema))
 
             let expanded = try findKIRFunction(named: "throughInline", in: module, interner: context.interner)
             #expect(expanded.body.contains {

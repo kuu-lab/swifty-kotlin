@@ -26,25 +26,7 @@ import Testing
 @Suite
 struct ByteArrayInputStreamFunctionTests {
 
-    // MARK: - STDLIB-IO-FN-020: ByteArray.inputStream() (zero-arg)
     // MARK: - Path-aware expression search helpers
-
-    private func firstExprID(
-        in ast: ASTModule,
-        path: String,
-        ctx: CompilationContext,
-        where predicate: (ExprID, Expr) -> Bool
-    ) -> ExprID? {
-        for index in ast.arena.exprs.indices {
-            let exprID = ExprID(rawValue: Int32(index))
-            guard let expr = ast.arena.expr(exprID),
-                  let range = ast.arena.exprRange(exprID),
-                  ctx.sourceManager.path(of: range.start.file) == path
-            else { continue }
-            if predicate(exprID, expr) { return exprID }
-        }
-        return nil
-    }
 
     private func memberCallExprIDs(
         named name: String,
@@ -210,7 +192,6 @@ struct ByteArrayInputStreamFunctionTests {
 
             // === testByteArrayInputStreamResolvesWithNoArguments ===
             do {
-                let samplePath = paths[1]
                 let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(
                     errors.isEmpty,
@@ -256,7 +237,6 @@ struct ByteArrayInputStreamFunctionTests {
 
             // === testByteArrayInputStreamCanFlowThroughInputStreamSurface ===
             do {
-                let samplePath = paths[3]
                 let errors = ctx.diagnostics.diagnostics.filter { $0.severity == .error }
                 #expect(
                     errors.isEmpty,
@@ -266,13 +246,11 @@ struct ByteArrayInputStreamFunctionTests {
 
             // === testBothOverloadsExistInKotlinIOPackage ===
             do {
-                let samplePath = paths[4]
 
             }
 
             // === testByteArrayInputStreamFunctionSignatureAndRuntimeLink ===
             do {
-                let samplePath = paths[5]
 
             }
 
@@ -305,7 +283,6 @@ struct ByteArrayInputStreamFunctionTests {
 
             // === testByteArrayInputStreamReturnTypeFlowsThroughInputStreamMembers ===
             do {
-                let samplePath = paths[7]
                 let diagnosticSummary = ctx.diagnostics.diagnostics
                     .map { "\($0.code): \($0.message)" }
                     .joined(separator: " | ")
@@ -317,7 +294,6 @@ struct ByteArrayInputStreamFunctionTests {
 
             // === testByteArrayRangeInputStreamReturnTypeFlowsThroughInputStreamMembers ===
             do {
-                let samplePath = paths[8]
                 let diagnosticSummary = ctx.diagnostics.diagnostics
                     .map { "\($0.code): \($0.message)" }
                     .joined(separator: " | ")

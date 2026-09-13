@@ -49,13 +49,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "PropGetter", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "PropGetter", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
@@ -113,13 +110,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "PropSetter", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "PropSetter", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let expectedSetterSymbol = SyntheticSymbolScheme.propertySetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
@@ -166,12 +160,9 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        _ = try runLowering(module: module, interner: interner, moduleName: "PropNoSym")
+        try runLowering(module: module, interner: interner, moduleName: "PropNoSym")
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let callees = extractCallees(from: lowered.body, interner: interner)
         #expect(callees.contains("get"))
@@ -260,13 +251,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "BFSetter", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "BFSetter", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let setterCalls = lowered.body.compactMap { instruction -> [KIRExprID]? in
             guard case let .call(sym, _, arguments, _, _, _, _, _) = instruction, sym == expectedSetterSymbol else {
@@ -364,13 +352,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "EnumBFSetter", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "EnumBFSetter", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let setterCalls = lowered.body.compactMap { instruction -> [KIRExprID]? in
             guard case let .call(sym, _, arguments, _, _, _, _, _) = instruction, sym == expectedSetterSymbol else {
@@ -449,13 +434,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(getterFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "NoSetterAccessor", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "NoSetterAccessor", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         // No function in this module has `expectedSetterSymbol` (or any
         // symbol at all — the only calls that legitimately appear here are
@@ -553,13 +535,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(getterFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "GetterFieldWrite", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "GetterFieldWrite", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
             guard case let .call(sym, _, _, _, _, _, _, _) = instruction else { return nil }
@@ -626,13 +605,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let fnID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [fnID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "ComputedProp", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "ComputedProp", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(fnID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(fnID)?.function, "expected function")
 
         let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: propertySym)
         let callSymbols = lowered.body.compactMap { instruction -> SymbolID? in
@@ -705,13 +681,10 @@ extension LoweringABIAndPropertyRegressionTests {
         let funcID = arena.appendDecl(.function(callerFn))
         let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [funcID])], arena: arena)
 
-        let sema = makeSemaModule(symbols: symbols, types: types, bindings: BindingTable(), diagnostics: DiagnosticEngine()).ctx
-        _ = try runLowering(module: module, interner: interner, moduleName: "BackedProp", sema: sema)
+        let sema = makeSemaModule(symbols: symbols, types: types).ctx
+        try runLowering(module: module, interner: interner, moduleName: "BackedProp", sema: sema)
 
-        guard case let .function(lowered)? = module.arena.decl(funcID) else {
-            Issue.record("expected function")
-            return
-        }
+        let lowered = try requireTestValue(module.arena.decl(funcID)?.function, "expected function")
 
         let hasSymbolRef = lowered.body.contains { instruction in
             if case let .constValue(_, value) = instruction,
@@ -771,16 +744,15 @@ extension LoweringABIAndPropertyRegressionTests {
         let module = try #require(ctx.kir, "KIR module not available")
         let interner = ctx.interner
         let sema = try #require(ctx.sema, "Sema module not available")
+        // Scanned once and shared below: no scenario mutates `module`.
+        let globalSymbols = module.arena.declarations.compactMap { decl -> SymbolID? in
+            guard case let .global(global) = decl else { return nil }
+            return global.symbol
+        }
+        let allFunctions = findAllKIRFunctions(in: module)
 
             // testGetterOnlyComputedPropertyEmitsNoGlobal
             do {
-                    var globalSymbols: [SymbolID] = []
-                    for decl in module.arena.declarations {
-                        if case let .global(global) = decl {
-                            globalSymbols.append(global.symbol)
-                        }
-                    }
-
                     let computedName = interner.intern("computed")
                     let computedSymbols = globalSymbols.filter { sym in
                         sema.symbols.symbol(sym)?.name == computedName
@@ -806,7 +778,7 @@ extension LoweringABIAndPropertyRegressionTests {
                     )
 
                     let expectedGetterSymbol = SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: computedPropertySymbol.id)
-                    let getterSymbols = findAllKIRFunctions(in: module).compactMap { kirFunc -> SymbolID? in
+                    let getterSymbols = allFunctions.compactMap { kirFunc -> SymbolID? in
                         guard interner.resolve(kirFunc.name) == "get" else { return nil }
                         return kirFunc.symbol
                     }
@@ -816,7 +788,7 @@ extension LoweringABIAndPropertyRegressionTests {
             // testGetterOnlyComputedPropertyOverrideEmitsAccessors
             do {
                     let getName = interner.intern("get")
-                    let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+                    let getterFunctions = allFunctions.filter { kirFunc in
                         kirFunc.name == getName
                     }
 
@@ -826,12 +798,6 @@ extension LoweringABIAndPropertyRegressionTests {
                     )
 
                     let labelName = interner.intern("label")
-                    var globalSymbols: [SymbolID] = []
-                    for decl in module.arena.declarations {
-                        if case let .global(global) = decl {
-                            globalSymbols.append(global.symbol)
-                        }
-                    }
                     let labelGlobals = globalSymbols.filter { sym in
                         sema.symbols.symbol(sym)?.name == labelName
                     }
@@ -840,13 +806,6 @@ extension LoweringABIAndPropertyRegressionTests {
             }
             // testCustomGetterSetterPropertyEmitsAccessorsAndBackingField
             do {
-                    var globalSymbols: [SymbolID] = []
-                    for decl in module.arena.declarations {
-                        if case let .global(global) = decl {
-                            globalSymbols.append(global.symbol)
-                        }
-                    }
-
                     let countName = interner.intern("count")
                     let countGlobals = globalSymbols.filter { sym in
                         sema.symbols.symbol(sym)?.name == countName
@@ -862,7 +821,7 @@ extension LoweringABIAndPropertyRegressionTests {
                                   "Getter-only computed property should NOT have a KIRGlobal, found: \(labelGlobals)")
 
                     let getName = interner.intern("get")
-                    let getterFunctions = findAllKIRFunctions(in: module).filter { kirFunc in
+                    let getterFunctions = allFunctions.filter { kirFunc in
                         kirFunc.name == getName
                     }
                     #expect(
@@ -903,16 +862,15 @@ extension LoweringABIAndPropertyRegressionTests {
         let module = try #require(ctx.kir, "KIR module not available")
         let interner = ctx.interner
         let sema = try #require(ctx.sema, "Sema module not available")
+        // Scanned once and shared below: no scenario mutates `module`.
+        let globalSymbols = module.arena.declarations.compactMap { decl -> SymbolID? in
+            guard case let .global(global) = decl else { return nil }
+            return global.symbol
+        }
+        let allFunctions = findAllKIRFunctions(in: module)
 
             // testTopLevelGetterOnlyComputedPropertyEmitsNoGlobal
             do {
-                    var globalSymbols: [SymbolID] = []
-                    for decl in module.arena.declarations {
-                        if case let .global(global) = decl {
-                            globalSymbols.append(global.symbol)
-                        }
-                    }
-
                     // Top-level "computed" should NOT have a KIRGlobal.
                     let computedName = interner.intern("computed")
                     let computedGlobals = globalSymbols.filter { sym in
@@ -949,7 +907,7 @@ extension LoweringABIAndPropertyRegressionTests {
 
                     // Find readComputed and check its body for a getter call.
                     let readName = interner.intern("readComputed")
-                    let readerFn = findAllKIRFunctions(in: module).first { kirFunc in
+                    let readerFn = allFunctions.first { kirFunc in
                         kirFunc.name == readName
                     }
                     let reader = try #require(readerFn, "readComputed not found")
@@ -990,7 +948,7 @@ extension LoweringABIAndPropertyRegressionTests {
                         .propertyGetterAccessorSymbol(for: propertySymbol.id)
                     let readerName = interner.intern("readDoubled")
                     let reader = try #require(
-                        findAllKIRFunctions(in: module).first { $0.name == readerName },
+                        allFunctions.first { $0.name == readerName },
                         "readDoubled function not found"
                     )
 
