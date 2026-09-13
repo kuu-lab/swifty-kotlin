@@ -6,30 +6,6 @@ struct KsSymbolNameSemaTests {
 
     // MARK: - Per-source diagnostic helpers
 
-    private func diagnosticsForPath(
-        _ path: String,
-        in ctx: CompilationContext
-    ) -> [Diagnostic] {
-        guard let fileID = ctx.sourceManager.fileID(forPath: path) else { return [] }
-        return ctx.diagnostics.diagnostics.filter { $0.primaryRange?.start.file == fileID }
-    }
-
-    private func assertHasDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = diagnostics.contains { $0.code == code }
-        #expect(found, "Expected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
-    private func assertNoDiagnostic(
-        _ code: String,
-        in diagnostics: [Diagnostic]
-    ) {
-        let found = !diagnostics.contains { $0.code == code }
-        #expect(found, "Unexpected diagnostic \(code), got: \(diagnostics.map { $0.code })")
-    }
-
     @Test
     func testKsSymbolNameSema() throws {
         let sources: [String] = [

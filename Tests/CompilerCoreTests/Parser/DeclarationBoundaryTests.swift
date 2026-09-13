@@ -1,48 +1,24 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
-/// BUG-208 (found while implementing KSP-614): a body-less top-level
-/// declaration — such as the `external fun` bridges used by the bundled Kotlin
-/// stdlib — used to absorb the following declaration when that declaration
-/// started with a visibility/linkage modifier, because only `fun`/`val`/`class`
-/// and friends were treated as statement boundaries.  The absorbed declaration
-/// disappeared from the symbol table entirely (calls to it failed with
-/// `KSWIFTK-SEMA-0002` / `KSWIFTK-SEMA-0023`).
+/// Regression tests for parser declaration boundaries: where one top-level or
+/// block-level declaration ends and the next begins, and how far a
+/// declaration's CST range reaches.
 @Suite
 struct DeclarationBoundaryTests {
-    private func funDeclCount(_ source: String) -> Int {
-        nodeCount(source, kind: .funDecl)
+    private func nodeCount(in arena: SyntaxArena, kind: SyntaxKind) -> Int {
+        arena.nodes.count { $0.kind == kind }
     }
 
     private func nodeCount(_ source: String, kind: SyntaxKind) -> Int {
-        let interner = StringInterner()
-        let diagnostics = DiagnosticEngine()
-        let lexer = KotlinLexer(
-            file: FileID(rawValue: 0),
-            source: Data(source.utf8),
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        let parser = KotlinParser(tokens: lexer.lexAll(), interner: interner, diagnostics: diagnostics)
-        let parsed = parser.parseFile()
-        return parsed.arena.nodes.count { $0.kind == kind }
+        nodeCount(in: parse(source).arena, kind: kind)
     }
 
     /// Parses `source` and returns the CST range of the root (file) node,
     /// which is the accumulation of every top-level declaration's range.
     private func rootRange(_ source: String) -> SourceRange {
-        let interner = StringInterner()
-        let diagnostics = DiagnosticEngine()
-        let lexer = KotlinLexer(
-            file: FileID(rawValue: 0),
-            source: Data(source.utf8),
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        let parser = KotlinParser(tokens: lexer.lexAll(), interner: interner, diagnostics: diagnostics)
-        let parsed = parser.parseFile()
+        let parsed = parse(source)
         return parsed.arena.node(parsed.root).range
     }
 
@@ -52,24 +28,23 @@ struct DeclarationBoundaryTests {
     /// Assumes `source` contains exactly one `{ ... }` block (single function);
     /// with more than one, this only inspects the first block encountered.
     private func blockChildCount(_ source: String, blockChildKind: SyntaxKind) -> Int {
-        let interner = StringInterner()
-        let diagnostics = DiagnosticEngine()
-        let lexer = KotlinLexer(
-            file: FileID(rawValue: 0),
-            source: Data(source.utf8),
-            interner: interner,
-            diagnostics: diagnostics
-        )
-        let parser = KotlinParser(tokens: lexer.lexAll(), interner: interner, diagnostics: diagnostics)
-        let parsed = parser.parseFile()
-        guard let blockID = parsed.arena.nodes.indices.first(where: { parsed.arena.nodes[$0].kind == .block }) else {
+        let arena = parse(source).arena
+        guard let blockIndex = arena.nodes.firstIndex(where: { $0.kind == .block }) else {
             return 0
         }
-        return parsed.arena.children(of: NodeID(rawValue: Int32(blockID))).count { child in
+        return arena.children(of: NodeID(rawValue: Int32(blockIndex))).count { child in
             guard case let .node(nodeID) = child else { return false }
-            return parsed.arena.node(nodeID).kind == blockChildKind
+            return arena.node(nodeID).kind == blockChildKind
         }
     }
+
+    // BUG-208 (found while implementing KSP-614): a body-less top-level
+    // declaration — such as the `external fun` bridges used by the bundled
+    // Kotlin stdlib — used to absorb the following declaration when that
+    // declaration started with a visibility/linkage modifier, because only
+    // `fun`/`val`/`class` and friends were treated as statement boundaries.
+    // The absorbed declaration disappeared from the symbol table entirely
+    // (calls to it failed with `KSWIFTK-SEMA-0002` / `KSWIFTK-SEMA-0023`).
 
     @Test
     func testBodylessFunctionDoesNotAbsorbFollowingModifiedDeclaration() {
@@ -84,7 +59,7 @@ struct DeclarationBoundaryTests {
             bridge("second")
         }
         """
-        #expect(funDeclCount(source) == 3)
+        #expect(nodeCount(source, kind: .funDecl) == 3)
     }
 
     @Test
@@ -94,7 +69,7 @@ struct DeclarationBoundaryTests {
 
         private fun helper(): Int = answer
         """
-        #expect(funDeclCount(source) == 1)
+        #expect(nodeCount(source, kind: .funDecl) == 1)
     }
 
     // BUG-227 (found while auditing BuildASTPhase+ConstructorParsing.swift):
@@ -137,8 +112,9 @@ struct DeclarationBoundaryTests {
         let source = """
         class Foo { val y = 1; @Deprecated("old") fun z() {} }
         """
-        #expect(nodeCount(source, kind: .propertyDecl) == 1)
-        #expect(funDeclCount(source) == 1)
+        let arena = parse(source).arena
+        #expect(nodeCount(in: arena, kind: .propertyDecl) == 1)
+        #expect(nodeCount(in: arena, kind: .funDecl) == 1)
     }
 
     // `value`/`data`/... lex as declaration-modifier keywords even when used
@@ -170,9 +146,9 @@ struct DeclarationBoundaryTests {
     // truncating the root range whenever such a declaration was the last (or
     // only) top-level declaration, and making any diagnostic inside its body
     // fall outside every file-level `@Suppress`/`@OptIn` window. Pre-existing
-    // (last touched in b1e9bcc283, unrelated to this PR or the master merge);
-    // KSP-1216's tests were simply the first to combine a file-level
-    // `@Suppress` header with a trailing block-bodied `fun main`.
+    // (last touched in b1e9bcc283); KSP-1216's tests were simply the first to
+    // combine a file-level `@Suppress` header with a trailing block-bodied
+    // `fun main`.
     @Test
     func testBlockBodiedFunctionRangeIncludesParametersAndBody() {
         let source = """

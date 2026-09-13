@@ -1,6 +1,5 @@
 #if canImport(Testing)
 @testable import CompilerCore
-import Foundation
 import Testing
 
 // STDLIB-004: Codegen coverage for primitive array factory calls and
@@ -8,10 +7,11 @@ import Testing
 // that any regression in the array-creation code path is caught early.
 extension BuildKIRRegressionTests {
 
-    private static nonisolated(unsafe) var _sharedPrimitiveArrayCtx: (ctx: CompilationContext, paths: [String])?
-
-    private func sharedPrimitiveArrayCtx() throws -> CompilationContext {
-        if let cached = Self._sharedPrimitiveArrayCtx { return cached.ctx }
+    /// Built once per process: `static let` initializes under `swift_once`, so
+    /// parallel tests share a single compile. The previous check-then-set over
+    /// a mutable static allowed concurrent tests to each miss the cache and
+    /// re-pay the bundled-stdlib compile.
+    private static nonisolated(unsafe) let _sharedPrimitiveArrayCtx = Result<CompilationContext, any Error> {
         let sources: [String] = [
             """
             package sample0
@@ -138,19 +138,13 @@ extension BuildKIRRegressionTests {
             fun make15() = uintArrayOf(1u, 4000000000u)
             """
         ]
-        var result: CompilationContext?
-        var capturedPaths: [String]?
-        try withTemporaryFiles(contents: sources) { paths in
-            let ctx = makeCompilationContext(inputs: paths, emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
-            result = ctx
-            capturedPaths = paths
-        }
-        let ctx = try #require(result)
-        let paths = try #require(capturedPaths)
-        Self._sharedPrimitiveArrayCtx = (ctx, paths)
+        let ctx = makeContextFromSources(sources)
+        try runToLowering(ctx)
         return ctx
+    }
+
+    private func sharedPrimitiveArrayCtx() throws -> CompilationContext {
+        try Self._sharedPrimitiveArrayCtx.get()
     }
 
     @Test

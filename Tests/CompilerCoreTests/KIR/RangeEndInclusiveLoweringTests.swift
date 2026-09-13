@@ -8,18 +8,11 @@ import Testing
 @Suite
 struct RangeEndInclusiveLoweringTests {
     private func callNames(in source: String, function: String) throws -> [String] {
-        var names: [String] = []
-        try withTemporaryFile(contents: source) { path in
-            let ctx = makeCompilationContext(inputs: [path], emit: .kirDump)
-            try runToKIR(ctx)
-            let module = try #require(ctx.kir)
-            let body = try findKIRFunctionBody(named: function, in: module, interner: ctx.interner)
-            names = body.compactMap { instruction -> String? in
-                guard case let .call(_, callee, _, _, _, _, _, _) = instruction else { return nil }
-                return ctx.interner.resolve(callee)
-            }
-        }
-        return names
+        let ctx = makeContextFromSource(source)
+        try runToKIR(ctx)
+        let module = try #require(ctx.kir)
+        let body = try findKIRFunctionBody(named: function, in: module, interner: ctx.interner)
+        return extractCallees(from: body, interner: ctx.interner)
     }
 
     @Test func testIntRangeEndInclusiveLowersToRuntimeGetter() throws {

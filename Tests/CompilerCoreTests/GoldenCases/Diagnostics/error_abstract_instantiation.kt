@@ -1,4 +1,4 @@
-// Error cases for abstract class instantiation (KSWIFTK-SEMA-0310..0313)
+// Error cases for abstract class instantiation (KSWIFTK-SEMA-ABSTRACT / KSWIFTK-SEMA-0023)
 
 abstract class Animal {
     abstract fun speak(): String
@@ -15,19 +15,19 @@ abstract class Vehicle {
 
 fun main() {
     // ERROR: Cannot instantiate abstract class
-    val a = Animal()  // KSWIFTK-SEMA-0310: cannot create an instance of abstract class 'Animal'
+    val a = Animal()  // KSWIFTK-SEMA-ABSTRACT: cannot create an instance of abstract class 'Animal'
 
     // ERROR: Cannot instantiate interface
-    val f = Flyable()  // KSWIFTK-SEMA-0311: interface 'Flyable' does not have constructors
+    val f = Flyable()  // KSWIFTK-SEMA-0023: unresolved function 'Flyable' (an interface has no constructor to resolve)
 
     // ERROR: Cannot instantiate abstract class with constructor args
-    val v = Vehicle()  // KSWIFTK-SEMA-0310: cannot create an instance of abstract class 'Vehicle'
+    val v = Vehicle()  // KSWIFTK-SEMA-ABSTRACT: cannot create an instance of abstract class 'Vehicle'
 
     // ERROR: Subclass that does not implement all abstract members is still abstract
     open class PartialImpl : Animal() {
         // Missing override of speak()
     }
-    val p = PartialImpl()  // KSWIFTK-SEMA-0312: class 'PartialImpl' is not abstract and does not implement abstract member 'speak()'
+    val p = PartialImpl()  // KSWIFTK-SEMA-0023: unresolved function 'PartialImpl' (class is not abstract and does not implement abstract member 'speak()'; KSwiftK surfaces it as an unresolved constructor)
 }
 
 // KSP-CAP-018: an object expression is always concrete, so it must implement

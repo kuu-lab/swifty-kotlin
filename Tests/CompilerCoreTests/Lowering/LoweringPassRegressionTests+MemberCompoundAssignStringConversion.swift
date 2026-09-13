@@ -30,8 +30,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "MemberCompoundAssignInt", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)
@@ -61,8 +60,7 @@ extension LoweringPassRegressionTests {
         """
         try withTemporaryFile(contents: source) { path in
             let ctx = makeCompilationContext(inputs: [path], moduleName: "MemberCompoundAssignClass", emit: .kirDump)
-            try runToKIR(ctx)
-            try LoweringPhase().run(ctx)
+            try runToLowering(ctx)
             #expect(!ctx.diagnostics.hasError)
 
             let module = try #require(ctx.kir)

@@ -73,45 +73,6 @@ public func __kk_build_list_with_capacity(
     return __kkBuildList(capacity: capacity, fnRaw: fnRaw, outThrown: outThrown)
 }
 
-@_cdecl("__kk_build_set")
-public func __kk_build_set(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
-    __kkBuildSet(capacity: 0, fnPtr: fnPtr, outThrown: outThrown)
-}
-
-private func __kkBuildSet(
-    capacity: Int,
-    fnPtr: Int,
-    outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    guard fnPtr != 0 else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_build_set called with null function pointer")
-    }
-    let setPtr = registerRuntimeObject(RuntimeSetBox(capacity: capacity))
-    var thrown = 0
-    _ = kk_function_invoke(fnPtr, setPtr, &thrown)
-
-    if thrown != 0 {
-        outThrown?.pointee = thrown
-    }
-    runtimeSetBox(from: setPtr)?.freeze()
-    return setPtr
-}
-
-@_cdecl("__kk_build_set_with_capacity")
-public func __kk_build_set_with_capacity(
-    _ capacity: Int,
-    _ fnPtr: Int,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> Int {
-    outThrown?.pointee = 0
-    if capacity < 0 {
-        outThrown?.pointee = runtimeAllocateIllegalArgumentException(message: "capacity must be non-negative.")
-        return 0
-    }
-    return __kkBuildSet(capacity: capacity, fnPtr: fnPtr, outThrown: outThrown)
-}
-
 @_cdecl("__kk_build_map")
 public func __kk_build_map(_ fnPtr: Int, _ outThrown: UnsafeMutablePointer<Int>?) -> Int {
     __kkBuildMap(capacity: 0, fnPtr: fnPtr, outThrown: outThrown)
