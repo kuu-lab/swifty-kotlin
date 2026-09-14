@@ -2020,7 +2020,7 @@
     - `kotlin.native.runtime.GC.MainThreadFinalizerProcessor.maxTimeInTask` — val MainThreadFinalizerProcessor.maxTimeInTask: Duration  -- `final var maxTimeInTask`
     - `kotlin.native.runtime.GC.MainThreadFinalizerProcessor.minTimeBetweenTasks` — val MainThreadFinalizerProcessor.minTimeBetweenTasks: Duration  -- `final var minTimeBetweenTasks`
 
-- [ ] KSP-1265: kotlin.native.runtime.GCInfo.GCInfo の未実装 stdlib API を実装する（15 件）
+- [~] KSP-1265: kotlin.native.runtime.GCInfo.GCInfo の未実装 stdlib API を実装する（15 件）
   - 対象: `kotlin.native.runtime.GCInfo` / receiver `GCInfo`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2043,6 +2043,8 @@
     - `kotlin.native.runtime.GCInfo.secondPauseStartTimeNs` — val GCInfo.secondPauseStartTimeNs: Long  -- `final val secondPauseStartTimeNs`
     - `kotlin.native.runtime.GCInfo.startTimeNs` — val GCInfo.startTimeNs: Long  -- `final val startTimeNs`
     - `kotlin.native.runtime.GCInfo.sweepStatistics` — val GCInfo.sweepStatistics: Map  -- `final val sweepStatistics`
+
+  - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable プロパティ 15 件を bundled Kotlin source の constructor に `public val` として移し、GCInfo の synthetic property registration（`gcInfoProperties` spec と登録呼び出し）、および専用に使われていた `mapOfString` / `sweepStatisticsType` / `memoryUsageType` ヘルパーを削除した。`GCInfoSourceMigrationTests.gcInfoConstructorIsBundledSourceBacked` で全 15 プロパティの source-backed / non-synthetic / non-mutable / external-linkなし / 型（Long・nullable Long・RootSetStatistics・Map<String, SweepStatistics>・Map<String, MemoryUsage>）を検証し、専用 golden/diff ケース（`stdlib_kotlin_native_runtime_GCInfo_properties_n`）は全プロパティの構築・読み出しを固定する。全体 Swift/Golden/diff の gate は未実行のため完了は保留する。
 
 - [~] KSP-1267: kotlin.native.runtime.MemoryUsage.MemoryUsage の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.native.runtime.MemoryUsage` / receiver `MemoryUsage`

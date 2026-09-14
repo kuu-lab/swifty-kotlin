@@ -495,19 +495,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        let gcInfoFQName = packageFQName + [interner.intern("GCInfo")]
-        let gcInfoContext = SyntheticStubRegistrationContext(
-            ownerFQName: gcInfoFQName,
-            parentSymbol: gcInfoSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcInfoProperties,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
     }
 
     // MARK: - Debugging object
