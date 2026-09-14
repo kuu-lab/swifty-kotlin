@@ -429,6 +429,15 @@ public final class KIRModule {
         if !featuresScanned { scanFeatures() }
     }
 
+    /// Marks the cached `features` / `usedCallees` snapshot as stale so the
+    /// next `ensureFeaturesScanned()` re-walks the module. Lowering passes
+    /// synthesize new instructions (e.g. `DataEnumSealedSynthesisPass` emits
+    /// `kk_op_mul` / `kk_op_add` for data-class `hashCode`), so a snapshot
+    /// taken before the pass pipeline must not drive later `shouldRun` gates.
+    public func invalidateFeatureScan() {
+        featuresScanned = false
+    }
+
     public init(files: [KIRFile], arena: KIRArena, executedLowerings: [String] = []) {
         self.files = files
         self.arena = arena
