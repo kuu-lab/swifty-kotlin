@@ -86,15 +86,6 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex,
             skipStats: skipStats
         )
-        registerListAggregateMembers(
-            symbols: symbols, types: types, interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         registerListIteratorMember(
             symbols: symbols, types: types, interner: interner,
             kotlinCollectionsPkg: kotlinCollectionsPkg,
