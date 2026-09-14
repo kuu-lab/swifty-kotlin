@@ -128,9 +128,15 @@
     - 結果 tag 付け: `if let result { listExprIDs.insert(result.rawValue) }` → `state.tagListResult(result)`（nil ガード同値）。HOF 系は `state.insert(.list, hofResult)` + `state.tagListResult(result)` — `hofResult` は `emitHOFCall` 戻り値で従来どおり無条件 insert、result は nil ガード付き。range/charRange/ulongRange の callee 選択ロジック（isUIntRange/isLongRange 含む）は未変更。
     - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。ベースは `claude/rf-lower-state-004`。
     - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（range 系の `testRangeEndExclusiveRewrittenToKkRangeEndExclusive` / `testRangeAsReversedIsNotRewrittenToKkRangeReversed` 等を含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 同値 API 置換のみのため CI に委ねた。
-- [ ] RF-LOWER-STATE-007: Sequence virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004）
+- [x] RF-LOWER-STATE-007: Sequence virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Sequence.swift` と対応テストのみ。既存のsource / runtime経路選択はまだ変更しない。
   - 完了条件: Sequence / Iterator関連の結果tagとcopy後の判断が不変。静的なSequence型をruntime handleの証拠として新たに登録しない。
+  - 完了根拠（配線のみ。emit する KIR・callee・経路選択は一切不変）:
+    - `rewriteSequenceVirtualCall` の5つの集合引数（`listExprIDs` / `setExprIDs` / `mapExprIDs` / `sequenceExprIDs` の `inout Set<Int32>` + 値渡し `arrayExprIDs`）を `state: inout CollectionRewriteState` 1個へ畳んだ。dispatcher の callsite は `state: &state` 直渡し。
+    - 分類参照は `state.contains(.sequence/.list/.array, ...)`、結果 tag 付けは `state.tagResult(.sequence, _)` / `state.tagListResult(_:temporary:)` / `state.tagResult(.set, _:temporary:)` / `state.tagMapResult(_:temporary:)` / `state.tagResult(.sequence, _:temporary:)` へ置き換え。`tagResult`/`tagListResult`/`tagMapResult` は result nil ガード込みで従来の `if let result { ...insert 2行 }` と同値（`hofResult` も result 非 nil 時のみ insert される従来の挙動を保持）。
+    - `supportsIterableWindowedTransformReceiver` は値渡し read-only ヘルパーのためシグネチャ不変のまま callsite で `state.listExprIDs` 等を渡す（同ファイル内の分類操作 API 化は本項の範囲外）。source-backed 呼び出し判定（`isSourceBackedSequenceCall`）と toMap 例外ブリッジの経路選択は未変更 — STATE-009 が扱う「静的型由来と runtime 由来の区別」には踏み込まず、新たに静的 Sequence 型を runtime handle の証拠として登録する変更もなし。
+    - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。ベースは `claude/rf-lower-state-004`。
+    - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（sequence virtual-call の非 rewrite 契約8ケース等を含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 同値 API 置換のみのため CI に委ねた。
 - [ ] RF-LOWER-STATE-008: property virtual-callの分類参照をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Properties.swift` と対応テストのみ。List / Map / Set / File / Path等の分類参照を移し、既存の型・symbolガードを保持する。
   - 完了条件: `size`等の同名propertyを持つユーザー型がcollectionへ誤分類されず、未分類時のfallbackが不変。property lowering全体やsource API移行は混ぜない。
