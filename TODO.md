@@ -1985,13 +1985,15 @@
   - 未実装シンボル一覧:
     - `kotlin.native.ref.WeakReference.<init>` — constructor ()  -- `constructor <init>(#A)`
 
-- [ ] KSP-1259: kotlin.native.runtime top-level の未実装 stdlib API を実装する（7 件）
+- [x] KSP-1259: kotlin.native.runtime top-level の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.native.runtime` / top-level
   - 実装先 .kt: 宣言ごとに本家 kotlin-native のオーナーファイルへ追加する（`runtime/Debugging.kt`: Debugging、`runtime/GC.kt`: GC、`runtime/GCInfo.kt`: GCInfo/MemoryUsage/RootSetStatistics/SweepStatistics、`runtime/NativeRuntimeApi.kt`: NativeRuntimeApi。いずれも `Sources/CompilerCore/Stdlib/kotlin/native/` 配下。KSP-1541 で per-type ディレクトリ名は廃止済み）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: GC / GCInfo / MemoryUsage / NativeRuntimeApi / RootSetStatistics / SweepStatistics は KSP-1261 / KSP-1264 / KSP-1268 で個別に source-back 済み。残る `Debugging` を `Sources/CompilerCore/Stdlib/kotlin/native/runtime/Debugging.kt` に `@NativeRuntimeApi @SinceKotlin("1.9") public object Debugging {}` として追加し、7 件全ての top-level nominal を source-backed 化した。`HeaderHelpers+SyntheticNativeRefRuntimeStubs.swift`（`registerDebuggingObjectStub`）は既存の synthetic placeholder を bundled 宣言が reuse する経路のため、`HeaderCollection.swift` の `shouldRestoreDeclSiteForReusableSyntheticSymbol` に `kotlin.native.runtime.Debugging` を追加して `RootSetStatistics` と同じ扱いで declSite を復元し、`isSourceBackedSymbol` が true になるようにした（この一覧に入れていない場合、reuse された symbol の declSite が nil のまま残り non-source-backed 扱いになることを `DebuggingSourceMigrationTests` の失敗で確認済み）。メンバ（dumpMemory / forceCheckedShutdown / isThreadStateRunnable / gcSuspendCount / threadCount / globalObjectCount）は KSP-1260 の所有範囲のため synthetic stub のまま変更していない。
+  - 検証根拠: `DebuggingSourceMigrationTests` PASS（`Debugging` が `__bundled_kotlin/native/runtime/Debugging.kt` の source-backed object であることを確認）、対象 Golden harness（`stdlib_kotlin_native_runtime_Debugging_n_n`）PASS。`diff_kotlinc` は Kotlin/Native 専用 API のため `SKIP-DIFF` とし、`.build/debug/kswiftc` での直接コンパイル・リンク・実行で `true` を確認した。
   - 未実装シンボル一覧:
     - `kotlin.native.runtime.Debugging` — object kotlin.native.runtime.Debugging  -- `final object kotlin.native.runtime/Debugging {`
     - `kotlin.native.runtime.GC` — object kotlin.native.runtime.GC  -- `final object kotlin.native.runtime/GC {`

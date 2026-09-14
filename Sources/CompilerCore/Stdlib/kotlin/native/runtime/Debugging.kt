@@ -4,9 +4,10 @@
  *
  * Derived from kotlin-native <kotlin-native/runtime/src/main/kotlin/kotlin/native/runtime/Debugging.kt>.
  *
- * KSP-1260: source-back the full `Debugging` member surface. The runtime owns
- * thread-state and shutdown-mode tracking, so each member keeps a private
- * top-level bridge instead of a synthetic member stub.
+ * KSP-1259 source-backed the bare `object Debugging` nominal; KSP-1260
+ * source-backs its full member surface. The runtime owns thread-state and
+ * shutdown-mode tracking, so each member keeps a private top-level bridge
+ * instead of a synthetic member stub.
  */
 
 package kotlin.native.runtime
