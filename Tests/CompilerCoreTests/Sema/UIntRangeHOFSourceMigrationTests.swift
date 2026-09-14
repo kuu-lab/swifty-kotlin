@@ -34,6 +34,13 @@ struct UIntRangeHOFSourceMigrationTests {
                     }
                     guard ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/ranges/RangeHOF.kt",
                           signature.receiverType != nil,
+                          // KSP-1523 added a 0-arity `firstOrNull`/`lastOrNull`
+                          // overload to RangeHOF.kt alongside this suite's
+                          // pre-existing predicate-taking HOF overload of the
+                          // same name — restrict to the HOF shape this suite
+                          // is actually about, or both would match and the
+                          // count == 1 assertion below would fail.
+                          !signature.parameterTypes.isEmpty,
                           sema.symbols.externalLinkName(for: symbolID) == nil,
                           let receiverType = signature.receiverType,
                           case let .classType(classType) = sema.types.kind(of: sema.types.makeNonNullable(receiverType)),
@@ -114,6 +121,65 @@ struct UIntRangeHOFSourceMigrationTests {
 
             #expect(seen == expected, "Missing source-backed UIntRange calls: \(expected.subtracting(seen))")
         }
+    }
+
+    // KSP-1523 regression: `average`/`toUIntArray` are not real UIntRange
+    // members in Kotlin (confirmed via diff_kotlinc.sh) and were removed from
+    // RangeHOF.kt rather than migrated. Simply removing the bundled
+    // declaration was not enough — the legacy `CallTypeChecker+
+    // RangeMemberFallback.swift` allowlist (`isSupportedRangeMember`) still
+    // listed both names and bound a result *type* without a callee symbol,
+    // so the calls type-checked successfully and only failed later at link
+    // time with a bare, unresolved `average`/`toUIntArray` symbol instead of
+    // being rejected at Sema the way real kotlinc rejects them. Both names
+    // were removed from that allowlist too; this locks the correct
+    // Sema-level rejection in place.
+    @Test
+    func removedMembersAreRejectedAtSemaNotLeftToLinkFailure() throws {
+        let source = """
+        fun probe() {
+            (1u..5u).average()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected UIntRange.average() to be rejected at Sema")
+    }
+
+    @Test
+    func removedToUIntArrayIsRejectedAtSemaNotLeftToLinkFailure() throws {
+        let source = """
+        fun probe() {
+            (1u..5u).toUIntArray()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(ctx.diagnostics.hasError, "Expected UIntRange.toUIntArray() to be rejected at Sema")
+    }
+
+    // Guards the fix's blast radius: IntRange/LongRange's `average()` — both
+    // real Kotlin members, resolved through bundled Kotlin source
+    // (`bindSourceRangeHOFCall`) rather than the legacy allowlist entry that
+    // was removed — must keep resolving. `ULongRange.average()` is
+    // deliberately excluded here: it is NOT a real Kotlin member either
+    // (same `Iterable<Byte/Short/Int/Long/Float/Double>`-only shape as
+    // UIntRange, per TODO.md's KSP-1524 note) and currently only compiles
+    // because of its own Sema synthetic registration
+    // (`kk_ulong_range_average`, unrelated to this fix) — asserting it
+    // type-checks here would lock in that pre-existing kotlinc divergence
+    // instead of guarding this fix.
+    @Test
+    func otherRangeTypesAverageStillTypeChecks() throws {
+        let source = """
+        fun probe() {
+            (1..5).average()
+            (1L..5L).average()
+        }
+        """
+        let ctx = makeContextFromSource(source)
+        try runSema(ctx)
+        #expect(!ctx.diagnostics.hasError, "Expected other range types' average() to keep type-checking: \(ctx.diagnostics.diagnostics)")
     }
 }
 #endif
