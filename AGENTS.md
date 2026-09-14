@@ -111,6 +111,8 @@ gh stack merge                            # 下から順に原子的マージ
 - スタックは一直線のみ。1 つの PR を複数 PR の base にする扇型（fan-out）や、1 PR の複数スタック所属はできない。同じ base に並列で出したいものは依存順に 1 本に連ねるか、独立した PR にする
 - 必須チェック・必須レビュー・CODEOWNERS はすべての層で master（スタックの base）に対して評価され、CI は PR ごとに走る
 - 下の PR が先に merge されていたら、手で cherry-pick し直さず `gh stack sync` で追従する
+- merge queue 投入済み（queued for merge）や auto-merge 有効の PR はスタックに追加できず、`gh stack link` が exit 5 で止まる。その PR の merge を待ってから残りを `link` する
+- スタック化する前に下の PR が squash merge されていて、上のブランチに元コミットが残っている場合、通常の rebase はそのコミットを再適用しようとして衝突する。`git rebase --onto <新 base> <旧 base の tip> <branch>` で自分のコミットだけを載せ替える
 - `gh stack checkout` / `init` / `add` は現在の worktree のブランチを切り替える。他の作業を抱えた worktree では実行しない
 
 ## アーキテクチャ概要
