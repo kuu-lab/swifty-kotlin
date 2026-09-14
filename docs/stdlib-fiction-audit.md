@@ -165,7 +165,7 @@ CLEANUP-STUB-110 は JVM interop 全体の一律削除ではなく、明示さ�
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更後の実測値:
@@ -182,7 +182,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更前後の実測値:
@@ -199,7 +199,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更後の実測値:
@@ -216,7 +216,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 標準の Swift Testing dump が成功し、`makeCompilationContext` / `runSema` pipeline の実測値を取得した。
@@ -236,7 +236,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --no-parallel --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
 ```
 
 変更後の実測値:
