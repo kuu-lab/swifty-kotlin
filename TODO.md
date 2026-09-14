@@ -88,9 +88,14 @@
 
 > STATE-001 → 002を先行。003と004はRegistryを共有するため直列。004後の005〜008は各葉ファイルだけなら並列可、共有ファイルを触るなら直列。009は003・007を待ち、010は003〜009の移行を待つ。CALL側と同一ファイルを変更する項目は、そのAPI群のPRとの同時着手を避ける。
 
-- [ ] RF-LOWER-STATE-004: virtual-call dispatcherの状態受け渡しを一つにする（前提: STATE-003）
+- [x] RF-LOWER-STATE-004: virtual-call dispatcherの状態受け渡しを一つにする（前提: STATE-003）
   - 対象: `CollectionLiteralLoweringRegistry.swift` と `+VirtualCallRewrite.swift` の入口・dispatcher。葉の処理は変えず、dispatcherの境界でstateを受け渡す形にする。
   - 完了条件: Registryから十数個の集合を渡す引数列がなくなり、未rewrite時の元命令・結果型・throw channel・dispatch情報が保たれる。葉ファイルへの機械的な全面置換は005〜008に分ける。
+  - 完了根拠（配線のみ。葉関数シグネチャ・処理本体は一切不変）:
+    - `rewriteVirtualCallInstruction` の13個の集合引数（`inout Set<Int32>` ×12 + 値渡し `iteratorBuilderExprIDs`）を `state: inout CollectionRewriteState` 1個へ畳み、dispatcher 内の直接読み書きは `state.<名前付き集合>` へ機械的に前置しただけ。葉（`classifyReceiverByStaticType` / `rewriteArrayVirtualCall` / `rewriteSequenceVirtualCall` / `rewriteListHOFVirtualCall` / `rewriteCollectionPropertyVirtualCall` / `rewriteRangeVirtualCall` / `rewriteFileMemberVirtualCall`）は引き続き `&state.<名前付き集合>` で個別集合を受け取る — 葉の全面置換は STATE-005〜008 の範囲。
+    - Registry 側は STATE-003 で既に `state: inout CollectionRewriteState` を受ける入口（`lowerVirtualCallInstruction`）があり、そこで展開していた13引数を `state: &state` 直渡しに変更。未 rewrite 時の `loweredBody.append(instruction)` フォールバックは `run` ループ側にあり不変。
+    - `+RewriteState.swift` の doc コメントを更新: 「dispatcher が13引数を要求するため stored property 必須」の記述は本PRで解消された制約なので、残る制約（葉の個別 `inout` 引数 → STATE-005〜008 で撤去後に STATE-010 が view 化）を指す形に直した。
+    - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（virtual-call rewrite の24ケースと分類・copy伝播の契約を直接カバー）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 引数束ねのみの機械的変更で分類ロジックは1行も不変のため CI に委ねた。
 - [ ] RF-LOWER-STATE-005: Array virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004。CALL-013と同時編集しない）
   - 対象: `+VirtualCallRewrite+Array.swift` と対応テストのみ。dispatcherへの変更が必要ならSTATE-004との境界を先に調整する。
   - 完了条件: Array用の集合操作・結果tag付けが共通APIを使い、generic / primitive Arrayの分類と戻り値が不変。calleeやboxing規則の変更はしない。
