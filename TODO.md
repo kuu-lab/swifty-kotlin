@@ -3086,8 +3086,8 @@
     - `kotlin.text.dropLastWhile` — fun CharSequence.dropLastWhile(Function1): CharSequence  -- `final inline fun (kotlin/CharSequence).kotlin.text/dropLastWhile(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/CharSequence`
     - `kotlin.text.dropWhile` — fun CharSequence.dropWhile(Function1): CharSequence  -- `final inline fun (kotlin/CharSequence).kotlin.text/dropWhile(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/CharSequence`
 
-- [~] KSP-1372: kotlin.text.CharSequence.element-family の未実装 stdlib API を実装する（3 件）
-  - 実装中: 3 API の Kotlin source 宣言と member/safe-member inline lambda の non-local return 配線を追加。名前付き引数の型推論修正 PR #6608 を基点とする依存 PR とし、共有修正の重複を避ける。全体 G はこの PR head で未完了。
+- [x] KSP-1372: kotlin.text.CharSequence.element-family の未実装 stdlib API を実装する（3 件）
+  - 完了: PR #6690（`7e6627557`、2026-09-12 マージ。名前付き引数の型推論修正 PR #6608 を基点とした依存 PR）で `elementAt` / `elementAtOrElse` / `elementAtOrNull` の 3 API を `StringHOF.kt` の bundled Kotlin source 宣言として実装し、member / safe-member inline lambda の non-local return 配線も同 PR で配線済み。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `element`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3098,6 +3098,7 @@
     - `kotlin.text.elementAt` — fun CharSequence.elementAt(Int): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/elementAt(kotlin/Int): kotlin/Char`
     - `kotlin.text.elementAtOrElse` — fun CharSequence.elementAtOrElse(Int, Function1): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/elementAtOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Char>): kotlin/Char`
     - `kotlin.text.elementAtOrNull` — fun CharSequence.elementAtOrNull(Int): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/elementAtOrNull(kotlin/Int): kotlin/Char?`
+  - 検証（2026-09-14 再確認）: `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_element.kt` PASS（non-local return / captured / named / safe-call 各ケースで kotlinc parity）。`bash Scripts/check_todo_ids.sh` PASS。`bash Scripts/validate_runtime_abi_links.sh` 4/4 PASS。PR #6690 の CI 全シャード green、master CI green。全体 G（全テスト / 全 Golden / 全 diff ケース）は AGENTS.md の最小スコープ方針どおり CI で確認済みのため、ローカル再実行は diff ケース単体のみ。
 
 - [~] KSP-1374: kotlin.text.CharSequence.first-family の未実装 stdlib API を実装する（6 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `first`
