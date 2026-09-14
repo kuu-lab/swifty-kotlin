@@ -11,8 +11,9 @@
 /// - residual `createCleaner` bridge only when its bundled source declaration
 ///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
-/// - `kotlin.native.runtime.GC` — object providing GC controls, tagged with
-///   `@NativeRuntimeApi`.
+/// - `kotlin.native.runtime.GC` — its member surface is fully source-backed
+///   (see GC.kt); this only (re-)attaches `@NativeRuntimeApi` to the object
+///   symbol, matching the other nominal declarations below.
 /// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
 /// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
 /// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
@@ -346,24 +347,6 @@ extension DataFlowSemaPhase {
             symbols: symbols
         )
 
-        let objectContext = SyntheticStubRegistrationContext(
-            ownerFQName: objectFQName,
-            parentSymbol: objectSymbol
-        )
-        registerSyntheticFunctionStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcFunctions,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcProperties,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - RootSetStatistics class

@@ -1976,7 +1976,7 @@
     - `kotlin.native.runtime.Debugging.forceCheckedShutdown` — val Debugging.forceCheckedShutdown: Boolean  -- `final var forceCheckedShutdown`
     - `kotlin.native.runtime.Debugging.isThreadStateRunnable` — val Debugging.isThreadStateRunnable: Boolean  -- `final val isThreadStateRunnable`
 
-- [ ] KSP-1262: kotlin.native.runtime.GC.GC の未実装 stdlib API を実装する（22 件）
+- [x] KSP-1262: kotlin.native.runtime.GC.GC の未実装 stdlib API を実装する（22 件）
   - 対象: `kotlin.native.runtime.GC` / receiver `GC`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GC.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

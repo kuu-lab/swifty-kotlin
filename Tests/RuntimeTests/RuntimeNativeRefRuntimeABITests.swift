@@ -74,14 +74,32 @@ struct RuntimeNativeRefGCStabilityTests {
         #expect(kk_gc_target_heap_bytes() > 0)
     }
 
+    @Test func gcTargetHeapBytesRoundTripsThroughSetter() {
+        #expect(kk_gc_target_heap_bytes_set(0, 42) == 0)
+        #expect(kk_gc_target_heap_bytes() == 42)
+    }
+
+    // `kk_gc_target_heap_utilization` carries a Double as the IEEE bit pattern
+    // packed into an Int, matching every other Double-typed external fun this
+    // compiler emits (there is no floating-point LLVM type in the backend).
     @Test func gcTargetHeapUtilizationIsWithinValidRange() {
-        let utilization = kk_gc_target_heap_utilization()
+        let utilization = kk_bits_to_double(kk_gc_target_heap_utilization())
         #expect(utilization > 0)
         #expect(utilization <= 1)
     }
 
+    @Test func gcTargetHeapUtilizationRoundTripsThroughSetter() {
+        #expect(kk_gc_target_heap_utilization_set(0, kk_double_to_bits(0.75)) == 0)
+        #expect(kk_bits_to_double(kk_gc_target_heap_utilization()) == 0.75)
+    }
+
     @Test func gcMaxHeapBytesIsAtLeastTargetHeapBytes() {
         #expect(kk_gc_max_heap_bytes() >= kk_gc_target_heap_bytes())
+    }
+
+    @Test func gcMaxHeapBytesRoundTripsThroughSetter() {
+        #expect(kk_gc_max_heap_bytes_set(0, 99) == 0)
+        #expect(kk_gc_max_heap_bytes() == 99)
     }
 
     @Test func heapObjectCountPositiveAfterAlloc() {

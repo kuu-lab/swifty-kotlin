@@ -40,11 +40,8 @@ import Testing
 //   - kotlin.native.ref.WeakReference.get()
 //   - kotlin.native.ref.WeakReference.clear()
 //   - kotlin.native.ref.createCleaner(value, block)
-//   - kotlin.native.runtime.GC.collect()
-//   - kotlin.native.runtime.GC.schedule()
-//   - kotlin.native.runtime.GC.targetHeapBytes
-//   - kotlin.native.runtime.GC.targetHeapUtilization
-//   - kotlin.native.runtime.GC.maxHeapBytes
+//   - kotlin.native.runtime.GC (source-backed: see GC.kt; full member list
+//     tested by NativeRefRuntimeSemaTests' GC object tests)
 //   - kotlin.native.runtime.GCInfo
 //   - kotlin.native.runtime.GCInfo.* timing / summary properties
 //   - kotlin.native.runtime.MemoryUsage
