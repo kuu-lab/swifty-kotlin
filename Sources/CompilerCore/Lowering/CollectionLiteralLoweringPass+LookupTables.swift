@@ -372,9 +372,6 @@ struct CollectionLiteralLookupTables {
 
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
-    var kkPathUseLinesName: InternedString { fileIOLookup.kkPathUseLinesName }
-    var kkPathUseLinesDefaultName: InternedString { fileIOLookup.kkPathUseLinesDefaultName }
-    var kkPathWalkName: InternedString { fileIOLookup.kkPathWalkName }
 
     // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
 

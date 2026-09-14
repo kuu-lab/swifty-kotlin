@@ -1862,18 +1862,6 @@ extension CallTypeChecker {
             ) {
                 return fallbackType
             }
-            if let fallbackType = tryPathCharsetReadExtensionFallback(
-                id,
-                calleeName: calleeName,
-                isClassNameReceiver: isClassNameReceiver,
-                safeCall: safeCall,
-                receiverID: receiverID,
-                args: args,
-                ctx: ctx,
-                locals: &locals
-            ) {
-                return fallbackType
-            }
             if let fallbackType = tryNativePlacementAllocExtensionFallback(
                 id,
                 calleeName: calleeName,
