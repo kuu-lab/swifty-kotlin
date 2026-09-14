@@ -11,7 +11,7 @@ import kotlin.internal.KsSymbolName
 // bundled Kotlin source. The range payload remains a runtime-managed unsigned
 // range handle, so construction retains the existing ABI factory.
 // Receiver members remain residual synthetic/runtime-backed APIs for KSP-1321.
-public class ULongRange @KsSymbolName("kk_ulong_rangeTo") constructor(
+public class ULongRange @KsSymbolName("__kk_ulong_rangeTo") constructor(
     start: ULong,
     endInclusive: ULong,
 ) : ULongProgression(start, endInclusive, 1L), ClosedRange<ULong>, OpenEndRange<ULong> {

@@ -539,18 +539,18 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     // MARK: - ULongRange edge cases
 
     @Test func uLongRange_emptyWhenFromGtTo() {
-        let empty = kk_ulong_rangeTo(10, 1)
+        let empty = __kk_ulong_rangeTo(10, 1)
         #expect(RuntimeUnsignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "ULongRange from > to must be empty")
     }
 
     @Test func uLongRange_singleElement() {
-        let r = kk_ulong_rangeTo(42, 42)
+        let r = __kk_ulong_rangeTo(42, 42)
         #expect(kk_range_count(r) == 1)
     }
 
     @Test func uLongRange_step2_lastAligned() {
         // (1UL..10UL step 2) -> 1,3,5,7,9; last aligned to 9
-        let p = __kk_ulong_step(kk_ulong_rangeTo(1, 10), 2)
+        let p = __kk_ulong_step(__kk_ulong_rangeTo(1, 10), 2)
         #expect(kk_range_first(p) == 1)
         #expect(kk_range_last(p) == 9)
         #expect(kk_range_count(p) == 5)
@@ -574,7 +574,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     }
 
     @Test func uLongRange_reversed() {
-        let r = kk_ulong_rangeTo(1, 5)
+        let r = __kk_ulong_rangeTo(1, 5)
         let rev = kk_ulong_range_reversed(r)
         #expect(kk_range_first(rev) == 5)
         #expect(kk_range_last(rev) == 1)
@@ -597,7 +597,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         // Values beyond Int.max (represented as negative Int with UInt semantics)
         let bigStart = Int(bitPattern: UInt(4_294_967_295))   // UInt32.max
         let bigEnd = Int(bitPattern: UInt(4_294_967_298))
-        let r = kk_ulong_rangeTo(bigStart, bigEnd)
+        let r = __kk_ulong_rangeTo(bigStart, bigEnd)
         let list = kk_ulong_range_toList(r)
         #expect(kk_list_size(list) == 4)
         #expect(kk_list_get(list, 0) == bigStart)

@@ -446,12 +446,12 @@
   - diff: `ulong_range_hof*.kt` 既存 + `mapNotNull`/`filterNot` ケース
   - 前提: KSP-1524, KSP-1525
 
-- [ ] KSP-1530: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
+- [x] KSP-1530: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
   - 対象スタブ: 同上（`kk_ulong_*`）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeIterators.kt` / `ProgressionConstructors.kt` 追記
-  - 削除/降格 kk_*: `kk_ulong_range_iterator`, `_hasNext`, `_next`, `_step`, `_chunked`, `_windowed`, `_take`, `_drop`, および `kk_ulong_step`, `kk_ulong_downTo`, `kk_ulong_rangeTo`
+  - 削除/降格 kk_*: `kk_ulong_range_iterator`, `_hasNext`, `_next`, `_chunked`, `_windowed`, `_take`, `_drop`, `kk_ulong_rangeTo` を `__kk_*` へ降格（`kk_ulong_downTo` は本PR着手時点で既に `__kk_ulong_downTo` に降格済みだった。`ULongRange`/`ULongProgression.step` は `fromClosedRange` 経由の純 Kotlin 実装に置き換え、`__kk_ulong_step` ブリッジは呼ばなくなった。ブリッジ自体は step プロパティ取得や Lowering の残置フォールバックから参照が残るため削除せず維持）
   - 手順: T
-  - diff: `ulong_progression*.kt` 既存 + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース
+  - diff: `Scripts/diff_cases/ulong_progression.kt` 新規（uint_range.kt 相当 + iterator/take/drop/chunked/windowed + `ULong.MAX_VALUE` 近傍の `step` オーバーフロー非回帰ケース。旧 `runtimeUnsignedStep` の符号付き剰余バグを `fromClosedRange`（符号なし演算）経由に切り替えることで解消したことを確認）
   - 前提: KSP-1529
 
 - [~] KSP-1542: `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` の Collection/MutableCollection/Iterable 型シェルとメンバ登録を整理する

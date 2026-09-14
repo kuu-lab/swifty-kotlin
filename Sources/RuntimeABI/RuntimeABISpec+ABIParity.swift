@@ -666,7 +666,7 @@ public extension RuntimeABISpec {
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_ulong_range_drop", parameters: [
+        abiParitySpec("__kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -675,7 +675,7 @@ public extension RuntimeABISpec {
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_ulong_range_take", parameters: [
+        abiParitySpec("__kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),

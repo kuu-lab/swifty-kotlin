@@ -410,7 +410,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.chunkedName, arguments.count == 1 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_chunked")
+                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_chunked")
                     : (isUIntRange ? interner.intern("__kk_uint_range_chunked") : lookup.kkRangeChunkedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
@@ -420,7 +420,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         }
         if callee == lookup.windowedName, arguments.count == 3 {
             loweredBody.append(.call(
-                symbol: nil, callee: isULongRange ? interner.intern("kk_ulong_range_windowed")
+                symbol: nil, callee: isULongRange ? interner.intern("__kk_ulong_range_windowed")
                     : (isUIntRange ? interner.intern("__kk_uint_range_windowed") : lookup.kkRangeWindowedName),
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
@@ -433,7 +433,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.takeName, arguments.count == 1 {
             let takeName: InternedString
             if isULongRange {
-                takeName = interner.intern("kk_ulong_range_take")
+                takeName = interner.intern("__kk_ulong_range_take")
             } else if isUIntRange {
                 takeName = interner.intern("__kk_uint_range_take")
             } else if isLongRange {
@@ -451,7 +451,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if callee == lookup.dropName, arguments.count == 1 {
             let dropName: InternedString
             if isULongRange {
-                dropName = interner.intern("kk_ulong_range_drop")
+                dropName = interner.intern("__kk_ulong_range_drop")
             } else if isUIntRange {
                 dropName = interner.intern("__kk_uint_range_drop")
             } else if isLongRange {
