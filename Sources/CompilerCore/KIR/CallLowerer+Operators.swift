@@ -447,14 +447,36 @@ extension CallLowerer {
         // to return true.  The typed kk_op_d*/kk_op_f* runtime functions use Swift
         // operators that are IEEE-754 compliant.
         switch op {
+        // .notEqual reaches here only with matching floating-point operands
+        // in practice -- a mixed Double/Int `!=` is rejected by real kotlinc
+        // (this compiler currently accepts it too; tracked separately as
+        // BUG-262), so the widening below is a no-op for legal `!=` sources.
         case .lessThan, .lessOrEqual, .greaterThan, .greaterOrEqual, .notEqual:
-            let floatTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
-                           ?? arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
-            if let typeID = floatTypeID, isFloatingPointPrimitiveType(typeID, types: sema.types) {
-                let isDouble: Bool = switch sema.types.kind(of: typeID) {
-                case .primitive(.double, _): true
-                default: false
+            let lhsTypeID = arena.exprType(lhsID) ?? sema.bindings.exprTypes[lhs]
+            let rhsTypeID = arena.exprType(rhsID) ?? sema.bindings.exprTypes[rhs]
+            let lhsIsFloatingPoint = lhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
+            let rhsIsFloatingPoint = rhsTypeID.map { isFloatingPointPrimitiveType($0, types: sema.types) } ?? false
+            if lhsIsFloatingPoint || rhsIsFloatingPoint {
+                // BUG-258: a mixed comparison (e.g. `aDouble <= 1`) must widen
+                // the non-floating-point side to the same floating-point type
+                // before comparing -- kk_op_d*/kk_op_f* interpret both
+                // arguments as that type's raw IEEE-754 bit pattern, so an
+                // un-widened Int/Long operand's bit pattern gets misread as
+                // an unrelated (near-zero denormal) double/float value
+                // instead of the numeric value it actually holds.
+                let isDouble = [lhsTypeID, rhsTypeID].contains { typeID in
+                    guard let typeID else { return false }
+                    if case .primitive(.double, _) = sema.types.kind(of: typeID) { return true }
+                    return false
                 }
+                let effectiveLhsID = widenIntegerOperandToFloatingPoint(
+                    lhsID, operandTypeID: lhsTypeID, isFloatingPoint: lhsIsFloatingPoint, toDouble: isDouble,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
+                let effectiveRhsID = widenIntegerOperandToFloatingPoint(
+                    rhsID, operandTypeID: rhsTypeID, isFloatingPoint: rhsIsFloatingPoint, toDouble: isDouble,
+                    sema: sema, arena: arena, interner: interner, instructions: &instructions
+                )
                 let prefix = isDouble ? "d" : "f"
                 let suffix: String = switch op {
                 case .lessThan: "lt"
@@ -467,7 +489,7 @@ extension CallLowerer {
                 instructions.append(.call(
                     symbol: nil,
                     callee: interner.intern("kk_op_\(prefix)\(suffix)"),
-                    arguments: [lhsID, rhsID],
+                    arguments: [effectiveLhsID, effectiveRhsID],
                     result: result,
                     canThrow: false,
                     thrownResult: nil
@@ -872,6 +894,67 @@ extension CallLowerer {
         case .primitive(.double, _), .primitive(.float, _): return true
         default: return false
         }
+    }
+
+    /// BUG-258: widens an integer-typed comparison operand to the raw
+    /// IEEE-754 bit pattern of `toDouble: true ? Double : Float` so it can be
+    /// compared against a genuine floating-point operand by `kk_op_d*`/
+    /// `kk_op_f*` -- both interpret their arguments as that type's bit
+    /// pattern, so an un-widened Int/Long/Short/Byte value would otherwise be
+    /// misread as an unrelated floating-point value. A value that is already
+    /// the target floating-point type (or of unknown type) passes through
+    /// unchanged.
+    private func widenIntegerOperandToFloatingPoint(
+        _ operandID: KIRExprID,
+        operandTypeID: TypeID?,
+        isFloatingPoint: Bool,
+        toDouble: Bool,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID {
+        guard let operandTypeID else { return operandID }
+        let types = sema.types
+        let nonNullType = types.makeNonNullable(operandTypeID)
+        if isFloatingPoint {
+            // Already floating-point; a Float still needs widening when
+            // compared against a Double (real Kotlin defines
+            // Float.compareTo(Double)), since kk_op_d* reads its arguments
+            // as Double bit patterns.
+            guard toDouble, nonNullType == types.floatType else { return operandID }
+            let widened = arena.appendTemporary(type: types.doubleType)
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern("__kk_float_to_double_bits"),
+                arguments: [operandID],
+                result: widened,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return widened
+        }
+        let calleeName: InternedString
+        if nonNullType == types.longType {
+            calleeName = interner.intern(toDouble ? "kk_long_to_double" : "kk_long_to_float")
+        } else if nonNullType == types.intType || nonNullType == types.shortType || nonNullType == types.byteType {
+            calleeName = interner.intern(toDouble ? "kk_int_to_double_bits" : "kk_int_to_float_bits")
+        } else {
+            // Not a recognized integer primitive (e.g. already the other
+            // floating-point width, or a non-numeric type reached via the
+            // `Any`-erasure fallback below) -- leave it unchanged.
+            return operandID
+        }
+        let widened = arena.appendTemporary(type: toDouble ? types.doubleType : types.floatType)
+        instructions.append(.call(
+            symbol: nil,
+            callee: calleeName,
+            arguments: [operandID],
+            result: widened,
+            canThrow: false,
+            thrownResult: nil
+        ))
+        return widened
     }
 
     // MARK: - Array Operations
