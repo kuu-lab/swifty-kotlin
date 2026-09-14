@@ -220,15 +220,23 @@ enum MemberRuntimeDispatch {
 
         switch key.memberName {
         case "contains":
+            // KSP-1523: UIntRange used to special-case its own bridge here,
+            // but this is never reached for UInt — `contains`/`isEmpty` are
+            // intercepted earlier by `closedRangeInterfaceRuntimeName` in
+            // CallLowerer+MemberCallDefaultsAndResolution.swift, which
+            // already sends UInt through `__kk_range_contains` (confirmed by
+            // marker probe). Kept for ULong, whose values can exceed Int64.
             if kind.isULongRangeLike { return "kk_ulong_range_contains" }
-            if kind.isUIntRangeLike { return "kk_uint_range_contains" }
             return "__kk_range_contains"
         case "isEmpty":
             return rangeRuntimeName(kind: kind, member: "isEmpty")
         case "endExclusive":
             return "__kk_range_endExclusive"
         case "sum":
-            if kind.isUIntRangeLike { return "kk_uint_range_sum" }
+            // KSP-1523: UInt's `sum()` is a bundled, source-backed Kotlin
+            // declaration (RangeHOF.kt); `chosenCallee`'s isSourceBackedSymbol
+            // check short-circuits before this is ever consulted for UInt
+            // (confirmed by marker probe on both receiver shapes).
             return "__kk_range_sum"
         case "count":
             return rangeRuntimeName(kind: kind, member: "count")
@@ -424,9 +432,23 @@ enum MemberRuntimeDispatch {
                 "forEach",
                 "reduce", "reduceIndexed", "fold", "foldIndexed",
                 "find", "findLast",
-                "first_predicate", "firstOrNull_predicate",
-                "last_predicate", "lastOrNull_predicate",
+                "first_predicate", "firstOrNull", "firstOrNull_predicate",
+                "last_predicate", "lastOrNull", "lastOrNull_predicate",
                 "any", "all", "none",
+                // KSP-1523: none of these should ever reach the interpolated
+                // fallback below — the isSourceBackedSymbol short-circuit in
+                // CallLowerer+MemberCallDefaultsAndResolution.swift always
+                // fires first. `isEmpty`/`count`/`toList`/`sorted`/`reversed`
+                // are bundled RangeHOF.kt declarations; `first`/`last` are
+                // synthetic property-shell members resolved earlier via
+                // CallLowerer+LegacyMemberLikeCalls.swift; `average` has no
+                // bundled declaration at all — real kotlinc rejects
+                // `UIntRange.average()` (see RangeHOF.kt), so it's simply
+                // unresolved at TypeCheck and never lowered. Listed here
+                // anyway so the interpolated `"kk_uint_range_\(member)"`
+                // below can never reconstruct a name for a symbol that no
+                // longer exists in Runtime, even in that unreachable case.
+                "isEmpty", "count", "toList", "first", "last", "average", "sorted", "reversed",
             ]
             if sourceBacked.contains(member) {
                 return nil

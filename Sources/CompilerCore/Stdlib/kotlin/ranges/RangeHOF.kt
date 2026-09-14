@@ -1345,6 +1345,17 @@ public fun UIntRange.toList(): List<UInt> {
     return result
 }
 
+// KSP-1523: no UIntRange.toUIntArray()/average() here — real kotlinc has
+// neither (`toUIntArray()` is a `Collection<UInt>` member, and `UIntRange`
+// is `Iterable<UInt>` but not `Collection`; `average()` exists only for
+// `Iterable<Byte/Short/Int/Long/Float/Double>`, not `UInt`). Confirmed via
+// `diff_kotlinc.sh`: real kotlinc rejects both calls on a UIntRange receiver.
+
+public fun UIntRange.firstOrNull(): UInt? = if (isEmpty()) null else first
+public fun UIntRange.lastOrNull(): UInt? = if (isEmpty()) null else last
+
+public fun UIntRange.sorted(): List<UInt> = toList().sorted()
+
 @KsSymbolName("__kk_range_count")
 public fun UIntRange.count(): Int {
     val count: UInt = if (step > 0) {
@@ -1357,7 +1368,6 @@ public fun UIntRange.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun UIntRange.sum(): UInt {
     var sum = 0u
     for (element in this) {
