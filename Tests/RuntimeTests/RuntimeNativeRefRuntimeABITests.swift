@@ -160,7 +160,10 @@ struct RuntimeNativeRefWeakReferenceTests {
         let weakRaw = kk_weak_ref_create(objectRaw)
         #expect(kk_weak_ref_get(weakRaw) == objectRaw)
         #expect(kk_weak_ref_clear(weakRaw) == 0)
-        #expect(kk_weak_ref_get(weakRaw) == 0)
+        // The Kotlin-level `get(): T?` is Any-erased, so "no referent" must be
+        // the reference-null sentinel, not bare 0 (KSP-1255: bare 0 round-tripped
+        // back to Kotlin as a boxed non-null Int(0) instead of null).
+        #expect(kk_weak_ref_get(weakRaw) == runtimeNullSentinelInt)
     }
 
     @Test func weakReferenceToCollectedHeapObjectReturnsNull() {
@@ -172,14 +175,14 @@ struct RuntimeNativeRefWeakReferenceTests {
 
             kk_gc_collect()
 
-            #expect(kk_weak_ref_get(weakRaw) == 0)
+            #expect(kk_weak_ref_get(weakRaw) == runtimeNullSentinelInt)
         }
     }
 
     @Test func weakReferenceInvalidHandleIsNullSafe() {
-        #expect(kk_weak_ref_get(0) == 0)
+        #expect(kk_weak_ref_get(0) == runtimeNullSentinelInt)
         #expect(kk_weak_ref_clear(0) == 0)
-        #expect(kk_weak_ref_get(12345) == 0)
+        #expect(kk_weak_ref_get(12345) == runtimeNullSentinelInt)
         #expect(kk_weak_ref_clear(12345) == 0)
     }
 }

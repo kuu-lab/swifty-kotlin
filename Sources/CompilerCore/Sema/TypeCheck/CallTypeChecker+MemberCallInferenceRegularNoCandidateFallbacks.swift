@@ -1564,6 +1564,73 @@ extension CallTypeChecker {
             }
         }
 
+        // KSP-1263: A nested `class`/`enumClass`/`object`/`annotationClass`
+        // declared directly inside an `object` is reachable through the
+        // enclosing object's own value reference (e.g. `Outer.Inner` where
+        // `Outer` is itself an `object`, as in `GC.MainThreadFinalizerProcessor`),
+        // not only through the class-name-receiver path used for
+        // `class`/`interface`/`enumClass` receivers (inferRegularMemberCall
+        // excludes `.object` from `classNameReceiverNominalSymbol` so that
+        // ordinary instance members keep resolving normally). Mirrors the
+        // nested-owner resolution in that class-name-receiver branch, scoped
+        // to `.enumClass`/`.object`/`.annotationClass` nested owners only —
+        // nested `.class` construction is unrelated to this gap.
+        if args.isEmpty,
+           let ownerSymbol = driver.helpers.nominalSymbol(
+               of: sema.types.makeNonNullable(lookupReceiverType),
+               types: sema.types
+           ),
+           let owner = sema.symbols.symbol(ownerSymbol),
+           owner.kind == .object
+        {
+            let nestedOwnerFQName = owner.fqName + [calleeName]
+            var nestedOwnerSymbols = sema.symbols.lookupAll(fqName: nestedOwnerFQName).filter { candidate in
+                guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
+                      let symbol = sema.symbols.symbol(candidate)
+                else {
+                    return false
+                }
+                switch symbol.kind {
+                case .enumClass, .object, .annotationClass:
+                    return true
+                default:
+                    return false
+                }
+            }
+            if nestedOwnerSymbols.isEmpty {
+                let shortNameNestedOwners = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                    guard sema.symbols.parentSymbol(for: candidate) == ownerSymbol,
+                          let symbol = sema.symbols.symbol(candidate)
+                    else {
+                        return false
+                    }
+                    switch symbol.kind {
+                    case .enumClass, .object, .annotationClass:
+                        return true
+                    default:
+                        return false
+                    }
+                }
+                if shortNameNestedOwners.count == 1 {
+                    nestedOwnerSymbols = shortNameNestedOwners
+                }
+            }
+            if let nestedOwner = nestedOwnerSymbols.first,
+               let nestedOwnerKind = sema.symbols.symbol(nestedOwner)?.kind,
+               nestedOwnerKind == .enumClass || nestedOwnerKind == .object
+                   || (nestedOwnerKind == .annotationClass && !ast.arena.isExplicitCall(id))
+            {
+                let nestedType = sema.types.make(.classType(ClassType(
+                    classSymbol: nestedOwner,
+                    args: [],
+                    nullability: .nonNull
+                )))
+                sema.bindings.bindIdentifier(id, symbol: nestedOwner)
+                sema.bindings.bindExprType(id, type: nestedType)
+                return nestedType
+            }
+        }
+
         ctx.semaCtx.diagnostics.error("KSWIFTK-SEMA-0024", "Unresolved member function '\(interner.resolve(calleeName))'.", range: range)
         return driver.helpers.bindAndReturnErrorType(id, sema: sema)
     }
