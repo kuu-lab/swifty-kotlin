@@ -143,7 +143,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.iteratorName
             // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
             || callee == lookup.toListName
-            || callee == lookup.toIntArrayName
             || callee == lookup.averageName
             || callee == lookup.sortedName
             || callee == lookup.chunkedName

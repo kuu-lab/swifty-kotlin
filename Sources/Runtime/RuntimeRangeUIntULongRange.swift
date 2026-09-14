@@ -128,13 +128,6 @@ public func kk_uint_range_sum(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_uint_range_toUIntArray")
-public func kk_uint_range_toUIntArray(_ rangeRaw: Int) -> Int {
-    runtimeRangeEntry(RuntimeUnsignedRangeHOFKind.self, rangeRaw, functionName: "kk_uint_range_toUIntArray") { range in
-        RuntimeUnsignedRangeHOFKind.toList(range)
-    }
-}
-
 @_cdecl("kk_uint_range_forEach")
 public func kk_uint_range_forEach(_ rangeRaw: Int, _ fnPtr: Int, _ closureRaw: Int,
                                   _ outThrown: UnsafeMutablePointer<Int>?) -> Int
