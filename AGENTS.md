@@ -18,12 +18,12 @@ bash Scripts/swift_test.sh --skip-build                  # ビルド済み成果
 bash Scripts/swift_test.sh --filter SmokeTests           # スモークテスト
 bash Scripts/swift_test.sh --filter Golden               # ゴールデン全部（Swift Testing: Lexer / Parser / Sema / Diagnostics）。`Golden` はシンボル名の部分一致
 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden  # Sema ゴールデンのみ（`Golden.Sema` は @Suite 表示名のため --filter に効かない。型名で指定する）
-bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一 XCTest クラス（フロントエンド）
+bash Scripts/swift_test.sh --filter CompilerCoreTests.LoweringPassRegressionTests  # 単一テストスイート（フロントエンド）
 bash Scripts/swift_test.sh --filter CompilerBackendTests                         # バックエンドテスト（LLVM 必要: macOS は brew の /opt/homebrew/opt/llvm を自動探索、別所は KSWIFTK_LLVM_DYLIB で指定）
 .build/debug/kswiftc path/to/file.kt -o out  # コンパイラを直接実行
 ```
 
-- 並列実行だと個別 XCTest の "Executed N tests" サマリが出ず 0 tests に見えることがある。実行確認には `SWIFT_TEST_PARALLEL=0` を付ける。
+- テストは全 target が Swift Testing（XCTest は全廃済み、`import XCTest` を新規に追加しない）。並列実行だとスイート単位の実行件数サマリが出ず 0 tests に見えることがある。実行確認には `SWIFT_TEST_PARALLEL=0` を付ける。
 - ワーカー数などの環境変数、Runtime ABI リンク検証（`validate_runtime_abi_links.sh`）、TODO ID 重複検出（`check_todo_ids.sh`）等の補助スクリプトは [`Scripts/README.md`](Scripts/README.md) を参照。
 
 ### 動作確認の最小スコープ
@@ -78,13 +78,15 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 このリポジトリのゲートは人間の待ち時間より長いので、完了を待ってブロックしない。
 
-- **長時間ゲートはサブエージェントに出す。** `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（約 1425 ケース、30 分超、PASS/FAIL はケース単位で出るがサマリは最後）や `bash Scripts/swift_test.sh` の全テストは、サブエージェントに渡してその間に別の作業を進める。脱線や文脈不足が見えたら介入する。
+- **長時間ゲートはサブエージェントに出す。** `bash Scripts/diff_kotlinc.sh Scripts/diff_cases`（約 1400 ケース、30 分超、PASS/FAIL はケース単位で出るがサマリは最後）や `bash Scripts/swift_test.sh` の全テストは、サブエージェントに渡してその間に別の作業を進める。脱線や文脈不足が見えたら介入する。
 - **ただし同じ worktree で `swift build` / `swift test` を重ねない。** 同一 worktree での `swift build` と `swift test --skip-build` の同時実行は 0 CPU で停止し、重量 `swift test` を 2 本同時に起動すると `.outputUnavailable` の偽フレークが出る実績がある。並行させるなら別 worktree か、ビルドを伴わない作業にする。
 - **仕様準拠の判定は新しい文脈のサブエージェントに任せる。** RF 系ゲートやゴールデン更新が妥当かは、自己批評よりも、変更の意図を知らないサブエージェントに「[`docs/spec.md`](docs/spec.md) / ゴールデン差分と実装が一致しているか」を検証させた方が精度が高い。差分が大きい更新では、まとめて最後に見るのではなく途中で一度挟む。
 
 ## バグ修正ルール
 
 作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
+
+同じPRのスコープや安全な修正方針を超えて修正できない場合は、**Linear**（team `Kuu` / project「バグバックログ (BUG)」/ label `Bug`）に症状・最小再現・調査結果・修正しない理由を添えて起票し、issue リンクを PR description に記載する。**TODO.md には追加しない**（複数セッションが同じ挿入位置に書き込み、マージコンフリクトの最大要因になっていたため 2026-09-14 に廃止）。
 
 ## スタック PR
 
@@ -128,7 +130,7 @@ LoadSources → Lex → Parse → BuildAST → SemaPasses → BuildKIR → Lower
 - `KSwiftKCLI` → `kswiftc` / `LSPServer` + `KSwiftLSPCLI` → `kswift-lsp`
 - `Runtime` — GC・coroutine・boxing / `RuntimeABI` — ABI 契約の共有境界
 - `GoldenHarnessSupport` / `GoldenHarnessWorker` — ゴールデンテストハーネス
-- `Sources/CompilerCore/Stdlib/kotlin/` — Kotlin ソース化された stdlib。`Bundle.module` リソースとして同梱（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
+- `Sources/CompilerCore/Stdlib/kotlin/`（`kotlinx/` も同階層） — Kotlin ソース化された stdlib。`Bundle.module` リソースとして同梱。docs では `Stdlib/kotlin/...` と短縮表記する（[`docs/stdlib-pipeline.md`](docs/stdlib-pipeline.md)）
 - `CompilerTestSupport` / `TestStdlibCache` — テスト共有ヘルパーと、bundled stdlib を一度だけ `.kklib` にプリコンパイルして全テストで再利用するキャッシュ
 - `Tests/RuntimeTestsParallel` — 並列実行できる Runtime テストの分離ターゲット（`RuntimeTests` 本体は CI で直列実行）
 - `Tests/CrashCorpus` / `Tests/ARCH-025` — テストターゲットではないフィクスチャ。前者は mutation fuzzer の最小化クラッシュ入力（`.expect` 付き）、後者は JetBrains Kotlin testData のサブセット台帳（CI 非接続）
@@ -202,7 +204,7 @@ bash Scripts/swift_test.sh --filter SmokeTests -Xswiftc -swift-version -Xswiftc 
 | [`docs/debugging.md`](docs/debugging.md) | DWARF / lldb デバッグガイド |
 | [`docs/runtime-abi-external-link-validation-gaps.md`](docs/runtime-abi-external-link-validation-gaps.md) | CompilerCore emit `kk_*` 名と `RuntimeABISpec` 照合の検証ギャップ |
 | [`docs/refactoring-metrics.md`](docs/refactoring-metrics.md) | LoC / jscpd / stdlib 注入コストのベースライン（リファクタゲートの比較基準） |
-| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜006） |
+| [`docs/diff-skip-inventory.md`](docs/diff-skip-inventory.md) | `SKIP-DIFF` ケースの棚卸しと解除手順（DEBT-DIFF-001〜009） |
 | [`Scripts/README.md`](Scripts/README.md) | swift_test.sh の環境変数・補助スクリプト一覧 |
 | [`TODO.md`](TODO.md) | 未完了タスク一覧 |
 

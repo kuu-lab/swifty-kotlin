@@ -3,27 +3,6 @@
 
 public extension RuntimeABISpec {
     static let abiParityFunctions: [RuntimeABIFunctionSpec] = [
-        // Compiler-reserved runtime ABI names without @_cdecl implementations yet.
-        abiParitySpec("kk_kclass_register_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_has_annotation", parameters: [
-            p("p0", .intptr),
-            p("p1", .intptr),
-        ]),
-        abiParitySpec("kk_kclass_js", parameters: [
-            p("kclassRaw", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_simple_class_name", parameters: [
-            p("p0", .intptr),
-        ]),
-        abiParitySpec("kk_annotation_get_arguments", parameters: [
-            p("p0", .intptr),
-        ]),
         abiParitySpec("__kk_any_javaClass", parameters: [
             p("receiverRaw", .intptr),
         ], isThrowing: false),
@@ -640,19 +619,11 @@ public extension RuntimeABISpec {
             p("objectRaw", .intptr),
             p("modeRaw", .intptr),
         ]),
-        abiParitySpec("kk_uint_range_average", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_uint_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_uint_range_sorted", parameters: [
-            p("rangeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("__kk_uint_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
@@ -662,7 +633,7 @@ public extension RuntimeABISpec {
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_ulong_range_drop", parameters: [
+        abiParitySpec("__kk_ulong_range_drop", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -671,7 +642,7 @@ public extension RuntimeABISpec {
             p("rangeRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("kk_ulong_range_take", parameters: [
+        abiParitySpec("__kk_ulong_range_take", parameters: [
             p("rangeRaw", .intptr),
             p("n", .intptr),
             p("outThrown", .nullableIntptrPointer),

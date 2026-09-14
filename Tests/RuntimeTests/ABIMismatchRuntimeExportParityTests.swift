@@ -87,9 +87,6 @@ struct ABIMismatchRuntimeExportParityTests {
 
     private var allowedSpecOnlyRuntimeABINames: Set<String> {
         [
-            "kk_annotation_class_name",
-            "kk_annotation_get_arguments",
-            "kk_annotation_simple_class_name",
             "kk_callable_ref_call_0",
             "kk_callable_ref_call_1",
             "kk_callable_ref_call_2",
@@ -110,9 +107,6 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_char_sequence_length",
             "kk_dynamic_iterator",
             "kk_int_to_int",
-            "kk_kclass_has_annotation",
-            "kk_kclass_js",
-            "kk_kclass_register_annotation",
             // Kept in RuntimeABISpec for source-migration compatibility; the
             // runtime exports only the __kk_ bridge.
             "kk_list_fold",

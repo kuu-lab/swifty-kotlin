@@ -151,8 +151,33 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_debugging_is_thread_state_runnable",
+            name: "__kk_debugging_is_thread_state_runnable",
             parameters: [],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_debugging_force_checked_shutdown_get",
+            parameters: [],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_debugging_force_checked_shutdown_set",
+            parameters: [
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_debugging_dump_memory",
+            parameters: [
+                RuntimeABIParameter(name: "fd", type: .intptr),
+            ],
             returnType: .intptr,
             section: "NativeRef",
             isThrowing: false,

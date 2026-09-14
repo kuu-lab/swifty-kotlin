@@ -151,19 +151,18 @@ extension CallTypeChecker {
         calleeName: InternedString,
         interner: StringInterner
     ) -> Bool {
+        // KSP-1519: sequence {} / iterator {} are source-backed
+        // (Stdlib/kotlin/sequences/SequenceBuilder.kt) but still need the
+        // builder-DSL lambda-receiver-type bootstrap below (T is recovered from
+        // yield()/yieldAll() calls inside the lambda, which ordinary overload
+        // resolution cannot do). buildList/buildSet/buildMap no longer need this
+        // carve-out (KSP-622, KSP-623; they use @ExperimentalTypeInference instead).
         let kotlinName = interner.intern("kotlin")
-        let collectionsName = interner.intern("collections")
-        guard symbol.fqName.count == 3,
-              symbol.fqName[0] == kotlinName,
-              symbol.fqName[2] == calleeName
-        else {
-            return false
-        }
-        if symbol.fqName[1] == collectionsName {
-            // buildList, buildSet, and buildMap are fully Kotlinized (KSP-622, KSP-623).
-            return false
-        }
-        return false
+        let sequencesName = interner.intern("sequences")
+        return symbol.fqName.count == 3
+            && symbol.fqName[0] == kotlinName
+            && symbol.fqName[1] == sequencesName
+            && symbol.fqName[2] == calleeName
     }
 
     func isValidBuilderLambdaArgument(_ argumentExprID: ExprID, ast: ASTModule) -> Bool {

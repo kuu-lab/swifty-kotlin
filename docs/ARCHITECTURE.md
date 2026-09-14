@@ -13,7 +13,7 @@
 | 言語 | Swift 6.2 (Swift language mode 6) / macOS 12+ |
 | ビルドシステム | SwiftPM (`Package.swift`) |
 | 実行バイナリ | `kswiftc` |
-| テストフレームワーク | XCTest + Swift Testing |
+| テストフレームワーク | Swift Testing（XCTest は全廃済み） |
 | CI | GitHub Actions (`.github/workflows/ci.yml`) |
 
 ---
@@ -30,18 +30,24 @@ Package.swift
  +-- KSwiftLSPCLI         (executable)  LSP サーバ CLI エントリポイント -> kswift-lsp
  +-- GoldenHarnessSupport (library)     ゴールデンテスト共通ハーネス
  +-- GoldenHarnessWorker  (executable)  ゴールデンテスト実行ワーカー
+ +-- CompilerTestSupport  (library)     テスト共通ヘルパー (assertion / filesystem / pipeline / KIR・LLVM)
+ +-- TestStdlibCache      (library)     テスト用 bundled stdlib .kklib を 1 回だけビルドして共有する content-addressed キャッシュ
  +-- Runtime              (library)     GC / coroutine / boxing ヘルパー
 ```
 
 ### 依存グラフ
 
 ```text
-KSwiftKCLI           --> CompilerBackend --> CompilerCore, RuntimeABI
+KSwiftKCLI           --> CompilerCore, CompilerBackend
+                         CompilerBackend --> CompilerCore, RuntimeABI
                          CompilerCore    --> RuntimeABI
-KSwiftLSPCLI         --> LSPServer       --> CompilerCore
+KSwiftLSPCLI         --> LSPServer, CompilerCore, CompilerBackend
+                         LSPServer       --> CompilerCore
 GoldenHarnessWorker  --> GoldenHarnessSupport --> CompilerCore
-CompilerCoreTests    --> CompilerCore, GoldenHarnessSupport, GoldenHarnessWorker
-CompilerBackendTests --> CompilerBackend, CompilerCore
+CompilerTestSupport  --> CompilerCore
+TestStdlibCache      --> CompilerCore, CompilerBackend
+CompilerCoreTests    --> CompilerCore, CompilerTestSupport, GoldenHarnessSupport, GoldenHarnessWorker, TestStdlibCache
+CompilerBackendTests --> CompilerBackend, CompilerCore, CompilerTestSupport, TestStdlibCache
 RuntimeTests         --> Runtime, RuntimeABI
 RuntimeTestsParallel --> Runtime, RuntimeABI
 KSwiftKCLITests      --> KSwiftKCLI, CompilerCore
@@ -72,7 +78,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | 6 | **BuildKIR** | AST + Sema | `ctx.kir` (KIRModule) | `KIR/BuildKIRPhase.swift`, `KIR/KIRLoweringDriver.swift` |
 | 7 | **Lowering** | KIR | KIR (in-place 変換) | `Lowering/LoweringPhase.swift` + 各 `*LoweringPass.swift` |
 | 8 | **Codegen** | KIR | `.o` / `.ll` / `.kir` / `.kklib` | `CompilerBackend/CodegenPhase.swift`, `CompilerBackend/LLVMBackend.swift`, `CompilerBackend/NativeEmitter.swift` |
-| 9 | **Link** | `.o` ファイル | 実行ファイル (clang 呼び出し) | `CompilerBackend/LinkPhase.swift` |
+| 9 | **Link** | `.o` ファイル | 実行ファイル (`swiftc` 呼び出し) | `CompilerBackend/LinkPhase.swift` |
 
 ---
 
@@ -90,7 +96,7 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `Lowering/` | KIR 脱糖パス群 | `LoweringPhase.swift` (パス登録) + 各 `*LoweringPass.swift`。実行順は §9 参照 | for/when/property のデシュガー修正、新 lowering pass 追加 |
 | `Sema/NameMangler.swift` | マングリング | `NameMangler` | シンボル名マングリング修正 |
 | `Driver/` | パイプライン制御 + 横断インフラ | `Driver.swift`, `CompilationContext.swift`, `Diagnostics.swift`, `Phases.swift`, `FrontendPhases.swift`, `SourceManager.swift`, `SourceLocation.swift`, `CommandRunner.swift`, `PhaseTimer.swift`, `IncrementalCompilationCache.swift`, `DependencyGraph.swift`, `FileFingerprint.swift` | 新フェーズ追加、診断メッセージ修正、インクリメンタルビルド |
-| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/collections/*.kt`, `kotlin/text/*.kt` 等 | stdlib 拡張関数の追加・修正 |
+| `Stdlib/` | Kotlin stdlib ソース（リソース） | `kotlin/collections/*.kt`, `kotlin/text/*.kt`, `kotlinx/coroutines/**/*.kt` 等（詳細は [`stdlib-pipeline.md`](stdlib-pipeline.md)） | stdlib 拡張関数の追加・修正 |
 
 ### `Sources/CompilerBackend/` (LLVM バックエンド)
 
@@ -100,16 +106,20 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `CodegenPhase.swift` | KIR → LLVM IR 変換フェーズ |
 | `LinkPhase.swift` | オブジェクト → 実行ファイルリンクフェーズ |
 | `LLVMBackend.swift` | LLVM バックエンドエントリ |
-| `LLVMCAPIBindings.swift` (+分割5ファイル) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
-| `NativeEmitter.swift` (+分割6ファイル) | ネイティブコード発行 |
-| `CodegenRuntimeSupport.swift` | ランタイムサポート関数 |
+| `LLVMCAPIBindings.swift` (+分割6ファイル: `+Core` / `+DebugInfo` / `+IRBuilder` / `+Loading` / `+Passes` / `+TargetMachine`) | LLVM C API の Swift ラッパー。`+Loading.swift` が `libLLVM.dylib` / `libLLVM.so` を `dlopen`/`dlsym` で動的ロード |
+| `NativeEmitter.swift` (+分割3ファイル: `+EmissionConstants` / `+FunctionEmission` / `+TypeLowering`) | ネイティブコード発行 |
+| `LLVMEntryPointObjectEmitter.swift` | エントリポイント用オブジェクトの発行 |
+| `RuntimeReflectionMetadataEmitter.swift` | `KClass` 向け実行時リフレクションメタデータを LLVM グローバル定数として発行 |
+| `CodegenRuntimeSupport.swift` (+`+RuntimeObjects`) | ランタイムサポート関数 |
 | `CodegenSymbolSupport.swift` | シンボルサポート |
+| `StdlibArtifactCache.swift` | 実行ファイル生成時に使う stdlib `.kklib` の生成・探索（パッケージ同梱を優先、無ければユーザーキャッシュに生成） |
 
 ### `Sources/KSwiftKCLI/`
 
 | ファイル | 責務 |
 |---|---|
-| `main.swift` | CLI 引数パース、`CompilerDriver` 呼び出し |
+| `CLIParser.swift` | CLI 引数パース（`--stdlib-*` / `-g` / `-O` などのオプション定義） |
+| `main.swift` | エントリポイント。パース結果から `CompilerDriver` を呼び出す |
 
 ### `Sources/LSPServer/`
 
@@ -122,7 +132,8 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 | `JSONRPC.swift` | JSON-RPC プロトコル実装 |
 | `LSPTypes.swift` | LSP 型定義 |
 | `Conversions.swift` | コンパイラ内部型 ↔ LSP 型の変換 |
-| `Features/` | 機能別ハンドラ (Hover / Definition / DocumentSymbol / Diagnostics / SymbolResolution) |
+| `DebounceScheduler.swift` | 遅延実行スケジューラ（テストでは決定的な実装に差し替え可能） |
+| `Features/` | 機能別ハンドラ (Hover / Definition / DocumentSymbol / Diagnostics / CodeAction / SymbolResolution) |
 
 ### `Sources/KSwiftLSPCLI/`
 
@@ -130,16 +141,16 @@ LoadSources --> Lex --> Parse --> BuildAST --> SemaPasses --> BuildKIR --> Lower
 |---|---|
 | `main.swift` | LSP サーバ CLI エントリポイント |
 
-### `Sources/Runtime/` (83 ファイル — カテゴリ別抜粋)
+### `Sources/Runtime/` (78 ファイル — カテゴリ別抜粋)
 
 | カテゴリ | 主要ファイル | 責務 |
 |---|---|---|
 | 型・メモリ | `RuntimeTypes.swift`, `RuntimeBoxing.swift`, `RuntimeGC.swift`, `RuntimeMemory.swift`, `RuntimeMetadata.swift` | `KTypeInfo`, ヒープ管理、mark-sweep GC、ボックス型 |
-| 文字列 | `RuntimeStringArray.swift`, `RuntimeStringBuilder.swift`, `RuntimeStringSearch.swift`, `RuntimeStringHOF.swift` 等 (12 ファイル) | 文字列操作・検索・変換・フォーマット |
+| 文字列 | `RuntimeStringArray.swift`, `RuntimeStringBuilder.swift`, `RuntimeStringQuery.swift`, `RuntimeStringHOF.swift` 等 (12 ファイル) | 文字列操作・検索・変換・フォーマット |
 | コレクション | `RuntimeCollections.swift`, `RuntimeCollectionHOF.swift`, `RuntimeCollectionHelpers.swift`, `RuntimeArrayBasics.swift`, `RuntimeSetAndMap.swift` 等 | 配列・リスト・セット・マップ操作 |
 | Coroutine/Flow | `RuntimeCoroutine.swift`, `RuntimeCoroutineChannel.swift`, `RuntimeCoroutineContext.swift`, `RuntimeCoroutineFlow.swift` | coroutine ステートマシン、Channel、Flow |
-| 数値・演算 | `RuntimeMath.swift`, `RuntimeNumericCoercion.swift`, `RuntimeNumericBitManip.swift`, `RuntimeRandom.swift` | 数値変換・ビット操作・乱数 |
-| IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift` | ファイル IO、HTTP |
+| 数値・演算 | `RuntimeMath.swift`, `RuntimeNumericCoercion.swift`, `RuntimeNumericCompat.swift`, `RuntimeRandom.swift` | 数値変換・互換演算・乱数 |
+| IO・ネットワーク | `RuntimeFileIO.swift`, `RuntimeNetwork.swift`, `RuntimeFileSystemException.swift` | ファイル IO、HTTP |
 | プラットフォーム | `RuntimeHelpers.swift`, `RuntimePlatform.swift`, `RuntimeSystem.swift`, `RuntimeTime.swift`, `RuntimeInstant.swift` | ヘルパー関数、プラットフォーム検出、時間 |
 | Delegate | `RuntimeDelegates.swift` | delegate プロパティランタイムサポート |
 | 並行・同期 | `RuntimeAtomic.swift`, `RuntimeSync.swift`, `RuntimeThreadLocal.swift` | アトミック操作、ロック、スレッドローカル |
@@ -172,21 +183,25 @@ Tests/
  |    +-- AST/            # ASTModelsTests, BuildASTBodyParsingRegressionTests, BlockExpressionTests
  |    +-- Sema/           # ConstraintSolverTests, OverloadResolverTests, TypeSystemTests, ...
  |    +-- KIR/            # BuildKIRRegressionTests, KIRModelsBehaviorTests, ...
- |    +-- Lowering/       # LoweringPassRegressionTests, VirtualDispatchTests, ...
- |    +-- Driver/         # DriverTests, DiagnosticEngineTests, SourceLocationTests, ...
- |    +-- Integration/    # SmokeTests, GoldenHarnessSwiftTesting, DeepPhasePipelineIntegrationTests
+ |    +-- Lowering/       # LoweringPassRegressionTests+*, ...
+ |    +-- Driver/         # DriverTests, DiagnosticEngineTests, SourceManagerTests, IncrementalCompilationCacheTests, ...
+ |    +-- Integration/    # SmokeTests, GoldenHarnessSwiftTesting, DeepPhasePipelineIntegrationTests, FrontendParallelBenchmarkTests
  |    +-- GoldenCases/    # .kt スナップショットフィクスチャ (Lexer/, Parser/, Sema/, Diagnostics/)
  |                        #   `.golden` は生成物。`stdlib_<package path>_<Type>_<member>`
  |                        #   命名の `n` は「該当なし」。スロットの網羅は要求されない
  +-- CompilerBackendTests/     # バックエンドテスト (LLVM 必要)
- |    +-- Codegen/        # CodegenBackendIntegrationTests, LinkPhaseIntegrationTests, NameManglerTests
- |    +-- Lowering/       # LoweringCodegenRegressionTests, VirtualDispatchCodegenTests, ...
+ |    +-- Codegen/        # CodegenBackendIntegrationTests+*, CodegenBackendFixtureTests, LinkPhaseIntegrationTests, NameManglerTests
+ |    +-- Fixtures/       # CodegenBackendFixtureTests が走査する <領域>/<ケース>/{*.kt,expected.txt}
+ |    +-- Integration/    # BundledStdlibExecutionTests+*, BackendDriverOutputTests, RuntimeStubImplementationTests
+ |    +-- Lowering/       # LoweringCodegenRegressionTests, VirtualDispatchTests+*, ...
  |    +-- Sema/           # LibraryMetadataImportIntegrationTests
- |    +-- KIR/            # BuildKIRCodegenRegressionTests, DelegatePropertyKIRTests
+ |    +-- KIR/            # BuildKIRRegressionTests+AbiBoxingAndArrayLowering, DelegatePropertyKIRTests, ClockNowKIRRegressionTests
  +-- RuntimeTests/            # ランタイムユニットテスト
  +-- RuntimeTestsParallel/    # ランタイム並列テスト
  +-- KSwiftKCLITests/         # CLI 統合テスト
  +-- LSPServerTests/          # LSP サーバテスト
+ +-- ARCH-025/                # Kotlin compiler testData の適合サブセット台帳 (manifest.tsv / ledger.tsv / fixtures/、Scripts/*_arch025_testdata.sh で運用。swift test には接続しない)
+ +-- CrashCorpus/             # mutation fuzzer のプロセス安全性オラクル用に最小化した .kt + .expect
 ```
 
 ### Synthetic member link tests
@@ -216,7 +231,7 @@ Kotlin ソースを `kswiftc` でコンパイル・実行し stdout を突き合
 > 個別の `CodegenBackend*Tests.swift` を新設せず、`Fixtures/` に
 > `<領域>/<ケース名>/<ケース名>.kt` + `expected.txt` を追加して `CodegenBackendFixtureTests`
 > に検出させる。stdout 比較に収まらない検証（KIR ダンプ・callee 検査・診断など）が必要な場合に限り
-> 従来の XCTest メソッドを書く。既存ケースの fixture 化は領域単位で順次進める（RF-TEST-002）。
+> 個別の `@Test` を書く。既存ケースの fixture 化は領域単位で順次進める。
 
 ### テストファイル名は suite 型名と一致させる
 
@@ -246,19 +261,18 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # kotlinc 差分回帰テス�
 
 フィルタ指定・ゴールデン更新（`UPDATE_GOLDEN=1`）・Swift 言語モード指定などの詳細は [`AGENTS.md`](../AGENTS.md) の「ビルド & テストコマンド」を参照。
 
-### XCTest / Swift Testing の使い分け
+### テストフレームワーク（Swift Testing）
 
-新規テストは、まず同じ target / ディレクトリの既存スタイルに合わせる。迷う場合の既定は次の通り:
+全 target のテストは Swift Testing（`import Testing`, `@Test`, `#expect`）に統一済みで、XCTest は全廃している（`import XCTest` を新規に追加しない）。新規テストは、まず同じ target / ディレクトリの既存スタイルに合わせる。target 別の慣例:
 
 | 用途 | 既定 |
 |---|---|
-| `CompilerCoreTests` の AST / Driver / Integration / Golden harness など、LLVM 非依存で値検証中心のテスト | Swift Testing (`import Testing`, `@Test`, `#expect`) |
+| `CompilerCoreTests` の AST / Driver / Integration / Golden harness など、LLVM 非依存で値検証中心のテスト | Swift Testing suite。近接の既存 suite（`+<責務>` 分割ファイル）に追加する |
 | `KSwiftKCLITests` / `LSPServerTests` の小さな protocol・parser・flow テスト | Swift Testing |
-| `CompilerBackendTests` の codegen/link 実行、LLVM・subprocess・fixture cleanup に依存するテスト | Swift Testing (`import Testing`, `@Test`, `#expect`)；共通 helper は assertion を持たない |
+| `CompilerBackendTests` の codegen/link 実行、LLVM・subprocess・fixture cleanup に依存するテスト | Swift Testing；stdout 比較なら `Fixtures/`（上記ガイドライン）、共通 helper は assertion を持たない |
 | `RuntimeTests` / `RuntimeTestsParallel` でプロセス全体の runtime state を変更 / GC するテスト | Swift Testing with `.runtimeIsolation(...)` |
-| 既存の大きな `XCTestCase` extension 群へ regression を足す場合 | Swift Testing へ移行するか、近接の既存 Swift Testing suite に追加 |
 
-Swift Testing と XCTest を同一ファイルに混在させない。共通 helper が両方から必要な場合は、assertion API を持たない helper に切り出す。
+共通 helper が複数 suite から必要な場合は、assertion API を持たない helper（`CompilerTestSupport` など）に切り出す。
 
 ---
 
@@ -294,7 +308,7 @@ KIRModule (lowered)
     v
 .o (LLVM object) or .ll (LLVM IR) or .kir (dump) or .kklib (library bundle)
     |
-    v  (Link: clang 呼び出し)
+    v  (Link: swiftc 呼び出し)
 実行ファイル
 ```
 
@@ -320,7 +334,7 @@ KIRModule (lowered)
 | `CompilationContext` | `Driver/CompilationContext.swift` | 全フェーズの共有状態コンテナ (tokens, AST, Sema, KIR, options) |
 | `DiagnosticEngine` | `Driver/Diagnostics.swift` | エラー/警告の収集・ソート・表示 (`KSWIFTK-*` コード体系) |
 | `SourceManager` | `Driver/SourceManager.swift` | ファイル管理、行列番号計算 (O(log N)) |
-| `StringInterner` | `Driver/CompilationContext.swift` 内 | 文字列 -> InternedString (Int32) の双方向変換 |
+| `StringInterner` | `Lexer/TokenModel.swift`（`CompilationContext.interner` として保持） | 文字列 -> InternedString (Int32) の双方向変換 |
 | `SymbolTable` | `Sema/Models/SemanticsModels.swift` | シンボル定義・FQName/ShortName 索引・関数シグネチャ・レイアウト |
 | `TypeSystem` | `Sema/TypeSystem/TypeSystem.swift` | 型の登録・部分型判定・変性・置換 |
 | `NameMangler` | `Sema/NameMangler.swift` | ABI 安定なマングル名生成 |
@@ -342,18 +356,20 @@ KIRModule (lowered)
 6.  FlowLoweringPass             -- Kotlin Flow 構築・変換
 7.  ValueClassUnboxingPass       -- value class のアンボクシング (PropertyLowering 前に実行)
 8.  PropertyLoweringPass         -- get/set アクセサ展開
-9.  StdlibDelegateLoweringPass   -- lazy/observable/vetoable delegate
-10. JvmStaticLoweringPass        -- @JvmStatic アノテーション処理
-11. JvmOverloadsLoweringPass     -- @JvmOverloads デフォルト引数オーバーロード生成
-12. DataEnumSealedSynthesisPass  -- data/enum/sealed synthetic ヘルパー
-13. EnumEntriesLoweringPass      -- enum entries プロパティ合成
+9.  JvmStaticLoweringPass        -- @JvmStatic アノテーション処理
+10. JvmOverloadsLoweringPass     -- @JvmOverloads デフォルト引数オーバーロード生成
+11. DataEnumSealedSynthesisPass  -- data/enum/sealed synthetic ヘルパー
+12. EnumEntriesLoweringPass      -- enum entries プロパティ合成
+13. ConsolePrintLoweringPass     -- print/println の引数を静的型の toString() 経由に書き換え (bundled Console.kt の Any? 受け口対策)
 14. EnumNameAccessLoweringPass   -- enum name アクセスの展開
 15. LambdaClosureConversionPass  -- ラムダクロージャ変換
 16. InlineLoweringPass           -- inline 関数本体展開
 17. CoroutineLoweringPass        -- suspend 関数 CPS 変換 + ステートマシン
-18. IntegerNarrowingPass         -- 整数型ナローイング最適化
+18. IntegerNarrowingPass         -- 整数型ナローイング (整数演算 builtin を出す全パスの後、ABILowering の前)
 19. ABILoweringPass              -- outThrown チャネル設定
 ```
+
+`lazy` / `Delegates.observable` / `vetoable` の delegate lowering は KSP-491 で Kotlin ソース化され、専用パス（旧 `StdlibDelegateLoweringPass`）は削除済み。
 
 `CoroutineLoweringPass` は `CoroutineLoweringPass.swift` 本体と、責務別に分割された 7 個の extension ファイル
 (`+Analysis`, `+CallRewriting`, `+Flow`, `+FlowInstructionRewrite`, `+LauncherSupport`, `+StateMachine`, `+Synthesis`) で構成される。
@@ -362,47 +378,46 @@ KIRModule (lowered)
 
 ## 10. CI ジョブ構成
 
-`.github/workflows/ci.yml` の主なジョブ:
+`.github/workflows/ci.yml` のジョブ（全ジョブ `ubuntu-latest`、Swift 6.3、`SWIFT_BUILD_SYSTEM=native`、`SWIFT_XSWIFTC_FLAGS` で言語モード 6 + strict concurrency を共有）:
 
 | ジョブ | 内容 |
 |---|---|
-| `verify-todo-ids` | `TODO.md` のタスク ID 重複チェック |
-| `verify-core` | `CompilerCoreTests` / `SmokeTests` のみビルド・実行（LLVM 不要、シャード数 6） |
-| `verify-self-hosted` | `CompilerBackendTests` / `RuntimeTests` / `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` をビルド・実行（シャード数 4） |
-| `verify-diff` | `kswiftc` リリースビルド後、`Scripts/diff_kotlinc.sh` で kotlinc 差分検証（シャード数 4） |
+| `verify-todo-ids` | `Scripts/check_todo_ids.sh` で `TODO.md` のタスク ID 重複チェック |
+| `build-debug-tests` | `Scripts/build_swift_tests.sh` でコンパイラと全テストターゲットをデバッグビルドし、`swift-debug-tests-<run id>` artifact にする（1 回だけ） |
+| `verify-core` | `build-debug-tests` の成果物を展開し、`CompilerCoreTests` をメソッド単位の動的シャード（6 分割）で実行。Golden 4 スイートは `KSWIFTK_GOLDEN_SHARD_INDEX/COUNT` で分割。shard 1 だけ `SmokeTests` と `FrontendParallelBenchmarkTests` も実行。LLVM 不要 |
+| `verify-self-hosted` | 同じ成果物で `CompilerBackendTests` を静的シャード（4 分割）で実行。shard 1 だけ `RuntimeTests`（直列・チャンク）/ `RuntimeTestsParallel` / `KSwiftKCLITests` / `LSPServerTests` も実行。`setup-llvm` で LLVM を導入 |
+| `verify-repository-checks` | `Scripts/loc_report.sh`（artifact `refactoring-metrics-<run id>`）と `jscpd --config .jscpd-ci.json`（閾値超過で失敗） |
+| `build-release-kswiftc` | `swift build -c release --product kswiftc` を 1 回だけ実行し `kswiftc-release-<run id>` artifact にする |
+| `verify-diff` | release `kswiftc` を展開し、JDK 21 + kotlinc 2.3.10 で `Scripts/diff_kotlinc.sh` を 4 シャード実行。shard 1 は `Scripts/diff_diagnostics.sh` も実行。失敗時は `kotlinc-diff-regression-<run id>-shard-<n>` artifact |
 
-セットアップアクション:
-- [`.github/actions/setup-swift`](../.github/actions/setup-swift/action.yml) — Swift のみ（LLVM 不要なジョブ用）
-- [`.github/actions/setup-swift-llvm`](../.github/actions/setup-swift-llvm/action.yml) — Swift + LLVM（バックエンド・diff テスト用）
+セットアップアクション（`.github/actions/`）:
+- [`setup-self-hosted`](../.github/actions/setup-self-hosted/action.yml) — Linux ランナーの共通準備（全ジョブ）
+- [`setup-swift`](../.github/actions/setup-swift/action.yml) — 指定バージョン（6.3）の Swift ツールチェーンを用意し、バージョン一致を検証
+- [`setup-llvm`](../.github/actions/setup-llvm/action.yml) — `llvm-dev` を導入し `llvm-config` から `KSWIFTK_LLVM_DYLIB` 等を導出（`verify-self-hosted` のみ）
+- [`setup-swiftpm-cache`](../.github/actions/setup-swiftpm-cache/action.yml) — `.build` を actions/cache から復元。`build-debug-tests` / `build-release-kswiftc` が `save: "false"`（restore-only）で使用
 
-LLVM 不要: `CompilerCoreTests`, `RuntimeTests`, `RuntimeTestsParallel`, `LSPServerTests`
-LLVM 必要: `build`, `smoke-tests`, `CompilerBackendTests`, `KSwiftKCLITests`, `diff-regression`
+LLVM を明示的に導入するのは `verify-self-hosted` だけ。`verify-diff` は `setup-llvm` を使わず、release `kswiftc` が実行時に `KSWIFTK_LLVM_DYLIB` または既定候補パスから `libLLVM` を `dlopen` する（§2）。
 
-### 分割ビルド
+### ビルドとテスト実行の分離
 
-`Scripts/build_swift_tests.sh` は `SWIFT_TEST_BUILD_TARGETS` 環境変数で指定されたテストターゲットだけを `swift build --target <T>` で 1 つずつビルドする。SwiftPM の `--target` は累積しないため、複数ターゲットはループで処理する。指定が無い場合は従来通り `swift build --build-tests` で全ターゲットをビルドする。
+テストのビルドは `build-debug-tests` の 1 回だけで、`verify-core` / `verify-self-hosted` は artifact を展開して `swift test --skip-build`（`Scripts/swift_test.sh --skip-build` / `Scripts/shard_swift_tests.sh`）で実行する。ビルド時と `--skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、各ジョブは同一の `SWIFT_XSWIFTC_FLAGS` を共有する。
 
-`verify-core` / `verify-self-hosted` では Swift 6.3 の `swiftbuild` ビルドシステムを `SWIFT_BUILD_SYSTEM=swiftbuild` で選択する。`swiftbuild` はテストターゲットごとに独立した `<Target>-test-runner` プロダクトを作るため、レーンが必要なターゲットだけをビルドでき、後続の `swift test --skip-build --test-product <Target>` でそのプロダクトだけを実行できる。`build_swift_tests.sh` は `swiftbuild` 使用時に `SWIFT_TEST_BUILD_TARGETS` の各名前に `-test-runner` を自動で付加する。`swift_test.sh` と `shard_swift_tests.sh` は `SWIFT_TEST_PRODUCT` 環境変数または `--target-prefix` から `--test-product` を自動で付加する。
-
-- `verify-core` では `CompilerCoreTests` のみをビルドし、後続の `SmokeTests` / `CompilerCoreTests` シャード実行と `-Xswiftc` フラグを一致させる。
-- `verify-self-hosted` では `CompilerBackendTests` `RuntimeTests` `RuntimeTestsParallel` `KSwiftKCLITests` `LSPServerTests` のみをビルドする。
+`Scripts/build_swift_tests.sh` は既定で `swift build --build-tests` を実行する。`SWIFT_TEST_BUILD_TARGETS` を指定するとそのターゲットだけを `swift build --target <T>` で 1 つずつビルドする（SwiftPM の `--target` は累積しないためループ処理）。Swift 6.3 の `swiftbuild` ビルドシステム（`SWIFT_BUILD_SYSTEM=swiftbuild`）にも対応しており、その場合はテストターゲットごとの `<Target>-test-runner` プロダクトを `swift test --skip-build --test-product <Target>` で個別実行できる（`swift_test.sh` / `shard_swift_tests.sh` は `SWIFT_TEST_PRODUCT` または `--target-prefix` から `--test-product` を自動付加）。ただし Linux での断続的なクラッシュ（SIGSEGV/SIGBUS/SIGILL）を避けるため、CI は `native` を使う。
 
 ### コンパイルキャッシュ
 
-Swift 6.3 の `swiftbuild` ビルドシステムでは、環境変数 `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を設定すると統合コンパイルキャッシュが有効になり、`.build/out/CompilationCache.noindex` / `.build/out/ModuleCache.noindex` に CAS 相当の成果物を蓄える。`Scripts/lib/common.sh` の `kswiftk_setup_compile_cache_env` は `SWIFT_ENABLE_COMPILE_CACHE=1` かつ `SWIFT_BUILD_SYSTEM=swiftbuild` のときこれらの環境変数を自動でエクスポートする。
+`SWIFT_ENABLE_COMPILE_CACHE=1` を設定すると、`Scripts/lib/common.sh` が `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <SWIFT_CAS_PATH>` を `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。
 
-同時に、従来のドライバー向けフラグとして `-Xswiftc -explicit-module-build -Xswiftc -cache-compile-job -Xswiftc -cas-path -Xswiftc <path>` も `build_swift_tests.sh` と `swift_test.sh` / `shard_swift_tests.sh` に渡す。`-explicit-module-build` は必須で、これがないと swift-driver が `warning: -cache-compile-job cannot be used without explicit module build, turn off caching` を出してキャッシュを**黙って無効化**する（ビルド自体は成功する）。`build_swift_tests.sh` はこの警告を検出するとビルドを失敗させる。ビルド時と `swift test --skip-build` 時で `-Xswiftc` フラグが一致しないと incremental cache が無効化されるため、厳密に同一のフラグを共有する。
+CI では `build-debug-tests` / `verify-core` / `verify-self-hosted` が `SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH=.build/out/CompilationCache.noindex` を設定する。`setup-swiftpm-cache` は現在 restore-only（`save: "false"`）で呼ばれているため、CAS を含む `.build` が actions/cache に保存されるのは同アクションを `save: "true"` で呼ぶ run に限られる（現行の `ci.yml` にはない）。
 
-`SWIFT_ENABLE_COMPILE_CACHE=1` と `SWIFT_CAS_PATH` を設定すると、スクリプトが自動でキャッシュフラグを追加する。CI では `SWIFT_CAS_PATH` を `.build/out/CompilationCache.noindex` に置き、`verify-core` / `verify-self-hosted` の両ジョブが `.github/actions/setup-swiftpm-cache` で `.build` 全体（CAS を含む）を actions/cache に永続化する。保存は非 PR run（merge_group / workflow_dispatch）のみで、PR run は restore-only。
-
-計測例（ローカル Swift 6.3.1、CompilerCoreTests-test-runner）: キャッシュなし初回ビルドは約 170 秒、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` を復元した再ビルドは約 7 秒まで短縮された。これは各モジュールのコンパイル成果物が CAS 的に再利用できていることを示している。
+`swiftbuild` を使う場合は、`kswiftk_setup_compile_cache_env` が `EnableSwiftCachingByDefault=true` / `EnableClangCachingByDefault=true` / `EnableSwiftExplicitModulesByDefault=true` を追加でエクスポートし、`.build/out/CompilationCache.noindex` / `ModuleCache.noindex` に成果物を蓄える。ローカル計測例（Swift 6.3.1、`CompilerCoreTests-test-runner`）: キャッシュなし初回ビルド約 170 秒、復元後の再ビルド約 7 秒。
 
 計測用に `SWIFT_ENABLE_CACHE_REMARKS=1` を設定すると `-Rcache-compile-job` が付与され、ビルドログから cache hit/miss の確認ができる。
 
 ### CI 失敗時のデバッグ（短い手順）
 
-- **kotlinc diff が落ちた場合**: ジョブの **Summary**（`kotlinc Diff Regression Summary`）と **Artifacts**（`kotlinc-diff-regression-<run id>`）を確認。全文ログでは `FAIL ` で検索。`gh run view <id> --log-failed` だけでは、`continue-on-error` により diff 本体のステップが「失敗扱い」にならず **差分ログが出ない**ことがある。
-- **スモーク**: Summary にローカル再現用コマンドを記載。`jscpd` 失敗時も Summary に再現コマンドを追記。
+- **kotlinc diff が落ちた場合**: `verify-diff` ジョブの **Summary**（`Scripts/diff_kotlinc_ci_summary.sh` が生成）と **Artifacts**（`kotlinc-diff-regression-<run id>-shard-<n>`、TSV と失敗ケースディレクトリ）を確認。全文ログでは `FAIL ` で検索。`gh run view <id> --log-failed` だけでは、`continue-on-error` により diff 本体のステップが「失敗扱い」にならず **差分ログが出ない**ことがある。
+- **テスト / スモーク**: 各 verify ジョブの Summary（"Reproduce hints"）にローカル再現用コマンドを記載。`jscpd` 失敗時も `verify-repository-checks` の Summary に再現コマンドを追記。
 
 ---
 
@@ -439,7 +454,7 @@ Swift 6.3 の `swiftbuild` ビルドシステムでは、環境変数 `EnableSwi
 ### ランタイム動作のバグを直す
 
 1. `Sources/Runtime/` 配下の該当ファイル
-2. `RuntimeHelpers.swift` — `kk_println_any` 等の出力系
+2. `RuntimeStringArray.swift` — `__kk_println_raw` 等の出力系（`print`/`println` 本体は bundled Kotlin ソース `Stdlib/kotlin/io/Console.kt` 側）
 3. `RuntimeGC.swift` — GC 関連
 4. `RuntimeCoroutine.swift` — coroutine ステートマシン
 
@@ -467,11 +482,11 @@ Swift 6.3 の `swiftbuild` ビルドシステムでは、環境変数 `EnableSwi
 
 | ID 型 | 定義場所 | 用途 |
 |---|---|---|
-| `FileID` | `Driver/SourceManager.swift` | ソースファイル識別 |
-| `InternedString` | `Driver/CompilationContext.swift` | インターン済み文字列 |
-| `NodeID` | `Parser/SyntaxArena.swift` | CST ノード |
-| `TokenID` | `Parser/SyntaxArena.swift` | CST トークン |
-| `DeclID` | `AST/ASTArena.swift` | AST 宣言 |
+| `FileID` | `Driver/SourceLocation.swift` | ソースファイル識別 |
+| `InternedString` | `Lexer/TokenModel.swift` | インターン済み文字列 |
+| `NodeID` | `Driver/SourceLocation.swift` | CST ノード |
+| `TokenID` | `Driver/SourceLocation.swift` | CST トークン |
+| `DeclID` | `Driver/SourceLocation.swift` | AST 宣言 |
 | `ExprID` | `AST/ASTModels.swift` | AST 式 |
 | `TypeRefID` | `AST/ASTModels.swift` | AST 型参照 |
 | `SymbolID` | `Sema/Models/SemanticsModels.swift` | 意味解析シンボル |
@@ -505,6 +520,6 @@ manifest スキーマ・metadata.bin の詳細仕様は [`docs/spec.md`](spec.md
 フロントエンドフェーズ (Lex, Parse, BuildAST) はファイル単位で並列実行可能:
 
 - `-Xfrontend jobs=N` で並列度を指定
-- `Swift.TaskGroup` を使用、`DispatchSemaphore` で同期
+- `DispatchQueue.concurrentPerform` で並列化し、`DispatchSemaphore` / `DispatchGroup` で並列度を制御（`Driver/FrontendPhases.swift`）
 - 並列実行後は `FileID` 順でソートし決定性を保証
 - 診断メッセージも `sortBySourceLocation()` でソース位置順に安定化

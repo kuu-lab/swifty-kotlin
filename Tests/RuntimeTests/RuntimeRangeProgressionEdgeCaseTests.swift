@@ -465,18 +465,18 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     }
 
     // MARK: - UIntRange edge cases
-
-    @Test func uIntRange_emptyWhenFromGtTo() {
-        let empty = __kk_uint_rangeTo(10, 1) // unsigned: 10u > 1u, empty
-        #expect(kk_uint_range_isEmpty(empty) == 1)
-    }
-
-    @Test func uIntRange_singleElement() {
-        let r = __kk_uint_rangeTo(5, 5)
-        #expect(kk_uint_range_isEmpty(r) == 0)
-        #expect(kk_uint_range_contains(r, 5) == 1)
-        #expect(kk_uint_range_contains(r, 4) == 0)
-    }
+    //
+    // KSP-1523: contains/isEmpty/first/last/firstOrNull/lastOrNull/count/sum/
+    // reversed/sorted/toList moved to bundled Kotlin source (RangeHOF.kt);
+    // average/toUIntArray were removed outright instead — neither is a real
+    // UIntRange member in Kotlin (confirmed via diff_kotlinc.sh: kotlinc
+    // rejects both on a UIntRange receiver). Either way their kk_uint_range_*
+    // Runtime bridges were deleted — the edge cases those tests covered
+    // (empty range, single element, downTo + step alignment, reversed,
+    // values near UInt.MAX_VALUE) are now exercised at the compiler level
+    // via Scripts/diff_cases/uint_range.kt and the kklib-mode self-contained
+    // check, per stdlib-pipeline.md §13-4's dual-oracle requirement — not by
+    // calling the removed bridges directly.
 
     @Test func uIntRange_step2_lastAligned() {
         // (1u..10u step 2) -> 1,3,5,7,9; last aligned to 9
@@ -486,71 +486,27 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         #expect(kk_range_count(p) == 5)
     }
 
-    @Test func uIntRange_downTo() {
-        // (5u downTo 1u) -> 5,4,3,2,1
-        let range = __kk_uint_downTo(5, 1)
-        #expect(kk_range_count(range) == 5)
-        let list = kk_uint_range_toList(range)
-        #expect(kk_list_get(list, 0) == 5)
-        #expect(kk_list_get(list, 4) == 1)
-    }
-
-    @Test func uIntRange_downToStepAlignment() {
-        // (10u downTo 1u) step 3 -> 10,7,4,1
-        let range = __kk_uint_step(__kk_uint_downTo(10, 1), 3)
-        #expect(kk_range_first(range) == 10)
-        #expect(kk_range_last(range) == 1)
-        #expect(kk_range_count(range) == 4)
-        let list = kk_uint_range_toList(range)
-        #expect(kk_list_size(list) == 4)
-        #expect(kk_list_get(list, 0) == 10)
-        #expect(kk_list_get(list, 3) == 1)
-    }
-
-    @Test func uIntRange_downTo_isEmpty_whenFromLtTo() {
-        let empty = __kk_uint_downTo(1, 5)
-        #expect(kk_uint_range_isEmpty(empty) == 1)
-    }
-
-    @Test func uIntRange_reversed() {
-        let r = __kk_uint_rangeTo(1, 5)
-        let rev = kk_uint_range_reversed(r)
-        #expect(kk_range_first(rev) == 5)
-        #expect(kk_range_last(rev) == 1)
-        #expect(kk_range_count(rev) == 5)
-    }
-
     @Test func uIntProgressionFromClosedRange_stepZeroThrows() {
         var thrown = 0
         _ = __kk_uint_progression_fromClosedRange(0, 1, 10, 0, &thrown)
         #expect(thrown != 0, "step=0 must throw for UIntProgression")
     }
 
-    @Test func uIntRange_largeUnsignedValues_beyondIntMax() {
-        // Values near UInt.max stored as negative Int bit patterns
-        let uintMax = Int(bitPattern: UInt.max)
-        let uintMaxMinus1 = Int(bitPattern: UInt.max - 1)
-        let r = __kk_uint_rangeTo(uintMaxMinus1, uintMax)
-        #expect(kk_uint_range_contains(r, uintMaxMinus1) == 1)
-        #expect(kk_uint_range_contains(r, uintMax) == 1)
-        #expect(kk_range_count(r) == 2)
-    }
-
     // MARK: - ULongRange edge cases
 
     @Test func uLongRange_emptyWhenFromGtTo() {
-        let empty = kk_ulong_rangeTo(10, 1)
+        let empty = __kk_ulong_rangeTo(10, 1)
         #expect(RuntimeUnsignedRangeHOFKind.isEmpty(runtimeRangeBox(from: empty)!), "ULongRange from > to must be empty")
     }
 
     @Test func uLongRange_singleElement() {
-        let r = kk_ulong_rangeTo(42, 42)
+        let r = __kk_ulong_rangeTo(42, 42)
         #expect(kk_range_count(r) == 1)
     }
 
     @Test func uLongRange_step2_lastAligned() {
         // (1UL..10UL step 2) -> 1,3,5,7,9; last aligned to 9
-        let p = __kk_ulong_step(kk_ulong_rangeTo(1, 10), 2)
+        let p = __kk_ulong_step(__kk_ulong_rangeTo(1, 10), 2)
         #expect(kk_range_first(p) == 1)
         #expect(kk_range_last(p) == 9)
         #expect(kk_range_count(p) == 5)
@@ -574,7 +530,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
     }
 
     @Test func uLongRange_reversed() {
-        let r = kk_ulong_rangeTo(1, 5)
+        let r = __kk_ulong_rangeTo(1, 5)
         let rev = kk_ulong_range_reversed(r)
         #expect(kk_range_first(rev) == 5)
         #expect(kk_range_last(rev) == 1)
@@ -597,7 +553,7 @@ struct RuntimeRangeProgressionEdgeCaseTests {
         // Values beyond Int.max (represented as negative Int with UInt semantics)
         let bigStart = Int(bitPattern: UInt(4_294_967_295))   // UInt32.max
         let bigEnd = Int(bitPattern: UInt(4_294_967_298))
-        let r = kk_ulong_rangeTo(bigStart, bigEnd)
+        let r = __kk_ulong_rangeTo(bigStart, bigEnd)
         let list = kk_ulong_range_toList(r)
         #expect(kk_list_size(list) == 4)
         #expect(kk_list_get(list, 0) == bigStart)

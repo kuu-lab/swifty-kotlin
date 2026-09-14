@@ -1,4 +1,8 @@
 fun main() {
+    val empty = doubleArrayOf()
+    println(empty.size)
+    println(empty.isEmpty())
+
     val values = doubleArrayOf(1.5, -2.0, 3.25)
     val spreadValues = doubleArrayOf(4.0, 5.0)
     val spreadResult = doubleArrayOf(-1.0, *spreadValues, 6.0)

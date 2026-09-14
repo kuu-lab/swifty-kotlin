@@ -2455,6 +2455,15 @@ extension CallTypeChecker {
         let isUIntRangeMigrationMember = isUIntRangeReceiver
             && ["iterator", "step", "take", "drop", "chunked", "windowed"]
                 .contains(interner.resolve(calleeName))
+        let isULongRangeReceiver: Bool = {
+            guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema) else {
+                return false
+            }
+            return ["ULongRange", "ULongProgression"].contains(interner.resolve(symbol.name))
+        }()
+        let isULongRangeMigrationMember = isULongRangeReceiver
+            && ["iterator", "step", "take", "drop", "chunked", "windowed"]
+                .contains(interner.resolve(calleeName))
         let isULongProgressionReceiver: Bool = {
             guard let (_, symbol) = resolveClassTypeSymbol(nonNullReceiver, sema: sema) else {
                 return false
@@ -2470,7 +2479,7 @@ extension CallTypeChecker {
                       symbol.kind == .function,
                       (!symbol.flags.contains(.synthetic) || sema.symbols.isSourceBackedSymbol(candidate)),
                       (sema.symbols.parentSymbol(for: candidate) == rangesPackageSymbol
-                          || ((isUIntRangeMigrationMember || isULongProgressionFirstLastMember)
+                          || ((isUIntRangeMigrationMember || isULongProgressionFirstLastMember || isULongRangeMigrationMember)
                               && sema.symbols.isSourceBackedSymbol(candidate))),
                       let signature = sema.symbols.functionSignature(for: candidate),
                       let declaredReceiver = signature.receiverType

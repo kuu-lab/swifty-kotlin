@@ -32,7 +32,7 @@ struct MemberRuntimeDispatchTests {
             (.longRange, "step", 1, "__kk_op_step"),
             (.longProgression, "step", 1, "__kk_op_step"),
             (.uintRange, "step", 1, nil),
-            (.ulongRange, "step", 1, "__kk_ulong_step"),
+            (.ulongRange, "step", 1, nil),
         ]
 
         for (receiverKind, memberName, arity, expectedLinkName) in cases {
@@ -82,6 +82,28 @@ struct MemberRuntimeDispatchTests {
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: uintStepPropertyKey) == "kk_uint_range_step")
     }
 
+    // KSP-1523: none of these 13 members may resolve to a kk_uint_range_*
+    // name — those Runtime bridges were deleted, and `rangeRuntimeName`'s
+    // per-member string interpolation (`"kk_uint_range_\(member)"`) would
+    // silently reconstruct a name for a symbol that no longer exists if any
+    // of them fell through the `.uintRange` sourceBacked allowlist.
+    @Test func testUIntRangeKSP1523MembersNeverResolveToDeletedRuntimeNames() {
+        let members: [(String, Int)] = [
+            ("contains", 1), ("isEmpty", 0), ("first", 0), ("last", 0),
+            ("firstOrNull", 0), ("lastOrNull", 0), ("count", 0), ("sum", 0),
+            ("average", 0), ("reversed", 0), ("sorted", 0), ("toList", 0),
+            ("toUIntArray", 0),
+        ]
+        for member in members {
+            let key = MemberDispatchKey(receiverKind: .uintRange, memberName: member.0, arity: member.1)
+            let resolved = MemberRuntimeDispatch.rangeRuntimeLinkName(for: key)
+            #expect(
+                resolved?.hasPrefix("kk_uint_range_") != true,
+                "UIntRange.\(member.0)/\(member.1) resolved to \(resolved ?? "nil"), a deleted Runtime symbol"
+            )
+        }
+    }
+
     @Test func testULongRangeHOFDispatchDefersToBundledSource() {
         let sourceBackedMembers: [(String, Int)] = [
             ("forEach", 1),
@@ -89,19 +111,37 @@ struct MemberRuntimeDispatchTests {
             ("find", 1), ("findLast", 1),
             ("first", 1), ("firstOrNull", 1), ("last", 1), ("lastOrNull", 1),
             ("any", 1), ("all", 1), ("none", 1),
+            ("iterator", 0), ("step", 1),
+            ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
         ]
         for member in sourceBackedMembers {
             let key = MemberDispatchKey(receiverKind: .ulongRange, memberName: member.0, arity: member.1)
             #expect(
                 MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == nil,
-                "ULongRange.\(member.0) should be source-backed after KSP-1528"
+                "ULongRange.\(member.0) should be source-backed after KSP-1530"
             )
         }
 
-        // ULongProgression has not migrated yet (KSP-1530); it still shares
-        // the kk_ulong_range_* runtime prefix used before KSP-1528.
+        let progressionMembers: [(String, Int)] = [
+            ("iterator", 0), ("step", 1),
+            ("take", 1), ("drop", 1), ("chunked", 1), ("windowed", 1),
+        ]
+        for member in progressionMembers {
+            let key = MemberDispatchKey(receiverKind: .ulongProgression, memberName: member.0, arity: member.1)
+            #expect(
+                MemberRuntimeDispatch.rangeRuntimeLinkName(for: key) == nil,
+                "ULongProgression.\(member.0) should be source-backed after KSP-1530"
+            )
+        }
+
+        // reduce/fold/forEach/etc. on ULongProgression are outside KSP-1530's
+        // scope and still share the kk_ulong_range_* runtime prefix.
         let ulongProgressionKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "reduce", arity: 1)
         #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongProgressionKey) == "kk_ulong_range_reduce")
+
+        // KSP-1524 retains the constant-time step property bridge (arity 0).
+        let ulongStepPropertyKey = MemberDispatchKey(receiverKind: .ulongProgression, memberName: "step", arity: 0)
+        #expect(MemberRuntimeDispatch.rangeRuntimeLinkName(for: ulongStepPropertyKey) == "kk_ulong_range_step")
     }
 
     @Test func testCollectionRuntimeDispatchUsesStdlibSurfaceSpec() {
