@@ -98,8 +98,6 @@ struct CommonLookupNames {
     let maxName: InternedString
     let maxOrNullName: InternedString
     let minOrNullName: InternedString
-    let maxByOrNullName: InternedString
-    let minByOrNullName: InternedString
     let dropName: InternedString
     let reversedName: InternedString
     let asReversedName: InternedString
@@ -240,8 +238,6 @@ struct CommonLookupNames {
         maxName = interner.intern("max")
         maxOrNullName = interner.intern("maxOrNull")
         minOrNullName = interner.intern("minOrNull")
-        maxByOrNullName = interner.intern("maxByOrNull")
-        minByOrNullName = interner.intern("minByOrNull")
         dropName = interner.intern("drop")
         reversedName = interner.intern("reversed")
         asReversedName = interner.intern("asReversed")
