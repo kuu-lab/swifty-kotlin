@@ -12,10 +12,11 @@ package kotlin.native.ref
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.internal.KsSymbolName
 
-// KSP-1254: the WeakReference nominal is source-backed here; the runtime owns
-// the weak-reference handle, so the constructor stays private.
+// KSP-1255: the public constructor is source-backed here; the runtime
+// allocates and owns the weak-reference handle, so construction bridges
+// straight to the factory instead of allocating a plain object first.
 @ExperimentalNativeApi
-public class WeakReference<T : Any> private constructor()
+public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T)
 
 @KsSymbolName("kk_weak_ref_get")
 private external fun __weakReferenceGet(reference: WeakReference<*>): Any?
