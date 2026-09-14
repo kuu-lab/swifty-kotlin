@@ -18,10 +18,12 @@ import kotlin.internal.KsSymbolName
 @ExperimentalNativeApi
 public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T)
 
-// The return type is the receiver's own type parameter (not `Any?`) so the
-// standard generic-erasure boxing boundary applies to the raw runtime handle;
-// routing a cleared reference's raw null handle through an explicit `Any?`
-// slot instead boxed it as a non-null `Int` (see KSP-1255 investigation).
+// Declared with the receiver's own type parameter (not `Any?` + an unchecked
+// cast) to match the Future<T>.consumeValue(): T bridge pattern elsewhere in
+// this file's package. The null representation for this Any-erased slot is
+// owned by the runtime side (kk_weak_ref_get returns runtimeNullSentinelInt,
+// not bare 0 — see KSP-1255's RuntimeNativeAPI.swift fix); this signature
+// change alone does not affect that.
 @KsSymbolName("kk_weak_ref_get")
 private external fun <T : Any> __weakReferenceGet(reference: WeakReference<T>): T?
 
