@@ -3149,7 +3149,8 @@
     - `kotlin.text.getOrElse` — fun CharSequence.getOrElse(Int, Function1): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/getOrElse(kotlin/Int, kotlin/Function1<kotlin/Int, kotlin/Char>): kotlin/Char`
     - `kotlin.text.getOrNull` — fun CharSequence.getOrNull(Int): Char  -- `final fun (kotlin/CharSequence).kotlin.text/getOrNull(kotlin/Int): kotlin/Char?`
 
-- [~] KSP-1379: kotlin.text.CharSequence.group-family の実装・focused検証済み（4 件、全体G待ち）
+- [x] KSP-1379: kotlin.text.CharSequence.group-family の未実装 stdlib API を実装する（4 件）
+  - 完了: PR #6722（GitHub 上 MERGED 扱い）で実装。master への実際の着地は PR #6700 の squash commit `5673c7b32`（2026-09-11）で、`groupBy`（keySelector / keySelector+valueTransform の 2 オーバーロード）と `groupByTo`（同 2 オーバーロード）の計 4 API が `StringHOF.kt` に bundled Kotlin source として存在する。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `group`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3161,6 +3162,7 @@
     - `kotlin.text.groupBy` — fun CharSequence.groupBy(Function1, Function1): Map  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin/CharSequence).kotlin.text/groupBy(kotlin/Function1<kotlin/Char, #A>, kotlin/Function1<kotlin/Char, #B>): kotlin.collections/Map<#A, kotlin.collections/List<#B>>`
     - `kotlin.text.groupByTo` — fun CharSequence.groupByTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableMap<in #A, kotlin.collections/MutableList<kotlin/Char>>> (kotlin/CharSequence).kotlin.text/groupByTo(#B, kotlin/Function1<kotlin/Char, #A>): #B`
     - `kotlin.text.groupByTo` — fun CharSequence.groupByTo(, Function1, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, kotlin.collections/MutableList<#B>>> (kotlin/CharSequence).kotlin.text/groupByTo(#C, kotlin/Function1<kotlin/Char, #A>, kotlin/Function1<kotlin/Char, #B>): #C`
+  - 検証（2026-09-14 再確認）: `bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_group.kt` PASS（kotlinc parity）。`bash Scripts/check_todo_ids.sh` PASS。`bash Scripts/validate_runtime_abi_links.sh` 4/4 PASS。master CI green（09-11 着地後の 09-12・09-13 ランを含む連続成功）で全体 G を確認済み。ローカル再実行は diff ケース単体のみ（最小スコープ方針）。
 
 - [ ] KSP-1380: kotlin.text.CharSequence.grouping-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `grouping`
