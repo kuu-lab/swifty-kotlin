@@ -100,9 +100,13 @@ struct SourceBackedCallPreservationPolicy {
             lookup.runningReduceIndexedName,
             lookup.reduceIndexedName,
             lookup.reduceIndexedOrNullName,
+            // `filter` stays for the Map receiver rewrite (see the KSP-421
+            // group below); `filterNot` / `filterIndexed` stay for their
+            // `+VirtualCallRewrite+Range.swift` Range/progression rewrites
+            // (RF-LOWER-CALL-008). `filterNotNull` has no such consumer on
+            // any receiver kind and was dropped by that same task.
             lookup.filterName,
             lookup.filterNotName,
-            lookup.filterNotNullName,
             lookup.filterIndexedName,
             lookup.associateName,
             lookup.associateByName,
@@ -128,19 +132,42 @@ struct SourceBackedCallPreservationPolicy {
             // that never listed them, so they short-circuited nothing.
             // `minByOrNull` stays in the Map group above, and `sorted` survives
             // in `virtualOnlyAggregateNames` for its Range consumer.
-            // KSP-421: List transform HOFs have Kotlin source implementations.
+            // KSP-421: List transform HOFs have Kotlin source implementations
+            // in Stdlib/kotlin/collections/ListHOF.kt, and RF-LOWER-CALL-008
+            // found no surviving `.list`-owner rewrite for any of them —
+            // `StdlibSurfaceSpec.listHOFMembers` carries no `map*` /
+            // `flatMap*` / `filter*` entry, so `collectionHOFRuntimeName`
+            // always answers nil for this family regardless of receiver.
+            // That task dropped the eight names whose only role here was
+            // shadowing that already-dead lookup (`mapTo`, `mapIndexedTo`,
+            // `mapNotNullTo`, `mapIndexedNotNullTo`, `flatMapTo`,
+            // `flatMapIndexedTo`, `mapIndexedNotNull`, and `filterNotNull`
+            // above): their resolved declaration now survives because
+            // nothing downstream claims it, not because its name is listed.
+            // The remaining six stay because the *same interned name* still
+            // gates a live rewrite on a different receiver kind — dropping
+            // them would hand that receiver's source-backed declaration to
+            // the rewrite it currently shadows:
+            //   - `map` / `flatMap` select the Map receiver rewrite in
+            //     `+CallRewriteHandlers.swift` (`kk_map_map` / `kk_map_flatMap`;
+            //     `filter` is grouped with the KSP-423 block below for the
+            //     same reason).
+            //   - `mapIndexed` / `mapNotNull` select the Range/progression
+            //     rewrite in `+VirtualCallRewrite+Range.swift`
+            //     (`kk_range_mapIndexed` / `kk_range_mapNotNull`, or the
+            //     ULong variants); `filterNot` / `filterIndexed` in the
+            //     block above are the same story.
+            //   - `flatMapIndexed` selects the Sequence pipeline rewrite in
+            //     `+CallRewriteSequencePipeline.swift`.
+            //   - `flatten` selects the Sequence terminal rewrite in
+            //     `+CallRewriteSequenceTerminals.swift`.
+            // Map is RF-LOWER-CALL-012's territory and Sequence is
+            // RF-LOWER-CALL-014's; this task only narrows the List angle.
             lookup.mapName,
             lookup.mapIndexedName,
             lookup.mapNotNullName,
-            lookup.mapIndexedNotNullName,
-            lookup.mapToName,
-            lookup.mapIndexedToName,
-            lookup.mapNotNullToName,
-            lookup.mapIndexedNotNullToName,
             lookup.flatMapName,
             lookup.flatMapIndexedName,
-            lookup.flatMapToName,
-            lookup.flatMapIndexedToName,
             lookup.flattenName,
             // KSP-430: Map higher-order functions have Kotlin source implementations.
             lookup.mapValuesName,

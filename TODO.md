@@ -69,9 +69,21 @@
     - 反映が正しいことの判定は KIR byte 一致では**できない**（削除対象の名前は何も守っていないので、残しても消しても KIR は同一）。`sharedAggregateNames` ≡ master の direct guard、`shared ∪ virtualOnly` ≡ master の virtual guard という集合等価だけが唯一の検出手段。現在 63 / 82 で一致。
     - CALL-011 の副作用として `CollectionLiteralLookupTables` の該当プロパティ19個が削除されたため、その19名は復活させようとしてもコンパイルが通らない。残る `sorted` / `max` / `maxOrNull` / `minOrNull` の4名だけが黙って復活しうるので、`sortExtremaNamesAreGoneExceptVirtualOnlySorted` で固定した。`sorted` は Range 消費者のため virtual 側のみ生存。
   - 実行範囲: `swift build` と `CompilerCoreTests.{SourceBackedCallPreservationPolicyTests, CollectionLiteralLoweringTests, BuilderDSLLoweringRoutingTests, CollectionClassificationTests}`（20 / 68 / 5 / 6 件すべてPASS）＋上記KIR byte比較・`loc_report.sh` 比較。全Swiftテスト・Golden 4系統・`diff_kotlinc.sh` 全ケースは本セッションでは未実行。
-- [ ] RF-LOWER-CALL-008: Listの変換・filter系だけをsymbol基準の保持判断へ寄せる（前提: CALL-007）
+- [x] RF-LOWER-CALL-008: Listの変換・filter系だけをsymbol基準の保持判断へ寄せる（前提: CALL-007）
   - 対象: policyと `+CallRewriteHOFTransforms.swift` / `+CallRewriteHandlers.swift` の `map*` / `flatMap*` / `filter*` 系のうちsource移行済み経路、必要なlookup・対応テスト。Map / Array / Sequenceの同名APIは対象外。
   - 完了条件: 選択済みKotlin宣言が保持され、不要なList rewrite・名前列挙を削除できる。通常・indexed・nullable要素・捕捉lambdaの代表ケースを固定し、未移行overloadを同名という理由で消さない。
+  - 完了根拠:
+    - 対象17名（`map*` / `flatMap*` / `filter*`、KSP-421 で `ListHOF.kt` / `ListFilterHOF.kt` に source 化済み）は全件 `StdlibSurfaceSpec.listHOFMembers`（`.list` owner）に runtime link が無く、`collectionHOFRuntimeName(ownerKind: .list, ...)` は無条件 nil。ただし CALL-007 で direct/virtual の allowlist が `sharedAggregateNames` へ統合されたため、削除可否は **List 以外のレシーバでの生存確認**で決まる:
+      - `map` / `filter` / `flatMap`: Map receiver の `kk_map_*` rewrite（`+CallRewriteHandlers.swift` の `mapHOFRuntimeName` / `+VirtualCallRewrite.swift` の `rewriteMapHOF`）が現役 → 保持
+      - `mapIndexed` / `mapNotNull` / `filterIndexed` / `filterNot`: `RangeHOF.kt` が `IntRange` / `IntProgression`（と UInt 版）にも同名で実装しており、`+VirtualCallRewrite+Range.swift` の `kk_range_*` rewrite が nil ガード無しの直接呼び出しで現役 → 保持
+      - `flatMapIndexed` / `flatten`: Sequence pipeline / terminal rewrite（`+CallRewriteSequencePipeline.swift` / `+CallRewriteSequenceTerminals.swift`、`sequenceExprIDs` 起点）が現役 → 保持
+      - 上記9名を除いた **`mapTo` / `mapIndexedTo` / `mapNotNullTo` / `mapIndexedNotNullTo` / `flatMapTo` / `flatMapIndexedTo` / `mapIndexedNotNull` / `filterNotNull` の8名**のみ、Sources全体を再帰grepして他レシーバにも rewrite 消費者が皆無なことを確認し `sharedAggregateNames` から削除。8名とも `ListHOF.kt` / `ListFilterHOF.kt` に実装済みで未移行overloadではない
+    - `+CallRewriteHOFTransforms.swift`: `.list` arity 2 の `*To` destination分岐（`associateTo` の分岐込み）と `.list` arity 1 の `mapIndexed`/`mapIndexedNotNull`/`onEachIndexed` 分岐を削除。両分岐とも `collectionHOFRuntimeName(ownerKind: .list, ...)` が該当callee全件で無条件nilのため、symbol解決の有無に関わらず構造的に到達不能。`associateTo` / `onEachIndexed` のallowlistエントリ自体は対象外のタスクの担当のため未変更（コードだけ削除）
+    - `+CallRewriteHandlers.swift`: `isCollectionHOFMemberName` から `mapNotNull` / `filterNot` を削除（List分岐もMap分岐も必ずnilを返し両レシーバで無意味）。対応する `!= filterName` / `!= filterNotName` 除外、`listHOFReturnsList` の `mapNotNull` 参照も削除
+    - `+VirtualCallRewrite.swift` / `+CallRewriteHOFCore.swift` は対象ファイル外のため未変更（前者はRF-LOWER系の共通直列ファイル指定、後者は `forEach` 分岐が生きておりCALL-009/010/012が触る）。両ファイルに残る同種の `.list` 専用デッドコード（`*To`分岐、indexed分岐）はCALL-015への申し送り事項
+    - 旧試行 PR #6770（CALL-007マージ前、67コミット遅れのブランチ、gh検索インデックス遅延で今回まで未検出）は同じ考え方で12名削除していたが、当時は direct/virtual の allowlist が分離されておりRangeへの影響が無かった。CALL-007統合後の現行 policy で同じ12名を削除すると、Rangeの `mapIndexed`/`mapNotNull`/`filterIndexed`/`filterNot` が誤って `kk_range_*` へ rewrite される。本PRは対象を8名へ縮小し、#6770はスーパーシード扱いでcloseする
+  - テスト: `Tests/CompilerCoreTests/Lowering/ListTransformFilterPreservationTests.swift`（新設）、`SourceBackedCallPreservationPolicyTests.swift`（`sharedAggregateNames.count` 63→55 に更新、8名の不在と9名の残置を固定する新規テスト追加）
+  - 実行範囲: `swift build` green。`CompilerCoreTests.{ListTransformFilterPreservationTests, SourceBackedCallPreservationPolicyTests, ListAccumulationSourcePreservationTests, ListSearchPredicateLoweringRoutingTests, ListSortExtremaLoweringRoutingTests}` は実行中に共有マシンの高負荷（load average 300+、他worktreeの並行テスト多数）でPR作成時点では完了待ち。結果はフォローアップで報告する。全Swiftテスト・Golden・`diff_kotlinc.sh`・`loc_report.sh` は未実行（CIに委ねる。diffはNo diff文字列リテラル/`@_cdecl`追加が無く不変と判断）。
 - [ ] RF-LOWER-CALL-009: Listの畳み込み・累積系の保持判断を整理する（前提: CALL-008）
   - 対象: policyと `+CallRewriteHOFAccumulations.swift` の `fold*` / `reduce*` / `scan*` / `running*` 系、必要なlookup・テストのみ。
   - 完了条件: source移行済みoverloadの旧rewriteと保護用名前列挙が減り、空入力・nullable accumulator・例外・左右の評価順の契約を保持する。型消去境界のboxing/unboxingは別責務として維持する。
