@@ -86,6 +86,8 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
 
+同じPRのスコープや安全な修正方針を超えて修正できない場合は、**Linear**（team `Kuu` / project「バグバックログ (BUG)」/ label `Bug`）に症状・最小再現・調査結果・修正しない理由を添えて起票し、issue リンクを PR description に記載する。**TODO.md には追加しない**（複数セッションが同じ挿入位置に書き込み、マージコンフリクトの最大要因になっていたため 2026-09-14 に廃止）。
+
 ## スタック PR
 
 依存関係のある PR を積むとき（base を master 以外の PR ブランチにするとき）は、`gh pr create --base <branch>` を個別に並べず、GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/how-tos/stacked-pull-requests) を `gh stack`（公式拡張）で使う。GitHub 上でスタックとして表示され、下から順の原子的マージと、下の PR が merge されたときの上位 PR の base 自動付け替えが効く。

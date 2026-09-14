@@ -1,164 +1,32 @@
 extension CollectionLiteralConstructionLoweringPass {
+    /// Adapts this pass's rewrite state to `SourceBackedCallPreservationPolicy`
+    /// inputs. RF-LOWER-CALL-007 moved the decision itself — the preserved API
+    /// name sets, the array-conversion branch and the two Sequence
+    /// runtime-representation exceptions — into the policy; what stays here is
+    /// the receiver bookkeeping the policy must not know about. Every input is
+    /// an `@autoclosure` so the symbol-table and signature lookups still run
+    /// only after a name matches, as they did when this was one predicate.
     private func shouldPreserveSourceBackedAggregateCall(
         symbol: SymbolID?,
         callee: InternedString,
         arguments: [KIRExprID],
         state: CollectionRewriteState,
-        lookup: CollectionLiteralLookupTables,
         ctx: KIRContext
     ) -> Bool {
-        // KSP-1513/KSP-1516: source-backed Array<T>/primitive-array members on
-        // literal arrays must keep their selected Kotlin declaration. The
-        // source body may delegate to a typed private runtime bridge.
-        let sourceBackedArrayConversionNames: Set<InternedString> = [
-            lookup.sizeName, lookup.toListName, lookup.sliceArrayName,
-            lookup.reversedArrayName, lookup.asListName, lookup.toTypedArrayName,
-        ]
-        if sourceBackedArrayConversionNames.contains(callee),
-           !arguments.isEmpty,
-           state.arrayExprIDs.contains(arguments[0].rawValue),
-           let symbol,
-           let sema = ctx.sema,
-           sema.symbols.isSourceBackedSymbol(symbol)
-        {
-            return true
-        }
-
-        // RF-LOWER-CALL-009: of the accumulation family only the eight names
-        // below still have a downstream rewrite — the `sequenceExprIDs`-gated
-        // branches in +CallRewriteHOFAccumulations.swift.  Whether those should
-        // fire for a source-backed declaration whose receiver is a
-        // RuntimeSequenceBox is the KSP-441 question RF-LOWER-CALL-014 owns
-        // (compare the map/filter exclusions at the end of this guard), so they
-        // keep the short-circuit unchanged here.
-        //
-        // fold / foldIndexed / foldRight / foldRightIndexed / reduce /
-        // reduceOrNull / reduceRight / reduceRightOrNull / reduceRightIndexed /
-        // reduceRightIndexedOrNull / scanReduce had no downstream rewrite left
-        // to short-circuit: the List-side legacy bridges are gone (nothing emits
-        // kk_list_fold* / kk_list_scan* any more — they survive as
-        // RuntimeABISpec-only entries) and Sequence/Range accumulation routing
-        // happens in CallLowerer, which hands this pass an already-`kk_`-named
-        // callee.  Their source-preservation contract is pinned by
-        // ListAccumulationSourcePreservationTests instead of by this list.
-        guard callee == lookup.scanName
-            || callee == lookup.scanIndexedName
-            || callee == lookup.runningFoldName
-            || callee == lookup.runningFoldIndexedName
-            || callee == lookup.runningReduceName
-            || callee == lookup.runningReduceIndexedName
-            || callee == lookup.reduceIndexedName
-            || callee == lookup.reduceIndexedOrNullName
-            || callee == lookup.filterName
-            || callee == lookup.associateName
-            || callee == lookup.associateByName
-            || callee == lookup.associateWithName
-            || callee == lookup.associateToName
-            || callee == lookup.associateByToName
-            || callee == lookup.associateWithToName
-            || callee == lookup.groupByName
-            || callee == lookup.groupByToName
-            || callee == lookup.partitionName
-            || callee == lookup.unzipName
-            || callee == lookup.withIndexName
-            || callee == lookup.onEachName
-            || callee == lookup.onEachIndexedName
-            || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
-            // RF-LOWER-CALL-011 dropped the KSP-426 block that listed all 25
-            // List `sorted*` / `min*` / `max*` names here.  It was meant to keep
-            // those bundled Kotlin declarations (`ListSortingHOF.kt`,
-            // `ListExtremaHOF.kt`) off the legacy `kk_list_*` exports, of which
-            // only `kk_list_sortedBy` still has a `@_cdecl` — but it guarded
-            // nothing.  Every rewrite reachable from here sits behind an outer
-            // member-name gate that never listed these names: the leading `if`
-            // of `rewriteCoreHigherOrderCollectionCall` and
-            // `isCollectionHOFMemberName`, which between them also put the
-            // `.list` / `.map` `collectionHOFRuntimeNames` lookups out of
-            // reach.  `+CallRewriteSequenceTerminals.swift` does compare
-            // `max` / `maxOrNull` / `minOrNull` by name, but its entry guard
-            // bails for a source-backed symbol whose receiver is not a tracked
-            // runtime Sequence handle, which the bundled `sequenceOf` /
-            // `generateSequence` / `asSequence` results are not.  Removing all
-            // 25 left post-lowering KIR byte-identical across the
-            // sorting/extrema, Map, Sequence and range cases.
-            //
-            // `maxByOrNull` / `minByOrNull` stay in the Map group above and the
-            // virtual policy keeps `sorted` for its Range consumer; both are
-            // RF-LOWER-CALL-012/014 territory.  Either way
-            // `ListSortExtremaLoweringRoutingTests` pins the routing itself.
-            // RF-LOWER-CALL-008: the List transform/filter HOFs are source-backed
-            // (KSP-421) and `StdlibSurfaceSpec.listHOFMembers` carries no runtime
-            // link for them, so no List rewrite can claim those callees any more
-            // and they need no name entry here. `map` / `filter` / `flatMap` /
-            // `flatMapIndexed` / `flatten` stay because the Map receiver rewrite
-            // (`kk_map_*`) and the Sequence pipeline/terminal rewrites still key
-            // off these names; Map is RF-LOWER-CALL-012 and Sequence is -014.
-            || callee == lookup.mapName
-            || callee == lookup.flatMapName
-            || callee == lookup.flatMapIndexedName
-            || callee == lookup.flattenName
-            // KSP-430: Map higher-order functions have Kotlin source implementations.
-            || callee == lookup.mapValuesName
-            || callee == lookup.mapValuesToName
-            || callee == lookup.mapKeysName
-            || callee == lookup.mapKeysToName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
-            || callee == lookup.forEachName
-            // STDLIB-pipeline §5: take/drop have real require() validation in
-            // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
-            // to that source declaration must not be short-circuited to a
-            // runtime bridge.
-            || callee == lookup.takeName
-            || callee == lookup.dropName
-            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
-            || callee == lookup.findName
-            || callee == lookup.findLastName
-            || callee == lookup.containsName
-            || callee == lookup.countName
-            || callee == lookup.anyName
-            || callee == lookup.allName
-            || callee == lookup.noneName
-            || callee == lookup.firstName
-            || callee == lookup.lastName
-            || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName
-            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
-            || callee == lookup.copyOfName
-            || callee == lookup.copyOfRangeName,
-            let symbol,
-            let sema = ctx.sema,
-            sema.symbols.symbol(symbol) != nil
-        else {
-            return false
-        }
-        guard sema.symbols.isSourceBackedSymbol(symbol) else {
-            return false
-        }
-        // STDLIB-pipeline §5 / KSP-441: source Sequence.map/filter walk a source
-        // Sequence object via iterator(), but RuntimeSequenceBox (from
-        // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
-        // must go through kk_sequence_map/filter.
-        if let receiverID = arguments.first,
-           state.sequenceExprIDs.contains(receiverID.rawValue),
-           !state.arrayExprIDs.contains(receiverID.rawValue),
-           callee == lookup.mapName
-            || callee == lookup.filterName
-        {
-            return false
-        }
-        // A Sequence-typed receiver may still be a RuntimeSequenceBox at run
-        // time (e.g. a parameter fed by asSequence()), which the source
-        // iterator cannot walk. flatMap/flatMapIndexed are excluded: their
-        // bundled source implementations traverse the receiver through the
-        // shared iterator bridge and are the KSP-441 source pipeline.
-        if (callee == lookup.mapName || callee == lookup.filterName),
-           isSequenceReceiverType(symbol: symbol, ctx: ctx) {
-            return false
-        }
-        return true
+        sourceBackedPreservation.preservesDirectCall(
+            callee: callee,
+            resolution: SourceBackedCalleeResolution(symbol: symbol, sema: ctx.sema),
+            receiverIsTrackedArrayLiteral: arguments.first.map {
+                state.arrayExprIDs.contains($0.rawValue)
+            } ?? false,
+            receiverIsTrackedRuntimeSequence: arguments.first.map {
+                state.sequenceExprIDs.contains($0.rawValue)
+                    && !state.arrayExprIDs.contains($0.rawValue)
+            } ?? false,
+            calleeHasSequenceReceiverType: symbol.map {
+                isSequenceReceiverType(symbol: $0, ctx: ctx)
+            } ?? false
+        )
     }
 
     func lowerCallInstruction(
@@ -247,7 +115,6 @@ extension CollectionLiteralConstructionLoweringPass {
             callee: callee,
             arguments: arguments,
             state: state,
-            lookup: lookup,
             ctx: ctx
         ) {
             loweredBody.append(instruction)
