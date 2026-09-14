@@ -128,11 +128,12 @@ extension CollectionLiteralLoweringSupport {
     /// RF-LOWER-STATE-002 task entry. Storing `[KIRExprID: ClassificationFacts]`
     /// instead would make every `contains` rebuild a set, which measured 150x
     /// slower at 200 expressions per function and 12000x at 4000. And the
-    /// per-classification sets have to be *stored* properties for now, because
-    /// the virtual-call dispatcher still hands thirteen of them to one callee as
-    /// separate `inout` arguments — Swift allows that only for distinct storage,
-    /// not for computed views. RF-LOWER-STATE-004 removes that argument list,
-    /// after which the named sets can become views over a single container.
+    /// per-classification sets remain *stored* properties because the
+    /// virtual-call leaf rewrites still receive them as separate `inout`
+    /// arguments — Swift allows that only for distinct storage, not for
+    /// computed views. RF-LOWER-STATE-005 onwards retires those parameter
+    /// lists, after which the named sets can become views over a single
+    /// container (RF-LOWER-STATE-010).
     ///
     /// ``membership(of:)`` and ``mutateMembership(of:_:)`` are the only places
     /// that map a classification to its storage. Both switch exhaustively, so

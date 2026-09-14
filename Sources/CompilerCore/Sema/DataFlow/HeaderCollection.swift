@@ -1752,6 +1752,9 @@ extension DataFlowSemaPhase {
         if resolvedFQName == ["kotlin", "collections", "Iterator"]
             || resolvedFQName == ["kotlin", "native", "ref", "WeakReference"]
             || resolvedFQName == ["kotlin", "native", "runtime", "RootSetStatistics"]
+            // KSP-1259: reusing the synthetic Debugging object shell must still
+            // leave the bundled Kotlin declaration source-backed.
+            || resolvedFQName == ["kotlin", "native", "runtime", "Debugging"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
