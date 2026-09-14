@@ -174,8 +174,6 @@ extension CollectionLiteralLoweringSupport {
             ]
             if listProducingRangeHOFs.contains(callee) {
                 state.listExprIDs.insert(result.rawValue)
-            } else if callee == lookup.toIntArrayName {
-                state.arrayExprIDs.insert(result.rawValue)
             }
         }
     }
