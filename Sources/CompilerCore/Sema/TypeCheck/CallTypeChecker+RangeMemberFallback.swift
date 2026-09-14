@@ -17,7 +17,7 @@ extension CallTypeChecker {
         let sema = ctx.sema
         let interner = ctx.interner
         let memberName = interner.resolve(calleeName)
-        let isUIntRangeSourceMigrationMember = [
+        let isRangeIteratorMigrationMember = [
             "iterator", "step", "take", "drop", "chunked", "windowed",
         ].contains(memberName)
 
@@ -99,15 +99,17 @@ extension CallTypeChecker {
               (sema.bindings.isRangeExpr(receiverID)
                   || isOpenEndRangeReceiver
                   || isSyntacticRangeExpression
-                  || (isTypedUIntRangeReceiver && isUIntRangeSourceMigrationMember)
+                  || (isTypedUIntRangeReceiver && isRangeIteratorMigrationMember)
                   || (isTypedULongProgressionReceiver
-                      && isULongProgressionSourceBackedHOF(memberName, argCount: args.count))
+                      && (isRangeIteratorMigrationMember
+                          || isULongProgressionSourceBackedHOF(memberName, argCount: args.count)))
                   || (isTypedIntRangeReceiver
                       && isIntRangeSourceBackedHOF(memberName, argCount: args.count))
                   || (isTypedLongRangeReceiver
                       && isLongRangeSourceBackedHOF(memberName, argCount: args.count))
                   || (isTypedULongRangeReceiver
-                      && isULongRangeSourceBackedHOF(memberName, argCount: args.count)))
+                      && (isRangeIteratorMigrationMember
+                          || isULongRangeSourceBackedHOF(memberName, argCount: args.count))))
         else {
             return nil
         }
@@ -441,11 +443,22 @@ extension CallTypeChecker {
     }
 
     private func isULongProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        guard argCount == 0 else { return false }
-        return memberName == "first"
-            || memberName == "firstOrNull"
-            || memberName == "last"
-            || memberName == "lastOrNull"
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "firstOrNull"
+            || memberName == "last" || memberName == "lastOrNull"
+        {
+            return argCount == 0
+        }
+        if memberName == "windowed" {
+            return (1...3).contains(argCount)
+        }
+        guard argCount == 1 else { return false }
+        return ["chunked", "take", "drop"].contains(memberName)
     }
 
     private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
@@ -526,6 +539,12 @@ extension CallTypeChecker {
         if memberName == "contains" {
             return argCount == 1
         }
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
         if memberName == "first" || memberName == "last"
             || memberName == "firstOrNull" || memberName == "lastOrNull"
         {
@@ -537,12 +556,13 @@ extension CallTypeChecker {
             "find", "findLast",
             "firstOrNull", "lastOrNull",
             "any", "all", "none",
+            "chunked", "windowed", "take", "drop",
         ]
         if sourceBacked.contains(memberName) {
             if memberName == "fold" || memberName == "foldIndexed" {
                 return argCount == 2
             }
-            return argCount == 1
+            return memberName == "windowed" ? (1...3).contains(argCount) : argCount == 1
         }
         return false
     }
@@ -1239,6 +1259,29 @@ extension CallTypeChecker {
     }
 
     private func isSupportedRangeMember(_ memberName: String) -> Bool {
+        // KSP-1523: `average`/`toUIntArray` were removed from this legacy
+        // allowlist — neither is a real UIntRange member in Kotlin
+        // (confirmed via diff_kotlinc.sh), and this fallback only binds a
+        // result *type* (see `rangeMemberResultType` below), never a callee
+        // symbol. With no bundled RangeHOF.kt declaration or Sema synthetic
+        // registration to resolve the actual call, keeping these names here
+        // let `(1u..5u).average()` type-check successfully and fall all the
+        // way through to a bare, unresolved `average` callee at link time
+        // (`Undefined symbols ... "_average"`) instead of being rejected at
+        // Sema, the way real kotlinc rejects it. `IntRange`/`LongRange`'s
+        // `average()` — genuine Kotlin members — do not depend on this
+        // allowlist entry: they resolve earlier via `bindSourceRangeHOFCall`
+        // (bundled Kotlin source); verified by probe that both still
+        // type-check and produce correct results with `average` absent from
+        // this set. `ULongRange.average()` also still compiles with `average`
+        // removed from this set, but only via its own, unrelated Sema
+        // synthetic registration (`kk_ulong_range_average`) — that member
+        // isn't real Kotlin either (same missing-overload shape as
+        // UIntRange's), and KSP-1524 owns verifying and, if so, removing it.
+        // `toUIntArray` was never valid for any other range type's receiver,
+        // and neither are `toIntArray`/`toLongArray`/`toULongArray` for their
+        // signed/ULong counterparts (BUG-259/KSP-1524) -- none of the four
+        // belong in this allowlist.
         let rangeMembers: Set = [
             "start", "end", "endInclusive", "endExclusive", "first", "last", "count",
             "toList", "forEach", "map", "mapIndexed", "mapNotNull",
@@ -1249,14 +1292,14 @@ extension CallTypeChecker {
             "chunked", "windowed",
             "reversed", "step", "sum",
             "random",
-            "take", "drop", "average", "sorted",
+            "take", "drop", "sorted",
         ]
         return rangeMembers.contains(memberName)
     }
 
     private func isValidRangeMemberArity(_ memberName: String, argCount: Int) -> Bool {
         switch memberName {
-        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "reversed", "sum", "average", "sorted":
+        case "count", "start", "end", "endInclusive", "endExclusive", "toList", "reversed", "sum", "sorted":
             argCount == 0
         case "random":
             argCount == 0 || argCount == 1
@@ -1365,8 +1408,6 @@ extension CallTypeChecker {
             )
         case "take", "drop", "sorted":
             return rangeMemberListType(elementType: elementType, sema: sema, interner: interner)
-        case "average":
-            return sema.types.doubleType
         case "reversed":
             return rangeMemberRangeType(
                 receiverType: receiverType,

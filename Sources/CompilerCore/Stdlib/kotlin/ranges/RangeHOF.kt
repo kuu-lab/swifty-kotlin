@@ -1345,6 +1345,17 @@ public fun UIntRange.toList(): List<UInt> {
     return result
 }
 
+// KSP-1523: no UIntRange.toUIntArray()/average() here — real kotlinc has
+// neither (`toUIntArray()` is a `Collection<UInt>` member, and `UIntRange`
+// is `Iterable<UInt>` but not `Collection`; `average()` exists only for
+// `Iterable<Byte/Short/Int/Long/Float/Double>`, not `UInt`). Confirmed via
+// `diff_kotlinc.sh`: real kotlinc rejects both calls on a UIntRange receiver.
+
+public fun UIntRange.firstOrNull(): UInt? = if (isEmpty()) null else first
+public fun UIntRange.lastOrNull(): UInt? = if (isEmpty()) null else last
+
+public fun UIntRange.sorted(): List<UInt> = toList().sorted()
+
 @KsSymbolName("__kk_range_count")
 public fun UIntRange.count(): Int {
     val count: UInt = if (step > 0) {
@@ -1357,7 +1368,6 @@ public fun UIntRange.count(): Int {
     return count.toInt()
 }
 
-@KsSymbolName("__kk_range_sum")
 public fun UIntRange.sum(): UInt {
     var sum = 0u
     for (element in this) {
@@ -1642,6 +1652,64 @@ public fun ULongRange.none(predicate: (ULong) -> Boolean): Boolean {
     return true
 }
 
+public fun ULongRange.take(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun ULongRange.drop(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count < n) { count++; continue }
+        result.add(element)
+    }
+    return result
+}
+
+public fun ULongRange.chunked(size: Int): List<List<ULong>> {
+    require(size > 0) { "size $size must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    var current = mutableListOf<ULong>()
+    for (element in this) {
+        current.add(element)
+        if (current.size == size) {
+            result.add(current)
+            current = mutableListOf<ULong>()
+        }
+    }
+    if (current.isNotEmpty()) result.add(current)
+    return result
+}
+
+public fun ULongRange.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<List<ULong>> {
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    val values = toList()
+    var i = 0
+    while (i < values.size) {
+        val end = i + size
+        if (end > values.size && !partialWindows) break
+        val window = mutableListOf<ULong>()
+        var j = i
+        while (j < values.size && j < end) {
+            window.add(values[j])
+            j++
+        }
+        result.add(window)
+        i += step
+    }
+    return result
+}
+
 public fun <R> ULongRange.map(transform: (ULong) -> R): List<R> {
     val result = mutableListOf<R>()
     for (element in this) { result.add(transform(element)) }
@@ -1759,6 +1827,64 @@ public fun <R> ULongProgression.map(transform: (ULong) -> R): List<R> {
 public fun ULongProgression.filter(predicate: (ULong) -> Boolean): List<ULong> {
     val result = mutableListOf<ULong>()
     for (element in this) { if (predicate(element)) result.add(element) }
+    return result
+}
+
+public fun ULongProgression.take(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count >= n) break
+        result.add(element)
+        count++
+    }
+    return result
+}
+
+public fun ULongProgression.drop(n: Int): List<ULong> {
+    require(n >= 0) { "Requested element count $n is less than zero." }
+    val result = mutableListOf<ULong>()
+    var count = 0
+    for (element in this) {
+        if (count < n) { count++; continue }
+        result.add(element)
+    }
+    return result
+}
+
+public fun ULongProgression.chunked(size: Int): List<List<ULong>> {
+    require(size > 0) { "size $size must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    var current = mutableListOf<ULong>()
+    for (element in this) {
+        current.add(element)
+        if (current.size == size) {
+            result.add(current)
+            current = mutableListOf<ULong>()
+        }
+    }
+    if (current.isNotEmpty()) result.add(current)
+    return result
+}
+
+public fun ULongProgression.windowed(size: Int, step: Int = 1, partialWindows: Boolean = false): List<List<ULong>> {
+    require(size > 0 && step > 0) { "Both size $size and step $step must be greater than zero." }
+    val result = mutableListOf<List<ULong>>()
+    val values = toList()
+    var i = 0
+    while (i < values.size) {
+        val end = i + size
+        if (end > values.size && !partialWindows) break
+        val window = mutableListOf<ULong>()
+        var j = i
+        while (j < values.size && j < end) {
+            window.add(values[j])
+            j++
+        }
+        result.add(window)
+        i += step
+    }
     return result
 }
 

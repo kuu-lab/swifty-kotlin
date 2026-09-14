@@ -451,34 +451,32 @@ extension CallLowerer {
                 }()
             let isLongRange = nonNullReceiverType == sema.types.longType
             if isRangeLikeReceiver && !isExplicitProgressionSourceCall {
+                // KSP-1523: `first`/`last` (and their `start`/`end`/`endInclusive`
+                // aliases) can use the shared `__kk_range_first`/`__kk_range_last`
+                // bridge for UInt too, same as signed ranges: both operate on the
+                // same RuntimeRangeBox, and UInt's full value range always fits the
+                // non-negative half of the box's Int64 fields. ULong keeps its own
+                // bridge below (values above Int64.max need unsigned comparisons).
                 let runtimeGetter: InternedString? = switch interner.resolve(calleeName) {
                 case "start":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_first"
-                            : "__kk_range_first"))
+                        : "__kk_range_first")
                 // `endInclusive` is the `ClosedRange` property name; `end` is the legacy alias.
                 case "end", "endInclusive":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_last"
-                            : "__kk_range_last"))
+                        : "__kk_range_last")
                 case "endExclusive":
                     interner.intern("__kk_range_endExclusive")
                 case "first":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_first"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_first"
-                            : "__kk_range_first"))
+                        : "__kk_range_first")
                 case "last":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_last"
-                        : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
-                            ? "kk_uint_range_last"
-                            : "__kk_range_last"))
+                        : "__kk_range_last")
                 case "step":
                     interner.intern(sema.bindings.isULongRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.ulongType
                         ? "kk_ulong_range_step"
@@ -956,7 +954,13 @@ extension CallLowerer {
             case ("toUInt", ushortType, uintType): interner.intern("kk_ushort_to_uint")
             case ("toUInt", byteType, uintType): interner.intern("kk_int_to_uint")
             case ("toUInt", shortType, uintType): interner.intern("kk_int_to_uint")
-            case ("toUInt", uintType, uintType), ("toUInt", ulongType, uintType): nil // identity
+            case ("toUInt", uintType, uintType): nil // identity
+            // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the
+            // high bits away (kk_ulong_to_uint has no dedicated symbol; reuse
+            // kk_long_to_uint, which already truncates via UInt32(truncatingIfNeeded:)
+            // on the same raw-register representation). Was wrongly treated as
+            // representation-preserving, which left garbage high bits behind.
+            case ("toUInt", ulongType, uintType): interner.intern("kk_long_to_uint")
             case ("toLong", intType, longType): interner.intern("kk_int_to_long")
             case ("toLong", uintType, longType): interner.intern("kk_uint_to_long")
             case ("toLong", ubyteType, longType): interner.intern("kk_ubyte_to_long")
@@ -1033,7 +1037,6 @@ extension CallLowerer {
             }
             let isRepresentationPreservingConversion =
                 (calleeStr == "toLong" && nonNullReceiverType == ulongType && nonNullResultType == longType)
-                    || (calleeStr == "toUInt" && nonNullReceiverType == ulongType && nonNullResultType == uintType)
                     || (calleeStr == "toULong" && nonNullReceiverType == longType && nonNullResultType == ulongType)
                     || (calleeStr == "toInt" && nonNullReceiverType == charType && nonNullResultType == intType)
                     || (calleeStr == "toInt" && (nonNullReceiverType == byteType || nonNullReceiverType == shortType) && nonNullResultType == intType)
