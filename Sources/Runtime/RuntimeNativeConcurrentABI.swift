@@ -368,6 +368,14 @@ public func __kk_native_concurrent_wait_worker_termination(_ workerHandle: Int) 
     return 0
 }
 
+/// Returns the worker bound to the calling thread, for `WorkerBoundReference.worker`
+/// (KSP-1253). Exposed only to stdlib sources — not the public `Worker.Companion.current`
+/// surface, which is a separate task (KSP-1251).
+@_cdecl("__kk_native_concurrent_current_worker")
+public func __kk_native_concurrent_current_worker() -> Int {
+    runtimeCurrentWorkerHandle()
+}
+
 // MARK: - ABI-003  TransferMode
 
 // TransferMode raw values (mirrors Kotlin/Native enum ordinal):

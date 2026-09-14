@@ -70,4 +70,27 @@ fun main() {
     // toString
     println(1u..5u)
     println(1u..10u step 2)
+
+    // Empty range: isEmpty/firstOrNull/lastOrNull/sum/count/toList/contains
+    val empty = 5u..1u
+    println(empty.isEmpty())
+    println(empty.firstOrNull())
+    println(empty.lastOrNull())
+    println(empty.sum())
+    println(empty.count())
+    println(empty.toList())
+    println(empty.contains(3u))
+
+    // sorted (both a UIntRange receiver and a UIntProgression receiver)
+    println((1u..5u).sorted())
+    println((5u downTo 1u).sorted())
+
+    // UInt.MAX_VALUE boundary (KSP-1523: sum() used to overflow 32-bit
+    // wraparound via a native Int64 accumulator; regression for that fix)
+    val maxR = (UInt.MAX_VALUE - 2u)..UInt.MAX_VALUE
+    println(maxR.count())
+    println(maxR.last)
+    println(maxR.contains(UInt.MAX_VALUE))
+    println(maxR.sum())
+    println(maxR.toList())
 }
