@@ -3096,7 +3096,7 @@
     - `kotlin.text.firstOrNull` — fun CharSequence.firstOrNull(): Char  -- `final fun (kotlin/CharSequence).kotlin.text/firstOrNull(): kotlin/Char?`
     - `kotlin.text.firstOrNull` — fun CharSequence.firstOrNull(Function1): Char  -- `final inline fun (kotlin/CharSequence).kotlin.text/firstOrNull(kotlin/Function1<kotlin/Char, kotlin/Boolean>): kotlin/Char?`
 
-- [~] KSP-1375: kotlin.text.CharSequence.flat-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1375: kotlin.text.CharSequence.flat-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `flat`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - 実装済み（ゲート保留）: `flatMap` / `flatMapIndexed` / `flatMapTo` / `flatMapIndexedTo` の4 APIをKotlin 2.3.10 source contractに沿って追加。indexed accessでcustom CharSequenceの`get` dispatchと反復中の`length`再評価を保持し、destinationの順序・同一性・nullable/primitive要素を回帰する。
@@ -3111,6 +3111,7 @@
     - `kotlin.text.flatMapIndexed` — fun CharSequence.flatMapIndexed(Function2): List  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/flatMapIndexed(kotlin/Function2<kotlin/Int, kotlin/Char, kotlin.collections/Iterable<#A>>): kotlin.collections/List<#A>`
     - `kotlin.text.flatMapIndexedTo` — fun CharSequence.flatMapIndexedTo(, Function2): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin/CharSequence).kotlin.text/flatMapIndexedTo(#B, kotlin/Function2<kotlin/Int, kotlin/Char, kotlin.collections/Iterable<#A>>): #B`
     - `kotlin.text.flatMapTo` — fun CharSequence.flatMapTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin/CharSequence).kotlin.text/flatMapTo(#B, kotlin/Function1<kotlin/Char, kotlin.collections/Iterable<#A>>): #B`
+  - 完了: PR #6718（2026-09-09 マージ、e176d62f）で4 API を `StringHOF.kt` に実装済み（indexed access + iterator/add 展開、bridge 追加なし）。non-local return Sema の共通前提は親 PR #6702（KSP-1374、同日マージ）で解消。`stdlib_kotlin_text_CharSequence_flat.kt` の Sema golden・diff ケース、`CharSequenceFlatSourceMigrationTests` を同 PR で追加済み。当時保留だった全体ゲートは #6718 の CI が全 shard green（kotlinc diff 4/4・全テスト shard・TODO ID チェック含む）で充足。
 
 - [ ] KSP-1376: kotlin.text.CharSequence.fold-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `fold`
