@@ -2149,7 +2149,7 @@
 
 - [ ] BUG-263: `Outer.Inner`（`Inner` が `Outer` 直下にネストした `object`）を、代入のレシーバ（`Outer.Inner.prop = value`）またはスタンドアロンの値（`val x = Outer.Inner`）として使用すると、Sema の型チェックは通る（診断なし）が KIR lowering で `KSWIFTK-KIR-0003: KIR verifier: ... call to 'Inner' does not resolve to a module function, an external link name, or a runtime ABI function` エラーになる。最小再現: `@file:OptIn(kotlin.native.runtime.NativeRuntimeApi::class)` の下で `import kotlin.native.runtime.GC` し `fun main() { GC.MainThreadFinalizerProcessor.batchSize = 5uL }` をコンパイルすると上記エラーになる。同じ `import`/`OptIn` で `println(GC.MainThreadFinalizerProcessor.available)`（チェーンされた getter 読み取りのみ）はコンパイル・リンクまで成功する（実行は BUG-257 の修正待ちでブロックされる）ため、失敗は「代入レシーバ・スタンドアロン参照としてのネストオブジェクト値materialization」に限定される。原因: KSP-1263 で `CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` に追加した、`object` receiver 上のネストオーナー（`class`/`enumClass`/`object`/`annotationClass`）解決フォールバックは、既存の class-name-receiver 用ネストオーナー解決（`CallTypeChecker+MemberCallInferenceRegularResolution.swift`）と同じ Sema バインディング（`bindIdentifier`/`bindExprType` のみ）を行うが、後者は常に `TimeSource.Monotonic.markNow()` のように同一 memberCall 連鎖内でのみ使われてきた（`Outer.Inner` 単体の値化やその代入レシーバとしての使用は本 PR 以前に一度も Sema を通ったことがなく、lowering 側の対応も存在しない）。発見元: KSP-1263 で `GC.MainThreadFinalizerProcessor` を値としてアクセス可能にする Sema 修正を追加した際、getter のチェーン読み取りは動作する一方、`var` プロパティへの代入がこのエラーで失敗することが判明した。今回修正しない理由: KIR lowering / NativeEmitter 側でネストオブジェクトの値 materialization（代入レシーバ・スタンドアロン参照を含む）を補う変更が必要で、sema 層の型サーフェス追加という KSP-1263 のスコープを超える。ユーザー承認済みで別 PR に切り出す。注記: `BUG-257`/`BUG-259`/`BUG-260`/`BUG-261`/`BUG-262` は本 PR 作成時点で他の並行セッションのブランチ（`claude/ksp-1262-d6802c` 等）が同一番号を別内容で既に使用済みだったため、衝突を避けて空いている番号から採番した。
 
-- [ ] KSP-1265: kotlin.native.runtime.GCInfo.GCInfo の未実装 stdlib API を実装する（15 件）
+- [~] KSP-1265: kotlin.native.runtime.GCInfo.GCInfo の未実装 stdlib API を実装する（15 件）
   - 対象: `kotlin.native.runtime.GCInfo` / receiver `GCInfo`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2172,6 +2172,8 @@
     - `kotlin.native.runtime.GCInfo.secondPauseStartTimeNs` — val GCInfo.secondPauseStartTimeNs: Long  -- `final val secondPauseStartTimeNs`
     - `kotlin.native.runtime.GCInfo.startTimeNs` — val GCInfo.startTimeNs: Long  -- `final val startTimeNs`
     - `kotlin.native.runtime.GCInfo.sweepStatistics` — val GCInfo.sweepStatistics: Map  -- `final val sweepStatistics`
+
+  - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable プロパティ 15 件を bundled Kotlin source の constructor に `public val` として移し、GCInfo の synthetic property registration（`gcInfoProperties` spec と登録呼び出し）、および専用に使われていた `mapOfString` / `sweepStatisticsType` / `memoryUsageType` ヘルパーを削除した。`GCInfoSourceMigrationTests.gcInfoConstructorIsBundledSourceBacked` で全 15 プロパティの source-backed / non-synthetic / non-mutable / external-linkなし / 型（Long・nullable Long・RootSetStatistics・Map<String, SweepStatistics>・Map<String, MemoryUsage>）を検証し、専用 golden/diff ケース（`stdlib_kotlin_native_runtime_GCInfo_properties_n`）は全プロパティの構築・読み出しを固定する。全体 Swift/Golden/diff の gate は未実行のため完了は保留する。
 
 - [ ] KSP-1270: kotlin.native.runtime.RootSetStatistics.RootSetStatistics の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.runtime.RootSetStatistics` / receiver `RootSetStatistics`
