@@ -378,6 +378,9 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        // kotlin.io.createTempDir/createTempFile (Deprecated(level=ERROR)):
+        // real stdlib functions, not File's own facade. Restored after being
+        // dropped as an unintended side effect of CLEANUP-STUB-107.
         abiParitySpec("__kk_io_createTempDir", parameters: [
             p("prefixRaw", .intptr),
             p("suffixRaw", .intptr),

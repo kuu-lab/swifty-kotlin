@@ -248,10 +248,6 @@ enum MemberRuntimeDispatch {
                 charMember: "toList",
                 charProgressionUsesChar: true
             )
-        case "toULongArray":
-            return "kk_ulong_range_toULongArray"
-        case "toLongArray":
-            return "kk_long_range_toLongArray"
         case "iterator":
             return rangeRuntimeName(kind: kind, member: "iterator", longMember: "iterator")
         case "forEach":
@@ -468,7 +464,7 @@ enum MemberRuntimeDispatch {
         // kk_range_* runtime entry points.
         if kind == .intRange || kind == .intProgression {
             let sourceBacked: Set<String> = [
-                "toList", "toIntArray", "forEach", "map", "mapIndexed", "mapNotNull",
+                "toList", "forEach", "map", "mapIndexed", "mapNotNull",
                 "filter", "filterIndexed", "filterNot",
                 "reduce", "reduceIndexed", "fold", "foldIndexed",
                 "find", "findLast",

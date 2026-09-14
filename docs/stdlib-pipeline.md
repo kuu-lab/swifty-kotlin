@@ -294,6 +294,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticInstantStubs.swift` | 272 | (c) | KSP-712 reclassified: Instant.Companion bootstrap and hidden source bridges remain; Instant public properties, arithmetic, comparison, and factories are bundled Kotlin source, while handle/OS-clock core remains runtime-owned. |
 | `HeaderHelpers+SyntheticIterableRegistry.swift` | deleted | (c) | **完了・ファイル削除済み**（KSP-701）。Iterable の `filter`/`reduce*`、既存の plus/minus・sumBy* は bundled Kotlin source を正規実装として利用。Collection/Sequence の fallback shell は `HeaderHelpers+SyntheticCollectionTypeFallbacks.swift` と `HeaderHelpers+SyntheticSequenceRegistrationHelpers.swift` に分離。 |
 | `HeaderHelpers+SyntheticIteratorStubs.swift` | 272 | (c) | Iterator and primitive iterator compiler surface; RF-STUB-003 declarative residual registration started here. |
+| `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` | 1694 | (c) | CLEANUP-STUB-107 で `HeaderHelpers+SyntheticFileIOStubs.swift` を置き換え。File 自身の facade は削除済みで、bare shell・コンストラクタ・`path` と、Reader/BufferedReader/Writer/BufferedWriter/InputStream/OutputStream 共有ファミリのみ残す。`kotlin.io.FileSystemException`（KSP-619）と `Files.kt`（KSP-483）の実働ブリッジであり、CLEANUP-STUB-115（Path）完了までは削除できない residual scaffolding。 |
 | `HeaderHelpers+SyntheticJsAnyStubs.swift` | 25 | (a) | ~~Kotlin/JS surface; cleanup candidate.~~ **削除済み** (CLEANUP-STUB-127/128, 2026-08-19)。`JsAny` の synthetic 登録と2つの登録経路を除去。 |
 | `HeaderHelpers+SyntheticJsArrayExternalClassStubs.swift` | 80 | (a) | Kotlin/JS surface; cleanup candidate. |
 | `HeaderHelpers+SyntheticJsArrayStubs.swift` | 71 | (a) | Kotlin/JS surface; cleanup candidate. |
@@ -351,7 +352,7 @@ fiction audit ダンプを起点に棚卸し）:
 | `HeaderHelpers+SyntheticStringRegistrationHelpers.swift` | 475 | (b) | M1 string helper registration. |
 | `HeaderHelpers+SyntheticStringStubs.swift` | 4180 | (b) | M1 string source migration; bridge-only `__kk_*` declarations may remain private. |
 | `HeaderHelpers+SyntheticStringTypeHelpers.swift` | 299 | (c) | ~~String type scaffolding and helper utilities.~~ **完了・ファイル削除済み**（KSP-665）。残存する collection type fallback は `+SyntheticCollectionTypeFallbacks.swift` に分離。 |
-| `HeaderHelpers+SyntheticTODOAndIOStubs.swift` | 3698 | (b) | Mixed TODO, IO, system, duration, collection factories; `HeaderHelpers+SyntheticFileIOStubs.swift` を統合済み。 |
+| `HeaderHelpers+SyntheticTODOAndIOStubs.swift` | 3698 | (b) | Mixed TODO, IO, system, duration, collection factories。~~`HeaderHelpers+SyntheticFileIOStubs.swift` を統合済み。~~ **誤記だったため削除**（#5780以降ずれていた。実際には別ファイルとして併存しており、CLEANUP-STUB-107 で `HeaderHelpers+SyntheticJavaIOStreamStubs.swift` に置き換えられた）。 |
 | `HeaderHelpers+SyntheticTestStubs.swift` | 178 | (a) | `kotlin.test` test-only compatibility; cleanup outside production stdlib. |
 | `HeaderHelpers+SyntheticThreadLocalStubs.swift` | 215 | (c) | Native/thread-local annotation support. |
 | `HeaderHelpers+SyntheticTypedRangeStubs.swift` | 1090 | (b) | M6 typed range source migration. |
@@ -709,7 +710,7 @@ Atomic の内訳:
 3. 優先規則（§5）により Kotlin 版が解決されることを確認し、**同一 PR で**対応する
    合成スタブ・`CallTypeChecker`/`CallLowerer` の特殊処理・runtime `@_cdecl` を削除
    （または `__kk_*` へ降格）する
-4. 必須ゲート（CLAUDE.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
+4. 必須ゲート（AGENTS.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
    `loc_report.sh` で `HeaderHelpers+Synthetic*` 行数と `"kk_` リテラル数の減少を確認する
 5. TODO.md の該当タスクを更新する
 
@@ -789,7 +790,7 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    リポジトリ NOTICE を付ける（KSP-INF-013）。
 9. **タスク運用**: 未完了タスクの削除禁止（`[x]` のみ削除可）。本文から参照される ID は必ず解決可能に保つ
    （M1–M17 / CLEANUP-STUB 個別リスト消失の教訓）。作業中に発見した修正可能なバグは、症状を再現する最小ケースと回帰テストを含めて同じPR内で修正する。
-   同じPRのスコープや安全な修正方針を超える場合だけ、BUG-NNN として TODO.md に理由付きで追跡する（CLAUDE.md「バグ修正ルール」）。
+   同じPRのスコープや安全な修正方針を超える場合だけ、BUG-NNN として TODO.md に理由付きで追跡する（AGENTS.md「バグ修正ルール」）。
 10. **粒度**: 1 タスク = 1 PR。目安「削除対象 kk_* ≤ 15・単一責務・golden 更新1回」。
     超えると判明したら枝番でなく新番号で分割する。
 

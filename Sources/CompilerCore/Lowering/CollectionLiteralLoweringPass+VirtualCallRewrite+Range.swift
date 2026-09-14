@@ -136,46 +136,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        // KSP-1523: a UIntRange.toUIntArray() gate used to live here
-        // (`isUIntRange` as a full condition, not just a ternary arm) but
-        // was unreachable for the same structural reason as the other
-        // members above — deleted rather than folded since toUIntArray has
-        // no signed/ULong analogue to fall back to. `toUIntArray()` isn't
-        // actually a UIntRange member in real Kotlin (it's on
-        // `Collection<UInt>`, and UIntRange is only `Iterable<UInt>`);
-        // confirmed via diff_kotlinc.sh, so it was removed from RangeHOF.kt
-        // too rather than kept as a source-backed declaration.
-
-        // toULongArray — returns a ULongArray (STDLIB-RANGE-037)
-        if callee == lookup.toULongArrayName, arguments.isEmpty, isULongRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkULongRangeToULongArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
-        // toLongArray — returns a LongArray (STDLIB-RANGE-035)
-        if callee == lookup.toLongArrayName, arguments.isEmpty {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkLongRangeToLongArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
-        // toIntArray — returns an IntArray (STDLIB-RANGE-034)
-        if callee == lookup.toIntArrayName, arguments.isEmpty, !isCharRange, !isULongRange {
-            loweredBody.append(.call(
-                symbol: nil, callee: lookup.kkRangeToIntArrayName,
-                arguments: [receiver], result: result,
-                canThrow: false, thrownResult: nil
-            ))
-            return true
-        }
-
         if callee == lookup.iteratorName, arguments.isEmpty {
             loweredBody.append(.call(
                 symbol: nil, callee: lookup.kkRangeIteratorName,

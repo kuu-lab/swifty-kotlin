@@ -157,15 +157,6 @@ struct RuntimeRangeStepTests {
         #expect(kk_op_contains(range, 11) == 0)
     }
 
-    @Test func testRangeToIntArray() {
-        let range = kk_op_rangeTo(1, 10)
-        let array = runtimeArrayBox(from: kk_range_toIntArray(range))
-        #expect(array != nil)
-        #expect(array?.elements.count == 10)
-        #expect(array?.elements[0] == 1)
-        #expect(array?.elements[9] == 10)
-    }
-
     @Test func testRangeReversedToList() {
         let range = kk_op_rangeTo(1, 5)
         let reversed = kk_range_reversed(range)
@@ -295,15 +286,6 @@ struct RuntimeRangeStepTests {
         #expect(kk_range_first(reversed) == 5)
         #expect(kk_range_last(reversed) == 1)
         #expect(kk_range_count(reversed) == 5)
-    }
-
-    @Test func testULongRangeToULongArray() {
-        let range = __kk_ulong_step(kk_ulong_rangeTo(1, 7), 3)
-        let array = kk_ulong_range_toULongArray(range)
-        #expect(kk_list_size(array) == 3)
-        #expect(kk_list_get(array, 0) == 1)
-        #expect(kk_list_get(array, 1) == 4)
-        #expect(kk_list_get(array, 2) == 7)
     }
 
     // MARK: - IntRange Additional Features (STDLIB-RANGE-034)

@@ -15,10 +15,10 @@ either the emitted IR is supposed to be unchanged (NFC refactors, pass reorderin
 sample program's runtime output is the only thing pinning the behaviour (stdlib
 migrations, ABI edits, boxing boundaries).
 
-Build, test, and golden-update commands are in [`CLAUDE.md`](../../../CLAUDE.md); Linux
-environment variables (`C_INCLUDE_PATH`, `LIBRARY_PATH`, `KSWIFTK_LLVM_DYLIB`) are in
+Build, test, and golden-update commands and Linux environment variables
+(`C_INCLUDE_PATH`, `LIBRARY_PATH`, `KSWIFTK_LLVM_DYLIB`) are in
 [`AGENTS.md`](../../../AGENTS.md) — derive them from `llvm-config`, don't hardcode a
-version. This file records only what those two don't: the places where a green run is
+version. This file records only what AGENTS.md doesn't: the places where a green run is
 misleading.
 
 ## Harness behaviours that produce false results
@@ -91,7 +91,7 @@ SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh \
 
 For XCTest suites, `SWIFT_TEST_PARALLEL=0` is what makes the "Executed N tests" summary
 appear, so a filter that matched nothing can be told apart from a pass (see
-[`CLAUDE.md`](../../../CLAUDE.md)). Swift Testing suites (`@Test` / `#expect`) don't print
+[`AGENTS.md`](../../../AGENTS.md)). Swift Testing suites (`@Test` / `#expect`) don't print
 that line either way — check the reported test count.
 
 ## Curated samples for function-resolution / IR stress
