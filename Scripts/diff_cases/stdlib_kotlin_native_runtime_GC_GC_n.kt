@@ -36,7 +36,7 @@ fun main() {
     // above actually runs -- a short-circuiting `&&` would stop at the first
     // false operand and silently skip the rest, hiding a regression in any
     // later property. threshold/collectCyclesThreshold/thresholdAllocations
-    // and (pending BUG-263) targetHeapBytes/minHeapBytes/maxHeapBytes are
+    // and (pending BUG-266) targetHeapBytes/minHeapBytes/maxHeapBytes are
     // documented no-ops, so their lines are expected to print the type's
     // zero value, not the value assigned above.
     println(GC.threshold)

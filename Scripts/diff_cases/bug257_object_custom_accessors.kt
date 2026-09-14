@@ -11,7 +11,7 @@
 //
 // A delegated object-member property (`by lazy { ... }`) and a `var`
 // written through an implicit receiver are deliberately NOT covered here --
-// both are separately broken and tracked as BUG-260.
+// both are separately broken and tracked as BUG-265.
 object Foo {
     var log = ""
     val a: Int get() = 42

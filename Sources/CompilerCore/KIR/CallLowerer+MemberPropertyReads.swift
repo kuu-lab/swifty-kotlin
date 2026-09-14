@@ -162,7 +162,7 @@ extension CallLowerer {
         // here) -- routing them through this branch panics with a vtable/
         // itable lookup failure. Leave delegated object properties on the
         // pre-existing `loadGlobal` fallback below until that gap is fixed
-        // (BUG-260).
+        // (BUG-265).
         if sema.symbols.propertyHasCustomGetter(for: valueSym)
             || sema.symbols.extensionPropertyGetterAccessor(for: valueSym) != nil
         {

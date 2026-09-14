@@ -71,7 +71,7 @@ public object GC {
             __regularGCInterval = value
         }
 
-    // BUG-263: writing an object-member `var` whose owner was imported from a
+    // BUG-266: writing an object-member `var` whose owner was imported from a
     // precompiled .kklib (the normal, non-`--stdlib-from-source` path every
     // real user build takes) silently does nothing when the property's type
     // is `Long` -- the assignment lowers to the same `call set symbol=_`
@@ -95,7 +95,7 @@ public object GC {
             __setTargetHeapUtilization(value)
         }
 
-    // BUG-263 (see targetHeapBytes above): same silent-no-op write for a
+    // BUG-266 (see targetHeapBytes above): same silent-no-op write for a
     // plain Kotlin-stored Long backing field, not just the external-fun
     // bridged ones -- the defect is in `Long`-typed object-member writes in
     // general, not specific to the Swift bridge.
@@ -103,7 +103,7 @@ public object GC {
         get() = __minHeapBytes
         set(value) {}
 
-    // BUG-263 (see targetHeapBytes above).
+    // BUG-266 (see targetHeapBytes above).
     public var maxHeapBytes: Long
         get() = __getMaxHeapBytes()
         set(value) {}
