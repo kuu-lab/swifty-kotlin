@@ -4,14 +4,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
         ["kotlin", "native", "ref", "WeakReference"],
         args: [.invariant(weakReferenceT)]
     )
-    static let weakReferenceConstructor = SyntheticConstructorStubSpec(
-        externalLinkName: "kk_weak_ref_create",
-        parameters: [
-            SyntheticStubParameterSpec(name: "value", type: weakReferenceT),
-        ],
-        typeParameterNames: ["T"],
-        classTypeParameterCount: 1
-    )
     static let weakReferenceMembers: [SyntheticFunctionStubSpec] = [
         SyntheticFunctionStubSpec(
             name: "get",
@@ -92,29 +84,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
         SyntheticPropertyStubSpec(name: "sweepStatistics", propertyType: mapOfString(to: sweepStatisticsType)),
         SyntheticPropertyStubSpec(name: "memoryUsageBefore", propertyType: mapOfString(to: memoryUsageType)),
         SyntheticPropertyStubSpec(name: "memoryUsageAfter", propertyType: mapOfString(to: memoryUsageType)),
-    ]
-
-    static let debuggingProperties: [SyntheticPropertyStubSpec] = [
-        SyntheticPropertyStubSpec(
-            name: "isThreadStateRunnable",
-            propertyType: .boolean,
-            externalLinkName: "kk_debugging_is_thread_state_runnable"
-        ),
-        SyntheticPropertyStubSpec(
-            name: "gcSuspendCount",
-            propertyType: .int,
-            externalLinkName: "kk_debugging_gc_suspend_count"
-        ),
-        SyntheticPropertyStubSpec(
-            name: "threadCount",
-            propertyType: .int,
-            externalLinkName: "kk_debugging_thread_count"
-        ),
-        SyntheticPropertyStubSpec(
-            name: "globalObjectCount",
-            propertyType: .int,
-            externalLinkName: "kk_debugging_global_object_count"
-        ),
     ]
 
     private static func nativeRuntimeClass(_ name: String) -> SyntheticStubTypeRef {

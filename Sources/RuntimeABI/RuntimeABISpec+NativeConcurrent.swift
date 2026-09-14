@@ -21,6 +21,13 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_native_concurrent_current_worker",
+            parameters: [],
+            returnType: .intptr,
+            section: "NativeConcurrent",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_native_concurrent_detach_object_graph",
             parameters: [
                 RuntimeABIParameter(name: "modeRaw", type: .intptr),

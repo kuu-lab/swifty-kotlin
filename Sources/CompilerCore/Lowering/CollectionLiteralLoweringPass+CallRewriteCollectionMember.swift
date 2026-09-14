@@ -14,13 +14,6 @@ extension CollectionLiteralConstructionLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        let uintType = ctx.sema?.types.uintType
-
-        func isUIntRangeExpr(_ expr: KIRExprID) -> Bool {
-            guard let uintType else { return false }
-            return module.arena.exprType(expr) == uintType
-        }
-
         // --- Rewrite collection member calls ---
         // Range first()/last()/endExclusive do not use the Kotlin stdlib source and
         // continue to go through their runtime helpers.
@@ -99,11 +92,14 @@ extension CollectionLiteralConstructionLoweringPass {
                     return true
                 }
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
+                    // KSP-1523: UIntRange never reaches this branch — its
+                    // constructing callee (e.g. __kk_uint_rangeTo) is never
+                    // added to state.rangeExprIDs during PreScan, so the old
+                    // isUIntRangeExpr arm was unreachable regardless of that
+                    // local helper's own always-false type comparison.
                     let countCallee: InternedString
                     if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
                         countCallee = lookup.kkULongRangeCountName
-                    } else if isUIntRangeExpr(receiverID) {
-                        countCallee = ctx.interner.intern("kk_uint_range_count")
                     } else {
                         countCallee = lookup.kkRangeCountName
                     }
@@ -237,10 +233,10 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 // STDLIB-637: UIntRange/ULongRange isEmpty
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
-                    let isUIntRange = isUIntRangeExpr(receiverID)
+                    // KSP-1523: see the count() branch above — same unreachable arm.
                     let isEmptyName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
                         ? lookup.kkULongRangeIsEmptyName
-                        : (isUIntRange ? ctx.interner.intern("kk_uint_range_isEmpty") : lookup.kkRangeIsEmptyName)
+                        : lookup.kkRangeIsEmptyName
                     loweredBody.append(.call(
                         symbol: nil,
                         callee: isEmptyName,
@@ -259,10 +255,10 @@ extension CollectionLiteralConstructionLoweringPass {
             if arguments.count == 1 {
                 let receiverID = arguments[0]
                 if state.rangeExprIDs.contains(receiverID.rawValue) {
-                    let isUIntRange = isUIntRangeExpr(receiverID)
+                    // KSP-1523: see the count() branch above — same unreachable arm.
                     loweredBody.append(.call(
                         symbol: nil,
-                        callee: isUIntRange ? ctx.interner.intern("kk_uint_range_sum") : lookup.kkRangeSumName,
+                        callee: lookup.kkRangeSumName,
                         arguments: [receiverID],
                         result: result,
                         canThrow: false,
