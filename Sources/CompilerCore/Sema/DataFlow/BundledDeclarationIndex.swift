@@ -1290,8 +1290,6 @@ enum BundledSyntheticStubRegistration {
     private static let bundledIndexKey = "KSwiftK.BundledSyntheticStubRegistration.bundledIndex"
     private static let typesKey = "KSwiftK.BundledSyntheticStubRegistration.types"
     private static let skippedCountKey = "KSwiftK.BundledSyntheticStubRegistration.skippedCount"
-    private static let preBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.preBundledPass"
-    private static let postBundledPassKey = "KSwiftK.BundledSyntheticStubRegistration.postBundledPass"
 
     private static var storage: NSMutableDictionary {
         Thread.current.threadDictionary
@@ -1318,24 +1316,10 @@ enum BundledSyntheticStubRegistration {
         set { storage[skippedCountKey] = newValue }
     }
 
-    /// When true, extension-member stub registration is deferred to the post-bundled pass.
-    static var preBundledPass: Bool {
-        get { storage[preBundledPassKey] as? Bool ?? false }
-        set { storage[preBundledPassKey] = newValue }
-    }
-
-    /// When true, only extension-member stubs are registered (post-bundled pass).
-    static var postBundledPass: Bool {
-        get { storage[postBundledPassKey] as? Bool ?? false }
-        set { storage[postBundledPassKey] = newValue }
-    }
-
     static func clear() {
         storage.removeObject(forKey: bundledIndexKey)
         storage.removeObject(forKey: typesKey)
         storage.removeObject(forKey: skippedCountKey)
-        storage.removeObject(forKey: preBundledPassKey)
-        storage.removeObject(forKey: postBundledPassKey)
     }
 
     static func shouldSkipRegistration(
@@ -1347,14 +1331,6 @@ enum BundledSyntheticStubRegistration {
         types: TypeSystem,
         interner: StringInterner
     ) -> Bool {
-        if postBundledPass, receiverType == nil {
-            skippedCount += 1
-            return true
-        }
-        if preBundledPass, receiverType != nil {
-            skippedCount += 1
-            return true
-        }
         let ownerFQName = BundledDeclarationIndex.ownerFQName(
             declaredOwnerFQName: declaredOwnerFQName,
             receiverType: receiverType,

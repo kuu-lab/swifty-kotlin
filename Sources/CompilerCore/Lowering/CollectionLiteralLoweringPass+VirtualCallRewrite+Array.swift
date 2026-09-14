@@ -16,14 +16,12 @@ extension CollectionVirtualCallRewriteLoweringPass {
         origThrownResult: KIRExprID?,
         module: KIRModule,
         lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
+        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         // Non-tracked array receivers are now classified by static type via
         // classifyReceiverByStaticType (LOWERING-001) before reaching here.
-        guard arrayExprIDs.contains(receiver.rawValue) else { return false }
+        guard state.contains(.array, receiver) else { return false }
 
         // toList on array → __kk_array_toList (result is List)
         if callee == lookup.toListName, arguments.isEmpty {
@@ -38,8 +36,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(toListResult.rawValue)
+                state.tagListResult(result, temporary: toListResult)
                 loweredBody.append(.copy(from: toListResult, to: result))
             }
             return true
@@ -58,8 +55,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if let result {
-                listExprIDs.insert(result.rawValue)
-                listExprIDs.insert(toMutableListResult.rawValue)
+                state.tagListResult(result, temporary: toMutableListResult)
                 loweredBody.append(.copy(from: toMutableListResult, to: result))
             }
             return true
@@ -88,7 +84,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 canThrow: false,
                 thrownResult: nil
             ))
-            if let result { sequenceExprIDs.insert(result.rawValue) }
+            state.tagResult(.sequence, result)
             return true
         }
 
