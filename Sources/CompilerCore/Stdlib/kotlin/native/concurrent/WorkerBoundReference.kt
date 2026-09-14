@@ -7,9 +7,16 @@
 
 package kotlin.native.concurrent
 
-// KSP-1252: Keep the top-level constructor source-backed. The value and worker
-// properties remain in the separate KSP-1253 receiver slice.
+import kotlin.native.internal.__nativeConcurrentCurrentWorker
+
 @ObsoleteWorkersApi
 @Deprecated("Support for the legacy memory manager has been completely removed. Use the referenced value directly.")
 @DeprecatedSinceKotlin(errorSince = "2.1")
-public class WorkerBoundReference<out T : Any>(value: T)
+public class WorkerBoundReference<out T : Any>(
+    public val value: T
+) {
+    public val valueOrNull: T?
+        get() = value
+
+    public val worker: Worker = __nativeConcurrentCurrentWorker()
+}

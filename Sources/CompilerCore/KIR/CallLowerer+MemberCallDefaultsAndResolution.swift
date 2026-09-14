@@ -330,6 +330,22 @@ extension CallLowerer {
         }
 
         if let chosenCallee {
+            // KSP-1523: `contains`/`isEmpty` are also declared directly on the
+            // `ClosedRange<T>`/`ClosedFloatingPointRange<T>` interfaces UIntRange
+            // conforms to (HeaderHelpers+SyntheticRangeInterfaceStubs.swift), with
+            // no externalLinkName of their own. Overload resolution sometimes picks
+            // that interface member over the per-type bundled/synthetic one (its
+            // `chosenCallee` here has no link name at all), so check the
+            // receiver's concrete element type unconditionally instead of only
+            // as a fallback once `chosenCallee` already has a link name.
+            if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
+                memberName: fallbackName,
+                receiverType: receiverType,
+                sema: sema,
+                interner: interner
+            ) {
+                return closedRangeRuntimeName
+            }
             if sema.symbols.isSourceBackedSymbol(chosenCallee),
                let signature = sema.symbols.functionSignature(for: chosenCallee),
                let receiverType = signature.receiverType,
@@ -387,14 +403,6 @@ extension CallLowerer {
                    fallbackName == "hasNext" || fallbackName == "next"
                 {
                     return fallback
-                }
-                if let closedRangeRuntimeName = closedRangeInterfaceRuntimeName(
-                    memberName: fallbackName,
-                    receiverType: receiverType,
-                    sema: sema,
-                    interner: interner
-                ) {
-                    return closedRangeRuntimeName
                 }
                 if fallbackName == "iterator",
                    let collectionIterator = unresolvedCollectionMemberCallee(
@@ -625,17 +633,15 @@ extension CallLowerer {
         }
         switch memberName {
         case "contains":
-            if elementType == sema.types.uintType {
-                return interner.intern("kk_uint_range_contains")
-            }
+            // KSP-1523: UInt values always fit the Int64 fields of the shared
+            // RuntimeRangeBox, so UIntRange can use the same bridge as signed
+            // ranges. ULong cannot (values above Int64.max need the dedicated
+            // unsigned-aware bridge), so it keeps its own name.
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_contains")
             }
             return interner.intern("__kk_range_contains")
         case "isEmpty":
-            if elementType == sema.types.uintType {
-                return interner.intern("kk_uint_range_isEmpty")
-            }
             if elementType == sema.types.ulongType {
                 return interner.intern("kk_ulong_range_isEmpty")
             }

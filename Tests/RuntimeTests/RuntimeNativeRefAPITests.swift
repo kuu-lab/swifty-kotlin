@@ -27,13 +27,19 @@ import Testing
 //     - GC.targetHeapUtilization   -> kk_gc_target_heap_utilization()
 //     - GC.maxHeapBytes            -> kk_gc_max_heap_bytes()
 //
-//   kotlin.native.runtime.Debugging (via kk_assertions_* entry points):
-//     - Debugging.areAssertionsEnabled    -> __kk_assertions_enabled()
+//   kotlin.native.runtime.Debugging (source-backed, KSP-1260; see Stdlib/kotlin/native/runtime/Debugging.kt):
+//     - Debugging.areAssertionsEnabled    -> __kk_assertions_enabled() (kk_assertions_* shim, unrelated to Debugging.kt)
 //     - Debugging.setAssertionsEnabled()  -> kk_assertions_set_enabled()
-//     - Debugging.isThreadStateRunnable   -> kk_debugging_is_thread_state_runnable()
-//     - Debugging.gcSuspendCount          -> kk_debugging_gc_suspend_count()
-//     - Debugging.threadCount             -> kk_debugging_thread_count()
-//     - Debugging.globalObjectCount       -> kk_debugging_global_object_count()
+//     - Debugging.isThreadStateRunnable   -> __kk_debugging_is_thread_state_runnable()
+//     - Debugging.forceCheckedShutdown    -> __kk_debugging_force_checked_shutdown_get/_set()
+//     - Debugging.dumpMemory(fd)          -> __kk_debugging_dump_memory()
+//
+//   Retained as raw Swift test instrumentation only (no longer exposed on the
+//   Kotlin Debugging surface; kk_debugging_gc_suspend_count/kk_debugging_thread_count
+//   are not part of the real kotlinc 2.3.10 API):
+//     - kk_debugging_gc_suspend_count()
+//     - kk_debugging_thread_count()
+//     - kk_debugging_global_object_count()
 //
 // SEMA EXPOSED (compile-time stubs, covered by NativeRefRuntimeSemaTests):
 //   - kotlin.native.ref.WeakReference<T>
@@ -54,10 +60,13 @@ import Testing
 //   - kotlin.native.runtime.SweepStatistics
 //   - kotlin.native.runtime.SweepStatistics.sweptCount / keptCount
 //   - kotlin.native.runtime.NativeRuntimeApi
+//
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/Debugging.kt, KSP-1260,
+// covered by NativeDebuggingSourceAPITests):
+//   - kotlin.native.runtime.Debugging
 //   - kotlin.native.runtime.Debugging.isThreadStateRunnable
-//   - kotlin.native.runtime.Debugging.gcSuspendCount
-//   - kotlin.native.runtime.Debugging.threadCount
-//   - kotlin.native.runtime.Debugging.globalObjectCount
+//   - kotlin.native.runtime.Debugging.forceCheckedShutdown
+//   - kotlin.native.runtime.Debugging.dumpMemory(fd)
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeNativeRefGCTests {
