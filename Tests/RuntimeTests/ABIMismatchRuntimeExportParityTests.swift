@@ -159,6 +159,11 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_list_sortedDescending_primitive",
             "kk_list_sortedWith",
             "kk_list_sorted_primitive",
+            // KSP-1511: shuffled/shuffled(Random) source-backed in
+            // ListSortingHOF.kt; retained only in RuntimeABISpec (same
+            // treatment as the KSP-426 block above).
+            "kk_list_shuffled",
+            "kk_list_shuffled_random",
             "__kk_mutable_list_sort",
             "__kk_mutable_list_sortBy",
             "__kk_mutable_list_sortByDescending",

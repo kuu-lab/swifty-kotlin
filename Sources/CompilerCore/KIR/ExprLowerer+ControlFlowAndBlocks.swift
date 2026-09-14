@@ -457,7 +457,27 @@ extension ExprLowerer {
                     }
                 }
             }
-            if let symbol = sema.bindings.identifierSymbols[exprID] {
+            if let boundIdentifierSymbol = sema.bindings.identifierSymbols[exprID] {
+                // A bare `ClassName` value expression (not `ClassName.member()`,
+                // which resolves through ordinary member lookup) that names a
+                // class/interface/enum with a companion object is, per Kotlin's
+                // own semantics, a reference to that companion object's
+                // singleton instance -- the class symbol itself carries no
+                // runtime value. Sema types this expression as the class's
+                // nominal type (see ExprTypeChecker+NameLambdaAndCallableRefInference
+                // .resolveTypeForCandidate) precisely so `ClassName.member()`
+                // keeps resolving, but `identifierSymbols` still names the
+                // class; redirect to the companion here so the branches below
+                // (which key off `symbol.kind`) see the object, not the class.
+                let symbol: SymbolID = {
+                    if let symInfo = sema.symbols.symbol(boundIdentifierSymbol),
+                       symInfo.kind == .class || symInfo.kind == .interface || symInfo.kind == .enumClass,
+                       let companionSymbol = sema.symbols.companionObjectSymbol(for: boundIdentifierSymbol)
+                    {
+                        return companionSymbol
+                    }
+                    return boundIdentifierSymbol
+                }()
                 if driver.ctx.isMutableCaptureBoxed(symbol),
                    let loadedValue = loadMutableCaptureCellValue(
                        symbol: symbol,

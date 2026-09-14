@@ -497,8 +497,9 @@ struct BundledDeclarationIndex: Sendable {
         // KSP-421/422 source-backed HOFs no longer need a retained runtime bridge.
         // KSP-423/424 source-backed search/predicate/access HOFs (find, indexOf,
         // contains, any, all, none, count, first, last, single) are source-bound.
-        case "shuffled":
-            return key.arity == 0 || key.arity == 1
+        // KSP-1511: shuffled/shuffled(Random) moved off the kk_list_shuffled(_random)
+        // runtime bridge onto ListSortingHOF.kt (which now special-cases
+        // Random.Default the same way MutableList.shuffle(random) already did).
         default:
             return false
         }

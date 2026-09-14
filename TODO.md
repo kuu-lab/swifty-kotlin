@@ -396,13 +396,14 @@
   - diff: `list_random*.kt` 既存 + `random(Random(7))` 決定値ケース、空リストの `randomOrNull`/例外ケース
   - 前提: KSP-685, KSP-1505, KSP-1506, KSP-1507, KSP-1508
 
-- [ ] KSP-1511: `List<E>` の `sorted`/`sortedDescending`/`shuffled`/`sum` を Kotlin 化し `HeaderHelpers+SyntheticListTransformMembers.swift` を削除する
+- [x] KSP-1511: `List<E>` の `sorted`/`sortedDescending`/`shuffled`/`sum` を Kotlin 化し `HeaderHelpers+SyntheticListTransformMembers.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticListTransformMembers.swift`（KSP-1510 完了後の残余。`sum`/`distinctBy` を含むファイル冒頭コメントの「not yet source-backed」分）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/ListSortingHOF.kt` / `ListAggregateHOF.kt` 追記
   - 削除/降格 kk_*: `kk_list_sorted`, `kk_list_sortedDescending`, `kk_list_shuffled`, `kk_list_shuffled_random` + 着手時 `rg -o '@_cdecl\("kk_list_(sum|distinctBy)[a-zA-Z0-9_]*"\)' Sources/Runtime`
   - 手順: T
   - diff: `list_sorted*.kt` 既存 + `shuffled(Random(7))` 決定値ケース（KSP-CAP-011 の非回帰確認）、`sum` の Int/Long/Double ケース
   - 前提: KSP-685, KSP-1510
+  - 完了根拠（2026-09-14）: `sorted`/`sortedDescending` は既に bundled source 優先で dead だった合成登録を削除。`shuffled`/`shuffled(Random)` は `BundledDeclarationIndex` の KSP-426 由来 retained-overlap 特例と `CollectionLiteralLoweringPass` の list-literal fast-path rewrite を撤去して bundled source (`ListSortingHOF.kt`) に一本化し、`KIRLoweringDriver` 側の「List receiver の shuffled は本体を emit しない」特例も削除。`kk_list_shuffled`/`kk_list_shuffled_random` の `@_cdecl` を Runtime から削除（RuntimeABISpec エントリは KSP-426 方式で spec-only として存置）。副産物として2件のランタイムバグを本PR内で修正: (1) `kk_list_shuffled_random` が seed 付き `Random` を無視して常にシステム乱数を使っていた既知バグ（source 化により解消、`list_shuffled_seeded.kt` で kotlinc 実機と bit-exact 確認）、(2) コンパニオンを持つクラス名を裸の値として渡す式（`shuffled(Random)` 等）が KIR 上でクラスシンボルをそのまま参照し vtable lookup で invalid receiver (0x0) panic するバグ（`ExprLowerer+ControlFlowAndBlocks.swift` でコンパニオンシンボルへリダイレクト）。`sum` は BUG-256 (#6793) で既に Int/Long/Double 含む全数値型対応済みのため今回追加実装なし。検証: `ListSyntheticMemberLinkTests`/`ABIMismatchTests`/`ABIMismatchRuntimeExportParityTests`/`ListSortExtremaLoweringRoutingTests`/`CodegenBackendListSortExtremaTests`/`CollectionLiteralLoweringTests` 全パス、`validate_runtime_abi_links.sh` パス、`diff_kotlinc.sh` で shuffled/sorted/sum/Random 系19ケース全パス（回帰前は `list_shuffled_random.kt` が vtable panic で FAIL）。
 
 - [ ] KSP-1517: `booleanArrayOf`/`byteArrayOf`/`charArrayOf`/`doubleArrayOf`/`floatArrayOf`/`intArrayOf`/`longArrayOf`/`shortArrayOf` と unsigned 版 factory を Kotlin 化し `HeaderHelpers+SyntheticArrayStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`（`*ArrayOf` factory + class shell。KSP-1514〜1516 完了後の残余）

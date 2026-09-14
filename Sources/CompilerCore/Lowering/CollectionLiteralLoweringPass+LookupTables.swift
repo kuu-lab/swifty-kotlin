@@ -115,14 +115,10 @@ struct CollectionLiteralLookupTables {
     var kkListMaxOfWithOrNullName: InternedString { listLookup.kkListMaxOfWithOrNullName }
     var kkListMinOfWithName: InternedString { listLookup.kkListMinOfWithName }
     var kkListMinOfWithOrNullName: InternedString { listLookup.kkListMinOfWithOrNullName }
-    var kkListSortedName: InternedString { listLookup.kkListSortedName }
-    var kkListShuffledName: InternedString { listLookup.kkListShuffledName }
-    var kkListShuffledRandomName: InternedString { listLookup.kkListShuffledRandomName }
     var kkListChunkedBridgeName: InternedString { listLookup.kkListChunkedBridgeName }
     var kkListChunkedTransformBridgeName: InternedString { listLookup.kkListChunkedTransformBridgeName }
     var kkListWindowedBridgeName: InternedString { listLookup.kkListWindowedBridgeName }
     var kkListWindowedTransformBridgeName: InternedString { listLookup.kkListWindowedTransformBridgeName }
-    var kkListSortedDescendingName: InternedString { listLookup.kkListSortedDescendingName }
     var kkListSortedByDescendingName: InternedString { listLookup.kkListSortedByDescendingName }
     var kkListSortedWithName: InternedString { listLookup.kkListSortedWithName }
     var kkListPartitionName: InternedString { listLookup.kkListPartitionName }
