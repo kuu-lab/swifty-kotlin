@@ -3362,16 +3362,10 @@
     - `kotlin.text.removeSurrounding` — fun CharSequence.removeSurrounding(CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/removeSurrounding(kotlin/CharSequence): kotlin/CharSequence`
     - `kotlin.text.removeSurrounding` — fun CharSequence.removeSurrounding(CharSequence, CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/removeSurrounding(kotlin/CharSequence, kotlin/CharSequence): kotlin/CharSequence`
 
-- [~] KSP-1394: kotlin.text.CharSequence.repeat-family の未実装 stdlib API を実装する（1 件）
-  - 実装中: `CharSequence.repeat(Int): String` を Kotlin source に追加。#6697 stable head を基点とし、全体 G はこの PR head で未完了。
+- [x] KSP-1394: kotlin.text.CharSequence.repeat-family の未実装 stdlib API を実装する（1 件）
+  - **2026-09-15 実装メモ**: 着手時に前提を確認したところ、`CharSequence.repeat(Int): String` の Kotlin source 実装・golden テスト・diff ケースは #6706（PR "KSP-1394: add CharSequence.repeat"、2026-09-12 merge）で既に完了済みだった。本チケットが `[~]` のまま残っていたのは、#6706 が「bridge/stub 整理」ステップを積み残していたため（TODO.md 上のマーカーも `[~]` のまま更新されていなかった）。本 PR ではその残作業のみを実施: 呼び出し不能になっていた `kk_string_repeat_flat`（Runtime `@_cdecl` / `RuntimeABISpec` エントリ / `NativeEmitter` の `FlatStringReturnCallSpec` 登録、および専用ユニットテスト）を削除。実コンパイルパスで `kk_string_repeat_flat` を参照する箇所が `Sources/CompilerCore` 配下に存在しないことを確認済み（`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` の `"repeat"` を含む no-candidate fallback ケースラベルは take/drop 等と同様の既存の残存デッドコードのため、本チケットのスコープでは変更していない）。`kk_string_padStart_flat`/`kk_string_padEnd_flat` にも同型の未整理が残っているが、それは KSP-1390 のスコープなので本 PR では触っていない。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `repeat`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_repeat.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_repeat.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_repeat.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.text.repeat` — fun CharSequence.repeat(Int): String  -- `final fun (kotlin/CharSequence).kotlin.text/repeat(kotlin/Int): kotlin/String`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`（#6706 で追加済み）
 
 - [ ] KSP-1395: kotlin.text.CharSequence.replace-family の未実装 stdlib API を実装する（5 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `replace`
