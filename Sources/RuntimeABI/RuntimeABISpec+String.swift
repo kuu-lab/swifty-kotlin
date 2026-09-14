@@ -230,22 +230,8 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_repeat_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "countRaw", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outThrown", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
+        // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its flat
+        // ABI entry was removed.
         // KSP-407: substringBefore/After/BeforeLast/AfterLast and
         // replaceBefore/After/BeforeLast/AfterLast are bundled Kotlin source
         // (StringSearchReplace.kt); their flat ABI entries were removed.

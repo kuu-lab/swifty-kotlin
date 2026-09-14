@@ -1069,20 +1069,8 @@ struct RuntimeStringArrayTests {
 
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
-
-    @Test
-    func testStringRepeatFlatFunction() {
-        #expect(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat) == "")
-        #expect(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat) == "ababab")
-        #expect(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat) == "éé")
-    }
-
-    @Test
-    func testStringRepeatFlatNegativeThrowsIllegalArgumentException() {
-        var thrown = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
-        #expect(thrown != 0, "kk_string_repeat_flat(-1) should set outThrown")
-    }
+    // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its
+    // runtime bridge and direct tests were removed.
 
     @Test
     func testStringReplaceSupportsLiteralReplacement() {
