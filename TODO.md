@@ -119,9 +119,15 @@
     - dispatcher（`+VirtualCallRewrite.swift`）の callsite は `state: &state` 直渡しに変更 — STATE-004 が畳んだ境界をそのまま使い、葉側の引数列だけを更新。Array 以外の葉（Sequence / ListHOF / Property / Range / File）は未着手（STATE-006〜008 の範囲）。
     - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。STATE-004 未適用の master では dispatcher に `state` 引数がなく本変更は成立しないため、ベースを `claude/rf-lower-state-004` に設定。
     - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（array virtual-call の4ケース含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 分類操作を同値の API 呼び出しへ置き換えただけで CI に委ねた。
-- [ ] RF-LOWER-STATE-006: Range virtual-callの重なる分類をstate APIへ寄せる（前提: STATE-004）
+- [x] RF-LOWER-STATE-006: Range virtual-callの重なる分類をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Range.swift` と対応テストのみ。Range / CharRange / ULongRangeを排他的な一種類へ潰さない。
   - 完了条件: `step` / `reversed` / iterator経由で必要な複合factsが維持され、境界値・unsigned・copy経路を固定する。rangeのruntime実装は変えない。
+  - 完了根拠（配線のみ。emit する KIR・callee 選択・copy 配置は一切不変）:
+    - `rewriteRangeVirtualCall` の4つの集合引数（`rangeExprIDs` / `charRangeExprIDs` / `ulongRangeExprIDs` / `listExprIDs` の `inout Set<Int32>`）を `state: inout CollectionRewriteState` 1個へ畳んだ。dispatcher の callsite は `state: &state` 直渡し。
+    - 複合 facts は維持: `isCharRange` / `isULongRange` は `state.contains(.charRange/.ulongRange, receiver)` から導出（同一 receiver が `.range` と特殊化分類を併存させる構造はそのまま）。`reversed()` の伝播も `state.insert(.range/.charRange/.ulongRange, result)` の条件付き insert として同一条件を保持（潰さない・排他化しない）。
+    - 結果 tag 付け: `if let result { listExprIDs.insert(result.rawValue) }` → `state.tagListResult(result)`（nil ガード同値）。HOF 系は `state.insert(.list, hofResult)` + `state.tagListResult(result)` — `hofResult` は `emitHOFCall` 戻り値で従来どおり無条件 insert、result は nil ガード付き。range/charRange/ulongRange の callee 選択ロジック（isUIntRange/isLongRange 含む）は未変更。
+    - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。ベースは `claude/rf-lower-state-004`。
+    - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（range 系の `testRangeEndExclusiveRewrittenToKkRangeEndExclusive` / `testRangeAsReversedIsNotRewrittenToKkRangeReversed` 等を含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 同値 API 置換のみのため CI に委ねた。
 - [ ] RF-LOWER-STATE-007: Sequence virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Sequence.swift` と対応テストのみ。既存のsource / runtime経路選択はまだ変更しない。
   - 完了条件: Sequence / Iterator関連の結果tagとcopy後の判断が不変。静的なSequence型をruntime handleの証拠として新たに登録しない。

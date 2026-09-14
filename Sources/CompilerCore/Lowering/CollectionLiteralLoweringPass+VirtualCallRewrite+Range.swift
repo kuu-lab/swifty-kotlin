@@ -16,15 +16,12 @@ extension CollectionVirtualCallRewriteLoweringPass {
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
         interner: StringInterner,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        listExprIDs: inout Set<Int32>,
+        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        guard rangeExprIDs.contains(receiver.rawValue) else { return false }
-        let isCharRange = charRangeExprIDs.contains(receiver.rawValue)
-        let isULongRange = ulongRangeExprIDs.contains(receiver.rawValue)
+        guard state.contains(.range, receiver) else { return false }
+        let isCharRange = state.contains(.charRange, receiver)
+        let isULongRange = state.contains(.ulongRange, receiver)
         let isUIntRange = sema.map { module.arena.exprType(receiver) == $0.types.uintType } ?? false
         let isLongRange = sema.map { module.arena.exprType(receiver) == $0.types.longType } ?? false
         // step — simple property access (STDLIB-RANGE-037)
@@ -132,7 +129,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 arguments: [receiver], result: result,
                 canThrow: false, thrownResult: nil
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -173,8 +170,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
 
@@ -190,8 +187,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.mapNotNullName, arguments.count == 1, !isUIntRange {
@@ -205,8 +202,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.filterName, arguments.count == 1, !isUIntRange {
@@ -220,8 +217,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.filterIndexedName, arguments.count == 1, !isUIntRange {
@@ -235,8 +232,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.filterNotName, arguments.count == 1, !isUIntRange {
@@ -250,8 +247,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 origThrownResult: origThrownResult, module: module,
                 loweredBody: &loweredBody
             )
-            listExprIDs.insert(hofResult.rawValue)
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.insert(.list, hofResult)
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.reduceName, arguments.count == 1 {
@@ -431,7 +428,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.windowedName, arguments.count == 3 {
@@ -441,7 +438,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 arguments: [receiver] + arguments, result: result,
                 canThrow: true, thrownResult: origThrownResult
             ))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -461,7 +458,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
             loweredBody.append(.call(symbol: nil, callee: takeName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.dropName, arguments.count == 1 {
@@ -479,7 +476,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
             loweredBody.append(.call(symbol: nil, callee: dropName,
                 arguments: [receiver] + arguments, result: result, canThrow: true, thrownResult: origThrownResult))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
         if callee == lookup.averageName, arguments.isEmpty {
@@ -512,7 +509,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
             loweredBody.append(.call(symbol: nil, callee: sortedName,
                 arguments: [receiver], result: result, canThrow: false, thrownResult: nil))
-            if let result { listExprIDs.insert(result.rawValue) }
+            state.tagListResult(result)
             return true
         }
 
@@ -527,11 +524,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 canThrow: false, thrownResult: nil
             ))
             if let result {
-                rangeExprIDs.insert(result.rawValue)
+                state.insert(.range, result)
                 // Propagate char range through reversed() (STDLIB-290)
-                if isCharRange { charRangeExprIDs.insert(result.rawValue) }
+                if isCharRange { state.insert(.charRange, result) }
                 // Propagate ULong range through reversed() (STDLIB-524)
-                if isULongRange { ulongRangeExprIDs.insert(result.rawValue) }
+                if isULongRange { state.insert(.ulongRange, result) }
             }
             return true
         }
