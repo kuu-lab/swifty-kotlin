@@ -377,6 +377,102 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-1517: `Array<T>` and the primitive array types (`BooleanArray`,
+    /// `ByteArray`, ...) are source-backed nominal shells in
+    /// `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
+    /// `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
+    /// before the normal bundled header collection pass. Predeclare those
+    /// nominals so those signatures resolve without a synthetic array
+    /// anchor.
+    ///
+    /// Configurations with neither bundled stdlib source nor a merged
+    /// library import (e.g. `--no-stdlib`) never get a real declaration for
+    /// these names at all, so a bare synthetic shell is defined as a
+    /// fallback for whichever name is still unresolved afterward -- matching
+    /// what the deleted `HeaderHelpers+SyntheticArrayStubs.swift` did
+    /// unconditionally, but only as a last resort now.
+    func predeclareBundledArrayHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        types: TypeSystem,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let arrayIntrinsicsPath = "__bundled_kotlin/ArrayIntrinsics.kt"
+        let kotlinPkg = [interner.intern("kotlin")]
+        let arrayClassNames = [
+            "Array", "BooleanArray", "ByteArray", "CharArray", "DoubleArray",
+            "FloatArray", "IntArray", "LongArray", "ShortArray", "UByteArray",
+            "UShortArray", "UIntArray", "ULongArray",
+        ].map { interner.intern($0) }
+
+        for file in ast.sortedFiles
+            where sourceManager.origin(of: file.fileID)?.isBundledStdlib == true
+                && sourceManager.path(of: file.fileID) == arrayIntrinsicsPath
+                && file.packageFQName == kotlinPkg
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else {
+                continue
+            }
+            if symbols.lookup(fqName: kotlinPkg + [arrayClassNames[0]]) != nil {
+                // An imported stdlib artifact already owns the nominal. Do not
+                // predeclare the bundled source over that imported layout.
+                continue
+            }
+            predeclareNominalTypeHeaders(
+                file: file,
+                ast: ast,
+                symbols: symbols,
+                scope: fileScope,
+                sourceManager: sourceManager,
+                diagnostics: diagnostics,
+                interner: interner,
+                into: &predeclared
+            )
+        }
+        let arrayFQName = kotlinPkg + [interner.intern("Array")]
+        let arraySymbol: SymbolID = if let existing = symbols.lookup(fqName: arrayFQName) {
+            existing
+        } else {
+            symbols.define(
+                kind: .class,
+                name: interner.intern("Array"),
+                fqName: arrayFQName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+        if types.nominalTypeParameterSymbols(for: arraySymbol).isEmpty {
+            let tParamName = interner.intern("T")
+            let tParamSymbol = symbols.lookup(fqName: arrayFQName + [tParamName]) ?? symbols.define(
+                kind: .typeParameter,
+                name: tParamName,
+                fqName: arrayFQName + [tParamName],
+                declSite: nil,
+                visibility: .private,
+                flags: []
+            )
+            types.setNominalTypeParameterSymbols([tParamSymbol], for: arraySymbol)
+            types.setNominalTypeParameterVariances([.invariant], for: arraySymbol)
+        }
+        for name in arrayClassNames where name != arrayClassNames[0] {
+            let fqName = kotlinPkg + [name]
+            guard symbols.lookup(fqName: fqName) == nil else { continue }
+            _ = symbols.define(
+                kind: .class,
+                name: name,
+                fqName: fqName,
+                declSite: nil,
+                visibility: .public,
+                flags: [.synthetic]
+            )
+        }
+    }
+
     /// KSP-711: forward-declares `Charset` and `Charsets` from
     /// `StringEncoding.kt` before synthetic FileIO bridges are registered.
     /// Their source symbols must be available while bridge signatures are
