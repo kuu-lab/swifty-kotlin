@@ -4,7 +4,7 @@
 // bridge is the build-time constant injection of the targeted Kotlin version.
 //
 // The target version must stay in sync with the rest of the toolchain
-// (`kotlinLanguageVersion` in CodegenPhase / LibraryDiscovery, README, CLAUDE.md,
+// (`kotlinLanguageVersion` in CodegenPhase / LibraryDiscovery, README, AGENTS.md,
 // and `KOTLIN_VERSION` in .github/workflows/ci.yml).
 public let kotlinTargetVersion = (major: 2, minor: 3, patch: 10)
 
