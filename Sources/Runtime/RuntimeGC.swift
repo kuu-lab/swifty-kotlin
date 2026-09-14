@@ -129,6 +129,13 @@ let kkObjMarkFlag: UInt32 = 1 << 0
 
 private let runtimeGCDefaultTargetHeapBytes = 100 * 1024 * 1024
 
+// KSP-1263 defaults: this runtime processes finalizers synchronously during
+// `kk_gc_collect` rather than dispatching batches to the main thread, so
+// these knobs are tunable state without an independent scheduler backing them.
+private let runtimeGCDefaultMainThreadFinalizerBatchSize = 100
+private let runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs = 10_000_000 // 10ms
+private let runtimeGCDefaultMainThreadFinalizerMinTimeBetweenTasksNs = 0
+
 private final class RuntimeGCTuningState: @unchecked Sendable {
     private let lock = NSLock()
     private var targetHeapBytes = runtimeGCDefaultTargetHeapBytes
@@ -137,6 +144,9 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         runtimeGCDefaultTargetHeapBytes,
         Int(clamping: ProcessInfo.processInfo.physicalMemory)
     )
+    private var mainThreadFinalizerProcessorBatchSize = runtimeGCDefaultMainThreadFinalizerBatchSize
+    private var mainThreadFinalizerProcessorMaxTimeInTaskNs = runtimeGCDefaultMainThreadFinalizerMaxTimeInTaskNs
+    private var mainThreadFinalizerProcessorMinTimeBetweenTasksNs = runtimeGCDefaultMainThreadFinalizerMinTimeBetweenTasksNs
 
     func currentTargetHeapBytes() -> Int {
         lock.lock()
@@ -154,6 +164,42 @@ private final class RuntimeGCTuningState: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return maxHeapBytes
+    }
+
+    func currentMainThreadFinalizerProcessorBatchSize() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorBatchSize
+    }
+
+    func setMainThreadFinalizerProcessorBatchSize(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorBatchSize = value
+    }
+
+    func currentMainThreadFinalizerProcessorMaxTimeInTaskNs() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorMaxTimeInTaskNs
+    }
+
+    func setMainThreadFinalizerProcessorMaxTimeInTaskNs(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorMaxTimeInTaskNs = value
+    }
+
+    func currentMainThreadFinalizerProcessorMinTimeBetweenTasksNs() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return mainThreadFinalizerProcessorMinTimeBetweenTasksNs
+    }
+
+    func setMainThreadFinalizerProcessorMinTimeBetweenTasksNs(_ value: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        mainThreadFinalizerProcessorMinTimeBetweenTasksNs = value
     }
 }
 
@@ -210,6 +256,55 @@ public func kk_gc_target_heap_utilization() -> Double {
 @_cdecl("kk_gc_max_heap_bytes")
 public func kk_gc_max_heap_bytes() -> Int {
     runtimeGCTuningState.currentMaxHeapBytes()
+}
+
+// KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
+// This target always processes finalizers, so `available` is unconditionally
+// true; the remaining members are plain tunable state (see the state comment
+// above `RuntimeGCTuningState`).
+@_cdecl("kk_gc_main_thread_finalizer_processor_available")
+public func kk_gc_main_thread_finalizer_processor_available(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return 1
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_batch_size_load")
+public func kk_gc_main_thread_finalizer_processor_batch_size_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorBatchSize()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_batch_size_store")
+public func kk_gc_main_thread_finalizer_processor_batch_size_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorBatchSize(value)
+    return 0
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_max_time_in_task_load")
+public func kk_gc_main_thread_finalizer_processor_max_time_in_task_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorMaxTimeInTaskNs()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_max_time_in_task_store")
+public func kk_gc_main_thread_finalizer_processor_max_time_in_task_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorMaxTimeInTaskNs(value)
+    return 0
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_min_time_between_tasks_load")
+public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_load(_ receiverRaw: Int) -> Int {
+    _ = receiverRaw
+    return runtimeGCTuningState.currentMainThreadFinalizerProcessorMinTimeBetweenTasksNs()
+}
+
+@_cdecl("kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store")
+public func kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store(_ receiverRaw: Int, _ value: Int) -> Int {
+    _ = receiverRaw
+    runtimeGCTuningState.setMainThreadFinalizerProcessorMinTimeBetweenTasksNs(value)
+    return 0
 }
 
 // (a) RF-DEAD-002: 配線予定 → GC global root API (CInterop / native global 変数サポート)
