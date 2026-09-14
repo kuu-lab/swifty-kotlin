@@ -17,7 +17,7 @@ suite that covers all of Sema, and reaching for the whole-repo diff gate instead
 tens of minutes without covering anything more.
 
 Command syntax, environment variables, and golden-update flags are in
-[`CLAUDE.md`](../../../CLAUDE.md) and [`AGENTS.md`](../../../AGENTS.md).
+[`AGENTS.md`](../../../AGENTS.md).
 
 ## Standard gate
 
@@ -33,7 +33,7 @@ bash Scripts/validate_runtime_abi_links.sh -Xswiftc -swift-version -Xswiftc 6
 - `validate_runtime_abi_links.sh` is a thin wrapper that `exec`s `swift_test.sh` with
   `--filter RuntimeABIExternalLinkValidationTests` and forwards `"$@"`, which is why the
   language-mode flags work on it.
-- `-Xswiftc -swift-version -Xswiftc 6` is what [`CLAUDE.md`](../../../CLAUDE.md)
+- `-Xswiftc -swift-version -Xswiftc 6` is what [`AGENTS.md`](../../../AGENTS.md)
   recommends for matching CI. `Package.swift` already sets `swiftLanguageModes: [.v6]`, so
   it is belt-and-braces rather than load-bearing; the flags CI adds that a local run does
   not are `-Xswiftc -strict-concurrency=complete -Xswiftc -warn-concurrency`
@@ -63,5 +63,5 @@ the shape, not a fixed set.
 A test-only Sema consolidation usually needs no `diff_kotlinc.sh` run at all: it cannot
 change emitted code. Run it when the PR also carries a source fix to Sema lookup or
 overload resolution, since that can change which declaration a call site binds to — and
-whenever the PR is RF-tagged, where [`CLAUDE.md`](../../../CLAUDE.md)'s refactor gate
+whenever the PR is RF-tagged, where [`AGENTS.md`](../../../AGENTS.md)'s refactor gate
 mandates the full directory regardless. Delegate that run; don't wait on it.
