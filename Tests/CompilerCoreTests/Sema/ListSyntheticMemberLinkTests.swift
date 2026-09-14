@@ -384,7 +384,7 @@ struct ListSyntheticMemberLinkTests {
             let linkedHashSetInfo = try #require(sema.symbols.symbol(linkedHashSetSymbol))
             #expect(linkedHashSetInfo.kind == .class)
             // KSP-627: `kotlin.collections.LinkedHashSet` is source-backed by
-            // `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt`.
+            // `Sources/CompilerCore/Stdlib/kotlin/collections/LinkedHashSet.kt`.
             #expect(!linkedHashSetInfo.flags.contains(.synthetic))
             #expect(linkedHashSetInfo.flags.contains(.openType))
             #expect(sema.symbols.directSupertypes(for: linkedHashSetSymbol).contains(mutableSetSymbol))
@@ -3266,7 +3266,7 @@ struct ListSyntheticMemberLinkTests {
         #expect(!linkedHashSetIteratorInfo.flags.contains(.synthetic))
         #expect(sema.symbols.parentSymbol(for: linkedHashSetIterator) == linkedHashSetSymbol)
         let linkedHashSetIteratorFileID = try #require(sema.symbols.sourceFileID(for: linkedHashSetIterator))
-        #expect(ctx.sourceManager.path(of: linkedHashSetIteratorFileID) == "__bundled_kotlin/collections/CollectionAliases.kt")
+        #expect(ctx.sourceManager.path(of: linkedHashSetIteratorFileID) == "__bundled_kotlin/collections/LinkedHashSet.kt")
         #expect(sema.symbols.externalLinkName(for: linkedHashSetIterator) == nil)
         let linkedHashSetIteratorSignature = try #require(sema.symbols.functionSignature(for: linkedHashSetIterator))
         guard case let .classType(linkedHashSetIteratorReturnType) = sema.types.kind(of: linkedHashSetIteratorSignature.returnType) else {
