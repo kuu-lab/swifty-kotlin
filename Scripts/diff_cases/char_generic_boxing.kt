@@ -42,4 +42,15 @@ fun main() {
     println(l.filterNotNull())
 
     println(passThroughList(listOf('x', 'y')))
+
+    val l2: MutableList<Char?> = mutableListOf()
+    l2.add(null)
+    l2.add('a')
+    l2.add(null)
+    l2.add('b')
+    println(l2)
+    println(l2.filterNotNull())
+    println(l2.indexOf(null))
+    println(null in l2)
+    println(passThroughList(l2))
 }
