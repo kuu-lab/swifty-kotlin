@@ -88,6 +88,34 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 同じPRのスコープや安全な修正方針を超えて修正できない場合は、**Linear**（team `Kuu` / project「バグバックログ (BUG)」/ label `Bug`）に症状・最小再現・調査結果・修正しない理由を添えて起票し、issue リンクを PR description に記載する。**TODO.md には追加しない**（複数セッションが同じ挿入位置に書き込み、マージコンフリクトの最大要因になっていたため 2026-09-14 に廃止）。
 
+## スタック PR
+
+依存関係のある PR を積むとき（base を master 以外の PR ブランチにするとき）は、`gh pr create --base <branch>` を個別に並べず、GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/how-tos/stacked-pull-requests) を `gh stack`（公式拡張）で使う。GitHub 上でスタックとして表示され、下から順の原子的マージと、下の PR が merge されたときの上位 PR の base 自動付け替えが効く。
+
+前提: `gh extension install github/gh-stack`（gh 2.90 以上）。
+
+```bash
+# 新規: 一番下のブランチから積む
+gh stack init <bottom-branch>             # trunk は既定ブランチ（master）
+git commit ...                            # 通常どおりコミット
+gh stack add <next-branch>                # 上に 1 層追加（-Am "msg" でコミットも同時に）
+gh stack submit --open                    # 全ブランチを push し PR 作成 + スタック化。--auto / 非対話は draft 既定なので --open 必須
+
+# 既存ブランチ / 既存 PR を積む（下 → 上の順。ブランチ名・PR 番号・PR URL 可）
+gh stack link --open <bottom> <next> ...  # 連鎖に合わない既存 PR の base は自動修正。PR 番号指定なら push は発生しない
+
+# 確認・更新・マージ
+gh stack view                             # ブランチと PR 状態（⚠ は要 rebase）
+gh stack sync                             # fetch → 連鎖 rebase → --force-with-lease push。他者も push するブランチでは事前に調整する
+gh stack merge                            # 下から順に原子的マージ
+```
+
+- スタックは一直線のみ。1 つの PR を複数 PR の base にする扇型（fan-out）や、1 PR の複数スタック所属はできない。同じ base に並列で出したいものは依存順に 1 本に連ねるか、独立した PR にする
+- 必須チェック・必須レビュー・CODEOWNERS はすべての層で master（スタックの base）に対して評価され、CI は PR ごとに走る
+- 下の PR が先に merge されていたら、手で cherry-pick し直さず `gh stack sync` で追従する
+- merge queue 投入済み（queued for merge）や auto-merge 有効の PR はスタックに追加できず、`gh stack link` が exit 5 で止まる。その PR の merge を待ってから残りを `link` する
+- スタック化する前に下の PR が squash merge されていて、上のブランチに元コミットが残っている場合、通常の rebase はそのコミットを再適用しようとして衝突する。`git rebase --onto <新 base> <旧 base の tip> <branch>` で自分のコミットだけを載せ替える
+- `gh stack checkout` / `init` / `add` は現在の worktree のブランチを切り替える。他の作業を抱えた worktree では実行しない
 
 ## アーキテクチャ概要
 
