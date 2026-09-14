@@ -21,7 +21,7 @@ EOF
 chmod +x "$TEST_DIR/bin/swift" "$TEST_DIR/bin/uname"
 
 run_wrapper() {
-    env -u SWIFT_TEST_WORKERS -u SWIFT_TEST_PARALLEL \
+    env -u SWIFT_TEST_WORKERS \
         -u SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH \
         -u SWIFT_ENABLE_COMPILE_CACHE -u SWIFT_ENABLE_CACHE_REMARKS \
         -u GITHUB_ACTIONS -u SWIFT_TEST_PRODUCT -u SWIFT_BUILD_SYSTEM \
@@ -63,16 +63,23 @@ run_wrapper SWIFT_TEST_WORKERS=3 bash "$wrapper" --experimental-maximum-parallel
 expect_line width=unset
 expect_line arg=--experimental-maximum-parallelization-width=6
 
-# Keep default and discovery behavior, and pass serialization to the runner.
+# Keep default and discovery behavior. Parallel is the default; --list-tests
+# style invocations don't support the flag at all.
 run_wrapper bash "$wrapper"
 expect_line width=unset
+expect_line arg=--parallel
 run_wrapper SWIFT_TEST_WORKERS=3 bash "$wrapper" list
 expect_line width=unset
 reject_line arg=--parallel
-run_wrapper SWIFT_TEST_WORKERS=3 SWIFT_TEST_PARALLEL=0 bash "$wrapper"
+
+# Explicit --no-parallel is honored as-is and skips --num-workers.
+run_wrapper SWIFT_TEST_WORKERS=3 bash "$wrapper" --no-parallel
 expect_line arg=--no-parallel
 reject_line arg=--parallel
-run_wrapper SWIFT_TEST_WORKERS=3 SWIFT_TEST_PARALLEL=0 bash "$wrapper" --parallel
+reject_line arg=--num-workers
+
+# Explicit --parallel is passed through without being duplicated.
+run_wrapper SWIFT_TEST_WORKERS=3 bash "$wrapper" --parallel
 expect_line arg=--parallel
 reject_line arg=--no-parallel
 
@@ -87,6 +94,7 @@ expect_line 'error: SWIFT_TEST_WORKERS must be a positive integer'
 printf 'import XCTest\n' > "$TEST_DIR/repo/Tests/Example.swift"
 run_wrapper SWIFT_TEST_WORKERS=3 bash "$wrapper"
 expect_line width=3
+expect_line arg=--parallel
 expect_line arg=--num-workers
 expect_line arg=3
 
