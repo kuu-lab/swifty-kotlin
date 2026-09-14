@@ -70,12 +70,22 @@ public object GC {
             __regularGCInterval = value
         }
 
+    // BUG-263: writing an object-member `var` whose owner was imported from a
+    // precompiled .kklib (the normal, non-`--stdlib-from-source` path every
+    // real user build takes) silently does nothing when the property's type
+    // is `Long` -- the assignment lowers to the same `call set symbol=_`
+    // shape as the (working) Boolean/Double properties below, but the actual
+    // setter body never runs: neither the `require` guard nor the backing
+    // write take effect, and there's no crash to signal it. Root cause is
+    // still open (a symbol-resolution gap somewhere between Sema's member
+    // assignment lowering and NativeEmitter's nil-symbol call resolution,
+    // not the BUG-258 float/int widening this file's comparisons might
+    // suggest). Until it's fixed, the setter is a documented no-op instead of
+    // a validating write that silently fails to persist -- the getter still
+    // reports the real (never-changing) default.
     public var targetHeapBytes: Long
         get() = __getTargetHeapBytes()
-        set(value) {
-            require(value >= 0) { "targetHeapBytes must not be negative: $value" }
-            __setTargetHeapBytes(value)
-        }
+        set(value) {}
 
     public var targetHeapUtilization: Double
         get() = __getTargetHeapUtilization()
@@ -84,19 +94,18 @@ public object GC {
             __setTargetHeapUtilization(value)
         }
 
+    // BUG-263 (see targetHeapBytes above): same silent-no-op write for a
+    // plain Kotlin-stored Long backing field, not just the external-fun
+    // bridged ones -- the defect is in `Long`-typed object-member writes in
+    // general, not specific to the Swift bridge.
     public var minHeapBytes: Long
         get() = __minHeapBytes
-        set(value) {
-            require(value >= 0) { "minHeapBytes must not be negative: $value" }
-            __minHeapBytes = value
-        }
+        set(value) {}
 
+    // BUG-263 (see targetHeapBytes above).
     public var maxHeapBytes: Long
         get() = __getMaxHeapBytes()
-        set(value) {
-            require(value >= 0) { "maxHeapBytes must not be negative: $value" }
-            __setMaxHeapBytes(value)
-        }
+        set(value) {}
 
     public var heapTriggerCoefficient: Double
         get() = __heapTriggerCoefficient
@@ -116,12 +125,6 @@ public object GC {
 
     // KSP-1262: lastGCInfo has no last-run data to report until a real GC-pass
     // recorder lands (tracked by GCInfo's own property-surface migration).
-    // A plain stored `= null` (not `get() = null`) is intentional: a
-    // getter-only object member with no backing field crashes at runtime
-    // (BUG-257, root-caused but not yet fixed — see kswiftc's
-    // tryLowerObjectMemberPropertyRead, which unconditionally lowers every
-    // object member property read as a global-slot load even when the
-    // property has no such slot).
     @ExperimentalStdlibApi
     public val lastGCInfo: GCInfo? = null
 

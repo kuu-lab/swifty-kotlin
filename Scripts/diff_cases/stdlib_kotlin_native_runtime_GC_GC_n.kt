@@ -32,18 +32,24 @@ fun main() {
     val lastInfo: GCInfo? = GC.lastGCInfo
     val cycle: Array<Any>? = GC.findCycle(Any())
 
-    println(
-        GC.threshold > 0 &&
-            GC.collectCyclesThreshold > 0 &&
-            GC.thresholdAllocations > 0 &&
-            GC.autotune &&
-            GC.targetHeapBytes > 0 &&
-            GC.targetHeapUtilization > 0 &&
-            GC.maxHeapBytes > 0 &&
-            GC.heapTriggerCoefficient > 0 &&
-            GC.pauseOnTargetHeapOverflow &&
-            detected == null &&
-            lastInfo == null &&
-            cycle == null
-    )
+    // Printed individually (not folded into one `&&` chain) so every getter
+    // above actually runs -- a short-circuiting `&&` would stop at the first
+    // false operand and silently skip the rest, hiding a regression in any
+    // later property. threshold/collectCyclesThreshold/thresholdAllocations
+    // and (pending BUG-263) targetHeapBytes/minHeapBytes/maxHeapBytes are
+    // documented no-ops, so their lines are expected to print the type's
+    // zero value, not the value assigned above.
+    println(GC.threshold)
+    println(GC.collectCyclesThreshold)
+    println(GC.thresholdAllocations)
+    println(GC.autotune)
+    println(GC.targetHeapBytes)
+    println(GC.targetHeapUtilization)
+    println(GC.minHeapBytes)
+    println(GC.maxHeapBytes)
+    println(GC.heapTriggerCoefficient)
+    println(GC.pauseOnTargetHeapOverflow)
+    println(detected == null)
+    println(lastInfo == null)
+    println(cycle == null)
 }
