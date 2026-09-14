@@ -96,9 +96,14 @@
     - Registry 側は STATE-003 で既に `state: inout CollectionRewriteState` を受ける入口（`lowerVirtualCallInstruction`）があり、そこで展開していた13引数を `state: &state` 直渡しに変更。未 rewrite 時の `loweredBody.append(instruction)` フォールバックは `run` ループ側にあり不変。
     - `+RewriteState.swift` の doc コメントを更新: 「dispatcher が13引数を要求するため stored property 必須」の記述は本PRで解消された制約なので、残る制約（葉の個別 `inout` 引数 → STATE-005〜008 で撤去後に STATE-010 が view 化）を指す形に直した。
     - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（virtual-call rewrite の24ケースと分類・copy伝播の契約を直接カバー）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 引数束ねのみの機械的変更で分類ロジックは1行も不変のため CI に委ねた。
-- [ ] RF-LOWER-STATE-005: Array virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004。CALL-013と同時編集しない）
+- [x] RF-LOWER-STATE-005: Array virtual-callの分類操作をstate APIへ寄せる（前提: STATE-004。CALL-013と同時編集しない）
   - 対象: `+VirtualCallRewrite+Array.swift` と対応テストのみ。dispatcherへの変更が必要ならSTATE-004との境界を先に調整する。
   - 完了条件: Array用の集合操作・結果tag付けが共通APIを使い、generic / primitive Arrayの分類と戻り値が不変。calleeやboxing規則の変更はしない。
+  - 完了根拠（配線のみ。emit する KIR・callee・copy 配置は一切不変）:
+    - `rewriteArrayVirtualCall` の3つの集合引数（`listExprIDs` / `arrayExprIDs` / `sequenceExprIDs` の `inout Set<Int32>`）を `state: inout CollectionRewriteState` 1個へ畳み、分類参照を `state.contains(.array, receiver)`、結果 tag 付けを `state.tagListResult(_:temporary:)` / `state.tagResult(.sequence, _)` へ置き換え。`tagListResult` は `result` 非 nil 時に result と temporary の両方へ insert するので従来の2行 insert と同値、`tagResult(.sequence, result)` は nil ガード込みで従来の `if let` insert と同値。
+    - dispatcher（`+VirtualCallRewrite.swift`）の callsite は `state: &state` 直渡しに変更 — STATE-004 が畳んだ境界をそのまま使い、葉側の引数列だけを更新。Array 以外の葉（Sequence / ListHOF / Property / Range / File）は未着手（STATE-006〜008 の範囲）。
+    - 前提の扱い: STATE-004（#6795）のブランチ上に積んだ stacked PR。STATE-004 未適用の master では dispatcher に `state` 引数がなく本変更は成立しないため、ベースを `claude/rf-lower-state-004` に設定。
+    - 検証（最小スコープ）: `swift build` green。`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter "CollectionRewriteStateTests|CollectionClassificationTests|CollectionLiteralLoweringTests"` で 3 suite / 90 テスト PASS（array virtual-call の4ケース含む）。**未実行**: 全 Swift テスト / `--filter Golden` / `bash Scripts/diff_kotlinc.sh` — 分類操作を同値の API 呼び出しへ置き換えただけで CI に委ねた。
 - [ ] RF-LOWER-STATE-006: Range virtual-callの重なる分類をstate APIへ寄せる（前提: STATE-004）
   - 対象: `+VirtualCallRewrite+Range.swift` と対応テストのみ。Range / CharRange / ULongRangeを排他的な一種類へ潰さない。
   - 完了条件: `step` / `reversed` / iterator経由で必要な複合factsが維持され、境界値・unsigned・copy経路を固定する。rangeのruntime実装は変えない。
@@ -1963,7 +1968,7 @@
     - `kotlin.native.concurrent.Worker.Companion.fromCPointer` — fun Companion.fromCPointer(CPointer): Worker  -- `final fun fromCPointer(kotlinx.cinterop/CPointer<out kotlinx.cinterop/CPointed>?): kotlin.native.concurrent/Worker`
     - `kotlin.native.concurrent.Worker.Companion.start` — fun Companion.start(Boolean, String): Worker  -- `final fun start(kotlin/Boolean = ..., kotlin/String? = ...): kotlin.native.concurrent/Worker`
 
-- [ ] KSP-1253: kotlin.native.concurrent.WorkerBoundReference.WorkerBoundReference の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1253: kotlin.native.concurrent.WorkerBoundReference.WorkerBoundReference の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.native.concurrent.WorkerBoundReference` / receiver `WorkerBoundReference`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1974,16 +1979,26 @@
     - `kotlin.native.concurrent.WorkerBoundReference.value` — val WorkerBoundReference.value: #A  -- `final val value`
     - `kotlin.native.concurrent.WorkerBoundReference.valueOrNull` — val WorkerBoundReference.valueOrNull: #A  -- `final val valueOrNull`
     - `kotlin.native.concurrent.WorkerBoundReference.worker` — val WorkerBoundReference.worker: Worker  -- `final val worker`
+  - 2026-09-14 実装: upstream kotlin-native `v2.1.0` の `WorkerBoundReference.kt`（legacy MM 撤去後の実体）を確認し、`value` はコンストラクタプロパティ、`valueOrNull` は `= value` の単純委譲、`worker` は構築時点の `Worker.current` 相当を束縛する形にした。`Worker.Companion.current`（公開 API）は別タスク KSP-1251 が未着手のため、`worker` を実装するのに必要な「実行中スレッドの current worker」概念を新規ランタイム機能として追加した: `RuntimeWorkerBox.execute`/`executeAfter` が実行するジョブの間だけ、CORO-003 で確立済みの `pthread_key_t` ベース thread-local ヘルパー（`makePthreadKey`/`pthreadGetValue`/`pthreadSetValue`、`RuntimeCoroutine.swift`）でそのワーカーの handle を記録し（`RuntimeWorkerBox.currentWorkerHandle()`。`Thread.current.threadDictionary` は既に同コミットで撤去済みの手法なので使わなかった）、未設定（メインスレッド等）の場合は遅延生成する main worker シングルトンにフォールバックする（`runtimeCurrentWorkerHandle()`, `Sources/Runtime/RuntimeNativeAPI.swift`）。これを内部専用ブリッジ `__kk_native_concurrent_current_worker`（引数なし、`.intptr` 返却、`Sources/Runtime/RuntimeNativeConcurrentABI.swift` + `Sources/RuntimeABI/RuntimeABISpec+NativeConcurrent.swift`）として公開し、Kotlin 側は `kotlin.native.internal.__nativeConcurrentCurrentWorker()`（`NativeConcurrentBridges.kt`）経由で `WorkerBoundReference.kt` からのみ利用する — `Worker.Companion.current` / `activeWorkers` / `fromCPointer` など公開 Companion surface は意図的に実装せず KSP-1251 に残した。既存 stub/registry には対象シンボルの登録が無かったため（`HeaderHelpers+SyntheticNativeConcurrentRegistry.swift` にはコメントのみ）、削除対象の `kk_*`/`CallTypeChecker`/`CallLowerer` 特例は無く新規 Kotlin 実装のみ。stale だった "value/worker properties remain a separate KSP-1253 task" コメント（`HeaderHelpers+SyntheticNativeConcurrentRegistry.swift`, `Tests/CompilerCoreTests/Sema/NativeConcurrentTopLevelSourceTests.swift`）も本 PR で更新した。
+  - §13-2 ブリッジ入場審査: 新規 `__kk_native_concurrent_current_worker` の理由コードは「syscall 相当」— 実行中の OS スレッドがどの `Worker` に属するかは pthread thread-local（`pthread_getspecific`/`pthread_setspecific`、CORO-003 ヘルパー経由）でしか判定できず、pure Kotlin では表現不可能（既存の `kk_worker_platform_thread_id` と同種の「スレッド識別へのネイティブアクセス」理由）。`RuntimeABISpec` 登録済み、`specVersion` は `RuntimeABISpec.allFunctions` の内容から自動算出のため追加登録だけで更新される。`__kk_cdecl_count` は +1（837→838、確認コマンド: `grep -rhoE '@_cdecl\("__kk_[A-Za-z0-9_]+"\)' Sources/Runtime --include='*.swift' | sort -u | wc -l`）。`kk_cdecl_count` は不変（936）。影響範囲は `WorkerBoundReference.worker` の初期化のみ。
+  - 検証: `swift build` PASS。`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden -Xswiftc -swift-version -Xswiftc 6` で新規ケースの golden を生成（`ref.value: String` / `ref.valueOrNull: String?` / `ref.worker: kotlin.native.concurrent.Worker` の3プロパティが期待どおり解決、既存 golden ファイルへの差分なし）。同ジョブ内で cinterop/collection/sequence 系など本変更と無関係な既存ケース 9 バッチ（72件）が "Golden worker timed out" で issue 扱いになったが、これは実行と同時刻に他セッションから周知のあった「このマシンで Golden 全走が 6 本以上同時実行中」というリソース競合による既知の誤診断パターン（内容差分ではなく timeout）であり、対象ファイルも本変更と無関係なため再実行はしていない。`RuntimeABIExternalLinkValidationTests` 4/4 PASS（新規ブリッジの KsSymbolName/RuntimeABISpec 整合を検証、`validate_runtime_abi_links.sh` と同一内容のため別途は未実行）。`CompilerBackendTests.BundledStdlibExecutionTests/testWorkerExecuteJobRunsWithoutWithWorker` / `testWorkerExecuteAfterRunsTrailingLambdaOperation` 2/2 PASS（`execute`/`executeAfter` へ足した current-worker tracking が既存の Worker 実行系を壊していないことを確認）。加えて `.build/debug/kswiftc` でエンドツーエンドのスモークを直接実行し確認: `WorkerBoundReference("x").value`/`.valueOrNull` が `"x"`、メインスレッド上の2つの `WorkerBoundReference` の `.worker.id` が一致、`Worker.start()` した別ワーカー上で構築した2つの `WorkerBoundReference` の `.worker.id` は互いに一致しつつメインスレッド側とは異なる — 期待どおりの worker-identity 分離を実機で確認（`.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` を `KSWIFTK_STDLIB_LIBRARY` で指定し、共有ユーザーキャッシュ `~/Library/Caches/kswiftk/stdlib/` の同時実行汚染を回避）。`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_WorkerBoundReference_WorkerBoundReference_n.kt`（`DIFF_REQUIRE_JDK21=0`）は既存の兄弟ケース同様 `SKIP-DIFF (DEBT-DIFF-001)` で skip=1。`bash Scripts/check_todo_ids.sh` PASS。CLAUDE.md の最小スコープ方針および稼働中の他セッションからの周知に従い、`swift_test.sh` 全体・`--filter Golden` 四スイート一括・`diff_kotlinc.sh Scripts/diff_cases` 全体は未実行。
+  - 副次的発見: `BUG-260`（下記）として別記。
 
-- [ ] KSP-1255: kotlin.native.ref.WeakReference top-level の未実装 stdlib API を実装する（1 件）
-  - 対象: `kotlin.native.ref.WeakReference` / top-level
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/ref/Weak.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_ref_WeakReference_n_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_ref_WeakReference_n_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_ref_WeakReference_n_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.native.ref.WeakReference.<init>` — constructor ()  -- `constructor <init>(#A)`
+- [ ] BUG-260: `kotlin.native.concurrent.withWorker { ... }` が本体が空でも常に unhandled top-level exception で panic する
+  - 最小再現: `.build/debug/kswiftc repro.kt -o /tmp/repro && /tmp/repro` を以下で実行すると `KSwiftK panic [KSWIFTK-LINK-0003]: Unhandled top-level exception` を出して exit 1（`println("after")` は到達しない。実際に投げられた Kotlin 例外は無い）。
+    ```kotlin
+    @file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class)
+    import kotlin.native.concurrent.*
+    fun main() {
+        withWorker { println("inside") }
+        println("after")
+    }
+    ```
+  - 対比: `Worker.start()` + `worker.execute(...)` + `worker.requestTermination(true)`（`testWorkerExecuteJobRunsWithoutWithWorker` と同型、`worker.requestTermination(true)` の戻り値は待たない）は正常終了する。差分は `withWorker`（`Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Worker.kt` の `inline fun <R> withWorker(...)`）の `finally { __nativeConcurrentTerminateWorker(worker) }` 経路のみ。
+  - 発見元: KSP-1253（WorkerBoundReference.value/valueOrNull/worker）のエンドツーエンド検証で `.build/debug/kswiftc` を直接実行した際に発見。`withWorker` を呼ぶテストがこれまで一件も存在しなかったため（`testWorkerExecuteJobRunsWithoutWithWorker` はその名のとおり `withWorker` を使わない）未検出だった。KSP-1253 の差分（`Worker.kt`・termination bridge 側は一切変更していない）とは無関係な既存バグであることを、変更前の挙動として確認済み。
+  - 推定原因（未確定）: `__nativeConcurrentTerminateWorker`（`kotlin.native.internal`, `@KsSymbolName("__kk_native_concurrent_terminate_worker")`, `Sources/Runtime/RuntimeNativeConcurrentABI.swift`）は `RuntimeABISpec` 上 `isThrowing: false` / 単一 `workerHandle` 引数で、ABI 形状自体は既存の動作実績ある Unit 返却 external（`__kk_string_builder_set_length` 等）と矛盾しない。本体が空でも再現するため、疑われるのは (a) generic inline 関数内の try/finally lowering が finally 節の呼び出しと無関係に「例外あり」フラグを誤って立てる/未初期化のまま読む、または (b) `__kk_native_concurrent_terminate_worker` 内部で同期的に呼ぶ `kk_future_result`（`RuntimeFutureBox.result()`のブロッキング待機）が何らかの形で thrown-state を汚す、のいずれか。
+  - 対処: 本タスクのスコープ（Lowering/ABI 例外伝播の調査）は KSP-1253 の安全な修正方針を超えるため、CLAUDE.md「バグ修正ルール」に従い本エントリと再現コードを記録した上で、`Tests/CompilerBackendTests/Integration/BundledStdlibExecutionTests+NativeConcurrentWorkerExecute.swift` に `withWorker` を実際に呼ぶ回帰テスト（例: `testWithWorkerRunsBlockWithoutThrowing`）を追加する修正 PR を別途起票する。spawn_task 済み（task_ee538588）。
+  - 前提: なし
 
 - [x] KSP-1259: kotlin.native.runtime top-level の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.native.runtime` / top-level
@@ -2088,18 +2103,6 @@
     - `kotlin.native.runtime.GCInfo.sweepStatistics` — val GCInfo.sweepStatistics: Map  -- `final val sweepStatistics`
 
   - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable プロパティ 15 件を bundled Kotlin source の constructor に `public val` として移し、GCInfo の synthetic property registration（`gcInfoProperties` spec と登録呼び出し）、および専用に使われていた `mapOfString` / `sweepStatisticsType` / `memoryUsageType` ヘルパーを削除した。`GCInfoSourceMigrationTests.gcInfoConstructorIsBundledSourceBacked` で全 15 プロパティの source-backed / non-synthetic / non-mutable / external-linkなし / 型（Long・nullable Long・RootSetStatistics・Map<String, SweepStatistics>・Map<String, MemoryUsage>）を検証し、専用 golden/diff ケース（`stdlib_kotlin_native_runtime_GCInfo_properties_n`）は全プロパティの構築・読み出しを固定する。全体 Swift/Golden/diff の gate は未実行のため完了は保留する。
-
-- [~] KSP-1267: kotlin.native.runtime.MemoryUsage.MemoryUsage の未実装 stdlib API を実装する（1 件）
-  - 対象: `kotlin.native.runtime.MemoryUsage` / receiver `MemoryUsage`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_runtime_MemoryUsage_MemoryUsage_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes` — val MemoryUsage.totalObjectsSizeBytes: Long  -- `final val totalObjectsSizeBytes`
-
-  - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable Long property を bundled Kotlin source に移し、MemoryUsage の synthetic property registration/spec を削除した。MemoryUsageSourceMigrationTests と GCInfo の MemoryUsage surface Sema 回帰で source-backed、non-synthetic、non-mutable、external-linkなしを確認し、専用 native execution fixture は Long の最小値・最大値を読み出す。GCInfo は memoryUsageBefore / memoryUsageAfter の各 map entryを MemoryUsage(totalObjectsSize) として生成するため、constructor の値保持と property read が同じ Kotlin object 表現を使う。全 Swift/Golden/diff の共通 G は root 側実行中のため、完了は保留する。
 
 - [ ] KSP-1270: kotlin.native.runtime.RootSetStatistics.RootSetStatistics の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.runtime.RootSetStatistics` / receiver `RootSetStatistics`

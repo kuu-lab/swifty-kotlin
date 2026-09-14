@@ -12,13 +12,20 @@ package kotlin.native.ref
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.internal.KsSymbolName
 
-// KSP-1254: the WeakReference nominal is source-backed here; the runtime owns
-// the weak-reference handle, so the constructor stays private.
+// KSP-1255: the public constructor is source-backed here; the runtime
+// allocates and owns the weak-reference handle, so construction bridges
+// straight to the factory instead of allocating a plain object first.
 @ExperimentalNativeApi
-public class WeakReference<T : Any> private constructor()
+public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T)
 
+// Declared with the receiver's own type parameter (not `Any?` + an unchecked
+// cast) to match the Future<T>.consumeValue(): T bridge pattern elsewhere in
+// this file's package. The null representation for this Any-erased slot is
+// owned by the runtime side (kk_weak_ref_get returns runtimeNullSentinelInt,
+// not bare 0 — see KSP-1255's RuntimeNativeAPI.swift fix); this signature
+// change alone does not affect that.
 @KsSymbolName("kk_weak_ref_get")
-private external fun __weakReferenceGet(reference: WeakReference<*>): Any?
+private external fun <T : Any> __weakReferenceGet(reference: WeakReference<T>): T?
 
 @KsSymbolName("kk_weak_ref_clear")
 private external fun __weakReferenceClear(reference: WeakReference<*>): Int
@@ -37,9 +44,8 @@ public fun <T : Any> WeakReference<T>.clear() {
 
 /** Returns the referent while it is still alive, or null after collection. */
 @ExperimentalNativeApi
-@Suppress("UNCHECKED_CAST")
 public fun <T : Any> WeakReference<T>.get(): T? =
-    __weakReferenceGet(this) as T?
+    __weakReferenceGet(this)
 
 // Generic extension property type parameters are not supported by this parser;
 // the star-projected receiver preserves the nullable read contract.

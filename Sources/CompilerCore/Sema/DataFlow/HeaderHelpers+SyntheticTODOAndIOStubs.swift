@@ -303,10 +303,6 @@ extension DataFlowSemaPhase {
         additionalTypeParameterUpperBoundsList: [[TypeID]] = [],
         flags: SymbolFlags = [.synthetic, .operatorFunction]
     ) {
-        if BundledSyntheticStubRegistration.preBundledPass {
-            return
-        }
-
         let memberName = interner.intern(name)
         let memberFQName = sequenceFQName + [memberName]
         let requestedParameterTypes = parameters.map(\.type)

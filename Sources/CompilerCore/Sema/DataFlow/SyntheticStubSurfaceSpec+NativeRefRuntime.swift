@@ -4,14 +4,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
         ["kotlin", "native", "ref", "WeakReference"],
         args: [.invariant(weakReferenceT)]
     )
-    static let weakReferenceConstructor = SyntheticConstructorStubSpec(
-        externalLinkName: "kk_weak_ref_create",
-        parameters: [
-            SyntheticStubParameterSpec(name: "value", type: weakReferenceT),
-        ],
-        typeParameterNames: ["T"],
-        classTypeParameterCount: 1
-    )
     static let weakReferenceMembers: [SyntheticFunctionStubSpec] = [
         SyntheticFunctionStubSpec(
             name: "get",

@@ -6,8 +6,9 @@
 /// type-checking, and opt-in diagnostics work correctly without any runtime
 /// edits:
 ///
-/// - residual `WeakReference<T>` constructor and members, retained for
-///   KSP-1255/KSP-1256 runtime bridge ownership.
+/// - residual `WeakReference<T>` members, retained as a no-op fallback now
+///   that the constructor (KSP-1255) and members (KSP-1256) are source-backed
+///   in Weak.kt; the bundled-declaration check short-circuits registration.
 /// - residual `createCleaner` bridge only when its bundled source declaration
 ///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
@@ -188,14 +189,9 @@ extension DataFlowSemaPhase {
             parentSymbol: classSymbol,
             typeParameterSymbolsByName: ["T": typeParamSymbol]
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceType,
-            context: weakReferenceContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1255: the public constructor is now source-backed in Weak.kt
+        // (`@KsSymbolName("kk_weak_ref_create") constructor(referred: T)`);
+        // no synthetic constructor registration is needed here anymore.
         registerSyntheticFunctionStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceMembers,
             context: weakReferenceContext,
