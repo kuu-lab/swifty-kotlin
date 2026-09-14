@@ -241,7 +241,7 @@ bash Scripts/swift_test.sh --filter CodegenBackendFixtureTests  # Codegen fixtur
 bash Scripts/diff_kotlinc.sh Scripts/diff_cases   # kotlinc 差分回帰テスト
 ```
 
-フィルタ指定・ゴールデン更新（`UPDATE_GOLDEN=1`）・Swift 言語モード指定などの詳細は [`CLAUDE.md`](../CLAUDE.md) の「ビルド & テストコマンド」を参照。
+フィルタ指定・ゴールデン更新（`UPDATE_GOLDEN=1`）・Swift 言語モード指定などの詳細は [`AGENTS.md`](../AGENTS.md) の「ビルド & テストコマンド」を参照。
 
 ### テストフレームワーク（Swift Testing）
 
