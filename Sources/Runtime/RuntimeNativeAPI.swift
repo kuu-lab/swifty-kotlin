@@ -720,7 +720,12 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
               runtimeWeakReferentIsLive(current)
         else {
             clear()
-            return 0
+            // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
+            // reference's null representation is `runtimeNullSentinelInt` (bare
+            // `0` there is otherwise read back as a boxed `Int` zero, not null;
+            // see KSP-1255's WeakReference constructor migration for how this
+            // surfaced).
+            return runtimeNullSentinelInt
         }
         return current
     }
@@ -764,7 +769,7 @@ public func kk_weak_ref_create(_ objectRaw: Int) -> Int {
 @_cdecl("kk_weak_ref_get")
 public func kk_weak_ref_get(_ weakRefRaw: Int) -> Int {
     guard let box = runtimeWeakReferenceBox(from: weakRefRaw) else {
-        return 0
+        return runtimeNullSentinelInt
     }
     return box.get()
 }

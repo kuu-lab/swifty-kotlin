@@ -18,8 +18,12 @@ import kotlin.internal.KsSymbolName
 @ExperimentalNativeApi
 public class WeakReference<T : Any> @KsSymbolName("kk_weak_ref_create") constructor(referred: T)
 
+// The return type is the receiver's own type parameter (not `Any?`) so the
+// standard generic-erasure boxing boundary applies to the raw runtime handle;
+// routing a cleared reference's raw null handle through an explicit `Any?`
+// slot instead boxed it as a non-null `Int` (see KSP-1255 investigation).
 @KsSymbolName("kk_weak_ref_get")
-private external fun __weakReferenceGet(reference: WeakReference<*>): Any?
+private external fun <T : Any> __weakReferenceGet(reference: WeakReference<T>): T?
 
 @KsSymbolName("kk_weak_ref_clear")
 private external fun __weakReferenceClear(reference: WeakReference<*>): Int
@@ -38,9 +42,8 @@ public fun <T : Any> WeakReference<T>.clear() {
 
 /** Returns the referent while it is still alive, or null after collection. */
 @ExperimentalNativeApi
-@Suppress("UNCHECKED_CAST")
 public fun <T : Any> WeakReference<T>.get(): T? =
-    __weakReferenceGet(this) as T?
+    __weakReferenceGet(this)
 
 // Generic extension property type parameters are not supported by this parser;
 // the star-projected receiver preserves the nullable read contract.
