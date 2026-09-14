@@ -118,8 +118,8 @@ private func runtimeIteratorBuilderBox(from rawValue: Int) -> RuntimeIteratorBui
 }
 
 @_cdecl("__kk_iterator_builder_build")
-public func __kk_iterator_builder_build(_ fnPtr: Int) -> Int {
-    let builder = RuntimeIteratorBuilderBox(fnPtr: fnPtr)
+public func __kk_iterator_builder_build(_ fnPtr: Int, _ closureRaw: Int = 0) -> Int {
+    let builder = RuntimeIteratorBuilderBox(fnPtr: fnPtr, closureRaw: closureRaw)
     let builderHandle = registerRuntimeObject(builder)
     builder.bindRegisteredHandle(builderHandle)
     return builderHandle

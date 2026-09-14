@@ -66,8 +66,6 @@ struct SequenceLookupNames {
     let toSetName: InternedString
     let toMapName: InternedString
     let takeName: InternedString
-    let sequenceName: InternedString
-    let iteratorBuilderName: InternedString
     let yieldName: InternedString
     let yieldAllName: InternedString
 
@@ -126,8 +124,6 @@ struct SequenceLookupNames {
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
         takeName = interner.intern("take")
-        sequenceName = interner.intern("sequence")
-        iteratorBuilderName = interner.intern("iterator")
         yieldName = interner.intern("yield")
         yieldAllName = interner.intern("yieldAll")
     }
