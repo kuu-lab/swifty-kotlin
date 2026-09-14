@@ -195,10 +195,11 @@ extension DataFlowSemaPhase {
         // take the shared factory lowering path (CallLowerer+CollectionFactoryCalls
         // / CollectionLiteralLoweringPass) for element boxing and runtime tags.
 
-        registerSyntheticArrayStubs(
-            symbols: symbols, types: types, interner: interner,
-            skipStats: skipStats
-        )
+        // KSP-1517: `Array<T>`/primitive array class shells are predeclared
+        // from bundled Kotlin source (`ArrayIntrinsics.kt`) via
+        // `predeclareBundledArrayHeaders` before this pass runs; no
+        // registration is needed here anymore
+        // (`HeaderHelpers+SyntheticArrayStubs.swift` deleted).
         registerMutableCollectionArrayAddAllMembers(
             symbols: symbols,
             types: types,

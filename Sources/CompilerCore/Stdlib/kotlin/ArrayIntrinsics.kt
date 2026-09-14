@@ -2,6 +2,39 @@ package kotlin
 
 import kotlin.internal.KsSymbolName
 
+// KSP-1517: `Array<T>` and the primitive array types are nominal shells only
+// -- construction (`IntArray(size)`), indexing (`array[i]`), `.size`, and the
+// HOF surface are all resolved by compiler name matching (see
+// `CompilerKnownNames.isArrayLikeName`/`isPrimitiveArrayConstructorTypeName`
+// and `PrimitiveArrayFactoryPredicates.swift`), never by members declared on
+// this class body. Runtime storage is the single untyped `RuntimeArrayBox`
+// (`RuntimeArrayBasics.swift`) for every primitive kind, so these shells stay
+// bodyless with a private constructor, matching the `Nothing`/
+// `DeepRecursiveScope` pattern for compiler-intrinsic-backed types that are
+// never constructed through their own declared constructor. Predeclared early
+// via `predeclareBundledArrayHeaders` (`HeaderCollection.swift`) because
+// array-typed synthetic signatures (e.g. `MutableCollection<T>.addAll`) are
+// registered before the normal bundled header collection pass; the fallback
+// fires when the sole synthetic anchor is needed instead (`--no-stdlib` /
+// precompiled `.kklib`, no bundled source parsed). Migrated from the
+// `Array<T>`/primitive-array class-shell registration formerly in
+// `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift`
+// (deleted).
+public class Array<T> private constructor()
+
+public class BooleanArray private constructor()
+public class ByteArray private constructor()
+public class CharArray private constructor()
+public class DoubleArray private constructor()
+public class FloatArray private constructor()
+public class IntArray private constructor()
+public class LongArray private constructor()
+public class ShortArray private constructor()
+public class UByteArray private constructor()
+public class UShortArray private constructor()
+public class UIntArray private constructor()
+public class ULongArray private constructor()
+
 // KSP-657: Array factory intrinsics migrated (b-reclass batch 1) from the
 // synthetic stubs in
 // Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticArrayStubs.swift.

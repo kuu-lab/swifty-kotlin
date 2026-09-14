@@ -132,6 +132,7 @@ public extension RuntimeABISpec {
             name: "__kk_iterator_builder_build",
             parameters: [
                 RuntimeABIParameter(name: "fnPtr", type: .intptr),
+                RuntimeABIParameter(name: "closureRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Sequence",
