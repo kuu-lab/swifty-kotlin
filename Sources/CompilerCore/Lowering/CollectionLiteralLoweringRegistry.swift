@@ -47,19 +47,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
                 sema: ctx.sema,
                 interner: ctx.interner
             ),
-            listExprIDs: &state.listExprIDs,
-            setExprIDs: &state.setExprIDs,
-            mapExprIDs: &state.mapExprIDs,
-            arrayExprIDs: &state.arrayExprIDs,
-            sequenceExprIDs: &state.sequenceExprIDs,
-            rangeExprIDs: &state.rangeExprIDs,
-            charRangeExprIDs: &state.charRangeExprIDs,
-            ulongRangeExprIDs: &state.ulongRangeExprIDs,
-            fileExprIDs: &state.fileExprIDs,
-            pathExprIDs: &state.pathExprIDs,
-            iteratorBuilderExprIDs: state.iteratorBuilderExprIDs,
-            indexingIterableExprIDs: &state.indexingIterableExprIDs,
-            listIteratorExprIDs: &state.listIteratorExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         )
     }

@@ -226,10 +226,10 @@ extension DataFlowSemaPhase {
 
         // MutableData is intentionally excluded: it is already source-backed
         // by KSP-1243 (Stdlib/kotlin/native/concurrent/MutableData.kt).
-        // WorkerBoundReference is intentionally excluded: its constructor is
-        // already source-backed by KSP-1252 (Stdlib/kotlin/native/concurrent/
-        // WorkerBoundReference.kt); its value/worker properties remain
-        // a separate KSP-1253 task.
+        // WorkerBoundReference is intentionally excluded: it is already fully
+        // source-backed by KSP-1252 (constructor) and KSP-1253 (value /
+        // valueOrNull / worker), both in Stdlib/kotlin/native/concurrent/
+        // WorkerBoundReference.kt.
 
         // NativePtr is the opaque representation used by two internal KSP-1216
         // functions. Its own members remain outside this API slice.

@@ -12,6 +12,13 @@
 // compared as garbage. Fixed by routing to the existing kk_long_to_uint,
 // which already truncates via UInt32(truncatingIfNeeded:).
 fun main() {
+    // UInt numeric conversions: toChar() does not exist on UInt in Kotlin
+    // (verified against kotlinc and the stdlib source); the correct spelling
+    // for narrowing to a code unit goes through toInt().toChar().
+    println(UInt.MAX_VALUE.toInt())
+    println(UInt.MAX_VALUE.toDouble())
+    println(UInt.MAX_VALUE.toLong())
+    println(UInt.MAX_VALUE.toInt().toChar().code)
     println(ULong.MAX_VALUE.toDouble())
     println(ULong.MAX_VALUE.toFloat())
     println(ULong.MAX_VALUE.toInt())
