@@ -727,7 +727,7 @@ Atomic の内訳:
 3. 優先規則（§5）により Kotlin 版が解決されることを確認し、**同一 PR で**対応する
    合成スタブ・`CallTypeChecker`/`CallLowerer` の特殊処理・runtime `@_cdecl` を削除
    （または `__kk_*` へ降格）する
-4. 必須ゲート（CLAUDE.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
+4. 必須ゲート（AGENTS.md）: `swift_test.sh` 全体 / Golden / `diff_kotlinc.sh` green、
    `loc_report.sh` で `HeaderHelpers+Synthetic*` 行数と `"kk_` リテラル数の減少を確認する
 5. TODO.md の該当タスクを更新する
 
@@ -807,7 +807,7 @@ Swift に残ってよいのは (1) 言語コアの組込宣言（Any/Nothing/プ
    リポジトリ NOTICE を付ける（KSP-INF-013）。
 9. **タスク運用**: 未完了タスクの削除禁止（`[x]` のみ削除可）。本文から参照される ID は必ず解決可能に保つ
    （M1–M17 / CLEANUP-STUB 個別リスト消失の教訓）。作業中に発見した修正可能なバグは、症状を再現する最小ケースと回帰テストを含めて同じPR内で修正する。
-   同じPRのスコープや安全な修正方針を超える場合だけ、BUG-NNN として TODO.md に理由付きで追跡する（CLAUDE.md「バグ修正ルール」）。
+   同じPRのスコープや安全な修正方針を超える場合だけ、BUG-NNN として TODO.md に理由付きで追跡する（AGENTS.md「バグ修正ルール」）。
 10. **粒度**: 1 タスク = 1 PR。目安「削除対象 kk_* ≤ 15・単一責務・golden 更新1回」。
     超えると判明したら枝番でなく新番号で分割する。
 

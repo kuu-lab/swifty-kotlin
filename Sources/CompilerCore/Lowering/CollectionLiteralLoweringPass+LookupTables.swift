@@ -242,15 +242,11 @@ struct CollectionLiteralLookupTables {
     var toCollectionName: InternedString { sequenceLookup.toCollectionName }
     var toUByteArrayName: InternedString { sequenceLookup.toUByteArrayName }
     var toUShortArrayName: InternedString { sequenceLookup.toUShortArrayName }
-    var toUIntArrayName: InternedString { sequenceLookup.toUIntArrayName }
-    var toULongArrayName: InternedString { sequenceLookup.toULongArrayName }
     var toCharArrayName: InternedString { sequenceLookup.toCharArrayName }
     var toBooleanArrayName: InternedString { sequenceLookup.toBooleanArrayName }
     var toShortArrayName: InternedString { sequenceLookup.toShortArrayName }
     var toDoubleArrayName: InternedString { sequenceLookup.toDoubleArrayName }
     var toFloatArrayName: InternedString { sequenceLookup.toFloatArrayName }
-    var toIntArrayName: InternedString { sequenceLookup.toIntArrayName }
-    var toLongArrayName: InternedString { sequenceLookup.toLongArrayName }
     var toByteArrayName: InternedString { sequenceLookup.toByteArrayName }
     var toSetName: InternedString { sequenceLookup.toSetName }
     var toMapName: InternedString { sequenceLookup.toMapName }
@@ -337,7 +333,6 @@ struct CollectionLiteralLookupTables {
     var kkRangeReversedName: InternedString { rangeLookup.kkRangeReversedName }
     var kkRangeIsEmptyName: InternedString { rangeLookup.kkRangeIsEmptyName }
     var kkRangeSumName: InternedString { rangeLookup.kkRangeSumName }
-    var kkRangeToIntArrayName: InternedString { rangeLookup.kkRangeToIntArrayName }
     var kkRangeTakeName: InternedString { rangeLookup.kkRangeTakeName }
     var kkRangeDropName: InternedString { rangeLookup.kkRangeDropName }
     var kkRangeAverageName: InternedString { rangeLookup.kkRangeAverageName }
@@ -353,13 +348,11 @@ struct CollectionLiteralLookupTables {
     var kkULongRangeStepName: InternedString { rangeLookup.kkULongRangeStepName }
     var kkULongRangeIsEmptyName: InternedString { rangeLookup.kkULongRangeIsEmptyName }
     var kkULongRangeReversedName: InternedString { rangeLookup.kkULongRangeReversedName }
-    var kkULongRangeToULongArrayName: InternedString { rangeLookup.kkULongRangeToULongArrayName }
     var kkULongRangeCountName: InternedString { rangeLookup.kkULongRangeCountName }
     var kkULongRangeIteratorName: InternedString { rangeLookup.kkULongRangeIteratorName }
     var kkULongRangeHasNextName: InternedString { rangeLookup.kkULongRangeHasNextName }
     var kkULongRangeNextName: InternedString { rangeLookup.kkULongRangeNextName }
     var kkULongRangeMapName: InternedString { rangeLookup.kkULongRangeMapName }
-    var kkLongRangeToLongArrayName: InternedString { rangeLookup.kkLongRangeToLongArrayName }
 
     // MARK: - String lookup names (see CollectionLiteralLoweringPass+LookupTables+String.swift)
 

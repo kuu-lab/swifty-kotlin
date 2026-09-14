@@ -57,15 +57,11 @@ struct SequenceLookupNames {
     let toCollectionName: InternedString
     let toUByteArrayName: InternedString
     let toUShortArrayName: InternedString
-    let toUIntArrayName: InternedString
-    let toULongArrayName: InternedString
     let toCharArrayName: InternedString
     let toBooleanArrayName: InternedString
     let toShortArrayName: InternedString
     let toDoubleArrayName: InternedString
     let toFloatArrayName: InternedString
-    let toIntArrayName: InternedString
-    let toLongArrayName: InternedString
     let toByteArrayName: InternedString
     let toSetName: InternedString
     let toMapName: InternedString
@@ -121,15 +117,11 @@ struct SequenceLookupNames {
         toCollectionName = interner.intern("toCollection")
         toUByteArrayName = interner.intern("toUByteArray")
         toUShortArrayName = interner.intern("toUShortArray")
-        toUIntArrayName = interner.intern("toUIntArray")
-        toULongArrayName = interner.intern("toULongArray")
         toCharArrayName = interner.intern("toCharArray")
         toBooleanArrayName = interner.intern("toBooleanArray")
         toShortArrayName = interner.intern("toShortArray")
         toDoubleArrayName = interner.intern("toDoubleArray")
         toFloatArrayName = interner.intern("toFloatArray")
-        toIntArrayName = interner.intern("toIntArray")
-        toLongArrayName = interner.intern("toLongArray")
         toByteArrayName = interner.intern("toByteArray")
         toSetName = interner.intern("toSet")
         toMapName = interner.intern("toMap")
