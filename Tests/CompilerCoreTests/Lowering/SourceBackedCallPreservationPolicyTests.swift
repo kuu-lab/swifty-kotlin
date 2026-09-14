@@ -12,8 +12,9 @@ import Testing
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
 /// chains agreed on 102 API names at extraction time and diverged on nine more
 /// plus the shape of the array-conversion check, and nothing in either file
-/// recorded which divergences were deliberate. RF-LOWER-CALL-009/010/011 have
-/// since narrowed the agreement to 63 names and grown the divergence to 19. These tests fix both halves: the four callee
+/// recorded which divergences were deliberate. RF-LOWER-CALL-009/010/011/012
+/// have since narrowed the agreement to 61 names and grown the divergence to
+/// 19. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
 /// difference.
 @Suite
