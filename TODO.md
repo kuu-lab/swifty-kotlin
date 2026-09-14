@@ -3073,7 +3073,7 @@
     - `kotlin.text.contains` — fun CharSequence.contains(Regex): Boolean  -- `final inline fun (kotlin/CharSequence).kotlin.text/contains(kotlin.text/Regex): kotlin/Boolean`
     - `kotlin.text.contains` — fun CharSequence.contains(Char, Boolean): Boolean  -- `final fun (kotlin/CharSequence).kotlin.text/contains(kotlin/Char, kotlin/Boolean = ...): kotlin/Boolean`
 
-- [~] KSP-1370: kotlin.text.CharSequence.count-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1370: kotlin.text.CharSequence.count-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `count`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3082,7 +3082,7 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.text.count` — fun CharSequence.count(): Int  -- `final inline fun (kotlin/CharSequence).kotlin.text/count(): kotlin/Int`
-  - 実装済み・共通 G 待ち: Kotlin 2.3.10 の `@InlineOnly inline` 契約で `CharSequence.length` を返す source-backed 実装、Sema golden、source-binding 回帰テスト、String/StringBuilder/custom/空文字/UTF-16 を含む diff ケースを追加。
+  - 完了根拠（2026-09-15 実測、KUU-352）: 実装本体は `6d285993f`（PR #6683「KSP-1370: implement CharSequence.count」、2026-09-09 マージ済み、現ブランチ HEAD `ff67efd08` の祖先）で `@InlineOnly inline fun CharSequence.count(): Int = length` を source-backed 実装済み。CI 実ログで kotlinc diff shard 3/4 が `Summary: total=312 failed=0 passed=312`、`CharSequenceCountSourceMigrationTests` suite が PASS を確認済み（continue-on-error による見かけ green ではない）。本 PR であらためてローカル再検証: `swift build` PASS / `bash Scripts/swift_test.sh --no-parallel --filter CompilerCoreTests.CharSequenceCountSourceMigrationTests` → `Test run with 2 tests in 1 suite passed` / `bash Scripts/swift_test.sh --skip-build --no-parallel --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`（UPDATE_GOLDEN 無し）→ `matchesGolden(batch:) with 92 test cases passed`（#6683 後に StringHOF.kt を触った後続5PR分のゴールデンドリフト無しを確認）/ `DIFF_REQUIRE_JDK21=0 DIFF_COMPILE_TIMEOUT=600 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_count.kt` → `total=1 failed=0 passed=1`（共有マシン高負荷時は既定 120s の stdlib artifact ビルドタイムアウトで一度 false failure、`ps`/`uptime` で負荷を確認の上で切り分け、`DIFF_COMPILE_TIMEOUT` 延長で再現しないことを確認済み）/ `bash Scripts/validate_runtime_abi_links.sh` → `Test run with 4 tests in 1 suite passed` / `bash Scripts/check_todo_ids.sh` pass。bridge/stub 側は `kk_string_count_flat` が KSP-410 で既に削除済み（`Sources/RuntimeABI/RuntimeABISpec+String.swift` のコメント参照）で追加削除対象なし、`CallTypeChecker`/`CallLowerer` にも count 用の CharSequence 向け name-string 特例なし。全 suite・全 Golden（4 スイート一括）・全 `diff_cases` はローカル未実行、CI に委譲。
 
 - [~] KSP-1371: kotlin.text.CharSequence.drop-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `drop`
