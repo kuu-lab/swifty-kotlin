@@ -22,13 +22,6 @@ extension CollectionLiteralConstructionLoweringPass {
            !state.sequenceExprIDs.contains(receiverID.rawValue) {
             return false
         }
-        let uintType = ctx.sema?.types.uintType
-
-        func isUIntRangeExpr(_ expr: KIRExprID) -> Bool {
-            guard let uintType else { return false }
-            return module.arena.exprType(expr) == uintType
-        }
-
     // toSet() on sequence → kk_sequence_toSet (STDLIB-470)
     if callee == lookup.toSetName, arguments.count == 1 {
         let receiverID = arguments[0]
@@ -127,12 +120,14 @@ extension CollectionLiteralConstructionLoweringPass {
     if callee == lookup.reversedName || callee == lookup.asReversedName, arguments.count == 1 {
         let receiverID = arguments[0]
         if callee == lookup.reversedName, state.rangeExprIDs.contains(receiverID.rawValue) {
-            let isUIntRange = isUIntRangeExpr(receiverID)
+            // KSP-1523: UIntRange never reaches this branch — its
+            // constructing callee is never added to state.rangeExprIDs
+            // during PreScan, so the old isUIntRange arm was unreachable.
             let transformResult = module.arena.appendTemporary(type: nil
             )
             let reversedName = state.ulongRangeExprIDs.contains(receiverID.rawValue)
                 ? lookup.kkULongRangeReversedName
-                : (isUIntRange ? ctx.interner.intern("kk_uint_range_reversed") : lookup.kkRangeReversedName)
+                : lookup.kkRangeReversedName
             loweredBody.append(.call(
                 symbol: nil,
                 callee: reversedName,
@@ -198,14 +193,13 @@ extension CollectionLiteralConstructionLoweringPass {
         if state.rangeExprIDs.contains(receiverID.rawValue) {
             let toListResult = module.arena.appendTemporary(type: nil
             )
-            // Use char/ULong range variant if applicable (STDLIB-290, STDLIB-524)
+            // Use char/ULong range variant if applicable (STDLIB-290, STDLIB-524).
+            // KSP-1523: no UIntRange variant — see the reversed() branch above.
             let rangeToListCallee: InternedString
             if state.charRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkCharRangeToListName
             } else if state.ulongRangeExprIDs.contains(receiverID.rawValue) {
                 rangeToListCallee = lookup.kkULongRangeToListName
-            } else if isUIntRangeExpr(receiverID) {
-                rangeToListCallee = ctx.interner.intern("kk_uint_range_toList")
             } else {
                 rangeToListCallee = lookup.kkRangeToListName
             }

@@ -1,6 +1,12 @@
 @testable import Runtime
 import Testing
 
+#if canImport(Darwin)
+    import Darwin
+#elseif canImport(Glibc)
+    import Glibc
+#endif
+
 // MARK: - kotlin.native.ref / kotlin.native.runtime minimal ABI coverage (STDLIB-NATIVE-REF-003)
 //
 // Stability boundaries tested:
@@ -15,7 +21,9 @@ import Testing
 //               freeze propagation: freezing parent does NOT auto-freeze child (registry is flat),
 //               child can be independently frozen; both parent and child frozen state independent
 //   Debugging - __kk_assertions_enabled returns 0 or 1, repeated enable/disable idempotent,
-//               kk_assertions_reset restores to a valid boolean state
+//               kk_assertions_reset restores to a valid boolean state,
+//               __kk_debugging_force_checked_shutdown_get/_set round-trip,
+//               __kk_debugging_dump_memory succeeds on a valid fd and fails on an invalid one
 
 // ---------------------------------------------------------------------------
 // MARK: - GC stability tests
@@ -160,7 +168,10 @@ struct RuntimeNativeRefWeakReferenceTests {
         let weakRaw = kk_weak_ref_create(objectRaw)
         #expect(kk_weak_ref_get(weakRaw) == objectRaw)
         #expect(kk_weak_ref_clear(weakRaw) == 0)
-        #expect(kk_weak_ref_get(weakRaw) == 0)
+        // The Kotlin-level `get(): T?` is Any-erased, so "no referent" must be
+        // the reference-null sentinel, not bare 0 (KSP-1255: bare 0 round-tripped
+        // back to Kotlin as a boxed non-null Int(0) instead of null).
+        #expect(kk_weak_ref_get(weakRaw) == runtimeNullSentinelInt)
     }
 
     @Test func weakReferenceToCollectedHeapObjectReturnsNull() {
@@ -172,14 +183,14 @@ struct RuntimeNativeRefWeakReferenceTests {
 
             kk_gc_collect()
 
-            #expect(kk_weak_ref_get(weakRaw) == 0)
+            #expect(kk_weak_ref_get(weakRaw) == runtimeNullSentinelInt)
         }
     }
 
     @Test func weakReferenceInvalidHandleIsNullSafe() {
-        #expect(kk_weak_ref_get(0) == 0)
+        #expect(kk_weak_ref_get(0) == runtimeNullSentinelInt)
         #expect(kk_weak_ref_clear(0) == 0)
-        #expect(kk_weak_ref_get(12345) == 0)
+        #expect(kk_weak_ref_get(12345) == runtimeNullSentinelInt)
         #expect(kk_weak_ref_clear(12345) == 0)
     }
 }
@@ -529,8 +540,26 @@ struct RuntimeNativeRefDebuggingTests {
     }
 
     @Test func debuggingIsThreadStateRunnableReturnsBoolean() {
-        let result = kk_debugging_is_thread_state_runnable()
+        let result = __kk_debugging_is_thread_state_runnable()
         #expect(result == 0 || result == 1)
+    }
+
+    @Test func debuggingForceCheckedShutdownRoundTrips() {
+        let original = __kk_debugging_force_checked_shutdown_get()
+        defer { _ = __kk_debugging_force_checked_shutdown_set(original) }
+
+        _ = __kk_debugging_force_checked_shutdown_set(1)
+        #expect(__kk_debugging_force_checked_shutdown_get() == 1)
+        _ = __kk_debugging_force_checked_shutdown_set(0)
+        #expect(__kk_debugging_force_checked_shutdown_get() == 0)
+    }
+
+    @Test func debuggingDumpMemorySucceedsOnValidDescriptorAndFailsOnInvalidOne() {
+        let devNull = open("/dev/null", O_WRONLY)
+        defer { close(devNull) }
+        #expect(devNull >= 0)
+        #expect(__kk_debugging_dump_memory(Int(devNull)) == 1)
+        #expect(__kk_debugging_dump_memory(-1) == 0)
     }
 
     @Test func debuggingTrackingCountsAreNonNegative() {

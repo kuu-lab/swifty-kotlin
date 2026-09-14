@@ -720,7 +720,12 @@ final class RuntimeWeakReferenceBox: @unchecked Sendable {
               runtimeWeakReferentIsLive(current)
         else {
             clear()
-            return 0
+            // The Kotlin-level `get(): T?` is a generic Any-erased slot, where a
+            // reference's null representation is `runtimeNullSentinelInt` (bare
+            // `0` there is otherwise read back as a boxed `Int` zero, not null;
+            // see KSP-1255's WeakReference constructor migration for how this
+            // surfaced).
+            return runtimeNullSentinelInt
         }
         return current
     }
@@ -764,7 +769,7 @@ public func kk_weak_ref_create(_ objectRaw: Int) -> Int {
 @_cdecl("kk_weak_ref_get")
 public func kk_weak_ref_get(_ weakRefRaw: Int) -> Int {
     guard let box = runtimeWeakReferenceBox(from: weakRefRaw) else {
-        return 0
+        return runtimeNullSentinelInt
     }
     return box.get()
 }
@@ -966,6 +971,48 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         self.queue.setSpecific(key: queueSpecificKey, value: ())
     }
 
+    /// The registry handle for this box, i.e. the same `Int` `registerRuntimeObject`
+    /// returned for it. Recomputed from `self`'s own address rather than stored,
+    /// since it is only needed off the hot allocation path (current-worker tracking).
+    private var selfHandle: Int {
+        Int(bitPattern: Unmanaged.passUnretained(self).toOpaque())
+    }
+
+    /// Box wrapping the handle tracked per-thread by `currentWorkerHandle`/
+    /// `runAsCurrentWorker`. Boxed because the shared pthread-local helpers
+    /// (CORO-003) store `AnyObject`, not raw `Int`.
+    private final class CurrentWorkerHandleBox: @unchecked Sendable {
+        let handle: Int
+        init(handle: Int) { self.handle = handle }
+    }
+
+    /// pthread-local key tracking which worker's job is currently executing on
+    /// the calling thread. Uses the CORO-003 pthread helpers rather than
+    /// `Thread.current.threadDictionary`, matching this runtime's established
+    /// thread-local convention (see `RuntimeCoroutine.swift`).
+    private static let currentWorkerPthreadKey: pthread_key_t = makePthreadKey()
+
+    /// Runs `body` with `handle` recorded as the current thread's worker, restoring
+    /// whatever was recorded before (there is none, ordinarily — worker jobs don't
+    /// nest — but restoring rather than clearing unconditionally stays correct if
+    /// a job synchronously drives another worker's queue).
+    private static func runAsCurrentWorker(_ handle: Int, _ body: () -> Void) {
+        let previous: CurrentWorkerHandleBox? = pthreadGetValue(currentWorkerPthreadKey)
+        pthreadSetValue(currentWorkerPthreadKey, CurrentWorkerHandleBox(handle: handle))
+        defer {
+            pthreadSetValue(currentWorkerPthreadKey, previous)
+        }
+        body()
+    }
+
+    /// The handle of the worker whose job is currently executing on the calling
+    /// thread, or `nil` if the calling thread isn't currently running a worker job
+    /// (e.g. the main thread, or a thread GCD spun up outside `execute`/`executeAfter`).
+    static func currentWorkerHandle() -> Int? {
+        let box: CurrentWorkerHandleBox? = pthreadGetValue(currentWorkerPthreadKey)
+        return box?.handle
+    }
+
     /// Submit a closure to the worker. Returns false if the worker has been terminated.
     @discardableResult
     func execute(_ work: @escaping @Sendable () -> Void) -> Bool {
@@ -977,8 +1024,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         pendingJobs += 1
         lock.unlock()
 
+        let handle = selfHandle
         queue.async { [weak self] in
-            work()
+            RuntimeWorkerBox.runAsCurrentWorker(handle, work)
             self?.lock.lock()
             self?.pendingJobs -= 1
             self?.lock.unlock()
@@ -1022,8 +1070,9 @@ final class RuntimeWorkerBox: @unchecked Sendable {
         pendingJobs += 1
         lock.unlock()
 
+        let handle = selfHandle
         queue.asyncAfter(deadline: deadline) { [weak self] in
-            work()
+            RuntimeWorkerBox.runAsCurrentWorker(handle, work)
             self?.lock.lock()
             self?.pendingJobs -= 1
             self?.lock.unlock()
@@ -1083,6 +1132,34 @@ final class RuntimeWorkerBox: @unchecked Sendable {
 public func kk_worker_new(_ nameRaw: Int) -> Int {
     let name = extractString(from: UnsafeMutableRawPointer(bitPattern: nameRaw))
     return registerRuntimeObject(RuntimeWorkerBox(name: name))
+}
+
+/// Lazily-created stand-in for the implicit worker that owns the main thread
+/// (and any other thread that never runs inside `RuntimeWorkerBox.execute`).
+/// Kotlin/Native eagerly creates this at process start; here it's created on
+/// first use since nothing else needs its identity until `Worker.current` (or
+/// a `WorkerBoundReference` built off the main thread) is asked for it.
+private final class MainWorkerHandleBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handle: Int = 0
+
+    func resolve() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        if handle == 0 {
+            handle = registerRuntimeObject(RuntimeWorkerBox(name: nil))
+        }
+        return handle
+    }
+}
+
+private let mainWorkerHandleBox = MainWorkerHandleBox()
+
+/// Returns the handle of the worker currently executing on the calling thread,
+/// or the shared main-worker handle if the calling thread isn't running a job
+/// dispatched through `RuntimeWorkerBox.execute`/`executeAfter`.
+func runtimeCurrentWorkerHandle() -> Int {
+    RuntimeWorkerBox.currentWorkerHandle() ?? mainWorkerHandleBox.resolve()
 }
 
 @_cdecl("kk_worker_execute")

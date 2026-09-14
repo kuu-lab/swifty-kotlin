@@ -1,0 +1,39 @@
+symbol fq=__local_0.available[kind=local] kind=local vis=private flags=_ type=Boolean
+symbol fq=__local_1.batchSize[kind=local] kind=local vis=private flags=_ type=ULong
+symbol fq=__local_2.maxTimeInTask[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=__local_3.minTimeBetweenTasks[kind=local] kind=local vis=private flags=_ type=kotlin.time.Duration
+symbol fq=golden.sema.mainThreadFinalizerProcessorProperties[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Boolean
+file fstdlib_kotlin_native_runtime_GC_MainThreadFinalizerProcessor_MainThreadFinalizerProcessor_n package=golden.sema
+  decl golden.sema.mainThreadFinalizerProcessorProperties[kind=fun;params=] fun mainThreadFinalizerProcessorProperties sym=golden.sema.mainThreadFinalizerProcessorProperties[kind=fun;params=]
+expr e@7:30 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@7:30#1 memberCall recv=e@7:30 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@7:30#2 memberCall recv=e@7:30#1 callee=available args=[] type=Boolean ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.available[kind=prop]
+expr e@7:5 localDecl available mutable=0 type=Boolean init=e@7:30#2 type=Unit ref=__local_0.available[kind=local]
+expr e@8:28 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@8:28#1 memberCall recv=e@8:28 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@8:28#2 memberCall recv=e@8:28#1 callee=batchSize args=[] type=ULong ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.batchSize[kind=prop]
+expr e@8:5 localDecl batchSize mutable=0 type=ULong init=e@8:28#2 type=Unit ref=__local_1.batchSize[kind=local]
+expr e@9:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@9:5#1 memberCall recv=e@9:5 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@9:49 name(batchSize) type=ULong ref=__local_1.batchSize[kind=local]
+expr e@9:61 ulong(1) type=ULong
+expr e@9:49#1 binary(add) lhs=e@9:49 rhs=e@9:61 type=ULong
+expr e@9:5#2 memberAssign recv=e@9:5#1 callee=batchSize value=e@9:49#1 type=Unit ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.batchSize[kind=prop]
+expr e@10:25 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@10:25#1 memberCall recv=e@10:25 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@10:25#2 memberCall recv=e@10:25#1 callee=maxTimeInTask args=[] type=kotlin.time.Duration ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.maxTimeInTask[kind=prop]
+expr e@10:5 localDecl maxTimeInTask mutable=0 type=_ init=e@10:25#2 type=Unit ref=__local_2.maxTimeInTask[kind=local]
+expr e@11:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@11:5#1 memberCall recv=e@11:5 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@11:53 name(maxTimeInTask) type=kotlin.time.Duration ref=__local_2.maxTimeInTask[kind=local]
+expr e@11:5#2 memberAssign recv=e@11:5#1 callee=maxTimeInTask value=e@11:53 type=Unit ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.maxTimeInTask[kind=prop]
+expr e@12:31 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@12:31#1 memberCall recv=e@12:31 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@12:31#2 memberCall recv=e@12:31#1 callee=minTimeBetweenTasks args=[] type=kotlin.time.Duration ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.minTimeBetweenTasks[kind=prop]
+expr e@12:5 localDecl minTimeBetweenTasks mutable=0 type=_ init=e@12:31#2 type=Unit ref=__local_3.minTimeBetweenTasks[kind=local]
+expr e@13:5 name(GC) type=kotlin.native.runtime.GC ref=kotlin.native.runtime.GC[kind=obj]
+expr e@13:5#1 memberCall recv=e@13:5 callee=MainThreadFinalizerProcessor args=[] type=kotlin.native.runtime.GC.MainThreadFinalizerProcessor ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor[kind=obj]
+expr e@13:59 name(minTimeBetweenTasks) type=kotlin.time.Duration ref=__local_3.minTimeBetweenTasks[kind=local]
+expr e@13:5#2 memberAssign recv=e@13:5#1 callee=minTimeBetweenTasks value=e@13:59 type=Unit ref=kotlin.native.runtime.GC.MainThreadFinalizerProcessor.minTimeBetweenTasks[kind=prop]
+expr e@14:12 name(available) type=Boolean ref=__local_0.available[kind=local]
+expr e@14:5 return value=e@14:12 type=Nothing

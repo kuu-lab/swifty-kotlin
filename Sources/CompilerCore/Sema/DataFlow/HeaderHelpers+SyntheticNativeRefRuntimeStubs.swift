@@ -6,8 +6,9 @@
 /// type-checking, and opt-in diagnostics work correctly without any runtime
 /// edits:
 ///
-/// - residual `WeakReference<T>` constructor and members, retained for
-///   KSP-1255/KSP-1256 runtime bridge ownership.
+/// - residual `WeakReference<T>` members, retained as a no-op fallback now
+///   that the constructor (KSP-1255) and members (KSP-1256) are source-backed
+///   in Weak.kt; the bundled-declaration check short-circuits registration.
 /// - residual `createCleaner` bridge only when its bundled source declaration
 ///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
@@ -16,8 +17,10 @@
 /// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
 /// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
 /// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
-/// - `kotlin.native.runtime.Debugging` — object exposing debug helpers, tagged
-///   with `@NativeRuntimeApi`.
+///
+/// `kotlin.native.runtime.Debugging` is fully source-backed (KSP-1260,
+/// `Stdlib/kotlin/native/runtime/Debugging.kt`) and registers no synthetic
+/// stub here.
 ///
 /// All symbols are compile-time stubs only.  No runtime code is generated or
 /// modified by this registration.
@@ -101,13 +104,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-        registerDebuggingObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     // MARK: - WeakReference<T>
@@ -188,14 +184,9 @@ extension DataFlowSemaPhase {
             parentSymbol: classSymbol,
             typeParameterSymbolsByName: ["T": typeParamSymbol]
         )
-        registerSyntheticConstructorStubs(
-            [SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceConstructor],
-            ownerType: SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceType,
-            context: weakReferenceContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
+        // KSP-1255: the public constructor is now source-backed in Weak.kt
+        // (`@KsSymbolName("kk_weak_ref_create") constructor(referred: T)`);
+        // no synthetic constructor registration is needed here anymore.
         registerSyntheticFunctionStubs(
             SyntheticNativeRefRuntimeSurfaceSpec.weakReferenceMembers,
             context: weakReferenceContext,
@@ -508,66 +499,6 @@ extension DataFlowSemaPhase {
             interner: interner
         )
 
-    }
-
-    // MARK: - Debugging object
-
-    private func registerDebuggingObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("Debugging")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi. The marker is declared in bundled Kotlin
-        // source, so fall back to its fully-qualified name before source loading.
-        attachNativeRuntimeApi(
-            to: objectSymbol,
-            markerFQName: nativeRuntimeApiSymbol.flatMap {
-                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            } ?? "kotlin.native.runtime.NativeRuntimeApi",
-            symbols: symbols
-        )
-
-        let objectContext = SyntheticStubRegistrationContext(
-            ownerFQName: objectFQName,
-            parentSymbol: objectSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.debuggingProperties,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
     }
 
     /// Attaches `@RequiresOptIn` to `ExperimentalNativeApi` so the opt-in
