@@ -1,0 +1,16 @@
+symbol fq=workerBoundReferenceValue.$0.ref[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=workerBoundReferenceValueOrNull.$1.ref[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=workerBoundReferenceValueOrNull[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.WorkerBoundReference<String>] ret=String?
+symbol fq=workerBoundReferenceValue[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.WorkerBoundReference<String>] ret=String
+symbol fq=workerBoundReferenceWorker.$2.ref[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=workerBoundReferenceWorker[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.native.concurrent.WorkerBoundReference<String>] ret=kotlin.native.concurrent.Worker
+file fstdlib_kotlin_native_concurrent_WorkerBoundReference_WorkerBoundReference_n package=_ annotations=[@file:OptIn(kotlin.native.concurrent.ObsoleteWorkersApi::class),@file:Suppress("DEPRECATION_ERROR")]
+  decl workerBoundReferenceValue[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] fun workerBoundReferenceValue sym=workerBoundReferenceValue[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>]
+  decl workerBoundReferenceValueOrNull[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] fun workerBoundReferenceValueOrNull sym=workerBoundReferenceValueOrNull[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>]
+  decl workerBoundReferenceWorker[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>] fun workerBoundReferenceWorker sym=workerBoundReferenceWorker[kind=fun;params=kotlin.native.concurrent.WorkerBoundReference<String>]
+expr e@7:76 name(ref) type=kotlin.native.concurrent.WorkerBoundReference<String> ref=workerBoundReferenceValue.$0.ref[kind=vparam]
+expr e@7:76#1 memberCall recv=e@7:76 callee=value args=[] type=String ref=kotlin.native.concurrent.WorkerBoundReference.value[kind=prop]
+expr e@8:83 name(ref) type=kotlin.native.concurrent.WorkerBoundReference<String> ref=workerBoundReferenceValueOrNull.$1.ref[kind=vparam]
+expr e@8:83#1 memberCall recv=e@8:83 callee=valueOrNull args=[] type=String? ref=kotlin.native.concurrent.WorkerBoundReference.valueOrNull[kind=prop]
+expr e@9:77 name(ref) type=kotlin.native.concurrent.WorkerBoundReference<String> ref=workerBoundReferenceWorker.$2.ref[kind=vparam]
+expr e@9:77#1 memberCall recv=e@9:77 callee=worker args=[] type=kotlin.native.concurrent.Worker ref=kotlin.native.concurrent.WorkerBoundReference.worker[kind=prop]

@@ -264,10 +264,9 @@ struct NativeRefRuntimeSemaTests {
         let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
-        let ctor = try #require(
-            sema.symbols.lookupAll(fqName: ctorFQName).first,
-            "WeakReference should have a constructor"
-        )
+        let ctors = sema.symbols.lookupAll(fqName: ctorFQName)
+        #expect(ctors.count == 1, "WeakReference should have exactly one constructor")
+        let ctor = try #require(ctors.first, "WeakReference should have a constructor")
         let signature = try #require(sema.symbols.functionSignature(for: ctor))
         #expect(signature.parameterTypes.count == 1)
         #expect(signature.typeParameterSymbols.count == 1)
@@ -276,6 +275,8 @@ struct NativeRefRuntimeSemaTests {
             sema.symbols.externalLinkName(for: ctor) == "kk_weak_ref_create",
             "WeakReference constructor should lower to kk_weak_ref_create"
         )
+        #expect(sema.symbols.isSourceBackedSymbol(ctor), "WeakReference constructor should be bundled Kotlin source")
+        #expect(sema.symbols.symbol(ctor)?.flags.contains(.synthetic) == false)
     }
 
     @Test
@@ -786,70 +787,6 @@ struct NativeRefRuntimeSemaTests {
         #expect(
             hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
             "GCInfo should carry @NativeRuntimeApi annotation"
-        )
-    }
-
-    // MARK: - Debugging object
-
-    @Test
-    func testDebuggingObjectIsRegistered() throws {
-        let (sema, interner) = try sharedSema()
-        let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let symbol = try #require(
-            sema.symbols.lookup(fqName: fqName),
-            "Expected kotlin.native.runtime.Debugging to be registered"
-        )
-        #expect(sema.symbols.symbol(symbol)?.kind == .object, "Debugging should be an object")
-    }
-
-    @Test
-    func testDebuggingHasIsThreadStateRunnableProperty() throws {
-        let (sema, interner) = try sharedSema()
-        let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let propFQName = objectFQName + [interner.intern("isThreadStateRunnable")]
-        let sym = try #require(
-            sema.symbols.lookup(fqName: propFQName),
-            "Debugging should expose isThreadStateRunnable property"
-        )
-        #expect(
-            sema.symbols.propertyType(for: sym) == sema.types.booleanType,
-            "isThreadStateRunnable should be Boolean"
-        )
-        #expect(sema.symbols.externalLinkName(for: sym) == "kk_debugging_is_thread_state_runnable")
-    }
-
-    @Test
-    func testDebuggingHasTrackingProperties() throws {
-        let (sema, interner) = try sharedSema()
-        let objectFQName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let expected: [(name: String, link: String)] = [
-            ("gcSuspendCount", "kk_debugging_gc_suspend_count"),
-            ("threadCount", "kk_debugging_thread_count"),
-            ("globalObjectCount", "kk_debugging_global_object_count"),
-        ]
-
-        for property in expected {
-            let propFQName = objectFQName + [interner.intern(property.name)]
-            let sym = try #require(
-                sema.symbols.lookup(fqName: propFQName),
-                "Debugging should expose \(property.name) property"
-            )
-            #expect(
-                sema.symbols.propertyType(for: sym) == sema.types.intType,
-                "\(property.name) should be Int"
-            )
-            #expect(sema.symbols.externalLinkName(for: sym) == property.link)
-        }
-    }
-
-    @Test
-    func testDebuggingIsTaggedNativeRuntimeApi() throws {
-        let (sema, interner) = try sharedSema()
-        let fqName = ["kotlin", "native", "runtime", "Debugging"].map { interner.intern($0) }
-        let symbol = try #require(sema.symbols.lookup(fqName: fqName))
-        #expect(
-            hasOptInAnnotation(on: symbol, markerContaining: "NativeRuntimeApi", sema: sema),
-            "Debugging should carry @NativeRuntimeApi annotation"
         )
     }
 

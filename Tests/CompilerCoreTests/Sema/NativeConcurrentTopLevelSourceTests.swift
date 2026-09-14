@@ -125,10 +125,9 @@ struct NativeConcurrentTopLevelSourceTests {
         #expect(!mutableDataInfo.flags.contains(.synthetic))
         #expect(sema.symbols.sourceFileID(for: mutableDataSymbol) != nil)
 
-        // WorkerBoundReference's constructor is already source-backed
-        // (KSP-1252) with a value-taking generic constructor; it is
-        // intentionally not a synthetic anchor. Its value/worker properties
-        // remain a separate KSP-1253 task.
+        // WorkerBoundReference is fully source-backed: its value-taking
+        // generic constructor by KSP-1252, and its value/valueOrNull/worker
+        // properties by KSP-1253. It is intentionally not a synthetic anchor.
         let workerBoundReferencePath = package + ["WorkerBoundReference"]
         let workerBoundReferenceSymbol = try symbol(workerBoundReferencePath, in: context)
         let workerBoundReferenceInfo = try #require(sema.symbols.symbol(workerBoundReferenceSymbol))
