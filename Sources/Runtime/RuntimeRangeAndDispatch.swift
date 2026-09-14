@@ -1542,38 +1542,6 @@ public func kk_ulong_range_isEmpty(_ rangeRaw: Int) -> Int {
     return 1
 }
 
-@_cdecl("kk_ulong_range_toULongArray")
-public func kk_ulong_range_toULongArray(_ rangeRaw: Int) -> Int {
-    guard let range = runtimeRangeBox(from: rangeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid range handle in kk_ulong_range_toULongArray")
-    }
-    // Reinterpret signed Int fields as UInt for correct unsigned comparison
-    let first = UInt(bitPattern: range.first)
-    let last = UInt(bitPattern: range.last)
-    let step = range.step
-    var elements: [Int] = []
-    var current = first
-    if step > 0 {
-        let uStep = UInt(bitPattern: step)
-        while current <= last {
-            elements.append(Int(bitPattern: current))
-            let (next, overflow) = current.addingReportingOverflow(uStep)
-            if overflow { break }
-            current = next
-        }
-    } else if step < 0 {
-        // Use magnitude to avoid trapping on Int.min negation
-        let uStep = UInt(step.magnitude)
-        while current >= last {
-            elements.append(Int(bitPattern: current))
-            let (next, overflow) = current.subtractingReportingOverflow(uStep)
-            if overflow { break }
-            current = next
-        }
-    }
-    return registerRuntimeObject(RuntimeListBox(elements: elements))
-}
-
 private func runtimeRangeIteratorBox(from rawValue: Int) -> RuntimeRangeIteratorBox? {
     resolveRuntimeHandle(rawValue, as: RuntimeRangeIteratorBox.self)
 }

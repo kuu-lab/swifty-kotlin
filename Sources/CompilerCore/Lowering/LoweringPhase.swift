@@ -75,6 +75,12 @@ public final class LoweringPhase: CompilerPhase {
         for pass in passes {
             if pass.shouldRun(module: module, ctx: kirCtx) {
                 try pass.run(module: module, ctx: kirCtx)
+                // A pass that ran may have synthesized instructions the
+                // pre-pipeline scan never saw; drop the snapshot so the next
+                // `shouldRun` gate re-scans lazily instead of skipping on
+                // stale features (e.g. IntegerNarrowing after data-class
+                // hashCode synthesis in a module with no user arithmetic).
+                module.invalidateFeatureScan()
             } else {
                 module.recordLowering(type(of: pass).name)
             }
