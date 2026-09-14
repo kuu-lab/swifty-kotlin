@@ -43,7 +43,7 @@
 >
 > **既存タスクとの境界**: `buildList` capacity の Kotlin 化・Sema stub 削除は KSP-697、collection factory 自体の移行は KSP-699 等の担当。本系列は残存 Lowering の整理であり、同じ移行を別実装しない。由来判定は既存の symbol / import 情報を利用し、RF-GOLDEN-002 の表示用分類や ARCH-021 の well-known 基盤を重複実装しない。全パス verifier・位置配列API変更は ARCH-018/019 の担当で、Inline 内の局所的な検証とは分ける。各系列を始める際に関連PRのマージ状況・現コードを再確認する。
 >
-> **共通完了ゲート**: 対象 Core Lowering / KIR suite、必要な Backend fixture・source注入 / stdlib artifact 経路、該当 Kotlin 差分ケースに加え、`CLAUDE.md` のRF必須ゲート（全 Swift テスト・Golden・全 `diff_kotlinc.sh`、存在する場合の `loc_report.sh` 指標）を各PRで満たす。API / ABI・例外・boxing・決定性を維持し、移動のみのPRではKIR/LLVM IRの不変性も確認する。バグを発見したら最小 Kotlin 再現と回帰テストを同じ修正PRに含め、既存の誤動作を期待値更新で固定しない。ABI export を削除する必要がある場合は利用者ゼロの確認・Spec/parity/リンク検証を同じPRに含め、残存理由がある経路をテストだけ消して完了扱いにしない。
+> **共通完了ゲート**: 対象 Core Lowering / KIR suite、必要な Backend fixture・source注入 / stdlib artifact 経路、該当 Kotlin 差分ケースに加え、`AGENTS.md` のRF必須ゲート（全 Swift テスト・Golden・全 `diff_kotlinc.sh`、存在する場合の `loc_report.sh` 指標）を各PRで満たす。API / ABI・例外・boxing・決定性を維持し、移動のみのPRではKIR/LLVM IRの不変性も確認する。バグを発見したら最小 Kotlin 再現と回帰テストを同じ修正PRに含め、既存の誤動作を期待値更新で固定しない。ABI export を削除する必要がある場合は利用者ゼロの確認・Spec/parity/リンク検証を同じPRに含め、残存理由がある経路をテストだけ消して完了扱いにしない。
 >
 > 以下のSwiftファイル名は、特記がなければ `Sources/CompilerCore/Lowering/` 配下。新設する責務別ファイル名は案であり、着手時に既存の同責務ファイルがあれば再利用する。
 
