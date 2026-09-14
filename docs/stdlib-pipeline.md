@@ -421,6 +421,23 @@ The reason codes are:
 | `Char` | — | `kk_char_to_int`, `kk_char_to_long`, `kk_char_to_uint`, `kk_char_to_ulong` | `B-CHAR` | KSP-1539 |
 <!-- KSP-1531-SYMBOLS-END -->
 
+> 2026-09-13 addendum (KSP-1533): while independently investigating the
+> `ULong` `toChar` misclassification below (before the KSP-1534 correction
+> landed), this same audit caught a second, unrelated bug in the `(c)`-owned
+> `ULong` conversions adjacent to `kk_ulong_to_char`: `kk_ulong_to_uint` (see
+> the table above, "no current symbol, representation-preserving copy") was
+> wired as a same-width `Long<->ULong` style 64-to-64 identity, but
+> `ULong.toUInt()` is a 64-to-32 narrowing that needs an actual truncating
+> mask. Any `ULong` value with a nonzero high 32 bits (e.g. `ULong.MAX_VALUE`)
+> kept its full 64-bit payload, so `toString()` and `==` produced garbage
+> while `+` happened to look correct (addition's mandatory 32-bit wraparound
+> masks the result regardless of dirty input bits). Fixed by routing to the
+> existing `kk_long_to_uint`, which already truncates via
+> `UInt32(truncatingIfNeeded:)` on the same raw-register representation — no
+> new Runtime/RuntimeABI surface. Regression: `Scripts/diff_cases/
+> unsigned_conversions.kt`, `CodegenBackendNumericBoundariesTests.
+> testNumericBoundaryULongToUIntTruncates`.
+
 The table is grounded in the current implementations. `RuntimeNumericCoercion`
 uses fixed-width truncating or representation-preserving operations for the
 integer `(c)` group, while its Char and floating-to-Char paths implement code
