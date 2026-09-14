@@ -239,10 +239,7 @@ extension CollectionLiteralLoweringSupport {
         } else if callee == lookup.takeName || callee == lookup.dropName
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
-            || callee == lookup.scanName || callee == lookup.runningFoldName
-            || callee == lookup.kkListSortedName
-            || callee == lookup.kkListShuffledName
-            || callee == lookup.kkListShuffledRandomName,
+            || callee == lookup.scanName || callee == lookup.runningFoldName,
             state.listExprIDs.contains(src)
         {
             state.listExprIDs.insert(result.rawValue)
@@ -313,9 +310,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
                 || callee == lookup.scanName || callee == lookup.runningFoldName
-                || callee == lookup.kkListSortedName
-                || callee == lookup.kkListShuffledName
-                || callee == lookup.kkListShuffledRandomName
             {
                 if let result { state.listExprIDs.insert(result.rawValue) }
             }
