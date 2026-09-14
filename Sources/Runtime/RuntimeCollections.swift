@@ -519,6 +519,16 @@ public func kk_collection_toCollection(_ collRaw: Int, _ destRaw: Int) -> Int {
 }
 
 private func runtimeMutableListInsertedValue(for currentValues: [RuntimeValue], rawValue: Int) -> RuntimeValue {
+    // A null element (e.g. MutableList<Char?>.add(null)) must stay taggable
+    // as null downstream (runtimeValuesEqual / kk_any_hashCode / printing all
+    // special-case the raw sentinel). Wrapping it as RuntimeValue(charScalar:)
+    // below — which the all-Char-so-far heuristic would otherwise do — turns
+    // it into an ordinary (if out-of-range) Char payload with no null marker
+    // left anywhere on the value, so it prints as an invalid Char instead of
+    // "null".
+    guard rawValue != runtimeNullSentinelInt else {
+        return RuntimeValue(raw: rawValue)
+    }
     let isObjectPointer: Bool = if let pointer = UnsafeMutableRawPointer(bitPattern: rawValue) {
         runtimeStorage.withGCLock { state in
             state.objectPointers.contains(UInt(bitPattern: pointer))

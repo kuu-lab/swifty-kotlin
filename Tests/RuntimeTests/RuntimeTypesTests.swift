@@ -51,10 +51,14 @@ struct RuntimeTypesTests {
     }
 
     @Test
-    func runtimeValueCharPayloadRoundTripsThroughLegacyRawValue() {
+    func runtimeValueCharPayloadMaterializesLegacyCharBox() throws {
         let value = RuntimeValue(charScalar: 97)
         #expect(value.tag == RuntimeValue.charTag)
-        #expect(value.legacyRawValue == 97)
+
+        let raw = value.legacyRawValue
+        let ptr = try #require(UnsafeMutableRawPointer(bitPattern: raw))
+        let box = try #require(tryCast(ptr, to: RuntimeCharBox.self))
+        #expect(box.value == 97)
     }
 
     @Test

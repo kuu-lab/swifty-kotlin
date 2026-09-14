@@ -105,19 +105,34 @@ struct RuntimeValue {
     }
 
     var legacyRawValue: Int {
-        guard tag == Self.stringTag else {
+        switch tag {
+        case Self.stringTag:
+            guard let data = UnsafePointer<UInt8>(bitPattern: payload0) else {
+                return 0
+            }
+            let string = runtimeStringFromFlatFields(
+                data: data,
+                length: payload1,
+                byteCount: payload2,
+                hash: payload3
+            )
+            return registerRuntimeObject(RuntimeStringBox(string))
+        case Self.charTag:
+            // Mirror the stringTag case above: a charTag value stores its
+            // scalar unboxed (see runtimeMutableListInsertedValue), so a
+            // caller reading it back as a generic Int handle needs a real
+            // RuntimeCharBox pointer, not the bare scalar — otherwise it is
+            // indistinguishable from an Int of the same value once it
+            // crosses an erased `T`/`Any` boundary (e.g. List<Char>.get()
+            // feeding another generic function's `add`). Route through
+            // kk_box_char rather than boxing payload0 directly: it already
+            // passes the null sentinel through unboxed and avoids
+            // double-boxing a value that is already a registered object
+            // pointer.
+            return kk_box_char(payload0)
+        default:
             return payload0
         }
-        guard let data = UnsafePointer<UInt8>(bitPattern: payload0) else {
-            return 0
-        }
-        let string = runtimeStringFromFlatFields(
-            data: data,
-            length: payload1,
-            byteCount: payload2,
-            hash: payload3
-        )
-        return registerRuntimeObject(RuntimeStringBox(string))
     }
 
     var childReferenceRawValue: Int? {
