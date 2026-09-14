@@ -264,10 +264,9 @@ struct NativeRefRuntimeSemaTests {
         let (sema, interner) = try sharedSema()
         let classFQName = ["kotlin", "native", "ref", "WeakReference"].map { interner.intern($0) }
         let ctorFQName = classFQName + [interner.intern("<init>")]
-        let ctor = try #require(
-            sema.symbols.lookupAll(fqName: ctorFQName).first,
-            "WeakReference should have a constructor"
-        )
+        let ctors = sema.symbols.lookupAll(fqName: ctorFQName)
+        #expect(ctors.count == 1, "WeakReference should have exactly one constructor")
+        let ctor = try #require(ctors.first, "WeakReference should have a constructor")
         let signature = try #require(sema.symbols.functionSignature(for: ctor))
         #expect(signature.parameterTypes.count == 1)
         #expect(signature.typeParameterSymbols.count == 1)
@@ -276,6 +275,8 @@ struct NativeRefRuntimeSemaTests {
             sema.symbols.externalLinkName(for: ctor) == "kk_weak_ref_create",
             "WeakReference constructor should lower to kk_weak_ref_create"
         )
+        #expect(sema.symbols.isSourceBackedSymbol(ctor), "WeakReference constructor should be bundled Kotlin source")
+        #expect(sema.symbols.symbol(ctor)?.flags.contains(.synthetic) == false)
     }
 
     @Test

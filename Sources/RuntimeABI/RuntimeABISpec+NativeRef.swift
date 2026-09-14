@@ -121,6 +121,73 @@ public extension RuntimeABISpec {
             section: "NativeRef",
             isThrowing: false,
         ),
+        // KSP-1263: kotlin.native.runtime.GC.MainThreadFinalizerProcessor bridges.
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_available",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_batch_size_load",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_batch_size_store",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_max_time_in_task_load",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_max_time_in_task_store",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_min_time_between_tasks_load",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_main_thread_finalizer_processor_min_time_between_tasks_store",
+            parameters: [
+                RuntimeABIParameter(name: "receiverRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false
+        ),
         RuntimeABIFunctionSpec(
             name: "kk_debugging_is_thread_state_runnable",
             parameters: [],
