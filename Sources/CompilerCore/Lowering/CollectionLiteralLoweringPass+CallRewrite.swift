@@ -67,8 +67,6 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
             // RF-LOWER-CALL-011 dropped the KSP-426 block that listed all 25
             // List `sorted*` / `min*` / `max*` names here.  It was meant to keep
             // those bundled Kotlin declarations (`ListSortingHOF.kt`,
@@ -85,12 +83,21 @@ extension CollectionLiteralConstructionLoweringPass {
             // runtime Sequence handle, which the bundled `sequenceOf` /
             // `generateSequence` / `asSequence` results are not.  Removing all
             // 25 left post-lowering KIR byte-identical across the
-            // sorting/extrema, Map, Sequence and range cases.
+            // sorting/extrema, Map, Sequence and range cases.  The virtual
+            // policy still keeps `sorted` for its Range consumer.
             //
-            // `maxByOrNull` / `minByOrNull` stay in the Map group above and the
-            // virtual policy keeps `sorted` for its Range consumer; both are
-            // RF-LOWER-CALL-012/014 territory.  Either way
-            // `ListSortExtremaLoweringRoutingTests` pins the routing itself.
+            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull` from this
+            // list for the same reason: their only downstream rewrite was the
+            // Map branch deleted from `+CallRewriteHOFCore.swift`
+            // (`kk_map_maxByOrNull` / `kk_map_minByOrNull`, neither of which
+            // has a `@_cdecl` in `Sources/Runtime` any more), and that branch's
+            // own outer gate never listed either name in the first place. With
+            // no rewrite left to short-circuit, a `maxByOrNull` / `minByOrNull`
+            // call now falls through every rewrite attempt below unmatched and
+            // reaches the unconditional `loweredBody.append(instruction)` at
+            // the bottom of `lowerCallInstruction` — the same outcome as
+            // preserving it here, just without a redundant guard.
+            // `MapHOFLoweringRoutingTests` pins the routing.
             // KSP-421: List transform HOFs have Kotlin source implementations.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
@@ -105,7 +112,19 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.flatMapToName
             || callee == lookup.flatMapIndexedToName
             || callee == lookup.flattenName
-            // KSP-430: Map higher-order functions have Kotlin source implementations.
+            // KSP-430: Map higher-order functions have Kotlin source
+            // implementations. RF-LOWER-CALL-012 removed the Map rewrite
+            // branch these used to short-circuit
+            // (`+CallRewriteHOFCore.swift`'s Map block and
+            // `+CallRewriteHandlers.swift`'s `rewriteCollectionHOFCall`), but
+            // `mapValues` / `mapValuesTo` / `mapKeys` / `mapKeysTo` /
+            // `filterKeys` / `filterValues` stay listed here: unlike
+            // `maxByOrNull` / `minByOrNull` above, `mapValues` / `mapKeys` are
+            // still named in `rewriteCoreHigherOrderCollectionCall`'s own
+            // outer member-name gate, so removing the short-circuit would not
+            // skip a rewrite attempt, only relocate where the (still
+            // unmatched) call falls through — keeping the guard here is the
+            // cheaper, more direct route to the same preserved call.
             || callee == lookup.mapValuesName
             || callee == lookup.mapValuesToName
             || callee == lookup.mapKeysName

@@ -100,8 +100,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             || callee == lookup.onEachName
             || callee == lookup.onEachIndexedName
             || callee == lookup.sumOfName
-            || callee == lookup.maxByOrNullName
-            || callee == lookup.minByOrNullName
             // RF-LOWER-CALL-011 removed the KSP-426 block that mirrored the 25
             // List `sorted*` / `min*` / `max*` names from
             // `+CallRewrite.swift`.  See the note there: none of them is
@@ -109,8 +107,20 @@ extension CollectionVirtualCallRewriteLoweringPass {
             // dropping it leaves post-lowering KIR byte-identical.  `sorted`
             // stays listed once with the KSP-453/454 Range/progression names
             // below — that is the entry `+VirtualCallRewrite+Range.swift`
-            // consumes — and `maxByOrNull` / `minByOrNull` stay in the group
-            // above as RF-LOWER-CALL-012 territory.
+            // consumes.
+            //
+            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull` from
+            // this list too: `rewriteMapHOF` (deleted below) is the only Map
+            // HOF branch in this file, and its own guard never named either
+            // one — they had no downstream rewrite here at all. Map HOF names
+            // are bundled Kotlin extension functions (`MapHOF.kt`), so
+            // CallLowerer always emits a direct `.call` for them, never a
+            // `.virtualCall`, which is a second, independent reason nothing
+            // in this file could ever have claimed them. `mapValues` /
+            // `mapKeys` / `filterKeys` / `filterValues` / `mapValuesTo` /
+            // `mapKeysTo` stay listed below: see `+CallRewrite.swift` for why
+            // the analogous direct-call names are worth keeping even once
+            // their rewrite is gone.
             || callee == lookup.mapName
             || callee == lookup.mapIndexedName
             || callee == lookup.mapNotNullName
@@ -405,14 +415,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             sequenceExprIDs: &sequenceExprIDs, loweredBody: &loweredBody
         ) { return true }
 
-        if rewriteMapHOF(
-            callee: callee, receiver: receiver, arguments: arguments,
-            result: result, origCanThrow: origCanThrow,
-            origThrownResult: origThrownResult, module: module, lookup: lookup,
-            listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,
-            loweredBody: &loweredBody
-        ) { return true }
-
         if rewriteGroupSortFindHOF(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
@@ -447,56 +449,22 @@ extension CollectionVirtualCallRewriteLoweringPass {
         return false
     }
 
-    private func rewriteMapHOF(
-        callee: InternedString,
-        receiver: KIRExprID,
-        arguments: [KIRExprID],
-        result: KIRExprID?,
-        origCanThrow: Bool,
-        origThrownResult: KIRExprID?,
-        module: KIRModule,
-        lookup: CollectionLiteralLookupTables,
-        listExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        loweredBody: inout KIRLoweringEmitContext
-    ) -> Bool {
-        guard callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-            || callee == lookup.mapValuesName || callee == lookup.mapKeysName
-            || callee == lookup.filterKeysName || callee == lookup.filterValuesName
-        else {
-            return false
-        }
-        guard mapExprIDs.contains(receiver.rawValue) else { return false }
-
-        guard arguments.count == 1 else { return false }
-
-        let kkName = lookup.collectionHOFRuntimeName(ownerKind: .map, callee: callee, arity: 1) ?? callee
-        let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-        loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-        let hofResult = emitHOFCall(
-            kkName: kkName,
-            receiver: receiver,
-            arguments: arguments + [zeroExpr],
-            result: result,
-            origCanThrow: origCanThrow,
-            origThrownResult: origThrownResult,
-            module: module,
-            loweredBody: &loweredBody
-        )
-        if callee == lookup.mapName || callee == lookup.mapNotNullName, let result {
-            listExprIDs.insert(result.rawValue)
-            listExprIDs.insert(hofResult.rawValue)
-        }
-        if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
-            mapExprIDs.insert(result.rawValue)
-            mapExprIDs.insert(hofResult.rawValue)
-        }
-        if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
-            mapExprIDs.insert(result.rawValue)
-            mapExprIDs.insert(hofResult.rawValue)
-        }
-        return true
-    }
+    // RF-LOWER-CALL-012 dropped `rewriteMapHOF`, the virtual-dispatch sibling
+    // of the direct-call Map branch removed from
+    // `+CallRewriteHOFCore.swift` / `+CallRewriteHandlers.swift`. It matched
+    // `map` / `filter` / `forEach` / `mapValues` / `mapKeys` / `filterKeys` /
+    // `filterValues` on a tracked Map receiver and rewrote to `kk_map_*`, but
+    // it could never fire: those names are all bundled Kotlin extension
+    // functions (`MapHOF.kt`, KSP-430), so Sema always resolves a call to them
+    // statically — CallLowerer never emits a `.virtualCall` for any of these
+    // names, only `.call`, so no `.virtualCall` instruction ever reaches
+    // `rewriteVirtualCallInstruction` (this file's entry point) with one of
+    // these callees in the first place; `shouldPreserveSourceBackedVirtualCall`
+    // above is a separate, `.call`-independent reason these names are inert
+    // here. `MapHOFLoweringRoutingTests` includes probes through an interface
+    // property and an abstract-class method (both of which do force real
+    // `virtualCall` dispatch elsewhere in the same function) to pin that the
+    // Map HOF calls themselves stay direct `.call`s.
 
     @discardableResult
     func emitHOFCall(
