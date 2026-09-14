@@ -21,4 +21,4 @@ expr e@9:42 name(value) type=Any ref=golden.sema.listTypeProbe.$2.value[kind=vpa
 expr e@9:42#1 isCheck expr=e@9:42 type=kotlin.collections.List<*> type=Boolean
 expr e@11:49 name(values) type=kotlin.collections.List<Int> ref=golden.sema.listResidualProbe.$1.values[kind=vparam]
 expr e@11:56 int(0) type=Int
-expr e@11:49#1 indexedAccess receiver=e@11:49 indices=[e@11:56] type=Int call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<out T0>;params=Int;gen=1] targs=[Int]
+expr e@11:49#1 indexedAccess receiver=e@11:49 indices=[e@11:56] type=Int call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<T0>;params=Int;gen=1] targs=[Int]
