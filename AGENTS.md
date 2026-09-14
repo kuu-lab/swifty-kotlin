@@ -86,6 +86,32 @@ bash Scripts/diff_kotlinc.sh Scripts/diff_cases
 
 作業中に発見したコンパイラ / ランタイムのバグは、原則として**発見したPR内で修正する**。修正には、症状を再現する最小の Kotlin コード（または `Scripts/diff_cases/` のケース）と、その挙動を固定する回帰テストを同じPRに含める。spawn_task などセッション外への報告だけで、修正可能なバグを先送りしてはならない。
 
+## スタック PR
+
+依存関係のある PR を積むとき（base を master 以外の PR ブランチにするとき）は、`gh pr create --base <branch>` を個別に並べず、GitHub の [stacked pull requests](https://docs.github.com/en/pull-requests/how-tos/stacked-pull-requests) を `gh stack`（公式拡張）で使う。GitHub 上でスタックとして表示され、下から順の原子的マージと、下の PR が merge されたときの上位 PR の base 自動付け替えが効く。
+
+前提: `gh extension install github/gh-stack`（gh 2.90 以上）。
+
+```bash
+# 新規: 一番下のブランチから積む
+gh stack init <bottom-branch>             # trunk は既定ブランチ（master）
+git commit ...                            # 通常どおりコミット
+gh stack add <next-branch>                # 上に 1 層追加（-Am "msg" でコミットも同時に）
+gh stack submit --open                    # 全ブランチを push し PR 作成 + スタック化。--auto / 非対話は draft 既定なので --open 必須
+
+# 既存ブランチ / 既存 PR を積む（下 → 上の順。ブランチ名・PR 番号・PR URL 可）
+gh stack link --open <bottom> <next> ...  # 連鎖に合わない既存 PR の base は自動修正。PR 番号指定なら push は発生しない
+
+# 確認・更新・マージ
+gh stack view                             # ブランチと PR 状態（⚠ は要 rebase）
+gh stack sync                             # fetch → 連鎖 rebase → --force-with-lease push。他者も push するブランチでは事前に調整する
+gh stack merge                            # 下から順に原子的マージ
+```
+
+- スタックは一直線のみ。1 つの PR を複数 PR の base にする扇型（fan-out）や、1 PR の複数スタック所属はできない。同じ base に並列で出したいものは依存順に 1 本に連ねるか、独立した PR にする
+- 必須チェック・必須レビュー・CODEOWNERS はすべての層で master（スタックの base）に対して評価され、CI は PR ごとに走る
+- 下の PR が先に merge されていたら、手で cherry-pick し直さず `gh stack sync` で追従する
+- `gh stack checkout` / `init` / `add` は現在の worktree のブランチを切り替える。他の作業を抱えた worktree では実行しない
 
 ## アーキテクチャ概要
 
