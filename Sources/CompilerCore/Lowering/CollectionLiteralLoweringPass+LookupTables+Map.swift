@@ -24,7 +24,6 @@ struct MapLookupNames {
     let kkMapFilterValuesName: InternedString
     let kkMapMapValuesName: InternedString
     let kkMapMapKeysName: InternedString
-    let kkMapCountName: InternedString
     let kkMapAnyName: InternedString
     let kkMapAllName: InternedString
     let kkMapNoneName: InternedString
@@ -60,7 +59,6 @@ struct MapLookupNames {
         kkMapFilterValuesName = interner.intern("kk_map_filterValues")
         kkMapMapValuesName = interner.intern("kk_map_mapValues")
         kkMapMapKeysName = interner.intern("kk_map_mapKeys")
-        kkMapCountName = interner.intern("kk_map_count")
         kkMapAnyName = interner.intern("kk_map_any")
         kkMapAllName = interner.intern("kk_map_all")
         kkMapNoneName = interner.intern("kk_map_none")

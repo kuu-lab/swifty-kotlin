@@ -180,7 +180,6 @@ struct CollectionLiteralLookupTables {
     var kkMapFilterValuesName: InternedString { mapLookup.kkMapFilterValuesName }
     var kkMapMapValuesName: InternedString { mapLookup.kkMapMapValuesName }
     var kkMapMapKeysName: InternedString { mapLookup.kkMapMapKeysName }
-    var kkMapCountName: InternedString { mapLookup.kkMapCountName }
     var kkMapAnyName: InternedString { mapLookup.kkMapAnyName }
     var kkMapAllName: InternedString { mapLookup.kkMapAllName }
     var kkMapNoneName: InternedString { mapLookup.kkMapNoneName }
