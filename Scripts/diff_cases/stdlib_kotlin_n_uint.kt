@@ -1,6 +1,10 @@
 package golden.sema
 
 fun main() {
+    val empty = uintArrayOf()
+    println(empty.size)
+    println(empty.isEmpty())
+
     val values = uintArrayOf(1u, 2147483648u, 4294967295u)
     val divisor = 17u
     println(values.size)

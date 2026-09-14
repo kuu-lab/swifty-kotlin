@@ -11,171 +11,32 @@ extension CollectionVirtualCallRewriteLoweringPass {
 
     /// Returns true when the callee resolves to a bundled Kotlin source declaration
     /// that should not be rewritten to a runtime `kk_*` entry point.
+    ///
+    /// RF-LOWER-CALL-007 moved the decision into
+    /// `SourceBackedCallPreservationPolicy`, which the construction pass shares:
+    /// the 102 API names both paths preserved are one set there, and the names
+    /// only virtual dispatch preserves (Range/progression members, `random`)
+    /// are a second. What remains here is resolving the receiver's static type,
+    /// which the policy deliberately cannot do.
     private func shouldPreserveSourceBackedVirtualCall(
         symbol: SymbolID?,
         callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
         receiver: KIRExprID,
         context: VirtualCallRewriteContext
     ) -> Bool {
-        // KSP-1513: array `size` is a bundled Kotlin declaration, so do not
-        // replace it with the generic runtime bridge when the receiver is an
-        // Array<T> or primitive array.
-        if callee == lookup.sizeName,
-           let symbol,
-           let sema = context.sema,
-           sema.symbols.isSourceBackedSymbol(symbol),
-           let receiverType = context.module.arena.exprType(receiver),
-           let (_, receiverSymbol) = resolveClassTypeSymbol(
-               receiverType,
-               sema: sema
-           )
-        {
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
-        }
-
-        // KSP-1516: array conversion members are bundled Kotlin source. Keep
-        // the selected declaration so its source body is emitted instead of
-        // the removed synthetic runtime shortcuts.
-        if callee == lookup.sliceArrayName
-            || callee == lookup.reversedArrayName
-            || callee == lookup.asListName
-            || callee == lookup.toTypedArrayName,
-           let symbol,
-           let sema = context.sema,
-           sema.symbols.isSourceBackedSymbol(symbol),
-           let receiverType = context.module.arena.exprType(receiver),
-           let (_, receiverSymbol) = resolveClassTypeSymbol(
-               receiverType,
-               sema: sema
-           )
-        {
-            let sourceBackedArrayNames: Set<String> = [
-                "IntArray", "LongArray", "ShortArray", "ByteArray",
-                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-            ]
-            return sourceBackedArrayNames.contains(context.interner.resolve(receiverSymbol.name))
-        }
-
-        guard callee == lookup.foldName
-            || callee == lookup.foldRightName
-            || callee == lookup.reduceName
-            || callee == lookup.reduceOrNullName
-            || callee == lookup.scanName
-            || callee == lookup.scanIndexedName
-            || callee == lookup.scanReduceName
-            || callee == lookup.runningFoldName
-            || callee == lookup.runningFoldIndexedName
-            || callee == lookup.runningReduceName
-            || callee == lookup.runningReduceIndexedName
-            || callee == lookup.foldIndexedName
-            || callee == lookup.foldRightIndexedName
-            || callee == lookup.reduceRightName
-            || callee == lookup.reduceRightOrNullName
-            || callee == lookup.reduceRightIndexedName
-            || callee == lookup.reduceRightIndexedOrNullName
-            || callee == lookup.reduceIndexedName
-            || callee == lookup.reduceIndexedOrNullName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterNotNullName
-            || callee == lookup.filterIndexedName
-            || callee == lookup.associateName
-            || callee == lookup.associateByName
-            || callee == lookup.associateWithName
-            || callee == lookup.associateToName
-            || callee == lookup.associateByToName
-            || callee == lookup.associateWithToName
-            || callee == lookup.groupByName
-            || callee == lookup.groupByToName
-            || callee == lookup.partitionName
-            || callee == lookup.unzipName
-            || callee == lookup.withIndexName
-            || callee == lookup.onEachName
-            || callee == lookup.onEachIndexedName
-            || callee == lookup.sumOfName
-            // RF-LOWER-CALL-011 removed the KSP-426 block that mirrored the 25
-            // List `sorted*` / `min*` / `max*` names from
-            // `+CallRewrite.swift`.  See the note there: none of them is
-            // reachable by a rewrite, so the enumeration guarded nothing, and
-            // dropping it leaves post-lowering KIR byte-identical.  `sorted`
-            // stays listed once with the KSP-453/454 Range/progression names
-            // below — that is the entry `+VirtualCallRewrite+Range.swift`
-            // consumes.
-            //
-            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull` from
-            // this list too: `rewriteMapHOF` (deleted below) is the only Map
-            // HOF branch in this file, and its own guard never named either
-            // one — they had no downstream rewrite here at all. Map HOF names
-            // are bundled Kotlin extension functions (`MapHOF.kt`), so
-            // CallLowerer always emits a direct `.call` for them, never a
-            // `.virtualCall`, which is a second, independent reason nothing
-            // in this file could ever have claimed them. `mapValues` /
-            // `mapKeys` / `filterKeys` / `filterValues` / `mapValuesTo` /
-            // `mapKeysTo` stay listed below: see `+CallRewrite.swift` for why
-            // the analogous direct-call names are worth keeping even once
-            // their rewrite is gone.
-            || callee == lookup.mapName
-            || callee == lookup.mapIndexedName
-            || callee == lookup.mapNotNullName
-            || callee == lookup.mapValuesName
-            || callee == lookup.mapValuesToName
-            || callee == lookup.mapKeysName
-            || callee == lookup.mapKeysToName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
-            || callee == lookup.forEachName
-            || callee == lookup.mapToName
-            || callee == lookup.mapIndexedToName
-            || callee == lookup.mapNotNullToName
-            || callee == lookup.mapIndexedNotNullName
-            || callee == lookup.mapIndexedNotNullToName
-            || callee == lookup.flatMapName
-            || callee == lookup.flatMapIndexedName
-            || callee == lookup.flatMapToName
-            || callee == lookup.flatMapIndexedToName
-            || callee == lookup.flattenName
-            || callee == lookup.takeName
-            || callee == lookup.dropName
-            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
-            || callee == lookup.findName
-            || callee == lookup.findLastName
-            || callee == lookup.containsName
-            || callee == lookup.countName
-            || callee == lookup.anyName
-            || callee == lookup.allName
-            || callee == lookup.noneName
-            || callee == lookup.firstOrNullName
-            || callee == lookup.lastOrNullName
-            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
-            || callee == lookup.copyOfName
-            || callee == lookup.copyOfRangeName
-            // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
-            || callee == lookup.isEmptyName
-            || callee == lookup.iteratorName
-            // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
-            || callee == lookup.toListName
-            || callee == lookup.averageName
-            || callee == lookup.sortedName
-            || callee == lookup.chunkedName
-            || callee == lookup.windowedName
-            || callee == lookup.firstName
-            || callee == lookup.lastName
-            || callee == context.interner.intern("random")
-            || callee == context.interner.intern("randomOrNull"),
-            let symbol,
-            let sema = context.sema,
-            sema.symbols.symbol(symbol) != nil
-        else {
-            return false
-        }
-        return sema.symbols.isSourceBackedSymbol(symbol)
+        sourceBackedPreservation.preservesVirtualCall(
+            callee: callee,
+            resolution: SourceBackedCalleeResolution(symbol: symbol, sema: context.sema),
+            receiverArrayClassName: {
+                guard let sema = context.sema,
+                      let receiverType = context.module.arena.exprType(receiver),
+                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+                else {
+                    return nil
+                }
+                return context.interner.resolve(receiverSymbol.name)
+            }
+        )
     }
 
     func rewriteVirtualCallInstruction(
@@ -187,19 +48,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         origCanThrow: Bool,
         origThrownResult: KIRExprID?,
         context: VirtualCallRewriteContext,
-        listExprIDs: inout Set<Int32>,
-        setExprIDs: inout Set<Int32>,
-        mapExprIDs: inout Set<Int32>,
-        arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>,
-        rangeExprIDs: inout Set<Int32>,
-        charRangeExprIDs: inout Set<Int32>,
-        ulongRangeExprIDs: inout Set<Int32>,
-        fileExprIDs: inout Set<Int32>,
-        pathExprIDs: inout Set<Int32>,
-        iteratorBuilderExprIDs: Set<Int32>,
-        indexingIterableExprIDs: inout Set<Int32>,
-        listIteratorExprIDs: inout Set<Int32>,
+        state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
         let module = context.module
@@ -211,9 +60,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // the concrete list value still requires the shared list iterator ABI.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
+           state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue) || state.indexingIterableExprIDs.contains(receiver.rawValue)
         {
-            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+            let iterCallee = state.indexingIterableExprIDs.contains(receiver.rawValue)
                 ? lookup.kkIndexingIterableIteratorName
                 : lookup.kkListIteratorName
             loweredBody.append(.call(
@@ -225,7 +74,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if iterCallee == lookup.kkListIteratorName, let result {
-                listIteratorExprIDs.insert(result.rawValue)
+                state.listIteratorExprIDs.insert(result.rawValue)
             }
             return true
         }
@@ -234,7 +83,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // Keep their bridge calls direct even though Iterator itself is now
         // source-backed; user-defined Iterator implementations still use the
         // normal virtual dispatch path.
-        if iteratorBuilderExprIDs.contains(receiver.rawValue) {
+        if state.iteratorBuilderExprIDs.contains(receiver.rawValue) {
             let semanticMemberName = symbol
                 .flatMap { context.sema?.symbols.symbol($0)?.name }
                 ?? callee
@@ -262,7 +111,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if shouldPreserveSourceBackedVirtualCall(
             symbol: symbol,
             callee: callee,
-            lookup: lookup,
             receiver: receiver,
             context: context
         ) {
@@ -277,19 +125,18 @@ extension CollectionVirtualCallRewriteLoweringPass {
         classifyReceiverByStaticType(
             receiver: receiver,
             context: context,
-            listExprIDs: &listExprIDs,
-            setExprIDs: &setExprIDs,
-            mapExprIDs: &mapExprIDs,
-            arrayExprIDs: &arrayExprIDs,
-            sequenceExprIDs: &sequenceExprIDs
+            listExprIDs: &state.listExprIDs,
+            setExprIDs: &state.setExprIDs,
+            mapExprIDs: &state.mapExprIDs,
+            arrayExprIDs: &state.arrayExprIDs,
+            sequenceExprIDs: &state.sequenceExprIDs
         )
 
         if rewriteArrayVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
-            listExprIDs: &listExprIDs, arrayExprIDs: &arrayExprIDs,
-            sequenceExprIDs: &sequenceExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -299,8 +146,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             context: context,
-            listExprIDs: &listExprIDs, setExprIDs: &setExprIDs, mapExprIDs: &mapExprIDs, sequenceExprIDs: &sequenceExprIDs,
-            arrayExprIDs: arrayExprIDs,
+            listExprIDs: &state.listExprIDs, setExprIDs: &state.setExprIDs, mapExprIDs: &state.mapExprIDs, sequenceExprIDs: &state.sequenceExprIDs,
+            arrayExprIDs: state.arrayExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -308,17 +155,17 @@ extension CollectionVirtualCallRewriteLoweringPass {
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, context: context,
-            listExprIDs: &listExprIDs, mapExprIDs: &mapExprIDs,
-            setExprIDs: &setExprIDs, sequenceExprIDs: &sequenceExprIDs,
-            indexingIterableExprIDs: &indexingIterableExprIDs,
+            listExprIDs: &state.listExprIDs, mapExprIDs: &state.mapExprIDs,
+            setExprIDs: &state.setExprIDs, sequenceExprIDs: &state.sequenceExprIDs,
+            indexingIterableExprIDs: &state.indexingIterableExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
         if rewriteCollectionPropertyVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, lookup: lookup,
-            listExprIDs: listExprIDs, setExprIDs: setExprIDs, mapExprIDs: mapExprIDs,
-            arrayExprIDs: arrayExprIDs,
+            listExprIDs: state.listExprIDs, setExprIDs: state.setExprIDs, mapExprIDs: state.mapExprIDs,
+            arrayExprIDs: state.arrayExprIDs,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -326,9 +173,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // stdlib list/set iterator calls directly to the shared iterator helper.
         if callee == lookup.iteratorName,
            arguments.isEmpty,
-           listExprIDs.contains(receiver.rawValue) || setExprIDs.contains(receiver.rawValue) || indexingIterableExprIDs.contains(receiver.rawValue)
+           state.listExprIDs.contains(receiver.rawValue) || state.setExprIDs.contains(receiver.rawValue) || state.indexingIterableExprIDs.contains(receiver.rawValue)
         {
-            let iterCallee = indexingIterableExprIDs.contains(receiver.rawValue)
+            let iterCallee = state.indexingIterableExprIDs.contains(receiver.rawValue)
                 ? lookup.kkIndexingIterableIteratorName
                 : lookup.kkListIteratorName
             loweredBody.append(.call(
@@ -340,7 +187,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if iterCallee == lookup.kkListIteratorName, let result {
-                listIteratorExprIDs.insert(result.rawValue)
+                state.listIteratorExprIDs.insert(result.rawValue)
             }
             return true
         }
@@ -350,9 +197,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
             result: result, origCanThrow: origCanThrow,
             origThrownResult: origThrownResult, module: module, lookup: lookup,
             sema: context.sema, interner: context.interner,
-            rangeExprIDs: &rangeExprIDs, charRangeExprIDs: &charRangeExprIDs,
-            ulongRangeExprIDs: &ulongRangeExprIDs,
-            listExprIDs: &listExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -361,7 +206,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
 
         // toTypedArray() on array → __kk_array_copyOf (result is Array)
-        if callee == lookup.toTypedArrayName, arguments.isEmpty, arrayExprIDs.contains(receiver.rawValue) {
+        if callee == lookup.toTypedArrayName, arguments.isEmpty, state.arrayExprIDs.contains(receiver.rawValue) {
             let toArrayResult = module.arena.appendTemporary(type: nil
             )
             loweredBody.append(.call(
@@ -373,8 +218,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             if let result {
-                arrayExprIDs.insert(result.rawValue)
-                arrayExprIDs.insert(toArrayResult.rawValue)
+                state.arrayExprIDs.insert(result.rawValue)
+                state.arrayExprIDs.insert(toArrayResult.rawValue)
                 loweredBody.append(.copy(from: toArrayResult, to: result))
             }
             return true

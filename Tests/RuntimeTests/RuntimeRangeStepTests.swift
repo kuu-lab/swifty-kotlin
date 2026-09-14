@@ -190,8 +190,7 @@ struct RuntimeRangeStepTests {
         let progression = __kk_uint_progression_fromClosedRange(0, 1, 10, 2, nil)
         #expect(kk_range_first(progression) == 1)
         #expect(kk_range_last(progression) == 9)
-        let list = kk_uint_range_toList(progression)
-        #expect(kk_list_size(list) == 5)
+        #expect(kk_range_count(progression) == 5)
     }
 
     @Test func testULongProgressionFromClosedRange() {
@@ -208,8 +207,7 @@ struct RuntimeRangeStepTests {
         let range = __kk_uint_rangeTo(1, 10)
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 10)
-        let list = kk_uint_range_toList(range)
-        #expect(kk_list_size(list) == 10)
+        #expect(kk_range_count(range) == 10)
     }
 
     @Test func testUIntDownTo() {
@@ -224,31 +222,16 @@ struct RuntimeRangeStepTests {
         let stepped = __kk_uint_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
-        let list = kk_uint_range_toList(stepped)
-        #expect(kk_list_size(list) == 4) // 1,4,7,10
+        #expect(kk_range_count(stepped) == 4) // 1,4,7,10
     }
 
-    @Test func testUIntRangeReversed() {
-        let range = __kk_uint_rangeTo(1, 5)
-        let reversed = kk_uint_range_reversed(range)
-        #expect(kk_range_first(reversed) == 5)
-        #expect(kk_range_last(reversed) == 1)
-        #expect(kk_range_count(reversed) == 5)
-    }
-
-    @Test func testUIntRangeContainsAndIsEmpty() {
-        let range = __kk_uint_rangeTo(1, 10)
-        #expect(kk_uint_range_contains(range, 5) == 1)
-        #expect(kk_uint_range_contains(range, 15) == 0)
-        #expect(kk_uint_range_isEmpty(range) == 0)
-        #expect(kk_uint_range_isEmpty(__kk_uint_rangeTo(10, 1)) == 1)
-    }
-
-    @Test func testUIntRangeStartEndAliases() {
-        let range = __kk_uint_rangeTo(2, 6)
-        #expect(kk_uint_range_first(range) == 2)
-        #expect(kk_uint_range_last(range) == 6)
-    }
+    // KSP-1523: reversed()/contains()/isEmpty()/the first-last property
+    // aliases moved to bundled Kotlin source or proven-safe generic
+    // bridges; toUIntArray() was removed outright instead — it isn't a
+    // real UIntRange member in Kotlin (confirmed via diff_kotlinc.sh).
+    // Either way their kk_uint_range_* Runtime bridges were deleted — see
+    // Scripts/diff_cases/uint_range.kt for the equivalent compiler-level
+    // coverage (stdlib-pipeline.md §13-4's dual-oracle requirement).
 
     @Test func testUIntRangeIteratorUsesUnsignedIterator() {
         let start = Int(bitPattern: UInt.max - 2)
@@ -264,18 +247,17 @@ struct RuntimeRangeStepTests {
         #expect(__kk_uint_range_hasNext(iterator) == 0)
     }
 
-    @Test func testUIntUntilToList() {
+    @Test func testUIntUntilStep() {
         let range = __kk_uint_step(__kk_op_rangeUntil(1, 5), 1)
-        let list = kk_uint_range_toList(range)
-        #expect(kk_list_size(list) == 4)
-        #expect(kk_list_get(list, 0) == 1)
-        #expect(kk_list_get(list, 3) == 4)
+        #expect(kk_range_first(range) == 1)
+        #expect(kk_range_last(range) == 4)
+        #expect(kk_range_count(range) == 4)
     }
 
     // MARK: - ULongProgression tests (STDLIB-RANGE-039)
 
     @Test func testULongRangeTo() {
-        let range = kk_ulong_rangeTo(1, 10)
+        let range = __kk_ulong_rangeTo(1, 10)
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 10)
         let list = kk_ulong_range_toList(range)
@@ -290,7 +272,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongStep() {
-        let range = kk_ulong_rangeTo(1, 10)
+        let range = __kk_ulong_rangeTo(1, 10)
         let stepped = __kk_ulong_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
@@ -299,7 +281,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongRangeReversed() {
-        let range = kk_ulong_rangeTo(1, 5)
+        let range = __kk_ulong_rangeTo(1, 5)
         let reversed = kk_ulong_range_reversed(range)
         #expect(kk_range_first(reversed) == 5)
         #expect(kk_range_last(reversed) == 1)

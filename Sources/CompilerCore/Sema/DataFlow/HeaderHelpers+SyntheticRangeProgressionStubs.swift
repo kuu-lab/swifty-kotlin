@@ -663,10 +663,21 @@ extension DataFlowSemaPhase {
         }
 
         let listType = syntheticListType(elementType: elementType, symbols: symbols, types: types, interner: interner)
+        // KSP-1523: confirmed by KIR probe (variable- and literal-receiver
+        // UIntProgression, both `--emit kir` and real kklib execution) that
+        // `isEmpty`/`first`/`last`/`reversed`/`toList` never reach any of the
+        // externalLinkNames registered below — resolution always lands on the
+        // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
+        // before this registration's link name is read (`step` is the one
+        // exception: it stays on the live, kept `kk_uint_range_step` bridge,
+        // same as UIntRange's own `.step`). Aligning the dead names to the
+        // safe generic bridge so they don't dangle on symbols this ticket
+        // removes; Sema still needs the registration itself so these member
+        // names type-check on UIntProgression.
         let firstLastRuntime: (String, String)
         switch name {
         case "UIntProgression":
-            firstLastRuntime = ("kk_uint_range_first", "kk_uint_range_last")
+            firstLastRuntime = ("__kk_range_first", "__kk_range_last")
         case "ULongProgression":
             firstLastRuntime = ("kk_ulong_range_first", "kk_ulong_range_last")
         case "LongProgression":
@@ -683,16 +694,22 @@ extension DataFlowSemaPhase {
         }
         let isEmptyRuntime: String
         switch name {
-        case "UIntProgression": isEmptyRuntime = "kk_uint_range_isEmpty"
+        case "UIntProgression": isEmptyRuntime = "__kk_range_isEmpty"
         case "ULongProgression": isEmptyRuntime = "kk_ulong_range_isEmpty"
         default: isEmptyRuntime = "__kk_range_isEmpty"
         }
         let reversedRuntime: String
-        let toListRuntime: String
+        let toListRuntime: String?
         switch name {
         case "UIntProgression":
-            reversedRuntime = "kk_uint_range_reversed"
-            toListRuntime = "kk_uint_range_toList"
+            reversedRuntime = "__kk_range_reversed"
+            // KSP-1523: unlike first/last/reversed/isEmpty above, toList has
+            // no safe generic bridge to fall back to — confirmed by marker
+            // probe that this registration's link name is never read (toList
+            // resolves through the bundled RangeHOF.kt declaration instead).
+            // `registerProgressionMethod` accepts a nil link name, so pass
+            // that instead of dangling on a symbol removed from Runtime.
+            toListRuntime = nil
         case "ULongProgression":
             reversedRuntime = "kk_ulong_range_reversed"
             toListRuntime = "kk_ulong_range_toList"

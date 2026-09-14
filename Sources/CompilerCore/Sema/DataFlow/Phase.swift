@@ -59,6 +59,15 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-1517: `Array<T>`/primitive array class shells are source-backed
+        // in `ArrayIntrinsics.kt`, but array-typed synthetic signatures (e.g.
+        // `MutableCollection<T>.addAll(array: Array<out T>)`) are registered
+        // before the normal bundled header collection pass.
+        predeclareBundledArrayHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols, types: types,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-711: `StringEncoding.kt` owns `Charset`/`Charsets`, but FileIO
         // extension bridges need the source symbol before synthetic
         // registration constructs their signatures.

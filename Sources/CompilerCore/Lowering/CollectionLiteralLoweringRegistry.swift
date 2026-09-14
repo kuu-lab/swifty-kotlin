@@ -12,10 +12,28 @@ struct CollectionLiteralLookupRegistry {
 
 final class CollectionLiteralConstructionLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionLiteralConstructionLowering"
+
+    /// RF-LOWER-CALL-007: shared with `CollectionVirtualCallRewriteLoweringPass`
+    /// so direct and virtual dispatch decide source-backed preservation from
+    /// one set of API names built once per pass run.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 }
 
 final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringSupport {
     static let name = "CollectionVirtualCallRewrite"
+
+    /// See `CollectionLiteralConstructionLoweringPass.sourceBackedPreservation`.
+    let sourceBackedPreservation: SourceBackedCallPreservationPolicy
+
+    init(sourceBackedPreservation: SourceBackedCallPreservationPolicy) {
+        self.sourceBackedPreservation = sourceBackedPreservation
+        super.init()
+    }
 
     func lowerVirtualCallInstruction(
         symbol: SymbolID?,
@@ -47,19 +65,7 @@ final class CollectionVirtualCallRewriteLoweringPass: CollectionLiteralLoweringS
                 sema: ctx.sema,
                 interner: ctx.interner
             ),
-            listExprIDs: &state.listExprIDs,
-            setExprIDs: &state.setExprIDs,
-            mapExprIDs: &state.mapExprIDs,
-            arrayExprIDs: &state.arrayExprIDs,
-            sequenceExprIDs: &state.sequenceExprIDs,
-            rangeExprIDs: &state.rangeExprIDs,
-            charRangeExprIDs: &state.charRangeExprIDs,
-            ulongRangeExprIDs: &state.ulongRangeExprIDs,
-            fileExprIDs: &state.fileExprIDs,
-            pathExprIDs: &state.pathExprIDs,
-            iteratorBuilderExprIDs: state.iteratorBuilderExprIDs,
-            indexingIterableExprIDs: &state.indexingIterableExprIDs,
-            listIteratorExprIDs: &state.listIteratorExprIDs,
+            state: &state,
             loweredBody: &loweredBody
         )
     }
@@ -72,8 +78,16 @@ struct CollectionLiteralLoweringRegistry {
 
     init(interner: StringInterner) {
         lookupRegistry = CollectionLiteralLookupRegistry(interner: interner)
-        constructionPass = CollectionLiteralConstructionLoweringPass()
-        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass()
+        let sourceBackedPreservation = SourceBackedCallPreservationPolicy(
+            lookup: lookupRegistry.tables,
+            interner: interner
+        )
+        constructionPass = CollectionLiteralConstructionLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
+        virtualCallRewritePass = CollectionVirtualCallRewriteLoweringPass(
+            sourceBackedPreservation: sourceBackedPreservation
+        )
     }
 
     var componentNames: [String] {

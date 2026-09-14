@@ -159,8 +159,8 @@ public func kk_ulong_range_count(_ rangeRaw: Int) -> Int {
     }
 }
 
-@_cdecl("kk_ulong_range_iterator")
-public func kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_iterator")
+public func __kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: rangeRaw) != nil {
         return rangeRaw
     }
@@ -172,8 +172,8 @@ public func kk_ulong_range_iterator(_ rangeRaw: Int) -> Int {
     )
 }
 
-@_cdecl("kk_ulong_range_hasNext")
-public func kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_hasNext")
+public func __kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_hasNext(iterRaw)
     }
@@ -187,8 +187,8 @@ public func kk_ulong_range_hasNext(_ iterRaw: Int) -> Int {
     return 0
 }
 
-@_cdecl("kk_ulong_range_next")
-public func kk_ulong_range_next(_ iterRaw: Int) -> Int {
+@_cdecl("__kk_ulong_range_next")
+public func __kk_ulong_range_next(_ iterRaw: Int) -> Int {
     if runtimeIteratorBuilderBox(from: iterRaw) != nil {
         return __kk_iterator_builder_next(iterRaw)
     }

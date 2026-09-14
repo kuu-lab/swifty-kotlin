@@ -152,7 +152,7 @@ extension BuildASTPhase.ExpressionParser {
                 return parser.parseTypeReference(first.range)
             },
             resolveDeclarationName: { token, interner in
-                guard TypeRefParserCore.isTypeLikeNameToken(token.kind) else {
+                guard TypeRefParserCore.isDeclarationNameToken(token.kind) else {
                     return nil
                 }
                 switch token.kind {

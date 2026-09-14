@@ -1755,7 +1755,12 @@ final class CallLowerer {
         case ("toUInt", sema.types.charType, sema.types.uintType): nil
         case ("toUInt", sema.types.byteType, sema.types.uintType): interner.intern("kk_int_to_uint")
         case ("toUInt", sema.types.shortType, sema.types.uintType): interner.intern("kk_int_to_uint")
-        case ("toUInt", sema.types.uintType, sema.types.uintType), ("toUInt", sema.types.ulongType, sema.types.uintType): nil
+        case ("toUInt", sema.types.uintType, sema.types.uintType): nil
+        // KSP-1533: ULong.toUInt() narrows 64 bits to 32 and must mask the high
+        // bits away; reuse kk_long_to_uint (same raw-register representation,
+        // already truncates via UInt32(truncatingIfNeeded:)) rather than the
+        // representation-preserving identity this wrongly used before.
+        case ("toUInt", sema.types.ulongType, sema.types.uintType): interner.intern("kk_long_to_uint")
         case ("toULong", sema.types.intType, sema.types.ulongType): interner.intern("kk_int_to_ulong")
         case ("toULong", sema.types.longType, sema.types.ulongType): interner.intern("kk_long_to_ulong")
         case ("toULong", sema.types.ubyteType, sema.types.ulongType): interner.intern("kk_ubyte_to_ulong")

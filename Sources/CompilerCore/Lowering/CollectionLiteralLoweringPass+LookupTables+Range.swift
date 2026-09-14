@@ -126,9 +126,9 @@ struct RangeLookupNames {
         kkULongRangeIsEmptyName = interner.intern("kk_ulong_range_isEmpty")
         kkULongRangeReversedName = interner.intern("kk_ulong_range_reversed")
         kkULongRangeCountName = interner.intern("kk_ulong_range_count")
-        kkULongRangeIteratorName = interner.intern("kk_ulong_range_iterator")
-        kkULongRangeHasNextName = interner.intern("kk_ulong_range_hasNext")
-        kkULongRangeNextName = interner.intern("kk_ulong_range_next")
+        kkULongRangeIteratorName = interner.intern("__kk_ulong_range_iterator")
+        kkULongRangeHasNextName = interner.intern("__kk_ulong_range_hasNext")
+        kkULongRangeNextName = interner.intern("__kk_ulong_range_next")
         kkULongRangeMapName = interner.intern("kk_ulong_range_map")
     }
 }
