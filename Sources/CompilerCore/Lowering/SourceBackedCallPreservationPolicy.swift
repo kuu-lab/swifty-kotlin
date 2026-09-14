@@ -199,7 +199,6 @@ struct SourceBackedCallPreservationPolicy {
             lookup.iteratorName,
             // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
             lookup.toListName,
-            lookup.toIntArrayName,
             lookup.averageName,
             // RF-LOWER-CALL-011 kept `sorted` on the virtual side alone: the
             // Range/progression consumer here still keys on it.

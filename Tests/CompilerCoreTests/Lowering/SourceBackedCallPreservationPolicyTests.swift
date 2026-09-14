@@ -215,7 +215,9 @@ struct SourceBackedCallPreservationPolicyTests {
                 "isEmpty", "iterator",
                 // RF-LOWER-CALL-011 (#6763) left `sorted` here alone out of the
                 // List sort/extrema family, for the Range/progression consumer.
-                "toList", "toIntArray", "average", "sorted", "chunked", "windowed",
+                // `toIntArray` dropped out when its lookup field was removed
+                // by the Range toXxxArray cleanup (#6791).
+                "toList", "average", "sorted", "chunked", "windowed",
                 "random", "randomOrNull",
             ],
             "got: \(resolved.sorted())"
