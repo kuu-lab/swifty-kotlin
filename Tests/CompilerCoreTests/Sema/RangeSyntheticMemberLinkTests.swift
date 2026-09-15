@@ -158,6 +158,35 @@ struct RangeSyntheticMemberLinkTests {
         }
     }
 
+    @Test func testLongProgressionCompanionIsSourceBacked() throws {
+        let (sema, interner) = try sharedSema()
+        let longProgressionFQName = ["kotlin", "ranges", "LongProgression"].map { interner.intern($0) }
+        let longProgressionSymbol = try #require(sema.symbols.lookup(fqName: longProgressionFQName))
+        let longProgressionInfo = try #require(sema.symbols.symbol(longProgressionSymbol))
+        #expect(!longProgressionInfo.flags.contains(.synthetic))
+        #expect(longProgressionInfo.flags.contains(.openType))
+        #expect(longProgressionInfo.declSite != nil)
+
+        let companionFQName = longProgressionFQName + [interner.intern("Companion")]
+        let companionSymbols = sema.symbols.lookupAll(fqName: companionFQName)
+        #expect(companionSymbols.count == 1)
+        let companionSymbol = try #require(sema.symbols.companionObjectSymbol(for: longProgressionSymbol))
+        let companionInfo = try #require(sema.symbols.symbol(companionSymbol))
+        #expect(!companionInfo.flags.contains(.synthetic))
+        #expect(companionInfo.declSite != nil)
+        #expect(sema.symbols.isSourceBackedSymbol(companionSymbol))
+
+        // KSP-1306/KSP-1307 keep the existing runtime-backed member surface unchanged.
+        for memberName in ["first", "last", "step"] {
+            let memberFQName = longProgressionFQName + [interner.intern(memberName)]
+            let memberSymbols = sema.symbols.lookupAll(fqName: memberFQName)
+            #expect(
+                memberSymbols.contains { sema.symbols.symbol($0)?.flags.contains(.synthetic) == true },
+                "LongProgression.\(memberName) remains synthetic until KSP-1306"
+            )
+        }
+    }
+
     @Test func testCharProgressionFirstFamilyIsSourceBacked() throws {
         let ctx = makeContextFromSource(
             """

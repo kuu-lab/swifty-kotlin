@@ -173,7 +173,6 @@ struct CollectionLiteralLookupTables {
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
-    var kkMapCountName: InternedString { mapLookup.kkMapCountName }
     var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
     var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
     var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }
@@ -260,21 +259,10 @@ struct CollectionLiteralLookupTables {
     var kkArrayNewName: InternedString { arrayLookup.kkArrayNewName }
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
-    var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
-    var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
-    var toMutableListName: InternedString { arrayLookup.toMutableListName }
-    var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
-    var sliceArrayName: InternedString { arrayLookup.sliceArrayName }
-    var reversedArrayName: InternedString { arrayLookup.reversedArrayName }
-    var asListName: InternedString { arrayLookup.asListName }
-    var copyOfName: InternedString { arrayLookup.copyOfName }
-    var copyOfRangeName: InternedString { arrayLookup.copyOfRangeName }
-    var fillName: InternedString { arrayLookup.fillName }
     var arrayOfFactoryNames: Set<InternedString> { arrayLookup.arrayOfFactoryNames }
 
     // MARK: - Range lookup names (see CollectionLiteralLoweringPass+LookupTables+Range.swift)

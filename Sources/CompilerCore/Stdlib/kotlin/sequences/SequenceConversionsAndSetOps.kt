@@ -1,6 +1,7 @@
 package kotlin.sequences
 
 import kotlin.internal.KsSymbolName
+import kotlin.random.Random
 
 // KSP-443: Sequence 変換・集合演算を Kotlin 化
 
@@ -477,6 +478,16 @@ public fun <T> Sequence<T>.constrainOnce(): Sequence<T> {
         }
     }
 }
+
+// KSP-1356: migrated off the SyntheticSequenceResidualStubs registration
+// (HeaderHelpers+SyntheticSequenceResidualStubs.swift) onto bundled Kotlin
+// source. Mirrors the upstream formula (toMutableList().shuffled(random).asSequence())
+// so the result is a fixed one-time shuffle, not a per-iterator reshuffle.
+@KsSymbolName("kk_sequence_shuffled")
+public fun <T> Sequence<T>.shuffled(): Sequence<T> = shuffled(Random.Default)
+
+@KsSymbolName("kk_sequence_shuffled_random")
+public fun <T> Sequence<T>.shuffled(random: Random): Sequence<T> = toMutableList().shuffled(random).asSequence()
 
 public fun <T> Sequence<T>?.orEmpty(): Sequence<T> = this ?: emptySequence()
 

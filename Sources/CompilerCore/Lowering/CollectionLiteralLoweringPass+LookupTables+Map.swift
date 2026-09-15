@@ -17,7 +17,6 @@ struct MapLookupNames {
     let kkMapSizeName: InternedString
     let kkMapGetName: InternedString
     let kkMapIsEmptyName: InternedString
-    let kkMapCountName: InternedString
     let kkMapToStringName: InternedString
     let kkMapIteratorName: InternedString
     let kkMapIteratorHasNextName: InternedString
@@ -40,7 +39,6 @@ struct MapLookupNames {
         kkMapSizeName = interner.intern("kk_map_size")
         kkMapGetName = interner.intern("__kk_map_get")
         kkMapIsEmptyName = interner.intern("kk_map_is_empty")
-        kkMapCountName = interner.intern("kk_map_count")
         kkMapToStringName = interner.intern("kk_map_to_string")
         kkMapIteratorName = interner.intern("__kk_map_iterator")
         kkMapIteratorHasNextName = interner.intern("__kk_map_iterator_hasNext")

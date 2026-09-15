@@ -1,6 +1,6 @@
 /// Locale-parameterized string operations not already covered by `stringFunctions`.
 ///
-/// `kk_locale_new_flat`, `kk_locale_new_language_country_flat`, and the private
+/// `__kk_locale_new_flat`, `__kk_locale_new_language_country_flat`, and the private
 /// `__kk_string_format_locale` bridges are registered in
 /// `RuntimeABISpec+String.swift` (`stringFunctions`); they are intentionally omitted
 /// here to avoid duplicate `allFunctions` entries. Locale member APIs removed by

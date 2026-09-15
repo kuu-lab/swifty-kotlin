@@ -4,7 +4,9 @@ import Testing
 
 /// KSP-939: List's size/init factory is a bundled Kotlin declaration; the
 /// nominal shell itself is already source-backed via KSP-697 (List.kt).
-/// Indexed access and collection members remain residuals.
+/// `get` is also source-backed as of KSP-700 (an external bridge declaration,
+/// same pattern as the factory functions); other collection members remain
+/// residuals.
 @Suite
 struct ListInterfaceSourceMigrationTests {
     @Test
@@ -59,7 +61,7 @@ struct ListInterfaceSourceMigrationTests {
         let get = try #require(
             sema.symbols.lookup(fqName: collections + [interner.intern("List"), interner.intern("get")])
         )
-        #expect(sema.symbols.symbol(get)?.flags.contains(.synthetic) == true)
+        #expect(sema.symbols.symbol(get)?.flags.contains(.synthetic) == false)
         #expect(sema.symbols.externalLinkName(for: get) == "__kk_list_get")
     }
 }

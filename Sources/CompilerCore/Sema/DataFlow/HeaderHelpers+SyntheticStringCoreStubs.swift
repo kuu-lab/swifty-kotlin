@@ -1,6 +1,6 @@
 extension DataFlowSemaPhase {
     func registerSyntheticStringCoreStubs(context: SyntheticStringStubContext) {
-        let (symbols, interner, kotlinTextPkg, stringType) = (context.symbols, context.interner, context.kotlinTextPkg, context.stringType); let (intType, longType, charType) = (context.intType, context.longType, context.charType)
+        let (symbols, interner, kotlinTextPkg, stringType) = (context.symbols, context.interner, context.kotlinTextPkg, context.stringType); let (intType, charType) = (context.intType, context.charType)
         // KSP-404: startsWith/endsWith are bundled Kotlin source (StringPrefixSuffix.kt).
         // KSP-408: contains(String)/contains(String, ignoreCase) are bundled Kotlin
         // source (StringIndexOf.kt). The Regex overload below is unaffected.
@@ -9,31 +9,8 @@ extension DataFlowSemaPhase {
         // KSP-406: subSequence/substring are bundled Kotlin source
         // (Stdlib/kotlin/text/StringSubstringSlice.kt).
         // STDLIB-420: String.toLong / toLongOrNull / toFloat / toFloatOrNull
-        // Int.toString(radix: Int) / Long.toString(radix: Int) (STDLIB-152)
-        registerSyntheticStringExtensionFunction(
-            named: "toString",
-            externalLinkName: "kk_int_toString_radix",
-            receiverType: intType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
-        registerSyntheticStringExtensionFunction(
-            named: "toString",
-            externalLinkName: "kk_int_toString_radix",
-            receiverType: longType,
-            parameters: [
-                ("radix", intType, false, false),
-            ],
-            returnType: stringType,
-            packageFQName: kotlinTextPkg,
-            symbols: symbols,
-            interner: interner
-        )
+        // KSP-717: Int.toString(radix) / Long.toString(radix) are bundled Kotlin
+        // source (Stdlib/kotlin/text/StringNumberConversions.kt).
         // KSP-408: indexOf/lastIndexOf/indexOfAny/lastIndexOfAny/findAnyOf/findLastAnyOf
         // (String, Char, CharArray and Collection<String> overloads, with startIndex /
         // ignoreCase variants) are bundled Kotlin source (StringIndexOf.kt).
