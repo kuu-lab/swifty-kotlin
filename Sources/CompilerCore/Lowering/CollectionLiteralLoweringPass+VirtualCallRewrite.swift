@@ -129,7 +129,8 @@ extension CollectionVirtualCallRewriteLoweringPass {
             setExprIDs: &state.setExprIDs,
             mapExprIDs: &state.mapExprIDs,
             arrayExprIDs: &state.arrayExprIDs,
-            sequenceExprIDs: &state.sequenceExprIDs
+            sequenceExprIDs: &state.sequenceExprIDs,
+            sequenceTypeExprIDs: &state.sequenceTypeExprIDs
         )
 
         if rewriteSequenceVirtualCall(
@@ -781,13 +782,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
         setExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>
+        sequenceExprIDs: inout Set<Int32>,
+        sequenceTypeExprIDs: inout Set<Int32>
     ) {
         let raw = receiver.rawValue
         // Already classified -- skip.
         if listExprIDs.contains(raw) || setExprIDs.contains(raw)
             || mapExprIDs.contains(raw) || arrayExprIDs.contains(raw)
-            || sequenceExprIDs.contains(raw)
+            || sequenceExprIDs.contains(raw) || sequenceTypeExprIDs.contains(raw)
         {
             return
         }
@@ -813,8 +815,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
         case .array:
             arrayExprIDs.insert(raw)
         case .sequence:
-            sequenceExprIDs.insert(raw)
-        default:
+            // RF-LOWER-STATE-009: the static type alone does not confirm a
+            // RuntimeSequenceBox — see Classification.sequence's doc. Do not
+            // insert into `sequenceExprIDs`, which +VirtualCallRewrite+Sequence.swift
+            // reads as "confirmed runtime box" to decide whether to rewrite
+            // to a `kk_sequence_*` bridge.
+            sequenceTypeExprIDs.insert(raw)
+        case .string:
+            break
+        case nil:
             break
         }
     }

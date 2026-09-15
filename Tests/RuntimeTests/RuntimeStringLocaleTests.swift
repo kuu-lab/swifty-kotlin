@@ -60,14 +60,14 @@ struct RuntimeStringLocaleTests {
 
     private func makeLocale(_ identifier: String) -> Int {
         withFlatString(identifier) { data, length, byteCount, hash in
-            kk_locale_new_flat(data, length, byteCount, hash)
+            __kk_locale_new_flat(data, length, byteCount, hash)
         }
     }
 
     private func makeLocale(language: String, country: String) -> Int {
         withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
             withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                kk_locale_new_language_country_flat(
+                __kk_locale_new_language_country_flat(
                     languageData,
                     languageLength,
                     languageByteCount,

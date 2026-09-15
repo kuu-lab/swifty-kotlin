@@ -451,6 +451,61 @@ struct LibMetadataSerializationTests {
         }
     }
 
+    // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
+    // "phantom" when it is declared but never referenced by the receiver,
+    // value parameters, or return type -- only used inside the function body
+    // via an explicit type argument (e.g.
+    // `kotlin.native.concurrent.callContinuation1<T1>`). Metadata import used
+    // to reconstruct `typeParameterSymbols` purely by scanning the decoded
+    // function *type* structurally, silently dropping such parameters, so an
+    // explicit-type-argument call like `callContinuation1<Int>()` failed
+    // overload resolution with a bogus arity mismatch. `ext.phantom` below
+    // mirrors `fun <T> Any.phantom(): Unit`: T is declared but unused in the
+    // signature. Its own `typeParameter` record's fqName
+    // (`ext.phantom.$1.T`) mirrors the `<ownerFQName>.$<id>.<name>` shape
+    // `HeaderCollection.swift`'s `collectFunctionTypeParameters` caller emits
+    // for a function's declared type parameters, which import now uses to
+    // restore the correct type parameter count.
+    @Test func testMetadataImportRestoresPhantomTypeParameterViaLibrary() throws {
+        let fm = FileManager.default
+        let baseDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let libDir = baseDir.appendingPathExtension("kklib")
+        try fm.createDirectory(at: libDir, withIntermediateDirectories: true)
+
+        let manifest = """
+        {
+          "formatVersion": 1,
+          "moduleName": "ExtPhantomTypeParam",
+          "metadata": "metadata.bin"
+        }
+        """
+        let metadata = """
+        symbols=2
+        function _kk_ext_phantom fq=ext.phantom schema=v1 arity=0 suspend=0 inline=0 operator=0 sig=F0<RA,U>
+        typeParameter _kk_ext_phantom_T fq=ext.phantom.$1.T schema=v1
+        """
+        try manifest.write(to: libDir.appendingPathComponent("manifest.json"), atomically: true, encoding: .utf8)
+        try metadata.write(to: libDir.appendingPathComponent("metadata.bin"), atomically: true, encoding: .utf8)
+
+        try withTemporaryFile(contents: "fun main() = 0") { path in
+            let ctx = makeCompilationContext(
+                inputs: [path],
+                moduleName: "PhantomTypeParamImport",
+                emit: .kirDump,
+                searchPaths: [libDir.path]
+            )
+            try runToKIR(ctx)
+
+            let sema = try #require(ctx.sema)
+            let phantomSymbol = sema.symbols.allSymbols().first { symbol in
+                ctx.interner.resolve(symbol.name) == "phantom" && symbol.kind == .function
+            }
+            let phantomSymbolID = try #require(phantomSymbol?.id)
+            let signature = try #require(sema.symbols.functionSignature(for: phantomSymbolID))
+            #expect(signature.typeParameterSymbols.count == 1)
+        }
+    }
+
     // MARK: - MetadataDecoder.symbolKindFromMetadata Unit Tests
 
     @Test func testSymbolKindFromMetadataReturnsCorrectKindForAllTokens() {

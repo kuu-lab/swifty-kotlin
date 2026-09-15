@@ -19,6 +19,7 @@ extension CollectionLiteralLoweringSupport {
         if state.listExprIDs.contains(raw) || state.setExprIDs.contains(raw)
             || state.mapExprIDs.contains(raw) || state.arrayExprIDs.contains(raw)
             || state.sequenceExprIDs.contains(raw) || state.stringExprIDs.contains(raw)
+            || state.sequenceTypeExprIDs.contains(raw)
         {
             return
         }
@@ -31,22 +32,18 @@ extension CollectionLiteralLoweringSupport {
         guard let (_, symbol) = resolveClassTypeSymbol(nonNullType, sema: sema) else {
             return
         }
-        switch trackedStaticTypeKind(of: symbol, interner: interner) {
-        case .list:
-            state.listExprIDs.insert(raw)
-        case .set:
-            state.setExprIDs.insert(raw)
-        case .map:
-            state.mapExprIDs.insert(raw)
-        case .array:
-            state.arrayExprIDs.insert(raw)
-        case .sequence:
-            state.sequenceExprIDs.insert(raw)
-        case .string:
-            state.stringExprIDs.insert(raw)
-        case nil:
-            break
+        // Route every tracked kind through `Classification.init(_:)` (via
+        // `state.tag`) instead of a hand-written switch that inserts into a
+        // raw set here: a second, independent mapping is how `.sequence`'s
+        // case could silently insert into `sequenceExprIDs` (the confirmed-
+        // `RuntimeSequenceBox` set) instead of `sequenceTypeExprIDs` once the
+        // Sequence case below started returning non-nil again
+        // (RF-LOWER-STATE-009). `seedCollectionExprIDsFromStaticTypes` in
+        // +PreScan.swift already goes through `state.tag` for this reason.
+        guard let trackedKind = trackedStaticTypeKind(of: symbol, interner: interner) else {
+            return
         }
+        state.tag(expr, as: trackedKind)
     }
 
     func trackedStaticTypeKind(
@@ -55,8 +52,7 @@ extension CollectionLiteralLoweringSupport {
     ) -> CollectionLiteralTrackedStaticTypeKind? {
         let kotlinPackage = [interner.intern("kotlin")]
         let collectionsPackage = kotlinPackage + [interner.intern("collections")]
-        // KSP-441〜447: Sequence は source 化済み。静的追跡は不要。
-        _ = (kotlinPackage + [interner.intern("sequences")])
+        let sequencesPackage = kotlinPackage + [interner.intern("sequences")]
 
         let listNames = [
             interner.intern("List"),
@@ -112,10 +108,17 @@ extension CollectionLiteralLoweringSupport {
             return .array
         }
 
-        // KSP-441〜447: Sequence は Kotlin source 化済み。静的型で Sequence 式を追跡しない。
-        // if matchesStdlibType(symbol, package: sequencesPackage, simpleNames: [interner.intern("Sequence")]) {
-        //     return .sequence
-        // }
+        // RF-LOWER-STATE-009: static type alone cannot tell a source Sequence
+        // object from a RuntimeSequenceBox (KSP-441〜447 moved the pipeline to
+        // Kotlin source, but some factories/bridges still hand back the
+        // runtime representation) — this records only that the type is
+        // Sequence, via `Classification.sequenceType`. The confirmed-
+        // provenance facts (`Classification.sequence` /
+        // `.sequenceSourceObject`) are seeded in +PreScan.swift instead, from
+        // known factories/bridges/source declarations/copies.
+        if matchesStdlibType(symbol, package: sequencesPackage, simpleNames: [interner.intern("Sequence")]) {
+            return .sequence
+        }
 
         if matchesStdlibType(symbol, package: kotlinPackage, simpleNames: [interner.intern("String")]) {
             return .string
@@ -139,5 +142,44 @@ extension CollectionLiteralLoweringSupport {
             return false
         }
         return Array(symbol.fqName.dropLast()) == package
+    }
+
+    /// True when `symbol`'s declared receiver type is one of the bundled
+    /// `asSequence()` overloads confirmed, by reading its body, to construct
+    /// a fresh `object : Sequence<T>`: `Iterable`, `Iterator`, `CharSequence`,
+    /// `Map` (Sequences.kt, StringCollectionConversions.kt, MapHOF.kt).
+    ///
+    /// Deliberately excludes two other source-backed overloads:
+    ///  - `Array<T>.asSequence()` (ArrayHOF.kt) delegates to
+    ///    `toList().asSequence()` in source too, but the array virtual-call
+    ///    rewrite intercepts `asSequence()` ahead of source resolution for
+    ///    any receiver tracked as an array and redirects it to
+    ///    `kk_array_asSequence`, so this body never runs for such a receiver.
+    ///  - `Sequence<T>.asSequence()` (identity, `= this`): the result's
+    ///    provenance is the *receiver's* own, which a callee-only check like
+    ///    this has no way to look up.
+    /// Used only to confirm ``CollectionLiteralLoweringSupport/Classification/sequenceSourceObject``,
+    /// never ``CollectionLiteralLoweringSupport/Classification/sequence`` — a
+    /// name match here is evidence of a source object, not a runtime bridge.
+    func isKnownSourceObjectConstructingAsSequenceReceiver(
+        symbol: SymbolID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard let signature = sema.symbols.functionSignature(for: symbol),
+              let receiverType = signature.receiverType,
+              let (_, classSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
+        else {
+            return false
+        }
+        let kotlinPackage = [interner.intern("kotlin")]
+        let collectionsPackage = kotlinPackage + [interner.intern("collections")]
+        let confirmedOwners: [[InternedString]] = [
+            collectionsPackage + [interner.intern("Iterable")],
+            collectionsPackage + [interner.intern("Iterator")],
+            collectionsPackage + [interner.intern("Map")],
+            kotlinPackage + [interner.intern("CharSequence")],
+        ]
+        return confirmedOwners.contains(classSymbol.fqName)
     }
 }

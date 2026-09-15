@@ -299,36 +299,27 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // map.count(predicate) on map literals (skip when Map.count is source-backed)
-        if callee == lookup.countName && (arguments.count == 2 || arguments.count == 3),
-           !isSourceBackedBundledFunction(symbol: symbol, ctx: ctx) {
-            let receiverID = arguments[0]
-            let lambdaID = arguments[1]
-            if state.mapExprIDs.contains(receiverID.rawValue) {
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkMapCountName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
-        }
+        // RF-LOWER-CALL-012 follow-up dropped the `map.count(predicate)` ->
+        // `kk_map_count` branch that used to sit here. It was unreachable:
+        // `Stdlib/kotlin/collections/MapHOF.kt` provides
+        // `Map<K, V>.count(predicate)` as bundled Kotlin source, and
+        // `registerMapHigherOrderMembers`'s `registerMember` helper
+        // (`HeaderHelpers+SyntheticMapStubs.swift`) skips registering the
+        // competing synthetic `count` member whenever
+        // `bundledIndex.contains(ownerFQName: mapFQName, name: "count",
+        // arity: 1)` is true, which it is here — so there is no non-source-backed
+        // symbol this call could ever resolve to. This branch runs inside
+        // `rewriteFactoryAndBuilderCall`, which `lowerCallInstruction` calls
+        // *before* `shouldPreserveSourceBackedAggregateCall`, so unlike the
+        // Map HOF branches CALL-012 removed, this one could not rely on that
+        // later short-circuit and instead carried its own inline
+        // `isSourceBackedBundledFunction` check — which was therefore always
+        // true for a resolved call, keeping the branch itself dead the same
+        // way. `kk_map_count` has no `@_cdecl` in `Sources/Runtime` (only a
+        // `Tests/RuntimeTests/RuntimeCollectionHOF430MapShims.swift` test
+        // shim, like the other RF-LOWER-CALL-012 targets), so reaching it
+        // would have broken at runtime. `MapCountLoweringRoutingTests` pins
+        // the routing.
 
         // --- Rewrite set factories to runtime helpers. ---
         if lookup.setFactoryNames.contains(callee),
@@ -564,12 +555,5 @@ extension CollectionLiteralConstructionLoweringPass {
         // and `BuilderDSLLookupNames` is RF-LOWER-CALL-015.
 
         return false
-    }
-
-    private func isSourceBackedBundledFunction(symbol: SymbolID?, ctx: KIRContext) -> Bool {
-        guard let symbol, let sema = ctx.sema, sema.symbols.symbol(symbol) != nil else {
-            return false
-        }
-        return sema.symbols.isSourceBackedSymbol(symbol)
     }
 }

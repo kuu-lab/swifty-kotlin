@@ -12,7 +12,8 @@ struct CollectionRewriteStateTests {
     private var classifications: [WritableKeyPath<State, Set<Int32>>] {
         [
             \.listExprIDs, \.setExprIDs, \.mapExprIDs, \.arrayExprIDs,
-            \.sequenceExprIDs, \.rangeExprIDs, \.charRangeExprIDs,
+            \.sequenceExprIDs, \.sequenceSourceObjectExprIDs, \.sequenceTypeExprIDs,
+            \.rangeExprIDs, \.charRangeExprIDs,
             \.ulongRangeExprIDs, \.stringExprIDs, \.fileExprIDs, \.pathExprIDs,
             \.listIteratorExprIDs, \.mapIteratorExprIDs, \.iteratorBuilderExprIDs,
             \.indexingIterableExprIDs, \.indexingIterableIteratorExprIDs,

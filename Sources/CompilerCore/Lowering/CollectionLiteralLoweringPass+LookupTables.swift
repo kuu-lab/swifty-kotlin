@@ -173,7 +173,6 @@ struct CollectionLiteralLookupTables {
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
-    var kkMapCountName: InternedString { mapLookup.kkMapCountName }
     var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
     var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
     var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }

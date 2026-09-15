@@ -161,7 +161,8 @@ extension DataFlowSemaPhase {
         interner: StringInterner,
         metadataPath: String,
         cache: LibraryMetadataCache? = nil,
-        allowPlaceholders: Bool = false
+        allowPlaceholders: Bool = false,
+        phantomTypeParameterSymbols: [SymbolID] = []
     ) -> FunctionSignature {
         let platformAny = types.withNullability(.platformType, for: types.anyType)
         let fallback = FunctionSignature(
@@ -226,10 +227,41 @@ extension DataFlowSemaPhase {
         for index in record.valueParameterAllowsNonLocalReturn.indices where index < valueParameterAllowsNonLocalReturn.count {
             valueParameterAllowsNonLocalReturn[index] = record.valueParameterAllowsNonLocalReturn[index]
         }
-        let typeParameterSymbols = collectTypeParameterSymbols(
+        var typeParameterSymbols = collectTypeParameterSymbols(
             from: functionType,
             types: types
         )
+        let classTypeParameterCount = ownerNominalTypeParameterCount(
+            of: functionType,
+            record: record,
+            symbols: symbols,
+            types: types
+        )
+        // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: `collectTypeParameterSymbols` only
+        // finds type parameters that structurally appear in the receiver,
+        // value parameters, or return type. A type parameter used only inside
+        // the function body via an explicit type argument (e.g.
+        // `kotlin.native.concurrent.callContinuation1<T1>`) is invisible to
+        // that scan and gets silently dropped, so `<Int>` at a call site later
+        // fails overload resolution with a bogus arity mismatch.
+        // `phantomTypeParameterSymbols` carries every declared type parameter
+        // of this callable as its own already-imported `.typeParameter`
+        // symbol (see `loadImportedLibrarySymbols`), restricted to callables
+        // with no ambiguous overload. Pad up to that total count so at least
+        // the arity is right. This is restricted to non-member callables
+        // (`classTypeParameterCount == 0`): the wire format has no per-index
+        // marker distinguishing "phantom" from "structurally found", so when
+        // a callable mixes both (e.g.
+        // `filterIsInstanceTo<reified R, C : MutableCollection<in R>>`,
+        // where only C is structural) the padded symbols may land in the
+        // wrong position relative to the structurally-found ones. That
+        // ordering gap is a known, accepted limitation of this fix.
+        if classTypeParameterCount == 0 {
+            let deficit = phantomTypeParameterSymbols.count - typeParameterSymbols.count
+            if deficit > 0 {
+                typeParameterSymbols += phantomTypeParameterSymbols.prefix(deficit)
+            }
+        }
         var typeParameterUpperBoundsList = Array(
             repeating: [TypeID](),
             count: typeParameterSymbols.count
@@ -299,12 +331,7 @@ extension DataFlowSemaPhase {
             typeParameterSymbols: typeParameterSymbols,
             reifiedTypeParameterIndices: record.reifiedTypeParameterIndices,
             typeParameterUpperBoundsList: typeParameterUpperBoundsList,
-            classTypeParameterCount: ownerNominalTypeParameterCount(
-                of: functionType,
-                record: record,
-                symbols: symbols,
-                types: types
-            )
+            classTypeParameterCount: classTypeParameterCount
         )
     }
 

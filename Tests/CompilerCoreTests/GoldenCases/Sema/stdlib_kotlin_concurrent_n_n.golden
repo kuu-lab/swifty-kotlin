@@ -35,4 +35,4 @@ expr e@21:61 int(2) type=Int
 expr e@21:66 name(it) type=Int ref=s-2
 expr e@21:66#1 memberCall recv=e@21:66 callee=toString args=[] type=String
 expr e@21:64 lambda params=[] body=e@21:66#1 label=AtomicArray type=(Int) -> String
-expr e@21:49 call callee=e@21:49#1 args=[_:e@21:61,_:e@21:64] type=kotlin.concurrent.AtomicArray<String> call=kotlin.concurrent.AtomicArray[kind=fun;params=Int,fn{p=Int;ret=T0};gen=1] targs=[String]
+expr e@21:49 call callee=e@21:49#1 args=[_:e@21:61,_:e@21:64] type=kotlin.concurrent.AtomicArray<String> call=kotlin.concurrent.AtomicArray[kind=fun;params=Int,fn{p=Int;ret=T0};gen=2] targs=[String]

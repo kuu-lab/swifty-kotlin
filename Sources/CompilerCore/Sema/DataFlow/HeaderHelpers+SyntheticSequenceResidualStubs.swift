@@ -2,11 +2,15 @@ import RuntimeABI
 
 /// Synthetic stubs for residual `Sequence` member operations (`random`, `randomOrNull`,
 /// `firstNotNullOf`, `firstNotNullOfOrNull`, `takeLast`,
-/// `takeLastWhile`, `shuffled`, and `reversed`) that are not yet migrated
+/// `takeLastWhile`, and `reversed`) that are not yet migrated
 /// to bundled Kotlin source.
 ///
 /// KSP-694: Consolidated residual Sequence stubs after KSP-441..446 and KSP-308
 /// migrations of terminal/HOF Sequence APIs to bundled Kotlin source.
+/// KSP-1356: `shuffled`/`shuffled(random)` migrated out of this file onto
+/// bundled Kotlin source (`SequenceConversionsAndSetOps.kt`); the
+/// `kk_sequence_shuffled`/`kk_sequence_shuffled_random` runtime bridges stay,
+/// now referenced via `@KsSymbolName` instead of a synthetic registration.
 extension DataFlowSemaPhase {
     func registerSyntheticSequenceResidualMembers(
         symbols: SymbolTable,
@@ -245,85 +249,6 @@ extension DataFlowSemaPhase {
             interner: interner,
             canThrow: true
         )
-
-        // shuffled() / shuffled(random): Sequence<T> (STDLIB-SEQ-019)
-        do {
-            let shuffledName = interner.intern("shuffled")
-            let shuffledFQName = sequenceFQName + [shuffledName]
-
-            func registerShuffledOverload(
-                parameters: [(name: String, type: TypeID)],
-                externalLinkName: String
-            ) {
-                let alreadyRegistered = symbols.lookupAll(fqName: shuffledFQName).contains { symbolID in
-                    guard let signature = symbols.functionSignature(for: symbolID) else { return false }
-                    return signature.parameterTypes.count == parameters.count
-                        && symbols.externalLinkName(for: symbolID) == externalLinkName
-                }
-                guard !alreadyRegistered else { return }
-
-                let memberSymbol = symbols.define(
-                    kind: .function,
-                    name: shuffledName,
-                    fqName: shuffledFQName,
-                    declSite: nil,
-                    visibility: .public,
-                    flags: [.synthetic, .operatorFunction]
-                )
-                symbols.setParentSymbol(sequenceSymbol, for: memberSymbol)
-                symbols.setExternalLinkName(externalLinkName, for: memberSymbol)
-
-                var parameterTypes: [TypeID] = []
-                var parameterSymbols: [SymbolID] = []
-                for parameter in parameters {
-                    let parameterName = interner.intern(parameter.name)
-                    let parameterSymbol = symbols.define(
-                        kind: .valueParameter,
-                        name: parameterName,
-                        fqName: shuffledFQName + [parameterName],
-                        declSite: nil,
-                        visibility: .private,
-                        flags: [.synthetic]
-                    )
-                    symbols.setParentSymbol(memberSymbol, for: parameterSymbol)
-                    parameterTypes.append(parameter.type)
-                    parameterSymbols.append(parameterSymbol)
-                }
-
-                symbols.setFunctionSignature(
-                    FunctionSignature(
-                        receiverType: receiverType,
-                        parameterTypes: parameterTypes,
-                        returnType: receiverType,
-                        valueParameterSymbols: parameterSymbols,
-                        valueParameterHasDefaultValues: Array(repeating: false, count: parameters.count),
-                        valueParameterIsVararg: Array(repeating: false, count: parameters.count),
-                        typeParameterSymbols: [typeParamSymbol],
-                        typeParameterUpperBoundsList: [[]],
-                        classTypeParameterCount: 1
-                    ),
-                    for: memberSymbol
-                )
-            }
-
-            registerShuffledOverload(parameters: [], externalLinkName: "kk_sequence_shuffled")
-
-            if let randomSymbol = symbols.lookup(fqName: [
-                interner.intern("kotlin"),
-                interner.intern("random"),
-                interner.intern("Random"),
-            ]) {
-                let randomType = types.make(.classType(ClassType(
-                    classSymbol: randomSymbol,
-                    args: [],
-                    nullability: .nonNull
-                )))
-                registerShuffledOverload(
-                    parameters: [("random", randomType)],
-                    externalLinkName: "kk_sequence_shuffled_random"
-                )
-            }
-        }
 
         // reversed(): Sequence<T> (STDLIB-SEQ-FN-099)
         registerSequenceMemberStub(

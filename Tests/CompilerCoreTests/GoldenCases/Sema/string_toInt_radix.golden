@@ -24,5 +24,5 @@ expr e@5:13#1 memberCall recv=e@5:13 callee=toInt args=[_:e@5:24] type=Int call=
 expr e@5:5 localDecl d mutable=0 type=_ init=e@5:13#1 type=Unit ref=__local_3.d[kind=local]
 expr e@6:13 int(255) type=Int
 expr e@6:26 int(16) type=Int
-expr e@6:13#1 memberCall recv=e@6:13 callee=toString args=[_:e@6:26] type=String
+expr e@6:13#1 memberCall recv=e@6:13 callee=toString args=[_:e@6:26] type=String call=kotlin.text.toString[kind=fun;recv=Int;params=Int]
 expr e@6:5 localDecl e mutable=0 type=_ init=e@6:13#1 type=Unit ref=__local_4.e[kind=local]
