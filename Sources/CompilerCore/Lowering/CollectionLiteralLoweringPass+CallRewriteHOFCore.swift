@@ -72,51 +72,23 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return true
             }
-            if state.mapExprIDs.contains(receiverID.rawValue),
-               callee == lookup.mapName || callee == lookup.filterName || callee == lookup.forEachName
-               || callee == lookup.mapValuesName || callee == lookup.mapKeysName
-               || callee == lookup.filterKeysName || callee == lookup.filterValuesName
-               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
-               || callee == lookup.anyName || callee == lookup.allName
-               || callee == lookup.noneName
-               || callee == lookup.flatMapName || callee == lookup.maxByOrNullName || callee == lookup.minByOrNullName
-            {
-                let closureRawID: KIRExprID
-                if arguments.count == 3 {
-                    closureRawID = arguments[2]
-                } else {
-                    let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
-                    loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
-                    closureRawID = zeroExpr
-                }
-                let kkName = lookup.collectionHOFRuntimeName(ownerKind: .map, callee: callee, arity: 1) ?? callee
-                let hofResult = module.arena.appendTemporary(type: nil
-                )
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: kkName,
-                    arguments: [receiverID, lambdaID, closureRawID],
-                    result: hofResult,
-                    canThrow: canThrow,
-                    thrownResult: thrownResult
-                ))
-                if callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName, let result {
-                    state.listExprIDs.insert(result.rawValue)
-                    state.listExprIDs.insert(hofResult.rawValue)
-                }
-                if callee == lookup.mapValuesName || callee == lookup.mapKeysName, let result {
-                    state.mapExprIDs.insert(result.rawValue)
-                    state.mapExprIDs.insert(hofResult.rawValue)
-                }
-                if callee == lookup.filterName || callee == lookup.filterNotName || callee == lookup.filterKeysName || callee == lookup.filterValuesName, let result {
-                    state.mapExprIDs.insert(result.rawValue)
-                    state.mapExprIDs.insert(hofResult.rawValue)
-                }
-                if let result {
-                    loweredBody.append(.copy(from: hofResult, to: result))
-                }
-                return true
-            }
+            // RF-LOWER-CALL-012 dropped the Map-receiver branch that used to sit
+            // here (`map` / `filter` / `forEach` / `mapValues` / `mapKeys` /
+            // `filterKeys` / `filterValues` / `flatMap` / `any` / `all` /
+            // `none` / `maxByOrNull` / `minByOrNull` rewritten to `kk_map_*`).
+            // It was unreachable: every one of those names resolves to the
+            // bundled `MapHOF.kt` declaration (KSP-430) and is preserved by
+            // `shouldPreserveSourceBackedAggregateCall` before
+            // `rewriteHigherOrderCollectionCall` runs, and `filterKeys` /
+            // `filterValues` / `maxByOrNull` / `minByOrNull` additionally never
+            // passed this function's own outer member-name gate above (it
+            // never listed them). `kk_map_map`, `kk_map_filter`,
+            // `kk_map_mapValues`, `kk_map_mapKeys`, `kk_map_filterKeys`,
+            // `kk_map_filterValues`, `kk_map_flatMap`, `kk_map_any`,
+            // `kk_map_all`, `kk_map_none`, `kk_map_forEach`,
+            // `kk_map_maxByOrNull`, `kk_map_minByOrNull` have no `@_cdecl` in
+            // `Sources/Runtime` any more. See `+CallRewriteHandlers.swift` and
+            // `MapHOFLoweringRoutingTests` for the full picture.
             if state.rangeExprIDs.contains(receiverID.rawValue),
                callee == lookup.mapName || callee == lookup.forEachName
             {

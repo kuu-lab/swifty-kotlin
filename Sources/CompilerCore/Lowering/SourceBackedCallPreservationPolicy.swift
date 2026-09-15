@@ -118,16 +118,26 @@ struct SourceBackedCallPreservationPolicy {
             lookup.onEachName,
             lookup.onEachIndexedName,
             lookup.sumOfName,
-            lookup.maxByOrNullName,
-            lookup.minByOrNullName,
             // RF-LOWER-CALL-011 (#6763) removed the KSP-426 block of 23 List
             // `sorted*` / `min*` / `max*` names from both chains. They were
             // meant to keep the bundled declarations in ListSortingHOF.kt and
             // ListExtremaHOF.kt off the legacy kk_list_* exports, but every
             // rewrite reachable from here sits behind an outer member-name gate
             // that never listed them, so they short-circuited nothing.
-            // `minByOrNull` stays in the Map group above, and `sorted` survives
-            // in `virtualOnlyAggregateNames` for its Range consumer.
+            // `sorted` survives in `virtualOnlyAggregateNames` for its Range
+            // consumer.
+            //
+            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull`: their
+            // only downstream rewrite was the Map branch deleted from
+            // `+CallRewriteHOFCore.swift` (`kk_map_maxByOrNull` /
+            // `kk_map_minByOrNull`, neither of which has a `@_cdecl` in
+            // `Sources/Runtime` any more), and that branch's own outer gate
+            // never listed either name in the first place. With no rewrite
+            // left to short-circuit, either call now falls through every
+            // rewrite attempt unmatched and reaches the unconditional
+            // `loweredBody.append(instruction)` — the same outcome as
+            // preserving it here, just without a redundant guard.
+            // `MapHOFLoweringRoutingTests` pins the routing.
             // KSP-421: List transform HOFs have Kotlin source implementations.
             lookup.mapName,
             lookup.mapIndexedName,

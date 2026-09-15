@@ -202,18 +202,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testCopyActionContextInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-115 removed CopyActionContext (kotlin.io.path.Path removed entirely); keep this slot to preserve path indices.
             """
             package sample11
 
-                    import kotlin.io.path.CopyActionContext
-
-                    class CopyContextHolder(val context: CopyActionContext?)
-
-                    fun keepCopyContext(context: CopyActionContext): CopyActionContext {
-                        return context
-                    }
-
+            fun cleanupStub115RemovedCase11() {}
             """,
             // testAtomicNativePtrInAtomicsPackageSurfaceIsResolved
             """
@@ -237,20 +230,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                     }
 
             """,
-            // testCopyActionResultInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-115 removed CopyActionResult (kotlin.io.path.Path removed entirely); keep this slot to preserve path indices.
             """
             package sample17
 
-                    import kotlin.io.path.CopyActionResult
-
-                    fun nextCopyActionResult(result: CopyActionResult): CopyActionResult {
-                        return when (result) {
-                            CopyActionResult.CONTINUE -> CopyActionResult.SKIP_SUBTREE
-                            CopyActionResult.SKIP_SUBTREE -> CopyActionResult.TERMINATE
-                            CopyActionResult.TERMINATE -> CopyActionResult.CONTINUE
-                        }
-                    }
-
+            fun cleanupStub115RemovedCase17() {}
             """,
             // CLEANUP-STUB-116 removed fileAttributesView; keep this slot to preserve path indices.
             """
@@ -282,33 +266,17 @@ struct SemanticsAndUtilitiesRegressionTests {
 
             fun cleanupStub116RemovedCase37() {}
             """,
-            // testOnErrorResultInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-115 removed OnErrorResult (kotlin.io.path.Path removed entirely); keep this slot to preserve path indices.
             """
             package sample55
 
-                    import kotlin.io.path.OnErrorResult
-
-                    fun nextOnErrorResult(result: OnErrorResult): OnErrorResult {
-                        return when (result) {
-                            OnErrorResult.SKIP_SUBTREE -> OnErrorResult.TERMINATE
-                            OnErrorResult.TERMINATE -> OnErrorResult.SKIP_SUBTREE
-                        }
-                    }
-
+            fun cleanupStub115RemovedCase55() {}
             """,
-            // testPathWalkOptionInIOPathPackageSurfaceIsResolved
+            // CLEANUP-STUB-115 removed PathWalkOption (kotlin.io.path.Path removed entirely); keep this slot to preserve path indices.
             """
             package sample71
 
-                    import kotlin.io.path.PathWalkOption
-
-                    fun nextPathWalkOption(option: PathWalkOption): PathWalkOption {
-                        return when (option) {
-                            PathWalkOption.BREADTH_FIRST -> PathWalkOption.FOLLOW_LINKS
-                            PathWalkOption.FOLLOW_LINKS -> PathWalkOption.BREADTH_FIRST
-                        }
-                    }
-
+            fun cleanupStub115RemovedCase71() {}
             """,
             // testMemoryOrderInAtomicsPackageIsResolved
             """
@@ -446,39 +414,11 @@ struct SemanticsAndUtilitiesRegressionTests {
                 #expect(!(ctx.diagnostics.hasError), "Atomic-array get/set operators should resolve via bundled extensions: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
-            // testCopyActionContextInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[11]
-                _ = samplePath
-                #expect(!(ctx.diagnostics.hasError), "CopyActionContext in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-            }
-
             // testAtomicNativePtrInAtomicsPackageSurfaceIsResolved
             do {
                 let samplePath = paths[12]
                 _ = samplePath
                 #expect(!(ctx.diagnostics.hasError), "AtomicNativePtr in kotlin.concurrent.atomics should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-            }
-
-            // testCopyActionResultInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[13]
-                _ = samplePath
-                #expect(!(ctx.diagnostics.hasError), "CopyActionResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-            }
-
-            // testOnErrorResultInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[19]
-                _ = samplePath
-                #expect(!(ctx.diagnostics.hasError), "OnErrorResult entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
-            }
-
-            // testPathWalkOptionInIOPathPackageSurfaceIsResolved
-            do {
-                let samplePath = paths[20]
-                _ = samplePath
-                #expect(!(ctx.diagnostics.hasError), "PathWalkOption entries in kotlin.io.path should resolve: \(ctx.diagnostics.diagnostics.map(\.message))")
             }
 
             // testMemoryOrderInAtomicsPackageIsResolved

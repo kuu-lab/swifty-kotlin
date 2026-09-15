@@ -50,12 +50,8 @@ import Testing
 //     tested by NativeRefRuntimeSemaTests' GC object tests)
 //   - kotlin.native.runtime.GCInfo
 //   - kotlin.native.runtime.GCInfo.* timing / summary properties
-//   - kotlin.native.runtime.MemoryUsage
-//   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
 //   - kotlin.native.runtime.RootSetStatistics
 //   - kotlin.native.runtime.RootSetStatistics.* root count properties
-//   - kotlin.native.runtime.SweepStatistics
-//   - kotlin.native.runtime.SweepStatistics.sweptCount / keptCount
 //   - kotlin.native.runtime.NativeRuntimeApi
 //
 // SOURCE-BACKED (Stdlib/kotlin/native/runtime/Debugging.kt, KSP-1260,
@@ -64,6 +60,14 @@ import Testing
 //   - kotlin.native.runtime.Debugging.isThreadStateRunnable
 //   - kotlin.native.runtime.Debugging.forceCheckedShutdown
 //   - kotlin.native.runtime.Debugging.dumpMemory(fd)
+//
+// SOURCE-BACKED (Stdlib/kotlin/native/runtime/GCInfo.kt, KSP-1266/1267/1272;
+// MemoryUsage covered by MemoryUsageSourceMigrationTests, SweepStatistics by
+// NativeRefRuntimeSemaTests.testSweepStatisticsConstructorIsSourceBacked):
+//   - kotlin.native.runtime.MemoryUsage
+//   - kotlin.native.runtime.MemoryUsage.totalObjectsSizeBytes
+//   - kotlin.native.runtime.SweepStatistics
+//   - kotlin.native.runtime.SweepStatistics.sweptCount / keptCount
 
 @Suite(.runtimeIsolation(.gcOnly))
 struct RuntimeNativeRefGCTests {

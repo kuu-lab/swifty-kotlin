@@ -12,8 +12,9 @@ import Testing
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
 /// chains agreed on 102 API names at extraction time and diverged on nine more
 /// plus the shape of the array-conversion check, and nothing in either file
-/// recorded which divergences were deliberate. RF-LOWER-CALL-009/010/011 have
-/// since narrowed the agreement to 63 names and grown the divergence to 19. These tests fix both halves: the four callee
+/// recorded which divergences were deliberate. RF-LOWER-CALL-009/010/011/012
+/// have since narrowed the agreement to 61 names and grown the divergence to
+/// 19. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
 /// difference.
 @Suite
@@ -232,12 +233,14 @@ struct SourceBackedCallPreservationPolicyTests {
     /// this count means an API family moved in or out of the policy, which
     /// RF-LOWER-CALL-008 onwards must do deliberately. RF-LOWER-CALL-010
     /// dropped the five search names (`indexOf`, `lastIndexOf`, `indexOfFirst`,
-    /// `indexOfLast`, `containsAll`) that had no downstream rewrite, and
-    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names.
+    /// `indexOfLast`, `containsAll`) that had no downstream rewrite,
+    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names, and
+    /// RF-LOWER-CALL-012 `maxByOrNull` / `minByOrNull` (their only rewrite, the
+    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them).
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 63, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 61, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// RF-LOWER-CALL-011 removed the List sort/extrema family from the direct
@@ -260,9 +263,9 @@ struct SourceBackedCallPreservationPolicyTests {
             #expect(!policy.sharedAggregateNames.contains(name))
             #expect(!policy.virtualOnlyAggregateNames.contains(name))
         }
-        // `minByOrNull` / `maxByOrNull` were never in that block — Map group.
-        #expect(policy.sharedAggregateNames.contains(lookup.minByOrNullName))
-        #expect(policy.sharedAggregateNames.contains(lookup.maxByOrNullName))
+        // `minByOrNull` / `maxByOrNull` are gone too: RF-LOWER-CALL-012
+        // deleted both their lookup-table properties and their only
+        // downstream rewrite, so naming them here would not compile.
     }
 
     /// The array-conversion asymmetry the old code left unsaid: the direct path

@@ -55,9 +55,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\r\nbeta\rgamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
@@ -71,9 +70,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
@@ -88,9 +86,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
@@ -111,9 +108,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let iterRaw = __kk_buffered_reader_iterator(readerRaw)
@@ -127,9 +123,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
@@ -141,9 +136,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "alpha")
@@ -155,9 +149,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let textRaw = __kk_reader_readText(readerRaw)
@@ -168,9 +161,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\nbeta")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
@@ -182,9 +174,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "α\nβ\nγ")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let textRaw = __kk_reader_readText(readerRaw)
@@ -195,9 +186,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "first\nsecond\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(__kk_buffered_reader_close(readerRaw) == 0)
 
@@ -210,9 +200,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "first\nsecond")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
 
         #expect(thrown == 0)
         #expect(readString(__kk_buffered_reader_readLine(readerRaw)) == "first")
@@ -226,11 +215,10 @@ struct RuntimeBufferedReaderTests {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
-        let pathRaw = runtimeTestPathHandle(missingPath)
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(missingPath, outThrown: &thrown)
 
         #expect(thrown != 0)
         #expect(readerRaw == 0)
@@ -241,9 +229,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "path-alpha\npath-beta")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(2), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, bufferSize: 2, outThrown: &thrown)
 
         #expect(thrown == 0)
         #expect(readerRaw != 0)
@@ -256,11 +243,10 @@ struct RuntimeBufferedReaderTests {
         let missingPath = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .path
-        let pathRaw = runtimeTestPathHandle(missingPath)
         let baselineObjectCount = kk_runtime_heap_object_count()
 
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(4096), 0, &thrown)
+        let readerRaw = openBufferedReader(missingPath, bufferSize: 4096, outThrown: &thrown)
 
         #expect(thrown != 0)
         #expect(readerRaw == 0)
@@ -273,9 +259,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "alpha\nbeta\ngamma\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
@@ -288,9 +273,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
@@ -302,9 +286,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "one\ntwo\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let result = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesAlwaysThrows), 0, &thrown)
@@ -316,9 +299,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "first\nsecond\nthird\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         _ = __kk_buffered_reader_useLines(readerRaw, fnPtrInt(useLinesCountsLines), 0, &thrown)
@@ -336,9 +318,8 @@ struct RuntimeBufferedReaderTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         forEachLineCollectedLines = []
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
         #expect(readerRaw != 0)
 
@@ -352,9 +333,8 @@ struct RuntimeBufferedReaderTests {
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         forEachLineCollectedLines = []
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         _ = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineCollector), 0, &thrown)
@@ -366,9 +346,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "one\ntwo\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         let result = __kk_buffered_reader_forEachLine(readerRaw, fnPtrInt(forEachLineAlwaysThrows), 0, &thrown)
@@ -380,9 +359,8 @@ struct RuntimeBufferedReaderTests {
         let fileURL = try makeTempFile(contents: "first\nsecond\n")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
-        let pathRaw = runtimeTestPathHandle(fileURL.path)
         var thrown = 0
-        let readerRaw = kk_path_bufferedReader(pathRaw, 0, kk_box_int(8192), 0, &thrown)
+        let readerRaw = openBufferedReader(fileURL.path, outThrown: &thrown)
         #expect(thrown == 0)
 
         forEachLineCollectedLines = []
@@ -403,13 +381,17 @@ struct RuntimeBufferedReaderTests {
         return url
     }
 
-    private func runtimeTestPathHandle(_ path: String) -> Int {
-        let bytes = Array(path.utf8)
-        let stringRaw = bytes.withUnsafeBufferPointer { buffer -> Int in
-            let baseAddress = buffer.baseAddress ?? UnsafePointer<UInt8>(bitPattern: 0x1)!
-            return Int(bitPattern: kk_string_from_utf8(baseAddress, Int32(bytes.count)))
+    /// Fixture replacement for the removed `kk_path_bufferedReader` (CLEANUP-STUB-115):
+    /// opens `path` directly and boxes the result exactly as that cdecl did.
+    private func openBufferedReader(_ path: String, bufferSize: Int = 8192, outThrown: inout Int) -> Int {
+        outThrown = 0
+        do {
+            let fileHandle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
+            return registerRuntimeObject(RuntimeBufferedReaderBox(fileHandle: fileHandle, chunkSize: bufferSize))
+        } catch {
+            outThrown = runtimeAllocateThrowable(message: "IOException: \(error.localizedDescription)")
+            return 0
         }
-        return kk_path_new(stringRaw)
     }
 
     private func readString(_ raw: Int) -> String? {
