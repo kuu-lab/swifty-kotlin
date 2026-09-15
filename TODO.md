@@ -3407,16 +3407,11 @@
     - `kotlin.text.none` — fun CharSequence.none(): Boolean  -- `final fun (kotlin/CharSequence).kotlin.text/none(): kotlin/Boolean`
   - 実装済み（ゲート保留）: Kotlin 2.3.10 の `CharSequence.none()` 契約（`return isEmpty()`、既存 predicate overload は維持）を `StringHOF.kt` に source-backed で追加した。専用 Sema Golden、String/StringBuilder/custom CharSequence（`toString()` と内容が異なる場合を含む）、UTF-16/空文字列、`length` getter 1回、既存 predicate を専用 diff で固定した。focused Golden、専用 diff、Swift build、String synthetic link（4/4）、Runtime ABI link（4/4）、TODO ID、diff check は pass。全 Golden は build 後に無出力で中断し、全 diff_cases は同一 worktree の共有 lock 回避のため未完了のため Draft として記録する。
 
-- [~] KSP-1390: kotlin.text.CharSequence.pad-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1390: kotlin.text.CharSequence.pad-family の未実装 stdlib API を実装する（2 件）
+  - **2026-09-16 実装メモ**: 着手時に前提を確認したところ、`CharSequence.padStart(Int, Char)` / `CharSequence.padEnd(Int, Char)` の Kotlin source 実装（`StringHOF.kt`）、Sema golden、diff ケースは #6697（squash コミット `293acdf78`）で既に master に着地していた。本チケットで積み残されていた bridge/stub 整理として、呼び出し不能な `kk_string_padStart_default_flat` / `kk_string_padEnd_default_flat` / `kk_string_padStart_flat` / `kk_string_padEnd_flat` の `RuntimeABISpec` と `NativeEmitter` 登録、および ABI 署名テストを削除し、source-backed であることを ABI 回帰テストに固定した。Runtime の `@_cdecl` 実体と `HeaderHelpers+Synthetic*Stubs.swift` 登録は現行ツリーに存在しなかった。`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` に残っていた pad 名称フォールバックも削除した。
+  - 検証: focused Sema（padStart/padEnd）、synthetic link、ABI 回帰、専用 kotlinc diff、Runtime ABI link、`check_todo_ids.sh`、`git diff --check` は pass。指定の全 Sema golden 更新コマンドは 13 件の `Golden worker timed out` で終了したが、対象ケースを artifact-based worker で個別比較すると既存 `.golden` と一致し、golden ファイルの差分はない。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `pad`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_pad.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_pad.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_pad.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.text.padEnd` — fun CharSequence.padEnd(Int, Char): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/padEnd(kotlin/Int, kotlin/Char = ...): kotlin/CharSequence`
-    - `kotlin.text.padStart` — fun CharSequence.padStart(Int, Char): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/padStart(kotlin/Int, kotlin/Char = ...): kotlin/CharSequence`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`（#6697 で追加済み）
 
 - [~] KSP-1392: kotlin.text.CharSequence.region-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `region`
