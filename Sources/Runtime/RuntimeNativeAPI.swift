@@ -694,6 +694,74 @@ public func kk_pinned_get(_ pinnedHandle: Int) -> Int {
     return box.objectRaw
 }
 
+// MARK: - StableRef<T>
+
+/// Runtime backing for `kotlinx.cinterop.StableRef<T>`.
+///
+/// Same GC-root-pinning mechanism as `Pinned<T>` above (KSwiftK never moves
+/// heap objects, so pinning is a reachability hold rather than a real pin),
+/// but refcounted per target object rather than a plain membership set:
+/// unlike `Pinned<T>`, the public StableRef contract allows the same target
+/// to be wrapped by several independent handles at once (e.g.
+/// `kotlin.native.concurrent.Continuation1.invoke` creates a fresh
+/// `StableRef` per call while the block's own StableRef stays alive across
+/// many calls), and disposing one handle must never unpin a sibling handle
+/// to the same object.
+///
+/// The resulting pointer is boxed through the existing `RuntimeCOpaquePointerBox`
+/// (`kk_copaque_pointer_new`/`kk_copaque_pointer_address`) so `StableRef.stablePtr`
+/// is a regular `COpaquePointer` value, matching `StableRef.asCPointer()`'s
+/// contract of handing back something safe to pass to native code.
+@_cdecl("kk_stable_ref_create")
+public func kk_stable_ref_create(_ objectRaw: Int) -> Int {
+    guard objectRaw != 0 else {
+        return 0
+    }
+    runtimeStorage.withGCLock { state in
+        state.stableRefCounts[UInt(bitPattern: objectRaw), default: 0] += 1
+    }
+    return kk_copaque_pointer_new(objectRaw)
+}
+
+@_cdecl("kk_stable_ref_deref")
+public func kk_stable_ref_deref(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return runtimeNullSentinelInt
+    }
+    let isLive = runtimeStorage.withGCLock { state in
+        (state.stableRefCounts[UInt(bitPattern: objectRaw)] ?? 0) > 0
+    }
+    // Guards against a COpaquePointer that was never a StableRef (or was
+    // already disposed): kk_copaque_pointer_address would otherwise return
+    // its raw address unchecked, and `get()`'s `as T` would then fault on
+    // garbage instead of throwing a clean ClassCastException.
+    guard isLive else {
+        return runtimeNullSentinelInt
+    }
+    return objectRaw
+}
+
+@_cdecl("kk_stable_ref_dispose")
+public func kk_stable_ref_dispose(_ pointerHandle: Int) -> Int {
+    let objectRaw = kk_copaque_pointer_address(pointerHandle)
+    guard objectRaw != 0 else {
+        return 0
+    }
+    return runtimeStorage.withGCLock { state in
+        let key = UInt(bitPattern: objectRaw)
+        guard let count = state.stableRefCounts[key], count > 0 else {
+            return 0
+        }
+        if count == 1 {
+            state.stableRefCounts.removeValue(forKey: key)
+        } else {
+            state.stableRefCounts[key] = count - 1
+        }
+        return objectRaw
+    }
+}
+
 // MARK: - WeakReference<T>
 
 /// Runtime backing for `kotlin.native.ref.WeakReference<T>`.

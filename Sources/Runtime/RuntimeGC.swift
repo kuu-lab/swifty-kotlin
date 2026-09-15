@@ -32,6 +32,11 @@ struct GCState {
     var activeFrames: [ActiveFrameRecord] = []
     var coroutineRoots: Set<UInt> = []
     var pinnedObjects: Set<UInt> = []
+    /// Per-target refcount for `kotlinx.cinterop.StableRef` (kk_stable_ref_create/
+    /// _dispose). Unlike `pinnedObjects` (a plain membership set backing
+    /// `Pinned<T>`), the same target object may be wrapped by several
+    /// independent StableRef handles at once — see kk_stable_ref_create.
+    var stableRefCounts: [UInt: Int] = [:]
 }
 
 struct MetadataState {
@@ -422,6 +427,7 @@ func kk_runtime_reset_gc() {
         state.activeFrames.removeAll(keepingCapacity: false)
         state.coroutineRoots.removeAll(keepingCapacity: false)
         state.pinnedObjects.removeAll(keepingCapacity: false)
+        state.stableRefCounts.removeAll(keepingCapacity: false)
     }
     resetCaseInsensitiveOrderCache()
 }
@@ -566,6 +572,13 @@ func collectRootPointersLocked(state: GCState, threadLocalValues: [UInt: [Object
 
     for pinned in state.pinnedObjects {
         guard let ptr = UnsafeMutableRawPointer(bitPattern: pinned) else {
+            continue
+        }
+        worklist.append(ptr)
+    }
+
+    for stableRefTarget in state.stableRefCounts.keys {
+        guard let ptr = UnsafeMutableRawPointer(bitPattern: stableRefTarget) else {
             continue
         }
         worklist.append(ptr)
