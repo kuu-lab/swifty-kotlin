@@ -366,7 +366,7 @@ final class InlineLoweringPass: LoweringPass {
                 // A lambda spliced into an already-inlined generic body reads
                 // its arguments from erased (type-parameter) slots, so unbox
                 // them for the lambda's own concrete parameter types.
-                let fullArgs = unboxErasedLambdaArguments(
+                let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                     arguments: captureArgs + Array(resolvedArguments.dropFirst()),
                     lambdaFunction: lambdaFunction,
                     module: module,
@@ -399,7 +399,7 @@ final class InlineLoweringPass: LoweringPass {
                         if let lambdaReturn = lambdaExpansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
                            exprIsDefined(lambdaReturn, in: loweredBody.instructions)
                         {
-                            let finalExpr = boxErasedLambdaResultIfNeeded(
+                            let finalExpr = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                 returnedExpr: lambdaReturn,
                                 result: result,
                                 module: module,
@@ -450,8 +450,8 @@ final class InlineLoweringPass: LoweringPass {
             // boxed representation chosen there; this expansion cannot
             // re-specialize them. Box primitive arguments that flow into an
             // erased parameter so the splice honours that representation.
-            let expansionArguments = usesErasedLambdaABI(inlineTarget, ctx: ctx)
-                ? boxPrimitiveArgumentsForErasedParameters(
+            let expansionArguments = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
+                ? InlineErasedLambdaABI.boxPrimitiveArgumentsForErasedParameters(
                     arguments: arguments,
                     inlineTarget: inlineTarget,
                     module: module,
@@ -587,7 +587,7 @@ final class InlineLoweringPass: LoweringPass {
                 if let returnedExpr = expansion.returnedExpr.map({ InlineExprAliasing.resolveAlias(of: $0, aliases: aliases) }),
                    exprIsDefined(returnedExpr, in: loweredBody.instructions)
                 {
-                    let finalExpr = unboxErasedInlineResultIfNeeded(
+                    let finalExpr = InlineErasedLambdaABI.unboxErasedInlineResultIfNeeded(
                         returnedExpr: returnedExpr,
                         result: result,
                         inlineTarget: inlineTarget,
@@ -604,295 +604,6 @@ final class InlineLoweringPass: LoweringPass {
         }
 
         return (loweredBody.instructions, loweredBody.instructionLocations, didExpand)
-    }
-
-    /// Runtime entry points that call a function value: the value is an adapter
-    /// with the erased convention, so every argument arrives boxed and the
-    /// result comes back boxed.
-    static let erasedFunctionInvokeCallees: Set<String> = [
-        "kk_function_invoke", "kk_function_invoke_0",
-        "kk_function_invoke_2", "kk_function_invoke_3",
-        "kk_suspend_function_invoke", "kk_suspend_function_invoke_0", "kk_suspend_function_invoke_2",
-    ]
-
-    /// Imported inline HOF bodies were ABI-lowered before they were serialized.
-    /// Their erased selector results therefore remain boxed when a lowered
-    /// floating-point operator consumes them in the caller.
-    private func unboxErasedArithmeticArgumentsIfNeeded(
-        callee: InternedString,
-        arguments: [KIRExprID],
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        let primitive: PrimitiveType? = switch ctx.interner.resolve(callee) {
-        case "kk_op_fadd", "kk_op_fsub", "kk_op_fmul", "kk_op_fdiv": .float
-        case "kk_op_dadd", "kk_op_dsub", "kk_op_dmul", "kk_op_ddiv": .double
-        default: nil
-        }
-        guard let primitive, let types = ctx.sema?.types else {
-            return arguments
-        }
-        var normalized = arguments
-        for index in arguments.indices {
-            let argument = arguments[index]
-            let isErasedInvokeResult = body.reversed().contains { instruction in
-                guard case let .call(_, invokeCallee, _, callResult, _, _, _, _) = instruction else {
-                    return false
-                }
-                return callResult == argument
-                    && Self.erasedFunctionInvokeCallees.contains(ctx.interner.resolve(invokeCallee))
-            }
-            guard isErasedInvokeResult else { continue }
-            let targetType = module.arena.exprType(argument)
-                ?? types.make(.primitive(primitive, .nonNull))
-            let unboxed = module.arena.appendTemporary(type: targetType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [argument],
-                result: unboxed,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            normalized[index] = unboxed
-        }
-        return normalized
-    }
-
-    /// Box the arguments an inline expansion passes to an erased function-value
-    /// invoke: type substitution replaced the callee body's erased slots with
-    /// concrete primitives, which the adapter would misread as boxed pointers.
-    private func boxSubstitutedErasedArguments(
-        originalArguments: [KIRExprID],
-        loweredArguments: [KIRExprID],
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard originalArguments.count == loweredArguments.count, let types = ctx.sema?.types else {
-            return loweredArguments
-        }
-        var boxed = loweredArguments
-        for index in loweredArguments.indices.dropFirst() {
-            guard isErasedType(module.arena.exprType(originalArguments[index]), ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(loweredArguments[index]), ctx: ctx
-                  )
-            else {
-                continue
-            }
-            let boxedArg = module.arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [loweredArguments[index]],
-                result: boxedArg,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            boxed[index] = boxedArg
-        }
-        return boxed
-    }
-
-    /// Counterpart of `boxSubstitutedErasedArguments` for the invoke's result.
-    private func substitutedErasedResultUnboxingCallee(
-        originalResult: KIRExprID,
-        loweredResult: KIRExprID,
-        expectedType: TypeID?,
-        module: KIRModule,
-        ctx: KIRContext
-    ) -> InternedString? {
-        guard isErasedType(module.arena.exprType(originalResult), ctx: ctx) || expectedType != nil,
-              let primitive = nonNullPrimitiveKind(
-                  of: expectedType ?? module.arena.exprType(loweredResult),
-                  ctx: ctx
-              )
-        else {
-            return nil
-        }
-        return ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner)
-    }
-
-    private func importedLambdaInvokeReturnType(
-        inlineTarget: KIRFunction,
-        typeSubstitution: InlineTypeSubstitution?,
-        ctx: KIRContext
-    ) -> TypeID? {
-        guard let types = ctx.sema?.types else { return nil }
-        for parameter in inlineTarget.params {
-            guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
-                continue
-            }
-            return typeSubstitution?.applying(to: functionType.returnType, in: ctx) ?? functionType.returnType
-        }
-        return nil
-    }
-
-    /// An imported generic higher-order function: its body was ABI-lowered when
-    /// the library was built and invokes its lambda through the erased
-    /// `kk_function_create_N` convention, so every value that meets an erased
-    /// slot in the expansion must be boxed. Imported non-HOF declarations keep
-    /// the raw representation their callers already pass.
-    private func usesErasedLambdaABI(_ inlineTarget: KIRFunction, ctx: KIRContext) -> Bool {
-        guard ctx.sema?.symbols.symbol(inlineTarget.symbol)?.flags.contains(.importedLibrary) == true,
-              let types = ctx.sema?.types
-        else {
-            return false
-        }
-        return inlineTarget.params.contains { param in
-            if case .functionType = types.kind(of: param.type) { return true }
-            return false
-        }
-    }
-
-    /// A type whose values are carried as boxed references once erased: an
-    /// unsubstituted type parameter or `Any`.
-    private func isErasedType(_ type: TypeID?, ctx: KIRContext) -> Bool {
-        guard let type, let types = ctx.sema?.types else { return false }
-        switch types.kind(of: type) {
-        case .typeParam, .any:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func nonNullPrimitiveKind(of type: TypeID?, ctx: KIRContext) -> PrimitiveType? {
-        guard let type, let types = ctx.sema?.types,
-              case let .primitive(primitive, .nonNull) = types.kind(of: type)
-        else {
-            return nil
-        }
-        return primitive
-    }
-
-    private func unboxErasedLambdaArguments(
-        arguments: [KIRExprID],
-        lambdaFunction: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        erasedCallConvention: Bool = false,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard arguments.count == lambdaFunction.params.count else {
-            return arguments
-        }
-        var normalized = arguments
-        for index in arguments.indices {
-            // Instructions restored from a library's inline KIR carry no expr
-            // types, so inside such an expansion every value is erased.
-            let argumentIsErased = module.arena.exprType(arguments[index])
-                .map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-            guard argumentIsErased,
-                  let primitive = nonNullPrimitiveKind(of: lambdaFunction.params[index].type, ctx: ctx)
-            else {
-                continue
-            }
-            let unboxed = module.arena.appendTemporary(type: lambdaFunction.params[index].type)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [arguments[index]],
-                result: unboxed,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            normalized[index] = unboxed
-        }
-        return normalized
-    }
-
-    /// Counterpart of `unboxErasedLambdaArguments`: when the invocation's result
-    /// feeds an erased slot, the primitive the lambda body produced must be
-    /// boxed again.
-    private func boxErasedLambdaResultIfNeeded(
-        returnedExpr: KIRExprID,
-        result: KIRExprID,
-        module: KIRModule,
-        ctx: KIRContext,
-        erasedCallConvention: Bool = false,
-        into body: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        let resultType = module.arena.exprType(result)
-        let resultIsErased = resultType.map { isErasedType($0, ctx: ctx) } ?? erasedCallConvention
-        guard resultIsErased, let types = ctx.sema?.types,
-              let primitive = nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx)
-        else {
-            return returnedExpr
-        }
-        let boxed = module.arena.appendTemporary(type: resultType ?? types.anyType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: boxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return boxed
-    }
-
-    private func boxPrimitiveArgumentsForErasedParameters(
-        arguments: [KIRExprID],
-        inlineTarget: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> [KIRExprID] {
-        guard arguments.count == inlineTarget.params.count, let types = ctx.sema?.types else {
-            return arguments
-        }
-        var boxed = arguments
-        for index in arguments.indices {
-            guard isErasedType(inlineTarget.params[index].type, ctx: ctx),
-                  let primitive = nonNullPrimitiveKind(
-                      of: module.arena.exprType(arguments[index]), ctx: ctx
-                  )
-            else {
-                continue
-            }
-            let boxedResult = module.arena.appendTemporary(type: types.anyType)
-            body.append(.call(
-                symbol: nil,
-                callee: ABILoweringPass.primitiveBoxingCallee(for: primitive, interner: ctx.interner),
-                arguments: [arguments[index]],
-                result: boxedResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            boxed[index] = boxedResult
-        }
-        return boxed
-    }
-
-    private func unboxErasedInlineResultIfNeeded(
-        returnedExpr: KIRExprID,
-        result: KIRExprID,
-        inlineTarget: KIRFunction,
-        module: KIRModule,
-        ctx: KIRContext,
-        into body: inout KIRLoweringEmitContext
-    ) -> KIRExprID {
-        guard usesErasedLambdaABI(inlineTarget, ctx: ctx),
-              isErasedType(inlineTarget.returnType, ctx: ctx),
-              let resultType = module.arena.exprType(result),
-              let primitive = nonNullPrimitiveKind(of: resultType, ctx: ctx),
-              nonNullPrimitiveKind(of: module.arena.exprType(returnedExpr), ctx: ctx) == nil
-        else {
-            return returnedExpr
-        }
-        let unboxed = module.arena.appendTemporary(type: resultType)
-        body.append(.call(
-            symbol: nil,
-            callee: ABILoweringPass.primitiveUnboxingCallee(for: primitive, interner: ctx.interner),
-            arguments: [returnedExpr],
-            result: unboxed,
-            canThrow: false,
-            thrownResult: nil
-        ))
-        return unboxed
     }
 
     private func expandInlineCall(
@@ -959,7 +670,7 @@ final class InlineLoweringPass: LoweringPass {
         // A body restored from a library's inline KIR was ABI-lowered when that
         // library was built: it passes and receives every erased value boxed,
         // and its instructions carry no expr types to detect that from.
-        let erasedExpansionABI = usesErasedLambdaABI(inlineTarget, ctx: ctx)
+        let erasedExpansionABI = InlineErasedLambdaABI.usesErasedLambdaABI(inlineTarget, ctx: ctx)
 
         var localExprMap: [KIRExprID: KIRExprID] = [:]
         var unitResultAliasExprs: Set<KIRExprID> = []
@@ -1125,7 +836,7 @@ final class InlineLoweringPass: LoweringPass {
                     } else {
                         valueArgs = resolvedArgs
                     }
-                    let fullArgs = unboxErasedLambdaArguments(
+                    let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + valueArgs,
                         lambdaFunction: lambdaFunction,
                         module: module,
@@ -1148,7 +859,7 @@ final class InlineLoweringPass: LoweringPass {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
                             {
-                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
                                     module: module,
@@ -1183,7 +894,7 @@ final class InlineLoweringPass: LoweringPass {
                 {
                     let captureArgs = (module.arena.lambdaCaptureArgsBySymbol[lambdaFunction.symbol] ?? [])
                         .map { InlineExprAliasing.resolveAlias(of: $0, aliases: localExprMap) }
-                    let fullArgs = unboxErasedLambdaArguments(
+                    let fullArgs = InlineErasedLambdaABI.unboxErasedLambdaArguments(
                         arguments: captureArgs + Array(resolvedArgs.dropFirst()),
                         lambdaFunction: lambdaFunction,
                         module: module,
@@ -1206,7 +917,7 @@ final class InlineLoweringPass: LoweringPass {
                             if let lambdaReturn = lambdaExpansion.returnedExpr,
                                exprIsDefined(lambdaReturn, in: lowered.instructions)
                             {
-                                localExprMap[result] = boxErasedLambdaResultIfNeeded(
+                                localExprMap[result] = InlineErasedLambdaABI.boxErasedLambdaResultIfNeeded(
                                     returnedExpr: lambdaReturn,
                                     result: result,
                                     module: module,
@@ -1275,10 +986,10 @@ final class InlineLoweringPass: LoweringPass {
                 // function value whose adapter speaks the erased convention.
                 // Substituting concrete type arguments turned the values that
                 // meet the invoke into plain primitives; re-erase them.
-                let erasedInvoke = Self.erasedFunctionInvokeCallees
+                let erasedInvoke = InlineErasedLambdaABI.erasedFunctionInvokeCallees
                     .contains(ctx.interner.resolve(callee))
                 let erasedInvokeReturnType = erasedInvoke
-                    ? importedLambdaInvokeReturnType(
+                    ? InlineErasedLambdaABI.importedLambdaInvokeReturnType(
                         inlineTarget: inlineTarget,
                         typeSubstitution: inlineTypeSubstitution,
                         ctx: ctx
@@ -1290,7 +1001,7 @@ final class InlineLoweringPass: LoweringPass {
                     module.arena.setExprType(erasedInvokeReturnType, for: loweredResult)
                 }
                 if erasedInvoke {
-                    loweredArgs = boxSubstitutedErasedArguments(
+                    loweredArgs = InlineErasedLambdaABI.boxSubstitutedErasedArguments(
                         originalArguments: args,
                         loweredArguments: loweredArgs,
                         module: module,
@@ -1299,7 +1010,7 @@ final class InlineLoweringPass: LoweringPass {
                     )
                 }
                 if erasedInvoke, let result, let loweredResult,
-                   let unboxCallee = substitutedErasedResultUnboxingCallee(
+                   let unboxCallee = InlineErasedLambdaABI.substitutedErasedResultUnboxingCallee(
                        originalResult: result,
                        loweredResult: loweredResult,
                        expectedType: erasedInvokeReturnType,
@@ -1331,7 +1042,7 @@ final class InlineLoweringPass: LoweringPass {
                     break
                 }
                 let normalizedArgs = erasedExpansionABI
-                    ? unboxErasedArithmeticArgumentsIfNeeded(
+                    ? InlineErasedLambdaABI.unboxErasedArithmeticArgumentsIfNeeded(
                         callee: callee,
                         arguments: loweredArgs,
                         module: module,
