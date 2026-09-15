@@ -1316,13 +1316,6 @@ extension CallLowerer {
                     } else {
                         nil
                     }
-                case "get":
-                    ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "compareTo":
-                    ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "matches":
-                    ("__kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
-
                 default:
                     nil
                 }
