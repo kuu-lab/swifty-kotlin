@@ -13,8 +13,12 @@ struct CollectionLiteralLookupTables {
     let fileIOLookup: FileIOLookupNames
     let commonLookup: CommonLookupNames
 
-    // Sequence factories that return a runtime RuntimeSequenceBox handle
-    // (source body is only a thin bridge to a __kk_* / kk_* runtime entry).
+    // Sequence factories whose call site is known to return a
+    // RuntimeSequenceBox handle. The public `sequenceOf` / `emptySequence` /
+    // `generateSequence` declarations are intentionally not listed: their
+    // source bodies include overloads that construct source objects, and a
+    // name-only match would erase that distinction. Their private bridge
+    // results remain unknown until a later, explicit runtime fact is available.
     let sequenceRuntimeBridgeReturningNames: Set<InternedString>
     private let collectionHOFRuntimeNames: [CollectionHOFRuntimeKey: InternedString]
 
@@ -259,21 +263,10 @@ struct CollectionLiteralLookupTables {
     var kkArrayNewName: InternedString { arrayLookup.kkArrayNewName }
     var kkArraySetName: InternedString { arrayLookup.kkArraySetName }
     var kkArrayToListName: InternedString { arrayLookup.kkArrayToListName }
-    var kkArrayToMutableListName: InternedString { arrayLookup.kkArrayToMutableListName }
-
     var kkArrayCopyOfName: InternedString { arrayLookup.kkArrayCopyOfName }
-    var kkArrayFillName: InternedString { arrayLookup.kkArrayFillName }
     var kkListAsSequenceName: InternedString { arrayLookup.kkListAsSequenceName }
     var kkArrayAsSequenceName: InternedString { arrayLookup.kkArrayAsSequenceName }
     var kkArrayOfName: InternedString { arrayLookup.kkArrayOfName }
-    var toMutableListName: InternedString { arrayLookup.toMutableListName }
-    var toTypedArrayName: InternedString { arrayLookup.toTypedArrayName }
-    var sliceArrayName: InternedString { arrayLookup.sliceArrayName }
-    var reversedArrayName: InternedString { arrayLookup.reversedArrayName }
-    var asListName: InternedString { arrayLookup.asListName }
-    var copyOfName: InternedString { arrayLookup.copyOfName }
-    var copyOfRangeName: InternedString { arrayLookup.copyOfRangeName }
-    var fillName: InternedString { arrayLookup.fillName }
     var arrayOfFactoryNames: Set<InternedString> { arrayLookup.arrayOfFactoryNames }
 
     // MARK: - Range lookup names (see CollectionLiteralLoweringPass+LookupTables+Range.swift)

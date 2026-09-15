@@ -77,13 +77,7 @@ struct SourceBackedCallPreservationPolicy {
     /// argument is an array expression tracked by the pre-scan.
     let directArrayConversionNames: Set<InternedString>
 
-    /// Array conversion member names the virtual-call path preserves when the
-    /// receiver's static type is one of `arrayReceiverTypeNames`. `size` is
-    /// checked separately there, and unlike the direct path this set does not
-    /// include `toList` — that name is in `virtualOnlyAggregateNames`.
-    let virtualArrayConversionNames: Set<InternedString>
-
-    /// Receiver class names the virtual-call array branches accept.
+    /// Receiver class names the virtual-call `size` branch accepts.
     let arrayReceiverTypeNames: Set<String>
 
     private let sizeName: InternedString
@@ -205,9 +199,6 @@ struct SourceBackedCallPreservationPolicy {
             lookup.lastName,
             lookup.firstOrNullName,
             lookup.lastOrNullName,
-            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
-            lookup.copyOfName,
-            lookup.copyOfRangeName,
         ]
 
         virtualOnlyAggregateNames = [
@@ -246,20 +237,18 @@ struct SourceBackedCallPreservationPolicy {
             interner.intern("randomOrNull"),
         ]
 
-        // KSP-1513/KSP-1516: source-backed Array<T>/primitive-array members on
+        // KSP-1513: source-backed Array<T>/primitive-array `size`/`toList` on
         // literal arrays must keep their selected Kotlin declaration. The
         // source body may delegate to a typed private runtime bridge.
+        //
+        // RF-LOWER-CALL-013: `sliceArray`/`reversedArray`/`asList`/`toTypedArray`
+        // used to live here too, but no Lowering rewrite has checked those
+        // names since KSP-1516 (and generic `Array<T>.toTypedArray()` was
+        // never a real declaration to begin with — Sema rejects it,
+        // KSWIFTK-SEMA-0024). Protecting names nothing threatens is inert;
+        // removed with the two rewrite files whose branches they used to guard.
         directArrayConversionNames = [
-            lookup.sizeName, lookup.toListName, lookup.sliceArrayName,
-            lookup.reversedArrayName, lookup.asListName, lookup.toTypedArrayName,
-        ]
-
-        // KSP-1516: array conversion members are bundled Kotlin source. Keep
-        // the selected declaration so its source body is emitted instead of
-        // the removed synthetic runtime shortcuts.
-        virtualArrayConversionNames = [
-            lookup.sliceArrayName, lookup.reversedArrayName,
-            lookup.asListName, lookup.toTypedArrayName,
+            lookup.sizeName, lookup.toListName,
         ]
 
         arrayReceiverTypeNames = [
@@ -275,18 +264,20 @@ struct SourceBackedCallPreservationPolicy {
 
     /// Direct-call decision, in the order the inlined predicate used: array
     /// conversion on a tracked array literal first, then the shared API set,
-    /// then the two Sequence runtime-representation exceptions.
+    /// then the Sequence runtime-representation decision.
     ///
     /// `receiverIsTrackedArrayLiteral` folds in the original
-    /// `!arguments.isEmpty && state.arrayExprIDs.contains(arguments[0])`, and
-    /// `receiverIsTrackedRuntimeSequence` the `sequenceExprIDs` /
-    /// `arrayExprIDs` pair, so both stay behind the name test.
+    /// `!arguments.isEmpty && state.arrayExprIDs.contains(arguments[0])`.
+    /// `sequenceRuntimeRepresentation` is evaluated only for `map` and
+    /// `filter`, after the source-backed name and resolution gates. A confirmed
+    /// runtime box is rewritable, a confirmed source object or known
+    /// non-Sequence receiver is preserved, and unknown provenance is never
+    /// guessed to be source-backed.
     func preservesDirectCall(
         callee: InternedString,
         resolution: @autoclosure () -> SourceBackedCalleeResolution,
         receiverIsTrackedArrayLiteral: @autoclosure () -> Bool,
-        receiverIsTrackedRuntimeSequence: @autoclosure () -> Bool,
-        calleeHasSequenceReceiverType: @autoclosure () -> Bool
+        sequenceRuntimeRepresentation: @autoclosure () -> CollectionLiteralLoweringSupport.SequenceRuntimeRepresentation
     ) -> Bool {
         if directArrayConversionNames.contains(callee),
            receiverIsTrackedArrayLiteral(),
@@ -301,34 +292,24 @@ struct SourceBackedCallPreservationPolicy {
             return false
         }
 
-        // STDLIB-pipeline §5 / KSP-441: source Sequence.map/filter walk a source
-        // Sequence object via iterator(), but RuntimeSequenceBox (from
-        // kk_array_asSequence / kk_list_asSequence) has no itable map entry and
-        // must go through kk_sequence_map/filter.
-        if receiverIsTrackedRuntimeSequence(),
-           callee == mapName || callee == filterName
-        {
-            return false
-        }
-
-        // A Sequence-typed receiver may still be a RuntimeSequenceBox at run
-        // time (e.g. a parameter fed by asSequence()), which the source
-        // iterator cannot walk. flatMap/flatMapIndexed are excluded: their
-        // bundled source implementations traverse the receiver through the
-        // shared iterator bridge and are the KSP-441 source pipeline.
-        if callee == mapName || callee == filterName,
-           calleeHasSequenceReceiverType()
-        {
-            return false
+        if callee == mapName || callee == filterName {
+            switch sequenceRuntimeRepresentation() {
+            case .runtimeBox, .unknown:
+                // An opaque runtime box cannot use the source implementation,
+                // and an unknown origin must not be treated as source-backed.
+                return false
+            case .sourceObject, .notSequence:
+                return true
+            }
         }
         return true
     }
 
     /// Virtual-dispatch decision, in the order the inlined predicate used:
-    /// `size`, then the array conversion members, then the shared plus
-    /// virtual-only API sets. Both array branches answer with set membership
-    /// once the receiver class resolves, and fall through to the API sets when
-    /// it does not — `receiverArrayClassName` returns nil for that case.
+    /// `size`, then the shared plus virtual-only API sets. The `size` branch
+    /// answers with set membership once the receiver class resolves, and
+    /// falls through to the API sets when it does not — `receiverArrayClassName`
+    /// returns nil for that case.
     ///
     /// Unlike `preservesDirectCall` there is no Sequence exception here;
     /// runtime-backed Sequence receivers are handled by
@@ -342,13 +323,6 @@ struct SourceBackedCallPreservationPolicy {
         // replace it with the generic runtime bridge when the receiver is an
         // Array<T> or primitive array.
         if callee == sizeName,
-           resolution() == .sourceBacked,
-           let className = receiverArrayClassName()
-        {
-            return arrayReceiverTypeNames.contains(className)
-        }
-
-        if virtualArrayConversionNames.contains(callee),
            resolution() == .sourceBacked,
            let className = receiverArrayClassName()
         {

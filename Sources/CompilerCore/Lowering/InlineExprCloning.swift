@@ -6,8 +6,8 @@
 /// merge-slot substitutions it also records there; this type only owns the
 /// clone-or-reuse operation built on top of it. Type substitution for a
 /// generic inline body is not reimplemented here -- callers pass a
-/// `substituteType` closure that delegates to the pass's existing
-/// `substituteInlineType`, and `expandLambdaBody` (which has no inline type
+/// `substituteType` closure that delegates to `InlineTypeSubstitution`,
+/// and `expandLambdaBody` (which has no inline type
 /// parameters to substitute) relies on the identity default.
 enum InlineExprCloning {
     /// Clones `source` into a fresh caller-scoped expression the first time it

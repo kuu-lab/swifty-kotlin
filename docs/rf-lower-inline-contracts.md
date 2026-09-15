@@ -45,10 +45,10 @@ namespace（`KIRLabelRelocation` と同じ形）で、`expandInlineCalls` / `exp
 `expandLambdaBody` 側が持つ alias map（`aliases` / `localExprMap`）は呼び出し側の所有のまま
 `inout` で渡す -- パラメータ代入やmerge-slot昇格などalias解決ではない書き込みも同じ
 mapに対して行われるため、mapの所有権自体は移していない。型置換は
-`InlineExprCloning.cloneOrReuseExpr`/`cloneExpr` の `substituteType` クロージャ経由で既存の
-`InlineLoweringPass.substituteInlineType` へ委譲し、`InlineTypeSubstitution` を新ファイルへ
-持ち出さない（この責務の抽出はRF-LOWER-INLINE-004）。`expandLambdaBody` 側の呼び出しは
-型代入を持たないため `substituteType` の既定値（恒等関数）を使う。
+`InlineExprCloning.cloneOrReuseExpr`/`cloneExpr` の `substituteType` クロージャ経由で
+`InlineTypeSubstitution.applying` へ委譲し、reified hidden-token の対応表は
+`InlineReifiedTypeTokens` が所有する。`expandLambdaBody` 側の呼び出しは型代入を持たないため
+`substituteType` の既定値（恒等関数）を使う。
 
 抽出時に判明した既存の状態: `expandInlineCalls` の `aliases` は宣言時に空のまま一度も
 書き込まれず、`InlineExprAliasing.definedResult` の結果を `removeValue` するだけで終わる
