@@ -202,26 +202,13 @@ struct SourceBackedCallPreservationPolicy {
         ]
 
         virtualOnlyAggregateNames = [
-            // RF-LOWER-CALL-009 (#6762) removed these eleven from the direct
-            // chain: nothing downstream of the direct path keys on them any
-            // more, since the List-side legacy bridges are gone. The virtual
-            // guard still lists them because the `sequenceExprIDs`-gated
-            // branches in +CallRewriteHOFAccumulations.swift remain reachable
-            // there, and whether those should fire for a source-backed
-            // declaration whose receiver is a RuntimeSequenceBox is the
-            // KSP-441 question RF-LOWER-CALL-014 owns. So they are virtual-only
-            // rather than gone.
+            // RF-LOWER-CALL-009: the eight List-only names with no virtual
+            // consumer were removed from this guard. Keep the three Range
+            // members below; the Sequence-gated eight remain in the shared set
+            // until RF-LOWER-CALL-014 resolves their RuntimeSequenceBox policy.
             lookup.foldName,
             lookup.foldIndexedName,
-            lookup.foldRightName,
-            lookup.foldRightIndexedName,
             lookup.reduceName,
-            lookup.reduceOrNullName,
-            lookup.reduceRightName,
-            lookup.reduceRightOrNullName,
-            lookup.reduceRightIndexedName,
-            lookup.reduceRightIndexedOrNullName,
-            lookup.scanReduceName,
             // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
             lookup.isEmptyName,
             lookup.iteratorName,
