@@ -126,20 +126,8 @@ public extension RuntimeABISpec {
             returnType: .nullableUInt8Pointer,
             section: "String"
         ),
-        RuntimeABIFunctionSpec(
-            name: "kk_string_reversed_flat",
-            parameters: [
-                RuntimeABIParameter(name: "data", type: .nullableConstUInt8Pointer),
-                RuntimeABIParameter(name: "length", type: .intptr),
-                RuntimeABIParameter(name: "byteCount", type: .intptr),
-                RuntimeABIParameter(name: "hash", type: .intptr),
-                RuntimeABIParameter(name: "outLength", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outByteCount", type: .nullableIntptrPointer),
-                RuntimeABIParameter(name: "outHash", type: .nullableIntptrPointer),
-            ],
-            returnType: .nullableUInt8Pointer,
-            section: "String"
-        ),
+        // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt); its
+        // flat ABI entry was removed.
         RuntimeABIFunctionSpec(
             name: "kk_string_replace_flat",
             parameters: [
@@ -494,7 +482,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_new_flat",
+            name: "__kk_locale_new_flat",
             parameters: [
                 RuntimeABIParameter(name: "identifierData", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "identifierLength", type: .intptr),
@@ -506,7 +494,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_new_language_country_flat",
+            name: "__kk_locale_new_language_country_flat",
             parameters: [
                 RuntimeABIParameter(name: "languageData", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "languageLength", type: .intptr),

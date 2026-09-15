@@ -206,32 +206,49 @@ struct StringSyntheticMemberLinkTests {
         }
 
         do {
-            // Originally testCodePointCountStubsHaveCorrectExternalLinks
-                    let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount"),
-                        "CharSequence.codePointCount() should link to __kk_string_codePointCount"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_from"),
-                        "CharSequence.codePointCount(startIndex) should link to __kk_string_codePointCount_from"
-                    )
-                    #expect(
-                        codePointCountLinks.contains("__kk_string_codePointCount_range"),
-                        "CharSequence.codePointCount(startIndex, endIndex) should link to __kk_string_codePointCount_range"
-                    )
+            // KSP-717: codePointCount() / (startIndex) / (startIndex, endIndex)
+            // are bundled Kotlin wrappers (Stdlib/kotlin/text/StringBasics.kt)
+            // over private bridges of the same name; the public `codePointCount`
+            // symbols no longer carry an external link directly.
+            let codePointCountLinks = externalLinks(for: "codePointCount", sema: sema, interner: interner)
+            #expect(
+                codePointCountLinks.isEmpty,
+                "CharSequence.codePointCount overloads should be bundled Kotlin wrappers with no direct C external link; got \(codePointCountLinks)"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount", sema: sema, interner: interner) == "__kk_string_codePointCount",
+                "codePointCount() bridge should link to __kk_string_codePointCount"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount_from", sema: sema, interner: interner) == "__kk_string_codePointCount_from",
+                "codePointCount(startIndex) bridge should link to __kk_string_codePointCount_from"
+            )
+            #expect(
+                externalLink(for: "__kk_string_codePointCount_range", sema: sema, interner: interner) == "__kk_string_codePointCount_range",
+                "codePointCount(startIndex, endIndex) bridge should link to __kk_string_codePointCount_range"
+            )
         }
 
         do {
-            // Originally testStringNormalizationStubsHaveCorrectExternalLinks
-                    #expect(
-                        externalLink(for: "normalize", sema: sema, interner: interner) == "__kk_string_normalize_flat",
-                        "String.normalize should link to __kk_string_normalize_flat"
-                    )
-                    #expect(
-                        externalLink(for: "isNormalized", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
-                        "String.isNormalized should link to __kk_string_isNormalized_flat"
-                    )
+            // KSP-717: normalize/isNormalized are bundled Kotlin wrappers
+            // (Stdlib/kotlin/text/StringNormalize.kt) over private bridges of
+            // a different name; the public symbols carry no direct link.
+            #expect(
+                externalLink(for: "normalize", sema: sema, interner: interner) == nil,
+                "String.normalize should be a bundled Kotlin wrapper with no direct C external link"
+            )
+            #expect(
+                externalLink(for: "isNormalized", sema: sema, interner: interner) == nil,
+                "String.isNormalized should be a bundled Kotlin wrapper with no direct C external link"
+            )
+            #expect(
+                externalLink(for: "__kk_string_normalize_flat", sema: sema, interner: interner) == "__kk_string_normalize_flat",
+                "normalize's bridge should link to __kk_string_normalize_flat"
+            )
+            #expect(
+                externalLink(for: "__kk_string_isNormalized_flat", sema: sema, interner: interner) == "__kk_string_isNormalized_flat",
+                "isNormalized's bridge should link to __kk_string_isNormalized_flat"
+            )
         }
 
         do {
@@ -1737,15 +1754,13 @@ struct StringSyntheticMemberLinkTests {
             // === testStringNormalizationMembersResolveInCallExpressions ===
 
             do {
-
+                // KSP-717: normalize/isNormalized are bundled Kotlin wrappers
+                // now (Stdlib/kotlin/text/StringNormalize.kt) over private
+                // bridges of a different name, so the chosen callee for the
+                // call expression itself carries no direct external link.
                 let samplePath = paths[2]
 
-                let expectedLinks: [String: String] = [
-                    "normalize": "__kk_string_normalize_flat",
-                    "isNormalized": "__kk_string_isNormalized_flat",
-                ]
-
-                for (memberName, externalLinkName) in expectedLinks {
+                for memberName in ["normalize", "isNormalized"] {
                     let callExpr = try #require(firstExprID(in: ast, path: samplePath, ctx: ctx) { _, expr in
                         guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                         return interner.resolve(callee) == memberName
@@ -1755,8 +1770,8 @@ struct StringSyntheticMemberLinkTests {
                         "Expected call binding for \(memberName)"
                     )
                     #expect(
-                        sema.symbols.externalLinkName(for: chosenCallee) == externalLinkName,
-                        "Expected \(memberName) to resolve to \(externalLinkName)"
+                        sema.symbols.externalLinkName(for: chosenCallee) == nil,
+                        "Expected \(memberName) to resolve to a bundled Kotlin wrapper with no direct C external link"
                     )
                 }
 

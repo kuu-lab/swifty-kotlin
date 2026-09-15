@@ -76,6 +76,14 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
+        // KSP-717: `Locale.kt` owns `java.util.Locale`, but the String
+        // synthetic registration below still needs a `localeType` to type the
+        // (still-synthetic) `String.Companion.format(locale, ...)` overload.
+        predeclareBundledJavaUtilLocaleHeaders(
+            ast: ast, fileScopes: fileScopes, symbols: symbols,
+            sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
+            interner: ctx.interner, into: &predeclaredEarlyHeaders
+        )
         // KSP-1522: bundled collection and interop headers refer to the
         // source-backed Random types while synthetic members are registered.
         // Forward-declare those real nominal headers before the synthetic pass
@@ -244,16 +252,6 @@ final class DataFlowSemaPhase: CompilerPhase {
         // once header registration finished.
         sema.bundledIndex = bundledIndex
         runValidationPasses(ast: ast, symbols: symbols, bindings: bindings, types: types, ctx: ctx)
-        patchSourceBackedCharIteratorReturnType(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
-        patchSourceBackedIndexedValueReturnType(
-            symbols: symbols,
-            types: types,
-            interner: ctx.interner
-        )
         patchSourceBackedPreconditionContractEffects(
             symbols: symbols,
             types: types,

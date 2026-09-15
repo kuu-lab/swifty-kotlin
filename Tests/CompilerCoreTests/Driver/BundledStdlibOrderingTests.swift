@@ -108,7 +108,10 @@ struct BundledStdlibOrderingTests {
             }
 
             for expected in [
+                "__bundled_kotlin/native/Annotations.kt",
                 "__bundled_kotlin/native/BitSet.kt",
+                "__bundled_kotlin/native/FreezingIsDeprecated.kt",
+                "__bundled_kotlin/native/ObsoleteNativeApi.kt",
                 "__bundled_kotlin/native/Platform.kt",
                 "__bundled_kotlin/native/Runtime.kt",
                 "__bundled_kotlin/native/ThrowableExtensions.kt",
@@ -124,6 +127,11 @@ struct BundledStdlibOrderingTests {
             ] {
                 #expect(nativePaths.contains(expected), "Missing bundled source \(expected)")
             }
+
+            // KSP-1541 native residual: `ObjCName`/`CName`/etc. consolidated into
+            // Annotations.kt and `ObsoleteNativeApi`/`FreezingIsDeprecated` split into
+            // their own files; the old grab-bag filename must not come back.
+            #expect(!nativePaths.contains("__bundled_kotlin/native/ObjCInterop.kt"))
         }
     }
 }
