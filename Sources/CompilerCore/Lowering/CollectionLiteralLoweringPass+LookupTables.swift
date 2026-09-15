@@ -389,14 +389,10 @@ struct CollectionLiteralLookupTables {
     var noneName: InternedString { commonLookup.noneName }
     var allName: InternedString { commonLookup.allName }
     var foldName: InternedString { commonLookup.foldName }
-    var foldRightName: InternedString { commonLookup.foldRightName }
     var reduceName: InternedString { commonLookup.reduceName }
-    var reduceRightName: InternedString { commonLookup.reduceRightName }
-    var reduceOrNullName: InternedString { commonLookup.reduceOrNullName }
     var scanName: InternedString { commonLookup.scanName }
     var runningFoldName: InternedString { commonLookup.runningFoldName }
     var runningReduceName: InternedString { commonLookup.runningReduceName }
-    var scanReduceName: InternedString { commonLookup.scanReduceName }
     var groupByName: InternedString { commonLookup.groupByName }
     var findName: InternedString { commonLookup.findName }
     var findLastName: InternedString { commonLookup.findLastName }
@@ -423,10 +419,6 @@ struct CollectionLiteralLookupTables {
     var mapIndexedName: InternedString { commonLookup.mapIndexedName }
     var mapIndexedNotNullName: InternedString { commonLookup.mapIndexedNotNullName }
     var foldIndexedName: InternedString { commonLookup.foldIndexedName }
-    var foldRightIndexedName: InternedString { commonLookup.foldRightIndexedName }
-    var reduceRightIndexedName: InternedString { commonLookup.reduceRightIndexedName }
-    var reduceRightIndexedOrNullName: InternedString { commonLookup.reduceRightIndexedOrNullName }
-    var reduceRightOrNullName: InternedString { commonLookup.reduceRightOrNullName }
     var reduceIndexedName: InternedString { commonLookup.reduceIndexedName }
     var filterIndexedName: InternedString { commonLookup.filterIndexedName }
     var reduceIndexedOrNullName: InternedString { commonLookup.reduceIndexedOrNullName }

@@ -48,14 +48,10 @@ struct CommonLookupNames {
     let allName: InternedString
     // Additional higher-order collection member names (STDLIB-005)
     let foldName: InternedString
-    let foldRightName: InternedString
     let reduceName: InternedString
-    let reduceRightName: InternedString
-    let reduceOrNullName: InternedString
     let scanName: InternedString
     let runningFoldName: InternedString
     let runningReduceName: InternedString
-    let scanReduceName: InternedString
     let groupByName: InternedString
     let findName: InternedString
     let findLastName: InternedString
@@ -82,10 +78,6 @@ struct CommonLookupNames {
     let mapIndexedName: InternedString
     let mapIndexedNotNullName: InternedString
     let foldIndexedName: InternedString
-    let foldRightIndexedName: InternedString
-    let reduceRightIndexedName: InternedString
-    let reduceRightIndexedOrNullName: InternedString
-    let reduceRightOrNullName: InternedString
     let reduceIndexedName: InternedString
     let filterIndexedName: InternedString
     let reduceIndexedOrNullName: InternedString
@@ -188,14 +180,10 @@ struct CommonLookupNames {
         noneName = interner.intern("none")
         allName = interner.intern("all")
         foldName = interner.intern("fold")
-        foldRightName = interner.intern("foldRight")
         reduceName = interner.intern("reduce")
-        reduceRightName = interner.intern("reduceRight")
-        reduceOrNullName = interner.intern("reduceOrNull")
         scanName = interner.intern("scan")
         runningFoldName = interner.intern("runningFold")
         runningReduceName = interner.intern("runningReduce")
-        scanReduceName = interner.intern("scanReduce")
         groupByName = interner.intern("groupBy")
         findName = interner.intern("find")
         findLastName = interner.intern("findLast")
@@ -222,10 +210,6 @@ struct CommonLookupNames {
         mapIndexedName = interner.intern("mapIndexed")
         mapIndexedNotNullName = interner.intern("mapIndexedNotNull")
         foldIndexedName = interner.intern("foldIndexed")
-        foldRightIndexedName = interner.intern("foldRightIndexed")
-        reduceRightIndexedName = interner.intern("reduceRightIndexed")
-        reduceRightIndexedOrNullName = interner.intern("reduceRightIndexedOrNull")
-        reduceRightOrNullName = interner.intern("reduceRightOrNull")
         reduceIndexedName = interner.intern("reduceIndexed")
         filterIndexedName = interner.intern("filterIndexed")
         reduceIndexedOrNullName = interner.intern("reduceIndexedOrNull")
