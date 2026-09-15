@@ -413,7 +413,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         // KUU-556: nominal-tag bridge for the LinkedHashMap constructor family
-        // (and linkedMapOf/mutableMapOf), mirroring `__kk_linked_hash_set_of`.
+        // and linkedMapOf, mirroring `__kk_linked_hash_set_of`.
         RuntimeABIFunctionSpec(
             name: "__kk_linked_hash_map_of",
             parameters: [

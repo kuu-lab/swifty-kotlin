@@ -309,8 +309,8 @@ public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: 
     )
 }
 
-/// KUU-556: storage for the `LinkedHashMap()` constructor family (and
-/// `linkedMapOf`/`mutableMapOf`, which are declared to return `LinkedHashMap`).
+/// KUU-556: storage for the `LinkedHashMap()` constructor family and
+/// `linkedMapOf`, both of which are declared to return `LinkedHashMap`.
 /// `LinkedHashMap` is now a real `HashMap` subclass, so it needs its own
 /// nominal tag for `is LinkedHashMap<*, *>` to answer true and `is HashMap<*,
 /// *>` to also answer true via the `linkedHashMapRuntimeTypeID` -> `hashMapRuntimeTypeID`
