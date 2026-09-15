@@ -194,24 +194,15 @@ public func __kk_string_compareTo_locale_flat(
     )
 }
 
+// KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are Kotlin property
+// initializers now (Stdlib/kotlin/text/StringNormalize.kt); the rawValue
+// ordering below must stay in sync with the tags assigned there.
 private enum NormalizationFormTag: Int {
     case nfc = 0
     case nfd = 1
     case nfkc = 2
     case nfkd = 3
 }
-
-@_cdecl("__kk_normalization_form_nfc")
-public func __kk_normalization_form_nfc() -> Int { NormalizationFormTag.nfc.rawValue }
-
-@_cdecl("__kk_normalization_form_nfd")
-public func __kk_normalization_form_nfd() -> Int { NormalizationFormTag.nfd.rawValue }
-
-@_cdecl("__kk_normalization_form_nfkc")
-public func __kk_normalization_form_nfkc() -> Int { NormalizationFormTag.nfkc.rawValue }
-
-@_cdecl("__kk_normalization_form_nfkd")
-public func __kk_normalization_form_nfkd() -> Int { NormalizationFormTag.nfkd.rawValue }
 
 private func runtimeNormalizedString(_ source: String, formTagRaw: Int) -> String {
     guard let form = NormalizationFormTag(rawValue: formTagRaw) else {

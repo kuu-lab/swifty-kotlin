@@ -512,6 +512,39 @@ extension DataFlowSemaPhase {
         }
     }
 
+    /// KSP-717: forward-declares `java.util.Locale` from `Locale.kt` before the
+    /// still-synthetic `String.Companion.format(locale, ...)` overload is
+    /// registered. Its source symbol must be available so that registration
+    /// can build a `localeType`; `collectAllHeaders` later fills in the
+    /// complete header (the two bridged constructors).
+    func predeclareBundledJavaUtilLocaleHeaders(
+        ast: ASTModule,
+        fileScopes: [Int32: FileScope],
+        symbols: SymbolTable,
+        sourceManager: SourceManager,
+        diagnostics: DiagnosticEngine,
+        interner: StringInterner,
+        into predeclared: inout [DeclID: SymbolID]
+    ) {
+        let localeFQName = [
+            interner.intern("java"),
+            interner.intern("util"),
+            interner.intern("Locale"),
+        ]
+        guard symbols.lookup(fqName: localeFQName) == nil else { return }
+
+        for file in ast.sortedFiles
+            where sourceManager.path(of: file.fileID) == "__bundled_java/util/Locale.kt"
+        {
+            guard let fileScope = fileScopes[file.fileID.rawValue] else { continue }
+            predeclareNominalTypeHeaders(
+                file: file, ast: ast, symbols: symbols, scope: fileScope,
+                sourceManager: sourceManager, diagnostics: diagnostics,
+                interner: interner, into: &predeclared
+            )
+        }
+    }
+
     /// KSP-918: forward-declare the six `kotlin.annotation` core declarations
     /// before synthetic annotation bootstrap runs. Their source declarations
     /// refer to one another through `@Target`, `@Retention`, and
@@ -1852,6 +1885,9 @@ extension DataFlowSemaPhase {
             // leave the bundled Kotlin declaration source-backed.
             || resolvedFQName == ["kotlin", "native", "runtime", "Debugging"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
+            // KSP-1305: mirror the IntProgression staged source-shell treatment
+            // for LongProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]

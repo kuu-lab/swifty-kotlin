@@ -331,10 +331,13 @@ struct ListSearchPredicateLoweringRoutingTests {
                 callees.contains("__kk_range_contains"),
                 "IntRange.contains must still reach __kk_range_contains; callees: \(callees.sorted())"
             )
-            // Map.count(predicate) is source-backed in MapHOF.kt, and
-            // `+CallRewriteFactories` guards it with its own
-            // `isSourceBackedBundledFunction` check rather than the name
-            // allowlist — so the runtime bridge must not appear.
+            // Map.count(predicate) is source-backed in MapHOF.kt. A
+            // RF-LOWER-CALL-012 follow-up deleted the dead `+CallRewriteFactories`
+            // branch that used to guard this with its own
+            // `isSourceBackedBundledFunction` check (rather than the name
+            // allowlist) — the runtime bridge was never reachable, and now
+            // there is no rewrite left to reach it. `MapCountLoweringRoutingTests`
+            // pins the routing and symbol resolution directly.
             #expect(
                 !callees.contains("kk_map_count"),
                 "source-backed Map.count(predicate) must not reach kk_map_count; callees: \(callees.sorted())"

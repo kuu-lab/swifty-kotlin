@@ -35,8 +35,6 @@ extension CollectionLiteralConstructionLoweringPass {
         let lambdaID = call.arguments[1]
 
         if state.listExprIDs.contains(receiverID.rawValue),
-           call.callee != lookup.filterName,
-           call.callee != lookup.filterNotName,
            let kkName = lookup.collectionHOFRuntimeName(ownerKind: .list, callee: call.callee, arity: 1)
         {
             let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
@@ -80,14 +78,15 @@ extension CollectionLiteralConstructionLoweringPass {
         return nil
     }
 
+    // `filterNot` / `mapNotNull` are not listed: `.list` has no runtime link
+    // for either (RF-LOWER-CALL-008) and Map has no such member at all, so
+    // every branch below already answers nil for them on any receiver.
     private func isCollectionHOFMemberName(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
         callee == lookup.mapName
             || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.mapNotNullName
             || callee == lookup.forEachName
             || callee == lookup.onEachName
             || callee == lookup.flatMapName
@@ -117,7 +116,6 @@ extension CollectionLiteralConstructionLoweringPass {
         lookup: CollectionLiteralLookupTables
     ) -> Bool {
         callee == lookup.mapName
-            || callee == lookup.mapNotNullName
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.onEachName

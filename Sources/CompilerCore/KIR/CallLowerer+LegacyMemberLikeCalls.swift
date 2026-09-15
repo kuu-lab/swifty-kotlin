@@ -266,6 +266,36 @@ extension CallLowerer {
             ]
             return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
         }()
+        // RF-LOWER-CALL-013: array `toMutableList` is now a bundled Kotlin
+        // extension too (delegates to the type-correct `toList` above). Keep
+        // the selected source declaration instead of the generic
+        // `kk_array_toMutableList` shortcut, which boxed every element as a
+        // plain word and lost Long/ULong's type-specific null-sentinel and
+        // signedness handling (e.g. `longArrayOf(Long.MIN_VALUE).toMutableList()`
+        // read back as `null`, `ulongArrayOf(ULong.MAX_VALUE)...` as `-1`).
+        let isSourceBackedArrayToMutableListCall: Bool = {
+            guard interner.resolve(calleeName) == "toMutableList",
+                  let chosenCallee = chosenCalleeForArgumentAdaptation,
+                  chosenCallee != .invalid,
+                  let symbol = sema.symbols.symbol(chosenCallee),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(chosenCallee)
+            else {
+                return false
+            }
+            let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
+            guard let (_, receiverSymbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType), sema: sema
+            ) else {
+                return false
+            }
+            let sourceBackedArrayNames: Set<String> = [
+                "IntArray", "LongArray", "ShortArray", "ByteArray",
+                "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
+                "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
+            ]
+            return sourceBackedArrayNames.contains(interner.resolve(receiverSymbol.name))
+        }()
         // KSP-1516: selected Array/primitive-array conversion declarations are
         // ordinary bundled Kotlin calls, not legacy runtime shortcuts.
         let isSourceBackedArrayConversionCall: Bool = {
@@ -765,56 +795,47 @@ extension CallLowerer {
         }
 
         // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // and Int/Long.toString(radix: Int) → kk_int_toString_radix (EXPR-003)
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
+        // through to the normal resolved-symbol call lowering below.
         if calleeName == interner.intern("toString"),
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if nonNullReceiverType == intType || nonNullReceiverType == longType {
-                if args.isEmpty {
-                    let stringReceiverID: KIRExprID
-                    if nonNullReceiverType == longType {
-                        // kk_any_to_string treats the raw null sentinel as null.
-                        // Long.MIN_VALUE has the same representation, so box a
-                        // Long receiver before generic stringification; the
-                        // non-null variant preserves the value at that boundary.
-                        stringReceiverID = boxValueForAnySlot(
-                            loweredReceiverID,
-                            sourceType: receiverType,
-                            types: sema.types,
-                            symbols: sema.symbols,
-                            interner: interner,
-                            arena: arena,
-                            resultType: sema.types.anyType,
-                            requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
-                            into: &instructions
-                        )
-                    } else {
-                        stringReceiverID = loweredReceiverID
-                    }
-                    let tagID = arena.appendExpr(.intLiteral(1), type: intType)
-                    instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [stringReceiverID, tagID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                let stringReceiverID: KIRExprID
+                if nonNullReceiverType == longType {
+                    // kk_any_to_string treats the raw null sentinel as null.
+                    // Long.MIN_VALUE has the same representation, so box a
+                    // Long receiver before generic stringification; the
+                    // non-null variant preserves the value at that boundary.
+                    stringReceiverID = boxValueForAnySlot(
+                        loweredReceiverID,
+                        sourceType: receiverType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        resultType: sema.types.anyType,
+                        requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                        into: &instructions
+                    )
                 } else {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_int_toString_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    stringReceiverID = loweredReceiverID
                 }
+                let tagID = arena.appendExpr(.intLiteral(1), type: intType)
+                instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [stringReceiverID, tagID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 return result
             }
         }
@@ -1325,13 +1346,6 @@ extension CallLowerer {
                     } else {
                         nil
                     }
-                case "get":
-                    ("kk_string_get_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "compareTo":
-                    ("kk_string_compareTo_flat", [loweredReceiverID, loweredArgIDs[0]])
-                case "matches":
-                    ("__kk_string_matches_regex_flat", [loweredReceiverID, loweredArgIDs[0]])
-
                 default:
                     nil
                 }
@@ -1965,7 +1979,7 @@ extension CallLowerer {
                 case "toList":
                     isSourceBackedArrayToListCall ? nil : "__kk_array_toList"
                 case "toMutableList":
-                    "kk_array_toMutableList"
+                    isSourceBackedArrayToMutableListCall ? nil : "kk_array_toMutableList"
                 case "toTypedArray":
                     isSourceBackedArrayConversionCall ? nil : "__kk_array_copyOf"
                 case "copyOf":

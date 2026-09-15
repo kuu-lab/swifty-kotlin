@@ -20,7 +20,7 @@ expr e@9:25 throw value=e@9:31 type=Nothing
 expr e@9:9 if cond=e@9:13 then=e@9:25 else=_ type=Unit
 expr e@10:21 name(values) type=kotlin.collections.List<String?> ref=golden.sema.NullableIterator.values[kind=prop]
 expr e@10:28 name(index) type=Int ref=golden.sema.NullableIterator.index[kind=prop]
-expr e@10:21#1 indexedAccess receiver=e@10:21 indices=[e@10:28] type=String? call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<out T0>;params=Int;gen=1] targs=[String?]
+expr e@10:21#1 indexedAccess receiver=e@10:21 indices=[e@10:28] type=String? call=kotlin.collections.List.get[kind=fun;recv=kotlin.collections.List<T0>;params=Int;gen=1] targs=[String?]
 expr e@10:9 localDecl value mutable=0 type=_ init=e@10:21#1 type=Unit ref=__local_0.value[kind=local]
 expr e@11:14 int(1) type=Int
 expr e@11:9 compoundAssign(plusAssign) name=index value=e@11:14 type=Unit ref=golden.sema.NullableIterator.index[kind=prop]

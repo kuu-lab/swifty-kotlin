@@ -651,16 +651,6 @@ public func kk_string_from_utf8(_ ptr: UnsafePointer<UInt8>, _ len: Int32) -> Un
     return opaque
 }
 
-@_cdecl("kk_int_toString_radix")
-public func kk_int_toString_radix(_ value: Int, _ radix: Int) -> UnsafeMutableRawPointer {
-    let clampedRadix = max(2, min(36, radix))
-    let str = String(value, radix: clampedRadix)
-    let utf8 = Array(str.utf8)
-    return utf8.withUnsafeBufferPointer { buf in
-        kk_string_from_utf8(buf.baseAddress!, Int32(buf.count))
-    }
-}
-
 @_cdecl("kk_string_concat_flat")
 public func kk_string_concat_flat(
     _ lhsData: UnsafePointer<UInt8>?,

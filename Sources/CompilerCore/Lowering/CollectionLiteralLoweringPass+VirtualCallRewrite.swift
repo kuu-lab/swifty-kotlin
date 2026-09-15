@@ -129,16 +129,9 @@ extension CollectionVirtualCallRewriteLoweringPass {
             setExprIDs: &state.setExprIDs,
             mapExprIDs: &state.mapExprIDs,
             arrayExprIDs: &state.arrayExprIDs,
-            sequenceExprIDs: &state.sequenceExprIDs
+            sequenceExprIDs: &state.sequenceExprIDs,
+            sequenceTypeExprIDs: &state.sequenceTypeExprIDs
         )
-
-        if rewriteArrayVirtualCall(
-            callee: callee, receiver: receiver, arguments: arguments,
-            result: result, origCanThrow: origCanThrow,
-            origThrownResult: origThrownResult, module: module, lookup: lookup,
-            state: &state,
-            loweredBody: &loweredBody
-        ) { return true }
 
         if rewriteSequenceVirtualCall(
             symbol: symbol,
@@ -163,8 +156,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
         if rewriteCollectionPropertyVirtualCall(
             callee: callee, receiver: receiver, arguments: arguments,
             result: result, lookup: lookup,
-            listExprIDs: state.listExprIDs, setExprIDs: state.setExprIDs, mapExprIDs: state.mapExprIDs,
-            arrayExprIDs: state.arrayExprIDs,
+            state: state,
             loweredBody: &loweredBody
         ) { return true }
 
@@ -199,30 +191,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) { return true }
-
-        // KSP-628 + KSP-629: the List receivers of toTypedArray /
-        // to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
-        // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
-
-        // toTypedArray() on array → __kk_array_copyOf (result is Array)
-        if callee == lookup.toTypedArrayName, arguments.isEmpty, state.arrayExprIDs.contains(receiver.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkArrayCopyOfName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
 
         return false
     }
@@ -814,13 +782,14 @@ extension CollectionVirtualCallRewriteLoweringPass {
         setExprIDs: inout Set<Int32>,
         mapExprIDs: inout Set<Int32>,
         arrayExprIDs: inout Set<Int32>,
-        sequenceExprIDs: inout Set<Int32>
+        sequenceExprIDs: inout Set<Int32>,
+        sequenceTypeExprIDs: inout Set<Int32>
     ) {
         let raw = receiver.rawValue
         // Already classified -- skip.
         if listExprIDs.contains(raw) || setExprIDs.contains(raw)
             || mapExprIDs.contains(raw) || arrayExprIDs.contains(raw)
-            || sequenceExprIDs.contains(raw)
+            || sequenceExprIDs.contains(raw) || sequenceTypeExprIDs.contains(raw)
         {
             return
         }
@@ -846,8 +815,15 @@ extension CollectionVirtualCallRewriteLoweringPass {
         case .array:
             arrayExprIDs.insert(raw)
         case .sequence:
-            sequenceExprIDs.insert(raw)
-        default:
+            // RF-LOWER-STATE-009: the static type alone does not confirm a
+            // RuntimeSequenceBox — see Classification.sequence's doc. Do not
+            // insert into `sequenceExprIDs`, which +VirtualCallRewrite+Sequence.swift
+            // reads as "confirmed runtime box" to decide whether to rewrite
+            // to a `kk_sequence_*` bridge.
+            sequenceTypeExprIDs.insert(raw)
+        case .string:
+            break
+        case nil:
             break
         }
     }
