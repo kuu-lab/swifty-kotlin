@@ -309,6 +309,23 @@ public func kk_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: 
     )
 }
 
+/// KUU-556: storage for the `LinkedHashMap()` constructor family (and
+/// `linkedMapOf`/`mutableMapOf`, which are declared to return `LinkedHashMap`).
+/// `LinkedHashMap` is now a real `HashMap` subclass, so it needs its own
+/// nominal tag for `is LinkedHashMap<*, *>` to answer true and `is HashMap<*,
+/// *>` to also answer true via the `linkedHashMapRuntimeTypeID` -> `hashMapRuntimeTypeID`
+/// edge (mirrors `__kk_linked_hash_set_of` / BUG-254, except Map's runtime
+/// hierarchy makes LinkedHashMap a child of HashMap instead of a sibling).
+@_cdecl("__kk_linked_hash_map_of")
+public func kk_linked_hash_map_of(_ keysArrayRaw: Int, _ valuesArrayRaw: Int, _ count: Int) -> Int {
+    runtimeMapOf(
+        keysArrayRaw: keysArrayRaw,
+        valuesArrayRaw: valuesArrayRaw,
+        count: count,
+        typeID: linkedHashMapRuntimeTypeID
+    )
+}
+
 /// Builds a mutable map from a vararg Pair array, including a spread argument.
 /// The compiler packs spread varargs before calling this bridge.
 @_cdecl("__kk_map_of_pairs")

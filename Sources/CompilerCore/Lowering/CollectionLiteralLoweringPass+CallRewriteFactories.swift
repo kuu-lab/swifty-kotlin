@@ -252,9 +252,13 @@ extension CollectionLiteralConstructionLoweringPass {
         }
 
         if lookup.mutableMapConstructorNames.contains(callee) {
+            // KUU-556: LinkedHashMap is now a real HashMap subclass, so its
+            // constructor gets its own runtime tag (kkLinkedHashMapOfName)
+            // instead of sharing the generic kkMapOfName every other mutable
+            // map factory still uses.
             let constructorCallee = callee == lookup.hashMapName
                 ? lookup.kkHashMapOfName
-                : lookup.kkMapOfName
+                : lookup.kkLinkedHashMapOfName
             // Create an empty mutable map first
             let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
             loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
@@ -459,7 +463,12 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf()/linkedMapOf() -> fresh instance via kk_map_of(null, null, 0)
+                // mutableMapOf()/hashMapOf() -> fresh instance via kk_map_of(null, null, 0).
+                // linkedMapOf() -> kk_linked_hash_map_of instead (KUU-556: it's
+                // declared to return LinkedHashMap<K, V>, now a real HashMap
+                // subclass with its own runtime tag; hashMapOf()/mutableMapOf()
+                // keep the pre-existing generic tag -- a known, separately
+                // tracked gap, not introduced by this change).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -468,7 +477,7 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -544,7 +553,9 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: lookup.kkMapOfName,
+                    // KUU-556: linkedMapOf(pairs) also gets its own runtime tag;
+                    // see the count == 0 branch above for the rationale.
+                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
                     canThrow: false,
