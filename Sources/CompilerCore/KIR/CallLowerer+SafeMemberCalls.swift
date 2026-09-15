@@ -408,9 +408,11 @@ extension CallLowerer {
         // when receiver is null.
 
         // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // and Int/Long.toString(radix: Int) → kk_int_toString_radix (EXPR-003)
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
+        // through to the general safe-call lowering below.
         if interner.resolve(effectiveCalleeName) == "toString",
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -425,31 +427,16 @@ extension CallLowerer {
                 instructions.append(.copy(from: nullExpr, to: result))
                 instructions.append(.jump(endLabel))
                 instructions.append(.label(callLabel))
-                if args.isEmpty {
-                    let tagID = arena.appendExpr(.intLiteral(1), type: intType)
-                    instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [loweredReceiverID, tagID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                } else {
-                    let loweredRadixArg = driver.lowerExpr(
-                        args[0].expr,
-                        shared: shared, emit: &instructions
-                    )
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_int_toString_radix"),
-                        arguments: [loweredReceiverID, loweredRadixArg],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
-                }
+                let tagID = arena.appendExpr(.intLiteral(1), type: intType)
+                instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [loweredReceiverID, tagID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 instructions.append(.label(endLabel))
                 return result
             }

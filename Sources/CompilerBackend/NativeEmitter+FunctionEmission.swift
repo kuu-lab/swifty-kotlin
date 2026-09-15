@@ -975,13 +975,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_locale_new_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_locale_new_flat",
+                "__kk_locale_new_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_locale_new_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_locale_new_language_country_flat",
+                "__kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_locale_new_language_country_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),

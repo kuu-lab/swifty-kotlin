@@ -765,56 +765,47 @@ extension CallLowerer {
         }
 
         // Primitive member function: Int/Long.toString() → kk_any_to_string
-        // and Int/Long.toString(radix: Int) → kk_int_toString_radix (EXPR-003)
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and falls
+        // through to the normal resolved-symbol call lowering below.
         if calleeName == interner.intern("toString"),
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
             let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
             let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
             if nonNullReceiverType == intType || nonNullReceiverType == longType {
-                if args.isEmpty {
-                    let stringReceiverID: KIRExprID
-                    if nonNullReceiverType == longType {
-                        // kk_any_to_string treats the raw null sentinel as null.
-                        // Long.MIN_VALUE has the same representation, so box a
-                        // Long receiver before generic stringification; the
-                        // non-null variant preserves the value at that boundary.
-                        stringReceiverID = boxValueForAnySlot(
-                            loweredReceiverID,
-                            sourceType: receiverType,
-                            types: sema.types,
-                            symbols: sema.symbols,
-                            interner: interner,
-                            arena: arena,
-                            resultType: sema.types.anyType,
-                            requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
-                            into: &instructions
-                        )
-                    } else {
-                        stringReceiverID = loweredReceiverID
-                    }
-                    let tagID = arena.appendExpr(.intLiteral(1), type: intType)
-                    instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_any_to_string"),
-                        arguments: [stringReceiverID, tagID],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                let stringReceiverID: KIRExprID
+                if nonNullReceiverType == longType {
+                    // kk_any_to_string treats the raw null sentinel as null.
+                    // Long.MIN_VALUE has the same representation, so box a
+                    // Long receiver before generic stringification; the
+                    // non-null variant preserves the value at that boundary.
+                    stringReceiverID = boxValueForAnySlot(
+                        loweredReceiverID,
+                        sourceType: receiverType,
+                        types: sema.types,
+                        symbols: sema.symbols,
+                        interner: interner,
+                        arena: arena,
+                        resultType: sema.types.anyType,
+                        requireNonNull: sema.types.nullability(of: receiverType) == .nonNull,
+                        into: &instructions
+                    )
                 } else {
-                    instructions.append(.call(
-                        symbol: nil,
-                        callee: interner.intern("kk_int_toString_radix"),
-                        arguments: [loweredReceiverID, loweredArgIDs[0]],
-                        result: result,
-                        canThrow: false,
-                        thrownResult: nil
-                    ))
+                    stringReceiverID = loweredReceiverID
                 }
+                let tagID = arena.appendExpr(.intLiteral(1), type: intType)
+                instructions.append(.constValue(result: tagID, value: .intLiteral(1)))
+                instructions.append(.call(
+                    symbol: nil,
+                    callee: interner.intern("kk_any_to_string"),
+                    arguments: [stringReceiverID, tagID],
+                    result: result,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
                 return result
             }
         }

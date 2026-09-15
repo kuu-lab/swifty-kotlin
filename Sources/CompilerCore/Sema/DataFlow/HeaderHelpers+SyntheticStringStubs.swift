@@ -34,7 +34,15 @@ extension DataFlowSemaPhase {
         let nullableCharType = types.make(.primitive(.char, .nullable))
         let listStringType = makeListOfStringType(symbols: symbols, types: types, interner: interner)
         let context: SyntheticStringStubContext = (symbols, types, interner, kotlinTextPkg, kotlinRootPkg, stringType, charSequenceSymbol, charSequenceType, boolType, intType, longType, charType, nullableCharType, listStringType)
-        let localeType = registerSyntheticStringConversionStubs(context: context)
+        // KSP-717: `Locale` is source-backed (`java/util/Locale.kt`,
+        // predeclared in Phase.swift before this registration runs). Only the
+        // still-synthetic `String.Companion.format(locale, ...)` overload
+        // below needs a `localeType` reference to it.
+        let javaUtilPkg = ensurePackage(path: ["java", "util"], symbols: symbols, interner: interner)
+        let localeSymbol = ensureClassSymbol(named: "Locale", in: javaUtilPkg, symbols: symbols, interner: interner)
+        let localeType = types.make(.classType(ClassType(
+            classSymbol: localeSymbol, args: [], nullability: .nonNull
+        )))
         registerSyntheticStringCoreStubs(context: context)
         let nullableStringType = registerSyntheticStringQueryStubs(context: context)
         let stringClassSymbol = registerSyntheticStringEncodingStubs(context: context)
@@ -57,126 +65,5 @@ extension DataFlowSemaPhase {
             )
         }
         return kotlinTextPkg
-    }
-    func patchSourceBackedCharIteratorReturnType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let charIteratorFQName: [InternedString] = [
-            interner.intern("kotlin"),
-            interner.intern("collections"),
-            interner.intern("CharIterator"),
-        ]
-        guard let charIteratorSymbol = symbols.lookup(fqName: charIteratorFQName) else {
-            return
-        }
-        let charIteratorType = types.make(.classType(ClassType(
-            classSymbol: charIteratorSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        let stringType = types.stringType
-        let charSequenceType: TypeID? = types.charSequenceInterfaceSymbol.map { charSequenceSymbol in
-            types.make(.classType(ClassType(
-                classSymbol: charSequenceSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        }
-
-        let iteratorFQName = [interner.intern("kotlin"), interner.intern("text"), interner.intern("iterator")]
-        for functionSymbol in symbols.lookupAll(fqName: iteratorFQName) {
-            guard let signature = symbols.functionSignature(for: functionSymbol),
-                  signature.parameterTypes.isEmpty,
-                  let receiver = signature.receiverType,
-                  receiver == stringType || receiver == charSequenceType
-            else {
-                continue
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: signature.receiverType,
-                    parameterTypes: signature.parameterTypes,
-                    returnType: charIteratorType,
-                    isSuspend: signature.isSuspend,
-                    canThrow: signature.canThrow,
-                    valueParameterSymbols: signature.valueParameterSymbols,
-                    valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                    valueParameterIsVararg: signature.valueParameterIsVararg,
-                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
-                    typeParameterSymbols: signature.typeParameterSymbols,
-                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
-                    classTypeParameterCount: signature.classTypeParameterCount
-                ),
-                for: functionSymbol
-            )
-        }
-    }
-
-    /// KSP-626: `IndexedValue` is declared in bundled Kotlin source, so its
-    /// symbol does not exist while the `CharSequence.withIndex()` stub is
-    /// registered. Rewrite the placeholder `Iterable<Any>` return type once
-    /// header collection has defined the source-backed class.
-    func patchSourceBackedIndexedValueReturnType(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let collectionsPkg = [interner.intern("kotlin"), interner.intern("collections")]
-        guard let indexedValueSymbol = symbols.lookup(fqName: collectionsPkg + [interner.intern("IndexedValue")]),
-              let iterableSymbol = symbols.lookup(fqName: collectionsPkg + [interner.intern("Iterable")])
-        else {
-            return
-        }
-        let indexedValueCharType = types.make(.classType(ClassType(
-            classSymbol: indexedValueSymbol,
-            args: [.out(types.charType)],
-            nullability: .nonNull
-        )))
-        let iterableIndexedValueCharType = types.make(.classType(ClassType(
-            classSymbol: iterableSymbol,
-            args: [.out(indexedValueCharType)],
-            nullability: .nonNull
-        )))
-
-        let stringType = types.stringType
-        let charSequenceType: TypeID? = types.charSequenceInterfaceSymbol.map { charSequenceSymbol in
-            types.make(.classType(ClassType(
-                classSymbol: charSequenceSymbol,
-                args: [],
-                nullability: .nonNull
-            )))
-        }
-
-        let withIndexFQName = [interner.intern("kotlin"), interner.intern("text"), interner.intern("withIndex")]
-        for functionSymbol in symbols.lookupAll(fqName: withIndexFQName) {
-            guard let signature = symbols.functionSignature(for: functionSymbol),
-                  signature.parameterTypes.isEmpty,
-                  let receiver = signature.receiverType,
-                  receiver == stringType || receiver == charSequenceType
-            else {
-                continue
-            }
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: signature.receiverType,
-                    parameterTypes: signature.parameterTypes,
-                    returnType: iterableIndexedValueCharType,
-                    isSuspend: signature.isSuspend,
-                    canThrow: signature.canThrow,
-                    valueParameterSymbols: signature.valueParameterSymbols,
-                    valueParameterHasDefaultValues: signature.valueParameterHasDefaultValues,
-                    valueParameterIsVararg: signature.valueParameterIsVararg,
-                    valueParameterAllowsNonLocalReturn: signature.valueParameterAllowsNonLocalReturn,
-                    typeParameterSymbols: signature.typeParameterSymbols,
-                    reifiedTypeParameterIndices: signature.reifiedTypeParameterIndices,
-                    typeParameterUpperBoundsList: signature.typeParameterUpperBoundsList,
-                    classTypeParameterCount: signature.classTypeParameterCount
-                ),
-                for: functionSymbol
-            )
-        }
     }
 }

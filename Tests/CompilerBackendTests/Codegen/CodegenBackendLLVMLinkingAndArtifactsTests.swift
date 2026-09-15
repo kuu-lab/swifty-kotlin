@@ -1299,8 +1299,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
             ))
         }
 
-        appendLocaleCall("kk_locale_new_flat", arguments: [identifierExpr])
-        appendLocaleCall("kk_locale_new_language_country_flat", arguments: [languageExpr, countryExpr])
+        appendLocaleCall("__kk_locale_new_flat", arguments: [identifierExpr])
+        appendLocaleCall("__kk_locale_new_language_country_flat", arguments: [languageExpr, countryExpr])
         body.append(.returnUnit)
 
         let main = KIRFunction(
@@ -1332,8 +1332,8 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
 
         #expect(!ir.contains("@kk_locale_new("), "Unexpected raw Locale constructor call")
         #expect(!ir.contains("@kk_locale_new_language_country("), "Unexpected raw Locale language/country constructor call")
-        #expect(ir.contains("@kk_locale_new_flat"), "Missing flat Locale constructor call")
-        #expect(ir.contains("@kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
+        #expect(ir.contains("@__kk_locale_new_flat"), "Missing flat Locale constructor call")
+        #expect(ir.contains("@__kk_locale_new_language_country_flat"), "Missing flat Locale language/country constructor call")
     }
 
     @Test

@@ -125,24 +125,10 @@ extension CallLowerer {
             ))
             return result
         }
-        if let parentInfo = sema.symbols.symbol(parent),
-           interner.resolve(parentInfo.name) == "NormalizationForms"
-        {
-            let runtimeCallee = interner.intern("__kk_normalization_form_\(interner.resolve(info.name).lowercased())")
-            let result = arena.appendTemporary(type: sema.bindings.exprTypes[exprID]
-                    ?? sema.symbols.propertyType(for: valueSym)
-                    ?? sema.types.anyType
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: runtimeCallee,
-                arguments: [],
-                result: result,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            return result
-        }
+        // KSP-717: NormalizationForms.NFC/NFD/NFKC/NFKD are plain Kotlin
+        // property initializers now (Stdlib/kotlin/text/StringNormalize.kt),
+        // so the name-string special case that routed them to
+        // __kk_normalization_form_* is no longer needed.
         let propType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: valueSym)
             ?? sema.types.anyType
