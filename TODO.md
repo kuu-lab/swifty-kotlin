@@ -2249,7 +2249,7 @@
     - `kotlin.native.runtime.RootSetStatistics.stackReferences` — val RootSetStatistics.stackReferences: Long  -- `final val stackReferences`
     - `kotlin.native.runtime.RootSetStatistics.threadLocalReferences` — val RootSetStatistics.threadLocalReferences: Long  -- `final val threadLocalReferences`
 
-- [~] KSP-1272: kotlin.native.runtime.SweepStatistics.SweepStatistics の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1272: kotlin.native.runtime.SweepStatistics.SweepStatistics の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.runtime.SweepStatistics` / receiver `SweepStatistics`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2261,6 +2261,8 @@
     - `kotlin.native.runtime.SweepStatistics.sweptCount` — val SweepStatistics.sweptCount: Long  -- `final val sweptCount`
 
   - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable Long properties を bundled Kotlin source に移し、SweepStatistics の synthetic property registration/spec を削除した。NativeRefRuntimeSemaTests で両 property の source-backed、non-synthetic、non-mutable、external-linkなしを確認し、専用 fixture は constructor の sweptCount/keptCount 順序と Long 極値を native 実行で固定する。全 Swift/Golden/diff の変更 head G は未実行のため完了は保留する。
+  - 2026-09-15 完了: 既存の `GCInfo.kt` source-backed 宣言（constructor / `sweptCount` / `keptCount`）を KUU-421 の owner fixture に接続し、`stdlib_kotlin_native_runtime_SweepStatistics_SweepStatistics_n` の Sema golden と Native-only diff case を追加した。対象 symbol に Runtime/ABI bridge や name-string 特例はなく、既存の synthetic class shell 以外の property/constructor stub は登録されていないため追加削除は不要。
+  - 検証: `NativeRefRuntimeSemaTests` 45件 PASS、Sema golden shard 73（対象を含む8件）PASS、`bash Scripts/check_todo_ids.sh` PASS、`git diff --check` PASS。対象 diff command は実行したが、`kotlin.native.*` の SKIP 判定前に初回 stdlib artifact build が120秒 timeout（fixture の compile failure ではない）となった。全 Golden / 全 diff / Runtime ABI 全体ゲートは未実行（他セッションの SwiftPM 同時実行による lock 待ちを避け、変更関連範囲に限定）。
 
 - [ ] KSP-1274: kotlin.properties.Delegates.Delegates の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.properties.Delegates` / receiver `Delegates`
