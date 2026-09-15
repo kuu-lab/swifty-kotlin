@@ -289,7 +289,7 @@ extension LoweringPassRegressionTests {
                 "entries$get must NOT call kk_enum_make_values_array; callees: \(entriesCallees)")
     }
 
-    // MARK: - STDLIB-023-08: valueOf is synthesized and calls kk_string_equals_flat + kk_enum_valueOf_throw
+    // MARK: - STDLIB-023-08: valueOf is synthesized and calls __kk_string_equals_flat + kk_enum_valueOf_throw
 
     @Test
     func testEnumValueOfSynthesizedWithStringComparisonAndThrow() throws {
@@ -310,8 +310,8 @@ extension LoweringPassRegressionTests {
         let valueOfFn = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         let callees = extractCallees(from: valueOfFn.body, interner: interner)
 
-        #expect(callees.contains("kk_string_equals_flat"),
-                "valueOf should call kk_string_equals_flat; callees: \(callees)")
+        #expect(callees.contains("__kk_string_equals_flat"),
+                "valueOf should call __kk_string_equals_flat; callees: \(callees)")
         #expect(callees.contains("kk_enum_valueOf_throw"),
                 "valueOf should call kk_enum_valueOf_throw; callees: \(callees)")
     }

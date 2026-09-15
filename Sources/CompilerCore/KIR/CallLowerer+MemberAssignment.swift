@@ -468,7 +468,7 @@ extension CallLowerer {
             // (Kotlin's String.plus(other: Any?)); a non-String currentValue/valueID
             // must be converted the same way `+`/string-template concatenation does
             // (CallLowerer.emitAnyToStringWithNullGuard) before reaching
-            // kk_string_concat_flat, which assumes both arguments are already
+            // __kk_string_concat_flat, which assumes both arguments are already
             // flat String aggregates -- feeding it a raw boxed value (e.g. a class
             // instance, or an unboxed Int/Boolean) reads it as one, silently
             // dropping/mis-rendering the value or crashing.
@@ -499,7 +499,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: stringType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_concat_flat"),
+                callee: interner.intern("__kk_string_concat_flat"),
                 arguments: [effectiveCurrent, effectiveValue],
                 result: result,
                 canThrow: false,

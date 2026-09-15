@@ -1,5 +1,15 @@
 package kotlin.text
 
+import kotlin.internal.KsSymbolName
+
+// STDLIB-192: keep the flat-string equality primitive behind a private
+// source-level bridge. The public overload is bundled Kotlin and therefore no
+// longer needs a synthetic Sema registration.
+@KsSymbolName("__kk_string_equals_flat")
+private external fun String.__kkStringEquals(other: String?): Boolean
+
+public fun String.equals(other: String?): Boolean = __kkStringEquals(other)
+
 // String comparison functions migrated from Swift Runtime
 // MIGRATION-TEXT-009
 

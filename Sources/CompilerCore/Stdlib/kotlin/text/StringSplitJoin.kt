@@ -16,6 +16,19 @@ private external fun <T> List<T>.__kkStringJoinToString(
 // private __kk_* bridges so public kk_string_split* symbols disappear from
 // compiler synthetic stubs and member-call lowering.
 
+@KsSymbolName("__kk_string_split")
+private external fun String.__kk_string_split(delimiter: String): List<String>
+
+@KsSymbolName("__kk_string_split_limit")
+private external fun String.__kk_string_split_limit(
+    delimiter: String,
+    ignoreCase: Boolean,
+    limit: Int
+): List<String>
+
+@KsSymbolName("__kk_string_splitToSequence")
+private external fun String.__kk_string_splitToSequence(delimiter: String): Sequence<String>
+
 public fun String.split(delimiter: String): List<String> =
     this.__kk_string_split(delimiter)
 

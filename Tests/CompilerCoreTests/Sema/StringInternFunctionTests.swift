@@ -3,7 +3,7 @@
 import Testing
 
 /// STDLIB-TEXT-FN-026: Validates that `String.intern()` resolves through Sema.
-/// Runtime link name: `kk_string_intern`.
+/// Runtime link name: `__kk_string_intern`.
 @Suite
 struct StringInternFunctionTests {
     @Test func testInternFunctionResolvesInSource() throws {

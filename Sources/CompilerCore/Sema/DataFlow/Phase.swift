@@ -76,9 +76,9 @@ final class DataFlowSemaPhase: CompilerPhase {
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,
             interner: ctx.interner, into: &predeclaredEarlyHeaders
         )
-        // KSP-717: `Locale.kt` owns `java.util.Locale`, but the String
-        // synthetic registration below still needs a `localeType` to type the
-        // (still-synthetic) `String.Companion.format(locale, ...)` overload.
+        // KSP-717: `Locale.kt` owns `java.util.Locale`.  The source-backed
+        // String.Companion.format(locale, ...) bridge is collected after this
+        // predeclaration, so its signature can resolve the nominal type.
         predeclareBundledJavaUtilLocaleHeaders(
             ast: ast, fileScopes: fileScopes, symbols: symbols,
             sourceManager: ctx.sourceManager, diagnostics: ctx.diagnostics,

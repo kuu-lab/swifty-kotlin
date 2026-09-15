@@ -488,7 +488,7 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("kk_string_equals_flat"))
+            #expect(callNames.contains("__kk_string_equals_flat"))
             #expect(!(callNames.contains("kk_string_equals")))
         }
     }
@@ -499,7 +499,7 @@ struct BuildKIRCodegenRegressionTests {
         let interner = StringInterner()
         let callees = pass.nonThrowingCallees(interner: interner)
 
-        #expect(callees.contains(interner.intern("kk_string_equals_flat")))
+        #expect(callees.contains(interner.intern("__kk_string_equals_flat")))
         #expect(!(callees.contains(interner.intern("kk_string_equals"))))
     }
 

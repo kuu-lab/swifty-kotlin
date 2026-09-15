@@ -2,8 +2,8 @@
 import Testing
 
 /// STDLIB-TEXT-FN-018: Validates that `String.get(index)` operator resolves
-/// through Sema for `String` receivers, dispatching to the runtime link name
-/// `kk_string_get`.
+/// through Sema for `String` receivers. The public declaration is bundled
+/// Kotlin; its private source bridge owns the `__kk_string_get_flat` link.
 @Suite
 struct StringGetFunctionTests {
     @Test func testGetResolvesInSource() throws {
