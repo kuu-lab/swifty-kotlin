@@ -12,9 +12,9 @@ import Testing
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
 /// chains agreed on 102 API names at extraction time and diverged on nine more
 /// plus the shape of the array-conversion check, and nothing in either file
-/// recorded which divergences were deliberate. RF-LOWER-CALL-008/009/010/011/012
-/// have since narrowed the agreement to 53 names and grown the divergence to
-/// 19. These tests fix both halves: the four callee
+/// recorded which divergences were deliberate. RF-LOWER-CALL-008/009/010/011/012/013
+/// have since narrowed the agreement to 51 names and grown the divergence to
+/// 12. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
 /// difference.
 @Suite
@@ -203,16 +203,14 @@ struct SourceBackedCallPreservationPolicyTests {
     /// one set, and every divergence is named. `virtualOnlyAggregateNames` is
     /// the complete list of names only virtual dispatch preserves.
     @Test
-    func virtualOnlyNamesAreExactlyTheRangeAndRandomMembers() {
+    func virtualOnlyNamesAreExactlyTheLiveRangeSequenceAndRandomMembers() {
         let (policy, _, interner) = Self.makePolicy()
         let resolved = Set(policy.virtualOnlyAggregateNames.map { interner.resolve($0) })
         #expect(
             resolved == [
-                // RF-LOWER-CALL-009 (#6762) left these eleven on the virtual
-                // path only.
-                "fold", "foldIndexed", "foldRight", "foldRightIndexed",
-                "reduce", "reduceOrNull", "reduceRight", "reduceRightOrNull",
-                "reduceRightIndexed", "reduceRightIndexedOrNull", "scanReduce",
+                // RF-LOWER-CALL-009 leaves only the three accumulation names
+                // with a live Range/progression consumer on the virtual path.
+                "fold", "foldIndexed", "reduce",
                 "isEmpty", "iterator",
                 // RF-LOWER-CALL-011 (#6763) left `sorted` here alone out of the
                 // List sort/extrema family, for the Range/progression consumer.
@@ -246,6 +244,38 @@ struct SourceBackedCallPreservationPolicyTests {
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
         #expect(policy.sharedAggregateNames.count == 51, "got \(policy.sharedAggregateNames.count)")
+    }
+
+    /// The eight List accumulation names with no virtual consumer are no
+    /// longer protected by policy. The remaining three names stay virtual-only
+    /// because Range/progression lowering still keys on them; the eight
+    /// Sequence-gated names stay in the shared set for RF-LOWER-CALL-014.
+    @Test
+    func deadVirtualAccumulationNamesAreGoneButLiveConsumersRemainProtected() {
+        let (policy, lookup, interner) = Self.makePolicy()
+        let removedNames = [
+            "foldRight", "foldRightIndexed", "reduceOrNull", "reduceRight",
+            "reduceRightOrNull", "reduceRightIndexed", "reduceRightIndexedOrNull",
+            "scanReduce",
+        ]
+        for name in removedNames {
+            let interned = interner.intern(name)
+            #expect(!policy.sharedAggregateNames.contains(interned), "\(name) remains shared")
+            #expect(!policy.virtualOnlyAggregateNames.contains(interned), "\(name) remains virtual-only")
+        }
+        for name in [lookup.foldName, lookup.foldIndexedName, lookup.reduceName] {
+            #expect(!policy.sharedAggregateNames.contains(name))
+            #expect(policy.virtualOnlyAggregateNames.contains(name))
+        }
+        for name in [
+            lookup.scanName, lookup.scanIndexedName, lookup.runningFoldName,
+            lookup.runningFoldIndexedName, lookup.runningReduceName,
+            lookup.runningReduceIndexedName, lookup.reduceIndexedName,
+            lookup.reduceIndexedOrNullName,
+        ] {
+            #expect(policy.sharedAggregateNames.contains(name))
+            #expect(!policy.virtualOnlyAggregateNames.contains(name))
+        }
     }
 
     /// RF-LOWER-CALL-008 dropped the eight names whose only role in either
