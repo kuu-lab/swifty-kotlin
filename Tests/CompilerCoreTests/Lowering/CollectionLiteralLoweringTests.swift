@@ -1332,13 +1332,28 @@ struct CollectionLiteralLoweringTests {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    /// RF-LOWER-CALL-013: `toList` on every array receiver class (generic,
+    /// primitive, unsigned) is a bundled Kotlin declaration (ArrayConversions.kt
+    /// / UArrays.kt), and real calls to it never reach lowering as
+    /// `.virtualCall` in the first place — Array member/extension calls are
+    /// always statically resolved to `.call` (CallLowerer never emits
+    /// `.virtualCall` for them), so the array-specific virtual-dispatch
+    /// rewrite this test used to pin (`+VirtualCallRewrite+Array.swift`,
+    /// deleted with this task) could only ever fire on a hand-built KIR
+    /// fixture like this one, never on compiler output. What survives now is
+    /// that an unresolved `toList` `virtualCall` on an Array-typed receiver
+    /// is left untouched rather than redirected to the removed
+    /// `__kk_array_toList` runtime shortcut — it falls through as a
+    /// `virtualCall`, not a `.call`, so `calleesInDecl` (which only extracts
+    /// `.call` callees) reports none at all.
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
+    func testVirtualCallOnArrayTypedParameterLeavesToListUnrewritten() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
         #expect(
-            callees.contains("__kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter should be rewritten to __kk_array_toList, got: \(callees)"
+            !callees.contains("__kk_array_toList"),
+            "virtualCall(toList) on Array-typed parameter must not be rewritten to the removed __kk_array_toList shortcut, got: \(callees)"
         )
+        #expect(callees.isEmpty, "the unresolved call should fall through as an untouched virtualCall, got: \(callees)")
     }
 
     @Test
