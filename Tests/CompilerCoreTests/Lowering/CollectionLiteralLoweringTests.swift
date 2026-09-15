@@ -219,7 +219,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testLinkedMapOfRewrittenToKkMapOf() throws {
+    func testLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -244,7 +244,45 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf should become __kk_map_of")
+        // KUU-556: linkedMapOf is declared to return LinkedHashMap<K, V>, now a
+        // real HashMap subclass, so it gets its own runtime tag -- the same
+        // one mutableMapOf() shares (both are declared to return
+        // LinkedHashMap upstream), instead of the generic __kk_map_of
+        // hashMapOf() still uses.
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
+    }
+
+    @Test
+    func testMutableMapOfWithPairsRewrittenToKkLinkedHashMapOf() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
+        let pair = arena.appendExpr(.temporary(0))
+        let result = arena.appendExpr(.temporary(1))
+        let fn = KIRFunction(
+            symbol: SymbolID(rawValue: 1),
+            name: interner.intern("main"),
+            params: [],
+            returnType: TypeSystem().unitType,
+            body: [
+                .call(symbol: nil, callee: interner.intern("mutableMapOf"), arguments: [pair], result: result, canThrow: false, thrownResult: nil),
+                .returnUnit,
+            ],
+            isSuspend: false,
+            isInline: false
+        )
+        let declID = arena.appendDecl(.function(fn))
+        let module = KIRModule(files: [KIRFile(fileID: FileID(rawValue: 0), decls: [declID])], arena: arena)
+        let ctx = makeKIRContext(interner: interner)
+
+        try runPass(module: module, kirCtx: ctx)
+
+        let callees = calleesInDecl(declID, module: module, interner: interner)
+        #expect(!callees.contains("mutableMapOf"), "mutableMapOf should be rewritten")
+        // KUU-556: mutableMapOf(pairs) also gets the LinkedHashMap runtime tag
+        // (see testZeroArgMutableMapOfRewrittenToKkLinkedHashMapOf for the
+        // rationale -- kotlinc-jvm's mutableMapOf() returns a real
+        // LinkedHashMap instance).
+        #expect(callees.contains("__kk_linked_hash_map_of"), "mutableMapOf(pairs) should become __kk_linked_hash_map_of")
     }
 
     @Test
@@ -687,7 +725,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgMutableMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgMutableMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("mutableMapOf")
@@ -698,11 +736,17 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mutableMapOf"), "mutableMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "mutableMapOf() should become __kk_map_of (fresh mutable)")
+        // KUU-556: mutableMapOf() is declared to return LinkedHashMap<K, V>
+        // (`mutableMapOf(): MutableMap<K, V> = LinkedHashMap()` upstream), now
+        // a real HashMap subclass, so it gets the same runtime tag as
+        // linkedMapOf() instead of the generic __kk_map_of hashMapOf() still
+        // uses -- otherwise `mutableMapOf() is LinkedHashMap` would regress
+        // from true (kotlinc-jvm) to false.
+        #expect(callees.contains("__kk_linked_hash_map_of"), "mutableMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test
-    func testZeroArgLinkedMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedMapOf")
@@ -713,7 +757,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf() should become __kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test
