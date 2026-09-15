@@ -858,12 +858,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_reversed_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_reversed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
+                // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
+                // no flat emission spec.
                 // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
                 // source (StringHOF.kt); no flat emission spec.
                 "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
