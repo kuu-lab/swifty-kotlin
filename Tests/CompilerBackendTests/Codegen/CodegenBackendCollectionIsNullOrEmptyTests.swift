@@ -33,7 +33,7 @@ struct CodegenBackendCollectionIsNullOrEmptyTests {
             #expect(throwFlags["__kk_set_is_empty"]?.allSatisfy { $0 == false } == true)
             // Map.isNullOrEmpty is source-backed; its private helper belongs to
             // the stdlib artifact and must not bypass the Kotlin declaration here.
-            #expect(throwFlags["kk_map_is_empty"] == nil)
+            #expect(throwFlags["__kk_map_is_empty"] == nil)
             #expect(throwFlags["kk_array_is_empty"]?.allSatisfy { $0 == false } == true)
         }
     }
