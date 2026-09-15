@@ -153,19 +153,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 return true
             }
-            // Rewrite kk_range_iterator on IndexingIterable → kk_indexing_iterable_iterator
-            if state.indexingIterableExprIDs.contains(argID.rawValue) {
-                if let result { state.indexingIterableIteratorExprIDs.insert(result.rawValue) }
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkIndexingIterableIteratorName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
         }
 
         // --- Rewrite kk_range_hasNext on ULong range iterator → kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
@@ -225,18 +212,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 ))
                 return true
             }
-            // Rewrite kk_range_hasNext on IndexingIterable iterator → kk_indexing_iterable_hasNext
-            if state.indexingIterableIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkIndexingIterableHasNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
         }
 
         // --- Rewrite kk_range_next on ULong range iterator → kk_ulong_range_next (STDLIB-RANGE-037) ---
@@ -285,18 +260,6 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.call(
                     symbol: nil,
                     callee: lookup.kkIteratorBuilderNextName,
-                    arguments: arguments,
-                    result: result,
-                    canThrow: false,
-                    thrownResult: nil
-                ))
-                return true
-            }
-            // Rewrite kk_range_next on IndexingIterable iterator → kk_indexing_iterable_next
-            if state.indexingIterableIteratorExprIDs.contains(argID.rawValue) {
-                loweredBody.append(.call(
-                    symbol: nil,
-                    callee: lookup.kkIndexingIterableNextName,
                     arguments: arguments,
                     result: result,
                     canThrow: false,
