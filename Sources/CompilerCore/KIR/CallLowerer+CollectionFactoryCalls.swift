@@ -222,6 +222,18 @@ extension CallLowerer {
             if index < args.count, args[index].isSpread {
                 return argID
             }
+            if index < args.count,
+               let materialized = materializeCollectionFactoryFunctionValueElementIfNeeded(
+                   argID,
+                   sourceArgExprID: args[index].expr,
+                   sema: sema,
+                   arena: arena,
+                   interner: interner,
+                   instructions: &instructions
+               )
+            {
+                return materialized
+            }
             return boxCollectionFactoryElementIfNeeded(
                 argID,
                 sema: sema,
@@ -309,6 +321,60 @@ extension CallLowerer {
             into: &instructions
         )
         return boxedResult
+    }
+
+    /// Wraps a function-value element (e.g. `listOf(block)`) via
+    /// `kk_function_create_N` before it is stored into the erased `Any?`
+    /// backing array, the same erased-boundary wrapping a `typeParam`-typed
+    /// argument gets in `materializeSourceBackedFunctionValueArguments`
+    /// (KUU-548). Without it, a non-capturing lambda constant-folded to a
+    /// bare `symbolRef` reaches `kk_array_set` unwrapped, compiled with its
+    /// declared-type ABI instead of the raw ABI `kk_function_invoke` (used
+    /// once the element is read back out and called) expects.
+    ///
+    /// Returns nil (falls back to `boxCollectionFactoryElementIfNeeded`) for
+    /// any element that isn't a function value.
+    private func materializeCollectionFactoryFunctionValueElementIfNeeded(
+        _ argID: KIRExprID,
+        sourceArgExprID: ExprID,
+        sema: SemaModule,
+        arena: KIRArena,
+        interner: StringInterner,
+        instructions: inout [KIRInstruction]
+    ) -> KIRExprID? {
+        // Prefer the Sema-recorded type of the original source argument over
+        // the lowered KIR expr's arena type -- see the identical comment in
+        // materializeSourceBackedFunctionValueArguments's `.typeParam` case
+        // for why the arena type can't be trusted here.
+        let functionTypeCandidates = [
+            sema.bindings.exprTypes[sourceArgExprID],
+            arena.exprType(argID),
+        ]
+        guard let concreteFunctionType = functionTypeCandidates.lazy.compactMap({ candidate -> FunctionType? in
+            guard let candidate,
+                  case let .functionType(ft) = sema.types.kind(of: sema.types.makeNonNullable(candidate))
+            else {
+                return nil
+            }
+            return ft
+        }).first else {
+            return nil
+        }
+        let erasedFunctionType = FunctionType(
+            receiver: concreteFunctionType.receiver.map { _ in sema.types.anyType },
+            params: concreteFunctionType.params.map { _ in sema.types.anyType },
+            returnType: sema.types.anyType,
+            isSuspend: concreteFunctionType.isSuspend
+        )
+        return materializeFunctionValueArgument(
+            loweredArgID: argID,
+            argExprID: sourceArgExprID,
+            functionType: erasedFunctionType,
+            sema: sema,
+            arena: arena,
+            interner: interner,
+            instructions: &instructions
+        )
     }
 
     private func emitMapFactoryCall(

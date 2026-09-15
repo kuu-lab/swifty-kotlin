@@ -845,6 +845,24 @@ final class CallLowerer {
            isAtomicFactory,
            !hasFunctionValueParameter(chosen, sema: sema)
         {
+            // This factory bridge allocates and returns the object itself (KUU-548):
+            // it never goes through the constructor branch below, so a function-typed
+            // argument stored into one of its erased type-param slots (e.g. Pair's
+            // `first: A`) would otherwise reach `__kk_pair_new` as a bare, unwrapped
+            // lambda symbolRef -- the same erased-boundary wrapping every other
+            // typeParam-typed argument gets here. `finalArgIDs` holds plain value
+            // arguments here (no `kk_object_new`-allocated `this` prepended, unlike
+            // the constructor branch below), so index by position with no offset.
+            materializeSourceBackedFunctionValueArguments(
+                chosenCallee: chosen,
+                sourceArgExprs: args.map(\.expr),
+                sema: sema,
+                arena: arena,
+                interner: interner,
+                instructions: &instructions,
+                arguments: &finalArgIDs,
+                valueArgOffsetOverride: 0
+            )
             return lowerAtomicScalarConstructorCall(
                 constructorSymbol: chosen,
                 finalArgIDs: finalArgIDs,
