@@ -3146,17 +3146,19 @@
   - 回帰: `stdlib_kotlin_text_CharSequence_common.kt` の Sema Golden と diff fixture で、静的 CharSequence の String/StringBuilder/custom receiver、空/全一致/部分一致、ignoreCase、非 ASCII、サロゲート境界を固定した。既存 `common_prefix_with` / `common_suffix_with` Golden は overload 番号だけ再生成した。
   - 検証: `swift build --disable-sandbox` と専用 GoldenHarnessWorker probe、`check_todo_ids.sh`、`git diff --check` が pass。指定の `run_heavy.py` 経由専用 diff、Golden shard、全 Swift/Golden/all diff、Runtime ABI link 検証は共有2枠（base 全 Swift / 他 TODO の検証）待機中のため保留し、Draft として記録する。2026-09-15 [x] 化: PR #6685（e9ead796b、2026-09-08 マージ済み）で実装・検証済みで現ブランチ HEAD の祖先。`gh pr checks 6685` で共通ゲート G 相当の全 19 ジョブ（Build debug/release、TODO ID 重複検査、CompilerCore/Smoke 6 shard、Backend/Runtime/CLI/LSP 4 shard、Repository Checks、kotlinc Diff 4 shard）が pass 済みであることを再確認し、上記の保留分は解消済み。
 
-- [~] KSP-1369: kotlin.text.CharSequence.contains-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1369: kotlin.text.CharSequence.contains-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `contains`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringIndexOf.kt`, `Sources/CompilerCore/Stdlib/kotlin/text/StringSearchReplace.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_contains.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_contains.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_contains.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 実装状況: Kotlin 2.3.10 の `CharSequence.contains(Char, Boolean)` と `contains(Regex)` を source-backed 実装し、既存の `CharSequence.contains(CharSequence, Boolean)` も custom receiver の indexed semantics に合わせた。#6694 の `CharSequence.regionMatches` head を親に積み、既存の `String.contains(Regex)` runtime bridge は保持している。専用 Sema/Golden worker・Kotlin 2.3.10 diff・Native 実行は PASS、共通 G は未実行のため完了根拠にしない。
+  - 実装状況: Kotlin 2.3.10 の `CharSequence.contains(Char, Boolean)` と `contains(Regex)` を source-backed 実装し、既存の `CharSequence.contains(CharSequence, Boolean)` も custom receiver の indexed semantics に合わせた。`String.contains(Regex)` の runtime bridge は String 固有経路として保持し、CharSequence 側に bridge/stub は追加していない。
   - 未実装シンボル一覧:
     - `kotlin.text.contains` — fun CharSequence.contains(Regex): Boolean  -- `final inline fun (kotlin/CharSequence).kotlin.text/contains(kotlin.text/Regex): kotlin/Boolean`
     - `kotlin.text.contains` — fun CharSequence.contains(Char, Boolean): Boolean  -- `final fun (kotlin/CharSequence).kotlin.text/contains(kotlin/Char, kotlin/Boolean = ...): kotlin/Boolean`
+  - 完了根拠: PR #6699 の source-backed 実装を含む親スタック PR #6694 が `719ce8acb` として master にマージ済み。Sema Golden、custom CharSequence の indexed dispatch、Regex/Char の operator・named call、StringBuilder・surrogate・empty/short-circuit を回帰ケースで固定した。
+  - 検証（2026-09-16）: `swift build --disable-sandbox -Xswiftc -swift-version -Xswiftc 6`、Sema Golden 対象 shard（`KSWIFTK_GOLDEN_SHARD_INDEX=78 KSWIFTK_GOLDEN_SHARD_COUNT=93`）および専用 `GoldenHarnessWorker` の `.golden` 完全一致、`DIFF_REQUIRE_JDK21=0 DIFF_COMPILE_TIMEOUT=600 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_contains.kt`、`bash Scripts/validate_runtime_abi_links.sh --disable-sandbox --no-parallel -Xswiftc -swift-version -Xswiftc 6`（4/4）、`bash Scripts/check_todo_ids.sh` が pass。親スタック PR #6694 の CI（run 34437982954）は全 Swift/Golden、Backend/Runtime/CLI/LSP、kotlinc diff の全シャード green。
 
 - [x] KSP-1370: kotlin.text.CharSequence.count-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `count`
