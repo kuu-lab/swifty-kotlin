@@ -65,5 +65,3 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
 
 // KSP-704: HashSet and LinkedHashSet moved to their own 本家-named files
 // (HashSet.kt / LinkedHashSet.kt).
-
-public typealias LinkedHashMap<K, V> = MutableMap<K, V>
