@@ -908,30 +908,8 @@ extension NativeEmitter {
                 ),
                 // KSP-406: substring/subSequence/slice/removeRange/replaceRange are
                 // bundled Kotlin source (StringSubstringSlice.kt); no flat emission spec.
-                "kk_string_padStart_default_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_padStart_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "kk_string_padEnd_default_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_padEnd_default_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: false
-                ),
-                "kk_string_padStart_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_padStart_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: false
-                ),
-                "kk_string_padEnd_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_padEnd_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 2,
-                    canThrow: false
-                ),
+                // KSP-1390: padStart/padEnd are bundled Kotlin source
+                // (StringHOF.kt); no flat emission spec.
                 // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt);
                 // no flat emission spec.
                 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
