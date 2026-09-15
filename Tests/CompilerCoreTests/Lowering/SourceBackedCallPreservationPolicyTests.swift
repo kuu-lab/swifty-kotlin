@@ -234,13 +234,16 @@ struct SourceBackedCallPreservationPolicyTests {
     /// RF-LOWER-CALL-008 onwards must do deliberately. RF-LOWER-CALL-010
     /// dropped the five search names (`indexOf`, `lastIndexOf`, `indexOfFirst`,
     /// `indexOfLast`, `containsAll`) that had no downstream rewrite,
-    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names, and
+    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names,
     /// RF-LOWER-CALL-012 `maxByOrNull` / `minByOrNull` (their only rewrite, the
-    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them).
+    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them), and
+    /// RF-LOWER-CALL-013 `copyOf` / `copyOfRange` (no Lowering rewrite has
+    /// checked either name since KSP-1516; confirmed via a full-tree grep, not
+    /// just the deleted array-conversion rewrite files).
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 61, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 59, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// RF-LOWER-CALL-011 removed the List sort/extrema family from the direct
