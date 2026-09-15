@@ -30,7 +30,7 @@ struct CharSequenceGetSourceMigrationTests {
             let binding = try #require(sema.bindings.callBinding(for: expression))
             let symbol = try #require(sema.symbols.symbol(binding.chosenCallee))
             let file = try #require(sema.symbols.sourceFileID(for: binding.chosenCallee))
-            #expect(context.sourceManager.path(of: file) == "__bundled_kotlin/text/StringQuery.kt")
+            #expect(context.sourceManager.path(of: file) == "__bundled_kotlin/text/StringHOF.kt")
             #expect(!symbol.flags.contains(.synthetic))
             #expect(sema.symbols.externalLinkName(for: symbol.id) == nil)
             let isDefault = context.interner.resolve(name) == "getOrElse"
