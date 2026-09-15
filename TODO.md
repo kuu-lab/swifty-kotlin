@@ -2908,59 +2908,43 @@
     - `kotlin.sequences.mapNotNullTo` — fun Sequence.mapNotNullTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/mapNotNullTo(#C, kotlin/Function1<#A, #B?>): #C`
     - `kotlin.sequences.mapTo` — fun Sequence.mapTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableCollection<in #B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/mapTo(#C, kotlin/Function1<#A, #B>): #C`
 
-- [ ] KSP-1353: kotlin.sequences.Sequence.max-family の未実装 stdlib API を実装する（18 件）
+- [x] KSP-1353: kotlin.sequences.Sequence.max-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `max`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
+  - 完了根拠（2026-09-15）: 18 件中 8 件（`max()`/`maxOrNull()` の generic `#A` オーバーロード、`maxBy`/`maxByOrNull`、`maxOf`/`maxOfOrNull` の generic `#B` オーバーロード、`maxWith`/`maxWithOrNull`）は監査 stale で既存実装済み（KUU-459 PR-A で確認済み）。残り 10 件のうち 6 件（`maxOf(Function1): Double/Float`・`maxOfOrNull(Function1): Double/Float`・`maxOfWith`・`maxOfWithOrNull`）を本 PR で実装。`maxOf`/`maxOfOrNull` の Double/Float 特化は `@OverloadResolutionByLambdaReturnType`（要 `inline fun` + `@OptIn(ExperimentalTypeInference)` + `@SinceKotlin("1.4")`）でラムダ戻り値型により generic 版と識別。`maxOfWith`/`maxOfWithOrNull` は `CallTypeChecker+MemberCallInferenceCollectionFlow.swift` の `activeCollectionHOFNames` から Sequence receiver 時のみ除外する Sema 修正を同 PR に含む（従来はこの fast path が Sequence 向けの束縛を一切持たず、KIR の legacy `kk_list_maxOfWith` フォールバックへ落ちてリンクエラーになっていた。List/Map の挙動は smoke test で回帰なし確認）。
+  - 見送り（2026-09-15）: `max(): Double`/`max(): Float`/`maxOrNull(): Double`/`maxOrNull(): Float` の 4 件は本 PR では実装しない。同名 0 引数オーバーロードを複数（Float 特化・Double 特化・generic）追加すると `bindBundledSequenceAggregateSource`（同ファイル 2065 行）が receiver の要素型を見ずに `lookupAll(...).first(where:)` で候補を選ぶため、`Sequence<Int>.max()` 等 Double 以外の receiver でも常に Double 特化版の symbol に束縛される重大な誤り束縛を確認（バインディング検査テストで実測）。generic `Comparable` 版は既に Float/Double を含む全 Comparable receiver で数値的に正しい結果を返す（NaN 伝播などの IEEE754 pairwise 厳密仕様は持たないが、この差分は master 時点から existing gap であり本 PR で悪化させていない）。安全な修正には `bindBundledSequenceAggregateSource` 自体への receiver 要素型フィルタ追加が必要で別 PR 課題。詳細は Linear バグ参照。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_max.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_max.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_max.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.sequences.max` — fun Sequence.max(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/max(): kotlin/Double`
-    - `kotlin.sequences.max` — fun Sequence.max(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/max(): kotlin/Float`
-    - `kotlin.sequences.max` — fun Sequence.max(): #A  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/max(): #A`
-    - `kotlin.sequences.maxBy` — fun Sequence.maxBy(Function1): #A  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxBy(kotlin/Function1<#A, #B>): #A`
-    - `kotlin.sequences.maxByOrNull` — fun Sequence.maxByOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxByOrNull(kotlin/Function1<#A, #B>): #A?`
-    - `kotlin.sequences.maxOf` — fun Sequence.maxOf(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOf(kotlin/Function1<#A, #B>): #B`
+  - 実装シンボル一覧（本 PR で新規実装した 6 件）:
     - `kotlin.sequences.maxOf` — fun Sequence.maxOf(Function1): Double  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOf(kotlin/Function1<#A, kotlin/Double>): kotlin/Double`
     - `kotlin.sequences.maxOf` — fun Sequence.maxOf(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOf(kotlin/Function1<#A, kotlin/Float>): kotlin/Float`
-    - `kotlin.sequences.maxOfOrNull` — fun Sequence.maxOfOrNull(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfOrNull(kotlin/Function1<#A, #B>): #B?`
     - `kotlin.sequences.maxOfOrNull` — fun Sequence.maxOfOrNull(Function1): Double  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfOrNull(kotlin/Function1<#A, kotlin/Double>): kotlin/Double?`
     - `kotlin.sequences.maxOfOrNull` — fun Sequence.maxOfOrNull(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfOrNull(kotlin/Function1<#A, kotlin/Float>): kotlin/Float?`
     - `kotlin.sequences.maxOfWith` — fun Sequence.maxOfWith(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfWith(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B`
     - `kotlin.sequences.maxOfWithOrNull` — fun Sequence.maxOfWithOrNull(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOfWithOrNull(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B?`
-    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/maxOrNull(): kotlin/Double?`
-    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/maxOrNull(): kotlin/Float?`
-    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): #A  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxOrNull(): #A?`
-    - `kotlin.sequences.maxWith` — fun Sequence.maxWith(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxWith(kotlin/Comparator<in #A>): #A`
-    - `kotlin.sequences.maxWithOrNull` — fun Sequence.maxWithOrNull(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/maxWithOrNull(kotlin/Comparator<in #A>): #A?`
+  - 見送りシンボル一覧（4 件、理由は上記）:
+    - `kotlin.sequences.max` — fun Sequence.max(): Double / Float
+    - `kotlin.sequences.maxOrNull` — fun Sequence.maxOrNull(): Double / Float
 
-- [ ] KSP-1354: kotlin.sequences.Sequence.min-family の未実装 stdlib API を実装する（18 件）
+- [x] KSP-1354: kotlin.sequences.Sequence.min-family の未実装 stdlib API を実装する（18 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `min`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceAggregateHOF.kt`
+  - 完了根拠（2026-09-15）: KSP-1353 と同型。18 件中 8 件（generic `#A` の `min`/`minOrNull`、`minBy`/`minByOrNull`、generic `#B` の `minOf`/`minOfOrNull`、`minWith`/`minWithOrNull`）は既存実装済み。残り 10 件のうち 6 件（`minOf(Function1): Double/Float`・`minOfOrNull(Function1): Double/Float`・`minOfWith`・`minOfWithOrNull`）を本 PR で実装。`minOfWith`/`minOfWithOrNull` は KSP-1353 と同じ `activeCollectionHOFNames` 修正で救済。
+  - 見送り（2026-09-15）: `min(): Double`/`min(): Float`/`minOrNull(): Double`/`minOrNull(): Float` の 4 件は KSP-1353 と同じ理由（`bindBundledSequenceAggregateSource` の receiver 要素型フィルタ欠如）で見送り。加えて `Iterable<Float>.min()`/`Iterable<Float>.minOrNull()`（`Iterables.kt`）が `sequenceOf(3.0f, 1.0f).let { listOf(*it.toList().toTypedArray()) }.min()` 相当の入力で先頭要素をそのまま返す既存バグ（`comparisonMinOf` を `iterator()` ベースのループから呼ぶ経路で発生、`kk_min_float`/`comparisonMinOf` 単体は正しく動作することを分離テストで確認済み）を発見。Sequence 版を実装する際にこの経路へ誤束縛されると同じ症状（`sequenceOf(3.0f, 1.0f).min()` が `3.0` を返す）を再現した。Linear バグ起票: [KUU-553](https://linear.app/kuu/issue/KUU-553)。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_min.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.sequences.min` — fun Sequence.min(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/min(): kotlin/Double`
-    - `kotlin.sequences.min` — fun Sequence.min(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/min(): kotlin/Float`
-    - `kotlin.sequences.min` — fun Sequence.min(): #A  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/min(): #A`
-    - `kotlin.sequences.minBy` — fun Sequence.minBy(Function1): #A  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minBy(kotlin/Function1<#A, #B>): #A`
-    - `kotlin.sequences.minByOrNull` — fun Sequence.minByOrNull(Function1): #A  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minByOrNull(kotlin/Function1<#A, #B>): #A?`
-    - `kotlin.sequences.minOf` — fun Sequence.minOf(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOf(kotlin/Function1<#A, #B>): #B`
+  - 実装シンボル一覧（本 PR で新規実装した 6 件）:
     - `kotlin.sequences.minOf` — fun Sequence.minOf(Function1): Double  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOf(kotlin/Function1<#A, kotlin/Double>): kotlin/Double`
     - `kotlin.sequences.minOf` — fun Sequence.minOf(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOf(kotlin/Function1<#A, kotlin/Float>): kotlin/Float`
-    - `kotlin.sequences.minOfOrNull` — fun Sequence.minOfOrNull(Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Comparable<#B>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfOrNull(kotlin/Function1<#A, #B>): #B?`
     - `kotlin.sequences.minOfOrNull` — fun Sequence.minOfOrNull(Function1): Double  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfOrNull(kotlin/Function1<#A, kotlin/Double>): kotlin/Double?`
     - `kotlin.sequences.minOfOrNull` — fun Sequence.minOfOrNull(Function1): Float  -- `final inline fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfOrNull(kotlin/Function1<#A, kotlin/Float>): kotlin/Float?`
     - `kotlin.sequences.minOfWith` — fun Sequence.minOfWith(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWith(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B`
     - `kotlin.sequences.minOfWithOrNull` — fun Sequence.minOfWithOrNull(Comparator, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOfWithOrNull(kotlin/Comparator<in #B>, kotlin/Function1<#A, #B>): #B?`
-    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double  -- `final fun (kotlin.sequences/Sequence<kotlin/Double>).kotlin.sequences/minOrNull(): kotlin/Double?`
-    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Float  -- `final fun (kotlin.sequences/Sequence<kotlin/Float>).kotlin.sequences/minOrNull(): kotlin/Float?`
-    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): #A  -- `final fun <#A: kotlin/Comparable<#A>> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minOrNull(): #A?`
-    - `kotlin.sequences.minWith` — fun Sequence.minWith(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minWith(kotlin/Comparator<in #A>): #A`
-    - `kotlin.sequences.minWithOrNull` — fun Sequence.minWithOrNull(Comparator): #A  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/minWithOrNull(kotlin/Comparator<in #A>): #A?`
+  - 見送りシンボル一覧（4 件、理由は上記）:
+    - `kotlin.sequences.min` — fun Sequence.min(): Double / Float
+    - `kotlin.sequences.minOrNull` — fun Sequence.minOrNull(): Double / Float
 
 - [ ] KSP-1355: kotlin.sequences.Sequence.reduce-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `reduce`
