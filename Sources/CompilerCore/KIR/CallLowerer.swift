@@ -791,6 +791,7 @@ final class CallLowerer {
                 callBinding: callBinding,
                 chosenCallee: chosen,
                 spreadFlags: args.map(\.isSpread),
+                sourceArgExprs: args.map(\.expr),
                 ast: ast,
                 sema: sema,
                 arena: arena,

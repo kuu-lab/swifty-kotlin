@@ -15,16 +15,18 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
     /// `T1` was instantiated with a reference type -- a primitive-typed
     /// instantiation (`Int`) never crashed.
     ///
-    /// Root cause: `Pair`/`Triple`'s constructors, and `listOf`/`setOf`'s
-    /// collection-factory lowering, each store a function-typed argument
-    /// into an erased `Any?` slot without wrapping it via
-    /// `kk_function_create_N` first. A non-capturing lambda constant-folds to
-    /// a bare `symbolRef`, so the raw lambda pointer (compiled with its
-    /// declared, natural-ABI signature) ends up stored directly. Reading it
-    /// back out and invoking it goes through `kk_function_invoke`'s raw i64
-    /// calling convention instead, which only happens to line up with the
-    /// natural ABI for a primitive `T1` -- a reference-typed `T1` diverges,
-    /// jumping into the lambda with mismatched argument representations.
+    /// Root cause: `Pair`/`Triple`'s constructors, `listOf`/`setOf`'s
+    /// collection-factory lowering, `arrayOf`'s vararg packing, and
+    /// `MutableList.add`/`MutableSet.add`/`MutableMap.put` (etc.) each store a
+    /// function-typed argument into an erased `Any?` slot without wrapping it
+    /// via `kk_function_create_N` first. A non-capturing lambda
+    /// constant-folds to a bare `symbolRef`, so the raw lambda pointer
+    /// (compiled with its declared, natural-ABI signature) ends up stored
+    /// directly. Reading it back out and invoking it goes through
+    /// `kk_function_invoke`'s raw i64 calling convention instead, which only
+    /// happens to line up with the natural ABI for a primitive `T1` -- a
+    /// reference-typed `T1` diverges, jumping into the lambda with mismatched
+    /// argument representations.
     @Test
     func testCodegenGenericFunctionValueFromPairFieldStringRegression() throws {
         let source = """
@@ -175,6 +177,71 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
             source,
             moduleName: "GenericFunctionValueListOfMultipleElements",
             expected: "A=x;B=y;done\n"
+        )
+    }
+
+    /// `arrayOf` packs its vararg elements through a separate lowering path
+    /// (`CallSupportLowerer`'s `kk_array_of` branch) from `listOf`/`setOf`,
+    /// with its own function-value materialization step.
+    @Test
+    func testCodegenGenericFunctionValueFromArrayOfRegression() throws {
+        let source = """
+        fun main() {
+            val block: (String) -> Unit = { p -> print("val=$p;") }
+            val arr = arrayOf(block)
+            arr[0]("array-hello")
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericFunctionValueArrayOf",
+            expected: "val=array-hello;done\n"
+        )
+    }
+
+    /// Canary: ordinary (non-function-value) `arrayOf` elements must keep
+    /// working now that its vararg-packing branch also checks each element
+    /// for a function value.
+    @Test
+    func testCodegenArrayOfOrdinaryElementsRegression() throws {
+        let source = """
+        fun main() {
+            val arr = arrayOf(1, 2, 3)
+            println(arr[0] + arr[1] + arr[2])
+            val strs = arrayOf("a", "b", "c")
+            println(strs.joinToString(","))
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ArrayOfOrdinaryElements",
+            expected: "6\na,b,c\n"
+        )
+    }
+
+    /// The gate in `materializeSourceBackedFunctionValueArguments` that skips
+    /// runtime bridges now also lets `typeParamBoxingBoundaryCallees` through
+    /// (KUU-548) -- this covers a mutable-collection bridge in that set, not
+    /// just the Pair/Triple constructors exercised above.
+    @Test
+    func testCodegenGenericFunctionValueFromMutableListAddRegression() throws {
+        let source = """
+        fun main() {
+            val block: (String) -> Unit = { p -> print("val=$p;") }
+            val l = mutableListOf<(String) -> Unit>()
+            l.add(block)
+            l[0]("mutlist-hello")
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "GenericFunctionValueMutableListAdd",
+            expected: "val=mutlist-hello;done\n"
         )
     }
 }

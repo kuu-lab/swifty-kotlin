@@ -323,8 +323,8 @@ extension CallLowerer {
         return boxedResult
     }
 
-    /// Wraps a function-value element (e.g. `listOf(block)`) via
-    /// `kk_function_create_N` before it is stored into the erased `Any?`
+    /// Wraps a function-value element (e.g. `listOf(block)`, `arrayOf(block)`)
+    /// via `kk_function_create_N` before it is stored into the erased `Any?`
     /// backing array, the same erased-boundary wrapping a `typeParam`-typed
     /// argument gets in `materializeSourceBackedFunctionValueArguments`
     /// (KUU-548). Without it, a non-capturing lambda constant-folded to a
@@ -332,9 +332,10 @@ extension CallLowerer {
     /// declared-type ABI instead of the raw ABI `kk_function_invoke` (used
     /// once the element is read back out and called) expects.
     ///
-    /// Returns nil (falls back to `boxCollectionFactoryElementIfNeeded`) for
-    /// any element that isn't a function value.
-    private func materializeCollectionFactoryFunctionValueElementIfNeeded(
+    /// Returns nil (falls back to the caller's own boxing) for any element
+    /// that isn't a function value. Also called from `CallSupportLowerer`'s
+    /// `kk_array_of` vararg-packing branch, hence not `private`.
+    func materializeCollectionFactoryFunctionValueElementIfNeeded(
         _ argID: KIRExprID,
         sourceArgExprID: ExprID,
         sema: SemaModule,
