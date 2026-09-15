@@ -237,6 +237,7 @@ final class CallSupportLowerer {
         callBinding: CallBinding?,
         chosenCallee: SymbolID?,
         spreadFlags: [Bool],
+        sourceArgExprs: [ExprID] = [],
         ast _: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
@@ -340,6 +341,31 @@ final class CallSupportLowerer {
                     instructions: &instructions
                 )
             } else {
+                // A function-value element (e.g. `arrayOf(block)`) must be
+                // wrapped via kk_function_create_N before the ordinary
+                // primitive/value-class boxing below, which has no notion of
+                // function values and would otherwise leave a non-capturing
+                // lambda's bare, constant-folded symbolRef stored straight
+                // into the erased array -- the same erased-boundary wrapping
+                // a typeParam-typed argument gets in
+                // materializeSourceBackedFunctionValueArguments (KUU-548).
+                for argIndex in argIndices {
+                    guard argIndex < boxedArguments.count,
+                          argIndex < sourceArgExprs.count,
+                          !(argIndex < spreadFlags.count && spreadFlags[argIndex]),
+                          let materialized = driver.callLowerer.materializeCollectionFactoryFunctionValueElementIfNeeded(
+                              boxedArguments[argIndex],
+                              sourceArgExprID: sourceArgExprs[argIndex],
+                              sema: sema,
+                              arena: arena,
+                              interner: interner,
+                              instructions: &instructions
+                          )
+                    else {
+                        continue
+                    }
+                    boxedArguments[argIndex] = materialized
+                }
                 // `kk_array_of` backs both generic arrayOf<T> and primitive array
                 // factories. Preserve erased-type boxing and skip boxing for concrete
                 // primitive storage.
