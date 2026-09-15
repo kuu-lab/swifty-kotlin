@@ -252,6 +252,55 @@ struct CollectionRewriteStateTests {
         #expect(state[expr].facts(on: .staticType).classifications == [.list])
     }
 
+    // MARK: - Sequence runtime representation
+
+    @Test
+    func sequenceRuntimeRepresentationRequiresExclusiveRuntimeEvidence() {
+        let runtime = KIRExprID(rawValue: 1)
+        let source = KIRExprID(rawValue: 2)
+        let staticSequence = KIRExprID(rawValue: 3)
+        let nonSequence = KIRExprID(rawValue: 4)
+        let conflict = KIRExprID(rawValue: 5)
+        let noFacts = KIRExprID(rawValue: 6)
+        var state = State()
+
+        state.insert(.sequence, runtime)
+        state.insert(.sequenceSourceObject, source)
+        state.insert(.sequenceType, staticSequence)
+        state.insert(.list, nonSequence)
+        state.insert(.sequence, conflict)
+        state.insert(.sequenceSourceObject, conflict)
+
+        #expect(state.sequenceRuntimeRepresentation(of: runtime) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: source) == .sourceObject)
+        #expect(state.sequenceRuntimeRepresentation(of: staticSequence) == .unknown)
+        #expect(state.sequenceRuntimeRepresentation(of: nonSequence) == .notSequence)
+        #expect(state.sequenceRuntimeRepresentation(of: conflict) == .unknown)
+        #expect(state.sequenceRuntimeRepresentation(of: noFacts) == .unknown)
+    }
+
+    @Test
+    func sequenceRuntimeRepresentationFollowsArgumentCopiesWithoutGuessingUnknownOrigin() {
+        let runtime = KIRExprID(rawValue: 1)
+        let runtimeAlias = KIRExprID(rawValue: 2)
+        let source = KIRExprID(rawValue: 3)
+        let sourceAlias = KIRExprID(rawValue: 4)
+        let sequenceTypedStorage = KIRExprID(rawValue: 5)
+        let unclassified = KIRExprID(rawValue: 6)
+        var state = State()
+
+        state.insert(.sequence, runtime)
+        state.propagateCopy(from: runtime, to: runtimeAlias)
+        state.insert(.sequenceSourceObject, source)
+        state.propagateCopy(from: source, to: sourceAlias)
+        state.insert(.sequenceType, sequenceTypedStorage)
+        state.seedCopy(from: unclassified, to: sequenceTypedStorage)
+
+        #expect(state.sequenceRuntimeRepresentation(of: runtimeAlias) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: sourceAlias) == .sourceObject)
+        #expect(state.sequenceRuntimeRepresentation(of: sequenceTypedStorage) == .unknown)
+    }
+
     // MARK: - Result tagging
 
     @Test
