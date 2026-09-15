@@ -12,10 +12,10 @@ struct CollectionRewriteStateTests {
     private var classifications: [WritableKeyPath<State, Set<Int32>>] {
         [
             \.listExprIDs, \.setExprIDs, \.mapExprIDs, \.arrayExprIDs,
-            \.sequenceExprIDs, \.rangeExprIDs, \.charRangeExprIDs,
+            \.sequenceExprIDs, \.sequenceSourceObjectExprIDs, \.sequenceTypeExprIDs,
+            \.rangeExprIDs, \.charRangeExprIDs,
             \.ulongRangeExprIDs, \.stringExprIDs, \.fileExprIDs, \.pathExprIDs,
             \.listIteratorExprIDs, \.mapIteratorExprIDs, \.iteratorBuilderExprIDs,
-            \.indexingIterableExprIDs, \.indexingIterableIteratorExprIDs,
             \.ulongRangeIteratorExprIDs,
         ]
     }
@@ -150,24 +150,6 @@ struct CollectionRewriteStateTests {
     }
 
     @Test
-    func mutatingAndReadingTheManifestReachTheSameStorage() {
-        for classification in Classification.allCases {
-            var state = State()
-            let expr = KIRExprID(rawValue: 42)
-            state.mutateMembership(of: classification) { $0.insert(expr.rawValue) }
-
-            #expect(state.membership(of: classification) == [expr.rawValue])
-            #expect(state.contains(classification, expr))
-            for other in Classification.allCases where other != classification {
-                #expect(state.membership(of: other).isEmpty)
-            }
-
-            state.remove(classification, expr)
-            #expect(state.membership(of: classification).isEmpty)
-        }
-    }
-
-    @Test
     func factsBitPositionsFollowClassificationRawValues() {
         for classification in Classification.allCases {
             #expect(Facts(classification).rawValue == 1 << UInt32(classification.rawValue))
@@ -210,12 +192,12 @@ struct CollectionRewriteStateTests {
         #expect(state.setExprIDs == [replaced.rawValue])
     }
 
-    // MARK: - Compatibility with the old inout plumbing
+    // MARK: - Named views
 
     @Test
-    func inoutWriteBackAndTheStoreStayConsistent() {
-        // The registry hands individual sets to callees as `inout Set<Int32>`;
-        // whatever they write back must be visible through the store API.
+    func namedViewMutationUpdatesTheStore() {
+        // Legacy callers can still mutate a named view, and the canonical store
+        // API observes the same membership without a second source of truth.
         func seed(_ expressions: inout Set<Int32>) {
             expressions.insert(10)
             expressions.insert(11)
@@ -229,29 +211,10 @@ struct CollectionRewriteStateTests {
         #expect(!state.contains(.list, KIRExprID(rawValue: 10)))
         #expect(state[KIRExprID(rawValue: 11)] == [Facts(.list)])
 
-        // And the reverse direction: a store mutation is visible through both
-        // the `inout` accessor and the by-value read the registry uses for
-        // `iteratorBuilderExprIDs`.
+        // The reverse direction is also visible through the named view.
         state.insert(.iteratorBuilder, KIRExprID(rawValue: 12))
         func observe(_ expressions: Set<Int32>) -> Bool { expressions.contains(12) }
         #expect(observe(state.iteratorBuilderExprIDs))
-    }
-
-    @Test
-    func separateClassificationsStayIndependentAcrossSimultaneousInoutArguments() {
-        // Mirrors the registry call sites, which pass more than one set to the
-        // same callee. This only compiles while the named sets are distinct
-        // storage rather than computed views.
-        func seedBoth(_ lists: inout Set<Int32>, _ sets: inout Set<Int32>) {
-            lists.insert(1)
-            sets.insert(2)
-        }
-
-        var state = State()
-        seedBoth(&state.listExprIDs, &state.setExprIDs)
-
-        #expect(state[KIRExprID(rawValue: 1)] == [Facts(.list)])
-        #expect(state[KIRExprID(rawValue: 2)] == [Facts(.set)])
     }
 
     // MARK: - Axes

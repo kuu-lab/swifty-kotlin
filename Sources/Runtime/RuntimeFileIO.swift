@@ -1162,29 +1162,3 @@ public func __kk_reader_copyTo_default(
 ) -> Int {
     __kk_reader_copyTo(readerRaw, writerRaw, kReaderCopyToDefaultBufferSize, outThrown)
 }
-
-// Shared runtime storage for java.nio.file.attribute.FileTime.
-//
-// Path APIs also expose this value, so this support is kept independently of
-// the removed java.nio.file.Files utility bridge.
-final class RuntimeFileTimeBox {
-    let milliseconds: Int
-
-    init(milliseconds: Int) {
-        self.milliseconds = milliseconds
-    }
-}
-
-private func runtimeFileTimeBox(from raw: Int) -> RuntimeFileTimeBox? {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: raw) else { return nil }
-    return tryCast(ptr, to: RuntimeFileTimeBox.self)
-}
-
-/// FileTime.toMillis() — returns the stored epoch millis.
-@_cdecl("__kk_fileTime_toMillis")
-public func __kk_fileTime_toMillis(_ fileTimeRaw: Int) -> Int {
-    guard let fileTime = runtimeFileTimeBox(from: fileTimeRaw) else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_fileTime_toMillis received invalid FileTime handle")
-    }
-    return fileTime.milliseconds
-}

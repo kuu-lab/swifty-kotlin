@@ -57,28 +57,66 @@ public extension RuntimeABISpec {
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_schedule",
-            parameters: [],
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
             returnType: .intptr,
             section: "NativeRef",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_target_heap_bytes",
-            parameters: [],
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_target_heap_bytes_set",
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
             returnType: .intptr,
             section: "NativeRef",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_target_heap_utilization",
-            parameters: [],
-            returnType: .double,
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_target_heap_utilization_set",
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
+            returnType: .intptr,
             section: "NativeRef",
             isThrowing: false,
         ),
         RuntimeABIFunctionSpec(
             name: "kk_gc_max_heap_bytes",
-            parameters: [],
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "NativeRef",
+            isThrowing: false,
+        ),
+        RuntimeABIFunctionSpec(
+            name: "kk_gc_max_heap_bytes_set",
+            parameters: [
+                RuntimeABIParameter(name: "gcRaw", type: .intptr),
+                RuntimeABIParameter(name: "value", type: .intptr),
+            ],
             returnType: .intptr,
             section: "NativeRef",
             isThrowing: false,

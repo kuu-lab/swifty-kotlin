@@ -19,6 +19,10 @@
 | stdlib artifact経由の展開 | `StdlibArtifactRegressionTests` の `testInlineOnlyCallInsideSplicedLambdaThroughSharedStdlibArtifact` など既存suite。 |
 | ラベル採番と再配置の規則（caller基準・4種のラベル保持命令すべて） | `InlineLabelAllocatorTests`。`allocateCallerLabel` / `allocateScratchLabel` の基準値と `relocate` の並び保存を確認する。 |
 | 展開経路をまたいだラベルの一意性 | `LoweringPassRegressionTests+InlineContracts.swift` の `testDirectLambdaInvokeAndInlineCallDoNotReuseLabelIDs`。caller本体に残った `kk_function_invoke` の展開と通常inline展開が同じ採番状態を使うことを固定する。 |
+| alias解決の循環・自己参照・チェーンの終端規則 | `InlineExprAliasingTests` の `testResolveAlias*` 4件。 |
+| `rewriteInstruction` が call/virtualCallのsymbol・throw channel・dispatch・superを変更せず引数のみ解決する | 同ファイルの `testRewriteInstruction*` 3件。 |
+| `definedResult` が `.copy` の書き込み先を定義とみなさない | 同ファイルの `testDefinedResultIgnoresACopysDestination`。 |
+| `cloneOrReuseExpr` の初回複製・メモ化再利用・型置換クロージャの委譲・欠落sourceのfallback | `InlineExprCloningTests` 5件。 |
 
 INLINE-001 の修正は、`expandInlineCall` / `expandLambdaBody` が `.call` を複製するときに落としていた `qualifiedSuperType` を引き継ぐもの。
 最小ソースは実行結果だけでは欠落を検出できないため、展開前後のKIRにもassertionを置いている。
@@ -33,5 +37,24 @@ RF-LOWER-INLINE-002 以降、inline展開が導入するラベルIDは `InlineLa
 あり、組み立て中の展開に渡す scratch ID は `relocate(_:)` が必ず振り直すため出力には
 現れない。caller本体へ着地するIDを一つのカーソルに集めていることが衝突不可能性の根拠
 なので、`relocate(_:)` を通さずに展開を append してはならない。
+
+RF-LOWER-INLINE-003 以降、alias解決・命令operand書換え・式複製は `InlineExprAliasing`
+（`Sources/CompilerCore/Lowering/InlineExprAliasing.swift`）と `InlineExprCloning`
+（`Sources/CompilerCore/Lowering/InlineExprCloning.swift`）が担う。どちらも状態を持たない
+namespace（`KIRLabelRelocation` と同じ形）で、`expandInlineCalls` / `expandInlineCall` /
+`expandLambdaBody` 側が持つ alias map（`aliases` / `localExprMap`）は呼び出し側の所有のまま
+`inout` で渡す -- パラメータ代入やmerge-slot昇格などalias解決ではない書き込みも同じ
+mapに対して行われるため、mapの所有権自体は移していない。型置換は
+`InlineExprCloning.cloneOrReuseExpr`/`cloneExpr` の `substituteType` クロージャ経由で
+`InlineTypeSubstitution.applying` へ委譲し、reified hidden-token の対応表は
+`InlineReifiedTypeTokens` が所有する。`expandLambdaBody` 側の呼び出しは型代入を持たないため
+`substituteType` の既定値（恒等関数）を使う。
+
+抽出時に判明した既存の状態: `expandInlineCalls` の `aliases` は宣言時に空のまま一度も
+書き込まれず、`InlineExprAliasing.definedResult` の結果を `removeValue` するだけで終わる
+（展開結果は明示的な `.copy` で反映されるようになっており、alias登録の必要がなくなったため
+と見られる）。したがって同スコープでの `InlineExprAliasing.rewriteInstruction` /
+`resolveAlias` 呼び出しは現状すべて恒等写像になる。本PRは分離のみが目的で挙動を変えない
+ため削除しない。除去を検討する場合は同ループの走査制御を扱うRF-LOWER-INLINE-009側で行う。
 
 全Swift・Golden・全Kotlin差分の結果はPRの検証欄に記録し、共通RFゲートが未完了ならTODOは `[~]` とする。

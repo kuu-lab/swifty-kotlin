@@ -165,7 +165,7 @@ CLEANUP-STUB-110 は JVM interop 全体の一律削除ではなく、明示さ�
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更後の実測値:
@@ -182,7 +182,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更前後の実測値:
@@ -199,7 +199,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 変更後の実測値:
@@ -216,7 +216,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --filter FictionAuditDumpTests
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --skip-build --no-parallel --filter FictionAuditDumpTests
 ```
 
 標準の Swift Testing dump が成功し、`makeCompilationContext` / `runSema` pipeline の実測値を取得した。
@@ -236,7 +236,7 @@ DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --skip-build --f
 実行コマンド:
 
 ```bash
-DUMP_SURFACE=1 SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
+DUMP_SURFACE=1 bash Scripts/swift_test.sh --no-parallel --filter FictionAuditDumpTests -Xswiftc -swift-version -Xswiftc 6
 ```
 
 変更後の実測値:
@@ -277,3 +277,11 @@ function を持たない）。この2型自体の Sema 登録・Runtime cdecl・
 事実は独立している。影響を受けたテスト（`OutputStream*FunctionTests.swift` 3件、
 `ReaderCopyToFunctionTests.swift`）は削除した。CLEANUP-STUB-115（Path 本体削除）着手時に、Path 側へ
 producer を追加するか、この一式ごと (a) target-out として削除するかの判断が必要。
+
+**追記（CLEANUP-STUB-115, 2026-09-14）**: 上記の判断を確定した——`kotlin.io.path.Path` を Sema から
+完全に削除し、Path 側へ producer は追加しない。`OutputStream`/bare `Writer` の bufferedWriter 系は
+引き続き Sema 到達不能のまま（`HeaderHelpers+SyntheticJavaIOStreamStubs.swift` の bare class anchor
+自体は「(c) 削除しない」判断のとおり保持）。`FileTime`（CLEANUP-STUB-110 で Path 共有を理由に保持され
+ていた `RuntimeFileTimeBox`/`__kk_fileTime_toMillis`）は、Sema 側の唯一の登録元が
+`HeaderHelpers+SyntheticPathStubs.swift` だったため、Path 削除と同時に producer 消滅・Runtime 実装
+とも削除した（`FileTime.toMillis` も同様に到達不能なため、残す理由が無くなった）。

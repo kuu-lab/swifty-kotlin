@@ -23,39 +23,6 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
         ),
     ]
 
-    static let gcType = nativeRuntimeClass("GC")
-    static let gcFunctions: [SyntheticFunctionStubSpec] = [
-        SyntheticFunctionStubSpec(
-            name: "collect",
-            externalLinkName: "kk_gc_collect",
-            receiverType: gcType,
-            returnType: .unit
-        ),
-        SyntheticFunctionStubSpec(
-            name: "schedule",
-            externalLinkName: "kk_gc_schedule",
-            receiverType: gcType,
-            returnType: .unit
-        ),
-    ]
-    static let gcProperties: [SyntheticPropertyStubSpec] = [
-        SyntheticPropertyStubSpec(
-            name: "targetHeapBytes",
-            propertyType: .long,
-            externalLinkName: "kk_gc_target_heap_bytes"
-        ),
-        SyntheticPropertyStubSpec(
-            name: "targetHeapUtilization",
-            propertyType: .double,
-            externalLinkName: "kk_gc_target_heap_utilization"
-        ),
-        SyntheticPropertyStubSpec(
-            name: "maxHeapBytes",
-            propertyType: .long,
-            externalLinkName: "kk_gc_max_heap_bytes"
-        ),
-    ]
-
     static let rootSetStatisticsType = nativeRuntimeClass("RootSetStatistics")
     static let rootSetStatisticsProperties: [SyntheticPropertyStubSpec] = [
         SyntheticPropertyStubSpec(name: "threadLocalReferences", propertyType: .long),
@@ -65,39 +32,8 @@ enum SyntheticNativeRefRuntimeSurfaceSpec {
     ]
     static let rootSetStatisticsConstructor = constructor(from: rootSetStatisticsProperties)
 
-    static let sweepStatisticsType = nativeRuntimeClass("SweepStatistics")
-
-    static let memoryUsageType = nativeRuntimeClass("MemoryUsage")
-    static let gcInfoProperties: [SyntheticPropertyStubSpec] = [
-        SyntheticPropertyStubSpec(name: "epoch", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "startTimeNs", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "endTimeNs", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "firstPauseRequestTimeNs", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "firstPauseStartTimeNs", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "firstPauseEndTimeNs", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "secondPauseRequestTimeNs", propertyType: .nullable(.long)),
-        SyntheticPropertyStubSpec(name: "secondPauseStartTimeNs", propertyType: .nullable(.long)),
-        SyntheticPropertyStubSpec(name: "secondPauseEndTimeNs", propertyType: .nullable(.long)),
-        SyntheticPropertyStubSpec(name: "postGcCleanupTimeNs", propertyType: .nullable(.long)),
-        SyntheticPropertyStubSpec(name: "rootSet", propertyType: rootSetStatisticsType),
-        SyntheticPropertyStubSpec(name: "markedCount", propertyType: .long),
-        SyntheticPropertyStubSpec(name: "sweepStatistics", propertyType: mapOfString(to: sweepStatisticsType)),
-        SyntheticPropertyStubSpec(name: "memoryUsageBefore", propertyType: mapOfString(to: memoryUsageType)),
-        SyntheticPropertyStubSpec(name: "memoryUsageAfter", propertyType: mapOfString(to: memoryUsageType)),
-    ]
-
     private static func nativeRuntimeClass(_ name: String) -> SyntheticStubTypeRef {
         .namedClass(["kotlin", "native", "runtime", name])
-    }
-
-    private static func mapOfString(to valueType: SyntheticStubTypeRef) -> SyntheticStubTypeRef {
-        .fallback(
-            primary: .namedClass(
-                ["kotlin", "collections", "Map"],
-                args: [.out(.string), .out(valueType)]
-            ),
-            fallback: .any
-        )
     }
 
     private static func constructor(

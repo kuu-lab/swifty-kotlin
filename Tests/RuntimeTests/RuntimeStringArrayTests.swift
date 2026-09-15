@@ -209,7 +209,7 @@ struct RuntimeStringArrayTests {
     private func makeLocale(language: String, country: String) -> Int {
         withFlatString(language) { languageData, languageLength, languageByteCount, languageHash in
             withFlatString(country) { countryData, countryLength, countryByteCount, countryHash in
-                kk_locale_new_language_country_flat(
+                __kk_locale_new_language_country_flat(
                     languageData,
                     languageLength,
                     languageByteCount,
@@ -627,7 +627,6 @@ struct RuntimeStringArrayTests {
         }
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat) == "kswiftk")
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat) == "KSWIFTK")
-        #expect(flatStringReturnValue("abc", using: kk_string_reversed_flat) == "cba")
     }
 
     @Test
@@ -1069,20 +1068,8 @@ struct RuntimeStringArrayTests {
 
     // KSP-405: take/drop are bundled Kotlin source (StringTakeDrop.kt);
     // their runtime bridges and direct tests were removed.
-
-    @Test
-    func testStringRepeatFlatFunction() {
-        #expect(flatStringReturnValue("ab", intArg: 0, using: kk_string_repeat_flat) == "")
-        #expect(flatStringReturnValue("ab", intArg: 3, using: kk_string_repeat_flat) == "ababab")
-        #expect(flatStringReturnValue("é", intArg: 2, using: kk_string_repeat_flat) == "éé")
-    }
-
-    @Test
-    func testStringRepeatFlatNegativeThrowsIllegalArgumentException() {
-        var thrown = 0
-        _ = flatStringReturnValue("hello", intArg: -1, using: kk_string_repeat_flat, outThrown: &thrown)
-        #expect(thrown != 0, "kk_string_repeat_flat(-1) should set outThrown")
-    }
+    // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its
+    // runtime bridge and direct tests were removed.
 
     @Test
     func testStringReplaceSupportsLiteralReplacement() {

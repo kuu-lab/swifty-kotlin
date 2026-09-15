@@ -5,15 +5,25 @@ extension CollectionLiteralLoweringSupport {
     /// so a value can carry facts on both, and "unknown" is meaningful per axis
     /// rather than only for a value carrying no facts at all.
     enum ClassificationAxis: Sendable, CaseIterable {
-        /// What kind of collection the value is, as far as its declared type or
-        /// the factory that produced it says.
+        /// What kind of collection the value is, as far as its declared type
+        /// says.
         ///
-        /// This axis does not yet distinguish a declared type from a factory
-        /// call or a runtime bridge that produced the value; recording only the
-        /// provenance that is actually known is RF-LOWER-STATE-009's job.
+        /// RF-LOWER-STATE-009 split this axis from provenance: ``Classification/sequenceType``
+        /// records only that the static type is `Sequence`, with no claim about
+        /// which runtime representation backs the value — that lives on
+        /// ``runtimeRepresentation`` as ``Classification/sequence`` /
+        /// ``Classification/sequenceSourceObject``.
         case staticType
-        /// Which runtime representation holds the value. Only lowering records
-        /// these, when it materialises the runtime handle itself.
+        /// Which runtime representation holds the value.
+        ///
+        /// Most of these are recorded only when lowering materialises the
+        /// runtime handle itself. ``Classification/sequence`` and
+        /// ``Classification/sequenceSourceObject`` are the exception
+        /// (RF-LOWER-STATE-009): the pre-scan records them from confirmable
+        /// evidence about a value that already exists — a known runtime
+        /// factory/bridge, a source declaration confirmed to construct a fresh
+        /// object, or a copy from a value already classified — never guessed
+        /// from the static type alone.
         case runtimeRepresentation
     }
 
@@ -26,7 +36,21 @@ extension CollectionLiteralLoweringSupport {
         case set
         case map
         case array
+        /// Confirmed `RuntimeSequenceBox`: a known runtime factory/bridge
+        /// produced this value, or the value was propagated from one that
+        /// did. Despite the name this is a runtime-representation fact, not
+        /// a static-type one — see ``sequenceType`` for "the static type is
+        /// `Sequence`" and ``sequenceSourceObject`` for the other confirmed
+        /// representation (RF-LOWER-STATE-009).
         case sequence
+        /// Confirmed source-backed `Sequence` object (RF-LOWER-STATE-009): a
+        /// bundled declaration whose body is confirmed, by reading it, to
+        /// construct a fresh `object : Sequence<T>` rather than bridge to a
+        /// runtime factory — or a value propagated from one that is.
+        /// Mutually exclusive with ``sequence``; see
+        /// ``CollectionRewriteState/resolveSequenceProvenanceConflicts(at:)``
+        /// for what happens when a reused expression slot receives both.
+        case sequenceSourceObject
         case range
         case charRange
         case ulongRange
@@ -36,17 +60,24 @@ extension CollectionLiteralLoweringSupport {
         case listIterator
         case mapIterator
         case iteratorBuilder
-        case indexingIterable
-        case indexingIterableIterator
         case ulongRangeIterator
+        /// The static type is (or resolves to) `kotlin.sequences.Sequence`,
+        /// with no claim about which runtime representation backs the value.
+        /// Revives the static classification `trackedStaticTypeKind` stopped
+        /// performing under KSP-441〜447; kept apart from ``sequence`` /
+        /// ``sequenceSourceObject`` because a Sequence-typed value's runtime
+        /// representation is not decidable from its static type alone
+        /// (RF-LOWER-STATE-009).
+        case sequenceType
 
         var axis: ClassificationAxis {
             switch self {
-            case .list, .set, .map, .array, .sequence, .range, .charRange,
+            case .list, .set, .map, .array, .sequenceType, .range, .charRange,
                  .ulongRange, .string, .file, .path:
                 .staticType
-            case .listIterator, .mapIterator, .iteratorBuilder, .indexingIterable,
-                 .indexingIterableIterator, .ulongRangeIterator:
+            case .sequence, .sequenceSourceObject,
+                 .listIterator, .mapIterator, .iteratorBuilder,
+                 .ulongRangeIterator:
                 .runtimeRepresentation
             }
         }
@@ -58,7 +89,7 @@ extension CollectionLiteralLoweringSupport {
             case .set: self = .set
             case .map: self = .map
             case .array: self = .array
-            case .sequence: self = .sequence
+            case .sequence: self = .sequenceType
             case .string: self = .string
             }
         }
@@ -124,93 +155,122 @@ extension CollectionLiteralLoweringSupport {
     /// live, addressed by ``KIRExprID``.
     ///
     /// Facts are physically grouped per classification rather than per
-    /// expression, for two measured reasons written up under the
-    /// RF-LOWER-STATE-002 task entry. Storing `[KIRExprID: ClassificationFacts]`
-    /// instead would make every `contains` rebuild a set, which measured 150x
-    /// slower at 200 expressions per function and 12000x at 4000. And the
-    /// per-classification sets remain *stored* properties because the
-    /// virtual-call leaf rewrites still receive them as separate `inout`
-    /// arguments — Swift allows that only for distinct storage, not for
-    /// computed views. RF-LOWER-STATE-005 onwards retires those parameter
-    /// lists, after which the named sets can become views over a single
-    /// container (RF-LOWER-STATE-010).
+    /// expression. The indexed store keeps membership checks O(1) without
+    /// rebuilding a fact set for every expression, while the named accessors
+    /// below preserve the old callers as mutable views over this one store.
     ///
-    /// ``membership(of:)`` and ``mutateMembership(of:_:)`` are the only places
-    /// that map a classification to its storage. Both switch exhaustively, so
-    /// adding a classification cannot silently skip copy propagation.
+    /// The virtual-call leaves now receive this state as a whole, so no caller
+    /// needs simultaneous `inout` access to several named sets. That makes the
+    /// views safe: there is one source of truth and copy propagation only has
+    /// to iterate the classification enum.
     struct CollectionRewriteState {
-        var listExprIDs: Set<Int32> = []
-        var setExprIDs: Set<Int32> = []
-        var mapExprIDs: Set<Int32> = []
-        var arrayExprIDs: Set<Int32> = []
-        var sequenceExprIDs: Set<Int32> = []
-        var rangeExprIDs: Set<Int32> = []
-        var charRangeExprIDs: Set<Int32> = []
-        var ulongRangeExprIDs: Set<Int32> = []
-        var stringExprIDs: Set<Int32> = []
-        var fileExprIDs: Set<Int32> = []
-        var pathExprIDs: Set<Int32> = []
+        private var memberships = Array(
+            repeating: Set<Int32>(),
+            count: Classification.allCases.count
+        )
 
-        var listIteratorExprIDs: Set<Int32> = []
-        var mapIteratorExprIDs: Set<Int32> = []
-        var iteratorBuilderExprIDs: Set<Int32> = []
-        var indexingIterableExprIDs: Set<Int32> = []
-        var indexingIterableIteratorExprIDs: Set<Int32> = []
-        var ulongRangeIteratorExprIDs: Set<Int32> = []
+        // MARK: - Named compatibility views
 
-        // MARK: - Storage manifest
-
-        /// Every expression carrying `classification`.
-        func membership(of classification: Classification) -> Set<Int32> {
-            switch classification {
-            case .list: listExprIDs
-            case .set: setExprIDs
-            case .map: mapExprIDs
-            case .array: arrayExprIDs
-            case .sequence: sequenceExprIDs
-            case .range: rangeExprIDs
-            case .charRange: charRangeExprIDs
-            case .ulongRange: ulongRangeExprIDs
-            case .string: stringExprIDs
-            case .file: fileExprIDs
-            case .path: pathExprIDs
-            case .listIterator: listIteratorExprIDs
-            case .mapIterator: mapIteratorExprIDs
-            case .iteratorBuilder: iteratorBuilderExprIDs
-            case .indexingIterable: indexingIterableExprIDs
-            case .indexingIterableIterator: indexingIterableIteratorExprIDs
-            case .ulongRangeIterator: ulongRangeIteratorExprIDs
-            }
+        var listExprIDs: Set<Int32> {
+            get { memberships[Classification.list.rawValue] }
+            set { memberships[Classification.list.rawValue] = newValue }
+            _modify { yield &memberships[Classification.list.rawValue] }
         }
 
-        /// Mutate `classification`'s membership in place.
-        ///
-        /// The set is yielded rather than returned so the caller mutates the
-        /// stored property directly; handing back a copy would duplicate the
-        /// whole set on every insert.
-        mutating func mutateMembership(
-            of classification: Classification,
-            _ body: (inout Set<Int32>) -> Void
-        ) {
-            switch classification {
-            case .list: body(&listExprIDs)
-            case .set: body(&setExprIDs)
-            case .map: body(&mapExprIDs)
-            case .array: body(&arrayExprIDs)
-            case .sequence: body(&sequenceExprIDs)
-            case .range: body(&rangeExprIDs)
-            case .charRange: body(&charRangeExprIDs)
-            case .ulongRange: body(&ulongRangeExprIDs)
-            case .string: body(&stringExprIDs)
-            case .file: body(&fileExprIDs)
-            case .path: body(&pathExprIDs)
-            case .listIterator: body(&listIteratorExprIDs)
-            case .mapIterator: body(&mapIteratorExprIDs)
-            case .iteratorBuilder: body(&iteratorBuilderExprIDs)
-            case .indexingIterable: body(&indexingIterableExprIDs)
-            case .indexingIterableIterator: body(&indexingIterableIteratorExprIDs)
-            case .ulongRangeIterator: body(&ulongRangeIteratorExprIDs)
-            }
+        var setExprIDs: Set<Int32> {
+            get { memberships[Classification.set.rawValue] }
+            set { memberships[Classification.set.rawValue] = newValue }
+            _modify { yield &memberships[Classification.set.rawValue] }
+        }
+
+        var mapExprIDs: Set<Int32> {
+            get { memberships[Classification.map.rawValue] }
+            set { memberships[Classification.map.rawValue] = newValue }
+            _modify { yield &memberships[Classification.map.rawValue] }
+        }
+
+        var arrayExprIDs: Set<Int32> {
+            get { memberships[Classification.array.rawValue] }
+            set { memberships[Classification.array.rawValue] = newValue }
+            _modify { yield &memberships[Classification.array.rawValue] }
+        }
+
+        var sequenceExprIDs: Set<Int32> {
+            get { memberships[Classification.sequence.rawValue] }
+            set { memberships[Classification.sequence.rawValue] = newValue }
+            _modify { yield &memberships[Classification.sequence.rawValue] }
+        }
+
+        var sequenceSourceObjectExprIDs: Set<Int32> {
+            get { memberships[Classification.sequenceSourceObject.rawValue] }
+            set { memberships[Classification.sequenceSourceObject.rawValue] = newValue }
+            _modify { yield &memberships[Classification.sequenceSourceObject.rawValue] }
+        }
+
+        var sequenceTypeExprIDs: Set<Int32> {
+            get { memberships[Classification.sequenceType.rawValue] }
+            set { memberships[Classification.sequenceType.rawValue] = newValue }
+            _modify { yield &memberships[Classification.sequenceType.rawValue] }
+        }
+
+        var rangeExprIDs: Set<Int32> {
+            get { memberships[Classification.range.rawValue] }
+            set { memberships[Classification.range.rawValue] = newValue }
+            _modify { yield &memberships[Classification.range.rawValue] }
+        }
+
+        var charRangeExprIDs: Set<Int32> {
+            get { memberships[Classification.charRange.rawValue] }
+            set { memberships[Classification.charRange.rawValue] = newValue }
+            _modify { yield &memberships[Classification.charRange.rawValue] }
+        }
+
+        var ulongRangeExprIDs: Set<Int32> {
+            get { memberships[Classification.ulongRange.rawValue] }
+            set { memberships[Classification.ulongRange.rawValue] = newValue }
+            _modify { yield &memberships[Classification.ulongRange.rawValue] }
+        }
+
+        var stringExprIDs: Set<Int32> {
+            get { memberships[Classification.string.rawValue] }
+            set { memberships[Classification.string.rawValue] = newValue }
+            _modify { yield &memberships[Classification.string.rawValue] }
+        }
+
+        var fileExprIDs: Set<Int32> {
+            get { memberships[Classification.file.rawValue] }
+            set { memberships[Classification.file.rawValue] = newValue }
+            _modify { yield &memberships[Classification.file.rawValue] }
+        }
+
+        var pathExprIDs: Set<Int32> {
+            get { memberships[Classification.path.rawValue] }
+            set { memberships[Classification.path.rawValue] = newValue }
+            _modify { yield &memberships[Classification.path.rawValue] }
+        }
+
+        var listIteratorExprIDs: Set<Int32> {
+            get { memberships[Classification.listIterator.rawValue] }
+            set { memberships[Classification.listIterator.rawValue] = newValue }
+            _modify { yield &memberships[Classification.listIterator.rawValue] }
+        }
+
+        var mapIteratorExprIDs: Set<Int32> {
+            get { memberships[Classification.mapIterator.rawValue] }
+            set { memberships[Classification.mapIterator.rawValue] = newValue }
+            _modify { yield &memberships[Classification.mapIterator.rawValue] }
+        }
+
+        var iteratorBuilderExprIDs: Set<Int32> {
+            get { memberships[Classification.iteratorBuilder.rawValue] }
+            set { memberships[Classification.iteratorBuilder.rawValue] = newValue }
+            _modify { yield &memberships[Classification.iteratorBuilder.rawValue] }
+        }
+
+        var ulongRangeIteratorExprIDs: Set<Int32> {
+            get { memberships[Classification.ulongRangeIterator.rawValue] }
+            set { memberships[Classification.ulongRangeIterator.rawValue] = newValue }
+            _modify { yield &memberships[Classification.ulongRangeIterator.rawValue] }
         }
 
         // MARK: - Expression-keyed access
@@ -223,7 +283,7 @@ extension CollectionLiteralLoweringSupport {
             get {
                 var facts = ClassificationFacts()
                 for classification in Classification.allCases
-                where membership(of: classification).contains(exprID.rawValue) {
+                where memberships[classification.rawValue].contains(exprID.rawValue) {
                     facts.insert(ClassificationFacts(classification))
                 }
                 return facts
@@ -231,27 +291,25 @@ extension CollectionLiteralLoweringSupport {
             set {
                 for classification in Classification.allCases {
                     let isClassified = newValue.contains(classification)
-                    mutateMembership(of: classification) { membership in
-                        if isClassified {
-                            membership.insert(exprID.rawValue)
-                        } else {
-                            membership.remove(exprID.rawValue)
-                        }
+                    if isClassified {
+                        memberships[classification.rawValue].insert(exprID.rawValue)
+                    } else {
+                        memberships[classification.rawValue].remove(exprID.rawValue)
                     }
                 }
             }
         }
 
         func contains(_ classification: Classification, _ exprID: KIRExprID) -> Bool {
-            membership(of: classification).contains(exprID.rawValue)
+            memberships[classification.rawValue].contains(exprID.rawValue)
         }
 
         mutating func insert(_ classification: Classification, _ exprID: KIRExprID) {
-            mutateMembership(of: classification) { $0.insert(exprID.rawValue) }
+            memberships[classification.rawValue].insert(exprID.rawValue)
         }
 
         mutating func remove(_ classification: Classification, _ exprID: KIRExprID) {
-            mutateMembership(of: classification) { $0.remove(exprID.rawValue) }
+            memberships[classification.rawValue].remove(exprID.rawValue)
         }
 
         /// Replace everything known about `to` with everything known about `from`.
@@ -261,12 +319,10 @@ extension CollectionLiteralLoweringSupport {
         /// `from` carries no facts at all.
         mutating func copyFacts(from: KIRExprID, to: KIRExprID) {
             for classification in Classification.allCases {
-                mutateMembership(of: classification) { membership in
-                    if membership.contains(from.rawValue) {
-                        membership.insert(to.rawValue)
-                    } else {
-                        membership.remove(to.rawValue)
-                    }
+                if memberships[classification.rawValue].contains(from.rawValue) {
+                    memberships[classification.rawValue].insert(to.rawValue)
+                } else {
+                    memberships[classification.rawValue].remove(to.rawValue)
                 }
             }
         }
@@ -316,6 +372,28 @@ extension CollectionLiteralLoweringSupport {
         /// instructions that precede it.
         mutating func seedCopy(from: KIRExprID, to: KIRExprID) {
             self[to] = self[to].union(self[from])
+        }
+
+        /// Drop Sequence provenance that a `seedCopy` union has made
+        /// contradictory (RF-LOWER-STATE-009).
+        ///
+        /// ``Classification/sequence`` (confirmed `RuntimeSequenceBox`) and
+        /// ``Classification/sequenceSourceObject`` (confirmed source object)
+        /// are mutually exclusive facts about a single runtime value, but
+        /// `seedCopy`'s union has no way to know that two copies into the
+        /// same reused expression slot came from different branches of an
+        /// `if`/`when` rather than agreeing evidence about the same value.
+        /// A slot carrying both after such a union is asserting a fact no
+        /// single execution can back up, so this drops the provenance
+        /// entirely instead of keeping either guess — the caller must call
+        /// this after every `seedCopy` that can touch a Sequence value.
+        /// ``Classification/sequenceType`` (Sequence-typed, origin unknown)
+        /// is unaffected: it is not a provenance claim, so it is never
+        /// contradictory.
+        mutating func resolveSequenceProvenanceConflicts(at expr: KIRExprID) {
+            guard contains(.sequence, expr), contains(.sequenceSourceObject, expr) else { return }
+            remove(.sequence, expr)
+            remove(.sequenceSourceObject, expr)
         }
     }
 }

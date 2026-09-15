@@ -181,6 +181,22 @@ extension CallTypeChecker {
             // fast path below, which otherwise binds the first declaration.
             activeCollectionHOFNames.remove("flatMapTo")
             activeCollectionHOFNames.remove("flatMapIndexedTo")
+            // KSP-1353/1354: Sequence.maxOfWith/minOfWith/maxOfWithOrNull/
+            // minOfWithOrNull are now bundled Kotlin source. The fast path
+            // below (case "maxOfWith", "minOfWith", ...) has no Sequence
+            // binding branch for this family — bindBundledListSourceFunction
+            // only binds a List receiver — so for a Sequence receiver the
+            // call was left unresolved by this fast path and fell through to
+            // the legacy kk_list_maxOfWith-family fallback at KIR lowering
+            // (undefined symbol, since that bridge was never implemented for
+            // Sequence). Drop these names here so a Sequence receiver skips
+            // the fast path entirely and regular overload resolution picks
+            // the source-backed declarations instead, the same way KSP-1345
+            // did for flatMapTo/flatMapIndexedTo above.
+            activeCollectionHOFNames.remove("maxOfWith")
+            activeCollectionHOFNames.remove("maxOfWithOrNull")
+            activeCollectionHOFNames.remove("minOfWith")
+            activeCollectionHOFNames.remove("minOfWithOrNull")
         }
         if isMapReceiver {
             activeCollectionHOFNames.formUnion(mapOnlyCollectionHOFNames)

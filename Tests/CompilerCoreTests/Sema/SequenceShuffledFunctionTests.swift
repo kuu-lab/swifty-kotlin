@@ -79,7 +79,11 @@ struct SequenceShuffledFunctionTests {
             #expect(returnArg == sema.types.stringType)
 
             // Also verify that the chosen callee links to kk_sequence_shuffled.
-            let callExpr = try #require(firstExprID(in: ast) { _, expr in
+            // Scoped to `path`: the bundled stdlib shares this AST arena, and
+            // List<T>.shuffled()'s own internal `shuffled(Random.Default)` call
+            // is also named "shuffled", so an unscoped search can match that
+            // instead of the call under test.
+            let callExpr = try #require(firstExprID(in: ast, path: path, ctx: ctx) { _, expr in
                 guard case let .memberCall(_, callee, _, _, _) = expr else { return false }
                 return ctx.interner.resolve(callee) == "shuffled"
             })

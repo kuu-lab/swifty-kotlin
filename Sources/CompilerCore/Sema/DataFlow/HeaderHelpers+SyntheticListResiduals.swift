@@ -2,6 +2,17 @@ import RuntimeABI
 
 // KSP-697: List shell registration remains only as a compatibility fallback;
 // the bundled nominal declaration is now Kotlin source-backed.
+//
+// KSP-700: `get` moved to source (Stdlib/kotlin/collections/List.kt); this
+// file's `registerListGetOperator` is now a `--no-stdlib`/precompiled-metadata
+// fallback only, guarded by `bundledIndex`. `listIterator`/`listIterator(index)`
+// and `isEmpty` deliberately stay residual here — see List.kt's header comment
+// for why (a MutableList covariant-override pairing still pending KSP-1503/705,
+// and two KIR lowering tables hardcoding `kk_list_is_empty` independent of the
+// Sema member symbol, respectively). `intersect`/`union`/`subtract` (KSP-428),
+// `toMap` (KSP-429), `asSequence` (KSP-441~447), and a `contentEquals` member
+// with no real callers and no kotlin-stdlib equivalent were dead registration
+// functions with zero call sites; removed rather than left as unreachable code.
 
 /// Synthetic stdlib residuals retained after the KSP-697 nominal shell migration:
 /// List<E> interface and read-only member registrations (iterators, transform, aggregate, conversion).
@@ -60,16 +71,10 @@ extension DataFlowSemaPhase {
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
+            listTypeParamType: listTypeParamType,
+            bundledIndex: bundledIndex
         )
         registerListContainsAndIsEmptyMembers(
-            symbols: symbols, types: types, interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
-        )
-        registerListContentEqualsMember(
             symbols: symbols, types: types, interner: interner,
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
@@ -186,6 +191,11 @@ extension DataFlowSemaPhase {
     }
 
     /// Register `operator fun get(index: Int): E` on the List interface.
+    ///
+    /// KSP-700: `get` is source-backed (Stdlib/kotlin/collections/List.kt), so
+    /// this is a `--no-stdlib`/precompiled-metadata fallback only, guarded by
+    /// `bundledIndex` (the plain `symbols.lookup` check alone would not
+    /// reliably observe a not-yet-header-collected bundled declaration).
     private func registerListGetOperator(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -193,11 +203,14 @@ extension DataFlowSemaPhase {
         listFQName: [InternedString],
         listInterfaceSymbol: SymbolID,
         listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex
     ) {
         let listGetName = interner.intern("get")
         let listGetFQName = listFQName + [listGetName]
-        guard symbols.lookup(fqName: listGetFQName) == nil else { return }
+        guard symbols.lookup(fqName: listGetFQName) == nil,
+              !bundledIndex.contains(owner: listFQName, name: listGetName, arity: 1)
+        else { return }
         let listReceiverType = types.make(.classType(ClassType(
             classSymbol: listInterfaceSymbol,
             args: [.out(listTypeParamType)],
@@ -876,227 +889,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-    }
-
-    private func registerListContentEqualsMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listFQName: [InternedString],
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
-    ) {
-        let memberName = interner.intern("contentEquals")
-        let memberFQName = listFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_structural_eq", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [types.anyType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// STDLIB-510: Register `List<T>.intersect(other)`, `.union(other)`, `.subtract(other)` returning `Set<T>`.
-    /// Kotlin stdlib declares the parameter as `Iterable<T>`.
-    func registerListSetOperationMembers(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID,
-        setInterfaceSymbol: SymbolID,
-        iterableInterfaceSymbol: SymbolID
-    ) {
-        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let paramType = types.make(.classType(ClassType(
-            classSymbol: iterableInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        for (memberName, externName) in [
-            ("intersect", "intersect"),
-            ("union", "union"),
-            ("subtract", "subtract"),
-        ] {
-            let internedName = interner.intern(memberName)
-            let memberFQName = listFQName + [internedName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { continue }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: internedName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-            symbols.setExternalLinkName(externName, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [paramType],
-                    returnType: returnType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-    }
-
-    func registerListToMapMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        mapInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
-    ) {
-        let pairSymbol = symbols.lookup(
-            fqName: [interner.intern("kotlin"), interner.intern("Pair")]
-        ) ?? symbols.lookupByShortName(interner.intern("Pair")).first
-        guard let pairSymbol,
-              let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName
-        else {
-            return
-        }
-
-    }
-
-    /// Register `List<E>.asSequence(): Sequence<E>` member stub (STDLIB-471).
-    ///
-    /// Note: `Array<E>.asSequence()` does not need a separate Sema stub because
-    /// array member calls are resolved through the collection member-call
-    /// fallback path (`CallTypeChecker+MemberCallFallbacks`), and the lowering
-    /// pass routes to `kk_array_asSequence` via `arrayExprIDs` tracking.
-    func registerListAsSequenceMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID,
-        bundledIndex: BundledDeclarationIndex = .empty
-    ) {
-        guard let listFQName = symbols.symbol(listInterfaceSymbol)?.fqName else { return }
-        let memberName = interner.intern("asSequence")
-        let memberFQName = listFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        // KSP-441〜447: Iterable.asSequence / List.asSequence source 化時は合成スタブを登録しない。
-        let iterableFQName = Array(listFQName.dropLast()) + [interner.intern("Iterable")]
-        guard !bundledIndex.contains(owner: listFQName, name: memberName, arity: 0)
-            && !bundledIndex.contains(owner: iterableFQName, name: memberName, arity: 0)
-        else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        // Return type is Sequence<E> — ensure the Sequence interface stub exists.
-        let kotlinSequencesPkg: [InternedString] = [
-            interner.intern("kotlin"), interner.intern("sequences")
-        ]
-        if symbols.lookup(fqName: kotlinSequencesPkg) == nil {
-            _ = symbols.define(
-                kind: .package,
-                name: interner.intern("sequences"),
-                fqName: kotlinSequencesPkg,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let sequenceName = interner.intern("Sequence")
-        let sequenceFQName = kotlinSequencesPkg + [sequenceName]
-        let sequenceSymbol: SymbolID = if let existing = symbols.lookup(fqName: sequenceFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .interface,
-                name: sequenceName,
-                fqName: sequenceFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        let seqTypeParamName = interner.intern("T")
-        let seqTypeParamFQName = sequenceFQName + [seqTypeParamName]
-        if symbols.lookup(fqName: seqTypeParamFQName) == nil {
-            let seqTypeParamSymbol = symbols.define(
-                kind: .typeParameter,
-                name: seqTypeParamName,
-                fqName: seqTypeParamFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-            types.setNominalTypeParameterSymbols([seqTypeParamSymbol], for: sequenceSymbol)
-            types.setNominalTypeParameterVariances([.out], for: sequenceSymbol)
-        }
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: sequenceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_asSequence", for: memberSymbol)
-        // typeParameterSymbols lists all type params (class + function-level).
-        // classTypeParameterCount: 1 marks the first entry (E) as belonging to
-        // List<E>, not to asSequence itself.  This is the standard pattern used
-        // by every other List member stub in this file.
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
     }
 
 }

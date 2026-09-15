@@ -91,8 +91,8 @@ private func makeRuntimeLocaleBox(language: String, country: String) -> RuntimeL
     makeRuntimeLocaleBox(identifier: localeIdentifier(language: language, country: country, variant: ""))
 }
 
-@_cdecl("kk_locale_new_flat")
-public func kk_locale_new_flat(
+@_cdecl("__kk_locale_new_flat")
+public func __kk_locale_new_flat(
     _ identifierData: UnsafePointer<UInt8>?,
     _ identifierLength: Int,
     _ identifierByteCount: Int,
@@ -107,8 +107,8 @@ public func kk_locale_new_flat(
     return registerRuntimeObject(makeRuntimeLocaleBox(languageOnly: identifier))
 }
 
-@_cdecl("kk_locale_new_language_country_flat")
-public func kk_locale_new_language_country_flat(
+@_cdecl("__kk_locale_new_language_country_flat")
+public func __kk_locale_new_language_country_flat(
     _ languageData: UnsafePointer<UInt8>?,
     _ languageLength: Int,
     _ languageByteCount: Int,

@@ -662,6 +662,13 @@ struct RuntimeABIExternalLinkValidationTests {
         if declaration.isSuspend {
             types.append(RuntimeABICType.intptr.rawValue)
         }
+        // KSP-717: a "_flat" bridge returning String reconstructs its result
+        // out-of-band, via three nullable intptr* out-params (length,
+        // byteCount, hash) appended after the source parameters -- mirrors
+        // the arity-side "+3" in runtimeABIArityCandidates.
+        if isFlat && normalizedKotlinType(declaration.returnType) == "String" {
+            types.append(contentsOf: Array(repeating: RuntimeABICType.nullableIntptrPointer.rawValue, count: 3))
+        }
         return types
     }
 

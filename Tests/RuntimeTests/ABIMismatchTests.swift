@@ -128,7 +128,11 @@ struct ABIMismatchTests {
     func kkGcCollectSignature() throws {
         let spec = try requireSpec("kk_gc_collect")
         #expect(spec.returnType == .void)
-        #expect(spec.parameters.count == 0)
+        // GC.collect() is a real bundled-source `object` member now, so the
+        // GC receiver crosses the ABI as the sole parameter (see Platform.kt's
+        // identical bridge functions for the established convention).
+        #expect(spec.parameters.count == 1)
+        #expect(spec.parameters[0].type == .intptr)
     }
 
     @Test

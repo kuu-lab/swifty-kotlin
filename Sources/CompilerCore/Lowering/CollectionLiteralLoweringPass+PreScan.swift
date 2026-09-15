@@ -95,11 +95,16 @@ extension CollectionLiteralLoweringSupport {
             case let .virtualCall(symbol, callee, receiver, _, result, _, _, _):
                 handleVirtualCallInstruction(
                     symbol: symbol, callee: callee, receiver: receiver, result: result,
-                    lookup: lookup, sema: sema,
+                    lookup: lookup, sema: sema, interner: interner,
                     state: &state
                 )
             case let .copy(from, to):
                 state.seedCopy(from: from, to: to)
+                // Branches of an `if`/`when` that reuse the same expression
+                // slot can each seed a different, mutually exclusive
+                // Sequence provenance; the union above cannot tell that
+                // apart from agreeing evidence (RF-LOWER-STATE-009).
+                state.resolveSequenceProvenanceConflicts(at: to)
             case let .constValue(result, .stringLiteral):
                 state.stringExprIDs.insert(result.rawValue)
             default:
@@ -254,6 +259,7 @@ extension CollectionLiteralLoweringSupport {
         result: KIRExprID?,
         lookup: CollectionLiteralLookupTables,
         sema: SemaModule?,
+        interner: StringInterner,
         state: inout CollectionRewriteState
     ) {
         if callee == lookup.asSequenceName
@@ -265,6 +271,17 @@ extension CollectionLiteralLoweringSupport {
                 }()
                 if !isSourceBacked {
                     state.sequenceExprIDs.insert(result.rawValue)
+                } else if let sema, let symbol,
+                          isKnownSourceObjectConstructingAsSequenceReceiver(
+                              symbol: symbol, sema: sema, interner: interner
+                          )
+                {
+                    // Confirmed by reading the resolved overload's body
+                    // (Iterable/Iterator/CharSequence/Map.asSequence): it
+                    // constructs a fresh source `object : Sequence<T>`.
+                    // Array's overload and the Sequence identity overload
+                    // are deliberately excluded — see the helper's doc.
+                    state.sequenceSourceObjectExprIDs.insert(result.rawValue)
                 }
             }
             return
@@ -402,6 +419,7 @@ extension CollectionLiteralLoweringSupport {
             if state.listExprIDs.contains(rawID) || state.setExprIDs.contains(rawID)
                 || state.mapExprIDs.contains(rawID) || state.arrayExprIDs.contains(rawID)
                 || state.sequenceExprIDs.contains(rawID) || state.stringExprIDs.contains(rawID)
+                || state.sequenceTypeExprIDs.contains(rawID)
             {
                 continue
             }

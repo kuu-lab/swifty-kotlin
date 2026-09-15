@@ -209,12 +209,6 @@ extension DataFlowSemaPhase {
             symbols: symbols,
             interner: interner
         )
-        let stableRefSymbol = ensureClassSymbol(
-            named: "StableRef",
-            in: cinteropPkg,
-            symbols: symbols,
-            interner: interner
-        )
         let pinnedSymbol = ensureClassSymbol(
             named: "Pinned",
             in: cinteropPkg,
@@ -279,7 +273,6 @@ extension DataFlowSemaPhase {
             cValuesRefSymbol,
             cValueSymbol,
             cValuesSymbol,
-            stableRefSymbol,
             pinnedSymbol,
             cPointerSymbol,
             cPointerVarSymbol,
@@ -1386,128 +1379,6 @@ extension DataFlowSemaPhase {
                 for: usePinnedSymbol
             )
         }
-
-        let stableRefFQName = cinteropPkg + [interner.intern("StableRef")]
-        let stableRefTypeParameterName = interner.intern("T")
-        let stableRefTypeParameterFQName = stableRefFQName + [stableRefTypeParameterName]
-        let stableRefTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: stableRefTypeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: stableRefTypeParameterName,
-                fqName: stableRefTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: stableRefTypeParameterSymbol)
-        let stableRefTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: stableRefTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        let stableRefType = types.make(.classType(ClassType(
-            classSymbol: stableRefSymbol,
-            args: [.out(stableRefTypeParameterType)],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(stableRefType, for: stableRefSymbol)
-        symbols.insertFlags([.valueType], for: stableRefSymbol)
-        symbols.setValueClassUnderlyingType(cOpaquePointerUnderlyingType, for: stableRefSymbol)
-        types.setNominalTypeParameterSymbols([stableRefTypeParameterSymbol], for: stableRefSymbol)
-        types.setNominalTypeParameterVariances([.out], for: stableRefSymbol)
-
-
-
-
-        let stableRefCompanionName = interner.intern("Companion")
-        let stableRefCompanionFQName = stableRefFQName + [stableRefCompanionName]
-        let stableRefCompanionSymbol: SymbolID
-        if let existingCompanion = symbols.companionObjectSymbol(for: stableRefSymbol) {
-            stableRefCompanionSymbol = existingCompanion
-        } else if let existing = symbols.lookup(fqName: stableRefCompanionFQName),
-                  symbols.symbol(existing)?.kind == .object
-        {
-            stableRefCompanionSymbol = existing
-        } else {
-            stableRefCompanionSymbol = symbols.define(
-                kind: .object,
-                name: stableRefCompanionName,
-                fqName: stableRefCompanionFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic, .static]
-            )
-        }
-        symbols.setParentSymbol(stableRefSymbol, for: stableRefCompanionSymbol)
-        symbols.setCompanionObjectSymbol(stableRefCompanionSymbol, for: stableRefSymbol)
-        let stableRefCompanionType = types.make(.classType(ClassType(
-            classSymbol: stableRefCompanionSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(stableRefCompanionType, for: stableRefCompanionSymbol)
-        let createTypeParameterName = interner.intern("T")
-        let createFunctionName = interner.intern("create")
-        let createTypeParameterFQName = stableRefCompanionFQName + [createFunctionName, createTypeParameterName]
-        let createTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(fqName: createTypeParameterFQName) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: createTypeParameterName,
-                fqName: createTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: []
-            )
-        }
-        symbols.setTypeParameterUpperBounds([types.anyType], for: createTypeParameterSymbol)
-        let createTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: createTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        _ = types.make(.classType(ClassType(
-            classSymbol: stableRefSymbol,
-            args: [.out(createTypeParameterType)],
-            nullability: .nonNull
-        )))
-
-        let asStableRefName = interner.intern("asStableRef")
-        let asStableRefFQName = cinteropPkg + [asStableRefName]
-        let asStableRefTypeParameterName = interner.intern("T")
-        let asStableRefTypeParameterFQName = asStableRefFQName + [asStableRefTypeParameterName]
-        let asStableRefTypeParameterSymbol: SymbolID = if let existing = symbols.lookup(
-            fqName: asStableRefTypeParameterFQName
-        ) {
-            existing
-        } else {
-            symbols.define(
-                kind: .typeParameter,
-                name: asStableRefTypeParameterName,
-                fqName: asStableRefTypeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic, .reifiedTypeParameter]
-            )
-        }
-        symbols.insertFlags([.synthetic, .reifiedTypeParameter], for: asStableRefTypeParameterSymbol)
-        symbols.setTypeParameterUpperBounds([types.anyType], for: asStableRefTypeParameterSymbol)
-        let asStableRefTypeParameterType = types.make(.typeParam(TypeParamType(
-            symbol: asStableRefTypeParameterSymbol,
-            nullability: .nonNull
-        )))
-        _ = types.make(.classType(ClassType(
-            classSymbol: cPointerSymbol,
-            args: [.star],
-            nullability: .nonNull
-        )))
-        _ = types.make(.classType(ClassType(
-            classSymbol: stableRefSymbol,
-            args: [.out(asStableRefTypeParameterType)],
-            nullability: .nonNull
-        )))
 
         let cOpaquePointerVarUnderlyingType = types.make(.classType(ClassType(
             classSymbol: cPointerVarOfSymbol,

@@ -309,8 +309,16 @@ struct CollectionLiteralLoweringTests {
         #expect(callees.contains("__kk_emptyMap"), "emptyMap should become __kk_emptyMap")
     }
 
+    /// A `count(predicate)` call on a Map receiver with `symbol: nil` — the
+    /// only shape that ever reached the deleted `+CallRewriteFactories.swift`
+    /// branch, since a real compiled `map.count { ... }` always carries a
+    /// resolved `MapHOF.kt` symbol and `isSourceBackedBundledFunction` was
+    /// therefore always true (see `MapCountLoweringRoutingTests`). With the
+    /// branch gone, this synthetic shape now falls through untouched, the
+    /// same outcome the branch produced for every symbol-carrying call it
+    /// could ever have actually seen.
     @Test
-    func testMapCountRewriteToKkMapCount() throws {
+    func testMapCountSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -356,13 +364,13 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("count"), "map.count should be rewritten")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_count"), "count on map should become kk_map_count")
+        #expect(callees.contains("count"), "map.count(predicate) must survive as a source call")
+        #expect(!callees.contains("kk_map_count"), "kk_map_count has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAnyRewriteToKkMapAny() throws {
+    func testMapAnySurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -405,15 +413,20 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: the Map `any` rewrite this test used to pin was
+        // unreachable in production (see MapHOFLoweringRoutingTests) and has
+        // been deleted. With no symbol attached, `any` now simply survives as
+        // a plain call — the same outcome a resolved, source-backed `any`
+        // gets from `shouldPreserveSourceBackedAggregateCall`.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("any"), "map.any should be rewritten")
+        #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
+        #expect(!callees.contains("kk_map_any"), "kk_map_any has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAllRewriteToKkMapAll() throws {
+    func testMapAllSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -456,15 +469,16 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("all"), "map.all should be rewritten")
+        #expect(callees.contains("all"), "map.all has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
+        #expect(!callees.contains("kk_map_all"), "kk_map_all has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapNoneRewriteToKkMapNone() throws {
+    func testMapNoneSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -507,11 +521,12 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("none"), "map.none should be rewritten")
+        #expect(callees.contains("none"), "map.none has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
+        #expect(!callees.contains("kk_map_none"), "kk_map_none has no @_cdecl in Runtime and must never be emitted")
     }
 
     // MARK: - emptySet rewriting
@@ -1325,13 +1340,28 @@ struct CollectionLiteralLoweringTests {
         return calleesInDecl(declID, module: module, interner: interner)
     }
 
+    /// RF-LOWER-CALL-013: `toList` on every array receiver class (generic,
+    /// primitive, unsigned) is a bundled Kotlin declaration (ArrayConversions.kt
+    /// / UArrays.kt), and real calls to it never reach lowering as
+    /// `.virtualCall` in the first place — Array member/extension calls are
+    /// always statically resolved to `.call` (CallLowerer never emits
+    /// `.virtualCall` for them), so the array-specific virtual-dispatch
+    /// rewrite this test used to pin (`+VirtualCallRewrite+Array.swift`,
+    /// deleted with this task) could only ever fire on a hand-built KIR
+    /// fixture like this one, never on compiler output. What survives now is
+    /// that an unresolved `toList` `virtualCall` on an Array-typed receiver
+    /// is left untouched rather than redirected to the removed
+    /// `__kk_array_toList` runtime shortcut — it falls through as a
+    /// `virtualCall`, not a `.call`, so `calleesInDecl` (which only extracts
+    /// `.call` callees) reports none at all.
     @Test
-    func testVirtualCallOnArrayTypedParameterRewritesToKkArrayToList() throws {
+    func testVirtualCallOnArrayTypedParameterLeavesToListUnrewritten() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Array", callee: "toList")
         #expect(
-            callees.contains("__kk_array_toList"),
-            "virtualCall(toList) on Array-typed parameter should be rewritten to __kk_array_toList, got: \(callees)"
+            !callees.contains("__kk_array_toList"),
+            "virtualCall(toList) on Array-typed parameter must not be rewritten to the removed __kk_array_toList shortcut, got: \(callees)"
         )
+        #expect(callees.isEmpty, "the unresolved call should fall through as an untouched virtualCall, got: \(callees)")
     }
 
     @Test

@@ -77,13 +77,7 @@ struct SourceBackedCallPreservationPolicy {
     /// argument is an array expression tracked by the pre-scan.
     let directArrayConversionNames: Set<InternedString>
 
-    /// Array conversion member names the virtual-call path preserves when the
-    /// receiver's static type is one of `arrayReceiverTypeNames`. `size` is
-    /// checked separately there, and unlike the direct path this set does not
-    /// include `toList` — that name is in `virtualOnlyAggregateNames`.
-    let virtualArrayConversionNames: Set<InternedString>
-
-    /// Receiver class names the virtual-call array branches accept.
+    /// Receiver class names the virtual-call `size` branch accepts.
     let arrayReceiverTypeNames: Set<String>
 
     private let sizeName: InternedString
@@ -100,9 +94,13 @@ struct SourceBackedCallPreservationPolicy {
             lookup.runningReduceIndexedName,
             lookup.reduceIndexedName,
             lookup.reduceIndexedOrNullName,
+            // `filter` / `filterNot` / `filterIndexed` all stay for their
+            // `+VirtualCallRewrite+Range.swift` Range/progression rewrites
+            // (RF-LOWER-CALL-008; see the KSP-421 group below for `filter`'s
+            // sibling `map`). `filterNotNull` has no such consumer on any
+            // receiver kind and was dropped by that same task.
             lookup.filterName,
             lookup.filterNotName,
-            lookup.filterNotNullName,
             lookup.filterIndexedName,
             lookup.associateName,
             lookup.associateByName,
@@ -118,29 +116,62 @@ struct SourceBackedCallPreservationPolicy {
             lookup.onEachName,
             lookup.onEachIndexedName,
             lookup.sumOfName,
-            lookup.maxByOrNullName,
-            lookup.minByOrNullName,
             // RF-LOWER-CALL-011 (#6763) removed the KSP-426 block of 23 List
             // `sorted*` / `min*` / `max*` names from both chains. They were
             // meant to keep the bundled declarations in ListSortingHOF.kt and
             // ListExtremaHOF.kt off the legacy kk_list_* exports, but every
             // rewrite reachable from here sits behind an outer member-name gate
             // that never listed them, so they short-circuited nothing.
-            // `minByOrNull` stays in the Map group above, and `sorted` survives
-            // in `virtualOnlyAggregateNames` for its Range consumer.
-            // KSP-421: List transform HOFs have Kotlin source implementations.
+            // `sorted` survives in `virtualOnlyAggregateNames` for its Range
+            // consumer.
+            //
+            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull`: their
+            // only downstream rewrite was the Map branch deleted from
+            // `+CallRewriteHOFCore.swift` (`kk_map_maxByOrNull` /
+            // `kk_map_minByOrNull`, neither of which has a `@_cdecl` in
+            // `Sources/Runtime` any more), and that branch's own outer gate
+            // never listed either name in the first place. With no rewrite
+            // left to short-circuit, either call now falls through every
+            // rewrite attempt unmatched and reaches the unconditional
+            // `loweredBody.append(instruction)` — the same outcome as
+            // preserving it here, just without a redundant guard.
+            // `MapHOFLoweringRoutingTests` pins the routing.
+            //
+            // KSP-421: List transform HOFs have Kotlin source implementations
+            // in Stdlib/kotlin/collections/ListHOF.kt, and RF-LOWER-CALL-008
+            // found no surviving `.list`-owner rewrite for any of them —
+            // `StdlibSurfaceSpec.listHOFMembers` carries no `map*` /
+            // `flatMap*` / `filter*` entry, so `collectionHOFRuntimeName`
+            // always answers nil for this family regardless of receiver.
+            // That task dropped the eight names whose only role here was
+            // shadowing that already-dead lookup (`mapTo`, `mapIndexedTo`,
+            // `mapNotNullTo`, `mapIndexedNotNullTo`, `flatMapTo`,
+            // `flatMapIndexedTo`, `mapIndexedNotNull`, and `filterNotNull`
+            // above): their resolved declaration now survives because
+            // nothing downstream claims it, not because its name is listed.
+            // The remaining six stay because the *same interned name* still
+            // gates a live rewrite on a different receiver kind — dropping
+            // them would hand that receiver's source-backed declaration to
+            // the rewrite it currently shadows. `map` used to share this
+            // reasoning with a Map receiver rewrite too, but RF-LOWER-CALL-012
+            // deleted that rewrite as equally unreachable, so the Range
+            // reason below is now the only one for `map` as well:
+            //   - `map` / `mapIndexed` / `mapNotNull` select the
+            //     Range/progression rewrite in `+VirtualCallRewrite+Range.swift`
+            //     (`kk_range_map` / `kk_range_mapIndexed` / `kk_range_mapNotNull`,
+            //     or the ULong variants); `filterNot` / `filterIndexed` in the
+            //     block above are the same story.
+            //   - `flatMap` / `flatMapIndexed` select the Sequence pipeline
+            //     rewrite in `+CallRewriteSequencePipeline.swift`.
+            //   - `flatten` selects the Sequence terminal rewrite in
+            //     `+CallRewriteSequenceTerminals.swift`.
+            // Sequence is RF-LOWER-CALL-014's territory; this task only
+            // narrows the List angle.
             lookup.mapName,
             lookup.mapIndexedName,
             lookup.mapNotNullName,
-            lookup.mapIndexedNotNullName,
-            lookup.mapToName,
-            lookup.mapIndexedToName,
-            lookup.mapNotNullToName,
-            lookup.mapIndexedNotNullToName,
             lookup.flatMapName,
             lookup.flatMapIndexedName,
-            lookup.flatMapToName,
-            lookup.flatMapIndexedToName,
             lookup.flattenName,
             // KSP-430: Map higher-order functions have Kotlin source implementations.
             lookup.mapValuesName,
@@ -168,9 +199,6 @@ struct SourceBackedCallPreservationPolicy {
             lookup.lastName,
             lookup.firstOrNullName,
             lookup.lastOrNullName,
-            // KSP-658: generic Array<T>.copyOf / copyOfRange have Kotlin source implementations.
-            lookup.copyOfName,
-            lookup.copyOfRangeName,
         ]
 
         virtualOnlyAggregateNames = [
@@ -209,20 +237,18 @@ struct SourceBackedCallPreservationPolicy {
             interner.intern("randomOrNull"),
         ]
 
-        // KSP-1513/KSP-1516: source-backed Array<T>/primitive-array members on
+        // KSP-1513: source-backed Array<T>/primitive-array `size`/`toList` on
         // literal arrays must keep their selected Kotlin declaration. The
         // source body may delegate to a typed private runtime bridge.
+        //
+        // RF-LOWER-CALL-013: `sliceArray`/`reversedArray`/`asList`/`toTypedArray`
+        // used to live here too, but no Lowering rewrite has checked those
+        // names since KSP-1516 (and generic `Array<T>.toTypedArray()` was
+        // never a real declaration to begin with — Sema rejects it,
+        // KSWIFTK-SEMA-0024). Protecting names nothing threatens is inert;
+        // removed with the two rewrite files whose branches they used to guard.
         directArrayConversionNames = [
-            lookup.sizeName, lookup.toListName, lookup.sliceArrayName,
-            lookup.reversedArrayName, lookup.asListName, lookup.toTypedArrayName,
-        ]
-
-        // KSP-1516: array conversion members are bundled Kotlin source. Keep
-        // the selected declaration so its source body is emitted instead of
-        // the removed synthetic runtime shortcuts.
-        virtualArrayConversionNames = [
-            lookup.sliceArrayName, lookup.reversedArrayName,
-            lookup.asListName, lookup.toTypedArrayName,
+            lookup.sizeName, lookup.toListName,
         ]
 
         arrayReceiverTypeNames = [
@@ -288,10 +314,10 @@ struct SourceBackedCallPreservationPolicy {
     }
 
     /// Virtual-dispatch decision, in the order the inlined predicate used:
-    /// `size`, then the array conversion members, then the shared plus
-    /// virtual-only API sets. Both array branches answer with set membership
-    /// once the receiver class resolves, and fall through to the API sets when
-    /// it does not — `receiverArrayClassName` returns nil for that case.
+    /// `size`, then the shared plus virtual-only API sets. The `size` branch
+    /// answers with set membership once the receiver class resolves, and
+    /// falls through to the API sets when it does not — `receiverArrayClassName`
+    /// returns nil for that case.
     ///
     /// Unlike `preservesDirectCall` there is no Sequence exception here;
     /// runtime-backed Sequence receivers are handled by
@@ -305,13 +331,6 @@ struct SourceBackedCallPreservationPolicy {
         // replace it with the generic runtime bridge when the receiver is an
         // Array<T> or primitive array.
         if callee == sizeName,
-           resolution() == .sourceBacked,
-           let className = receiverArrayClassName()
-        {
-            return arrayReceiverTypeNames.contains(className)
-        }
-
-        if virtualArrayConversionNames.contains(callee),
            resolution() == .sourceBacked,
            let className = receiverArrayClassName()
         {

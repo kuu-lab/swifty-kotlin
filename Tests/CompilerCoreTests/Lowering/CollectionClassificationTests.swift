@@ -1,5 +1,6 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 @Suite
@@ -10,6 +11,7 @@ struct CollectionClassificationTests {
         let interner = StringInterner()
         let arena = KIRArena()
         let sema = makeSemaModule().ctx
+        private let sourceManager = SourceManager()
 
         func classType(_ components: [String]) -> TypeID {
             let symbol = sema.symbols.define(
@@ -21,6 +23,48 @@ struct CollectionClassificationTests {
                 flags: []
             )
             return sema.types.make(.classType(ClassType(classSymbol: symbol)))
+        }
+
+        /// A function symbol with a `declSite`, so `isSourceBackedSymbol`
+        /// reports it as source-backed (mirrors
+        /// `SourceBackedCallPreservationPolicyTests`), with `receiverType`
+        /// registered so `isKnownSourceObjectConstructingAsSequenceReceiver`
+        /// can resolve it.
+        func sourceBackedFunctionSymbol(
+            _ components: [String],
+            receiverType: TypeID?,
+            returnType: TypeID
+        ) -> SymbolID {
+            let file = sourceManager.addFile(
+                path: "fixture/\(components.last!).kt",
+                contents: Data("fun \(components.last!)() = Unit\n".utf8),
+                origin: .user
+            )
+            let symbol = sema.symbols.define(
+                kind: .function,
+                name: interner.intern(components.last!),
+                fqName: components.map(interner.intern),
+                declSite: SourceRange(
+                    start: SourceLocation(file: file, offset: 4),
+                    end: SourceLocation(file: file, offset: 7)
+                ),
+                visibility: .public
+            )
+            sema.symbols.setFunctionSignature(
+                FunctionSignature(receiverType: receiverType, parameterTypes: [], returnType: returnType),
+                for: symbol
+            )
+            return symbol
+        }
+
+        func virtualCall(
+            _ name: String, symbol: SymbolID?, receiver: KIRExprID, result: KIRExprID
+        ) -> KIRInstruction {
+            .virtualCall(
+                symbol: symbol, callee: interner.intern(name), receiver: receiver,
+                arguments: [], result: result, canThrow: false, thrownResult: nil,
+                dispatch: .vtable(slot: 0)
+            )
         }
 
         func function(_ body: [KIRInstruction], params: [KIRParameter] = []) -> KIRFunction {
@@ -57,6 +101,11 @@ struct CollectionClassificationTests {
             (["kotlin", "Array"], \.arrayExprIDs),
             (["kotlin", "UIntArray"], \.arrayExprIDs),
             (["kotlin", "String"], \.stringExprIDs),
+            // RF-LOWER-STATE-009: static type alone only proves `sequenceType`
+            // (Sequence-typed, origin unknown) — never `sequenceExprIDs`
+            // (confirmed RuntimeSequenceBox) or `sequenceSourceObjectExprIDs`
+            // (confirmed source object).
+            (["kotlin", "sequences", "Sequence"], \.sequenceTypeExprIDs),
         ]
         for (name, classification) in cases {
             let fixture = Fixture()
@@ -241,6 +290,113 @@ struct CollectionClassificationTests {
         #expect(fixture.interner.resolve(callee) == "kk_iterator_next")
         #expect(arguments == [storage] && returned == result)
         #expect(canThrow && thrownResult == thrown)
+    }
+
+    // MARK: - RF-LOWER-STATE-009: Sequence provenance
+
+    @Test
+    func asSequenceOnConfirmedObjectConstructingReceiverIsTaggedSourceObject() {
+        let fixture = Fixture()
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: iterableType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: iterableType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // Confirmed by reading Sequences.kt: `Iterable<T>.asSequence()`
+        // constructs a fresh `object : Sequence<T>`.
+        #expect(state.sequenceSourceObjectExprIDs == [result.rawValue])
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func asSequenceOnArrayReceiverIsNotConfirmedEvenThoughItsOwnBodyIsSource() {
+        let fixture = Fixture()
+        let arrayType = fixture.classType(["kotlin", "Array"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "collections", "asSequence"], receiverType: arrayType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: arrayType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // ArrayHOF.kt's `Array<T>.asSequence()` body is source too, but the
+        // array virtual-call rewrite intercepts `asSequence()` ahead of
+        // source resolution for any receiver tracked as an array and
+        // redirects it to `kk_array_asSequence` — so a positive
+        // "confirmed source object" fact here would be wrong.
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func asSequenceIdentityOverloadOnSequenceReceiverStaysUnknown() {
+        let fixture = Fixture()
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: sequenceType, returnType: sequenceType
+        )
+        let receiver = fixture.arena.appendTemporary(type: sequenceType)
+        let result = fixture.arena.appendTemporary(type: sequenceType)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: receiver, result: result),
+        ]))
+
+        // `Sequence<T>.asSequence()` is `= this` (identity): the result's
+        // provenance is the receiver's own, which this callee-only check has
+        // no way to look up — recording nothing here is correct, not a gap.
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+        #expect(state.sequenceExprIDs.isEmpty)
+    }
+
+    @Test
+    func runtimeBridgeFactoryResultIsTaggedSequenceNotSourceObject() {
+        let fixture = Fixture()
+        let result = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            fixture.call("lineSequence", result: result),
+        ]))
+
+        #expect(state.sequenceExprIDs == [result.rawValue])
+        #expect(state.sequenceSourceObjectExprIDs.isEmpty)
+    }
+
+    @Test
+    func copiesFromConflictingSequenceProvenanceIntoTheSameSlotLoseBothFacts() {
+        let fixture = Fixture()
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let symbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"], receiverType: iterableType, returnType: sequenceType
+        )
+        let iterableReceiver = fixture.arena.appendTemporary(type: iterableType)
+        let sourceObject = fixture.arena.appendTemporary(type: sequenceType)
+        let runtimeBoxed = fixture.arena.appendTemporary(type: nil)
+        let storage = fixture.arena.appendTemporary(type: nil)
+        let state = fixture.scan(fixture.function([
+            fixture.virtualCall("asSequence", symbol: symbol, receiver: iterableReceiver, result: sourceObject),
+            fixture.call("lineSequence", result: runtimeBoxed),
+            .copy(from: sourceObject, to: storage),
+            .copy(from: runtimeBoxed, to: storage),
+        ]))
+
+        // Two branches of an if/when that both assign into the same reused
+        // slot cannot both be right; RF-LOWER-STATE-009 drops the slot's
+        // provenance entirely rather than trust whichever copy is textually
+        // last. The original producers keep their own confirmed facts —
+        // only the conflicted destination loses its provenance.
+        #expect(!state.sequenceExprIDs.contains(storage.rawValue))
+        #expect(!state.sequenceSourceObjectExprIDs.contains(storage.rawValue))
+        #expect(state.sequenceExprIDs.contains(runtimeBoxed.rawValue))
+        #expect(state.sequenceSourceObjectExprIDs.contains(sourceObject.rawValue))
     }
 }
 #endif

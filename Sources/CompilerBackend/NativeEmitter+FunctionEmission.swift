@@ -858,12 +858,8 @@ extension NativeEmitter {
                     extraArgumentCount: 0,
                     canThrow: false
                 ),
-                "kk_string_reversed_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_reversed_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 0,
-                    canThrow: false
-                ),
+                // KSP-1396: reversed is bundled Kotlin source (StringBasics.kt);
+                // no flat emission spec.
                 // KSP-410: filter/filterNot/filterIndexed are bundled Kotlin
                 // source (StringHOF.kt); no flat emission spec.
                 "kk_string_ifBlank_flat": FlatStringReturnCallSpec(
@@ -936,12 +932,8 @@ extension NativeEmitter {
                     extraArgumentCount: 2,
                     canThrow: false
                 ),
-                "kk_string_repeat_flat": FlatStringReturnCallSpec(
-                    flatName: "kk_string_repeat_flat",
-                    stringArgumentCount: 1,
-                    extraArgumentCount: 1,
-                    canThrow: true
-                ),
+                // KSP-1394: repeat is bundled Kotlin source (StringBasics.kt);
+                // no flat emission spec.
                 // KSP-405: take/takeLast/drop/dropLast are bundled Kotlin source
                 // (StringTakeDrop.kt); no flat emission spec.
                 // KSP-404: removePrefix/removeSuffix/removeSurrounding are bundled
@@ -975,13 +967,13 @@ extension NativeEmitter {
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_locale_new_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_locale_new_flat",
+                "__kk_locale_new_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_locale_new_flat",
                     stringArgumentCount: 1,
                     extraArgumentCount: 0
                 ),
-                "kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
-                    flatName: "kk_locale_new_language_country_flat",
+                "__kk_locale_new_language_country_flat": FlatScalarReturnCallSpec(
+                    flatName: "__kk_locale_new_language_country_flat",
                     stringArgumentCount: 2,
                     extraArgumentCount: 0
                 ),

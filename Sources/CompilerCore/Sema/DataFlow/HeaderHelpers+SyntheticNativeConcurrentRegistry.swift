@@ -4,7 +4,6 @@
 /// Registers:
 ///   - KSP-1216 package-level nominal anchors whose constructors and members are owned by follow-up tasks
 ///   - `Continuation0` / `Continuation1` / `Continuation2` classes
-///   - `callContinuation0` / `callContinuation1` / `callContinuation2` extensions
 ///   - `FreezingException` class with native constructor surface
 ///   - `InvalidMutabilityException` class with native constructor surface
 ///   - `Worker` class with `execute`, `requestTermination`, `isTerminated`, `name` members
@@ -16,7 +15,6 @@
 private enum NativeConcurrentRegistrationStep: CaseIterable {
     case topLevelNominalAnchors
     case continuationTypes
-    case callContinuationFunctions
     case freezingException
     case invalidMutabilityException
     case worker
@@ -113,13 +111,6 @@ extension DataFlowSemaPhase {
             registerNativeConcurrentContinuationTypes(
                 packageFQName: packageFQName,
                 pkgSymbol: pkgSymbol,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        case .callContinuationFunctions:
-            registerNativeConcurrentCallContinuationFunctions(
-                packageFQName: packageFQName,
                 symbols: symbols,
                 types: types,
                 interner: interner
@@ -407,7 +398,10 @@ extension DataFlowSemaPhase {
     }
 }
 
-/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Continuation0/1/2 classes and callContinuation0/1/2 extension functions.
+/// Synthetic stdlib stubs for `kotlin.native.concurrent`: Continuation0/1/2 classes.
+///
+/// `callContinuation0/1/2` are no longer registered here — KSP-1217 moved them to
+/// bundled Kotlin source (`Stdlib/kotlin/native/concurrent/Continuation.kt`).
 ///
 /// Consolidated into the RF-STUB-004 NativeConcurrent registry.
 extension DataFlowSemaPhase {
@@ -601,106 +595,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    func registerNativeConcurrentCallContinuationFunctions(
-        packageFQName: [InternedString],
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let receiverType = nativeConcurrentCOpaquePointerType(
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        for arity in 0...2 {
-            registerNativeConcurrentCallContinuationFunction(
-                arity: arity,
-                packageFQName: packageFQName,
-                receiverType: receiverType,
-                symbols: symbols,
-                types: types,
-                interner: interner
-            )
-        }
-    }
-
-    private func registerNativeConcurrentCallContinuationFunction(
-        arity: Int,
-        packageFQName: [InternedString],
-        receiverType: TypeID,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let functionName = interner.intern("callContinuation\(arity)")
-        let functionFQName = packageFQName + [functionName]
-        let typeParameterSymbols: [SymbolID] = arity == 0 ? [] : (1...arity).map { index in
-            let typeParameterName = interner.intern("T\(index)")
-            let typeParameterFQName = functionFQName + [typeParameterName]
-            if let existing = symbols.lookup(fqName: typeParameterFQName) {
-                return existing
-            }
-            let symbol = symbols.define(
-                kind: .typeParameter,
-                name: typeParameterName,
-                fqName: typeParameterFQName,
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            return symbol
-        }
-
-        guard symbols.lookupAll(fqName: functionFQName).first(where: { id in
-            guard let signature = symbols.functionSignature(for: id) else { return false }
-            return signature.receiverType == receiverType
-                && signature.parameterTypes.isEmpty
-                && signature.returnType == types.unitType
-                && signature.typeParameterSymbols == typeParameterSymbols
-        }) == nil else {
-            return
-        }
-
-        let functionSymbol = symbols.define(
-            kind: .function,
-            name: functionName,
-            fqName: functionFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        if let packageSymbol = symbols.lookup(fqName: packageFQName) {
-            symbols.setParentSymbol(packageSymbol, for: functionSymbol)
-        }
-        for typeParameterSymbol in typeParameterSymbols {
-            symbols.setParentSymbol(functionSymbol, for: typeParameterSymbol)
-        }
-        appendNativeConcurrentMetadataAnnotations(
-            [
-                MetadataAnnotationRecord(
-                    annotationFQName: "kotlin.Deprecated",
-                    arguments: ["message = \"This API is deprecated without replacement\""]
-                ),
-            ],
-            to: functionSymbol,
-            symbols: symbols
-        )
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: types.unitType,
-                isSuspend: false,
-                valueParameterSymbols: [],
-                valueParameterHasDefaultValues: [],
-                valueParameterIsVararg: [],
-                typeParameterSymbols: typeParameterSymbols,
-                classTypeParameterCount: 0
-            ),
-            for: functionSymbol
-        )
-    }
 }
 
 /// Synthetic stdlib stubs for `kotlin.native.concurrent`: FreezingException and InvalidMutabilityException classes.

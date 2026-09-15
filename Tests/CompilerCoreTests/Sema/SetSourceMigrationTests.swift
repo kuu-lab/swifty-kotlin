@@ -36,7 +36,7 @@ struct SetSourceMigrationTests {
         let sourceFileID = try #require(sema.symbols.sourceFileID(for: setSymbol))
 
         #expect(!setInfo.flags.contains(.synthetic))
-        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/SetHOF.kt")
+        #expect(ctx.sourceManager.path(of: sourceFileID) == "__bundled_kotlin/collections/Set.kt")
         #expect(setInfo.kind == .interface)
         #expect(sema.types.nominalTypeParameterVariances(for: setSymbol) == [.out])
         #expect(sema.symbols.directSupertypes(for: setSymbol) == [collectionSymbol])
@@ -52,7 +52,7 @@ struct SetSourceMigrationTests {
         let sema = try #require(ctx.sema)
         let collections = ["kotlin", "collections"].map(ctx.interner.intern)
         let setFQName = collections + [ctx.interner.intern("Set")]
-        let sourcePath = "__bundled_kotlin/collections/SetHOF.kt"
+        let sourcePath = "__bundled_kotlin/collections/Set.kt"
 
         for member in ["contains", "isEmpty", "iterator", "size"] {
             let memberSymbol = try #require(
