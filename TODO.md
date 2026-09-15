@@ -3014,14 +3014,17 @@
     - `kotlin.sequences.reduceIndexedOrNull` — fun Sequence.reduceIndexedOrNull(Function3): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.sequences/Sequence<#B>).kotlin.sequences/reduceIndexedOrNull(kotlin/Function3<kotlin/Int, #A, #B, #A>): #A?`
     - `kotlin.sequences.reduceOrNull` — fun Sequence.reduceOrNull(Function2): #A  -- `final inline fun <#A: kotlin/Any?, #B: #A> (kotlin.sequences/Sequence<#B>).kotlin.sequences/reduceOrNull(kotlin/Function2<#A, #B, #A>): #A?`
 
-- [ ] KSP-1356: kotlin.sequences.Sequence.shuffled-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1356: kotlin.sequences.Sequence.shuffled-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.sequences` / receiver `Sequence` / family `shuffled`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/sequences/SequenceConversionsAndSetOps.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_sequences_Sequence_shuffled.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_shuffled.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_shuffled.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
+  - 完了根拠（2026-09-15）: `SequenceConversionsAndSetOps.kt` に `shuffled()`/`shuffled(random: Random)` を追加。実体は既存の `List<T>.shuffled(random)`（`ListSortingHOF.kt:217`）と `Iterable<T>.asSequence()`（`Sequences.kt:10`）に委譲する upstream 準拠の1行実装（`toMutableList().shuffled(random).asSequence()`）で、結果は「1回だけ確定的にシャッフルされた固定列」（`iterator()` の呼び出しごとに再シャッフルはしない）。
+  - bridge/stub 整理（実施）: `HeaderHelpers+SyntheticSequenceResidualStubs.swift` の synthetic `shuffled`/`shuffled(random)` 登録ブロック（STDLIB-SEQ-019）を削除し、`@KsSymbolName("kk_sequence_shuffled")` / `@KsSymbolName("kk_sequence_shuffled_random")` で既存の `RuntimeSequence.swift` 側 `kk_sequence_shuffled`/`kk_sequence_shuffled_random` ブリッジ（lazy pipeline step 実装、非破壊）への external-link 登録に置き換え。ブリッジ本体は保持（他の `kk_sequence_*` 同様、pipeline fusion のため）。
+  - 検証: `swift build` green。`.build/debug/kswiftc --stdlib-from-source` での手動スモークテストで size/`toSet()`/`sorted()`一致・同一シード決定性・元 Sequence 非破壊・空/単一要素ケースを確認。`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_sequences_Sequence_shuffled.kt`（新規、順序非依存アサーションのみ）と既存 `Scripts/diff_cases/sequence_shuffled.kt` の両方が `DIFF_COMPILE_TIMEOUT=600` 下で PASS（実 kotlinc 2.3.10、artifact-based stdlib 経由 = 通常 import 経路の確認を兼ねる）。golden は `KSWIFTK_GOLDEN_STDLIB_LIBRARY` を artifact-based `.artifacts/diff_kotlinc/KSwiftKStdlib.kklib` に設定した `GoldenHarnessWorker` 直接呼び出しで生成（bundled-source フォールバックでの生成は symbol-origin classification が CI と不一致になるため使用していない）。`RuntimeABIExternalLinkValidationTests`（4件）・`check_todo_ids.sh`・`git diff --check` すべて green。全 Golden スイート・全 diff ケース一括は未実施（CI 確認）。
+  - 実装シンボル一覧:
     - `kotlin.sequences.shuffled` — fun Sequence.shuffled(): Sequence  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/shuffled(): kotlin.sequences/Sequence<#A>`
     - `kotlin.sequences.shuffled` — fun Sequence.shuffled(Random): Sequence  -- `final fun <#A: kotlin/Any?> (kotlin.sequences/Sequence<#A>).kotlin.sequences/shuffled(kotlin.random/Random): kotlin.sequences/Sequence<#A>`
 
