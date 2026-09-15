@@ -1250,8 +1250,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapSize() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "size")
         #expect(
-            callees.contains("kk_map_size"),
-            "virtualCall(size) on Map-typed parameter should be rewritten to kk_map_size, got: \(callees)"
+            callees.contains("__kk_map_size"),
+            "virtualCall(size) on Map-typed parameter should be rewritten to __kk_map_size, got: \(callees)"
         )
     }
 
@@ -1411,8 +1411,8 @@ struct CollectionLiteralLoweringTests {
     func testVirtualCallOnMapTypedParameterRewritesToKkMapIsEmpty() throws {
         let callees = try buildAndLowerVirtualCall(receiverTypeName: "Map", callee: "isEmpty")
         #expect(
-            callees.contains("kk_map_is_empty"),
-            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to kk_map_is_empty, got: \(callees)"
+            callees.contains("__kk_map_is_empty"),
+            "virtualCall(isEmpty) on Map-typed parameter should be rewritten to __kk_map_is_empty, got: \(callees)"
         )
     }
 

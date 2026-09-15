@@ -190,8 +190,12 @@ struct ABIMismatchRuntimeExportParityTests {
             "kk_sequence_scan",
             "kk_sequence_scanIndexed",
             // KSP-430: Map higher-order functions are now source-backed in
-            // bundled MapHOF.kt; these ABI entries remain for compatibility
-            // with the synthetic stub externalLinkName literals.
+            // bundled MapHOF.kt. RF-LOWER-CALL-012 removed the Lowering-side
+            // rewrites and KSP-703 removed the Sema-side synthetic stub
+            // registrations that used to reference these names — no
+            // `@_cdecl` and no compiler-side reference remain for any of
+            // them — but the `RuntimeABISpec` entries themselves stay
+            // allowed here pending a decision on pruning the spec.
             "kk_map_all",
             "kk_map_any",
             "kk_map_count",

@@ -430,7 +430,7 @@ public extension RuntimeABISpec {
             section: "Collection"
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_size",
+            name: "__kk_map_size",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
@@ -449,7 +449,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_is_empty",
+            name: "__kk_map_is_empty",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],
@@ -639,7 +639,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_map_to_string",
+            name: "__kk_map_to_string",
             parameters: [
                 RuntimeABIParameter(name: "mapRaw", type: .intptr),
             ],

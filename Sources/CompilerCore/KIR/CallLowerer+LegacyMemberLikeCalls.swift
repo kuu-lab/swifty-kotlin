@@ -1125,7 +1125,7 @@ extension CallLowerer {
                 // tell those apart since extension receivers aren't part of it.
                 // Map's own isNullOrEmpty is also source-backed and must keep
                 // calling through its Kotlin declaration (which owns the
-                // private kk_map_is_empty helper), so only take the
+                // private __kk_map_is_empty helper), so only take the
                 // runtime-bridge fast path when the chosen overload's own
                 // receiver is actually Collection<T>.
                 guard let signatureReceiverType = sema.symbols.functionSignature(for: chosenCallee)?.receiverType,

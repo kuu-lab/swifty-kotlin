@@ -380,13 +380,20 @@
     7. **検証**: `swift build` green。`bash Scripts/diff_kotlinc.sh` を `comparable_interface.kt`/`ksp697_collection_interface_shells.kt`/`list_iterator.kt`/`list_iterator_custom_impl_dispatch.kt`/`mutable_list_iterator_custom_impl_dispatch.kt`/`ksp633_abstract_collections.kt`/`list_access_basic.kt`/`list_sublist.kt`/`list_indexed.kt`/`mutable_list_add_set.kt`/`stdlib_kotlin_collections_n_List_interface.kt`/`stdlib_kotlin_collections_n_AbstractMutableList.kt`/新規 `ksp700_list_get_source_backed.kt` に実施（実行中の機械負荷（load average 160〜180、並行 worktree のフルスタックビルドと輻輳）により一部タイムアウト・アーティファクトビルド失敗が発生したため、`.build/debug/kswiftc --stdlib-from-source` による直接実行で `List`/`MutableList`/ネストした `List<List<Int>>`/ジェネリック関数経由の `get` を個別に確認し、期待値と一致することを確認済み。負荷が下がり次第 diff_kotlinc.sh の再実行で二重オラクルを完了させる）。全体テスト・全 Golden・全 diff_kotlinc は未実行（最小スコープ方針）。
     8. **`kk_cdecl_count`/`__kk_cdecl_count`**: 新規ブリッジ追加・削除ともになし（既存 `__kk_list_get` を再利用）。dead 関数削除のみで Runtime/RuntimeABISpec 側の変更なし。
 
-- [ ] KSP-703: Map shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticMapStubs.swift` を削除する
+- [~] KSP-703: Map shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticMapStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMapStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/` 新設 `Map.kt`/`MutableMap.kt`/`HashMap.kt`/`LinkedHashMap.kt`（`MapHOF.kt`/`MapLookupAndTransform.kt` 既存から統合）
   - 削除/降格 kk_*: `kk_map_*` public ブリッジ（`RuntimeSetAndMap.swift`/`RuntimeMapHOF.swift`。着手時 `rg -o '@_cdecl\("kk_map[a-zA-Z0-9_]*"\)' Sources/Runtime` 全層で再固定）を削除 or `__kk_` 降格
   - 手順: T
   - diff: `map_*.kt` 既存 + `HashMap`/`LinkedHashMap` 生成ケース
   - 前提: KSP-700, KSP-701
+  - **2026-09-15 実装メモ**: KSP-701 は完了済み。KSP-700 は未完了だが、KSP-704/KSP-1542 の前例に従い、個別の Map shell を先行移行した。着手時点で `Map`/`MutableMap`/`HashMap` は既に bundled Kotlin source 化済みで、issue の「新設」は stale だった。
+    1. `HeaderHelpers+SyntheticMapStubs.swift` の到達不能な Map HOF 合成登録（`forEach`/`map`/`mapNotNull`/`mapValues`/`mapKeys`/`filter*`/`count`/`any`/`all`/`none`/`plus`/`minus`/`flatMap`/`maxByOrNull`/`minByOrNull`）を削除した。`MapHOF.kt`/`MapLookupAndTransform.kt` の source-backed extension と重複しており、`bundledIndex.contains(...)` の無条件 return で到達不能だったためである。`Map.Entry` の `component1`/`component2` と `MutableEntry.setValue` の同様の dead 登録も削除した。
+    2. `Map.isEmpty`/`Map.get` を `Map/Map.kt`、`MutableMap.remove`/`clear` を `MutableMap.kt` の `@KsSymbolName` 付き宣言へ移した。Map の `size`/`keys`/`values`/`entries` は property への link-name 注釈が未対応のため Swift residual として残し、`MutableMap.put`（throwing ABI の伝播確認が必要）と `putAll`（意図的な member/extension overlap whitelist）は従来登録を維持した。`Map.Entry`/`MutableEntry` の interface shell も bundled source 側に対応宣言がないため残置した。
+    3. `LinkedHashMap` の typealias を `CollectionAliases.kt` から本家準拠の `LinkedHashMap.kt` へ分離した。HashMap/LinkedHashMap の alias 方向を kotlin-native と一致させる concrete-class 化は `CollectionLiteralLoweringPass` の再設計を伴うため、§13-8 の構造逸脱台帳に follow-up として記録した。
+    4. 着手時の `rg -o '@_cdecl\("kk_map[a-zA-Z0-9_]*"\)' Sources/Runtime` は3件（`size`/`is_empty`/`to_string`）で、すべて `__kk_` へ降格した。HOF の public map cdecl は着手時から存在しなかった。RuntimeABI、Lowering、KIR、テスト期待値も同じ link 名へ追従した。
+    5. 検証: `swift build` green。MapAsSourceMigrationTests、MapInterfaceSourceMigrationTests、MutableMapInterfaceSourceMigrationTests、MutableMapEntrySourceMigrationTests、MapHOFLoweringRoutingTests、RuntimeABIExternalLinkValidationTests、ABIMismatchRuntimeExportParityTests、CodegenBackendMapHOFTests の計26テスト green。新規 `linkedhashmap_constructors.kt` を含む map/mutable_map/hashmap/linkedhashmap 関連60ケースの `diff_kotlinc.sh` は `total=59 failed=0 passed=59 skipped=1`（`ksp687_map_not_null.kt` の既存 `SKIP-DIFF` のみ）。全 Swift suite、全 Golden、全 diff ケースは未実行。
+    6. `Scripts/loc_report.sh`: `header_helpers_synthetic_total_lines` 30121→29531（-590）、`kk_literal_count` 6071→6023（-48）、`kk_cdecl_count` 831→828（-3）、`__kk_cdecl_count` 847→850（+3）、`kir_lowering_todo_fixme_count` は0で不変。公開 `kk_map_*` cdecl の降格に伴う hidden bridge 3件の増加であり、その他の残留数を悪化させていない。
 
 - [~] KSP-704: Set shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticSetStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSetStubs.swift`
