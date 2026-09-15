@@ -97,18 +97,25 @@ private let mapEntryRuntimeTypeID: Int64 = {
 
 private let comparableRuntimeTypeID: Int64 = runtimeStableNominalTypeID(fqName: "kotlin.Comparable")
 
-private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64) = {
+private let mapRuntimeTypeIDs: (map: Int64, mutableMap: Int64, hashMap: Int64, linkedHashMap: Int64) = {
     let mapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.Map")
     let mutableMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.MutableMap")
     let hashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.HashMap")
+    // KUU-556: LinkedHashMap is a real HashMap subclass (`LinkedHashMap.kt`),
+    // matching the diff oracle (kotlinc-jvm: java.util.LinkedHashMap extends
+    // java.util.HashMap) -- unlike hashSetRuntimeTypeID/linkedHashSetRuntimeTypeID,
+    // which are still siblings under Set (docs/stdlib-pipeline.md §13-8).
+    let linkedHashMapID = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashMap")
     runtimeRegisterTypeEdge(childTypeID: mutableMapID, parentTypeID: mapID)
     runtimeRegisterTypeEdge(childTypeID: hashMapID, parentTypeID: mutableMapID)
-    return (mapID, mutableMapID, hashMapID)
+    runtimeRegisterTypeEdge(childTypeID: linkedHashMapID, parentTypeID: hashMapID)
+    return (mapID, mutableMapID, hashMapID, linkedHashMapID)
 }()
 
 let mapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.map
 let mutableMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.mutableMap
 let hashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.hashMap
+let linkedHashMapRuntimeTypeID: Int64 = mapRuntimeTypeIDs.linkedHashMap
 
 private let runtimeCollectionSizeInterfaceTypeID = runtimeStableNominalTypeID(
     fqName: "kotlin.collections.Collection"
