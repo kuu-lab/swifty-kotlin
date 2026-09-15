@@ -483,14 +483,8 @@ public extension RuntimeABISpec {
         abiParitySpec("kk_native_alloc_bytes", parameters: [
             p("byteCount", .intptr),
         ]),
-        abiParitySpec("__kk_normalization_form_nfc",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfd",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfkc",
-            isThrowing: false),
-        abiParitySpec("__kk_normalization_form_nfkd",
-            isThrowing: false),
+        // KSP-717: __kk_normalization_form_nfc/nfd/nfkc/nfkd removed. Their
+        // tag values are plain Kotlin constants now (StringNormalize.kt).
         abiParitySpec("kk_pin_object", parameters: [
             p("objectRaw", .intptr),
         ]),
@@ -539,13 +533,19 @@ public extension RuntimeABISpec {
         ]),
         // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
         // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
+        // KSP-717: both bridges are plain (non-throwing) flat-string helpers
+        // in RuntimeStringStdlib.swift (no outThrown parameter) — explicit
+        // isThrowing: false overrides abiParitySpec's throwing-by-default,
+        // matching the real Swift signature (found via
+        // RuntimeABIExternalLinkValidationTests once these gained a Kotlin
+        // `@KsSymbolName` declaration in StringNormalize.kt).
         abiParitySpec("__kk_string_isNormalized_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
             p("receiverByteCount", .intptr),
             p("receiverHash", .intptr),
             p("formTagRaw", .intptr),
-        ]),
+        ], isThrowing: false),
         abiParitySpec("__kk_string_normalize_flat", parameters: [
             p("receiverData", .nullableConstUInt8Pointer),
             p("receiverLength", .intptr),
@@ -555,7 +555,7 @@ public extension RuntimeABISpec {
             p("outLength", .nullableIntptrPointer),
             p("outByteCount", .nullableIntptrPointer),
             p("outHash", .nullableIntptrPointer),
-        ], returnType: .nullableUInt8Pointer),
+        ], returnType: .nullableUInt8Pointer, isThrowing: false),
         abiParitySpec("__kk_string_toBooleanStrictOrNull_flat", parameters: [
             p("data", .nullableConstUInt8Pointer),
             p("length", .intptr),

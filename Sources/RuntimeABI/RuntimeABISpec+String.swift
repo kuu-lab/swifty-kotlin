@@ -494,7 +494,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_new_flat",
+            name: "__kk_locale_new_flat",
             parameters: [
                 RuntimeABIParameter(name: "identifierData", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "identifierLength", type: .intptr),
@@ -506,7 +506,7 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_locale_new_language_country_flat",
+            name: "__kk_locale_new_language_country_flat",
             parameters: [
                 RuntimeABIParameter(name: "languageData", type: .nullableConstUInt8Pointer),
                 RuntimeABIParameter(name: "languageLength", type: .intptr),

@@ -414,13 +414,15 @@
   - diff: `range_progression.kt` 新規 + `range_basic.kt`/`range_until.kt` 既存
   - 前提: KSP-451, KSP-456, KSP-708, KSP-709
 
-- [ ] KSP-717: `String` synthetic stub 残余（CharSequence / Appendable / String basics / Locale / normalize / number-to-string）を Kotlin 化し `HeaderHelpers+SyntheticStringStubs.swift` を削除する
-  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringStubs.swift`
-  - 実装先: `Sources/CompilerCore/Stdlib/kotlin/text/` 新設 `CharSequence.kt`/`Appendable.kt`/`StringBasics.kt`/`StringLocale.kt`/`StringNormalize.kt`/`StringNumberConversions.kt`（既存 `String*.kt` 群活用）
-  - 削除/降格 kk_*: `kk_string_length`, `kk_int_toString_radix`, `kk_locale_new_*`, `__kk_string_builder_append_*`, `__kk_lowercase_locale`, `__kk_uppercase_locale`, `__kk_string_compareTo_locale`, `__kk_string_normalize_flat`, `__kk_string_isNormalized_flat` 等（`RuntimeString*.swift`。着手時 `rg 'kk_(string_length|int_toString|locale_new|lowercase|uppercase|string_compareTo|string_normalize|string_isNormalized)[a-zA-Z0-9_]*' Sources/Runtime` / `rg '__kk_(lowercase|uppercase|normalize|isNormalized|string_builder_append)[a-zA-Z0-9_]*' Sources/Runtime` で再固定）
+- [ ] KSP-717 残余: `String` synthetic stub の Core/Query/Encoding/Format 分を Kotlin 化し `HeaderHelpers+SyntheticStringStubs.swift` を削除する
+  - **2026-09-15 更新（KUU-523 PR）**: CharSequence/Appendable は KSP-724/KSP-711 で既に完了済みだったと判明。本 PR で Locale（`java/util/Locale.kt` 新設）・lowercase/uppercase/compareTo(locale)・normalize/isNormalized + `NormalizationForm`/`NormalizationForms`・codePointCount・`Int`/`Long.toString(radix)`（pure Kotlin 化、`kk_int_toString_radix` 削除）を完了。残るのは以下: `HeaderHelpers+SyntheticStringCoreStubs.swift`（`String.get`/`compareTo`/`intern`）・`HeaderHelpers+SyntheticStringQueryStubs.swift`（`equals`/`__kk_string_split*`/`__kk_string_first|last|single*`/`getOrNull`）・`HeaderHelpers+SyntheticStringFormatStubs.swift`（`String.format`/`Companion.format`/`CASE_INSENSITIVE_ORDER`/`concat`/`plus`）。`HeaderHelpers+SyntheticStringEncodingStubs.swift` の `String` class shell + `CharSequence` supertype 設定は「String はコンパイラ/ランタイム特別扱いのため意図的に残置」とコメントあり、削除対象ではない可能性が高い（要再確認）。オーケストレータ本体はこれらを呼び続けるため今回は削除できていない。
+  - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticStringCoreStubs.swift` / `HeaderHelpers+SyntheticStringQueryStubs.swift` / `HeaderHelpers+SyntheticStringFormatStubs.swift`（+ 空になり次第 `HeaderHelpers+SyntheticStringStubs.swift` 自体）
+  - 実装先: 既存 `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`（get/compareTo/intern）・`StringQuery.kt` 系（equals/split/first-last-single）・`StringFormat.kt` 新設 or 既存活用（format/plus/concat/CASE_INSENSITIVE_ORDER）
+  - 削除/降格 kk_*: `kk_string_get_flat`, `kk_string_compareTo_member`, `kk_string_intern`, `kk_string_equals_flat`, `__kk_string_split*`, `__kk_string_first|last|single*_flat`, `__kk_string_getOrNull_flat`, `__kk_string_format_flat`, `__kk_string_format_locale_flat`, `kk_string_concat_flat`, `kk_string_plus`, `kk_string_case_insensitive_order` 等（着手時に `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticString{Core,Query,Format}Stubs.swift` を直接読んで再列挙する）
   - 手順: T
-  - diff: `string_*.kt` 既存拡張 + `charsequence_*.kt`/`locale_*.kt`/`normalize_*.kt` 新規
-  - 前提: KSP-406, KSP-407, KSP-408, KSP-409, KSP-410, KSP-411, KSP-624, KSP-710, KSP-711
+  - diff: 既存 `string_*.kt` 拡張
+  - 前提: KSP-406, KSP-407, KSP-408, KSP-409, KSP-410, KSP-411, KSP-624, KSP-710, KSP-711（すべて完了済み）
+  - 既知の罠（KUU-523 で発見・別途 KUU-545 に起票）: bundled Kotlin source にインターフェース型（`CharSequence`/`Iterable<T>`/`Collection<T>` 等）をレシーバに取る `external fun` 拡張関数を追加すると、そのインターフェースの**既存の**itable ディスパッチが実行時に壊れる（`KSWIFTK-RUNTIME-0001`）。ブリッジは必ず「インターフェース型を通常引数に取るトップレベル `external fun`」+ 「それを呼ぶ非external拡張関数」の2段構成にすること（`StringBasics.kt` の `codePointCount` 実装を参照）
 
 #### bucket (b) 未起票追補 第2弾（2026-08-16）
 

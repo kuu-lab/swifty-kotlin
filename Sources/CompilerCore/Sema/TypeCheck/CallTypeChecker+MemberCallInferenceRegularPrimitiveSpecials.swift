@@ -222,9 +222,12 @@ extension CallTypeChecker {
         // KSP-642: Int/Long rotateLeft / rotateRight resolve through the bundled Kotlin
         // declarations in `Stdlib/kotlin/Numbers.kt`, so no special inference is needed.
 
-        // Primitive member function: Int/Long/Byte/Short.toString() / toString(radix: Int) → String (EXPR-003)
+        // Primitive member function: Int/Long/Byte/Short.toString() → String
+        // (STDLIB-306). Int/Long.toString(radix: Int) is bundled Kotlin source
+        // (Stdlib/kotlin/text/StringNumberConversions.kt, KSP-717) and resolves
+        // through normal extension-function overload resolution below instead.
         if interner.resolve(calleeName) == "toString",
-           args.count <= 1
+           args.isEmpty
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))
             let longType = sema.types.make(.primitive(.long, .nonNull))
@@ -235,11 +238,9 @@ extension CallTypeChecker {
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
             if receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == byteType || receiverForCheck == shortType {
-                if args.isEmpty || argTypes[0] == intType {
-                    let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
-                    sema.bindings.bindExprType(id, type: finalType)
-                    return finalType
-                }
+                let finalType = safeCall ? sema.types.makeNullable(stringType) : stringType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
             }
         }
 
