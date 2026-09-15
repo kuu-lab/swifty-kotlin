@@ -3098,7 +3098,7 @@
     - `kotlin.text.onEach` — fun onEach(Function1): #A  -- `final inline fun <#A: kotlin/CharSequence> (#A).kotlin.text/onEach(kotlin/Function1<kotlin/Char, kotlin/Unit>): #A`
     - `kotlin.text.onEachIndexed` — fun onEachIndexed(Function2): #A  -- `final inline fun <#A: kotlin/CharSequence> (#A).kotlin.text/onEachIndexed(kotlin/Function2<kotlin/Int, kotlin/Char, kotlin/Unit>): #A`
 
-- [~] KSP-1366: kotlin.text.CharSequence.associate-family の実装・focused検証済み（8 件、全体G待ち）
+- [x] KSP-1366: kotlin.text.CharSequence.associate-family の実装・focused検証済み（8 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `associate`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3114,6 +3114,8 @@
     - `kotlin.text.associateTo` — fun CharSequence.associateTo(, Function1): #C  -- `final inline fun <#A: kotlin/Any?, #B: kotlin/Any?, #C: kotlin.collections/MutableMap<in #A, in #B>> (kotlin/CharSequence).kotlin.text/associateTo(#C, kotlin/Function1<kotlin/Char, kotlin/Pair<#A, #B>>): #C`
     - `kotlin.text.associateWith` — fun CharSequence.associateWith(Function1): Map  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/associateWith(kotlin/Function1<kotlin/Char, #A>): kotlin.collections/Map<kotlin/Char, #A>`
     - `kotlin.text.associateWithTo` — fun CharSequence.associateWithTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableMap<in kotlin/Char, in #A>> (kotlin/CharSequence).kotlin.text/associateWithTo(#B, kotlin/Function1<kotlin/Char, #A>): #B`
+  - 完了根拠（2026-09-15 再確認）: `StringHOF.kt` に 8 overloads の source-backed 実装があり、CharSequence の indexed dispatch、重複キーの後勝ち、destination 返却、標準 map capacity を保持している。実装・Sema golden・diff fixture は PR #6719（2026-09-09 マージ済み）で現 HEAD の祖先に取り込まれている。対象 overload に専用の `__kk_*` / `kk_*` runtime bridge、synthetic stub、RuntimeABISpec entry、CallTypeChecker / CallLowerer の name-string 特例は存在しない。
+  - 検証（2026-09-15）: `swift build --disable-sandbox`、対象 Sema golden の `GoldenHarnessWorker` 出力と committed `.golden` の完全一致、`DIFF_REQUIRE_JDK21=0 DIFF_PARALLEL=0 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_associate.kt`（1/1 PASS）、`CharSequenceElementSourceMigrationTests`（2/2 PASS）、Runtime ABI 検証（4/4 PASS）、`bash Scripts/check_todo_ids.sh`、`git diff --check` が pass。全体 Golden / 全 diff は AGENTS.md の最小スコープに従い再実行していない。
 
 - [x] KSP-1368: kotlin.text.CharSequence.common-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `common`
