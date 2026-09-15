@@ -236,13 +236,16 @@ struct SourceBackedCallPreservationPolicyTests {
     /// `indexOfLast`, `containsAll`) that had no downstream rewrite,
     /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names,
     /// RF-LOWER-CALL-012 `maxByOrNull` / `minByOrNull` (their only rewrite, the
-    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them), and
+    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them),
     /// RF-LOWER-CALL-008 the eight List transform/filter names in
-    /// `listTransformDestinationAndOrphanNamesAreGone` below.
+    /// `listTransformDestinationAndOrphanNamesAreGone` below, and
+    /// RF-LOWER-CALL-013 `copyOf` / `copyOfRange` (no Lowering rewrite has
+    /// checked either name since KSP-1516; confirmed via a full-tree grep, not
+    /// just the deleted array-conversion rewrite files).
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 53, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 51, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// RF-LOWER-CALL-008 dropped the eight names whose only role in either
@@ -309,24 +312,22 @@ struct SourceBackedCallPreservationPolicyTests {
         // downstream rewrite, so naming them here would not compile.
     }
 
-    /// The array-conversion asymmetry the old code left unsaid: the direct path
-    /// keys on a tracked array *expression* and includes `size`/`toList`, while
-    /// the virtual path keys on the receiver's static *type* and has neither —
-    /// `toList` is reached there through `virtualOnlyAggregateNames` instead.
+    /// RF-LOWER-CALL-013: `directArrayConversionNames` now holds only `size`
+    /// and `toList` — the array-literal-tracked direct-call side of the
+    /// asymmetry `arrayConversionSetsDifferBetweenDirectAndVirtualCalls`
+    /// used to describe. `sliceArray`/`reversedArray`/`asList`/`toTypedArray`
+    /// and their `virtualArrayConversionNames` counterpart are gone: no
+    /// Lowering rewrite has checked those names since KSP-1516 (and their
+    /// lookup-table properties were deleted with the two rewrite files that
+    /// used to read them), so protecting them here guarded nothing.
+    /// `toList` keeps reaching the virtual side through
+    /// `virtualOnlyAggregateNames` instead of an array-specific set, since it
+    /// is also the Range/progression `toList` consumer.
     @Test
-    func arrayConversionSetsDifferBetweenDirectAndVirtualCalls() {
+    func directArrayConversionNamesAreSizeAndToListOnly() {
         let (policy, lookup, _) = Self.makePolicy()
-        #expect(policy.directArrayConversionNames.contains(lookup.sizeName))
-        #expect(policy.directArrayConversionNames.contains(lookup.toListName))
-        #expect(!policy.virtualArrayConversionNames.contains(lookup.sizeName))
-        #expect(!policy.virtualArrayConversionNames.contains(lookup.toListName))
+        #expect(policy.directArrayConversionNames == [lookup.sizeName, lookup.toListName])
         #expect(policy.virtualOnlyAggregateNames.contains(lookup.toListName))
-        #expect(
-            policy.virtualArrayConversionNames == [
-                lookup.sliceArrayName, lookup.reversedArrayName,
-                lookup.asListName, lookup.toTypedArrayName,
-            ]
-        )
     }
 
     // MARK: - direct-call decisions
@@ -502,10 +503,13 @@ struct SourceBackedCallPreservationPolicyTests {
         )
     }
 
-    /// Every array class the branches accept, including the unsigned arrays and
-    /// generic `Array`.
+    /// Every array class the `size` branch accepts, including the unsigned
+    /// arrays and generic `Array`. RF-LOWER-CALL-013 removed
+    /// `virtualArrayConversionNames` (the array-conversion-member branch that
+    /// used to share `arrayReceiverTypeNames` with `size`), so `size` is now
+    /// this set's only consumer.
     @Test
-    func virtualArrayConversionAcceptsEveryArrayReceiverClass() {
+    func virtualSizeAcceptsEveryArrayReceiverClass() {
         let (policy, lookup, _) = Self.makePolicy()
         let expected: Set<String> = [
             "IntArray", "LongArray", "ShortArray", "ByteArray",
@@ -516,11 +520,11 @@ struct SourceBackedCallPreservationPolicyTests {
         for className in expected {
             #expect(
                 policy.preservesVirtualCall(
-                    callee: lookup.asListName,
+                    callee: lookup.sizeName,
                     resolution: .sourceBacked,
                     receiverArrayClassName: { className }
                 ),
-                "\(className).asList must keep its Kotlin declaration"
+                "\(className).size must keep its Kotlin declaration"
             )
         }
     }

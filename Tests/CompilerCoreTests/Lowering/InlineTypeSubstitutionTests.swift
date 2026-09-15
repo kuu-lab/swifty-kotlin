@@ -1,152 +1,217 @@
 #if canImport(Testing)
 @testable import CompilerCore
+import Foundation
 import Testing
 
 struct InlineTypeSubstitutionTests {
     @Test
-    func testBuildCollectsNestedGenericNullableFunctionReceiverAndReturnTypes() throws {
+    func substitutesNestedNullableGenericAndFunctionReceiverTypesForImportedInline() throws {
+        let interner = StringInterner()
+        let arena = KIRArena()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let sema = SemaModule(
-            symbols: symbols,
-            types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
+        let bindings = BindingTable()
+        let diagnostics = DiagnosticEngine()
+
+        let package = interner.intern("inlineSubstitution")
+        let inlineName = interner.intern("importedInline")
+        let inlineSymbol = symbols.define(
+            kind: .function,
+            name: inlineName,
+            fqName: [package, inlineName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.inlineFunction, .importedLibrary]
         )
-        let inlineSymbol = SymbolID(rawValue: 1)
-        let parameterSymbol = SymbolID(rawValue: 2)
-        let typeParameterT = SymbolID(rawValue: 3)
-        let typeParameterU = SymbolID(rawValue: 4)
-        let typeParameterV = SymbolID(rawValue: 5)
-        let listSymbol = SymbolID(rawValue: 6)
+        let typeParameterSymbols = ["T", "U", "V"].map { name in
+            let internedName = interner.intern(name)
+            return symbols.define(
+                kind: .typeParameter,
+                name: internedName,
+                fqName: [package, inlineName, internedName],
+                declSite: nil,
+                visibility: .private
+            )
+        }
+        let tType = types.make(.typeParam(TypeParamType(symbol: typeParameterSymbols[0])))
+        let nullableTType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbols[0],
+            nullability: .nullable
+        )))
+        let nullableUType = types.make(.typeParam(TypeParamType(
+            symbol: typeParameterSymbols[1],
+            nullability: .nullable
+        )))
+        let vType = types.make(.typeParam(TypeParamType(symbol: typeParameterSymbols[2])))
 
-        let nullableT = types.make(.typeParam(TypeParamType(symbol: typeParameterT, nullability: .nullable)))
-        let u = types.make(.typeParam(TypeParamType(symbol: typeParameterU)))
-        let v = types.make(.typeParam(TypeParamType(symbol: typeParameterV)))
-        let expectedList = types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.invariant(u)],
+        let boxSymbol = symbols.define(
+            kind: .class,
+            name: interner.intern("Box"),
+            fqName: [package, interner.intern("Box")],
+            declSite: nil,
+            visibility: .public
+        )
+        let expectedBoxType = types.make(.classType(ClassType(
+            classSymbol: boxSymbol,
+            args: [.invariant(nullableTType)],
             nullability: .nullable
         )))
-        let expectedFunction = types.make(.functionType(FunctionType(
-            receiver: nullableT,
-            params: [expectedList],
-            returnType: v,
+        let actualBoxType = types.make(.classType(ClassType(
+            classSymbol: boxSymbol,
+            args: [.invariant(types.stringType)],
             nullability: .nullable
         )))
 
-        let nullableString = types.make(.stringStruct(.nullable))
-        let intType = types.make(.primitive(.int, .nonNull))
-        let nullableListOfInt = types.make(.classType(ClassType(
-            classSymbol: listSymbol,
-            args: [.invariant(intType)],
+        let expectedFunctionType = types.make(.functionType(FunctionType(
+            receiver: nullableUType,
+            params: [vType],
+            returnType: nullableUType,
             nullability: .nullable
         )))
-        let longType = types.make(.primitive(.long, .nonNull))
-        let actualFunction = types.make(.functionType(FunctionType(
-            receiver: nullableString,
-            params: [nullableListOfInt],
-            returnType: longType,
+        let actualFunctionType = types.make(.functionType(FunctionType(
+            receiver: types.intType,
+            params: [types.stringType],
+            returnType: types.intType,
             nullability: .nullable
         )))
+
         symbols.setFunctionSignature(
             FunctionSignature(
-                parameterTypes: [expectedFunction],
-                returnType: v,
-                valueParameterSymbols: [parameterSymbol],
-                typeParameterSymbols: [typeParameterT, typeParameterU, typeParameterV]
+                parameterTypes: [expectedBoxType, expectedFunctionType],
+                returnType: expectedFunctionType,
+                typeParameterSymbols: typeParameterSymbols
             ),
             for: inlineSymbol
         )
 
-        let arena = KIRArena()
-        let argument = arena.appendTemporary(type: actualFunction)
+        let boxArgument = arena.appendTemporary(type: actualBoxType)
+        let functionArgument = arena.appendTemporary(type: actualFunctionType)
         let inlineTarget = KIRFunction(
             symbol: inlineSymbol,
-            name: InternedString(rawValue: 0),
-            params: [KIRParameter(symbol: parameterSymbol, type: expectedFunction)],
-            returnType: v,
+            name: inlineName,
+            params: [
+                KIRParameter(symbol: SymbolID(rawValue: 100), type: expectedBoxType),
+                KIRParameter(symbol: SymbolID(rawValue: 101), type: expectedFunctionType),
+            ],
+            returnType: expectedFunctionType,
             body: [],
             isSuspend: false,
             isInline: true
         )
         let module = KIRModule(files: [], arena: arena)
+        let sema = makeSemaModule(
+            symbols: symbols,
+            types: types,
+            bindings: bindings,
+            diagnostics: diagnostics
+        ).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InlineTypeSubstitution",
+            interner: interner,
+            sema: sema,
+            diagnostics: diagnostics
+        )
 
         let substitution = try #require(
-            InlineTypeSubstitution.buildInlineTypeSubstitution(
+            InlineTypeSubstitution.build(
                 inlineTarget: inlineTarget,
-                arguments: [argument],
+                arguments: [boxArgument, functionArgument],
                 module: module,
-                sema: sema
+                ctx: ctx
             )
         )
-        let tVariable = try #require(substitution.typeVarBySymbol[typeParameterT])
-        let uVariable = try #require(substitution.typeVarBySymbol[typeParameterU])
-        #expect(substitution.substitution[tVariable] == nullableString)
-        #expect(substitution.substitution[uVariable] == intType)
 
-        let vVariable = try #require(substitution.typeVarBySymbol[typeParameterV])
-        #expect(substitution.substitution[vVariable] == longType)
+        let expectedConcreteBox = types.make(.classType(ClassType(
+            classSymbol: boxSymbol,
+            args: [.invariant(types.makeNullable(types.stringType))],
+            nullability: .nullable
+        )))
+        #expect(substitution.applying(to: expectedBoxType, in: ctx) == expectedConcreteBox)
+        #expect(substitution.applying(to: tType, in: ctx) == types.stringType)
 
-        let substituted = try #require(
-            InlineTypeSubstitution.substituteInlineType(
-                expectedFunction,
-                using: substitution,
-                sema: sema
-            )
-        )
-        guard case let .functionType(result) = types.kind(of: substituted) else {
-            Issue.record("Expected a substituted function type")
-            return
-        }
-        #expect(result.nullability == .nullable)
-        #expect(result.receiver == nullableString)
-        #expect(result.params == [nullableListOfInt])
-        #expect(result.returnType == longType)
+        let expectedConcreteFunction = types.make(.functionType(FunctionType(
+            receiver: types.makeNullable(types.intType),
+            params: [types.stringType],
+            returnType: types.makeNullable(types.intType),
+            nullability: .nullable
+        )))
+        #expect(substitution.applying(to: expectedFunctionType, in: ctx) == expectedConcreteFunction)
+        #expect(substitution.soleSubstitutedType == nil)
+        #expect(substitution.substitution.count == 3)
     }
 
     @Test
-    func testBuildTypeParamTokenValuesMapsReifiedTypeParametersToHiddenArguments() throws {
+    func buildsReifiedTokenValuesFromImportedSignatureIndices() throws {
+        let interner = StringInterner()
         let symbols = SymbolTable()
         let types = TypeSystem()
-        let typeParameterT = SymbolID(rawValue: 1)
-        let typeParameterU = SymbolID(rawValue: 2)
-        let inlineSymbol = SymbolID(rawValue: 3)
+        let diagnostics = DiagnosticEngine()
+        let package = interner.intern("inlineTokens")
+        let inlineName = interner.intern("tokenized")
+        let inlineSymbol = symbols.define(
+            kind: .function,
+            name: inlineName,
+            fqName: [package, inlineName],
+            declSite: nil,
+            visibility: .public,
+            flags: [.inlineFunction, .importedLibrary]
+        )
+        let typeParameterSymbols = ["T", "U"].map { name in
+            let internedName = interner.intern(name)
+            return symbols.define(
+                kind: .typeParameter,
+                name: internedName,
+                fqName: [package, inlineName, internedName],
+                declSite: nil,
+                visibility: .private
+            )
+        }
         symbols.setFunctionSignature(
             FunctionSignature(
                 parameterTypes: [],
                 returnType: types.unitType,
-                typeParameterSymbols: [typeParameterT, typeParameterU],
-                reifiedTypeParameterIndices: [1]
+                typeParameterSymbols: typeParameterSymbols,
+                reifiedTypeParameterIndices: [0, 1, 99]
             ),
             for: inlineSymbol
         )
-        let sema = SemaModule(
+        let sema = makeSemaModule(
             symbols: symbols,
             types: types,
-            bindings: BindingTable(),
-            diagnostics: DiagnosticEngine()
+            diagnostics: diagnostics
+        ).ctx
+        let ctx = makeKIRContext(
+            moduleName: "InlineReifiedTokens",
+            interner: interner,
+            sema: sema,
+            diagnostics: diagnostics
         )
-        let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterU)
-        let tokenValue = KIRExprID(rawValue: 42)
-        let inlineTarget = KIRFunction(
+        let hiddenT = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbols[0])
+        let hiddenU = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParameterSymbols[1])
+        let tokenT = KIRExprID(rawValue: 10)
+        let tokenU = KIRExprID(rawValue: 11)
+        let target = KIRFunction(
             symbol: inlineSymbol,
-            name: InternedString(rawValue: 0),
-            params: [KIRParameter(symbol: tokenSymbol, type: types.anyType)],
+            name: inlineName,
+            params: [
+                KIRParameter(symbol: hiddenU, type: types.anyType),
+                KIRParameter(symbol: hiddenT, type: types.anyType),
+            ],
             returnType: types.unitType,
             body: [],
             isSuspend: false,
             isInline: true
         )
 
-        let values = InlineTypeSubstitution.buildTypeParamTokenValues(
-            inlineTarget: inlineTarget,
-            parameterValues: [tokenSymbol: tokenValue],
-            sema: sema
+        let values = InlineReifiedTypeTokens.buildTypeParamTokenValues(
+            inlineTarget: target,
+            parameterValues: [hiddenT: tokenT, hiddenU: tokenU],
+            ctx: ctx
         )
 
-        #expect(values == [typeParameterU: tokenValue])
-        #expect(values[typeParameterT] == nil)
+        #expect(values[typeParameterSymbols[0]] == tokenT)
+        #expect(values[typeParameterSymbols[1]] == tokenU)
+        #expect(values.count == 2)
     }
 }
 #endif

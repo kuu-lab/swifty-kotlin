@@ -725,11 +725,7 @@ final class InlineLoweringPass: LoweringPass {
             guard case let .functionType(functionType) = types.kind(of: parameter.type) else {
                 continue
             }
-            return InlineTypeSubstitution.substituteInlineType(
-                functionType.returnType,
-                using: typeSubstitution,
-                sema: ctx.sema
-            )
+            return typeSubstitution?.applying(to: functionType.returnType, in: ctx) ?? functionType.returnType
         }
         return nil
     }
@@ -914,31 +910,26 @@ final class InlineLoweringPass: LoweringPass {
 
         let parameterValues = Dictionary(uniqueKeysWithValues: zip(inlineTarget.params.map(\.symbol), arguments))
 
-        let typeParamTokenValues = InlineTypeSubstitution.buildTypeParamTokenValues(
+        let typeParamTokenValues = InlineReifiedTypeTokens.buildTypeParamTokenValues(
             inlineTarget: inlineTarget,
             parameterValues: parameterValues,
-            sema: ctx.sema
+            ctx: ctx
         )
-        let inlineTypeSubstitution = InlineTypeSubstitution.buildInlineTypeSubstitution(
+        let inlineTypeSubstitution = InlineTypeSubstitution.build(
             inlineTarget: inlineTarget,
             arguments: arguments,
             module: module,
-            sema: ctx.sema
+            ctx: ctx
         )
-        // Keep type substitution outside `InlineExprCloning`: cloning only
-        // needs a callback, while this helper owns generic and reified state.
+        // Keep expression cloning independent from the type-substitution
+        // mapping by passing only the operation it needs.
         func substituteType(_ type: TypeID?) -> TypeID? {
-            InlineTypeSubstitution.substituteInlineType(
-                type,
-                using: inlineTypeSubstitution,
-                sema: ctx.sema
-            )
+            inlineTypeSubstitution?.applying(to: type, in: ctx) ?? type
         }
-        let substitutedInlineReturnType = InlineTypeSubstitution.substituteInlineType(
-            inlineTarget.returnType,
-            using: inlineTypeSubstitution,
-            sema: ctx.sema
-        )
+        let substitutedInlineReturnType = inlineTypeSubstitution?.applying(
+            to: inlineTarget.returnType,
+            in: ctx
+        ) ?? inlineTarget.returnType
 
         // Build a set of parameter symbols that have function types so we can
         // detect calls to lambda parameters inside the inline body.
@@ -1252,11 +1243,7 @@ final class InlineLoweringPass: LoweringPass {
                    let substitutedSeedType: TypeID? = {
                        if let seedType = module.arena.exprType(seed),
                           case .typeParam = types.kind(of: seedType),
-                          let substituted = InlineTypeSubstitution.substituteInlineType(
-                              seedType,
-                              using: inlineTypeSubstitution,
-                              sema: ctx.sema
-                          ),
+                          let substituted = inlineTypeSubstitution?.applying(to: seedType, in: ctx),
                           substituted != seedType
                        {
                            return substituted
@@ -1266,9 +1253,7 @@ final class InlineLoweringPass: LoweringPass {
                        // branch. `generateSequence` has one type parameter, so
                        // its inline substitution is still an unambiguous source
                        // of the concrete seed type in that representation.
-                       guard let inlineTypeSubstitution,
-                             inlineTypeSubstitution.substitution.count == 1,
-                             let substituted = inlineTypeSubstitution.substitution.values.first
+                       guard let substituted = inlineTypeSubstitution?.soleSubstitutedType
                        else {
                            return nil
                        }

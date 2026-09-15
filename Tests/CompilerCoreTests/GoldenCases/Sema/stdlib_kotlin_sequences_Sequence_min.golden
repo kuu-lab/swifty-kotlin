@@ -1,0 +1,80 @@
+symbol fq=__local_0.doubles[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Double>
+symbol fq=__local_1.minOfDouble[kind=local] kind=local vis=private flags=_ type=Double
+symbol fq=__local_2.minOfOrNullDouble[kind=local] kind=local vis=private flags=_ type=Double?
+symbol fq=__local_3.floats[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<Float>
+symbol fq=__local_4.minOfFloat[kind=local] kind=local vis=private flags=_ type=Float
+symbol fq=__local_5.minOfOrNullFloat[kind=local] kind=local vis=private flags=_ type=Float?
+symbol fq=__local_6.words[kind=local] kind=local vis=private flags=_ type=kotlin.sequences.Sequence<String>
+symbol fq=__local_7.cmp[kind=local] kind=local vis=private flags=_ type=kotlin.Comparator<Int>
+symbol fq=__local_8.minOfWith[kind=local] kind=local vis=private flags=_ type=Int
+symbol fq=__local_9.minOfWithOrNull[kind=local] kind=local vis=private flags=_ type=Int?
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_sequences_Sequence_min package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@2:48 double(3.0) type=Double
+expr e@2:53 double(1.0) type=Double
+expr e@2:58 double(4.0) type=Double
+expr e@2:37 call callee=e@2:37#1 args=[_:e@2:48,_:e@2:53,_:e@2:58] type=kotlin.sequences.Sequence<Double> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Double]
+expr e@2:5 localDecl doubles mutable=0 type=Sequence<Double> init=e@2:37 type=Unit ref=__local_0.doubles[kind=local]
+expr e@3:31 name(doubles) type=kotlin.sequences.Sequence<Double> ref=__local_0.doubles[kind=local]
+expr e@3:47 name(it) type=Double ref=s-0
+expr e@3:45 lambda params=[] body=e@3:47 label=minOf type=(Double) -> Any
+expr e@3:31#1 memberCall recv=e@3:31 callee=minOf args=[_:e@3:45] type=Double call=kotlin.collections.minOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Double,Double]
+expr e@3:5 localDecl minOfDouble mutable=0 type=Double init=e@3:31#1 type=Unit ref=__local_1.minOfDouble[kind=local]
+expr e@4:38 name(doubles) type=kotlin.sequences.Sequence<Double> ref=__local_0.doubles[kind=local]
+expr e@4:60 name(it) type=Double ref=s-1
+expr e@4:58 lambda params=[] body=e@4:60 label=minOfOrNull type=(Double) -> Any
+expr e@4:38#1 memberCall recv=e@4:38 callee=minOfOrNull args=[_:e@4:58] type=Double? call=kotlin.collections.minOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Double,Double]
+expr e@4:5 localDecl minOfOrNullDouble mutable=0 type=Double? init=e@4:38#1 type=Unit ref=__local_2.minOfOrNullDouble[kind=local]
+expr e@6:46 float(3.0) type=Float
+expr e@6:52 float(1.0) type=Float
+expr e@6:58 float(4.0) type=Float
+expr e@6:35 call callee=e@6:35#1 args=[_:e@6:46,_:e@6:52,_:e@6:58] type=kotlin.sequences.Sequence<Float> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[Float]
+expr e@6:5 localDecl floats mutable=0 type=Sequence<Float> init=e@6:35 type=Unit ref=__local_3.floats[kind=local]
+expr e@7:29 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_3.floats[kind=local]
+expr e@7:44 name(it) type=Float ref=s-2
+expr e@7:42 lambda params=[] body=e@7:44 label=minOf type=(Float) -> Any
+expr e@7:29#1 memberCall recv=e@7:29 callee=minOf args=[_:e@7:42] type=Float call=kotlin.collections.minOf[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
+expr e@7:5 localDecl minOfFloat mutable=0 type=Float init=e@7:29#1 type=Unit ref=__local_4.minOfFloat[kind=local]
+expr e@8:36 name(floats) type=kotlin.sequences.Sequence<Float> ref=__local_3.floats[kind=local]
+expr e@8:57 name(it) type=Float ref=s-3
+expr e@8:55 lambda params=[] body=e@8:57 label=minOfOrNull type=(Float) -> Any
+expr e@8:36#1 memberCall recv=e@8:36 callee=minOfOrNull args=[_:e@8:55] type=Float? call=kotlin.collections.minOfOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=fn{p=T0;ret=T1};gen=2] targs=[Float,Float]
+expr e@8:5 localDecl minOfOrNullFloat mutable=0 type=Float? init=e@8:36#1 type=Unit ref=__local_5.minOfOrNullFloat[kind=local]
+expr e@10:46 string(aaa) type=String
+expr e@10:53 string(b) type=String
+expr e@10:58 string(cc) type=String
+expr e@10:35 call callee=e@10:35#1 args=[_:e@10:46,_:e@10:53,_:e@10:58] type=kotlin.sequences.Sequence<String> call=kotlin.sequences.sequenceOf[kind=fun;params=*T0;gen=1] targs=[String]
+expr e@10:5 localDecl words mutable=0 type=Sequence<String> init=e@10:35 type=Unit ref=__local_6.words[kind=local]
+expr e@11:41 name(a) type=Int ref=s-4
+expr e@11:45 name(b) type=Int ref=s-5
+expr e@11:41#1 binary(subtract) lhs=e@11:41 rhs=e@11:45 type=Int
+expr e@11:31 lambda params=[a,b] body=e@11:41#1 label=Comparator type=kotlin.Comparator<Int>
+expr e@11:15 call callee=e@11:15#1 args=[_:e@11:31] type=kotlin.Comparator<Int>
+expr e@11:5 localDecl cmp mutable=0 type=_ init=e@11:15 type=Unit ref=__local_7.cmp[kind=local]
+expr e@12:26 name(words) type=kotlin.sequences.Sequence<String> ref=__local_6.words[kind=local]
+expr e@12:42 name(cmp) type=kotlin.Comparator<Int> ref=__local_7.cmp[kind=local]
+expr e@12:49 name(it) type=String ref=s-6
+expr e@12:49#1 memberCall recv=e@12:49 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@12:47 lambda params=[] body=e@12:49#1 label=minOfWith type=(String) -> Int
+expr e@12:26#1 memberCall recv=e@12:26 callee=minOfWith args=[_:e@12:42,_:e@12:47] type=Int call=kotlin.collections.minOfWith[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
+expr e@12:5 localDecl minOfWith mutable=0 type=Int init=e@12:26#1 type=Unit ref=__local_8.minOfWith[kind=local]
+expr e@13:33 name(words) type=kotlin.sequences.Sequence<String> ref=__local_6.words[kind=local]
+expr e@13:55 name(cmp) type=kotlin.Comparator<Int> ref=__local_7.cmp[kind=local]
+expr e@13:62 name(it) type=String ref=s-7
+expr e@13:62#1 memberCall recv=e@13:62 callee=length args=[] type=Int call=kotlin.length.$get[kind=fun;recv=String;params=]
+expr e@13:60 lambda params=[] body=e@13:62#1 label=minOfWithOrNull type=(String) -> Int
+expr e@13:33#1 memberCall recv=e@13:33 callee=minOfWithOrNull args=[_:e@13:55,_:e@13:60] type=Int? call=kotlin.collections.minOfWithOrNull[kind=fun;recv=kotlin.sequences.Sequence<T0>;params=kotlin.Comparator<in T1>,fn{p=T0;ret=T1};gen=2] targs=[String,Int]
+expr e@13:5 localDecl minOfWithOrNull mutable=0 type=Int? init=e@13:33#1 type=Unit ref=__local_9.minOfWithOrNull[kind=local]
+expr e@15:13 name(minOfDouble) type=Double ref=__local_1.minOfDouble[kind=local]
+expr e@15:5 call callee=e@15:5#1 args=[_:e@15:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@16:13 name(minOfOrNullDouble) type=Double? ref=__local_2.minOfOrNullDouble[kind=local]
+expr e@16:5 call callee=e@16:5#1 args=[_:e@16:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@17:13 name(minOfFloat) type=Float ref=__local_4.minOfFloat[kind=local]
+expr e@17:5 call callee=e@17:5#1 args=[_:e@17:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@18:13 name(minOfOrNullFloat) type=Float? ref=__local_5.minOfOrNullFloat[kind=local]
+expr e@18:5 call callee=e@18:5#1 args=[_:e@18:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@19:13 name(minOfWith) type=Int ref=__local_8.minOfWith[kind=local]
+expr e@19:5 call callee=e@19:5#1 args=[_:e@19:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@20:13 name(minOfWithOrNull) type=Int? ref=__local_9.minOfWithOrNull[kind=local]
+expr e@20:5 call callee=e@20:5#1 args=[_:e@20:13] type=Unit call=kotlin.io.println[kind=fun;params=Any?]

@@ -1,19 +1,24 @@
-/// Owns the type-argument mapping used while splicing an inline body into its
-/// caller.  The mapping is built from the callee's parameter/argument types,
-/// then delegated to `TypeSystem` for recursive substitution.  Reified token
-/// values are kept here as well because they are the other hidden arguments
-/// whose symbols are rewritten while the same body is being spliced.
+/// Captures the type arguments inferred for one inline expansion and applies
+/// them to the types carried by the copied KIR expressions.
+///
+/// The mapping is deliberately built from the inline function's declared
+/// parameter types and the call-site expression types. It does not invoke
+/// overload resolution or constraint solving; those responsibilities belong to
+/// Sema and have already completed before lowering starts.
 struct InlineTypeSubstitution {
     let substitution: [TypeVarID: TypeID]
     let typeVarBySymbol: [SymbolID: TypeVarID]
 
-    static func buildInlineTypeSubstitution(
+    /// Builds a substitution for `inlineTarget` from the concrete arguments at
+    /// the call site. Imported inline functions use the same path because their
+    /// materialized KIR carries the same parameter and function signature data.
+    static func build(
         inlineTarget: KIRFunction,
         arguments: [KIRExprID],
         module: KIRModule,
-        sema: SemaModule?
+        ctx: KIRContext
     ) -> InlineTypeSubstitution? {
-        guard let sema,
+        guard let sema = ctx.sema,
               let signature = sema.symbols.functionSignature(for: inlineTarget.symbol),
               !signature.typeParameterSymbols.isEmpty
         else {
@@ -26,7 +31,7 @@ struct InlineTypeSubstitution {
             guard let argumentType = module.arena.exprType(argument) else {
                 continue
             }
-            collectInlineTypeSubstitution(
+            collect(
                 expected: parameter.type,
                 actual: argumentType,
                 sema: sema,
@@ -37,51 +42,34 @@ struct InlineTypeSubstitution {
         guard !substitution.isEmpty else {
             return nil
         }
-        return InlineTypeSubstitution(substitution: substitution, typeVarBySymbol: typeVarBySymbol)
+        return InlineTypeSubstitution(
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
+        )
     }
 
-    static func buildTypeParamTokenValues(
-        inlineTarget: KIRFunction,
-        parameterValues: [SymbolID: KIRExprID],
-        sema: SemaModule?
-    ) -> [SymbolID: KIRExprID] {
-        guard let sema,
-              let signature = sema.symbols.functionSignature(for: inlineTarget.symbol),
-              !signature.reifiedTypeParameterIndices.isEmpty
-        else {
-            return [:]
-        }
-        var result: [SymbolID: KIRExprID] = [:]
-        for index in signature.reifiedTypeParameterIndices.sorted() {
-            guard index < signature.typeParameterSymbols.count else { continue }
-            let typeParamSymbol = signature.typeParameterSymbols[index]
-            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
-            if let tokenArg = parameterValues[tokenSymbol] {
-                result[typeParamSymbol] = tokenArg
-            }
-        }
-        return result
-    }
-
-    static func substituteInlineType(
-        _ type: TypeID?,
-        using inlineTypeSubstitution: InlineTypeSubstitution?,
-        sema: SemaModule?
-    ) -> TypeID? {
-        guard let type,
-              let inlineTypeSubstitution,
-              let sema
-        else {
+    /// Applies this expansion's substitution to an optional KIR type.
+    func applying(to type: TypeID?, in ctx: KIRContext) -> TypeID? {
+        guard let type, let sema = ctx.sema else {
             return type
         }
         return sema.types.substituteTypeParameters(
             in: type,
-            substitution: inlineTypeSubstitution.substitution,
-            typeVarBySymbol: inlineTypeSubstitution.typeVarBySymbol
+            substitution: substitution,
+            typeVarBySymbol: typeVarBySymbol
         )
     }
 
-    private static func collectInlineTypeSubstitution(
+    /// Returns the concrete type when this is the unambiguous one-variable
+    /// substitution used by the nullable `generateSequence` bridge path.
+    var soleSubstitutedType: TypeID? {
+        guard substitution.count == 1 else {
+            return nil
+        }
+        return substitution.values.first
+    }
+
+    private static func collect(
         expected: TypeID,
         actual: TypeID,
         sema: SemaModule,
@@ -104,12 +92,12 @@ struct InlineTypeSubstitution {
                 return
             }
             for (expectedArg, actualArg) in zip(expectedClass.args, actualClass.args) {
-                guard let expectedInner = inlineTypeArgPayload(expectedArg),
-                      let actualInner = inlineTypeArgPayload(actualArg)
+                guard let expectedInner = typeArgumentPayload(expectedArg),
+                      let actualInner = typeArgumentPayload(actualArg)
                 else {
                     continue
                 }
-                collectInlineTypeSubstitution(
+                collect(
                     expected: expectedInner,
                     actual: actualInner,
                     sema: sema,
@@ -125,7 +113,7 @@ struct InlineTypeSubstitution {
             if let expectedReceiver = expectedFunction.receiver,
                let actualReceiver = actualFunction.receiver
             {
-                collectInlineTypeSubstitution(
+                collect(
                     expected: expectedReceiver,
                     actual: actualReceiver,
                     sema: sema,
@@ -134,7 +122,7 @@ struct InlineTypeSubstitution {
                 )
             }
             for (expectedParam, actualParam) in zip(expectedFunction.params, actualFunction.params) {
-                collectInlineTypeSubstitution(
+                collect(
                     expected: expectedParam,
                     actual: actualParam,
                     sema: sema,
@@ -142,7 +130,7 @@ struct InlineTypeSubstitution {
                     substitution: &substitution
                 )
             }
-            collectInlineTypeSubstitution(
+            collect(
                 expected: expectedFunction.returnType,
                 actual: actualFunction.returnType,
                 sema: sema,
@@ -154,7 +142,7 @@ struct InlineTypeSubstitution {
             guard case let .kClassType(actualKClass) = sema.types.kind(of: sema.types.makeNonNullable(actual)) else {
                 return
             }
-            collectInlineTypeSubstitution(
+            collect(
                 expected: expectedKClass.argument,
                 actual: actualKClass.argument,
                 sema: sema,
@@ -167,12 +155,41 @@ struct InlineTypeSubstitution {
         }
     }
 
-    private static func inlineTypeArgPayload(_ arg: TypeArg) -> TypeID? {
+    private static func typeArgumentPayload(_ arg: TypeArg) -> TypeID? {
         switch arg {
         case let .invariant(type), let .out(type), let .in(type):
-            return type
+            type
         case .star:
-            return nil
+            nil
         }
+    }
+}
+
+/// Builds the hidden-argument bindings used when an inline body refers to a
+/// reified type parameter. Keeping this lookup separate from type substitution
+/// makes the token-symbol convention explicit and keeps token flow independent
+/// from type inference.
+enum InlineReifiedTypeTokens {
+    static func buildTypeParamTokenValues(
+        inlineTarget: KIRFunction,
+        parameterValues: [SymbolID: KIRExprID],
+        ctx: KIRContext
+    ) -> [SymbolID: KIRExprID] {
+        guard let sema = ctx.sema,
+              let sig = sema.symbols.functionSignature(for: inlineTarget.symbol),
+              !sig.reifiedTypeParameterIndices.isEmpty
+        else {
+            return [:]
+        }
+        var result: [SymbolID: KIRExprID] = [:]
+        for index in sig.reifiedTypeParameterIndices.sorted() {
+            guard index < sig.typeParameterSymbols.count else { continue }
+            let typeParamSymbol = sig.typeParameterSymbols[index]
+            let tokenSymbol = SyntheticSymbolScheme.reifiedTypeTokenSymbol(for: typeParamSymbol)
+            if let tokenArg = parameterValues[tokenSymbol] {
+                result[typeParamSymbol] = tokenArg
+            }
+        }
+        return result
     }
 }
