@@ -9,26 +9,20 @@ package kotlin.collections
 
 import kotlin.internal.KsSymbolName
 
-// KSP-700: `get` is source-backed. List runtime boxes do not self-register in
-// the itable, so the operator stays an external bridge declaration (same
-// pattern as Comparable.compareTo in ../Comparable.kt) rather than a plain
-// abstract member.
-//
-// `listIterator()`/`listIterator(index)` stay compiler residuals in
-// Sema/DataFlow/HeaderHelpers+SyntheticListResiduals.swift: they form a
-// covariant override pair with MutableList.listIterator() (returns
-// MutableListIterator<E>), and MutableList itself is still synthetic
-// (KSP-1503/KSP-705). Moving only the List half to source now would hit the
-// same precompiled-metadata re-typing gap as MutableIterable.iterator()
-// (BUG-200) until MutableList's own migration lands.
-//
-// `isEmpty()` also stays a compiler residual: its runtime bridge
-// (`kk_list_is_empty`) is referenced directly as a name-string constant by
-// two KIR lowering tables (CallLowerer+UnresolvedMemberCalls.swift,
-// CollectionLiteralLoweringPass+LookupTables+List.swift), independent of the
-// Sema member symbol, so it cannot be safely folded into Collection.isEmpty
-// inheritance without a dedicated audit of those call sites.
+// KSP-700: List's covariant nominal shell and directly bridged members are
+// source-backed here. The link names stay stable for the built-in list boxes;
+// the corresponding Swift registrations remain only as no-stdlib/precompiled
+// fallbacks.
 public interface List<out E> : Collection<E> {
     @KsSymbolName("__kk_list_get")
-    public external operator fun get(index: Int): E
+    public operator fun get(index: Int): E
+
+    @KsSymbolName("kk_list_is_empty")
+    public override fun isEmpty(): Boolean
+
+    @KsSymbolName("kk_list_iterator")
+    public fun listIterator(): ListIterator<E>
+
+    @KsSymbolName("kk_list_iterator_at")
+    public fun listIterator(index: Int): ListIterator<E>
 }
