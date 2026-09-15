@@ -353,13 +353,20 @@
   - diff: `map_*.kt` 既存 + `HashMap`/`LinkedHashMap` 生成ケース
   - 前提: KSP-700, KSP-701
 
-- [ ] KSP-704: Set shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticSetStubs.swift` を削除する
+- [~] KSP-704: Set shell / HOF を Kotlin 化し `HeaderHelpers+SyntheticSetStubs.swift` を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticSetStubs.swift`
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/collections/` 新設 `Set.kt`/`MutableSet.kt`/`HashSet.kt`/`LinkedHashSet.kt`（`SetHOF.kt` 既存から統合）
   - 削除/降格 kk_*: `__kk_mutable_set_*` 等 demoted bridges を活用。`kk_set_*` public があれば削除（着手時 `rg -o '@_cdecl\("kk_set[a-zA-Z0-9_]*"\)' Sources/Runtime`）
   - 手順: T
   - diff: `set_*.kt` 既存 + `HashSet`/`LinkedHashSet` 生成ケース
   - 前提: KSP-700, KSP-701
+  - **2026-09-14 実装メモ**: 着手時に前提を確認した。KSP-701 は完了済み（PR #5915/#5990）。KSP-700 は未着手だが、KSP-1542 の前例（前提未達のまま個別シェルを先行させて問題ない）に倣い着手した。`rg -o '@_cdecl\("kk_set[a-zA-Z0-9_]*"\)' Sources/Runtime` は空（public `kk_set_*` は既に存在せず、Runtime 側の変更は不要と確定）。
+    1. `Set.kt` を新設（`SetHOF.kt` から interface 宣言を分離）。`contains`/`isEmpty`/`iterator` を `@KsSymbolName`（`__kk_set_contains`/`__kk_set_is_empty`/`kk_list_iterator`）付きの body なし override として source 化し、対応する `HeaderHelpers+SyntheticSetStubs.swift` の `registerSetContainsMember`/`registerSetIsEmptyMember`/`registerSetIteratorMember`（3関数）を削除した。`size` は `.property` シンボルへの `@KsSymbolName` 適用を `HeaderHelpers.swift` の `registerAnnotations` が未対応（`.function`/`.constructor` のみ処理）なため、Swift 側 `registerSetSizeMember` を残置。
+    2. `MutableSet.kt` に `add`/`remove`/`clear`/`addAll`/`plusAssign`(2 overload)/`removeAll`/`minusAssign`(2 overload)/`retainAll` を同様に `@KsSymbolName` で追加し、対応する Swift 側 9 関数を削除する変更を一度試したが、**stdlib artifact のビルドが `LinkedHashSet`/`AbstractMutableMapKeys`（Map の keys view、AbstractMutableMap.kt）で `KSWIFTK-SEMA-ABSTRACT: must override abstract member` により失敗**した。原因: `MemberHeaderCollection.swift` の「interface のボディなしメンバは `external`/`@KsSymbolName` の有無に関わらず一律 `.abstractType` フラグが立つ」という仕様（`ArrayList`/`Comparable` 等の `external` 付き class メンバとは異なり、interface メンバには適用されない）。`LinkedHashSet`/`AbstractMutableMapKeys` はこれらのメンバをオーバーライドせず interface 側のランタイムブリッジをデフォルト実装として利用する設計のため、abstract 化すると両クラスとも壊れる。`HashSet` だけは `Inheritance.swift` の `validateAbstractOverridesForDecl` に FQName ハードコード例外があり影響を受けない。この発見を受けて `MutableSet.kt` の変更は差し戻し、Swift 側 9 関数（`registerMutableSetAddMember` 等）を復元した。
+    3. `HashSet`/`LinkedHashSet` を `CollectionAliases.kt` から本家準拠のファイル名 `HashSet.kt`/`LinkedHashSet.kt` へ分離（内容は無変更）。
+    4. **残**: `HeaderHelpers+SyntheticSetStubs.swift` は 976→843 行への縮小のみで削除には至らず。`MutableSet` の変異系メンバの Kotlin ソース化には「ボディなしだが abstract にならない interface メンバ」をこのコンパイラがサポートする新機能が必要（KSP-CAP 候補。`Comparable`/`AbstractIterator` の前例は全て abstract のままで問題ないケースのみで、今回のような「interface レベルのランタイムブリッジをデフォルト実装として複数の具象クラスが暗黙に共有する」ケースは初めて）。後続タスクとして起票を検討。
+    5. 動作確認: `swift build` green。`diff_kotlinc.sh` を Set/MutableSet 関連 29 ケース（`set_*.kt`/`mutable_set_*.kt`/`stdlib_kotlin_collections_*Set*.kt`/`bug196_linkedhashset_subclass.kt`/`collection_interface_set_backed_dispatch.kt`（KSP-1542 の BUG-166 回帰テスト）等）で実行し 29/29 PASS（初回に共有マシン負荷起因と見られるタイムアウトが8件出たが、負荷が下がった状態で再実行し全て PASS に転じたことを確認）。Golden Sema（`SWIFT_TEST_PARALLEL=0 bash Scripts/swift_test.sh --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden`）は91バッチ全件 green（共有マシン負荷で約75分要した）。全 Swift suite・全 Golden（Lexer/Parser/Diagnostics）・全 `diff_kotlinc.sh`（1425ケース）は未実行（CI に委ねる）。
+    6. `loc_report.sh`: `header_helpers_synthetic_total_lines` 33835→33702（-133、`HeaderHelpers+SyntheticSetStubs.swift` の縮小分）。`kk_literal_count` 6453→6451（-2）。`kk_cdecl_count`（932）・`__kk_cdecl_count`（837）は不変（Runtime 変更なしのため予定通り）。
 
 - [ ] KSP-705: MutableList / MutableCollection `addAll` 群を Kotlin 化し関連 stub を削除する
   - 対象スタブ: `Sources/CompilerCore/Sema/DataFlow/HeaderHelpers+SyntheticMutableListStubs.swift`（`addAll` 関連部分）, `HeaderHelpers+SyntheticMutableCollectionArrayAddAll.swift`, `HeaderHelpers+SyntheticMutableCollectionIterableAddAll.swift`, `HeaderHelpers+SyntheticMutableCollectionSequenceAddAll.swift`

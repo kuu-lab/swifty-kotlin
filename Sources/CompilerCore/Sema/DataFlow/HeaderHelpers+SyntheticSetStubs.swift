@@ -2,6 +2,21 @@
 /// Synthetic stdlib stubs split from the KSP-697 collection residual registry:
 /// Set<E> and MutableSet<E> interfaces with their member helpers.
 ///
+/// KSP-704: `Set.contains`/`isEmpty`/`iterator` are now source-backed with
+/// `@KsSymbolName` bridges in Stdlib/kotlin/collections/Set.kt (only
+/// `registerSetSizeMember` remains here — the annotation pipeline only wires
+/// up `.function`/`.constructor` symbols, not `.property`). MutableSet's
+/// mutation members (add/remove/clear/addAll/plusAssign/removeAll/
+/// minusAssign/retainAll) could not be migrated the same way: this compiler
+/// unconditionally flags a body-less interface member abstract regardless of
+/// `external`/`@KsSymbolName` (see MemberHeaderCollection.swift), which would
+/// force every concrete `MutableSet` implementer that relies on this
+/// interface-level bridge as its default implementation (`LinkedHashSet`,
+/// `AbstractMutableMapKeys`) to redundantly override every one of them. Only
+/// this Swift-side registration can express a body-less-but-non-abstract
+/// member today (see `HashSet`'s matching FQName exemption in
+/// `Inheritance.swift`'s `validateAbstractOverridesForDecl`).
+///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.
 extension DataFlowSemaPhase {
@@ -48,32 +63,14 @@ extension DataFlowSemaPhase {
         types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: setInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: setInterfaceSymbol, supertype: collectionInterfaceSymbol)
 
-        registerSetContainsMember(
-            symbols: symbols, types: types, interner: interner,
-            setFQName: setFQName,
-            setInterfaceSymbol: setInterfaceSymbol,
-            typeParamSymbol: typeParamSymbol,
-            typeParamType: typeParamType
-        )
-        registerSetIsEmptyMember(
-            symbols: symbols, types: types, interner: interner,
-            setFQName: setFQName,
-            setInterfaceSymbol: setInterfaceSymbol,
-            typeParamSymbol: typeParamSymbol,
-            typeParamType: typeParamType
-        )
+        // KSP-704: `contains`/`isEmpty`/`iterator` are now source-backed with
+        // `@KsSymbolName` bridges in Stdlib/kotlin/collections/Set.kt. `size`
+        // stays here because the annotation pipeline only wires up
+        // `.function`/`.constructor` symbols (see Set.kt's header comment).
         registerSetSizeMember(
             symbols: symbols, types: types, interner: interner,
             setFQName: setFQName,
             setInterfaceSymbol: setInterfaceSymbol
-        )
-        registerSetIteratorMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            setFQName: setFQName,
-            setInterfaceSymbol: setInterfaceSymbol,
-            typeParamSymbol: typeParamSymbol,
-            typeParamType: typeParamType
         )
         _ = registerSyntheticAbstractSetStub(
             symbols: symbols,
@@ -180,87 +177,6 @@ extension DataFlowSemaPhase {
         return abstractSetSymbol
     }
 
-    private func registerSetContainsMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        setFQName: [InternedString],
-        setInterfaceSymbol: SymbolID,
-        typeParamSymbol: SymbolID,
-        typeParamType: TypeID
-    ) {
-        let memberName = interner.intern("contains")
-        let memberFQName = setFQName + [memberName]
-        if let existing = symbols.lookup(fqName: memberFQName) {
-            symbols.insertFlags([.synthetic, .operatorFunction], for: existing)
-            return
-        }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("__kk_set_contains", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [typeParamType],
-                returnType: types.booleanType,
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    private func registerSetIsEmptyMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        setFQName: [InternedString],
-        setInterfaceSymbol: SymbolID,
-        typeParamSymbol: SymbolID,
-        typeParamType: TypeID
-    ) {
-        let memberName = interner.intern("isEmpty")
-        let memberFQName = setFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("__kk_set_is_empty", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: types.booleanType,
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
     private func registerSetSizeMember(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -282,55 +198,6 @@ extension DataFlowSemaPhase {
         symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
         symbols.setExternalLinkName("__kk_set_size", for: memberSymbol)
         symbols.setPropertyType(types.intType, for: memberSymbol)
-    }
-
-    private func registerSetIteratorMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        setFQName: [InternedString],
-        setInterfaceSymbol: SymbolID,
-        typeParamSymbol: SymbolID,
-        typeParamType: TypeID
-    ) {
-        let memberName = interner.intern("iterator")
-        let memberFQName = setFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-        guard let iteratorSymbol = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("Iterator")]
-        ) else { return }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: setInterfaceSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: iteratorSymbol,
-            args: [.out(typeParamType)],
-            nullability: .nonNull
-        )))
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(setInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_iterator", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [typeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
     }
 
     func registerSyntheticMutableSetStub(
