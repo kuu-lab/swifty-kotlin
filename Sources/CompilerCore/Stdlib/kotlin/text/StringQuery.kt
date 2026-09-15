@@ -3,6 +3,31 @@ package kotlin.text
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.InvocationKind
 import kotlin.contracts.contract
+import kotlin.internal.KsSymbolName
+
+// Source-level private bridges for the String-only fast paths. The public
+// declarations below remain bundled Kotlin APIs; keeping these links private
+// prevents the compiler from manufacturing public synthetic members for them.
+@KsSymbolName("__kk_string_first_flat")
+private external fun String.__kk_string_first(): Char
+
+@KsSymbolName("__kk_string_last_flat")
+private external fun String.__kk_string_last(): Char
+
+@KsSymbolName("__kk_string_single_flat")
+private external fun String.__kk_string_single(): Char
+
+@KsSymbolName("__kk_string_firstOrNull_flat")
+private external fun String.__kk_string_firstOrNull(): Char?
+
+@KsSymbolName("__kk_string_lastOrNull_flat")
+private external fun String.__kk_string_lastOrNull(): Char?
+
+@KsSymbolName("__kk_string_singleOrNull_flat")
+private external fun String.__kk_string_singleOrNull(): Char?
+
+@KsSymbolName("__kk_string_getOrNull_flat")
+private external fun String.__kk_string_getOrNull(index: Int): Char?
 
 // KSP-402
 // String query helpers migrated from Swift runtime entry points.

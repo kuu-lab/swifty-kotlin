@@ -201,8 +201,8 @@ public func kk_char_sequence_subSequence(
     return runtimeMakeStringRaw(String(decoding: codeUnits[startIndex ..< endIndex], as: UTF16.self))
 }
 
-@_cdecl("kk_string_get_flat")
-public func kk_string_get_flat(
+@_cdecl("__kk_string_get_flat")
+public func __kk_string_get_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -222,8 +222,8 @@ public func kk_string_get_flat(
     return Int(codeUnits[indexRaw])
 }
 
-@_cdecl("kk_string_getOrNull_flat")
-public func kk_string_getOrNull_flat(
+@_cdecl("__kk_string_getOrNull_flat")
+public func __kk_string_getOrNull_flat(
     _ data: UnsafePointer<UInt8>?,
     _ length: Int,
     _ byteCount: Int,
@@ -237,8 +237,8 @@ public func kk_string_getOrNull_flat(
     return Int(codeUnits[indexRaw])
 }
 
-@_cdecl("kk_string_compareTo_member")
-public func kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
+@_cdecl("__kk_string_compareTo_member")
+public func __kk_string_compareTo_member(_ strRaw: Int, _ otherRaw: Int) -> Int {
     let lhs = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     let rhs = runtimeStringFromRawOrPanic(otherRaw, caller: #function)
     return runtimeCompareStrings(lhs, rhs)

@@ -183,7 +183,7 @@ struct BuildKIRRegressionTests {
         let body = try findKIRFunctionBody(named: "main0", in: module, interner: ctx.interner)
         let callees = extractCallees(from: body, interner: ctx.interner)
 
-        #expect(callees.contains("kk_string_concat_flat"))
+        #expect(callees.contains("__kk_string_concat_flat"))
         #expect(!(body.contains { instruction in
             guard case let .binary(op, _, _, _) = instruction else {
                 return false

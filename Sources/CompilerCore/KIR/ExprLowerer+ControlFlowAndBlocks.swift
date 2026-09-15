@@ -126,7 +126,7 @@ extension ExprLowerer {
                 let concatResult = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [accumulated, partIDs[i]],
                     result: concatResult,
                     canThrow: false,
@@ -1937,7 +1937,7 @@ extension ExprLowerer {
                 let resultID = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: resultID,
                     canThrow: false,

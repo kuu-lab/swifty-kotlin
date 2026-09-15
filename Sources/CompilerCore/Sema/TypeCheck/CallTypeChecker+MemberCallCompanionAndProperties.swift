@@ -110,7 +110,7 @@ extension CallTypeChecker {
             return nil
         }
 
-        let resolved = ctx.resolver.resolveCall(
+        var resolved = ctx.resolver.resolveCall(
             candidates: getterCandidates,
             call: CallExpr(
                 range: range,
@@ -121,6 +121,25 @@ extension CallTypeChecker {
             implicitReceiverType: receiverType,
             ctx: ctx.semaCtx
         )
+        // A property can be used where a contravariant generic type is
+        // expected (for example Comparator<String> passed to sortedWith's
+        // Comparator<in String> parameter).  The callable resolver's
+        // expected-return-type check is stricter than Kotlin's variance rule;
+        // retry without that contextual constraint after receiver filtering so
+        // the unique source-backed getter still resolves.
+        if resolved.chosenCallee == nil, expectedType != nil {
+            resolved = ctx.resolver.resolveCall(
+                candidates: getterCandidates,
+                call: CallExpr(
+                    range: range,
+                    calleeName: calleeName,
+                    args: []
+                ),
+                expectedType: nil,
+                implicitReceiverType: receiverType,
+                ctx: ctx.semaCtx
+            )
+        }
         if resolved.diagnostic != nil {
             return nil
         }

@@ -132,7 +132,19 @@ extension CallLowerer {
             guard sema.types.isSubtype(nonNullReceiverType, sema.types.stringType) else {
                 return false
             }
-            let sourceBackedStringMemberNames: Set<String> = ["split", "replace", "replaceFirst"]
+            // Keep all String APIs whose public declaration now lives in the
+            // bundled Kotlin source on their source body. The table-driven
+            // runtime path below is retained for compatibility-only builds
+            // where the source declaration is absent.
+            let sourceBackedStringMemberNames: Set<String> = [
+                "split", "replace", "replaceFirst",
+                "get", "compareTo", "intern", "equals",
+                "first", "firstOrNull", "last", "lastOrNull",
+                "single", "singleOrNull", "getOrNull",
+                "format", "concat", "plus",
+                "lowercase", "uppercase", "normalize", "isNormalized",
+                "codePointCount",
+            ]
             return sourceBackedStringMemberNames.contains(interner.resolve(calleeName))
         }()
         // KSP-435: the generic Iterable/Collection surface is bundled Kotlin source
@@ -1080,7 +1092,8 @@ extension CallLowerer {
             }
         }
 
-        if let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
+        if !isSourceBackedMemberCall,
+           let tableDrivenStringMember = tryLowerTableDrivenStringMemberCall(
             receiverExpr: receiverExpr,
             calleeName: calleeName,
             args: args,
@@ -1203,9 +1216,9 @@ extension CallLowerer {
                 if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
                     let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
                     instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
-                        : calleeStr == "last" ? "kk_string_last_flat"
-                        : "kk_string_single_flat"
+                    let kkName = calleeStr == "first" ? "__kk_string_first_flat"
+                        : calleeStr == "last" ? "__kk_string_last_flat"
+                        : "__kk_string_single_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
@@ -1217,9 +1230,9 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
-                        : "kk_string_singleOrNull_flat"
+                    let kkName = calleeStr == "firstOrNull" ? "__kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
+                        : "__kk_string_singleOrNull_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
@@ -1233,9 +1246,9 @@ extension CallLowerer {
                 if calleeStr == "first" || calleeStr == "last" || calleeStr == "single" {
                     let thrownExpr = arena.appendExpr(.intLiteral(0), type: sema.types.intType)
                     instructions.append(.constValue(result: thrownExpr, value: .intLiteral(0)))
-                    let kkName = calleeStr == "first" ? "kk_string_first_flat"
-                        : calleeStr == "last" ? "kk_string_last_flat"
-                        : "kk_string_single_flat"
+                    let kkName = calleeStr == "first" ? "__kk_string_first_flat"
+                        : calleeStr == "last" ? "__kk_string_last_flat"
+                        : "__kk_string_single_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),
@@ -1247,9 +1260,9 @@ extension CallLowerer {
                     return result
                 }
                 if calleeStr == "firstOrNull" || calleeStr == "lastOrNull" || calleeStr == "singleOrNull" {
-                    let kkName = calleeStr == "firstOrNull" ? "kk_string_firstOrNull_flat"
-                        : calleeStr == "lastOrNull" ? "kk_string_lastOrNull_flat"
-                        : "kk_string_singleOrNull_flat"
+                    let kkName = calleeStr == "firstOrNull" ? "__kk_string_firstOrNull_flat"
+                        : calleeStr == "lastOrNull" ? "__kk_string_lastOrNull_flat"
+                        : "__kk_string_singleOrNull_flat"
                     instructions.append(.call(
                         symbol: nil,
                         callee: interner.intern(kkName),

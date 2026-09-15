@@ -178,7 +178,7 @@ struct CodegenBackendKotlinTextCaseAndComparisonEdgeCasesTests {
     // BUG-036/BUG-154: `String.CASE_INSENSITIVE_ORDER` is a companion `val` in
     // real Kotlin, so repeated reads must observe the same instance. It is now
     // backed by a module-init global (initialized once via
-    // `kk_string_case_insensitive_order()`); the runtime also caches the
+    // `__kk_string_case_insensitive_order()`); the runtime also caches the
     // singleton handle, cleared on `kk_runtime_force_reset` for test isolation.
     @Test func testKotlinTextCaseInsensitiveOrderIsReferentiallyStable() throws {
         let source = """

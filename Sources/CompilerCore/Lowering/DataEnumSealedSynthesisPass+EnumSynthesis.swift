@@ -415,7 +415,7 @@ extension DataEnumSealedSynthesisPass {
             body.append(.constValue(result: entryNameExpr, value: .stringLiteral(entryNameStr)))
 
             let boxedCmpResult = module.arena.appendTemporary(type: sema.types.anyType)
-            let cmpCallee = interner.intern("kk_string_equals_flat")
+            let cmpCallee = interner.intern("__kk_string_equals_flat")
             body.append(.call(
                 symbol: nil,
                 callee: cmpCallee,
@@ -472,7 +472,7 @@ extension DataEnumSealedSynthesisPass {
         )
         body.append(.call(
             symbol: nil,
-            callee: interner.intern("kk_string_concat_flat"),
+            callee: interner.intern("__kk_string_concat_flat"),
             arguments: [prefixExpr, paramRef],
             result: qualifiedNameExpr,
             canThrow: false,

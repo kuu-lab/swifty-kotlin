@@ -278,7 +278,7 @@ extension NativeEmitter {
             return bindings.buildAShr(state.builder, lhs: widened, rhs: thirtyTwo, name: "\(name)_\(instructionIndex)")
         }
 
-        /// Emit a call to `kk_string_equals_flat` when at least one operand is a
+        /// Emit a call to `__kk_string_equals_flat` when at least one operand is a
         /// String aggregate. This is required for `==`/`!=` on generic `K` that
         /// is instantiated with `String`, because the inlined function body ends
         /// up comparing flat `{ i8*, i64, i64, i64 }` values and LLVM cannot
@@ -301,7 +301,7 @@ extension NativeEmitter {
                 state.typeLowering?.dataPointerType, state.int64Type, state.int64Type, state.int64Type,
             ]
             guard let equalsFunction = declareTypedExternalFunction(
-                named: "kk_string_equals_flat",
+                named: "__kk_string_equals_flat",
                 parameterTypes: parameterTypes,
                 returnType: state.int64Type
             ),
