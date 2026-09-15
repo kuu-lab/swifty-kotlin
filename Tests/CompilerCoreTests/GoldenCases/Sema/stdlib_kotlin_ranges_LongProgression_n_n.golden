@@ -1,0 +1,5 @@
+symbol fq=golden.sema.useLongProgressionCompanion[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Any
+file fstdlib_kotlin_ranges_LongProgression_n_n package=golden.sema
+  decl golden.sema.useLongProgressionCompanion[kind=fun;params=] fun useLongProgressionCompanion sym=golden.sema.useLongProgressionCompanion[kind=fun;params=]
+expr e@3:42 name(LongProgression) type=kotlin.ranges.LongProgression ref=kotlin.ranges.LongProgression[kind=class]
+expr e@3:42#1 memberCall recv=e@3:42 callee=Companion args=[] type=kotlin.ranges.LongProgression.Companion ref=kotlin.ranges.LongProgression.Companion[kind=obj]

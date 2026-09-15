@@ -2298,7 +2298,7 @@
     - `kotlin.ranges.contains` — fun ClosedRange.contains(Int): Boolean  -- `final fun (kotlin.ranges/ClosedRange<kotlin/Short>).kotlin.ranges/contains(kotlin/Int): kotlin/Boolean`
     - `kotlin.ranges.contains` — fun ClosedRange.contains(Long): Boolean  -- `final fun (kotlin.ranges/ClosedRange<kotlin/Short>).kotlin.ranges/contains(kotlin/Long): kotlin/Boolean`
 
-- [~] KSP-1284: kotlin.ranges.IntProgression の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1284: kotlin.ranges.IntProgression の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.ranges` / receiver `IntProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2310,9 +2310,9 @@
     - `kotlin.ranges.last` — fun IntProgression.last(): Int  -- `final fun (kotlin.ranges/IntProgression).kotlin.ranges/last(): kotlin/Int`
   - 実装（focused）: Kotlin 2.3.10 contract の no-argument `first()`/`last()` と空 progression の exact exception message を `RangeHOF.kt` に追加。`CallTypeChecker` の arity 0 source routing と progression property/function overlap guard を更新し、既存 synthetic property/bridge は保持。
   - 回帰（focused）: 専用 Sema test/Golden/diff fixture で source-backed binding、property/function distinction、正向き・負向き・empty・Int の min/max を固定。既存 CharProgression と IntProgression golden worker は無差分。
-  - 保留: 共通 G（全 Swift/全 Golden/全 diff）は未実行/pending のため Draft PR。親の head G も未実行。
+  - 完了根拠（KUU-453 棚卸しで判明）: TODO.md の `[~]` 表記のまま放置されていただけで、実装・golden・diff は既に master にマージ済み。`RangeHOF.kt:566` の `IntProgression.first()` / `:584` の `.last()`、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_IntProgression_first_last_n.kt`/`.golden`、diff `Scripts/diff_cases/stdlib_kotlin_ranges_IntProgression_first_last_n.kt` の実在を確認した。
 
-- [~] KSP-1286: kotlin.ranges.LongProgression の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1286: kotlin.ranges.LongProgression の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges` / receiver `LongProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2326,9 +2326,9 @@
     - `kotlin.ranges.lastOrNull` — fun LongProgression.lastOrNull(): Long  -- `final fun (kotlin.ranges/LongProgression).kotlin.ranges/lastOrNull(): kotlin/Long?`
   - 実装（focused）: Kotlin 2.3.10 contract の no-argument first/firstOrNull/last/lastOrNull と空 progression の exact exception message を `RangeHOF.kt` に追加。LongProgression receiver の source routing、legacy lowering 回避、runtime dispatch の source-backed guard を更新し、既存 synthetic property/bridge は保持。
   - 回帰（focused）: 専用 Sema test/Golden/diff fixture で source-backed binding、property/function distinction、正向き・負向き・empty・Long の min/max、firstOrNull/lastOrNull の null 結果を固定。LongProgression の既存 synthetic `step: Int` は KSP-1306/1307 の別契約として維持し、今回の4 APIの範囲外。
-  - 保留: 共通 G（全 Swift/全 Golden/全 diff）は未実行/pending のため Draft PR。親の head G も未実行。
+  - 完了根拠（KUU-453 棚卸しで判明）: TODO.md の `[~]` 表記のまま放置されていただけで、実装・golden・diff は既に master にマージ済み。`RangeHOF.kt:791`/`:798`/`:801`/`:808` の first/firstOrNull/last/lastOrNull、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_LongProgression_n.kt`/`.golden`、diff `Scripts/diff_cases/stdlib_kotlin_ranges_LongProgression_n.kt` の実在を確認した。
 
-- [~] KSP-1287: kotlin.ranges.LongRange の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1287: kotlin.ranges.LongRange の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.ranges` / receiver `LongRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2336,13 +2336,13 @@
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_ranges_LongRange_cross_contains_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_ranges_LongRange_cross_contains_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 実装済み（ゲート保留）: `RangeHOF.kt` に Byte/Int/Short の LongRange.contains を追加し、LongRange の direct/`in` 呼び出しを型付き source-backed overload へ routing。専用 Sema 3件（literal/typed overload priority controlsを含む）、LongRange Golden worker、LongRange 境界/empty diff（Kotlin 2.3.10）および IntRange 回帰 diff は PASS。
-  - 保留: master 再ベース後、KSP-1285 済みの IntRange routing と KSP-1292 の ULongRange 経路を維持したまま LongRange を追加。共有 `OpenEndRange` golden は LongRange overload 追加に合わせて更新する。
+  - 完了根拠（KUU-453 棚卸しで判明）: PR #6712（`88d7e53f0` "KSP-1287: add LongRange cross-type contains overloads"）で既に master にマージ済み。`RangeHOF.kt:663`/`:667`/`:671` の Byte/Int/Short overload、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_LongRange_cross_contains_n.kt`/`.golden`、diff 同名 `.kt` の実在を確認した。「保留」としていた共通ゲート G はこの集約 issue の方針変更により PR CI 側で確認する運用に変わったため、この観点でも完了扱いとする。
   - 未実装シンボル一覧:
     - `kotlin.ranges.contains` — fun LongRange.contains(Byte): Boolean  -- `final inline fun (kotlin.ranges/LongRange).kotlin.ranges/contains(kotlin/Byte): kotlin/Boolean`
     - `kotlin.ranges.contains` — fun LongRange.contains(Int): Boolean  -- `final inline fun (kotlin.ranges/LongRange).kotlin.ranges/contains(kotlin/Int): kotlin/Boolean`
     - `kotlin.ranges.contains` — fun LongRange.contains(Short): Boolean  -- `final inline fun (kotlin.ranges/LongRange).kotlin.ranges/contains(kotlin/Short): kotlin/Boolean`
 
-- [~] KSP-1289: kotlin.ranges.UIntProgression の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1289: kotlin.ranges.UIntProgression の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges` / receiver `UIntProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2355,8 +2355,9 @@
     - `kotlin.ranges.last` — fun UIntProgression.last(): UInt  -- `final fun (kotlin.ranges/UIntProgression).kotlin.ranges/last(): kotlin/UInt`
     - `kotlin.ranges.lastOrNull` — fun UIntProgression.lastOrNull(): UInt  -- `final fun (kotlin.ranges/UIntProgression).kotlin.ranges/lastOrNull(): kotlin/UInt?`
   - focused 実装/検証: Kotlin 2.3.10 の `@SinceKotlin("1.7")` 4 API、正向き・負向き・empty・UInt の min/max、property/function distinction、nullable 戻り値を固定。全 Swift/全 Golden/全 diff の共通 G は未実行のため Draft PR。
+  - 完了根拠（KUU-453 棚卸しで判明）: TODO.md の `[~]` 表記のまま放置されていただけで、実装・golden・diff は既に master にマージ済み。`RangeHOF.kt:1394`/`:1401`/`:1404`/`:1411` の first/firstOrNull/last/lastOrNull、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_UIntProgression_n.kt`/`.golden`、diff `Scripts/diff_cases/stdlib_kotlin_ranges_UIntProgression_n.kt` の実在を確認した。
 
-- [~] KSP-1291: kotlin.ranges.ULongProgression の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1291: kotlin.ranges.ULongProgression の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.ranges` / receiver `ULongProgression`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2369,8 +2370,9 @@
     - `kotlin.ranges.last` — fun ULongProgression.last(): ULong  -- `final fun (kotlin.ranges/ULongProgression).kotlin.ranges/last(): kotlin/ULong`
     - `kotlin.ranges.lastOrNull` — fun ULongProgression.lastOrNull(): ULong  -- `final fun (kotlin.ranges/ULongProgression).kotlin.ranges/lastOrNull(): kotlin/ULong?`
   - focused 実装/検証: Kotlin 2.3.10 の `@SinceKotlin("1.7")` 4 API、正向き・負向き・empty・ULong の min/max、property/function distinction、nullable 戻り値を固定。全 Swift/全 Golden/全 diff の共通 G は未実行のため Draft PR。
+  - 完了根拠（KUU-453 棚卸しで判明）: TODO.md の `[~]` 表記のまま放置されていただけで、実装・golden・diff は既に master にマージ済み。`RangeHOF.kt:1798`/`:1805`/`:1808`/`:1815` の first/firstOrNull/last/lastOrNull、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_ULongProgression_n.kt`/`.golden`、diff `Scripts/diff_cases/stdlib_kotlin_ranges_ULongProgression_n.kt` の実在を確認した。
 
-- [~] KSP-1292: kotlin.ranges.ULongRange の未実装 stdlib API を実装する（3 件）
+- [x] KSP-1292: kotlin.ranges.ULongRange の未実装 stdlib API を実装する（3 件）
   - 対象: `kotlin.ranges` / receiver `ULongRange`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2383,6 +2385,7 @@
     - `kotlin.ranges.contains` — fun ULongRange.contains(UShort): Boolean  -- `final fun (kotlin.ranges/ULongRange).kotlin.ranges/contains(kotlin/UShort): kotlin/Boolean`
 
   - focused根拠: Kotlin 2.3.10 `_URanges.kt` と同じ `@SinceKotlin("1.5")` source extension を `RangeHOF.kt` に追加し、各 unsigned 値を `toULong()` で既存の `ULongRange.contains(ULong)` へ widening する。専用 Sema/Golden fixture は named argument、`in`、直接 `contains`、通常の `ULong` overload、full/narrow/empty range と unsigned 境界を固定する。全 Swift/Golden/diff の変更 head G は未実行のため完了は保留する。
+  - 完了根拠（KUU-453 棚卸しで判明）: PR #6692（`8b187a3cd` "KSP-1285: Add IntRange cross-type contains overloads"、実際は ULongRange の cross-type contains も同PRで追加）で既に master にマージ済み。`RangeHOF.kt:1748`/`:1753`/`:1758` の UByte/UInt/UShort overload、golden `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_ranges_ULongRange_n.kt`/`.golden`、diff `Scripts/diff_cases/stdlib_kotlin_ranges_ULongRange_n.kt` の実在を確認した。
 
 - [ ] KSP-1293: kotlin.ranges.CharProgression top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.CharProgression` / top-level
@@ -2502,7 +2505,7 @@
   - 未実装シンボル一覧:
     - `kotlin.ranges.IntRange.Companion.EMPTY` — val Companion.EMPTY: IntRange  -- `final val EMPTY`
 
-- [ ] KSP-1305: kotlin.ranges.LongProgression top-level の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1305: kotlin.ranges.LongProgression top-level の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.ranges.LongProgression` / top-level
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/ranges/LongProgression/Stdlib.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2511,6 +2514,8 @@
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
   - 未実装シンボル一覧:
     - `kotlin.ranges.LongProgression.Companion` — object kotlin.ranges.LongProgression.Companion  -- `final object Companion {`
+  - 完了根拠: KSP-1300（IntProgression）と同一パターンで `Sources/CompilerCore/Stdlib/kotlin/ranges/LongProgression/Stdlib.kt` に `public open class LongProgression internal constructor(start: Long, endInclusive: Long, step: Long) : Iterable<Long> { public companion object {} }` を追加し、既存の synthetic Companion を `HeaderHelpers+LongProgressionSourceMigration.swift`（新規）の `reusableSyntheticLongProgressionSourceCompanionSymbol` 経由で reuse、`HeaderCollection.swift` の `shouldRestoreDeclSiteForReusableSyntheticSymbol` に `kotlin.ranges.LongProgression` を追加して declSite を復元。KSP-1306（受信メンバ: equals/first/hashCode/iterator/last/step/toString）と KSP-1307（Companion.fromClosedRange）は範囲外のまま synthetic を維持。
+  - 検証根拠: `RangeSyntheticMemberLinkTests.testLongProgressionCompanionIsSourceBacked`（新規）と既存 `LongProgressionHOFSourceMigrationTests` / `ULongProgressionHOFSourceMigrationTests` は PASS。golden `stdlib_kotlin_ranges_LongProgression_n_n.kt`/`.golden` は `GoldenHarnessWorker`（`KSWIFTK_GOLDEN_STDLIB_LIBRARY` 経由の artifact profile）で直接レンダリングし、`stdlib_kotlin_ranges_IntProgression_n_n.golden` と同型であることを確認。diff `Scripts/diff_cases/stdlib_kotlin_ranges_LongProgression_n_n.kt` は `bash Scripts/diff_kotlinc.sh` PASS。`bash Scripts/check_todo_ids.sh` pass。全 Golden / 全 diff_cases は共有環境の負荷が高く（`uptime` load average 65〜177）このタスクの変更範囲を超えるためローカルでは未実行、CI で確認する（本 issue の方針どおり）。
 
 - [ ] KSP-1306: kotlin.ranges.LongProgression.LongProgression の未実装 stdlib API を実装する（7 件）
   - 対象: `kotlin.ranges.LongProgression` / receiver `LongProgression`

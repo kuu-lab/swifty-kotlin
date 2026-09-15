@@ -1852,6 +1852,9 @@ extension DataFlowSemaPhase {
             // leave the bundled Kotlin declaration source-backed.
             || resolvedFQName == ["kotlin", "native", "runtime", "Debugging"]
             || resolvedFQName == ["kotlin", "ranges", "IntProgression"]
+            // KSP-1305: mirror the IntProgression staged source-shell treatment
+            // for LongProgression's nominal and Companion.
+            || resolvedFQName == ["kotlin", "ranges", "LongProgression"]
             || resolvedFQName == ["kotlin", "time", "Duration"]
             || resolvedFQName == ["kotlin", "time", "DurationUnit"]
             || resolvedFQName == ["kotlin", "native", "concurrent", "Future"]
