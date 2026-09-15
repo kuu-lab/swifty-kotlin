@@ -3105,7 +3105,7 @@
     - `kotlin.text.associateWith` — fun CharSequence.associateWith(Function1): Map  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/associateWith(kotlin/Function1<kotlin/Char, #A>): kotlin.collections/Map<kotlin/Char, #A>`
     - `kotlin.text.associateWithTo` — fun CharSequence.associateWithTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableMap<in kotlin/Char, in #A>> (kotlin/CharSequence).kotlin.text/associateWithTo(#B, kotlin/Function1<kotlin/Char, #A>): #B`
 
-- [~] KSP-1368: kotlin.text.CharSequence.common-family の未実装 stdlib API を実装する（2 件）
+- [x] KSP-1368: kotlin.text.CharSequence.common-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `common`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringComparison.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3117,7 +3117,7 @@
     - `kotlin.text.commonSuffixWith` — fun CharSequence.commonSuffixWith(CharSequence, Boolean): String  -- `final fun (kotlin/CharSequence).kotlin.text/commonSuffixWith(kotlin/CharSequence, kotlin/Boolean = ...): kotlin/String`
   - 完了根拠: `StringComparison.kt` に Kotlin 2.3.10 の `CharSequence` receiver overload を追加した。既存の `String` overload、`__kkCharsEqual` の二段 case-fold、String/CharSequence の indexed dispatch は保持し、サロゲート対を結果境界で分割しない専用 helper を同じ source family に限定した。Runtime ABI / synthetic bridge は追加していない。
   - 回帰: `stdlib_kotlin_text_CharSequence_common.kt` の Sema Golden と diff fixture で、静的 CharSequence の String/StringBuilder/custom receiver、空/全一致/部分一致、ignoreCase、非 ASCII、サロゲート境界を固定した。既存 `common_prefix_with` / `common_suffix_with` Golden は overload 番号だけ再生成した。
-  - 検証: `swift build --disable-sandbox` と専用 GoldenHarnessWorker probe、`check_todo_ids.sh`、`git diff --check` が pass。指定の `run_heavy.py` 経由専用 diff、Golden shard、全 Swift/Golden/all diff、Runtime ABI link 検証は共有2枠（base 全 Swift / 他 TODO の検証）待機中のため保留し、Draft として記録する。
+  - 検証: `swift build --disable-sandbox` と専用 GoldenHarnessWorker probe、`check_todo_ids.sh`、`git diff --check` が pass。指定の `run_heavy.py` 経由専用 diff、Golden shard、全 Swift/Golden/all diff、Runtime ABI link 検証は共有2枠（base 全 Swift / 他 TODO の検証）待機中のため保留し、Draft として記録する。2026-09-15 [x] 化: PR #6685（e9ead796b、2026-09-08 マージ済み）で実装・検証済みで現ブランチ HEAD の祖先。`gh pr checks 6685` で共通ゲート G 相当の全 19 ジョブ（Build debug/release、TODO ID 重複検査、CompilerCore/Smoke 6 shard、Backend/Runtime/CLI/LSP 4 shard、Repository Checks、kotlinc Diff 4 shard）が pass 済みであることを再確認し、上記の保留分は解消済み。
 
 - [~] KSP-1369: kotlin.text.CharSequence.contains-family の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `contains`
