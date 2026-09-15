@@ -3209,17 +3209,12 @@
     - `kotlin.text.foldRight` — fun CharSequence.foldRight(, Function2): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRight(#A, kotlin/Function2<kotlin/Char, #A, #A>): #A`
     - `kotlin.text.foldRightIndexed` — fun CharSequence.foldRightIndexed(, Function3): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRightIndexed(#A, kotlin/Function3<kotlin/Int, kotlin/Char, #A, #A>): #A`
 
-- [~] KSP-1377: kotlin.text.CharSequence.for-family の未実装 stdlib API を実装する（2 件）
-  - 実装中: Kotlin source の `forEach` / `forEachIndexed` と UTF-16、動的 `CharSequence` length/get、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
+- [x] KSP-1377: kotlin.text.CharSequence.for-family の未実装 stdlib API を実装する（2 件）
+  - **2026-09-16 完了確認**: `StringHOF.kt` の source-backed inline `forEach` / `forEachIndexed`、Sema source-binding テスト、Golden fixture、diff ケースは PR #6701（2026-09-12 merge）で既に master に着地済み。diff ケースは UTF-16 code unit、動的 `CharSequence` の length/get と mutation、callback throw、direct/safe/captured/named inline non-local return を固定している。
+  - bridge/stub 監査: CharSequence receiver の for-family に対応する `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリは存在せず、削除対象なし。`CallTypeChecker+*` / `CallLowerer+*` に残る `forEach` の name-string は Iterable/collection/range の汎用解決・source routing であり、本 API の旧 bridge 特例ではないため維持する。
+  - 検証（2026-09-16）: `swift build --disable-sandbox -Xswiftc -swift-version -Xswiftc 6` PASS。`CharSequenceForSourceMigrationTests` 2/2 PASS。`DIFF_REQUIRE_JDK21=0 JAVA_HOME=/opt/homebrew/opt/openjdk@17 DIFF_STDLIB_LIBRARY=.artifacts/diff_kotlinc/KSwiftKStdlib.kklib bash Scripts/diff_kotlinc.sh --no-parallel Scripts/diff_cases/stdlib_kotlin_text_CharSequence_for.kt` PASS。`bash Scripts/check_todo_ids.sh` PASS、`bash Scripts/validate_runtime_abi_links.sh --disable-sandbox --no-parallel -Xswiftc -swift-version -Xswiftc 6` 4/4 PASS。共通 G（全テスト / 全 Golden / 全 diff）はローカル実行せず、PR #6701 の CI 全ジョブ green（kotlinc Diff 4/4）を確認済み。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `for`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_for.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_for.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_for.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.text.forEach` — fun CharSequence.forEach(Function1): Unit  -- `final inline fun (kotlin/CharSequence).kotlin.text/forEach(kotlin/Function1<kotlin/Char, kotlin/Unit>)`
-    - `kotlin.text.forEachIndexed` — fun CharSequence.forEachIndexed(Function2): Unit  -- `final inline fun (kotlin/CharSequence).kotlin.text/forEachIndexed(kotlin/Function2<kotlin/Int, kotlin/Char, kotlin/Unit>)`
 
 - [~] KSP-1378: kotlin.text.CharSequence.get-family の未実装 stdlib API を実装する（2 件）
   - 実装中: CharSequence の getOrElse / getOrNull を Kotlin source に追加。#6690 の inline/member return 修正を基点とし、全体 G はこの PR head で未完了。
