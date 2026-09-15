@@ -427,7 +427,8 @@ extension CallLowerer {
             calleeName
         }
         if let objProp = tryLowerObjectMemberPropertyRead(
-            exprID, args: args, sema: sema, arena: arena, interner: interner,
+            exprID, receiverExpr: receiverExpr, args: args, ast: ast, sema: sema, arena: arena, interner: interner,
+            propertyConstantInitializers: propertyConstantInitializers,
             instructions: &instructions.instructions
         ) { return objProp }
         if let fqnTopLevelResult = tryLowerFQNTopLevelResolvedCall(

@@ -140,34 +140,8 @@ public func kk_string_reversed_flat(
     )
 }
 
-@_cdecl("kk_string_repeat_flat")
-public func kk_string_repeat_flat(
-    _ data: UnsafePointer<UInt8>?,
-    _ length: Int,
-    _ byteCount: Int,
-    _ hash: Int,
-    _ countRaw: Int,
-    _ outLength: UnsafeMutablePointer<Int>?,
-    _ outByteCount: UnsafeMutablePointer<Int>?,
-    _ outHash: UnsafeMutablePointer<Int>?,
-    _ outThrown: UnsafeMutablePointer<Int>?
-) -> UnsafeMutablePointer<UInt8>? {
-    outThrown?.pointee = 0
-    let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
-    guard countRaw >= 0 else {
-        runtimeSetThrown(
-            outThrown,
-            runtimeAllocateIllegalArgumentException(message: "Requested element count \(countRaw) is less than zero.")
-        )
-        return runtimeRegisterFlatString("", outLength: outLength, outByteCount: outByteCount, outHash: outHash)
-    }
-    return runtimeRegisterFlatString(
-        String(repeating: source, count: countRaw),
-        outLength: outLength,
-        outByteCount: outByteCount,
-        outHash: outHash
-    )
-}
+// KSP-1394: repeat is bundled Kotlin source (StringBasics.kt); its runtime
+// bridge was removed.
 @_cdecl("kk_string_first_flat")
 public func kk_string_first_flat(
     _ data: UnsafePointer<UInt8>?,

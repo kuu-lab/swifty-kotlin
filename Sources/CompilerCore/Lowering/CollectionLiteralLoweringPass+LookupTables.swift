@@ -173,20 +173,7 @@ struct CollectionLiteralLookupTables {
     var kkMapSizeName: InternedString { mapLookup.kkMapSizeName }
     var kkMapGetName: InternedString { mapLookup.kkMapGetName }
     var kkMapIsEmptyName: InternedString { mapLookup.kkMapIsEmptyName }
-    var kkMapForEachName: InternedString { mapLookup.kkMapForEachName }
-    var kkMapMapName: InternedString { mapLookup.kkMapMapName }
-    var kkMapFilterName: InternedString { mapLookup.kkMapFilterName }
-    var kkMapFilterKeysName: InternedString { mapLookup.kkMapFilterKeysName }
-    var kkMapFilterValuesName: InternedString { mapLookup.kkMapFilterValuesName }
-    var kkMapMapValuesName: InternedString { mapLookup.kkMapMapValuesName }
-    var kkMapMapKeysName: InternedString { mapLookup.kkMapMapKeysName }
     var kkMapCountName: InternedString { mapLookup.kkMapCountName }
-    var kkMapAnyName: InternedString { mapLookup.kkMapAnyName }
-    var kkMapAllName: InternedString { mapLookup.kkMapAllName }
-    var kkMapNoneName: InternedString { mapLookup.kkMapNoneName }
-    var kkMapFlatMapName: InternedString { mapLookup.kkMapFlatMapName }
-    var kkMapMaxByOrNullName: InternedString { mapLookup.kkMapMaxByOrNullName }
-    var kkMapMinByOrNullName: InternedString { mapLookup.kkMapMinByOrNullName }
     var kkMapToStringName: InternedString { mapLookup.kkMapToStringName }
     var kkMapIteratorName: InternedString { mapLookup.kkMapIteratorName }
     var kkMapIteratorHasNextName: InternedString { mapLookup.kkMapIteratorHasNextName }
@@ -370,9 +357,6 @@ struct CollectionLiteralLookupTables {
 
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
     var kkBufferedReaderUseLinesName: InternedString { fileIOLookup.kkBufferedReaderUseLinesName }
-    var kkPathUseLinesName: InternedString { fileIOLookup.kkPathUseLinesName }
-    var kkPathUseLinesDefaultName: InternedString { fileIOLookup.kkPathUseLinesDefaultName }
-    var kkPathWalkName: InternedString { fileIOLookup.kkPathWalkName }
 
     // MARK: - Common lookup names (see CollectionLiteralLoweringPass+LookupTables+Common.swift)
 
@@ -467,8 +451,6 @@ struct CollectionLiteralLookupTables {
     var maxName: InternedString { commonLookup.maxName }
     var maxOrNullName: InternedString { commonLookup.maxOrNullName }
     var minOrNullName: InternedString { commonLookup.minOrNullName }
-    var maxByOrNullName: InternedString { commonLookup.maxByOrNullName }
-    var minByOrNullName: InternedString { commonLookup.minByOrNullName }
     var dropName: InternedString { commonLookup.dropName }
     var reversedName: InternedString { commonLookup.reversedName }
     var asReversedName: InternedString { commonLookup.asReversedName }

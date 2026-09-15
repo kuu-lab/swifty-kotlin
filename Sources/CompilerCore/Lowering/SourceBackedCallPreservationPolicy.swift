@@ -100,11 +100,11 @@ struct SourceBackedCallPreservationPolicy {
             lookup.runningReduceIndexedName,
             lookup.reduceIndexedName,
             lookup.reduceIndexedOrNullName,
-            // `filter` stays for the Map receiver rewrite (see the KSP-421
-            // group below); `filterNot` / `filterIndexed` stay for their
+            // `filter` / `filterNot` / `filterIndexed` all stay for their
             // `+VirtualCallRewrite+Range.swift` Range/progression rewrites
-            // (RF-LOWER-CALL-008). `filterNotNull` has no such consumer on
-            // any receiver kind and was dropped by that same task.
+            // (RF-LOWER-CALL-008; see the KSP-421 group below for `filter`'s
+            // sibling `map`). `filterNotNull` has no such consumer on any
+            // receiver kind and was dropped by that same task.
             lookup.filterName,
             lookup.filterNotName,
             lookup.filterIndexedName,
@@ -122,16 +122,27 @@ struct SourceBackedCallPreservationPolicy {
             lookup.onEachName,
             lookup.onEachIndexedName,
             lookup.sumOfName,
-            lookup.maxByOrNullName,
-            lookup.minByOrNullName,
             // RF-LOWER-CALL-011 (#6763) removed the KSP-426 block of 23 List
             // `sorted*` / `min*` / `max*` names from both chains. They were
             // meant to keep the bundled declarations in ListSortingHOF.kt and
             // ListExtremaHOF.kt off the legacy kk_list_* exports, but every
             // rewrite reachable from here sits behind an outer member-name gate
             // that never listed them, so they short-circuited nothing.
-            // `minByOrNull` stays in the Map group above, and `sorted` survives
-            // in `virtualOnlyAggregateNames` for its Range consumer.
+            // `sorted` survives in `virtualOnlyAggregateNames` for its Range
+            // consumer.
+            //
+            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull`: their
+            // only downstream rewrite was the Map branch deleted from
+            // `+CallRewriteHOFCore.swift` (`kk_map_maxByOrNull` /
+            // `kk_map_minByOrNull`, neither of which has a `@_cdecl` in
+            // `Sources/Runtime` any more), and that branch's own outer gate
+            // never listed either name in the first place. With no rewrite
+            // left to short-circuit, either call now falls through every
+            // rewrite attempt unmatched and reaches the unconditional
+            // `loweredBody.append(instruction)` — the same outcome as
+            // preserving it here, just without a redundant guard.
+            // `MapHOFLoweringRoutingTests` pins the routing.
+            //
             // KSP-421: List transform HOFs have Kotlin source implementations
             // in Stdlib/kotlin/collections/ListHOF.kt, and RF-LOWER-CALL-008
             // found no surviving `.list`-owner rewrite for any of them —
@@ -147,22 +158,21 @@ struct SourceBackedCallPreservationPolicy {
             // The remaining six stay because the *same interned name* still
             // gates a live rewrite on a different receiver kind — dropping
             // them would hand that receiver's source-backed declaration to
-            // the rewrite it currently shadows:
-            //   - `map` / `flatMap` select the Map receiver rewrite in
-            //     `+CallRewriteHandlers.swift` (`kk_map_map` / `kk_map_flatMap`;
-            //     `filter` is grouped with the KSP-423 block below for the
-            //     same reason).
-            //   - `mapIndexed` / `mapNotNull` select the Range/progression
-            //     rewrite in `+VirtualCallRewrite+Range.swift`
-            //     (`kk_range_mapIndexed` / `kk_range_mapNotNull`, or the
-            //     ULong variants); `filterNot` / `filterIndexed` in the
+            // the rewrite it currently shadows. `map` used to share this
+            // reasoning with a Map receiver rewrite too, but RF-LOWER-CALL-012
+            // deleted that rewrite as equally unreachable, so the Range
+            // reason below is now the only one for `map` as well:
+            //   - `map` / `mapIndexed` / `mapNotNull` select the
+            //     Range/progression rewrite in `+VirtualCallRewrite+Range.swift`
+            //     (`kk_range_map` / `kk_range_mapIndexed` / `kk_range_mapNotNull`,
+            //     or the ULong variants); `filterNot` / `filterIndexed` in the
             //     block above are the same story.
-            //   - `flatMapIndexed` selects the Sequence pipeline rewrite in
-            //     `+CallRewriteSequencePipeline.swift`.
+            //   - `flatMap` / `flatMapIndexed` select the Sequence pipeline
+            //     rewrite in `+CallRewriteSequencePipeline.swift`.
             //   - `flatten` selects the Sequence terminal rewrite in
             //     `+CallRewriteSequenceTerminals.swift`.
-            // Map is RF-LOWER-CALL-012's territory and Sequence is
-            // RF-LOWER-CALL-014's; this task only narrows the List angle.
+            // Sequence is RF-LOWER-CALL-014's territory; this task only
+            // narrows the List angle.
             lookup.mapName,
             lookup.mapIndexedName,
             lookup.mapNotNullName,

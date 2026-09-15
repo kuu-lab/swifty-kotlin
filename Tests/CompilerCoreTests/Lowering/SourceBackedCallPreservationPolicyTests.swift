@@ -12,8 +12,8 @@ import Testing
 /// for virtual dispatch — as two `||` chains of interned name comparisons. The
 /// chains agreed on 102 API names at extraction time and diverged on nine more
 /// plus the shape of the array-conversion check, and nothing in either file
-/// recorded which divergences were deliberate. RF-LOWER-CALL-008/009/010/011
-/// have since narrowed the agreement to 55 names and grown the divergence to
+/// recorded which divergences were deliberate. RF-LOWER-CALL-008/009/010/011/012
+/// have since narrowed the agreement to 53 names and grown the divergence to
 /// 19. These tests fix both halves: the four callee
 /// resolution states the decision rests on, and the exact direct/virtual
 /// difference.
@@ -234,13 +234,15 @@ struct SourceBackedCallPreservationPolicyTests {
     /// RF-LOWER-CALL-008 onwards must do deliberately. RF-LOWER-CALL-010
     /// dropped the five search names (`indexOf`, `lastIndexOf`, `indexOfFirst`,
     /// `indexOfLast`, `containsAll`) that had no downstream rewrite,
-    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names, and
+    /// RF-LOWER-CALL-011 the 23 `sorted*` / `min*` / `max*` names,
+    /// RF-LOWER-CALL-012 `maxByOrNull` / `minByOrNull` (their only rewrite, the
+    /// Map branch in `+CallRewriteHOFCore.swift`, was deleted with them), and
     /// RF-LOWER-CALL-008 the eight List transform/filter names in
     /// `listTransformDestinationAndOrphanNamesAreGone` below.
     @Test
     func sharedAggregateNameCountMatchesTheExtractedPredicate() {
         let (policy, _, _) = Self.makePolicy()
-        #expect(policy.sharedAggregateNames.count == 55, "got \(policy.sharedAggregateNames.count)")
+        #expect(policy.sharedAggregateNames.count == 53, "got \(policy.sharedAggregateNames.count)")
     }
 
     /// RF-LOWER-CALL-008 dropped the eight names whose only role in either
@@ -254,12 +256,13 @@ struct SourceBackedCallPreservationPolicyTests {
     ///
     /// The other nine List transform/filter names stay, because the same
     /// interned name still selects a live rewrite for a different receiver:
-    /// `map` / `filter` / `flatMap` for Map (`+CallRewriteHandlers.swift`),
-    /// `mapIndexed` / `mapNotNull` / `filterIndexed` / `filterNot` for
-    /// Range/progression (`+VirtualCallRewrite+Range.swift`), and
-    /// `flatMapIndexed` / `flatten` for the Sequence pipeline/terminal
-    /// rewrites. Dropping any of those would hand that receiver's
-    /// source-backed declaration to the rewrite it currently shadows.
+    /// `map` / `mapIndexed` / `mapNotNull` / `filterIndexed` / `filterNot` for
+    /// Range/progression (`+VirtualCallRewrite+Range.swift` — `map` used to
+    /// also share a Map receiver rewrite, but RF-LOWER-CALL-012 deleted that
+    /// one as equally unreachable), and `flatMap` / `flatMapIndexed` /
+    /// `flatten` for the Sequence pipeline/terminal rewrites. Dropping any of
+    /// those would hand that receiver's source-backed declaration to the
+    /// rewrite it currently shadows.
     @Test
     func listTransformDestinationAndOrphanNamesAreGone() {
         let (policy, lookup, _) = Self.makePolicy()
@@ -301,9 +304,9 @@ struct SourceBackedCallPreservationPolicyTests {
             #expect(!policy.sharedAggregateNames.contains(name))
             #expect(!policy.virtualOnlyAggregateNames.contains(name))
         }
-        // `minByOrNull` / `maxByOrNull` were never in that block — Map group.
-        #expect(policy.sharedAggregateNames.contains(lookup.minByOrNullName))
-        #expect(policy.sharedAggregateNames.contains(lookup.maxByOrNullName))
+        // `minByOrNull` / `maxByOrNull` are gone too: RF-LOWER-CALL-012
+        // deleted both their lookup-table properties and their only
+        // downstream rewrite, so naming them here would not compile.
     }
 
     /// The array-conversion asymmetry the old code left unsaid: the direct path

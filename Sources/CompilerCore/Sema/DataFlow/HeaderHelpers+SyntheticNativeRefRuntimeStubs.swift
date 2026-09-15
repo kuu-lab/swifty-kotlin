@@ -12,8 +12,9 @@
 /// - residual `createCleaner` bridge only when its bundled source declaration
 ///   is absent.
 /// - `kotlin.native.runtime.NativeRuntimeApi` — runtime opt-in marker.
-/// - `kotlin.native.runtime.GC` — object providing GC controls, tagged with
-///   `@NativeRuntimeApi`.
+/// - `kotlin.native.runtime.GC` needs no stub here: it is fully source-backed
+///   (see GC.kt), including its own `@NativeRuntimeApi` annotation, so it is
+///   registered by ordinary header collection like any other bundled object.
 /// - `kotlin.native.runtime.RootSetStatistics` — GC root-set statistics DTO.
 /// - `kotlin.native.runtime.SweepStatistics` — GC sweep statistics DTO.
 /// - `kotlin.native.runtime.GCInfo` — GC statistics DTO surface.
@@ -67,14 +68,6 @@ extension DataFlowSemaPhase {
         registerCreateCleanerStub(
             packageFQName: nativeRefPkg,
             experimentalNativeApiSymbol: experimentalNativeApiSymbol,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-
-        registerGCObjectStub(
-            packageFQName: nativeRuntimePkg,
-            nativeRuntimeApiSymbol: nativeRuntimeApiSymbol,
             symbols: symbols,
             types: types,
             interner: interner
@@ -290,73 +283,6 @@ extension DataFlowSemaPhase {
         )
     }
 
-    // MARK: - GC object
-
-    private func registerGCObjectStub(
-        packageFQName: [InternedString],
-        nativeRuntimeApiSymbol: SymbolID?,
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner
-    ) {
-        let objectName = interner.intern("GC")
-        let objectFQName = packageFQName + [objectName]
-        let pkgSymbol = symbols.lookup(fqName: packageFQName)
-
-        let objectSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: objectFQName) {
-            objectSymbol = existing
-        } else {
-            objectSymbol = symbols.define(
-                kind: .object,
-                name: objectName,
-                fqName: objectFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-        if let pkgSymbol {
-            symbols.setParentSymbol(pkgSymbol, for: objectSymbol)
-        }
-
-        let objectType = types.make(.classType(ClassType(
-            classSymbol: objectSymbol,
-            args: [],
-            nullability: .nonNull
-        )))
-        symbols.setPropertyType(objectType, for: objectSymbol)
-
-        // Tag with @NativeRuntimeApi. The marker is declared in bundled Kotlin
-        // source, so fall back to its fully-qualified name before source loading.
-        attachNativeRuntimeApi(
-            to: objectSymbol,
-            markerFQName: nativeRuntimeApiSymbol.flatMap {
-                symbols.symbol($0)?.fqName.map { interner.resolve($0) }.joined(separator: ".")
-            } ?? "kotlin.native.runtime.NativeRuntimeApi",
-            symbols: symbols
-        )
-
-        let objectContext = SyntheticStubRegistrationContext(
-            ownerFQName: objectFQName,
-            parentSymbol: objectSymbol
-        )
-        registerSyntheticFunctionStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcFunctions,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcProperties,
-            context: objectContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
-        )
-    }
-
     // MARK: - RootSetStatistics class
 
     private func registerRootSetStatisticsStub(
@@ -484,19 +410,6 @@ extension DataFlowSemaPhase {
             to: memoryUsageSymbol,
             markerFQName: nativeRuntimeApiFQName,
             symbols: symbols
-        )
-
-        let gcInfoFQName = packageFQName + [interner.intern("GCInfo")]
-        let gcInfoContext = SyntheticStubRegistrationContext(
-            ownerFQName: gcInfoFQName,
-            parentSymbol: gcInfoSymbol
-        )
-        registerSyntheticPropertyStubs(
-            SyntheticNativeRefRuntimeSurfaceSpec.gcInfoProperties,
-            context: gcInfoContext,
-            symbols: symbols,
-            types: types,
-            interner: interner
         )
 
     }

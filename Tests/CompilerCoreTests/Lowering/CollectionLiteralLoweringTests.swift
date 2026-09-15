@@ -362,7 +362,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testMapAnyRewriteToKkMapAny() throws {
+    func testMapAnySurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -405,15 +405,20 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: the Map `any` rewrite this test used to pin was
+        // unreachable in production (see MapHOFLoweringRoutingTests) and has
+        // been deleted. With no symbol attached, `any` now simply survives as
+        // a plain call — the same outcome a resolved, source-backed `any`
+        // gets from `shouldPreserveSourceBackedAggregateCall`.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("any"), "map.any should be rewritten")
+        #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_any"), "any on map should become kk_map_any")
+        #expect(!callees.contains("kk_map_any"), "kk_map_any has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapAllRewriteToKkMapAll() throws {
+    func testMapAllSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -456,15 +461,16 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("all"), "map.all should be rewritten")
+        #expect(callees.contains("all"), "map.all has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_all"), "all on map should become kk_map_all")
+        #expect(!callees.contains("kk_map_all"), "kk_map_all has no @_cdecl in Runtime and must never be emitted")
     }
 
     @Test
-    func testMapNoneRewriteToKkMapNone() throws {
+    func testMapNoneSurvivesWithoutRewrite() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let entry0 = arena.appendExpr(.temporary(0))
@@ -507,11 +513,12 @@ struct CollectionLiteralLoweringTests {
 
         try runPass(module: module, kirCtx: ctx)
 
+        // RF-LOWER-CALL-012: see testMapAnySurvivesWithoutRewrite above.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
-        #expect(!callees.contains("none"), "map.none should be rewritten")
+        #expect(callees.contains("none"), "map.none has no rewrite target left and must survive unchanged")
         #expect(callees.contains("__kk_map_of"), "mapOf should become __kk_map_of")
-        #expect(callees.contains("kk_map_none"), "none on map should become kk_map_none")
+        #expect(!callees.contains("kk_map_none"), "kk_map_none has no @_cdecl in Runtime and must never be emitted")
     }
 
     // MARK: - emptySet rewriting

@@ -57,32 +57,24 @@ extension CollectionLiteralConstructionLoweringPass {
             return CollectionCallRewriteResult(instructions: instructions)
         }
 
-        if state.mapExprIDs.contains(receiverID.rawValue),
-           let kkName = mapHOFRuntimeName(for: call.callee, lookup: lookup)
-        {
-            let closureRawID = closureRawArgument(for: call.arguments, module: ctx.module, instructions: &instructions)
-            let hofResult = ctx.module.arena.appendTemporary(type: nil
-            )
-            instructions.append(.call(
-                symbol: nil,
-                callee: kkName,
-                arguments: [receiverID, lambdaID, closureRawID],
-                result: hofResult,
-                canThrow: call.canThrow,
-                thrownResult: call.thrownResult
-            ))
-            if mapHOFReturnsList(call.callee, lookup: lookup) {
-                state.tagListResult(call.result, temporary: hofResult)
-            }
-            if mapHOFReturnsMap(call.callee, lookup: lookup) {
-                state.tagMapResult(call.result, temporary: hofResult)
-            }
-            if let result = call.result {
-                instructions.append(.copy(from: hofResult, to: result))
-            }
-            return CollectionCallRewriteResult(instructions: instructions)
-        }
-
+        // RF-LOWER-CALL-012 dropped the sibling branch that rewrote a Map
+        // receiver's `map` / `filter` / `forEach` / `mapValues` / `mapKeys` /
+        // `filterKeys` / `filterValues` / `flatMap` / `any` / `all` / `none` /
+        // `maxByOrNull` / `minByOrNull` to a `kk_map_*` runtime entry point. It
+        // never fired: every one of those names, once resolved to the bundled
+        // Kotlin source in `MapHOF.kt` (KSP-430), is short-circuited by
+        // `shouldPreserveSourceBackedAggregateCall` in `+CallRewrite.swift`
+        // before `rewriteHigherOrderCollectionCall` is ever called, and
+        // `filterKeys` / `filterValues` / `maxByOrNull` / `minByOrNull` were
+        // additionally excluded by `isCollectionHOFMemberName` above, which
+        // never listed them. The deleted branch's targets (`kk_map_map`,
+        // `kk_map_filter`, `kk_map_mapValues`, `kk_map_mapKeys`,
+        // `kk_map_filterKeys`, `kk_map_filterValues`, `kk_map_flatMap`,
+        // `kk_map_any`, `kk_map_all`, `kk_map_none`, `kk_map_forEach`,
+        // `kk_map_maxByOrNull`, `kk_map_minByOrNull`) have no `@_cdecl` left in
+        // `Sources/Runtime` either — only `RuntimeCollectionHOF430MapShims.swift`
+        // test shims still declare them. `MapHOFLoweringRoutingTests` pins the
+        // routing itself; see `+CallRewrite.swift` for the policy-side note.
         return nil
     }
 
@@ -119,28 +111,6 @@ extension CollectionLiteralConstructionLoweringPass {
         return zeroExpr
     }
 
-    private func mapHOFRuntimeName(
-        for callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> InternedString? {
-        switch callee {
-        case lookup.mapName: lookup.kkMapMapName
-        case lookup.filterName: lookup.kkMapFilterName
-        case lookup.forEachName: lookup.kkMapForEachName
-        case lookup.mapValuesName: lookup.kkMapMapValuesName
-        case lookup.mapKeysName: lookup.kkMapMapKeysName
-        case lookup.filterKeysName: lookup.kkMapFilterKeysName
-        case lookup.filterValuesName: lookup.kkMapFilterValuesName
-        case lookup.flatMapName: lookup.kkMapFlatMapName
-        case lookup.maxByOrNullName: lookup.kkMapMaxByOrNullName
-        case lookup.minByOrNullName: lookup.kkMapMinByOrNullName
-        case lookup.anyName: lookup.kkMapAnyName
-        case lookup.allName: lookup.kkMapAllName
-        case lookup.noneName: lookup.kkMapNoneName
-        default: nil
-        }
-    }
-
     private func listHOFReturnsList(
         _ callee: InternedString,
         lookup: CollectionLiteralLookupTables
@@ -149,24 +119,5 @@ extension CollectionLiteralConstructionLoweringPass {
             || callee == lookup.flatMapName
             || callee == lookup.flatMapIndexedName
             || callee == lookup.onEachName
-    }
-
-    private func mapHOFReturnsList(
-        _ callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> Bool {
-        callee == lookup.mapName || callee == lookup.flatMapName || callee == lookup.mapNotNullName
-    }
-
-    private func mapHOFReturnsMap(
-        _ callee: InternedString,
-        lookup: CollectionLiteralLookupTables
-    ) -> Bool {
-        callee == lookup.mapValuesName
-            || callee == lookup.mapKeysName
-            || callee == lookup.filterName
-            || callee == lookup.filterNotName
-            || callee == lookup.filterKeysName
-            || callee == lookup.filterValuesName
     }
 }

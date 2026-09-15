@@ -155,9 +155,6 @@ private func delegateStubRegistryEntries() -> [SyntheticDelegateStubRegistryEntr
         SyntheticDelegateStubRegistryEntry(bucket: .residualCompilerSurface, name: "JavaIOStream") { phase, symbols, types, interner, _ in
             phase.registerSyntheticJavaIOStreamStubs(symbols: symbols, types: types, interner: interner)
         },
-        SyntheticDelegateStubRegistryEntry(bucket: .targetOutCleanup, name: "Path") { phase, symbols, types, interner, _ in
-            phase.registerSyntheticPathStubs(symbols: symbols, types: types, interner: interner)
-        },
         SyntheticDelegateStubRegistryEntry(bucket: .sourceBackedMigration, name: "Coercion") { phase, symbols, types, interner, _ in
             phase.registerSyntheticCoercionStubs(symbols: symbols, types: types, interner: interner)
         },
