@@ -1,9 +1,19 @@
 package kotlin.collections
 
+import kotlin.internal.KsSymbolName
+
 // KSP-944: source-backed MutableList nominal declaration and initializer
 // factory. Mutation members remain compiler/runtime residuals until their
 // dedicated migration tasks land.
-public interface MutableList<E> : List<E>, MutableCollection<E>
+// KSP-700: list-iterator overrides are source-backed to keep the covariant
+// return type visible to inherited abstract-member checks.
+public interface MutableList<E> : List<E>, MutableCollection<E> {
+    @KsSymbolName("kk_list_iterator")
+    public override fun listIterator(): MutableListIterator<E>
+
+    @KsSymbolName("kk_list_iterator_at")
+    public override fun listIterator(index: Int): MutableListIterator<E>
+}
 
 /**
  * Creates a mutable list whose elements are produced in ascending index order.
