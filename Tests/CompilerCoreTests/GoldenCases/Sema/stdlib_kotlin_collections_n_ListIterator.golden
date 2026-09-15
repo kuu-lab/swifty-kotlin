@@ -56,7 +56,7 @@ expr e@25:46 int(10) type=Int
 expr e@25:50 int(20) type=Int
 expr e@25:54 int(30) type=Int
 expr e@25:39 call callee=e@25:39#1 args=[_:e@25:46,_:e@25:50,_:e@25:54] type=kotlin.collections.List<out Int> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[Int]
-expr e@25:39#2 memberCall recv=e@25:39 callee=listIterator args=[] type=kotlin.collections.ListIterator<out Int> call=kotlin.collections.List.listIterator[kind=fun;recv=kotlin.collections.List<out T0>;params=;gen=1] targs=[Int]
+expr e@25:39#2 memberCall recv=e@25:39 callee=listIterator args=[] type=kotlin.collections.ListIterator<Int> call=kotlin.collections.List.listIterator[kind=fun;recv=kotlin.collections.List<T0>;params=;gen=1] targs=[Int]
 expr e@25:5 localDecl iterator mutable=0 type=ListIterator<Int> init=e@25:39#2 type=Unit ref=__local_2.iterator[kind=local]
 expr e@26:13 name(iterator) type=kotlin.collections.ListIterator<Int> ref=__local_2.iterator[kind=local]
 expr e@26:5 call callee=e@26:5#1 args=[_:e@26:13] type=Int call=inspect[kind=fun;params=kotlin.collections.ListIterator<Int>]
