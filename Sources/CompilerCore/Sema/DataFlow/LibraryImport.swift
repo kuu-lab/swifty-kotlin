@@ -196,6 +196,45 @@ extension DataFlowSemaPhase {
             }
         }
 
+        // BUG-KSP-1217-PHANTOM-TYPE-PARAMS: a function's type parameter is
+        // "phantom" when it never appears in its receiver, value parameters,
+        // or return type (only inside the function body via explicit type
+        // arguments, e.g. `kotlin.native.concurrent.callContinuation1<T1>`).
+        // `importedFunctionSignature`/`collectTypeParameterSymbols` rebuild
+        // `typeParameterSymbols` by structurally scanning the decoded function
+        // type, so phantom parameters are silently dropped. Every declared
+        // type parameter (phantom or not) is independently exported as its
+        // own `.typeParameter`-kind record with fqName
+        // `<ownerFQName>.$<producerSymbolID>.<paramName>` (see
+        // HeaderCollection.swift's `$\(symbol.rawValue)` namespace segment),
+        // so group those records by owner FQ name to recover at least the
+        // correct total COUNT of declared type parameters. The `$<id>`
+        // disambiguator itself is a producer-internal id with no stable
+        // meaning on the consumer side, so this is restricted to owner FQ
+        // names with exactly one function/constructor binding -- an
+        // overloaded name could mix phantom parameters from different
+        // overloads and there is no reliable way to tell them apart.
+        var functionBindingCountByFQName: [[InternedString]: Int] = [:]
+        var typeParameterBindingSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
+        for binding in importedBindings {
+            switch binding.record.kind {
+            case .function, .constructor:
+                functionBindingCountByFQName[binding.record.fqName, default: 0] += 1
+            case .typeParameter:
+                let fqName = binding.record.fqName
+                guard fqName.count >= 3, interner.resolve(fqName[fqName.count - 2]).hasPrefix("$") else {
+                    continue
+                }
+                let ownerFQName = Array(fqName.dropLast(2))
+                typeParameterBindingSymbolsByOwnerFQName[ownerFQName, default: []].append(binding.symbol)
+            default:
+                break
+            }
+        }
+        let phantomTypeParameterSymbolsByOwnerFQName = typeParameterBindingSymbolsByOwnerFQName.filter {
+            functionBindingCountByFQName[$0.key] == 1
+        }
+
         // Property getter accessors are synthesized while applying their
         // property records. Import those records before inline function bodies
         // so a producer getter link (for example Lazy.value) resolves to the
@@ -216,7 +255,8 @@ extension DataFlowSemaPhase {
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
                 externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName
+                importedSymbolByFQName: importedSymbolByFQName,
+                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
         for binding in propertyBindingsWithGetter {
@@ -241,7 +281,8 @@ extension DataFlowSemaPhase {
                 cache: cache,
                 isStdlibArtifact: binding.isStdlibArtifact,
                 externalLinkNameToSymbol: externalLinkNameToSymbol,
-                importedSymbolByFQName: importedSymbolByFQName
+                importedSymbolByFQName: importedSymbolByFQName,
+                phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
             )
         }
 
@@ -1113,7 +1154,8 @@ extension DataFlowSemaPhase {
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool,
         externalLinkNameToSymbol: [String: SymbolID],
-        importedSymbolByFQName: [String: SymbolID]
+        importedSymbolByFQName: [String: SymbolID],
+        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -1134,7 +1176,8 @@ extension DataFlowSemaPhase {
             cache: cache,
             isStdlibArtifact: isStdlibArtifact,
             externalLinkNameToSymbol: externalLinkNameToSymbol,
-            importedSymbolByFQName: importedSymbolByFQName
+            importedSymbolByFQName: importedSymbolByFQName,
+            phantomTypeParameterSymbolsByOwnerFQName: phantomTypeParameterSymbolsByOwnerFQName
         )
         applyImportedValueClassMetadata(
             binding,
@@ -1209,7 +1252,8 @@ extension DataFlowSemaPhase {
         cache: LibraryMetadataCache?,
         isStdlibArtifact: Bool = false,
         externalLinkNameToSymbol: [String: SymbolID] = [:],
-        importedSymbolByFQName: [String: SymbolID] = [:]
+        importedSymbolByFQName: [String: SymbolID] = [:],
+        phantomTypeParameterSymbolsByOwnerFQName: [[InternedString]: [SymbolID]] = [:]
     ) {
         let record = binding.record
         let symbol = binding.symbol
@@ -1224,7 +1268,8 @@ extension DataFlowSemaPhase {
                 interner: interner,
                 metadataPath: binding.metadataPath,
                 cache: cache,
-                allowPlaceholders: isStdlibArtifact
+                allowPlaceholders: isStdlibArtifact,
+                phantomTypeParameterSymbols: phantomTypeParameterSymbolsByOwnerFQName[record.fqName] ?? []
             )
             symbols.setFunctionSignature(signature, for: symbol)
             // Extension functions are represented as package-level FQ names in

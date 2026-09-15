@@ -531,6 +531,15 @@ public extension RuntimeABISpec {
             p("streamRaw", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
+        abiParitySpec("kk_stable_ref_create", parameters: [
+            p("objectRaw", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_deref", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
+        abiParitySpec("kk_stable_ref_dispose", parameters: [
+            p("pointerHandle", .intptr),
+        ], isThrowing: false),
         // KSP-413: kk_string_contentEquals_flat / kk_string_contentEquals_ignoreCase_flat
         // removed; contentEquals is bundled Kotlin source (StringComparison.kt).
         // KSP-717: both bridges are plain (non-throwing) flat-string helpers
