@@ -52,10 +52,13 @@ extension CallLowerer {
 
     func tryLowerObjectMemberPropertyRead(
         _ exprID: ExprID,
+        receiverExpr: ExprID,
         args: [CallArgument],
+        ast: ASTModule,
         sema: SemaModule,
         arena: KIRArena,
         interner: StringInterner,
+        propertyConstantInitializers: [SymbolID: KIRExprKind],
         instructions: inout [KIRInstruction]
     ) -> KIRExprID? {
         guard args.isEmpty else { return nil }
@@ -129,6 +132,48 @@ extension CallLowerer {
         // property initializers now (Stdlib/kotlin/text/StringNormalize.kt),
         // so the name-string special case that routed them to
         // __kk_normalization_form_* is no longer needed.
+        // BUG-257: a property with a real custom getter never gets a backing
+        // global slot -- unlike the cases above, there is no storage for
+        // `loadGlobal` below to read. Route through the real getter accessor
+        // instead, exactly like the equivalent instance-member path
+        // (tryLowerMemberPropertyAccessorRead) and the object-member setter
+        // side (memberPropertyUsesSetterAccessor in
+        // CallLowerer+MemberAssignment.swift) already do.
+        //
+        // Deliberately narrower than `memberPropertyUsesAccessor`: a
+        // delegated property (`by lazy { ... }`) also reports "uses an
+        // accessor" there, but object-member delegated properties don't yet
+        // have a real getter-accessor symbol to call (unlike class-instance
+        // delegates, which resolve through a different path before reaching
+        // here) -- routing them through this branch panics with a vtable/
+        // itable lookup failure. Leave delegated object properties on the
+        // pre-existing `loadGlobal` fallback below until that gap is fixed
+        // (BUG-265).
+        if sema.symbols.propertyHasCustomGetter(for: valueSym)
+            || sema.symbols.extensionPropertyGetterAccessor(for: valueSym) != nil
+        {
+            let receiverID = driver.lowerExpr(
+                receiverExpr,
+                ast: ast, sema: sema, arena: arena, interner: interner,
+                propertyConstantInitializers: propertyConstantInitializers,
+                instructions: &instructions
+            )
+            let getterSymbol = sema.symbols.extensionPropertyGetterAccessor(for: valueSym)
+                ?? SyntheticSymbolScheme.propertyGetterAccessorSymbol(for: valueSym)
+            let propType = sema.bindings.exprTypes[exprID]
+                ?? sema.symbols.propertyType(for: valueSym)
+                ?? sema.types.anyType
+            let result = arena.appendTemporary(type: propType)
+            instructions.append(.call(
+                symbol: getterSymbol,
+                callee: interner.intern("get"),
+                arguments: [receiverID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         let propType = sema.bindings.exprTypes[exprID]
             ?? sema.symbols.propertyType(for: valueSym)
             ?? sema.types.anyType

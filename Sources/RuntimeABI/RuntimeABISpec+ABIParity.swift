@@ -201,10 +201,6 @@ public extension RuntimeABISpec {
             p("arrayRaw", .intptr),
         ],
             isThrowing: false),
-        abiParitySpec("__kk_fileTime_toMillis", parameters: [
-            p("fileTimeRaw", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_flow_catch", parameters: [
             p("flowHandle", .intptr),
             p("handlerFnPtr", .intptr),

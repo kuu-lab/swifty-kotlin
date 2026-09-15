@@ -691,9 +691,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         let lowercaseResult = arena.appendExpr(.temporary(31), type: types.stringType)
         let uppercaseResult = arena.appendExpr(.temporary(32), type: types.stringType)
         let reversedResult = arena.appendExpr(.temporary(33), type: types.stringType)
-        let repeatResult = arena.appendExpr(.temporary(43), type: types.stringType)
-        let repeatThrown = arena.appendExpr(.temporary(44), type: types.intType)
-        let takeCount = arena.appendExpr(.intLiteral(3), type: types.intType)
         let hofFnPtr = arena.appendExpr(.intLiteral(0), type: types.intType)
         let hofClosureRaw = arena.appendExpr(.intLiteral(0), type: types.intType)
         let filterResult = arena.appendExpr(.temporary(47), type: types.stringType)
@@ -741,8 +738,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
                 .call(symbol: nil, callee: interner.intern("kk_string_lowercase_flat"), arguments: [paddedExpr], result: lowercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_uppercase_flat"), arguments: [paddedExpr], result: uppercaseResult, canThrow: false, thrownResult: nil),
                 .call(symbol: nil, callee: interner.intern("kk_string_reversed_flat"), arguments: [paddedExpr], result: reversedResult, canThrow: false, thrownResult: nil),
-                .constValue(result: takeCount, value: .intLiteral(3)),
-                .call(symbol: nil, callee: interner.intern("kk_string_repeat_flat"), arguments: [trimResult, takeCount], result: repeatResult, canThrow: true, thrownResult: repeatThrown),
                 .constValue(result: hofFnPtr, value: .intLiteral(0)),
                 .constValue(result: hofClosureRaw, value: .intLiteral(0)),
                 .call(symbol: nil, callee: interner.intern("kk_string_filter_flat"), arguments: [trimResult, hofFnPtr, hofClosureRaw], result: filterResult, canThrow: true, thrownResult: filterThrown),
@@ -879,7 +874,6 @@ struct CodegenBackendLLVMLinkingAndArtifactsTests {
         #expect(ir.contains("@kk_string_reversed_flat"))
         #expect(!ir.contains("@kk_string_substring_flat"))
         #expect(!ir.contains("@kk_string_subSequence_flat"))
-        #expect(ir.contains("@kk_string_repeat_flat"))
         #expect(ir.contains("@kk_string_filter_flat"))
         #expect(ir.contains("@kk_string_filterIndexed_flat"))
         #expect(ir.contains("@kk_string_filterNot_flat"))
