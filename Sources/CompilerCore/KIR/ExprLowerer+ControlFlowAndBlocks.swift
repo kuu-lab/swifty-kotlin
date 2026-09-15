@@ -1958,6 +1958,24 @@ extension ExprLowerer {
                     return nil
                 }
 
+                // `String?.plus(Any?)` is a bundled source wrapper around a
+                // runtime bridge. Compound assignment must use the builtin
+                // string conversion path so statically-known class/value-class
+                // receivers retain their own `toString()` implementation.
+                if driver.callLowerer.isBundledStringPlusCall(
+                    callBinding,
+                    op: op,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return appendBuiltinCompoundResult(
+                        lhs: lhs,
+                        lhsType: arena.exprType(lhs) ?? sema.types.anyType,
+                        rhs: rhs,
+                        rhsType: arena.exprType(rhs)
+                    )
+                }
+
                 let normalizedResult = driver.callSupportLowerer.normalizedCallArguments(
                     providedArguments: [rhs],
                     callBinding: callBinding,

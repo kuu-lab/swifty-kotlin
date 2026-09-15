@@ -473,7 +473,7 @@ struct BuildKIRCodegenRegressionTests {
     }
 
     @Test
-    func testBuildKIRLowersStringEqualsToFlatRuntimeCall() throws {
+    func testBuildKIRPreservesSourceBackedStringEqualsCall() throws {
         let source = """
         fun main(lhs: String, rhs: String?) {
             lhs.equals(rhs)
@@ -488,8 +488,12 @@ struct BuildKIRCodegenRegressionTests {
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let callNames = extractCallees(from: body, interner: ctx.interner)
 
-            #expect(callNames.contains("__kk_string_equals_flat"))
+            // `String.equals(String?)` is bundled Kotlin source now. The
+            // caller must preserve that source-backed declaration instead of
+            // lowering directly to its private flat-string bridge.
+            #expect(containsKotlinCallee("equals", in: callNames))
             #expect(!(callNames.contains("kk_string_equals")))
+            #expect(!(callNames.contains("__kk_string_equals_flat")))
         }
     }
 

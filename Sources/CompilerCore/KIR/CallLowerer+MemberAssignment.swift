@@ -1,6 +1,33 @@
 
 /// Lowering for member assignment expressions.
 extension CallLowerer {
+    /// The bundled `kotlin.text.String?.plus(Any?)` declaration is a source
+    /// wrapper around a runtime bridge, but compound assignment must still use
+    /// the compiler's string-concatenation conversion funnel. That funnel
+    /// preserves statically-known class/value-class `toString()` dispatch;
+    /// passing the raw value to `__kk_string_plus` loses that type information.
+    func isBundledStringPlusCall(
+        _ callBinding: CallBinding?,
+        op: CompoundAssignOp,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> Bool {
+        guard op == .plusAssign,
+              let chosenCallee = callBinding?.chosenCallee,
+              let symbol = sema.symbols.symbol(chosenCallee),
+              symbol.kind == .function,
+              sema.symbols.isSourceBackedSymbol(chosenCallee)
+        else {
+            return false
+        }
+        let expectedFQName = [
+            interner.intern("kotlin"),
+            interner.intern("text"),
+            interner.intern("plus"),
+        ]
+        return symbol.fqName == expectedFQName
+    }
+
     // MARK: - Member Assignment
 
     func lowerMemberAssignExpr(
@@ -406,7 +433,14 @@ extension CallLowerer {
         // already mutated the loaded value in place, so no store is needed —
         // mirrors bare-name compound assign's handling in ExprLowerer.
         let newValue: KIRExprID? = {
-            if let callBinding = sema.bindings.callBindings[exprID],
+            let bundledStringPlus = isBundledStringPlusCall(
+                sema.bindings.callBindings[exprID],
+                op: op,
+                sema: sema,
+                interner: interner
+            )
+            if !bundledStringPlus,
+               let callBinding = sema.bindings.callBindings[exprID],
                let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
                signature.receiverType != nil
             {
