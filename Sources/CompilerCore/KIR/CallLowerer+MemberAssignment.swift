@@ -267,6 +267,17 @@ extension CallLowerer {
         let propType = propertySymbol.flatMap { sema.symbols.propertyType(for: $0) }
             ?? sema.bindings.exprTypes[exprID]
             ?? sema.types.anyType
+        let stringType = sema.types.stringType
+        let nullableStringType = sema.types.makeNullable(stringType)
+        let valueType = arena.exprType(valueID)
+        // `String += Any?` is the language-level concatenation operation, not
+        // an ordinary receiver call. Sema may bind the desugared expression to
+        // the bundled `String?.plus` extension, but passing the loaded field as
+        // that receiver bypasses the Any-to-String conversion funnel below.
+        // Keep the builtin path for String fields so class/value/primitive RHS
+        // values are rendered with their Kotlin `toString()` semantics.
+        let usesBuiltinStringCompound = op == .plusAssign
+            && (propType == stringType || propType == nullableStringType)
 
         // Synthetic runtime accessor (e.g. AtomicBoolean.value -> __kk_atomic_bool_load/_store).
         let syntheticLinks: (load: String, store: String)? = {
@@ -439,7 +450,7 @@ extension CallLowerer {
                 sema: sema,
                 interner: interner
             )
-            if !bundledStringPlus,
+            if !usesBuiltinStringCompound && !bundledStringPlus,
                let callBinding = sema.bindings.callBindings[exprID],
                let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
                signature.receiverType != nil
@@ -487,9 +498,6 @@ extension CallLowerer {
             case .divAssign: .divide
             case .modAssign: .modulo
             }
-            let stringType = sema.types.stringType
-            let nullableStringType = sema.types.makeNullable(stringType)
-            let valueType = arena.exprType(valueID)
             let isStringCompound = op == .plusAssign
                 && (propType == stringType || propType == nullableStringType
                     || valueType == stringType || valueType == nullableStringType)
@@ -506,7 +514,7 @@ extension CallLowerer {
             // flat String aggregates -- feeding it a raw boxed value (e.g. a class
             // instance, or an unboxed Int/Boolean) reads it as one, silently
             // dropping/mis-rendering the value or crashing.
-            let effectiveCurrent: KIRExprID = if propType == stringType || propType == nullableStringType {
+            let effectiveCurrent: KIRExprID = if propType == stringType {
                 currentValue
             } else {
                 emitAnyToStringWithNullGuard(
@@ -518,7 +526,7 @@ extension CallLowerer {
                     instructions: &instructions
                 )
             }
-            let effectiveValue: KIRExprID = if valueType == stringType || valueType == nullableStringType {
+            let effectiveValue: KIRExprID = if valueType == stringType {
                 valueID
             } else {
                 emitAnyToStringWithNullGuard(
