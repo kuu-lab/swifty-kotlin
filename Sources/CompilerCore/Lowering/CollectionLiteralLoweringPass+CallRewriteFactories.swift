@@ -454,12 +454,22 @@ extension CollectionLiteralConstructionLoweringPass {
                     thrownResult: nil
                 ))
             } else if count == 0 {
-                // mutableMapOf()/hashMapOf() -> fresh instance via kk_map_of(null, null, 0).
-                // linkedMapOf() -> kk_linked_hash_map_of instead (KUU-556: it's
-                // declared to return LinkedHashMap<K, V>, now a real HashMap
-                // subclass with its own runtime tag; hashMapOf()/mutableMapOf()
-                // keep the pre-existing generic tag -- a known, separately
-                // tracked gap, not introduced by this change).
+                // hashMapOf() -> fresh instance via kk_map_of(null, null, 0)
+                // (pre-existing generic tag; hashMapOf() is declared to return
+                // the more specific HashMap<K, V>, but that's a pre-existing
+                // gap independent of this change, not addressed here).
+                // mutableMapOf()/linkedMapOf() -> kk_linked_hash_map_of
+                // instead: both are declared to return LinkedHashMap<K, V>
+                // (`mutableMapOf(): MutableMap<K, V> = LinkedHashMap()`,
+                // `linkedMapOf(): LinkedHashMap<K, V>` in upstream stdlib), so
+                // both need the LinkedHashMap-specific runtime tag for `is
+                // LinkedHashMap` to hold on their result the way it does on
+                // kotlinc-jvm (KUU-556: before LinkedHashMap became a real
+                // HashMap subclass, `mutableMapOf() is LinkedHashMap` held by
+                // accident because LinkedHashMap was just an alias for
+                // MutableMap; tagging mutableMapOf() here the same as
+                // linkedMapOf() keeps that observable behavior correct now
+                // that the two are distinct types).
                 let zeroExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
                 loweredBody.append(.constValue(result: zeroExpr, value: .intLiteral(0)))
                 let nullKeysExpr = module.arena.appendExpr(.intLiteral(0), type: nil)
@@ -468,7 +478,8 @@ extension CollectionLiteralConstructionLoweringPass {
                 loweredBody.append(.constValue(result: nullValsExpr, value: .intLiteral(0)))
                 loweredBody.append(.call(
                     symbol: nil,
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    callee: callee == lookup.linkedMapOfName || callee == lookup.mutableMapOfName
+                        ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [nullKeysExpr, nullValsExpr, zeroExpr],
                     result: result,
                     canThrow: false,
@@ -544,9 +555,11 @@ extension CollectionLiteralConstructionLoweringPass {
                 }
                 loweredBody.append(.call(
                     symbol: nil,
-                    // KUU-556: linkedMapOf(pairs) also gets its own runtime tag;
-                    // see the count == 0 branch above for the rationale.
-                    callee: callee == lookup.linkedMapOfName ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
+                    // KUU-556: mutableMapOf(pairs)/linkedMapOf(pairs) also get
+                    // the LinkedHashMap runtime tag; see the count == 0 branch
+                    // above for the rationale.
+                    callee: callee == lookup.linkedMapOfName || callee == lookup.mutableMapOfName
+                        ? lookup.kkLinkedHashMapOfName : lookup.kkMapOfName,
                     arguments: [keysArrayExpr, valuesArrayExpr, countExpr],
                     result: result,
                     canThrow: false,

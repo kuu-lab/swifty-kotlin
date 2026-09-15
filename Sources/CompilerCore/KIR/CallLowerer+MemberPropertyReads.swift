@@ -355,8 +355,36 @@ extension CallLowerer {
         if case .superRef = ast.arena.expr(receiverExpr) {
             isSuperQualifiedReceiver = true
         }
+        // KUU-556: HashMap.kt is now `open` so LinkedHashMap can subclass it.
+        // That gives HashMap its first-ever direct subtype, which makes the
+        // condition below (KSP-928's abstract/open-property vtable dispatch)
+        // start matching HashMap's own materialized realization of the four
+        // Map interface properties it never overrides in source
+        // (size/keys/values/entries -- @KsSymbolName isn't wired for
+        // .property symbols yet, see registerPropertyMember in
+        // HeaderHelpers+SyntheticMapStubs.swift, so only Map's original
+        // declaration carries the external link; this HashMap-owned
+        // realization carries none). LayoutSynthesis assigns it a real
+        // vtable slot, but every Map-family value here shares one
+        // RuntimeMapBox representation with no true per-class vtable, so
+        // dispatching through that slot panics at runtime
+        // (KSWIFTK-RUNTIME-0001) instead of reaching Map's external-link
+        // bridge below. Exclude it here, the same shape and reason as the
+        // HashSet size/isEmpty bypass above (boxed runtime storage, no
+        // nominal-object vtable to dispatch through).
+        let isHashMapRealizedRuntimeBridgedMapProperty =
+            ownerInfo.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("HashMap"),
+            ]
+            && [
+                interner.intern("size"), interner.intern("keys"),
+                interner.intern("values"), interner.intern("entries"),
+            ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
+           !isHashMapRealizedRuntimeBridgedMapProperty,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
@@ -382,7 +410,15 @@ extension CallLowerer {
         }
 
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
-            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            // KUU-556: `tryResolvePropertyAccessorVirtualDispatch` independently
+            // qualifies HashMap's materialized keys/values/entries/size
+            // realization for vtable dispatch too (it treats "owner has a
+            // direct subtype" as sufficient on its own, without requiring
+            // abstractType/openType) now that HashMap has one. Skip it here
+            // for the same reason as the KSP-928 exclusion above, so this
+            // falls through to the external-link bridge path below instead.
+            if !isHashMapRealizedRuntimeBridgedMapProperty,
+               let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
