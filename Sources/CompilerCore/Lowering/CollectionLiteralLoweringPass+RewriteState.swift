@@ -5,15 +5,25 @@ extension CollectionLiteralLoweringSupport {
     /// so a value can carry facts on both, and "unknown" is meaningful per axis
     /// rather than only for a value carrying no facts at all.
     enum ClassificationAxis: Sendable, CaseIterable {
-        /// What kind of collection the value is, as far as its declared type or
-        /// the factory that produced it says.
+        /// What kind of collection the value is, as far as its declared type
+        /// says.
         ///
-        /// This axis does not yet distinguish a declared type from a factory
-        /// call or a runtime bridge that produced the value; recording only the
-        /// provenance that is actually known is RF-LOWER-STATE-009's job.
+        /// RF-LOWER-STATE-009 split this axis from provenance: ``Classification/sequenceType``
+        /// records only that the static type is `Sequence`, with no claim about
+        /// which runtime representation backs the value — that lives on
+        /// ``runtimeRepresentation`` as ``Classification/sequence`` /
+        /// ``Classification/sequenceSourceObject``.
         case staticType
-        /// Which runtime representation holds the value. Only lowering records
-        /// these, when it materialises the runtime handle itself.
+        /// Which runtime representation holds the value.
+        ///
+        /// Most of these are recorded only when lowering materialises the
+        /// runtime handle itself. ``Classification/sequence`` and
+        /// ``Classification/sequenceSourceObject`` are the exception
+        /// (RF-LOWER-STATE-009): the pre-scan records them from confirmable
+        /// evidence about a value that already exists — a known runtime
+        /// factory/bridge, a source declaration confirmed to construct a fresh
+        /// object, or a copy from a value already classified — never guessed
+        /// from the static type alone.
         case runtimeRepresentation
     }
 
@@ -26,7 +36,21 @@ extension CollectionLiteralLoweringSupport {
         case set
         case map
         case array
+        /// Confirmed `RuntimeSequenceBox`: a known runtime factory/bridge
+        /// produced this value, or the value was propagated from one that
+        /// did. Despite the name this is a runtime-representation fact, not
+        /// a static-type one — see ``sequenceType`` for "the static type is
+        /// `Sequence`" and ``sequenceSourceObject`` for the other confirmed
+        /// representation (RF-LOWER-STATE-009).
         case sequence
+        /// Confirmed source-backed `Sequence` object (RF-LOWER-STATE-009): a
+        /// bundled declaration whose body is confirmed, by reading it, to
+        /// construct a fresh `object : Sequence<T>` rather than bridge to a
+        /// runtime factory — or a value propagated from one that is.
+        /// Mutually exclusive with ``sequence``; see
+        /// ``CollectionRewriteState/resolveSequenceProvenanceConflicts(at:)``
+        /// for what happens when a reused expression slot receives both.
+        case sequenceSourceObject
         case range
         case charRange
         case ulongRange
@@ -39,13 +63,22 @@ extension CollectionLiteralLoweringSupport {
         case indexingIterable
         case indexingIterableIterator
         case ulongRangeIterator
+        /// The static type is (or resolves to) `kotlin.sequences.Sequence`,
+        /// with no claim about which runtime representation backs the value.
+        /// Revives the static classification `trackedStaticTypeKind` stopped
+        /// performing under KSP-441〜447; kept apart from ``sequence`` /
+        /// ``sequenceSourceObject`` because a Sequence-typed value's runtime
+        /// representation is not decidable from its static type alone
+        /// (RF-LOWER-STATE-009).
+        case sequenceType
 
         var axis: ClassificationAxis {
             switch self {
-            case .list, .set, .map, .array, .sequence, .range, .charRange,
+            case .list, .set, .map, .array, .sequenceType, .range, .charRange,
                  .ulongRange, .string, .file, .path:
                 .staticType
-            case .listIterator, .mapIterator, .iteratorBuilder, .indexingIterable,
+            case .sequence, .sequenceSourceObject,
+                 .listIterator, .mapIterator, .iteratorBuilder, .indexingIterable,
                  .indexingIterableIterator, .ulongRangeIterator:
                 .runtimeRepresentation
             }
@@ -58,7 +91,7 @@ extension CollectionLiteralLoweringSupport {
             case .set: self = .set
             case .map: self = .map
             case .array: self = .array
-            case .sequence: self = .sequence
+            case .sequence: self = .sequenceType
             case .string: self = .string
             }
         }
@@ -144,6 +177,8 @@ extension CollectionLiteralLoweringSupport {
         var mapExprIDs: Set<Int32> = []
         var arrayExprIDs: Set<Int32> = []
         var sequenceExprIDs: Set<Int32> = []
+        var sequenceSourceObjectExprIDs: Set<Int32> = []
+        var sequenceTypeExprIDs: Set<Int32> = []
         var rangeExprIDs: Set<Int32> = []
         var charRangeExprIDs: Set<Int32> = []
         var ulongRangeExprIDs: Set<Int32> = []
@@ -168,6 +203,8 @@ extension CollectionLiteralLoweringSupport {
             case .map: mapExprIDs
             case .array: arrayExprIDs
             case .sequence: sequenceExprIDs
+            case .sequenceSourceObject: sequenceSourceObjectExprIDs
+            case .sequenceType: sequenceTypeExprIDs
             case .range: rangeExprIDs
             case .charRange: charRangeExprIDs
             case .ulongRange: ulongRangeExprIDs
@@ -198,6 +235,8 @@ extension CollectionLiteralLoweringSupport {
             case .map: body(&mapExprIDs)
             case .array: body(&arrayExprIDs)
             case .sequence: body(&sequenceExprIDs)
+            case .sequenceSourceObject: body(&sequenceSourceObjectExprIDs)
+            case .sequenceType: body(&sequenceTypeExprIDs)
             case .range: body(&rangeExprIDs)
             case .charRange: body(&charRangeExprIDs)
             case .ulongRange: body(&ulongRangeExprIDs)
@@ -316,6 +355,28 @@ extension CollectionLiteralLoweringSupport {
         /// instructions that precede it.
         mutating func seedCopy(from: KIRExprID, to: KIRExprID) {
             self[to] = self[to].union(self[from])
+        }
+
+        /// Drop Sequence provenance that a `seedCopy` union has made
+        /// contradictory (RF-LOWER-STATE-009).
+        ///
+        /// ``Classification/sequence`` (confirmed `RuntimeSequenceBox`) and
+        /// ``Classification/sequenceSourceObject`` (confirmed source object)
+        /// are mutually exclusive facts about a single runtime value, but
+        /// `seedCopy`'s union has no way to know that two copies into the
+        /// same reused expression slot came from different branches of an
+        /// `if`/`when` rather than agreeing evidence about the same value.
+        /// A slot carrying both after such a union is asserting a fact no
+        /// single execution can back up, so this drops the provenance
+        /// entirely instead of keeping either guess — the caller must call
+        /// this after every `seedCopy` that can touch a Sequence value.
+        /// ``Classification/sequenceType`` (Sequence-typed, origin unknown)
+        /// is unaffected: it is not a provenance claim, so it is never
+        /// contradictory.
+        mutating func resolveSequenceProvenanceConflicts(at expr: KIRExprID) {
+            guard contains(.sequence, expr), contains(.sequenceSourceObject, expr) else { return }
+            remove(.sequence, expr)
+            remove(.sequenceSourceObject, expr)
         }
     }
 }
