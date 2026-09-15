@@ -627,7 +627,6 @@ struct RuntimeStringArrayTests {
         }
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_lowercase_flat) == "kswiftk")
         #expect(flatStringReturnValue("KSwiftK", using: kk_string_uppercase_flat) == "KSWIFTK")
-        #expect(flatStringReturnValue("abc", using: kk_string_reversed_flat) == "cba")
     }
 
     @Test

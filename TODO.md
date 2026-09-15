@@ -3406,16 +3406,10 @@
     - `kotlin.text.replaceRange` — fun CharSequence.replaceRange(IntRange, CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/replaceRange(kotlin.ranges/IntRange, kotlin/CharSequence): kotlin/CharSequence`
     - `kotlin.text.replaceRange` — fun CharSequence.replaceRange(Int, Int, CharSequence): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/replaceRange(kotlin/Int, kotlin/Int, kotlin/CharSequence): kotlin/CharSequence`
 
-- [~] KSP-1396: kotlin.text.CharSequence.reversed-family の未実装 stdlib API を実装する（1 件）
-  - 実装中: `CharSequence.reversed(): CharSequence` を Kotlin source に追加。#6697 stable head を基点とし、全体 G はこの PR head で未完了。
+- [x] KSP-1396: kotlin.text.CharSequence.reversed-family の未実装 stdlib API を実装する（1 件）
+  - **2026-09-15 実装メモ**: 着手時に前提を確認したところ、`CharSequence.reversed(): CharSequence` の Kotlin source 実装・golden テスト（`stdlib_kotlin_text_CharSequence_reversed.kt`/`.golden`）・diff ケース（`stdlib_kotlin_text_CharSequence_reversed.kt`）は #6697（squash 元 PR "KSP-1396: add CharSequence.reversed" #6714、2026-09-11 merge）で既に完了済みだった。本チケットが `[~]` のまま残っていたのは、KSP-1394（repeat）と同じ経緯で「bridge/stub 整理」ステップが積み残されていたため。本 PR ではその残作業のみを実施: 呼び出し不能になっていた `kk_string_reversed_flat`（Runtime `@_cdecl` / `RuntimeABISpec` エントリ / `NativeEmitter` の `FlatStringReturnCallSpec` 登録、および `RuntimeStringArrayTests.swift`/`CodegenBackendLLVMLinkingAndArtifactsTests.swift` の直接参照）を削除。実コンパイルパスで `kk_string_reversed_flat` を参照する箇所が `Sources/CompilerCore` 配下に存在しないことをリポジトリ全体 grep で確認済み（`StringSyntheticMemberLinkTests.swift:348` の `bundledMembers = ["repeat", "reversed"]` が「reversed は C external link を持たない」ことを既に固定している）。name-string 特例は 2 箇所を精査した上でどちらも対象外と判断: `CallTypeChecker+MemberCallInferenceFallbacks.swift:1159` の `calleeStr == "reversed"` 分岐は `Comparator.reversed()`（別レシーバ、対象外）。`CallTypeChecker+MemberCallInferenceRegularNoCandidateFallbacks.swift` の `case "reversed", "trimStart", "trimEnd":` 共有ラベルは、`trimStart`/`trimEnd` が `kk_string_trimStart_flat`/`kk_string_trimEnd_flat` として現在も生存しているため丸ごと削除できず、KSP-1394 が `"repeat"` 系ラベルを残した前例と同じ理由で本チケットのスコープでは変更していない。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `reversed`
-  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`
-  - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
-  - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_reversed.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
-  - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_reversed.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_reversed.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
-  - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 未実装シンボル一覧:
-    - `kotlin.text.reversed` — fun CharSequence.reversed(): CharSequence  -- `final fun (kotlin/CharSequence).kotlin.text/reversed(): kotlin/CharSequence`
+  - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringBasics.kt`（#6697/#6714 で追加済み）
 
 - [~] KSP-1397: kotlin.text.CharSequence.running-family の未実装 stdlib API を実装する（4 件）
   - 実装中: Kotlin source の runningFold / runningFoldIndexed / runningReduce / runningReduceIndexed と generic/nullable/primitive/empty、動的 CharSequence、callback throw、inline non-local return の回帰を追加。共通 G は未完了。
