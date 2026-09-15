@@ -133,14 +133,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             sequenceTypeExprIDs: &state.sequenceTypeExprIDs
         )
 
-        if rewriteArrayVirtualCall(
-            callee: callee, receiver: receiver, arguments: arguments,
-            result: result, origCanThrow: origCanThrow,
-            origThrownResult: origThrownResult, module: module, lookup: lookup,
-            state: &state,
-            loweredBody: &loweredBody
-        ) { return true }
-
         if rewriteSequenceVirtualCall(
             symbol: symbol,
             callee: callee, receiver: receiver, arguments: arguments,
@@ -199,30 +191,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             state: &state,
             loweredBody: &loweredBody
         ) { return true }
-
-        // KSP-628 + KSP-629: the List receivers of toTypedArray /
-        // to{Char,Boolean,Short,Double,Float,Int,Long,Byte,UByte,UShort,UInt,ULong}Array
-        // are source-backed (ArrayConversions.kt) and lower through normal function resolution.
-
-        // toTypedArray() on array → __kk_array_copyOf (result is Array)
-        if callee == lookup.toTypedArrayName, arguments.isEmpty, state.arrayExprIDs.contains(receiver.rawValue) {
-            let toArrayResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkArrayCopyOfName,
-                arguments: [receiver],
-                result: toArrayResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.arrayExprIDs.insert(result.rawValue)
-                state.arrayExprIDs.insert(toArrayResult.rawValue)
-                loweredBody.append(.copy(from: toArrayResult, to: result))
-            }
-            return true
-        }
 
         return false
     }
