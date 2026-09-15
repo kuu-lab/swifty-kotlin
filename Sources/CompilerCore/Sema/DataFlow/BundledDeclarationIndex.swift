@@ -471,7 +471,12 @@ struct BundledDeclarationIndex: Sendable {
             // as members while also declaring source-backed overloads. The
             // bundled index records arity but not parameter types, so these
             // retained bridges are intentional overload collisions rather than
-            // missed KSP-002 skips.
+            // missed KSP-002 skips. KSP-703 moved `remove`'s interface member
+            // itself to a source-backed @KsSymbolName override on
+            // MutableMap.kt (no synthetic `remove` registration exists to
+            // overlap-warn about any more) — this arm is now vestigial for
+            // `remove` specifically but harmless to leave, since `putAll`
+            // still needs it and both share this one arity-only check.
             let name = interner.resolve(key.name)
             return (name == "putAll" || name == "remove") && key.arity == 1
         }
@@ -480,8 +485,11 @@ struct BundledDeclarationIndex: Sendable {
         }
         if ownerFQName == ["kotlin", "collections", "Map"] {
             // Map.get has two intentional surfaces: the source-backed variance
-            // extension and the synthetic interface member that lowers to the
-            // runtime lookup bridge. They must not be collapsed into one symbol.
+            // extension (MapLookupAndTransform.kt) and the interface member
+            // it delegates to. KSP-703 made the interface member itself
+            // source-backed too (@KsSymbolName on Map.kt) rather than
+            // synthetic, so this arm is likewise now vestigial-but-harmless:
+            // no synthetic `get` registration remains to overlap-warn about.
             return interner.resolve(key.name) == "get" && key.arity == 1
         }
         return false
