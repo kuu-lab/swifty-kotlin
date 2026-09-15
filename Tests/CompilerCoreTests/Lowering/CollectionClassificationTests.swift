@@ -370,6 +370,57 @@ struct CollectionClassificationTests {
     }
 
     @Test
+    func overloadedSourceSequenceFactoriesAreNotClassifiedByNameOnly() {
+        let fixture = Fixture()
+        let lookup = CollectionLiteralLookupTables(interner: fixture.interner)
+        for name in ["sequenceOf", "emptySequence", "generateSequence"] {
+            #expect(
+                !lookup.sequenceRuntimeBridgeReturningNames.contains(fixture.interner.intern(name)),
+                "the overloaded source factory (name) needs explicit provenance"
+            )
+        }
+    }
+
+    @Test
+    func sequenceRepresentationTracksArgumentsFactoriesSourceObjectsAndCopies() {
+        let fixture = Fixture()
+        let sequenceType = fixture.classType(["kotlin", "sequences", "Sequence"])
+        let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
+        let sourceSymbol = fixture.sourceBackedFunctionSymbol(
+            ["kotlin", "sequences", "asSequence"],
+            receiverType: iterableType,
+            returnType: sequenceType
+        )
+        let parameterSymbol = SymbolID(rawValue: 101)
+        let sequenceParameter = fixture.arena.appendExpr(
+            .symbolRef(parameterSymbol), type: sequenceType
+        )
+        let consumeResult = fixture.arena.appendTemporary(type: nil)
+        let runtimeFactory = fixture.arena.appendTemporary(type: sequenceType)
+        let runtimeAlias = fixture.arena.appendTemporary(type: sequenceType)
+        let iterableReceiver = fixture.arena.appendTemporary(type: iterableType)
+        let sourceObject = fixture.arena.appendTemporary(type: sequenceType)
+        let sourceAlias = fixture.arena.appendTemporary(type: sequenceType)
+        let function = fixture.function([
+            fixture.call("consume", arguments: [sequenceParameter], result: consumeResult),
+            fixture.call("lineSequence", result: runtimeFactory),
+            .copy(from: runtimeFactory, to: runtimeAlias),
+            fixture.virtualCall("asSequence", symbol: sourceSymbol, receiver: iterableReceiver, result: sourceObject),
+            .copy(from: sourceObject, to: sourceAlias),
+        ], params: [KIRParameter(symbol: parameterSymbol, type: sequenceType)])
+
+        let state = fixture.scan(function)
+
+        // A Sequence parameter has only static-type evidence, so its origin is
+        // unknown until a concrete runtime producer or source object is seen.
+        #expect(state.sequenceRuntimeRepresentation(of: sequenceParameter) == .unknown)
+        #expect(state.sequenceRuntimeRepresentation(of: runtimeFactory) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: runtimeAlias) == .runtimeBox)
+        #expect(state.sequenceRuntimeRepresentation(of: sourceObject) == .sourceObject)
+        #expect(state.sequenceRuntimeRepresentation(of: sourceAlias) == .sourceObject)
+    }
+
+    @Test
     func copiesFromConflictingSequenceProvenanceIntoTheSameSlotLoseBothFacts() {
         let fixture = Fixture()
         let iterableType = fixture.classType(["kotlin", "collections", "Iterable"])
