@@ -121,6 +121,36 @@ struct CodegenBackendGenericFunctionValueFieldSIGBUSRegressionTests {
         )
     }
 
+    /// KUU-558: invariant `Box<T>` argument matching must expose type
+    /// variables nested inside its function-typed `T` in both constraint
+    /// directions. Keep the field read and invoke as separate expressions;
+    /// direct function-property invocation is independently tracked by KUU-482.
+    @Test
+    func testCodegenNestedGenericFunctionTypeConstraintRegression() throws {
+        let source = """
+        class Box<T>(val value: T)
+
+        fun <T1> invokeFromBox(box: Box<(T1) -> Unit>, arg: T1) {
+            val function = box.value
+            function(arg)
+        }
+
+        fun main() {
+            val block: (String) -> Unit = { value -> print("val=$value;") }
+            val box = Box<(String) -> Unit>(block)
+            invokeFromBox<String>(box, "explicit")
+            invokeFromBox(box, "inferred")
+            println("done")
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "NestedGenericFunctionTypeConstraint",
+            expected: "val=explicit;val=inferred;done\n"
+        )
+    }
+
     @Test
     func testCodegenGenericFunctionValueFromListOfRegression() throws {
         let source = """
