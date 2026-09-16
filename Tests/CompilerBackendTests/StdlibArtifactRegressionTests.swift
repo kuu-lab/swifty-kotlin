@@ -413,6 +413,78 @@ struct StdlibArtifactRegressionTests {
         }
     }
 
+    /// KUU-594: user-defined Throwable subclasses must initialize the object
+    /// allocated by the consumer module when their superclass constructor is
+    /// imported from the precompiled stdlib artifact. Runtime factory
+    /// constructors need accessor-based initialization, while source-backed
+    /// RuntimeException constructors must retain their normal super call.
+    @Test
+    func testUserDefinedThrowableSubclassThroughSharedStdlibArtifact() throws {
+        let artifactPath = try Self.buildStdlibArtifact()
+
+        let source = """
+        class MyEx(msg: String, cause: Throwable? = null) : RuntimeException(msg, cause)
+        class MyEx2(msg: String) : Exception(msg)
+        class MyEx3 : RuntimeException("fixed")
+        open class BaseEx(m: String) : Exception(m)
+        class SubEx(m: String) : BaseEx(m)
+
+        fun main() {
+            try {
+                throw MyEx("boom", IllegalArgumentException("root"))
+            } catch (e: MyEx) {
+                println("${e.message} / ${e.cause?.message} / ${e.cause is IllegalArgumentException} / $e")
+            }
+            try {
+                throw MyEx2("m2")
+            } catch (e: Exception) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw MyEx3()
+            } catch (e: RuntimeException) {
+                println("${e.message} / $e")
+            }
+            try {
+                throw SubEx("sub")
+            } catch (e: BaseEx) {
+                println("${e.message} / $e / ${e is SubEx}")
+            }
+            println(RuntimeException("rt").message)
+        }
+        """
+
+        try withTemporaryFile(contents: source) { userPath in
+            let outputBase = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .path
+            let ctx = makeCompilationContext(
+                inputs: [userPath],
+                moduleName: "UserDefinedThrowableArtifact",
+                emit: .executable,
+                outputPath: outputBase,
+                includeStdlib: false,
+                stdlibLibraryPath: artifactPath
+            )
+            try runToKIR(ctx)
+            try LoweringPhase().run(ctx)
+            try CodegenPhase().run(ctx)
+            try LinkPhase().run(ctx)
+
+            let result = try CommandRunner.run(executable: outputBase, arguments: [])
+            let normalizedStdout = result.stdout
+                .replacingOccurrences(of: "\r\n", with: "\n")
+            let expectedStdout = [
+                "boom / root / true / MyEx: boom",
+                "m2 / MyEx2: m2",
+                "fixed / MyEx3: fixed",
+                "sub / SubEx: sub / true",
+                "rt",
+            ].joined(separator: "\n") + "\n"
+            #expect(normalizedStdout == expectedStdout)
+        }
+    }
+
     /// STDLIB-ARTIFACT-004: generic `maxOf`/`minOf` overloads on `Comparable`
     /// work through the shared stdlib artifact even though their `Comparable<T>`
     /// upper bound is not preserved in metadata; the CallLowerer recognizes the

@@ -189,18 +189,42 @@ extension KIRLoweringDriver {
         }
 
         let superArgs = classDecl.superTypeEntries.first { !$0.constructorArgs.isEmpty }?.constructorArgs ?? []
-        if !(sema.symbols.externalLinkName(for: superCtorSymbol)?.isEmpty ?? true) {
+        let throwableFQName = [
+            compilationCtx.interner.intern("kotlin"),
+            compilationCtx.interner.intern("Throwable"),
+        ]
+        let isZeroArgumentThrowableFactory = sema.symbols.externalLinkName(for: superCtorSymbol)
+            == "__kk_throwable_new"
+            && sema.symbols.functionSignature(for: superCtorSymbol)?.parameterTypes.isEmpty == true
+        if callLowerer.isRuntimeFactoryConstructor(superCtorSymbol, sema: sema)
+            || isZeroArgumentThrowableFactory
+        {
             // Runtime-backed Throwable construction returns its own native box,
             // while a Kotlin subclass already owns the compiler-emitted object.
-            // Initialize that object through the message accessor instead of
-            // discarding it in favor of the factory result.
+            // Initialize that object through the message accessors instead of
+            // discarding it in favor of the factory result. Ordinary imported
+            // source-backed constructors are handled by the normal super call
+            // below; their non-empty link names are not runtime ABI factories.
             let nullableStringType = sema.types.makeNullable(sema.types.stringType)
+            guard let throwableSymbol = sema.symbols.lookup(fqName: throwableFQName) else {
+                return
+            }
             let nullableThrowableType = sema.types.make(.classType(ClassType(
-                classSymbol: superclassSymbol,
+                classSymbol: throwableSymbol,
                 args: [],
                 nullability: .nullable
             )))
-            guard superclassInfo.fqName.map({ compilationCtx.interner.resolve($0) }) == ["kotlin", "Throwable"],
+            let superclassType = sema.types.make(.classType(ClassType(
+                classSymbol: superclassSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            let throwableType = sema.types.make(.classType(ClassType(
+                classSymbol: throwableSymbol,
+                args: [],
+                nullability: .nonNull
+            )))
+            guard sema.types.isSubtype(superclassType, throwableType),
                   let signature = sema.symbols.functionSignature(for: superCtorSymbol)
             else {
                 return
@@ -208,7 +232,7 @@ extension KIRLoweringDriver {
 
             func setterSymbol(named name: String) -> SymbolID? {
                 sema.symbols.lookupAll(
-                    fqName: superclassInfo.fqName.dropLast() + [compilationCtx.interner.intern(name)]
+                    fqName: throwableFQName.dropLast() + [compilationCtx.interner.intern(name)]
                 ).first(where: { candidate in
                     sema.symbols.symbol(candidate)?.kind == .function
                 })
@@ -267,8 +291,13 @@ extension KIRLoweringDriver {
             return
         }
         // Synthetic nominal shells may expose a constructor for Sema
-        // compatibility without providing a linkable implementation.
-        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false) else {
+        // compatibility without providing a linkable implementation. Imported
+        // library declarations also carry the synthetic bit, but their
+        // artifact object contains the real constructor body and must remain
+        // callable from a user-defined subclass.
+        guard !(sema.symbols.symbol(superCtorSymbol)?.flags.contains(.synthetic) ?? false)
+            || sema.symbols.isSourceBackedSymbol(superCtorSymbol)
+        else {
             return
         }
 
