@@ -83,21 +83,27 @@ extension CallLowerer {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
+            let lambdaParamKind = resolveValueClassKind(
+                sema.types.kind(of: lambdaParamType),
+                types: sema.types,
+                symbols: sema.symbols
+            )
+            let normalizedLambdaParamType = sema.types.make(lambdaParamKind)
             let unboxCallee: InternedString? = {
                 if isNonNullEnumType(lambdaParamType, sema: sema) {
                     return ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
                 }
                 return boxingCalleeTable.unboxCallee(
-                    for: lambdaParamType, types: sema.types, requireNonNull: true
+                    for: lambdaParamKind, requireNonNull: true
                 )
             }()
-            guard param.type != lambdaParamType,
+            guard param.type != normalizedLambdaParamType,
                   let unboxCallee
             else {
                 callArguments.append(paramExpr)
                 continue
             }
-            let unboxedExpr = arena.appendTemporary(type: lambdaParamType)
+            let unboxedExpr = arena.appendTemporary(type: normalizedLambdaParamType)
             body.append(.call(
                 symbol: nil,
                 callee: unboxCallee,
@@ -108,6 +114,18 @@ extension CallLowerer {
             ))
             callArguments.append(unboxedExpr)
         }
+
+        // `functionType.returnType` is the concrete lambda result, while an
+        // erased HOF return slot is `Any`.
+        let adapterReturnType: TypeID = {
+            guard let erasedReturnType = erasedFunctionType?.returnType,
+                  isErasedRepresentationType(erasedReturnType, sema: sema),
+                  isNonNullPrimitiveType(functionType.returnType, sema: sema)
+            else {
+                return functionType.returnType
+            }
+            return sema.types.anyType
+        }()
 
         let callResult = arena.appendTemporary(type: functionType.returnType
         )
@@ -120,26 +138,13 @@ extension CallLowerer {
             thrownResult: nil
         ))
 
-        switch sema.types.kind(of: functionType.returnType) {
+        switch sema.types.kind(of: adapterReturnType) {
         case .unit, .nothing(.nonNull):
             body.append(.returnUnit)
         default:
             body.append(.returnValue(callResult))
         }
         body.append(.endBlock)
-
-        // Declaring an erased primitive result as `Any` makes ABILoweringPass
-        // box the returned value, so `Double`/`Char` results keep their identity
-        // once the generic caller stores them into an erased slot.
-        let adapterReturnType: TypeID = {
-            guard let erasedReturnType = erasedFunctionType?.returnType,
-                  isErasedRepresentationType(erasedReturnType, sema: sema),
-                  isNonNullPrimitiveType(functionType.returnType, sema: sema)
-            else {
-                return functionType.returnType
-            }
-            return sema.types.anyType
-        }()
 
         // `functionType.isSuspend` reflects the *expected* (contextual) type the
         // argument lambda was checked against -- e.g. a plain `(T) -> R)` HOF
@@ -184,7 +189,12 @@ extension CallLowerer {
     }
 
     private func isNonNullPrimitiveType(_ type: TypeID, sema: SemaModule) -> Bool {
-        if case .primitive(_, .nonNull) = sema.types.kind(of: type) { return true }
+        let kind = resolveValueClassKind(
+            sema.types.kind(of: type),
+            types: sema.types,
+            symbols: sema.symbols
+        )
+        if case .primitive(_, .nonNull) = kind { return true }
         return false
     }
 

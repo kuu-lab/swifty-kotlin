@@ -1141,6 +1141,11 @@ func runtimeElementToString(_ elem: Int) -> String {
     guard isObjectPointer else {
         return "\(elem)"
     }
+    if let override = runtimeAnyToStringOverride(elem),
+       let pointer = extractString(from: override)
+    {
+        return pointer
+    }
     if runtimeIsUnitBox(elem) {
         return "kotlin.Unit"
     }
