@@ -789,17 +789,6 @@ func runtimeMutableSetAddAllSequence(setRaw: Int, sequenceRaw: Int) -> Int {
     return runtimeMutableSetAddAllSequence(set: set, sequenceRaw: sequenceRaw)
 }
 
-@_cdecl("__kk_mutable_collection_addAll_sequence")
-public func kk_mutable_collection_addAll_sequence(_ collectionRaw: Int, _ sequenceRaw: Int) -> Int {
-    if let list = runtimeListBox(from: collectionRaw) {
-        return runtimeMutableListAddAllSequence(list: list, sequenceRaw: sequenceRaw)
-    }
-    if let set = runtimeSetBox(from: collectionRaw) {
-        return runtimeMutableSetAddAllSequence(set: set, sequenceRaw: sequenceRaw)
-    }
-    return kk_box_bool(0)
-}
-
 @_cdecl("__kk_mutable_list_addAll_sequence")
 public func kk_mutable_list_addAll_sequence(_ listRaw: Int, _ sequenceRaw: Int) -> Int {
     return runtimeMutableListAddAllSequence(listRaw: listRaw, sequenceRaw: sequenceRaw)

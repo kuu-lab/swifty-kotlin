@@ -98,6 +98,31 @@ struct ABIMismatchTests {
         }
     }
 
+    // DEADCODE-014: source-backed reflection and collection migrations leave
+    // no compiler, test, or runtime-internal consumer for these legacy exports.
+    @Test
+    func deadReflectionAndCollectionBridgeABIsAreRemoved() {
+        let removedNames = [
+            "__kk_kfunction_get_name",
+            "__kk_kfunction_get_arity",
+            "__kk_kfunction_get_return_type",
+            "kk_callable_ref_name",
+            "kk_callable_ref_arity",
+            "kk_callable_ref_is_suspend",
+            "kk_callable_ref_parameters",
+            "__kk_kproperty_stub_name",
+            "__kk_kproperty_stub_return_type",
+            "kk_indexed_value_new",
+            "__kk_mutable_collection_addAll_sequence",
+        ]
+        for name in removedNames {
+            #expect(
+                !RuntimeABISpec.allFunctions.contains { $0.name == name },
+                "\(name) should be removed after its source-backed migration"
+            )
+        }
+    }
+
     @Test
     func floorDivABISignatures() throws {
         for name in ["kk_op_floor_div", "kk_op_lfloor_div"] {

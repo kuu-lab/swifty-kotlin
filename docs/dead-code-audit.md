@@ -8,6 +8,36 @@
 
 TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出手法と全リストを記録する。
 
+## 継続監査（DEADCODE-014、2026-09-16）
+
+現行 HEAD（`ec7eb414c`）で `Scripts/dead_code_audit.sh --self-test` を再実行した。
+監査スクリプトは、`@_cdecl("__kk_x")` と Swift 関数名 `kk_x` が異なる Runtime
+エクスポートについて、Tests と Runtime 内部の Swift 名呼び出しも cdecl 名へ写像する。
+これにより `__kk_mutable_map_iterator_*` などの別名呼び出しを誤って完全到達不能と
+分類しない。実行前の集計は Runtime export 1,678 件、compiler-unreachable 147 件、
+A 25 件、B 82 件だった。
+
+今回、source-backed 化後に E0（compiler / Tests / Runtime 内部の参照が 0）を満たす
+次の 11 export と対応する `RuntimeABISpec` エントリを削除した。
+
+```
+__kk_kfunction_get_name __kk_kfunction_get_arity __kk_kfunction_get_return_type
+kk_callable_ref_name kk_callable_ref_arity kk_callable_ref_is_suspend kk_callable_ref_parameters
+__kk_kproperty_stub_name __kk_kproperty_stub_return_type
+kk_indexed_value_new __kk_mutable_collection_addAll_sequence
+```
+
+削除後の再実行では Runtime export 1,667 件、compiler-unreachable 136 件、A 14 件、
+B 82 件となり、セルフテスト（静的 emit、2 段階 prefix、fatalError 自己言及、Swift 名
+別名呼び出し）は全て PASS した。
+
+KCallable の共通 `name` / `returnType` bridge、callable-reference の tag / call、
+KProperty stub の create、`IndexedValue` の Kotlin data class、MutableCollection の
+Sequence 拡張は引き続き実働経路として保持している。残る A 候補（KProperty の完全
+メタデータ拡張、`kk_cinterop_writeBits`、HTTP の追加設定・応答メタデータ）は、
+それぞれ MIGRATION-PROP-001、STDLIB-CINTEROP-FN-046、HTTP surface の所有タスクで
+扱うため今回の削除対象から除外した。
+
 ## 検出手法
 
 識別子トークン頻度解析（`Sources` / `Tests` / `Scripts` / `Package.swift` / `*.kt` 横断）で「宣言されているが参照ゼロ」のシンボルを抽出し、以下の到達経路を順に除外して確定した。
@@ -15,8 +45,8 @@ TODO.md の Phase RF9（RF-DEAD-001〜004）の根拠インベントリ。検出
 1. **静的 emit**: CompilerCore 内の `kk_*` 文字列リテラル参照
 2. **動的 emit（文字列補間）**: `"kk_xxx_\(...)"` 形式 25 プレフィックス（`kk_op_` / `kk_range_` / `kk_base64_*_` / `kk_match_result_destructured_component` 等）。前方一致で除外
 3. **動的 emit（表駆動）**: `StdlibSurfaceSpec.collectionHOFRuntimeLinkName` 経由の 164 link name（list / set / map / sequence の HOF。`array` は対象外）
-4. **テスト参照**: `Tests/` からの直接呼び出し（語境界一致。superstring 誤検知に注意: `kk_http_client_post` は `kk_http_client_post_async` とは別物）
-5. **Runtime 内部呼び出し**: 他のランタイム関数からの Swift レベル呼び出し
+4. **テスト参照**: `Tests/` からの直接呼び出し（語境界一致。superstring 誤検知に注意: `kk_http_client_post` は `kk_http_client_post_async` とは別物）。`@_cdecl("__kk_x")` の Swift 名別名も照合
+5. **Runtime 内部呼び出し**: 他のランタイム関数からの Swift レベル呼び出し（cdecl 名と Swift 名の別名も照合）
 6. **プロトコル経由・エントリポイント**: `URLSessionTaskDelegate.urlSession(...)`（Foundation が呼ぶ）、`GoldenHarnessWorkerMain`（実行ターゲットエントリ）等は dead ではない
 
 **重要**: `RuntimeABISpec`（`+ABIParity` / `+RuntimeOnlyBridge`）への登録は exported シンボルの必須ミラーであり、**使用の証拠ではない**。spec 登録のみで他に参照がない関数はコンパイル済み Kotlin プログラムから到達不能。

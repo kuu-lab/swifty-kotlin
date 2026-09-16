@@ -28,7 +28,9 @@ Exclusion pipeline (reproduces docs/dead-code-audit.md):
                         and two-stage `prefix: "kk_xxx"` + "\(prefix)_suffix"
   3. Table-driven     — StdlibSurfaceSpec collectionHOFRuntimeLinkName entries
                         (list / set / map / sequence HOF; array is separate)
-  4. Test references  — Tests/ direct calls (word-boundary match)
+  4. Test references  — Tests/ direct calls (word-boundary match), including
+                        Swift-name aliases where @_cdecl("__kk_x") is declared
+                        on `func kk_x(...)` and tests call the Swift name
   5. Runtime-internal — non-@_cdecl kk_* appearances inside Sources/Runtime
                         (excluding fatalError(...) diagnostic-message text)
 
@@ -146,6 +148,39 @@ log "[4] StdlibSurfaceSpec link names: $(count "$WORK/kk_stdlib_surface.txt")"
     | LC_ALL=C sort -u > "$WORK/kk_tests.txt"
 log "[5] Test references: $(count "$WORK/kk_tests.txt")"
 
+# ── Step 5b: cdecl/Swift function-name aliases used by Runtime tests ───────
+# `@_cdecl("__kk_x") public func kk_x(...)` exports a cdecl name that differs
+# from the Swift identifier imported by `@testable import Runtime` tests.
+# Include those aliases so a test-only bridge is not misclassified as A.
+find Sources/Runtime -name '*.swift' -print0 \
+    | xargs -0 awk '
+        /@_cdecl\("_*kk_[a-zA-Z0-9_]+"\)/ {
+            line = $0
+            sub(/.*@_cdecl\("/, "", line)
+            sub(/".*/, "", line)
+            cdecl = line
+            next
+        }
+        cdecl != "" {
+            if ($0 ~ /func[[:space:]]+[A-Za-z0-9_]+/) {
+                line = $0
+                sub(/.*func[[:space:]]+/, "", line)
+                sub(/[^A-Za-z0-9_].*/, "", line)
+                if (line != "" && line != cdecl) print cdecl "\t" line
+            }
+            cdecl = ""
+        }
+    ' | LC_ALL=C sort -u > "$WORK/cdecl_swift_alias.tsv"
+
+grep -rhoE '\b[A-Za-z_][A-Za-z0-9_]*\b' Tests --include='*.swift' \
+    | LC_ALL=C sort -u > "$WORK/test_identifiers.txt"
+awk 'NR == FNR { seen[$1] = 1; next } seen[$2] { print $1 }' \
+    "$WORK/test_identifiers.txt" "$WORK/cdecl_swift_alias.tsv" \
+    | LC_ALL=C sort -u > "$WORK/kk_tests_swiftname.txt"
+log "[5b] Test references via Swift-name alias: $(count "$WORK/kk_tests_swiftname.txt")"
+
+LC_ALL=C sort -u "$WORK/kk_tests.txt" "$WORK/kk_tests_swiftname.txt" -o "$WORK/kk_tests.txt"
+
 # ── Step 6: Runtime 内部参照（宣言行を除くコード行に現れる kk_*） ──────────
 # Exclude @_cdecl and func definition lines to find calls from other Runtime functions.
 # Also exclude fatalError(...) lines because their diagnostics commonly repeat the
@@ -157,6 +192,30 @@ log "[5] Test references: $(count "$WORK/kk_tests.txt")"
     | grep -oE '_*kk_[a-zA-Z0-9_]+' \
     | LC_ALL=C sort -u > "$WORK/kk_runtime_internal.txt" || true
 log "[6] Runtime-internal refs: $(count "$WORK/kk_runtime_internal.txt")"
+
+# A cdecl export may again use a different Swift identifier.  For unique
+# `__kk_` exports, a call to the Swift name from another Runtime function is
+# an internal reachability edge.  Do not infer this for ambiguous pairs where
+# both `kk_x` and `__kk_x` are exported: the bare Swift name then identifies
+# only the exact `kk_x` declaration.
+awk '{ canonical = $0; sub(/^__kk_/, "kk_", canonical); count[canonical]++ }
+     END { for (canonical in count) if (count[canonical] > 1) print canonical }' \
+    "$WORK/runtime_cdecl.txt" | LC_ALL=C sort -u > "$WORK/ambiguous_cdecl_aliases.txt"
+awk 'NR == FNR { ambiguous[$1] = 1; next }
+     {
+         canonical = $1
+         sub(/^__kk_/, "kk_", canonical)
+         if (!(canonical in ambiguous)) aliases[$2] = $1
+     }
+     END { for (swiftName in aliases) print swiftName "\t" aliases[swiftName] }' \
+    "$WORK/ambiguous_cdecl_aliases.txt" "$WORK/cdecl_swift_alias.tsv" \
+    | LC_ALL=C sort -k1,1 > "$WORK/runtime_unique_swift_aliases.tsv"
+awk 'NR == FNR { aliases[$1] = $2; next } $0 in aliases { print aliases[$0] }' \
+    "$WORK/runtime_unique_swift_aliases.tsv" "$WORK/kk_runtime_internal.txt" \
+    | LC_ALL=C sort -u > "$WORK/kk_runtime_internal_swiftname.txt"
+LC_ALL=C sort -u "$WORK/kk_runtime_internal.txt" "$WORK/kk_runtime_internal_swiftname.txt" \
+    -o "$WORK/kk_runtime_internal.txt"
+log "[6b] Runtime-internal refs via Swift-name alias: $(count "$WORK/kk_runtime_internal_swiftname.txt")"
 
 # ── Step 7: 動的プレフィックスに前方一致する cdecl 名を抽出 ──────────────
 # プレフィックスごとに grep を fork する代わりに、全プレフィックスを1つの
@@ -220,7 +279,8 @@ fi
 FIXTURES=(
   "kk_print_string_flat|dead_A.txt|absent|CompilerBackend-only static emit must not be classified as A"
   "kk_atomic_ref_array_loadAt|dead_B.txt|absent|Two-stage prefix emit must not be classified as B"
-  "kk_path_isAbsolute|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
+  "kk_http_response_errorMessage|dead_A.txt|present|Its only Runtime mention is self-referential fatalError diagnostic text"
+  "__kk_mutable_map_iterator_hasNext|dead_A.txt|absent|Runtime calls its unique Swift-name alias"
 )
 
 if [[ $SELFTEST -eq 1 ]]; then
