@@ -1000,6 +1000,12 @@ extension CallTypeChecker {
                 sema: sema,
                 interner: interner
             )
+            let instantValueSemanticsCandidates = collectInstantValueSemanticsCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sema: sema,
+                interner: interner
+            )
             let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
                 named: calleeName,
                 receiverType: memberLookupType,
@@ -1086,6 +1092,12 @@ extension CallTypeChecker {
                 standardMemberCandidates = scopedRangeUserCandidates
             } else if !rangeSourceCandidates.isEmpty {
                 standardMemberCandidates = rangeSourceCandidates
+            } else if !instantValueSemanticsCandidates.isEmpty {
+                // Instant's source-backed value-semantics extensions intentionally
+                // replace inherited Any members for a statically typed Instant.
+                // Without this preference, the nominal source shell makes
+                // Any.equals/hashCode/toString win before extension fallback.
+                standardMemberCandidates = instantValueSemanticsCandidates
             } else if !bundledStdlibCandidates.isEmpty {
                 // Source-backed bundled extensions are the live implementation
                 // for migrated atomic APIs, including overrides of inherited
@@ -2284,6 +2296,47 @@ extension CallTypeChecker {
             return true
         default:
             return false
+        }
+    }
+
+    /// Finds the source-backed value-semantics extensions for Instant. Instant
+    /// keeps these operations as package-level Kotlin functions, but its source
+    /// nominal shell also inherits Any's methods. They must be preferred when
+    /// the call site's static receiver is Instant.
+    private func collectInstantValueSemanticsCandidates(
+        named calleeName: InternedString,
+        receiverType: TypeID,
+        sema: SemaModule,
+        interner: StringInterner
+    ) -> [SymbolID] {
+        let supportedNames: Set<String> = ["equals", "hashCode", "toString"]
+        guard supportedNames.contains(interner.resolve(calleeName)),
+              let receiverOwner = driver.helpers.nominalSymbol(
+                  of: sema.types.makeNonNullable(receiverType),
+                  types: sema.types
+              ),
+              let receiverSymbol = sema.symbols.symbol(receiverOwner),
+              receiverSymbol.fqName.map(interner.resolve) == ["kotlin", "time", "Instant"]
+        else {
+            return []
+        }
+
+        let kotlinTimePackage = [interner.intern("kotlin"), interner.intern("time")]
+        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate),
+                  symbol.kind == .function,
+                  sema.symbols.isSourceBackedSymbol(candidate),
+                  Array(symbol.fqName.dropLast()) == kotlinTimePackage,
+                  let signature = sema.symbols.functionSignature(for: candidate),
+                  let declaredReceiver = signature.receiverType
+            else {
+                return false
+            }
+            return extensionSyntheticFallbackReceiverMatches(
+                callSiteReceiver: receiverType,
+                declaredReceiver: declaredReceiver,
+                sema: sema
+            )
         }
     }
 
