@@ -11,6 +11,14 @@ func runtimeStringUTF16CodeUnits(_ raw: Int) -> [UInt16] {
     Array(runtimeStringFromRawOrPanic(raw, caller: #function).utf16)
 }
 
+/// Kotlin String equality compares the underlying UTF-16 code-unit sequence.
+/// Swift String equality uses canonical equivalence, so it cannot be used for
+/// the default Kotlin String equality contract.
+@inline(__always)
+func runtimeStringsEqual(_ lhs: String, _ rhs: String) -> Bool {
+    lhs.utf16.elementsEqual(rhs.utf16)
+}
+
 func runtimeStringFromScalars(_ scalars: some Sequence<UnicodeScalar>) -> String {
     String(String.UnicodeScalarView(scalars))
 }
@@ -112,8 +120,8 @@ func runtimeStringToCharListRaw(_ source: String) -> Int {
 }
 
 func runtimeStringIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    let other = runtimeStringScalars(otherRaw)
+    let source = runtimeStringUTF16CodeUnits(strRaw)
+    let other = runtimeStringUTF16CodeUnits(otherRaw)
 
     if other.isEmpty {
         return 0
@@ -131,8 +139,8 @@ func runtimeStringIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
 }
 
 func runtimeStringLastIndexOfRaw(_ strRaw: Int, _ otherRaw: Int) -> Int {
-    let source = runtimeStringScalars(strRaw)
-    let other = runtimeStringScalars(otherRaw)
+    let source = runtimeStringUTF16CodeUnits(strRaw)
+    let other = runtimeStringUTF16CodeUnits(otherRaw)
 
     if other.isEmpty {
         return source.count

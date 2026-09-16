@@ -885,7 +885,7 @@ func runtimeValuesEqual(_ lhs: Int, _ rhs: Int) -> Bool {
     if let lhsString = tryCast(lhsPtr, to: RuntimeStringBox.self),
        let rhsString = tryCast(rhsPtr, to: RuntimeStringBox.self)
     {
-        return lhsString.value == rhsString.value
+        return runtimeStringsEqual(lhsString.value, rhsString.value)
     }
     if let lhsInt = tryCast(lhsPtr, to: RuntimeIntBox.self),
        let rhsInt = tryCast(rhsPtr, to: RuntimeIntBox.self)
@@ -1096,16 +1096,19 @@ func runtimeValuesEqual(_ lhs: RuntimeValue, _ rhs: RuntimeValue) -> Bool {
             else {
                 return lhs.payload0 == rhs.payload0
             }
-            return runtimeStringFromFlatFields(
-                data: lhsData,
-                length: lhs.payload1,
-                byteCount: lhs.payload2,
-                hash: lhs.payload3
-            ) == runtimeStringFromFlatFields(
-                data: rhsData,
-                length: rhs.payload1,
-                byteCount: rhs.payload2,
-                hash: rhs.payload3
+            return runtimeStringsEqual(
+                runtimeStringFromFlatFields(
+                    data: lhsData,
+                    length: lhs.payload1,
+                    byteCount: lhs.payload2,
+                    hash: lhs.payload3
+                ),
+                runtimeStringFromFlatFields(
+                    data: rhsData,
+                    length: rhs.payload1,
+                    byteCount: rhs.payload2,
+                    hash: rhs.payload3
+                )
             )
         default:
             return runtimeValuesEqual(lhs.payload0, rhs.payload0)

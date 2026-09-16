@@ -170,9 +170,11 @@ private func runtimeTaggedULongValue(_ value: Int) -> UInt {
 }
 
 private func runtimeStringHashCode(_ value: String) -> Int {
-    value.unicodeScalars.reduce(0) { partial, scalar in
-        31 &* partial &+ Int(Int32(bitPattern: scalar.value))
+    var hash: Int32 = 0
+    for codeUnit in value.utf16 {
+        hash = 31 &* hash &+ Int32(truncatingIfNeeded: codeUnit)
     }
+    return Int(hash)
 }
 
 // Kotlin Set.hashCode() is the order-independent sum of its element hashes.
