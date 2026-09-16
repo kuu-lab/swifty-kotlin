@@ -191,8 +191,13 @@ private func runtimeRenderFormattedArgument(
         return String(format: specifier.cStyleToken, arguments: [value])
     case "f", "e", "g":
         let value = runtimeFormatDoubleValue(value)
-        let rendered = String(format: specifier.cStyleToken, arguments: [value])
-        return runtimeLocalizeFormattedNumber(rendered, specifier: specifier, locale: locale)
+        let rendered = runtimeRenderFormattedFloatingPoint(value, specifier: specifier)
+        return runtimeLocalizeFormattedNumber(
+            rendered,
+            specifier: specifier,
+            locale: locale,
+            applyWidth: true
+        )
     case "c":
         let value = runtimeFormatCharacterValue(value)
         let normalized = specifier.conversion.isUppercase
@@ -302,6 +307,226 @@ private func runtimeFormatDoubleValue(_ value: RuntimeValue) -> Double {
     return Double(bitPattern: UInt64(bitPattern: Int64(argument)))
 }
 
+private struct RuntimeDecimalFloatingPoint {
+    let digits: String
+    let scale: Int
+
+    var isZero: Bool {
+        digits == "0"
+    }
+
+    var exponent: Int {
+        guard !isZero else { return 0 }
+        return digits.count - scale - 1
+    }
+}
+
+private func runtimeParseDecimalFloatingPoint(_ rendered: String) -> RuntimeDecimalFloatingPoint {
+    var value = rendered
+    let isNegative = value.hasPrefix("-")
+    if isNegative {
+        value.removeFirst()
+    }
+
+    let exponentIndex = value.firstIndex(of: "E") ?? value.firstIndex(of: "e")
+    let mantissa: String
+    let exponent: Int
+    if let exponentIndex {
+        mantissa = String(value[..<exponentIndex])
+        exponent = Int(value[value.index(after: exponentIndex)...]) ?? 0
+    } else {
+        mantissa = value
+        exponent = 0
+    }
+
+    let parts = mantissa.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+    let integerPart = String(parts.first ?? "")
+    let fractionalPart = parts.count > 1 ? String(parts[1]) : ""
+    let rawDigits = integerPart + fractionalPart
+    let leadingZeros = rawDigits.prefix { $0 == "0" }.count
+    let digits = leadingZeros == rawDigits.count
+        ? "0"
+        : String(rawDigits.dropFirst(leadingZeros))
+
+    // Keep trailing zeroes in the coefficient: they are part of the decimal
+    // scale (for example, 1.0 is 10 * 10^-1, not 1 * 10^-1).
+    return RuntimeDecimalFloatingPoint(
+        digits: digits,
+        scale: fractionalPart.count - exponent
+    )
+}
+
+private func runtimeIncrementDecimalDigits(_ value: String) -> String {
+    var digits = Array(value.utf8)
+    var index = digits.count
+    while index > 0 {
+        index -= 1
+        if digits[index] == 57 { // ASCII '9'
+            digits[index] = 48 // ASCII '0'
+        } else {
+            digits[index] += 1
+            return String(decoding: digits, as: UTF8.self)
+        }
+    }
+    return "1" + String(decoding: digits, as: UTF8.self)
+}
+
+/// Divides a non-negative decimal integer by 10^dropCount using HALF_UP.
+private func runtimeRoundDecimalInteger(_ value: String, dropping dropCount: Int) -> String {
+    guard dropCount > 0 else {
+        return value + String(repeating: "0", count: -dropCount)
+    }
+    if dropCount > value.count {
+        return "0"
+    }
+    if dropCount == value.count {
+        return value.first.map { $0 >= "5" ? "1" : "0" } ?? "0"
+    }
+
+    let keptCount = value.count - dropCount
+    var kept = String(value.prefix(keptCount))
+    if value[value.index(value.startIndex, offsetBy: keptCount)] >= "5" {
+        kept = runtimeIncrementDecimalDigits(kept)
+    }
+    return kept
+}
+
+private func runtimeRoundedSignificantDigits(
+    _ value: RuntimeDecimalFloatingPoint,
+    count: Int
+) -> (digits: String, exponent: Int) {
+    let count = max(1, count)
+    guard !value.isZero else {
+        return (String(repeating: "0", count: count), 0)
+    }
+
+    var exponent = value.exponent
+    var digits: String
+    if value.digits.count > count {
+        digits = runtimeRoundDecimalInteger(value.digits, dropping: value.digits.count - count)
+    } else {
+        digits = value.digits + String(repeating: "0", count: count - value.digits.count)
+    }
+
+    if digits.count > count {
+        exponent += 1
+        digits = "1" + String(repeating: "0", count: count - 1)
+    }
+    return (digits, exponent)
+}
+
+private func runtimeFloatingPointSign(isNegative: Bool, specifier: RuntimeFormatSpecifier) -> String {
+    if isNegative {
+        return "-"
+    }
+    if specifier.flags.contains("+") {
+        return "+"
+    }
+    if specifier.flags.contains(" ") {
+        return " "
+    }
+    return ""
+}
+
+private func runtimeScientificExponent(_ exponent: Int) -> String {
+    let sign = exponent < 0 ? "-" : "+"
+    let magnitude = exponent < 0 ? -exponent : exponent
+    let digits = String(magnitude)
+    return sign + (digits.count < 2 ? "0" + digits : digits)
+}
+
+private func runtimeRenderRoundedFixed(
+    digits: String,
+    decimalPosition: Int,
+    alternateForm: Bool
+) -> String {
+    let body: String
+    if decimalPosition <= 0 {
+        body = "0." + String(repeating: "0", count: -decimalPosition) + digits
+    } else if decimalPosition >= digits.count {
+        body = digits + String(repeating: "0", count: decimalPosition - digits.count)
+    } else {
+        let splitIndex = digits.index(digits.startIndex, offsetBy: decimalPosition)
+        body = String(digits[..<splitIndex]) + "." + String(digits[splitIndex...])
+    }
+
+    if alternateForm, !body.contains(".") {
+        return body + "."
+    }
+    return body
+}
+
+private func runtimeRenderFormattedFloatingPoint(
+    _ value: Double,
+    specifier: RuntimeFormatSpecifier
+) -> String {
+    let shortest = runtimeFormatFloatingPoint(value)
+    if shortest == "NaN" {
+        return shortest
+    }
+
+    let isNegative = shortest.hasPrefix("-")
+    let unsignedShortest = isNegative ? String(shortest.dropFirst()) : shortest
+    let sign = runtimeFloatingPointSign(isNegative: isNegative, specifier: specifier)
+    if unsignedShortest == "Infinity" {
+        return sign + unsignedShortest
+    }
+
+    let decimal = runtimeParseDecimalFloatingPoint(shortest)
+    let alternateForm = specifier.flags.contains("#")
+    switch specifier.normalizedConversion {
+    case "f":
+        let precision = specifier.precision ?? 6
+        let scaledDigits = runtimeRoundDecimalInteger(
+            decimal.digits,
+            dropping: decimal.scale - precision
+        )
+        return sign + runtimeRenderRoundedFixed(
+            digits: scaledDigits,
+            decimalPosition: scaledDigits.count - precision,
+            alternateForm: alternateForm
+        )
+    case "e":
+        let precision = specifier.precision ?? 6
+        let rounded = runtimeRoundedSignificantDigits(decimal, count: precision + 1)
+        let firstDigit = String(rounded.digits.prefix(1))
+        let fractionalDigits = String(rounded.digits.dropFirst())
+        let mantissa: String
+        if precision == 0, !alternateForm {
+            mantissa = firstDigit
+        } else {
+            mantissa = firstDigit + "." + fractionalDigits
+        }
+        let exponent = runtimeScientificExponent(rounded.exponent)
+        let marker = specifier.conversion == "E" ? "E" : "e"
+        return sign + mantissa + marker + exponent
+    case "g":
+        let precision = max(1, specifier.precision ?? 6)
+        let rounded = runtimeRoundedSignificantDigits(decimal, count: precision)
+        let useScientific = rounded.exponent < -4 || rounded.exponent >= precision
+        if useScientific {
+            let firstDigit = String(rounded.digits.prefix(1))
+            let fractionalDigits = String(rounded.digits.dropFirst())
+            let mantissa: String
+            if precision == 1, !alternateForm {
+                mantissa = firstDigit
+            } else {
+                mantissa = firstDigit + "." + fractionalDigits
+            }
+            let marker = specifier.conversion == "G" ? "E" : "e"
+            return sign + mantissa + marker + runtimeScientificExponent(rounded.exponent)
+        }
+
+        return sign + runtimeRenderRoundedFixed(
+            digits: rounded.digits,
+            decimalPosition: rounded.exponent + 1,
+            alternateForm: alternateForm
+        )
+    default:
+        return sign + unsignedShortest
+    }
+}
+
 private func runtimeFormatCharacterValue(_ value: RuntimeValue) -> String {
     let scalarValue = UInt32(truncatingIfNeeded: runtimeFormatIntegerValue(value))
     guard let scalar = UnicodeScalar(scalarValue) else {
@@ -328,11 +553,15 @@ private func runtimeApplyStringWidth(_ value: String, specifier: RuntimeFormatSp
 private func runtimeLocalizeFormattedNumber(
     _ rendered: String,
     specifier: RuntimeFormatSpecifier,
-    locale: Locale?
+    locale: Locale?,
+    applyWidth: Bool = false
 ) -> String {
     let decimalSeparator = locale?.decimalSeparator ?? "."
     guard specifier.usesGroupingSeparator else {
-        return rendered.replacingOccurrences(of: ".", with: decimalSeparator)
+        let localized = rendered.replacingOccurrences(of: ".", with: decimalSeparator)
+        return applyWidth
+            ? runtimeApplyNumericWidth(localized, specifier: specifier)
+            : localized
     }
     let groupingSeparator = locale?.groupingSeparator ?? ","
 
@@ -363,6 +592,21 @@ private func runtimeLocalizeFormattedNumber(
             + grouped(digits) + remainder
     }
     return runtimeApplyStringWidth(value, specifier: specifier)
+}
+
+private func runtimeApplyNumericWidth(_ value: String, specifier: RuntimeFormatSpecifier) -> String {
+    guard let width = specifier.width, value.count < width else {
+        return value
+    }
+    let paddingCount = width - value.count
+    if specifier.flags.contains("-") {
+        return value + String(repeating: " ", count: paddingCount)
+    }
+    if specifier.flags.contains("0") {
+        let sign = String(value.prefix { "-+ ".contains($0) })
+        return sign + String(repeating: "0", count: paddingCount) + String(value.dropFirst(sign.count))
+    }
+    return String(repeating: " ", count: paddingCount) + value
 }
 
 // MARK: - Public @_cdecl functions: String.format
