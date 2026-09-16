@@ -513,7 +513,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testCollectionTypeAliasesAreSourceBacked() throws {
+    func testCollectionConcreteDeclarationsAreSourceBacked() throws {
         let source = """
         fun probe() {
             val list: ArrayList<Int> = ArrayList<Int>()
@@ -531,33 +531,20 @@ struct ListSyntheticMemberLinkTests {
             let ctx = makeCompilationContext(inputs: [path])
             try runSema(ctx)
 
-            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected collection alias declarations to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
+            #expect(ctx.diagnostics.diagnostics.isEmpty, "Expected collection declarations to type-check cleanly, got: \(ctx.diagnostics.diagnostics)")
 
             let sema = try #require(ctx.sema)
             let interner = ctx.interner
             let kotlinCollections = [interner.intern("kotlin"), interner.intern("collections")]
 
-            // KSP-627: the remaining aliases are declared by
-            // `Sources/CompilerCore/Stdlib/kotlin/collections/CollectionAliases.kt`,
-            // not by synthetic self-registration.
-            for (aliasName, targetName) in [
-                ("LinkedHashMap", "MutableMap"),
-            ] {
-                let aliasSymbol = try #require(
-                    sema.symbols.lookupAll(fqName: kotlinCollections + [interner.intern(aliasName)])
-                        .first { sema.symbols.symbol($0)?.kind == .typeAlias },
-                    "Expected \(aliasName) to be registered as a type alias"
-                )
-                let aliasInfo = try #require(sema.symbols.symbol(aliasSymbol))
-                #expect(!aliasInfo.flags.contains(.synthetic), "Expected \(aliasName) to be source-backed")
-                #expect(aliasInfo.declSite != nil, "Expected \(aliasName) to carry a declaration site")
-
-                let underlying = try #require(sema.symbols.typeAliasUnderlyingType(for: aliasSymbol))
-                guard case let .classType(underlyingClass) = sema.types.kind(of: underlying) else {
-                    Issue.record("Expected \(aliasName) to expand to a class type"); return
-                }
-                #expect(try interner.resolve(#require(sema.symbols.symbol(underlyingClass.classSymbol)?.name)) == targetName)
-            }
+            let linkedHashMapSymbol = try #require(
+                sema.symbols.lookupAll(fqName: kotlinCollections + [interner.intern("LinkedHashMap")])
+                    .first { sema.symbols.symbol($0)?.kind == .class },
+                "Expected LinkedHashMap to be registered as a class"
+            )
+            let linkedHashMapInfo = try #require(sema.symbols.symbol(linkedHashMapSymbol))
+            #expect(!linkedHashMapInfo.flags.contains(.synthetic), "Expected LinkedHashMap to be source-backed")
+            #expect(linkedHashMapInfo.declSite != nil, "Expected LinkedHashMap to carry a declaration site")
 
             let hashMapSymbol = try #require(
                 sema.symbols.lookupAll(fqName: kotlinCollections + [interner.intern("HashMap")])
@@ -571,6 +558,7 @@ struct ListSyntheticMemberLinkTests {
                 sema.symbols.lookup(fqName: kotlinCollections + [interner.intern("MutableMap")])
             )
             #expect(sema.symbols.directSupertypes(for: hashMapSymbol).contains(mutableMapSymbol))
+            #expect(sema.symbols.directSupertypes(for: linkedHashMapSymbol).contains(hashMapSymbol))
         }
     }
 
@@ -629,7 +617,7 @@ struct ListSyntheticMemberLinkTests {
     }
 
     @Test
-    func testLinkedMapOfFactoryInfersMutableMapType() throws {
+    func testLinkedMapOfFactoryInfersLinkedHashMapType() throws {
         let source = """
         fun probe() {
             val values = linkedMapOf("a" to 1)
@@ -655,9 +643,9 @@ struct ListSyntheticMemberLinkTests {
             })
             let callType = try #require(sema.bindings.exprTypes[linkedMapCall])
             guard case let .classType(classType) = sema.types.kind(of: callType) else {
-                Issue.record("Expected linkedMapOf to produce a MutableMap class type"); return
+                Issue.record("Expected linkedMapOf to produce a LinkedHashMap class type"); return
             }
-            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "MutableMap")
+            #expect(try ctx.interner.resolve(#require(sema.symbols.symbol(classType.classSymbol)?.name)) == "LinkedHashMap")
             #expect(classType.args == [.invariant(sema.types.stringType), .invariant(sema.types.intType)])
             #expect(sema.bindings.isCollectionExpr(linkedMapCall), "Expected linkedMapOf to be tracked as a collection expression")
 
