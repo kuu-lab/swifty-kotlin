@@ -855,6 +855,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicIntArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicIntArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(
                calleeName,
                locals: locals,
@@ -907,6 +913,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicLongArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicLongArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
            let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
@@ -2120,21 +2132,37 @@ final class CallTypeChecker {
                     keyType = sema.types.nothingType
                     valueType = sema.types.nothingType
                 }
-                let resultType = name == "mapOf" || name == "emptyMap"
-                    ? makeSyntheticMapType(
+                let resultType: TypeID
+                if name == "mapOf" || name == "emptyMap" {
+                    resultType = makeSyntheticMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         keyType: keyType,
                         valueType: valueType
                     )
-                    : makeSyntheticMutableMapType(
+                } else if name == "linkedMapOf" {
+                    // KUU-556: linkedMapOf() is declared to return LinkedHashMap<K,
+                    // V> (linked.kt), now a real HashMap subclass -- give call
+                    // sites that same nominal type instead of the generic
+                    // MutableMap hashMapOf/mutableMapOf still get, matching how
+                    // linkedSetOf already gets makeSyntheticLinkedHashSetType above.
+                    resultType = makeSourceBackedLinkedHashMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
                         keyType: keyType,
                         valueType: valueType
                     )
+                } else {
+                    resultType = makeSyntheticMutableMapType(
+                        symbols: sema.symbols,
+                        types: sema.types,
+                        interner: interner,
+                        keyType: keyType,
+                        valueType: valueType
+                    )
+                }
                 return (resultType, [keyType, valueType])
 
             default:
@@ -2312,7 +2340,7 @@ final class CallTypeChecker {
                         keyType: keyType,
                         valueType: valueType
                     )
-                    : makeSyntheticMutableMapType(
+                    : makeSourceBackedLinkedHashMapType(
                         symbols: sema.symbols,
                         types: sema.types,
                         interner: interner,
