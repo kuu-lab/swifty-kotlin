@@ -472,7 +472,7 @@
   - diff: `ulong_range_hof*.kt` 既存 + `mapNotNull`/`filterNot` ケース
   - 前提: KSP-1524, KSP-1525
 
-- [ ] KSP-1530: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
+- [x] KSP-1530: `ULongRange` の iterator / step / 構築演算子 / windowing を Kotlin 化する
   - 対象スタブ: 同上（`kk_ulong_*`）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeIterators.kt` / `ProgressionConstructors.kt` 追記
   - 削除/降格 kk_*: `kk_ulong_range_iterator`, `_hasNext`, `_next`, `_step`, `_chunked`, `_windowed`, `_take`, `_drop`, および `kk_ulong_step`, `kk_ulong_downTo`, `kk_ulong_rangeTo`

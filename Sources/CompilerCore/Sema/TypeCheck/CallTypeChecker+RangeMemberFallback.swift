@@ -441,11 +441,24 @@ extension CallTypeChecker {
     }
 
     private func isULongProgressionSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
-        guard argCount == 0 else { return false }
-        return memberName == "first"
-            || memberName == "firstOrNull"
-            || memberName == "last"
-            || memberName == "lastOrNull"
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
+        if memberName == "first" || memberName == "firstOrNull"
+            || memberName == "last" || memberName == "lastOrNull"
+        {
+            return argCount == 0
+        }
+        if memberName == "windowed" {
+            return (1...3).contains(argCount)
+        }
+        guard argCount == 1 else { return false }
+        return [
+            "chunked", "take", "drop",
+        ].contains(memberName)
     }
 
     private func isUIntRangeSourceBackedHOF(_ memberName: String, argCount: Int) -> Bool {
@@ -526,6 +539,12 @@ extension CallTypeChecker {
         if memberName == "contains" {
             return argCount == 1
         }
+        if memberName == "iterator" {
+            return argCount == 0
+        }
+        if memberName == "step" {
+            return argCount == 1
+        }
         if memberName == "first" || memberName == "last"
             || memberName == "firstOrNull" || memberName == "lastOrNull"
         {
@@ -537,12 +556,13 @@ extension CallTypeChecker {
             "find", "findLast",
             "firstOrNull", "lastOrNull",
             "any", "all", "none",
+            "chunked", "windowed", "take", "drop",
         ]
         if sourceBacked.contains(memberName) {
             if memberName == "fold" || memberName == "foldIndexed" {
                 return argCount == 2
             }
-            return argCount == 1
+            return memberName == "windowed" ? (1...3).contains(argCount) : argCount == 1
         }
         return false
     }

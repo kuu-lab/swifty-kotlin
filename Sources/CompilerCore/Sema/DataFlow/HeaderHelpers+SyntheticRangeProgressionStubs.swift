@@ -669,11 +669,13 @@ extension DataFlowSemaPhase {
         // externalLinkNames registered below — resolution always lands on the
         // shared `__kk_range_*` bridge or the bundled `isEmpty`/`toList`
         // before this registration's link name is read (`step` is the one
-        // exception: it stays on the live, kept `kk_uint_range_step` bridge,
-        // same as UIntRange's own `.step`). Aligning the dead names to the
-        // safe generic bridge so they don't dangle on symbols this ticket
-        // removes; Sema still needs the registration itself so these member
-        // names type-check on UIntProgression.
+        // exception: it stays on the live, kept `kk_uint_range_step` /
+        // `kk_ulong_range_step` bridge, same as UIntRange's/ULongRange's own
+        // `.step` — the progression box stores the step at runtime and there
+        // is no Kotlin-side field to read it from). Aligning the dead names
+        // to the safe generic bridge so they don't dangle on symbols this
+        // ticket removes; Sema still needs the registration itself so these
+        // member names type-check on UIntProgression.
         let firstLastRuntime: (String, String)
         switch name {
         case "UIntProgression":

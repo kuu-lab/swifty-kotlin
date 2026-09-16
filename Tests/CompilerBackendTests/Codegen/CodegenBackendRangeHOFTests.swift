@@ -372,5 +372,70 @@ struct CodegenBackendRangeHOFTests {
                 """ + "\n1 2 3 4 5 \n"
         )
     }
+
+    @Test
+    func testCodegenULongRangeIteratorStepAndWindowingExecution() throws {
+        let source = """
+        fun main() {
+            println((1uL..5uL).take(3))
+            println((1uL..5uL).drop(2))
+            println((1uL..5uL).chunked(2))
+            println((1uL..5uL).windowed(3))
+            println((1uL..5uL).windowed(3, 2, true))
+            println((1uL..5uL step 2).take(2))
+            println((5uL downTo 1uL).windowed(2, 2, true))
+            for (value in 1uL..5uL) print("$value ")
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeIteratorStepAndWindowingExecution",
+            expected:
+                """
+                [1, 2, 3]
+                [3, 4, 5]
+                [[1, 2], [3, 4], [5]]
+                [[1, 2, 3], [2, 3, 4], [3, 4, 5]]
+                [[1, 2, 3], [3, 4, 5], [5]]
+                [1, 3]
+                [[5, 4], [3, 2], [1]]
+                """ + "\n1 2 3 4 5 \n"
+        )
+    }
+
+    @Test
+    func testCodegenULongRangeStepNearMaxValueDoesNotWrap() throws {
+        let source = """
+        fun main() {
+            val nearMax = (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3
+            println(nearMax.toList())
+            println(((ULong.MAX_VALUE - 1uL)..ULong.MAX_VALUE step 3).toList())
+            println((ULong.MAX_VALUE downTo (ULong.MAX_VALUE - 5uL) step 2).toList())
+            println(nearMax.take(1))
+            println(nearMax.drop(1))
+            println(nearMax.chunked(1))
+            println(nearMax.windowed(2, 1, true))
+            for (value in (ULong.MAX_VALUE - 4uL)..ULong.MAX_VALUE step 3) print("$value ")
+            println()
+        }
+        """
+
+        try assertKotlinOutput(
+            source,
+            moduleName: "ULongRangeStepNearMaxValueDoesNotWrap",
+            expected:
+                """
+                [18446744073709551611, 18446744073709551614]
+                [18446744073709551614]
+                [18446744073709551615, 18446744073709551613, 18446744073709551611]
+                [18446744073709551611]
+                [18446744073709551614]
+                [[18446744073709551611], [18446744073709551614]]
+                [[18446744073709551611, 18446744073709551614], [18446744073709551614]]
+                """ + "\n18446744073709551611 18446744073709551614 \n"
+        )
+    }
 }
 #endif

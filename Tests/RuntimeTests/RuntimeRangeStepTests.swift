@@ -257,7 +257,7 @@ struct RuntimeRangeStepTests {
     // MARK: - ULongProgression tests (STDLIB-RANGE-039)
 
     @Test func testULongRangeTo() {
-        let range = kk_ulong_rangeTo(1, 10)
+        let range = __kk_ulong_rangeTo(1, 10)
         #expect(kk_range_first(range) == 1)
         #expect(kk_range_last(range) == 10)
         let list = kk_ulong_range_toList(range)
@@ -272,7 +272,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongStep() {
-        let range = kk_ulong_rangeTo(1, 10)
+        let range = __kk_ulong_rangeTo(1, 10)
         let stepped = __kk_ulong_step(range, 3)
         #expect(kk_range_first(stepped) == 1)
         #expect(kk_range_last(stepped) == 10)
@@ -281,7 +281,7 @@ struct RuntimeRangeStepTests {
     }
 
     @Test func testULongRangeReversed() {
-        let range = kk_ulong_rangeTo(1, 5)
+        let range = __kk_ulong_rangeTo(1, 5)
         let reversed = kk_ulong_range_reversed(range)
         #expect(kk_range_first(reversed) == 5)
         #expect(kk_range_last(reversed) == 1)

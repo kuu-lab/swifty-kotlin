@@ -90,7 +90,7 @@ extension CollectionLiteralConstructionLoweringPass {
             return true
         }
 
-        // --- Rewrite kk_range_iterator on ULong range → kk_ulong_range_iterator (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_iterator on ULong range → __kk_ulong_range_iterator (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeIteratorName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeExprIDs.contains(argID.rawValue) {
@@ -168,7 +168,7 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_hasNext on ULong range iterator → kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_hasNext on ULong range iterator → __kk_ulong_range_hasNext (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeHasNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {
@@ -239,7 +239,7 @@ extension CollectionLiteralConstructionLoweringPass {
             }
         }
 
-        // --- Rewrite kk_range_next on ULong range iterator → kk_ulong_range_next (STDLIB-RANGE-037) ---
+        // --- Rewrite kk_range_next on ULong range iterator → __kk_ulong_range_next (STDLIB-RANGE-037) ---
         if callee == lookup.kkRangeNextName, arguments.count == 1 {
             let argID = arguments[0]
             if state.ulongRangeIteratorExprIDs.contains(argID.rawValue) {

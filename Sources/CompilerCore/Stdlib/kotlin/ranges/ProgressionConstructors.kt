@@ -15,10 +15,13 @@ import kotlin.internal.KsSymbolName
 // the stdlib layer; source-backed operators use them only where their construction
 // semantics still need a runtime handle.
 
-// MARK: - UInt rangeTo bridge
+// MARK: - UInt/ULong rangeTo bridges
 
 @KsSymbolName("__kk_uint_rangeTo")
 internal external fun __uintRangeTo(a: UInt, b: UInt): UIntRange
+
+@KsSymbolName("__kk_ulong_rangeTo")
+internal external fun __ulongRangeTo(a: ULong, b: ULong): ULongRange
 
 // MARK: - rangeUntil / until bridges
 
@@ -165,7 +168,8 @@ public infix fun UInt.until(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.rangeUntil(to: UInt): UIntRange = __rangeUntil(this, to)
 public operator infix fun UInt.downTo(to: UInt): UIntProgression = UIntProgression.fromClosedRange(this, to, -1)
 
-// MARK: - ULong until / rangeUntil / downTo
+// MARK: - ULong rangeTo / until / rangeUntil / downTo
+public operator fun ULong.rangeTo(to: ULong): ULongRange = __ulongRangeTo(this, to)
 public infix fun ULong.until(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.rangeUntil(to: ULong): ULongRange = __ulongRangeUntil(this, to)
 public operator infix fun ULong.downTo(to: ULong): ULongProgression = ULongProgression.fromClosedRange(this, to, -1)
@@ -179,8 +183,14 @@ public operator infix fun UIntProgression.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
-public operator infix fun ULongProgression.step(step: Int): ULongProgression = __ulongProgressionStep(this, step)
-public operator infix fun ULongProgression.step(step: Long): ULongProgression = __ulongProgressionStep(this, step)
+public operator infix fun ULongProgression.step(step: Int): ULongProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
+public operator infix fun ULongProgression.step(step: Long): ULongProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, (if (this.step > 0) step else -step).toInt())
+}
 public operator infix fun IntRange.step(step: Int): IntProgression = __intRangeStep(this, step)
 public operator infix fun LongRange.step(step: Int): LongProgression = __longRangeStep(this, step)
 public operator infix fun LongRange.step(step: Long): LongProgression = __longRangeStep(this, step)
@@ -189,8 +199,14 @@ public operator infix fun UIntRange.step(step: Int): UIntProgression {
     require(step > 0) { "Step must be positive, was: $step." }
     return UIntProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
 }
-public operator infix fun ULongRange.step(step: Int): ULongProgression = __ulongRangeStep(this, step)
-public operator infix fun ULongRange.step(step: Long): ULongProgression = __ulongRangeStep(this, step)
+public operator infix fun ULongRange.step(step: Int): ULongProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, if (this.step > 0) step else -step)
+}
+public operator infix fun ULongRange.step(step: Long): ULongProgression {
+    require(step > 0) { "Step must be positive, was: $step." }
+    return ULongProgression.fromClosedRange(first, last, (if (this.step > 0) step else -step).toInt())
+}
 
 // MARK: - fromClosedRange companion factories
 public fun IntProgression.Companion.fromClosedRange(start: Int, end: Int, step: Int): IntProgression = __intProgressionFromClosedRange(start, end, step)
