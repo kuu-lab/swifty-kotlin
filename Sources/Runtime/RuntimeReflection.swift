@@ -377,27 +377,6 @@ public func __kk_kfunction_create_full(
     return registerRuntimeObject(box, typeID: kFunctionRuntimeTypeID)
 }
 
-@_cdecl("__kk_kfunction_get_name")
-public func __kk_kfunction_get_name(_ kfunctionRaw: Int) -> Int {
-    guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        return runtimeNullSentinelInt
-    }
-    return box.nameRaw
-}
-
-@_cdecl("__kk_kfunction_get_arity")
-public func __kk_kfunction_get_arity(_ kfunctionRaw: Int) -> Int {
-    guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {
-        return runtimeNullSentinelInt
-    }
-    return box.arity
-}
-
-@_cdecl("__kk_kfunction_get_return_type")
-public func __kk_kfunction_get_return_type(_ kfunctionRaw: Int) -> Int {
-    __kk_kcallable_get_return_type(kfunctionRaw)
-}
-
 @_cdecl("__kk_kfunction_is_suspend")
 public func __kk_kfunction_is_suspend(_ kfunctionRaw: Int) -> Int {
     guard let box = runtimeKFunctionBox(from: kfunctionRaw) else {

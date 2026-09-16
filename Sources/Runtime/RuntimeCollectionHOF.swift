@@ -23,11 +23,6 @@ func runtimeIndexedValueNew(index: Int, value: RuntimeValue) -> Int {
     return raw
 }
 
-@_cdecl("kk_indexed_value_new")
-public func kk_indexed_value_new(_ index: Int, _ value: Int) -> Int {
-    runtimeIndexedValueNew(index: index, value: value)
-}
-
 /// KSP-626: `IndexedValue` is a source-backed Kotlin data class, so its
 /// instances are ordinary heap objects (index@2, value@3). The Any-erased
 /// print/toString paths cannot invoke the generated `toString`, so render such
