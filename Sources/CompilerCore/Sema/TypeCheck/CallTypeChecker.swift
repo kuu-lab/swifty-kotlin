@@ -855,6 +855,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicIntArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicIntArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(
                calleeName,
                locals: locals,
@@ -907,6 +913,12 @@ final class CallTypeChecker {
         if let calleeName,
            (args.count == 1 || args.count == 2),
            interner.resolve(calleeName) == "AtomicLongArray",
+           !hasSourceBackedAtomicArrayFactory(
+               calleeName,
+               className: "AtomicLongArray",
+               argumentCount: args.count,
+               ctx: ctx
+           ),
            !isShadowedByNonSyntheticSymbol(calleeName, locals: locals, ctx: ctx),
            let arraySymbol = syntheticAtomicArrayClassSymbol(
                calleeName,
