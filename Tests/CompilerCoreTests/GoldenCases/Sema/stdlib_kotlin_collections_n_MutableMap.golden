@@ -18,7 +18,7 @@ expr e@8:27 name(null) type=Nothing?
 expr e@8:5#1 memberCall recv=e@8:5 callee=put args=[_:e@8:16,_:e@8:27] type=Int? call=kotlin.collections.MutableMap.put[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0,T1;gen=2] targs=[String,Int?]
 expr e@9:5 name(values) type=kotlin.collections.MutableMap<String, Int?> ref=mutate.$0.values[kind=vparam]
 expr e@9:19 string(missing) type=String
-expr e@9:5#1 memberCall recv=e@9:5 callee=remove args=[_:e@9:19] type=Int? call=kotlin.collections.remove[kind=fun;recv=kotlin.collections.MutableMap<out T0,T1>;params=T0;gen=2] targs=[String,Int?]
+expr e@9:5#1 memberCall recv=e@9:5 callee=remove args=[_:e@9:19] type=Int? call=kotlin.collections.MutableMap.remove[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0;gen=2] targs=[String,Int?]
 expr e@10:5 name(values) type=kotlin.collections.MutableMap<String, Int?> ref=mutate.$0.values[kind=vparam]
 expr e@10:25 string(from) type=String
 expr e@10:35 int(2) type=Int

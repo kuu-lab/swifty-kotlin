@@ -63,5 +63,6 @@ public final class ArrayList<E> : MutableList<E>, RandomAccess, AbstractMutableL
     override external fun clear()
 }
 
-// KSP-704: HashSet and LinkedHashSet moved to their own 本家-named files
-// (HashSet.kt / LinkedHashSet.kt).
+// KSP-704: HashSet and LinkedHashSet moved to their own upstream-named files
+// (HashSet.kt / LinkedHashSet.kt). KSP-703: LinkedHashMap moved the same way
+// (LinkedHashMap.kt).

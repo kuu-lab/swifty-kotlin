@@ -24,7 +24,8 @@ fun main() {
     println(copyFromLiteral)
     println(copyFromLiteral == original)
 
-    // Copy constructor from a map passed in as a function parameter.
+    // Copy constructor from a map passed in as a function parameter (not a
+    // literal the current function can see directly).
     val copyFromParam = copyFromParameter(original)
     println(copyFromParam.size)
     println(copyFromParam)

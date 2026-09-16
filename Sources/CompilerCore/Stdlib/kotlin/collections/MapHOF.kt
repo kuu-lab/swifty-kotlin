@@ -5,7 +5,7 @@ import kotlin.internal.__valuesEqual
 import kotlin.contracts.ExperimentalContracts
 import kotlin.contracts.contract
 
-@KsSymbolName("kk_map_is_empty")
+@KsSymbolName("__kk_map_is_empty")
 private external fun <K, V> __kkMapIsEmpty(map: Map<out K, V>): Boolean
 
 private external fun kk_max_float(a: Float, b: Float): Float
@@ -20,7 +20,7 @@ private external fun kk_unbox_double(value: Double): Double
 
 // Keep a direct size bridge for the no-argument `Map.any()` implementation;
 // Map.size itself is declared in the bundled Map source and uses this ABI.
-@KsSymbolName("kk_map_size")
+@KsSymbolName("__kk_map_size")
 private external fun <K, V> __kk_map_size_for_any(map: Map<K, V>): Int
 
 /**

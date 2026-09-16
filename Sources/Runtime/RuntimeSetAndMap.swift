@@ -412,7 +412,7 @@ public func kk_mutable_map_plusAssign_pair(_ mapRaw: Int, _ pairRaw: Int) -> Int
     return 0
 }
 
-@_cdecl("kk_map_size")
+@_cdecl("__kk_map_size")
 public func kk_map_size(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         return runtimeSourceMapSize(mapRaw) ?? 0
@@ -514,7 +514,7 @@ public func kk_mutable_map_withDefault(_ mapRaw: Int, _ fnPtr: Int, _ closureRaw
     )
 }
 
-@_cdecl("kk_map_is_empty")
+@_cdecl("__kk_map_is_empty")
 public func kk_map_is_empty(_ mapRaw: Int) -> Int {
     guard let map = runtimeMapBox(from: mapRaw) else {
         if let sourceSize = runtimeSourceMapSize(mapRaw) {
@@ -645,7 +645,7 @@ public func kk_mutable_map_entry_setValue(_ entryRaw: Int, _ value: Int) -> Int 
     return previous
 }
 
-@_cdecl("kk_map_to_string")
+@_cdecl("__kk_map_to_string")
 public func kk_map_to_string(_ mapRaw: Int) -> UnsafeMutableRawPointer {
     guard let map = runtimeMapBox(from: mapRaw) else {
         let str = "{}"
