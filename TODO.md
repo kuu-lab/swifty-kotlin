@@ -2109,7 +2109,8 @@
     - `kotlin.native.concurrent.FreezableAtomicReference.toString` — fun FreezableAtomicReference.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.FreezableAtomicReference.value` — val FreezableAtomicReference.value: #A  -- `final var value`
 
-- [ ] KSP-1244: kotlin.native.concurrent.MutableData.MutableData の未実装 stdlib API を実装する（9 件）
+- [x] KSP-1244: kotlin.native.concurrent.MutableData.MutableData の未実装 stdlib API を実装する（9 件）
+  - 完了確認（2026-09-16）：MutableData の9 APIを Kotlin source-backed に移行し、メンバーの receiver・overload・Byte 戻り値・generic Function2 型を Sema 回帰で固定した。Sema 全 Golden（70 tests / 15 suites）、全 diff（1366 cases、failed=0、skipped=85）、TODO ID、Runtime ABI link、git diff check が pass。対象シンボルに専用 bridge / synthetic stub / RuntimeABI / name-string 特例は存在しなかったため追加変更なし。現行 CInterop に `Pinned.addressOf` と raw-memory bridge がないため、`append(COpaquePointer?, Int)` はサイズを管理し、`withPointerLocked` は明示的に UnsupportedOperationException としている。
   - 対象: `kotlin.native.concurrent.MutableData` / receiver `MutableData`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/MutableData.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
