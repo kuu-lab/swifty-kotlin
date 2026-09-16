@@ -2019,13 +2019,14 @@
     - `kotlin.native.concurrent.AtomicInt.toString` — fun AtomicInt.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.native.concurrent.AtomicInt.value` — val AtomicInt.value: Int  -- `final var value`
 
-- [ ] KSP-1223: kotlin.native.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（9 件）
+- [~] KSP-1223: kotlin.native.concurrent.AtomicLong.AtomicLong の未実装 stdlib API を実装する（9 件）
   - 対象: `kotlin.native.concurrent.AtomicLong` / receiver `AtomicLong`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/concurrent/Atomics.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_native_concurrent_AtomicLong_AtomicLong_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装・focused確認済み（2026-09-16）: `Atomics.kt` に `value`、`addAndGet(Int)`、`compareAndSwap`、`decrement`、`getAndAdd`、`getAndDecrement`、`getAndIncrement`、`increment`、`toString` を source-backed 実装。既存の shared `__kk_atomic_long_*` Runtime/RuntimeABI bridge は `kotlin.concurrent.AtomicLong` と共用のため残置し、対象の native synthetic stub / name-string 特例に追加の削除対象がないことを確認。`swift build` PASS、Sema golden 94 cases PASS、新規 diff case は `SKIP-DIFF (DEBT-DIFF-001)` で `total=0 failed=0 passed=0 skipped=1`、`bash Scripts/check_todo_ids.sh` PASS、`bash Scripts/validate_runtime_abi_links.sh` 4/4 PASS、`kswiftc --stdlib-from-source --emit object` の Mach-O object 生成 PASS、`git diff --check` PASS。全 Swift suite・全 Golden（Lexer/Parser/Sema/Diagnostics）・全 diff cases は未実行のため共通ゲート保留。
   - 未実装シンボル一覧:
     - `kotlin.native.concurrent.AtomicLong.addAndGet` — fun AtomicLong.addAndGet(Int): Long  -- `final fun addAndGet(kotlin/Int): kotlin/Long`
     - `kotlin.native.concurrent.AtomicLong.compareAndSwap` — fun AtomicLong.compareAndSwap(Long, Long): Long  -- `final fun compareAndSwap(kotlin/Long, kotlin/Long): kotlin/Long`
