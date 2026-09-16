@@ -2,10 +2,35 @@ package kotlin.text
 
 // KSP-404: prefix/suffix helpers migrated from Swift Runtime.
 // startsWith / endsWith / removePrefix / removeSuffix / removeSurrounding.
-//
-// The flat String aggregate stores UTF-8 byte length, while Kotlin indexing is
-// character-based, so `length`/`this[i]` walk past non-ASCII input. Character
-// traversal goes through `toString().toList()` (see StringSearchReplace.kt).
+// The String overloads retain the flat-string-safe `toString().toList()` paths.
+// CharSequence remove-family overloads use the interface's UTF-16
+// length/get/subSequence operations so custom implementations keep their
+// indexed dispatch.
+
+private fun __kkCharSequenceRegionMatches(
+    self: CharSequence,
+    thisOffset: Int,
+    other: CharSequence,
+    otherOffset: Int,
+    length: Int,
+    ignoreCase: Boolean
+): Boolean {
+    if (length < 0 || thisOffset < 0 || otherOffset < 0 ||
+        thisOffset > self.length - length ||
+        otherOffset > other.length - length
+    ) {
+        return false
+    }
+
+    var index = 0
+    while (index < length) {
+        if (!__kkCharsEqual(self[thisOffset + index], other[otherOffset + index], ignoreCase)) {
+            return false
+        }
+        index++
+    }
+    return true
+}
 
 /**
  * Returns `true` if this char sequence starts with the specified [prefix].
@@ -96,41 +121,30 @@ public fun String.removeSurrounding(prefix: CharSequence, suffix: CharSequence):
  */
 public fun String.removeSurrounding(delimiter: CharSequence): String = removeSurrounding(delimiter, delimiter)
 
-// BUG-167: the String-receiver overloads above don't satisfy a call whose
-// receiver is statically typed CharSequence (rather than a concrete String) —
-// e.g. `fun f(value: CharSequence): String = value.removePrefix("foo")` —
-// since Sema resolves member calls by the receiver's static type, not its
-// runtime value. startsWith/endsWith above already have real
-// CharSequence-receiver overloads for the same reason;
-// removePrefix/removeSuffix/removeSurrounding were missing theirs. Unlike
-// real Kotlin (whose CharSequence-receiver overloads return CharSequence),
-// these return String: every CharSequence value this compiler's runtime
-// actually produces is String-backed, and callers assign/return the result
-// as String (matching the String-receiver overloads' signatures above), so
-// a CharSequence return type here would just demand an extra, pointless
-// `.toString()` at every call site for no behavioral difference.
+// KSP-1393: CharSequence remove-family overloads are source-backed with the
+// Kotlin 2.3.10 CharSequence return contract. Keep them separate from the
+// String overloads so static CharSequence receivers preserve indexed dispatch.
 
 /**
  * If this char sequence starts with the given [prefix], returns a copy of this char sequence
  * with the prefix removed. Otherwise, returns this char sequence.
  */
-public fun CharSequence.removePrefix(prefix: CharSequence): String {
-    if (startsWith(prefix)) {
-        return this.toString().substring(prefix.toString().toList().size)
+public fun CharSequence.removePrefix(prefix: CharSequence): CharSequence {
+    if (__kkCharSequenceRegionMatches(this, 0, prefix, 0, prefix.length, false)) {
+        return this.subSequence(prefix.length, length)
     }
-    return this.toString()
+    return this.subSequence(0, length)
 }
 
 /**
  * If this char sequence ends with the given [suffix], returns a copy of this char sequence
  * with the suffix removed. Otherwise, returns this char sequence.
  */
-public fun CharSequence.removeSuffix(suffix: CharSequence): String {
-    if (endsWith(suffix)) {
-        val selfLength = this.toString().toList().size
-        return this.toString().substring(0, selfLength - suffix.toString().toList().size)
+public fun CharSequence.removeSuffix(suffix: CharSequence): CharSequence {
+    if (__kkCharSequenceRegionMatches(this, length - suffix.length, suffix, 0, suffix.length, false)) {
+        return this.subSequence(0, length - suffix.length)
     }
-    return this.toString()
+    return this.subSequence(0, length)
 }
 
 /**
@@ -138,14 +152,14 @@ public fun CharSequence.removeSuffix(suffix: CharSequence): String {
  * returns a copy of this char sequence having both the given [prefix] and [suffix] removed.
  * Otherwise returns this char sequence unchanged.
  */
-public fun CharSequence.removeSurrounding(prefix: CharSequence, suffix: CharSequence): String {
-    val selfLength = this.toString().toList().size
-    val prefixLength = prefix.toString().toList().size
-    val suffixLength = suffix.toString().toList().size
-    if (selfLength >= prefixLength + suffixLength && startsWith(prefix) && endsWith(suffix)) {
-        return this.toString().substring(prefixLength, selfLength - suffixLength)
+public fun CharSequence.removeSurrounding(prefix: CharSequence, suffix: CharSequence): CharSequence {
+    if (length >= prefix.length + suffix.length &&
+        __kkCharSequenceRegionMatches(this, 0, prefix, 0, prefix.length, false) &&
+        __kkCharSequenceRegionMatches(this, length - suffix.length, suffix, 0, suffix.length, false)
+    ) {
+        return this.subSequence(prefix.length, length - suffix.length)
     }
-    return this.toString()
+    return this.subSequence(0, length)
 }
 
 /**
@@ -153,7 +167,8 @@ public fun CharSequence.removeSurrounding(prefix: CharSequence, suffix: CharSequ
  * returns a copy of this char sequence having the [delimiter] removed from both ends.
  * Otherwise returns this char sequence unchanged.
  */
-public fun CharSequence.removeSurrounding(delimiter: CharSequence): String = removeSurrounding(delimiter, delimiter)
+public fun CharSequence.removeSurrounding(delimiter: CharSequence): CharSequence =
+    removeSurrounding(delimiter, delimiter)
 
 // KSP-1393: CharSequence.removeRange is source-backed. Keep the two overloads
 // separate from String.removeRange so static CharSequence receivers select the
