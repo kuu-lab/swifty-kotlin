@@ -639,11 +639,16 @@ struct NativeRefRuntimeSemaTests {
         ]
 
         for property in expectedProperties {
-            let symbol = try #require(
+            let propertySymbol = try #require(
                 sema.symbols.lookup(fqName: classFQName + [interner.intern(property)]),
                 "RootSetStatistics should expose \(property)"
             )
-            #expect(sema.symbols.propertyType(for: symbol) == sema.types.longType)
+            let propertyInfo = try #require(sema.symbols.symbol(propertySymbol))
+            #expect(!propertyInfo.flags.contains(.synthetic))
+            #expect(!propertyInfo.flags.contains(.mutable))
+            #expect(sema.symbols.isSourceBackedSymbol(propertySymbol))
+            #expect(sema.symbols.externalLinkName(for: propertySymbol) == nil)
+            #expect(sema.symbols.propertyType(for: propertySymbol) == sema.types.longType)
         }
 
         let ctor = try #require(

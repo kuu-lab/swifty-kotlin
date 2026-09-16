@@ -2280,7 +2280,7 @@
 
   - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ @NativeRuntimeApi / @SinceKotlin("1.9") 付き immutable プロパティ 15 件を bundled Kotlin source の constructor に `public val` として移し、GCInfo の synthetic property registration（`gcInfoProperties` spec と登録呼び出し）、および専用に使われていた `mapOfString` / `sweepStatisticsType` / `memoryUsageType` ヘルパーを削除した。`GCInfoSourceMigrationTests.gcInfoConstructorIsBundledSourceBacked` で全 15 プロパティの source-backed / non-synthetic / non-mutable / external-linkなし / 型（Long・nullable Long・RootSetStatistics・Map<String, SweepStatistics>・Map<String, MemoryUsage>）を検証し、専用 golden/diff ケース（`stdlib_kotlin_native_runtime_GCInfo_properties_n`）は全プロパティの構築・読み出しを固定する。全体 Swift/Golden/diff の gate は未実行のため完了は保留する。
 
-- [ ] KSP-1270: kotlin.native.runtime.RootSetStatistics.RootSetStatistics の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1270: kotlin.native.runtime.RootSetStatistics.RootSetStatistics の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.native.runtime.RootSetStatistics` / receiver `RootSetStatistics`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/native/runtime/GCInfo.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -2292,6 +2292,9 @@
     - `kotlin.native.runtime.RootSetStatistics.stableReferences` — val RootSetStatistics.stableReferences: Long  -- `final val stableReferences`
     - `kotlin.native.runtime.RootSetStatistics.stackReferences` — val RootSetStatistics.stackReferences: Long  -- `final val stackReferences`
     - `kotlin.native.runtime.RootSetStatistics.threadLocalReferences` — val RootSetStatistics.threadLocalReferences: Long  -- `final val threadLocalReferences`
+
+  - focused根拠: Kotlin 2.3.10 GCInfo.kt と同じ `@NativeRuntimeApi` / `@SinceKotlin("1.9")` 付き immutable Long properties 4 件を bundled Kotlin source の constructor parameter に `public val` として移し、RootSetStatistics の synthetic property／constructor registration と専用 surface spec を削除した。Runtime/ABI bridge と CallTypeChecker / CallLowerer の name-string 特例は対象シンボルに存在しない。`NativeRefRuntimeSemaTests` で4 propertyの source-backed / non-synthetic / non-mutable / external-linkなしを確認し、専用 Sema Golden は artifact 再レンダリングと一致する。
+  - 検証: `swift build` PASS、`NativeRefRuntimeSemaTests` 45件 PASS、artifact-based Sema Golden shard 73/94（対象を含む8件）PASS、対象 Golden の artifact worker 再レンダリング一致、対象 diff は `SKIP-DIFF` で exit 0、`bash Scripts/check_todo_ids.sh` PASS、`bash Scripts/validate_runtime_abi_links.sh` 4件 PASS、`git diff --check` PASS。全 Golden／全 diff gate は共有 worktree 競合により未完了（全 Golden 更新は対象到達前に中断）、そのため完了は保留する。
 
 - [x] KSP-1272: kotlin.native.runtime.SweepStatistics.SweepStatistics の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.native.runtime.SweepStatistics` / receiver `SweepStatistics`
