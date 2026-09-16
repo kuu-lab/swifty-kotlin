@@ -1520,6 +1520,65 @@ struct RuntimeStringArrayTests {
     }
 
     @Test
+    func testStringFormatGeneralAndNonFiniteFloatsMatchJavaFormatter() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(0.0001234),
+            boxDouble(.nan),
+            boxDouble(.infinity),
+            boxDouble(-.infinity),
+            boxDouble(.nan),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%g|%f|%.2f|%(f|%010E",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0.000123400|NaN|Infinity|(Infinity)|       NAN")
+    }
+
+    @Test
+    func testStringFormatParenthesizesNegativeDecimalValues() {
+        let args = makeRuntimeArray([
+            -5,
+            -5,
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: (-1234.5).bitPattern))),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%(d|%(05d|%(,.1f",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "(5)|(005)|(1,234.5)")
+    }
+
+    @Test
+    func testStringFormatSupportsJavaHexFloatingPoint() {
+        let boxDouble: (Double) -> Int = { value in
+            kk_box_double(Int(bitPattern: UInt(truncatingIfNeeded: value.bitPattern)))
+        }
+        let args = makeRuntimeArray([
+            boxDouble(1.0),
+            boxDouble(3.0),
+            boxDouble(0.1),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(.leastNonzeroMagnitude),
+            boxDouble(1.0),
+        ])
+
+        let formatted = flatStringReturnValueNoThrow(
+            "%a|%A|%.2a|%a|%.1a|%010a",
+            intArg: args,
+            using: __kk_string_format_flat
+        )
+        #expect(formatted == "0x1.0p0|0X1.8P1|0x1.9ap-4|0x0.0000000000001p-1022|0x1.0p-1074|0x0001.0p0")
+    }
+
+    @Test
     func testStringFormatSupportsPositionalArguments() {
         let args = makeRuntimeArray([
             7,
