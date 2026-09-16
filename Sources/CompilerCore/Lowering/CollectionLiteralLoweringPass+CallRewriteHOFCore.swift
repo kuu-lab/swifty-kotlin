@@ -78,7 +78,7 @@ extension CollectionLiteralConstructionLoweringPass {
             // `none` / `maxByOrNull` / `minByOrNull` rewritten to `kk_map_*`).
             // It was unreachable: every one of those names resolves to the
             // bundled `MapHOF.kt` declaration (KSP-430) and is preserved by
-            // `shouldPreserveSourceBackedAggregateCall` before
+            // the source-backed preservation gate before
             // `rewriteHigherOrderCollectionCall` runs, and `filterKeys` /
             // `filterValues` / `maxByOrNull` / `minByOrNull` additionally never
             // passed this function's own outer member-name gate above (it

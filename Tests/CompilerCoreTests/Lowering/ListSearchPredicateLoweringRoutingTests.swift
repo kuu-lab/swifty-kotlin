@@ -9,7 +9,7 @@ import Testing
 ///
 /// KSP-423 moved every one of these List overloads to
 /// `Stdlib/kotlin/collections/ListSearchHOF.kt`, so
-/// `shouldPreserveSourceBackedAggregateCall` keeps the resolved Kotlin
+/// the source-backed preservation gate keeps the resolved Kotlin
 /// declaration and no `kk_*` rewrite may fire for a List receiver.  That is
 /// what makes the deleted List `count(predicate)` rewrite unreachable.
 ///
@@ -58,7 +58,7 @@ struct ListSearchPredicateLoweringRoutingTests {
     ]
 
     /// The overloads that carry a resolved `ListSearchHOF.kt` symbol and are
-    /// therefore preserved by `shouldPreserveSourceBackedAggregateCall`.
+    /// therefore preserved by the source-backed preservation gate.
     /// No-predicate overloads take just the receiver; predicate overloads take
     /// receiver + lambda.  `count/1` is absent on purpose — see
     /// `sourceBackedListSearchCallsSurviveCollectionLiteralLowering`.
@@ -76,7 +76,7 @@ struct ListSearchPredicateLoweringRoutingTests {
     ]
 
     /// The four names RF-LOWER-CALL-010 dropped from
-    /// `shouldPreserveSourceBackedAggregateCall` / `...VirtualCall` plus
+    /// the direct / virtual source-backed preservation gates plus
     /// `containsAll`: no rewrite anywhere in either collection lowering pass
     /// keys on them, so preserving them by name was indistinguishable from
     /// the `loweredBody.append(instruction)` fallthrough.

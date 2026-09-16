@@ -23,6 +23,8 @@ struct SetLookupNames {
     let kkHashSetOfName: InternedString
     let kkLinkedHashSetOfName: InternedString
     let kkIterableToHashSetName: InternedString
+    let kkMutableSetAddName: InternedString
+    let kkMutableSetRemoveName: InternedString
     let setFactoryNames: Set<InternedString>
     let mutableSetConstructorNames: Set<InternedString>
 
@@ -46,6 +48,8 @@ struct SetLookupNames {
         kkHashSetOfName = interner.intern("__kk_hash_set_of")
         kkLinkedHashSetOfName = interner.intern("__kk_linked_hash_set_of")
         kkIterableToHashSetName = interner.intern("__kk_iterable_toHashSet")
+        kkMutableSetAddName = interner.intern("__kk_mutable_set_add")
+        kkMutableSetRemoveName = interner.intern("__kk_mutable_set_remove")
         setFactoryNames = [setOfName, setOfNotNullName, mutableSetOfName, hashSetOfName, linkedSetOfName, emptySetName]
         mutableSetConstructorNames = [hashSetName, linkedHashSetName]
     }

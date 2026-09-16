@@ -9,7 +9,6 @@ struct CollectionLiteralLookupTables {
     let arrayLookup: ArrayLookupNames
     let rangeLookup: RangeLookupNames
     let stringLookup: StringLookupNames
-    let builderDSLLookup: BuilderDSLLookupNames
     let fileIOLookup: FileIOLookupNames
     let commonLookup: CommonLookupNames
 
@@ -30,7 +29,6 @@ struct CollectionLiteralLookupTables {
         arrayLookup = ArrayLookupNames(interner: interner)
         rangeLookup = RangeLookupNames(interner: interner)
         stringLookup = StringLookupNames(interner: interner)
-        builderDSLLookup = BuilderDSLLookupNames(interner: interner)
         fileIOLookup = FileIOLookupNames(interner: interner)
         commonLookup = CommonLookupNames(interner: interner)
 
@@ -155,6 +153,8 @@ struct CollectionLiteralLookupTables {
     var kkHashSetOfName: InternedString { setLookup.kkHashSetOfName }
     var kkLinkedHashSetOfName: InternedString { setLookup.kkLinkedHashSetOfName }
     var kkIterableToHashSetName: InternedString { setLookup.kkIterableToHashSetName }
+    var kkMutableSetAddName: InternedString { setLookup.kkMutableSetAddName }
+    var kkMutableSetRemoveName: InternedString { setLookup.kkMutableSetRemoveName }
     var setFactoryNames: Set<InternedString> { setLookup.setFactoryNames }
     var mutableSetConstructorNames: Set<InternedString> { setLookup.mutableSetConstructorNames }
 
@@ -335,12 +335,6 @@ struct CollectionLiteralLookupTables {
     // MARK: - Comparator lookup names (see CollectionLiteralLoweringPass+LookupTables+Comparator.swift)
 
 
-    // MARK: - BuilderDSL lookup names (see CollectionLiteralLoweringPass+LookupTables+BuilderDSL.swift)
-
-    var kkMutableSetAddName: InternedString { builderDSLLookup.kkMutableSetAddName }
-    var kkMutableSetRemoveName: InternedString { builderDSLLookup.kkMutableSetRemoveName }
-    var builderDSLNames: Set<InternedString> { builderDSLLookup.builderDSLNames }
-
     // MARK: - FileIO lookup names (see CollectionLiteralLoweringPass+LookupTables+FileIO.swift)
 
     var kkBufferedReaderForEachLineName: InternedString { fileIOLookup.kkBufferedReaderForEachLineName }
@@ -404,15 +398,12 @@ struct CollectionLiteralLookupTables {
     var associateWithToName: InternedString { commonLookup.associateWithToName }
     var groupByToName: InternedString { commonLookup.groupByToName }
     var mapValuesName: InternedString { commonLookup.mapValuesName }
-    var mapValuesToName: InternedString { commonLookup.mapValuesToName }
     var mapKeysName: InternedString { commonLookup.mapKeysName }
-    var mapKeysToName: InternedString { commonLookup.mapKeysToName }
     var filterKeysName: InternedString { commonLookup.filterKeysName }
     var filterValuesName: InternedString { commonLookup.filterValuesName }
     var zipName: InternedString { commonLookup.zipName }
     var zipWithNextName: InternedString { commonLookup.zipWithNextName }
     var unzipName: InternedString { commonLookup.unzipName }
-    var withIndexName: InternedString { commonLookup.withIndexName }
     var forEachIndexedName: InternedString { commonLookup.forEachIndexedName }
     var onEachName: InternedString { commonLookup.onEachName }
     var onEachIndexedName: InternedString { commonLookup.onEachIndexedName }
@@ -425,7 +416,6 @@ struct CollectionLiteralLookupTables {
     var runningFoldIndexedName: InternedString { commonLookup.runningFoldIndexedName }
     var runningReduceIndexedName: InternedString { commonLookup.runningReduceIndexedName }
     var scanIndexedName: InternedString { commonLookup.scanIndexedName }
-    var sumOfName: InternedString { commonLookup.sumOfName }
     var sumByName: InternedString { commonLookup.sumByName }
     var sumByDoubleName: InternedString { commonLookup.sumByDoubleName }
     var maxName: InternedString { commonLookup.maxName }

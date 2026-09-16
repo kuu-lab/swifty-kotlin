@@ -6,7 +6,7 @@ import Testing
 /// RF-LOWER-CALL-009: pin the source-preservation contract of the List
 /// fold / reduce / scan / running family.
 ///
-/// `shouldPreserveSourceBackedAggregateCall` used to name all nineteen
+/// The old preservation gate used to name all nineteen
 /// accumulation callees, but eleven of them had nothing left to short-circuit:
 /// the legacy `kk_list_fold*` / `kk_list_scan*` bridges are no longer emitted
 /// anywhere (they survive only as `RuntimeABISpec` entries), and Sequence /

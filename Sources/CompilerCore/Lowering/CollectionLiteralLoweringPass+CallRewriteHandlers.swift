@@ -63,7 +63,7 @@ extension CollectionLiteralConstructionLoweringPass {
         // `maxByOrNull` / `minByOrNull` to a `kk_map_*` runtime entry point. It
         // never fired: every one of those names, once resolved to the bundled
         // Kotlin source in `MapHOF.kt` (KSP-430), is short-circuited by
-        // `shouldPreserveSourceBackedAggregateCall` in `+CallRewrite.swift`
+        // the source-backed preservation gate in `+CallRewrite.swift`
         // before `rewriteHigherOrderCollectionCall` is ever called, and
         // `filterKeys` / `filterValues` / `maxByOrNull` / `minByOrNull` were
         // additionally excluded by `isCollectionHOFMemberName` above, which

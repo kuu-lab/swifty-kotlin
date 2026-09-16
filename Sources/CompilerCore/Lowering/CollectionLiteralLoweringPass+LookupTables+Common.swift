@@ -63,15 +63,12 @@ struct CommonLookupNames {
     let associateWithToName: InternedString
     let groupByToName: InternedString
     let mapValuesName: InternedString
-    let mapValuesToName: InternedString
     let mapKeysName: InternedString
-    let mapKeysToName: InternedString
     let filterKeysName: InternedString
     let filterValuesName: InternedString
     let zipName: InternedString
     let zipWithNextName: InternedString
     let unzipName: InternedString
-    let withIndexName: InternedString
     let forEachIndexedName: InternedString
     let onEachName: InternedString
     let onEachIndexedName: InternedString
@@ -84,7 +81,6 @@ struct CommonLookupNames {
     let runningFoldIndexedName: InternedString
     let runningReduceIndexedName: InternedString
     let scanIndexedName: InternedString
-    let sumOfName: InternedString
     let sumByName: InternedString
     let sumByDoubleName: InternedString
     let maxName: InternedString
@@ -195,15 +191,12 @@ struct CommonLookupNames {
         associateWithToName = interner.intern("associateWithTo")
         groupByToName = interner.intern("groupByTo")
         mapValuesName = interner.intern("mapValues")
-        mapValuesToName = interner.intern("mapValuesTo")
         mapKeysName = interner.intern("mapKeys")
-        mapKeysToName = interner.intern("mapKeysTo")
         filterKeysName = interner.intern("filterKeys")
         filterValuesName = interner.intern("filterValues")
         zipName = interner.intern("zip")
         zipWithNextName = interner.intern("zipWithNext")
         unzipName = interner.intern("unzip")
-        withIndexName = interner.intern("withIndex")
         forEachIndexedName = interner.intern("forEachIndexed")
         onEachName = interner.intern("onEach")
         onEachIndexedName = interner.intern("onEachIndexed")
@@ -216,7 +209,6 @@ struct CommonLookupNames {
         runningFoldIndexedName = interner.intern("runningFoldIndexed")
         runningReduceIndexedName = interner.intern("runningReduceIndexed")
         scanIndexedName = interner.intern("scanIndexed")
-        sumOfName = interner.intern("sumOf")
         sumByName = interner.intern("sumBy")
         sumByDoubleName = interner.intern("sumByDouble")
         maxName = interner.intern("max")
