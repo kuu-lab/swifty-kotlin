@@ -50,7 +50,8 @@ extension CallTypeChecker {
         range: SourceRange,
         receiverType: TypeID,
         expectedType: TypeID?,
-        ctx: TypeInferenceContext
+        ctx: TypeInferenceContext,
+        preferredSourcePackage: [InternedString]? = nil
     ) -> TypeID? {
         let sema = ctx.sema
         let visible = ctx.filterByVisibility(ctx.cachedScopeLookup(calleeName)).visible
@@ -59,6 +60,8 @@ extension CallTypeChecker {
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .property,
                   !requireSynthetic || symbol.flags.contains(.synthetic),
+                  preferredSourcePackage == nil
+                      || Array(symbol.fqName.dropLast()) == preferredSourcePackage,
                   let receiver = sema.symbols.extensionPropertyReceiverType(for: candidate),
                   extensionSyntheticFallbackReceiverMatches(
                       callSiteReceiver: receiverType,
@@ -73,7 +76,25 @@ extension CallTypeChecker {
                 getterCandidates.append(getterAccessor)
             }
         }
+        // Canonical and legacy atomic aliases expand to the same runtime class,
+        // so a source-backed extension property must be selected by the package
+        // imported at the call site rather than by nominal type alone.
+        if let preferredSourcePackage {
+            let sourceCandidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
+                guard let symbol = sema.symbols.symbol(candidate),
+                      symbol.kind == .property,
+                      Array(symbol.fqName.dropLast()) == preferredSourcePackage
+                else {
+                    return false
+                }
+                return true
+            }
+            for candidate in sourceCandidates {
+                collectGetterCandidate(from: candidate, requireSynthetic: false)
+            }
+        }
         for candidate in visible {
+            guard getterCandidates.isEmpty else { break }
             collectGetterCandidate(from: candidate, requireSynthetic: false)
         }
         // STDLIB-JVM-PROP-003: Fallback to short-name lookup for JVM reflection

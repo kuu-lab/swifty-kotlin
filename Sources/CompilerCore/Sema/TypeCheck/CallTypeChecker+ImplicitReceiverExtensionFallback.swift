@@ -41,6 +41,19 @@ extension CallTypeChecker {
         candidates.append(contentsOf: sema.symbols.lookupByShortName(calleeName).filter {
             matches($0, requireSynthetic: true)
         })
+        // Bundled stdlib source extensions are omitted from ordinary file scopes.
+        // Prefer their source-backed declarations over residual synthetic members
+        // when an atomic receiver exposes the migrated surface.
+        let bundledCandidates = collectBundledStdlibExtensionCandidates(
+            named: calleeName,
+            receiverType: nonNullReceiver,
+            sourceFile: ctx.currentASTFile,
+            sema: sema,
+            interner: ctx.interner
+        )
+        if !bundledCandidates.isEmpty {
+            candidates = bundledCandidates
+        }
         guard !candidates.isEmpty else { return nil }
 
         let argTypes = args.map { argument in
