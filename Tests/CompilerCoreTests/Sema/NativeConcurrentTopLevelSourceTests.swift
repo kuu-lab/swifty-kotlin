@@ -41,17 +41,13 @@ struct NativeConcurrentTopLevelSourceTests {
         // MutableData is already source-backed by KSP-1243
         // (Stdlib/kotlin/native/concurrent/MutableData.kt), and
         // WorkerBoundReference's constructor is already source-backed by
-        // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt),
-        // so all six are intentionally absent from this synthetic-anchor
+        // KSP-1252 (Stdlib/kotlin/native/concurrent/WorkerBoundReference.kt).
+        // Those migrated declarations, together with DetachedObjectGraph
+        // (KSP-1235), are intentionally absent from this synthetic-anchor
         // inventory.
-        let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [
-            "DetachedObjectGraph": (.invariant, sema.types.nullableAnyType),
-        ]
+        let expectedGenericShapes: [String: (TypeVariance, TypeID)] = [:]
 
-        for name in [
-            "AtomicInt",
-            "DetachedObjectGraph",
-        ] {
+        for name in ["AtomicInt"] {
             let path = package + [name]
             let classSymbol = try symbol(path, in: context)
             let info = try #require(sema.symbols.symbol(classSymbol))
@@ -76,6 +72,24 @@ struct NativeConcurrentTopLevelSourceTests {
             } else {
                 #expect(sema.types.nominalTypeParameterSymbols(for: classSymbol).isEmpty)
             }
+        }
+
+        // DetachedObjectGraph is source-backed by KSP-1235. Its public
+        // constructors remain KSP-1234's separate top-level task, so only the
+        // internal pointer constructor is present here.
+        let detachedObjectGraphPath = package + ["DetachedObjectGraph"]
+        let detachedObjectGraphSymbol = try symbol(detachedObjectGraphPath, in: context)
+        let detachedObjectGraphInfo = try #require(sema.symbols.symbol(detachedObjectGraphSymbol))
+        #expect(detachedObjectGraphInfo.kind == .class)
+        #expect(!detachedObjectGraphInfo.flags.contains(.synthetic))
+        #expect(sema.symbols.sourceFileID(for: detachedObjectGraphSymbol) != nil)
+        #expect(sema.types.nominalTypeParameterSymbols(for: detachedObjectGraphSymbol).count == 1)
+        let detachedConstructors = sema.symbols.lookupAll(
+            fqName: detachedObjectGraphPath.map(context.interner.intern) + [context.interner.intern("<init>")]
+        )
+        #expect(detachedConstructors.count == 1)
+        if let detachedConstructor = detachedConstructors.first {
+            #expect(sema.symbols.symbol(detachedConstructor)?.visibility == .internal)
         }
 
         // FreezableAtomicReference is already source-backed (KSP-1236) with a
