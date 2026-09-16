@@ -52,6 +52,20 @@ struct KsSymbolNameSemaTests {
                     fun missingBody(): Int
 
             """,
+            // bodylessKsSymbolNameInterfaceFunctionIsNotAbstract
+            """
+            package sample5
+
+                    import kotlin.internal.KsSymbolName
+
+                    interface RuntimeBridge {
+                        @KsSymbolName("kk_runtime_bridge")
+                        fun bridge(): Int
+                    }
+
+                    class RuntimeBridgeImpl : RuntimeBridge
+
+            """,
         ]
 
         try withTemporaryFiles(contents: sources) { paths in
@@ -89,6 +103,22 @@ struct KsSymbolNameSemaTests {
             do {
                 let sample4Diagnostics = diagnosticsForPath(paths[4], in: ctx)
                 assertHasDiagnostic("KSWIFTK-SEMA-0009", in: sample4Diagnostics)
+            }
+
+            // === bodylessKsSymbolNameInterfaceFunctionIsNotAbstract ===
+            do {
+                let sample5Diagnostics = diagnosticsForPath(paths[5], in: ctx)
+                assertHasDiagnostic("KSWIFTK-SEMA-0007", in: sample5Diagnostics)
+                assertNoDiagnostic("KSWIFTK-SEMA-ABSTRACT", in: sample5Diagnostics)
+
+                let sema = try #require(ctx.sema)
+                let bridge = try #require(sema.symbols.lookup(fqName: [
+                    ctx.interner.intern("sample5"),
+                    ctx.interner.intern("RuntimeBridge"),
+                    ctx.interner.intern("bridge"),
+                ]))
+                #expect(!sema.symbols.symbol(bridge)!.flags.contains(.abstractType))
+                #expect(sema.symbols.externalLinkName(for: bridge) == "kk_runtime_bridge")
             }
         }
     }

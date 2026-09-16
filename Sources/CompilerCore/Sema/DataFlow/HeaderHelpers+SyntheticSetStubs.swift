@@ -7,15 +7,13 @@
 /// `registerSetSizeMember` remains here — the annotation pipeline only wires
 /// up `.function`/`.constructor` symbols, not `.property`). MutableSet's
 /// mutation members (add/remove/clear/addAll/plusAssign/removeAll/
-/// minusAssign/retainAll) could not be migrated the same way: this compiler
-/// unconditionally flags a body-less interface member abstract regardless of
-/// `external`/`@KsSymbolName` (see MemberHeaderCollection.swift), which would
-/// force every concrete `MutableSet` implementer that relies on this
-/// interface-level bridge as its default implementation (`LinkedHashSet`,
-/// `AbstractMutableMapKeys`) to redundantly override every one of them. Only
-/// this Swift-side registration can express a body-less-but-non-abstract
-/// member today (see `HashSet`'s matching FQName exemption in
-/// `Inheritance.swift`'s `validateAbstractOverridesForDecl`).
+/// minusAssign/retainAll) remain in this fallback until their source
+/// migration lands. Body-less interface members with `external` or
+/// `@KsSymbolName` are now recognized as runtime bridges rather than abstract
+/// contracts, so concrete implementers can share those interface-level
+/// implementations. `HashSet`'s matching FQName exemption in
+/// `Inheritance.swift` continues to cover the residual synthetic collection
+/// surface.
 ///
 /// Split out to isolate merge conflicts between parallel stdlib PRs adding new
 /// entries to this package.

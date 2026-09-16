@@ -32,14 +32,10 @@ import kotlin.internal.KsSymbolName
 public interface Set<out E> : Collection<E> {
     public override val size: Int
 
-    // These stay body-less abstract overrides (this compiler always flags a
-    // body-less interface member abstract — see MutableSet.kt's header
-    // comment); every concrete implementer must and already does provide its
-    // own override (LinkedHashSet directly; AbstractSet/AbstractCollection
-    // subclasses via the inherited AbstractCollection logic). The annotation
-    // still lets a receiver statically typed as exactly `Set<E>` (a raw
-    // runtime set box with no concrete override in play) dispatch straight to
-    // the bridge instead of the itable (BUG-166).
+    // These body-less declarations are runtime bridges rather than abstract
+    // contracts. The annotation lets a receiver statically typed as exactly
+    // `Set<E>` (a raw runtime set box with no concrete override in play)
+    // dispatch straight to the bridge instead of the itable (BUG-166).
     @KsSymbolName("__kk_set_is_empty")
     public override fun isEmpty(): Boolean
 
