@@ -4,13 +4,15 @@
  * KSP-1083: Kotlin 2.3.10 kotlin.concurrent top-level declarations.
  *
  * The nominal declarations are source-backed shells. Constructors and member
- * implementations remain owned by the follow-up TODOs and are supplied by
- * the residual runtime-backed registration until those migrations land.
+ * implementations for surfaces that remain TODO-owned are supplied by the
+ * residual runtime-backed registration until those migrations land. Completed
+ * receiver surfaces live in their responsibility-specific files.
  */
 
 package kotlin.concurrent
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlin.native.internal.NativePtr
 import kotlin.internal.KsSymbolName
 
 @SinceKotlin("1.9")
@@ -28,12 +30,11 @@ public class AtomicIntArray private constructor()
 public class AtomicLong private constructor()
 
 @SinceKotlin("1.9")
-@ExperimentalStdlibApi
-public class AtomicLongArray private constructor()
-
-@SinceKotlin("1.9")
 @ExperimentalForeignApi
-public class AtomicNativePtr private constructor()
+public class AtomicNativePtr internal constructor(pointer: NativePtr) {
+    @PublishedApi
+    internal val value: NativePtr = pointer
+}
 
 @SinceKotlin("1.9")
 public class AtomicReference<T> private constructor()

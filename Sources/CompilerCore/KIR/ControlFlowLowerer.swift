@@ -2456,13 +2456,13 @@ final class ControlFlowLowerer {
 
         // Detect if iterating over a Map type. The map iterator yields keys, so
         // for destructuring we need special handling: component1 = key (from next),
-        // component2 = kk_map_get(map, key).
+        // component2 = kk_map_get(map, key). HashMap and LinkedHashMap are
+        // concrete MutableMap subtypes, so use the shared map path for them too.
         let isMapIteration: Bool = {
-            guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema)
+            guard let (_, sym) = resolveClassTypeSymbol(iterableType, sema: sema),
+                  KnownCompilerNames(interner: interner).isMapLikeSymbol(sym)
             else { return false }
-            let mapName = interner.intern("Map")
-            let mutableMapName = interner.intern("MutableMap")
-            return sym.name == mapName || sym.name == mutableMapName
+            return true
         }()
 
         var previousValues: [(SymbolID, KIRExprID?)] = []

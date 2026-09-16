@@ -638,6 +638,30 @@ extension CallTypeChecker {
         if !isClassNameReceiver,
            args.isEmpty,
            !ast.arena.isExplicitCall(id),
+           let sourceFile = ctx.currentASTFile,
+           let preferredSourcePackage = preferredBundledStdlibPackage(
+               sourceFile: sourceFile,
+               candidates: sema.symbols.lookupByShortName(calleeName),
+               receiverType: memberLookupType,
+               sema: sema
+           ),
+           let extensionPropertyType = resolveExtensionPropertyGetter(
+               id: id,
+               calleeName: calleeName,
+               range: range,
+               receiverType: memberLookupType,
+               expectedType: expectedType,
+               ctx: ctx,
+               preferredSourcePackage: preferredSourcePackage
+           )
+        {
+            let finalType = safeCall ? sema.types.makeNullable(extensionPropertyType) : extensionPropertyType
+            sema.bindings.bindExprType(id, type: finalType)
+            return finalType
+        }
+        if !isClassNameReceiver,
+           args.isEmpty,
+           !ast.arena.isExplicitCall(id),
            let propResult = driver.helpers.lookupMemberProperty(
                named: calleeName,
                // Property reads are resolved from the receiver's static type.
@@ -969,19 +993,13 @@ extension CallTypeChecker {
             } else {
                 []
             }
-            let atomicSourceCandidates: [SymbolID] = if rangeSourceCandidates.isEmpty,
-                isBundledAtomicSourceMember(calleeName, interner: interner),
-                isBundledAtomicSourceReceiver(memberLookupType, sema: sema, interner: interner)
-            {
-                collectAtomicSourceExtensionCandidates(
-                    named: calleeName,
-                    receiverType: memberLookupType,
-                    sema: sema,
-                    interner: interner
-                )
-            } else {
-                []
-            }
+            let bundledStdlibCandidates = collectBundledStdlibExtensionCandidates(
+                named: calleeName,
+                receiverType: memberLookupType,
+                sourceFile: ctx.currentASTFile,
+                sema: sema,
+                interner: interner
+            )
             let primitiveArraySourceCandidates = collectPrimitiveArraySourceHOFs(
                 named: calleeName,
                 receiverType: memberLookupType,
@@ -1068,8 +1086,11 @@ extension CallTypeChecker {
                 memberCandidates = scopedRangeUserCandidates
             } else if !rangeSourceCandidates.isEmpty {
                 memberCandidates = rangeSourceCandidates
-            } else if !atomicSourceCandidates.isEmpty {
-                memberCandidates = atomicSourceCandidates
+            } else if !bundledStdlibCandidates.isEmpty {
+                // Source-backed bundled extensions are the live implementation
+                // for migrated atomic APIs, including overrides of inherited
+                // synthetic Any members such as AtomicInt.toString().
+                memberCandidates = bundledStdlibCandidates
             } else {
                 memberCandidates = driver.helpers.collectMemberFunctionCandidates(
                     named: calleeName,
@@ -1213,6 +1234,7 @@ extension CallTypeChecker {
                         scopeCandidates = collectBundledStdlibExtensionCandidates(
                             named: calleeName,
                             receiverType: memberLookupType,
+                            sourceFile: ctx.currentASTFile,
                             sema: sema,
                             interner: interner
                         )
@@ -2228,7 +2250,8 @@ extension CallTypeChecker {
              "kotlin.concurrent.AtomicBoolean",
              "kotlin.concurrent.AtomicReference",
              "kotlin.concurrent.AtomicIntArray",
-             "kotlin.concurrent.AtomicLongArray":
+             "kotlin.concurrent.AtomicLongArray",
+             "java.util.concurrent.atomic.AtomicInteger":
             return true
         default:
             return false
@@ -2247,6 +2270,7 @@ extension CallTypeChecker {
         named calleeName: InternedString,
         receiverType: TypeID,
         requireOperator: Bool = false,
+        sourceFile: ASTFile? = nil,
         sema: SemaModule,
         interner: StringInterner
     ) -> [SymbolID] {
@@ -2260,7 +2284,7 @@ extension CallTypeChecker {
             return []
         }
         let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        return sema.symbols.lookupByShortName(calleeName).filter { candidate in
+        let candidates = sema.symbols.lookupByShortName(calleeName).filter { candidate in
             guard let symbol = sema.symbols.symbol(candidate),
                   symbol.kind == .function,
                   let signature = sema.symbols.functionSignature(for: candidate),
@@ -2291,7 +2315,21 @@ extension CallTypeChecker {
                 symbols: sema.symbols,
                 types: sema.types,
                 interner: interner
-            ), sema.bundledIndex.contains(key)
+            )
+            else {
+                return false
+            }
+            // Typealias receivers expand to their runtime nominal owner when a
+            // symbol key is built. The AST index still retains the declaration's
+            // package for source-backed aliases, so accept either representation
+            // here and let the source-file provenance filter choose between them.
+            let declaredOwnerKey = BundledMemberKey(
+                ownerFQName: Array(symbol.fqName.dropLast()),
+                name: symbol.name,
+                arity: signature.parameterTypes.count
+            )
+            guard sema.bundledIndex.contains(key)
+                || sema.bundledIndex.contains(declaredOwnerKey)
             else {
                 return false
             }
@@ -2301,6 +2339,102 @@ extension CallTypeChecker {
                 sema: sema
             )
         }
+        guard !candidates.isEmpty else {
+            return []
+        }
+
+        // Typealiases for the canonical and legacy atomic packages expand to the
+        // same runtime nominal type. When both source implementations are in the
+        // symbol table, retain the package selected by the current file's import
+        // or package context instead of reporting a false opt-in/overload clash.
+        guard let sourceFile,
+              let preferredPackage = preferredBundledStdlibPackage(
+                  sourceFile: sourceFile,
+                  candidates: candidates,
+                  receiverType: nonNullReceiver,
+                  sema: sema
+              )
+        else {
+            return candidates
+        }
+        let preferredCandidates = candidates.filter { candidate in
+            guard let symbol = sema.symbols.symbol(candidate) else {
+                return false
+            }
+            return Array(symbol.fqName.dropLast()) == preferredPackage
+        }
+        return preferredCandidates.isEmpty ? candidates : preferredCandidates
+    }
+
+    /// Chooses the bundled source package that introduced the receiver visible
+    /// at a call site. Canonical atomics aliases and their legacy shells share a
+    /// runtime class, so the receiver type alone cannot carry this provenance.
+    func preferredBundledStdlibPackage(
+        sourceFile: ASTFile,
+        candidates: [SymbolID],
+        receiverType: TypeID,
+        sema: SemaModule
+    ) -> [InternedString]? {
+        let packages = candidates.compactMap { candidate -> [InternedString]? in
+            guard let symbol = sema.symbols.symbol(candidate), symbol.fqName.count > 1 else {
+                return nil
+            }
+            return Array(symbol.fqName.dropLast())
+        }
+        guard !packages.isEmpty else {
+            return nil
+        }
+        if packages.contains(where: { $0 == sourceFile.packageFQName }) {
+            return sourceFile.packageFQName
+        }
+
+        let receiverOwner = driver.helpers.nominalSymbol(
+            of: sema.types.makeNonNullable(receiverType),
+            types: sema.types
+        )
+        for importDecl in sourceFile.imports {
+            let path = importDecl.path
+            if packages.contains(path) {
+                return path
+            }
+            guard path.count > 1,
+                  let package = packages.first(where: { $0 == Array(path.dropLast()) }),
+                  let receiverOwner
+            else {
+                continue
+            }
+            let matchesReceiver = sema.symbols.lookupAll(fqName: path).contains { importedID in
+                guard let imported = sema.symbols.symbol(importedID) else {
+                    return false
+                }
+                let importedType: TypeID?
+                switch imported.kind {
+                case .class, .interface, .object, .enumClass, .annotationClass:
+                    importedType = sema.types.make(.classType(ClassType(
+                        classSymbol: importedID,
+                        args: [],
+                        nullability: .nonNull
+                    )))
+                case .typeAlias:
+                    importedType = sema.symbols.typeAliasUnderlyingType(for: importedID)
+                default:
+                    importedType = nil
+                }
+                guard let importedType,
+                      let importedOwner = driver.helpers.nominalSymbol(
+                          of: sema.types.makeNonNullable(importedType),
+                          types: sema.types
+                      )
+                else {
+                    return false
+                }
+                return importedOwner == receiverOwner
+            }
+            if matchesReceiver {
+                return package
+            }
+        }
+        return nil
     }
 
     private func isBundledRangeSourceMember(
@@ -2527,92 +2661,5 @@ extension CallTypeChecker {
         }
     }
 
-    /// The CAS-loop update operators migrated to bundled Kotlin source
-    /// (`AtomicMigration.kt`).  Like the range-source members these live as
-    /// package-scoped extension functions in `kotlin.concurrent`, so they must
-    /// be recovered by an explicit source lookup rather than ordinary
-    /// member-call resolution.
-    private func isBundledAtomicSourceMember(
-        _ calleeName: InternedString,
-        interner: StringInterner
-    ) -> Bool {
-        switch interner.resolve(calleeName) {
-        case "compareAndExchange", "getAndUpdate", "updateAndGet", "fetchAndUpdate", "updateAndFetch",
-             "fetchAndUpdateAt", "updateAt", "updateAndFetchAt", "compareAndSet":
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// True when `receiverType` is one of the atomic box types whose CAS-loop
-    /// update operators are provided by bundled Kotlin source.
-    private func isBundledAtomicSourceReceiver(
-        _ receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> Bool {
-        guard let nominal = driver.helpers.nominalSymbol(of: sema.types.makeNonNullable(receiverType), types: sema.types),
-              let symbol = sema.symbols.symbol(nominal)
-        else {
-            return false
-        }
-        let fqName = symbol.fqName
-        guard fqName.count >= 2 else { return false }
-        let name = interner.resolve(fqName[fqName.count - 1])
-        switch name {
-        case "AtomicInt", "AtomicLong", "AtomicBoolean", "AtomicReference",
-             "AtomicArray", "AtomicIntArray", "AtomicLongArray", "AtomicInteger":
-            return true
-        default:
-            return false
-        }
-    }
-
-    /// Recover bundled `kotlin.concurrent` extension functions (the migrated CAS
-    /// loops in `AtomicMigration.kt`) as member candidates for atomic receivers.
-    private func collectAtomicSourceExtensionCandidates(
-        named calleeName: InternedString,
-        receiverType: TypeID,
-        sema: SemaModule,
-        interner: StringInterner
-    ) -> [SymbolID] {
-        let kotlin = interner.intern("kotlin")
-        let concurrent = interner.intern("concurrent")
-        let atomics = interner.intern("atomics")
-        let packageFQNames: [[InternedString]] = [
-            [kotlin, concurrent],
-            [kotlin, concurrent, atomics],
-        ]
-        let nonNullReceiver = sema.types.makeNonNullable(receiverType)
-        var candidates: [SymbolID] = []
-        for packageFQName in packageFQNames {
-            let memberFQName = packageFQName + [calleeName]
-            candidates.append(contentsOf: sema.symbols.lookupAll(fqName: memberFQName)
-                .filter { candidate in
-                    // Top-level bundled extension functions declared directly in
-                    // the package (identified by their exact FQ name so class
-                    // members with the same short name are excluded). The
-                    // package symbol identity cannot be used because synthetic
-                    // atomic stubs create a distinct package symbol from the one
-                    // owning the bundled source declarations.
-                    guard let symbol = sema.symbols.symbol(candidate),
-                          symbol.kind == .function,
-                          !symbol.flags.contains(.synthetic),
-                          symbol.fqName == memberFQName,
-                          let signature = sema.symbols.functionSignature(for: candidate),
-                          let declaredReceiver = signature.receiverType
-                    else {
-                        return false
-                    }
-                    return extensionSyntheticFallbackReceiverMatches(
-                        callSiteReceiver: nonNullReceiver,
-                        declaredReceiver: declaredReceiver,
-                        sema: sema
-                    )
-                })
-        }
-        return candidates.sorted { $0.rawValue < $1.rawValue }
-    }
 }
 // swiftlint:enable cyclomatic_complexity file_length function_body_length

@@ -419,6 +419,31 @@ extension CallTypeChecker {
         )))
     }
 
+    // KUU-556: LinkedHashMap is now a real HashMap subclass (LinkedHashMap.kt),
+    // not a MutableMap typealias, so its constructor call needs its own
+    // nominal type the same way makeSourceBackedHashMapType does.
+    func makeSourceBackedLinkedHashMapType(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        keyType: TypeID,
+        valueType: TypeID
+    ) -> TypeID {
+        let linkedHashMapFQName: [InternedString] = [
+            interner.intern("kotlin"),
+            interner.intern("collections"),
+            interner.intern("LinkedHashMap"),
+        ]
+        guard let linkedHashMapSymbol = symbols.lookup(fqName: linkedHashMapFQName) else {
+            return types.anyType
+        }
+        return types.make(.classType(ClassType(
+            classSymbol: linkedHashMapSymbol,
+            args: [.invariant(keyType), .invariant(valueType)],
+            nullability: .nonNull
+        )))
+    }
+
     func applyContractEffects(
         chosen: SymbolID,
         args: [CallArgument],

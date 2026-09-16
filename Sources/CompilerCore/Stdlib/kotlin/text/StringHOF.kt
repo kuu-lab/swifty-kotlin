@@ -53,6 +53,96 @@ import kotlin.random.Random
 public val CharSequence.indices: IntRange
     get() = 0..length - 1
 
+// KSP-1395: Regex's runtime bridge currently accepts String input. Materialize
+// CharSequence values through indexed UTF-16 units so custom implementations do
+// not lose their contents by returning a display-only toString() value.
+@PublishedApi
+internal fun charSequenceRegexInputForReplace(value: CharSequence): String {
+    if (value is String) return value.toString()
+    val length = value.length
+    val chars = CharArray(length)
+    var index = 0
+    while (index < length) {
+        chars[index] = value[index]
+        index++
+    }
+    return StringBuilder().append(chars).toString()
+}
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(regex: Regex, replacement: String): String =
+    regex.replace(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a new string obtained by replacing all matches of [regex] in this
+ * char sequence with the value returned by [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replace(
+    regex: Regex,
+    noinline replacement: (MatchResult) -> CharSequence
+): String {
+    val input = charSequenceRegexInputForReplace(this)
+    val result = StringBuilder()
+    var lastEnd = 0
+    for (match in regex.findAll(input)) {
+        val start = match.range.first
+        if (start > lastEnd) {
+            result.append(input.substring(lastEnd, start))
+        }
+        result.append(charSequenceRegexInputForReplace(replacement(match)))
+        lastEnd = match.range.last + 1
+    }
+    if (lastEnd < input.length) {
+        result.append(input.substring(lastEnd, input.length))
+    }
+    return result.toString()
+}
+
+/**
+ * Returns a new string with the first match of [regex] replaced by
+ * [replacement].
+ */
+@kotlin.internal.InlineOnly
+public inline fun CharSequence.replaceFirst(regex: Regex, replacement: String): String =
+    regex.replaceFirst(charSequenceRegexInputForReplace(this), replacement)
+
+/**
+ * Returns a copy of this char sequence with the specified index range
+ * replaced by [replacement]. The end index is exclusive.
+ */
+public fun CharSequence.replaceRange(
+    startIndex: Int,
+    endIndex: Int,
+    replacement: CharSequence
+): CharSequence {
+    val length = this.length
+    if (startIndex < 0 || startIndex > length ||
+        endIndex < 0 || endIndex > length || startIndex > endIndex
+    ) {
+        throw IndexOutOfBoundsException(
+            "start=$startIndex, end=$endIndex, length=$length"
+        )
+    }
+
+    val result = StringBuilder()
+    result.append(charSequenceRegexInputForReplace(this.subSequence(0, startIndex)))
+    result.append(charSequenceRegexInputForReplace(replacement))
+    result.append(charSequenceRegexInputForReplace(this.subSequence(endIndex, length)))
+    return result
+}
+
+/**
+ * Returns a copy of this char sequence with the specified inclusive range
+ * replaced by [replacement].
+ */
+public fun CharSequence.replaceRange(range: IntRange, replacement: CharSequence): CharSequence =
+    replaceRange(range.start, range.endInclusive + 1, replacement)
+
 public fun String.filter(predicate: (Char) -> Boolean): String {
     val sb = StringBuilder()
     var i = 0
@@ -733,29 +823,27 @@ public fun CharSequence.reduceRightIndexedOrNull(operation: (index: Int, Char, a
     return accumulator
 }
 
-public fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(i, accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {
@@ -765,7 +853,7 @@ public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R
     return accumulator
 }
 
-public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {

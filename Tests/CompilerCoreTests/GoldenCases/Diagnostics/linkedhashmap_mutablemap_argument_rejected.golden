@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "diagnostics": [
+    {
+      "file": "linkedhashmap_mutablemap_argument_rejected.kt",
+      "range": {
+        "start": { "line": 10, "character": 4 },
+        "end": { "line": 10, "character": 39 }
+      },
+      "severity": 1,
+      "severityLabel": "error",
+      "code": "KSWIFTK-SEMA-0002",
+      "source": "kswiftk",
+      "message": "No viable overload found for call.",
+      "codeActions": []
+    }
+  ]
+}
