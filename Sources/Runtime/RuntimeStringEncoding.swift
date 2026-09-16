@@ -19,6 +19,10 @@ func runtimeStringToByteArrayWithCharsetRaw(_ source: String, charsetTag: Int) -
     __kk_string_toByteArray_charset(runtimeMakeStringRaw(source), charsetTag)
 }
 
+private func runtimeSignedByteValue(_ value: Int) -> Int {
+    Int(Int8(bitPattern: UInt8(truncatingIfNeeded: value)))
+}
+
 @_cdecl("__kk_string_toByteArray_flat")
 public func __kk_string_toByteArray_flat(
     _ data: UnsafePointer<UInt8>?,
@@ -62,7 +66,7 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
     let source = runtimeStringFromRawOrPanic(strRaw, caller: #function)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
         // Unknown charset — fall back to UTF-8. Sema types this as List<Int>.
-        return runtimeMakeListRaw(source.utf8.map(Int.init))
+        return runtimeMakeListRaw(source.utf8.map { runtimeSignedByteValue(Int($0)) })
     }
     let bytes: [Int]
     switch tag {
@@ -135,7 +139,7 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
         bytes = result
     }
     // Sema types toByteArray(charset) as List<Int> — return ListBox.
-    return runtimeMakeListRaw(bytes)
+    return runtimeMakeListRaw(bytes.map { runtimeSignedByteValue($0) })
 }
 
 @_cdecl("__kk_string_toByteArray_charset_flat")
@@ -148,7 +152,7 @@ public func __kk_string_toByteArray_charset_flat(
 ) -> Int {
     let source = runtimeStringFromFlatFields(data: data, length: length, byteCount: byteCount, hash: hash)
     guard let tag = CharsetTag(rawValue: charsetTag) else {
-        return runtimeMakeArrayRaw(source.utf8.map { Int(Int8(bitPattern: $0)) })
+        return runtimeMakeArrayRaw(source.utf8.map { runtimeSignedByteValue(Int($0)) })
     }
     let bytes: [Int]
     switch tag {
@@ -214,7 +218,7 @@ public func __kk_string_toByteArray_charset_flat(
         }
         bytes = result
     }
-    return runtimeMakeArrayRaw(bytes)
+    return runtimeMakeArrayRaw(bytes.map { runtimeSignedByteValue($0) })
 }
 @_cdecl("__kk_string_encodeToByteArray_flat")
 public func __kk_string_encodeToByteArray_flat(
