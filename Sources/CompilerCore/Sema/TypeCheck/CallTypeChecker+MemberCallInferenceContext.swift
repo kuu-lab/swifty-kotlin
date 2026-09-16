@@ -65,6 +65,137 @@ extension CallTypeChecker {
         return nil
     }
 
+    /// Resolves a property or classifier reached through a package-qualified
+    /// path before receiver inference tries to interpret the leading package
+    /// name as a value. Examples include `kotlin.math.PI` and the
+    /// `kotlin.Int` classifier in `kotlin.Int.MAX_VALUE`.
+    func tryInferFQNQualifiedValue(
+        _ request: MemberCallInferenceRequest,
+        locals: LocalBindings
+    ) -> TypeID? {
+        let id = request.id
+        let ctx = request.ctx
+        let sema = ctx.sema
+        let ast = ctx.ast
+        let interner = ctx.interner
+
+        guard request.args.isEmpty,
+              request.explicitTypeArgs.isEmpty,
+              !request.safeCall,
+              !ast.arena.isExplicitCall(id),
+              let receiverPath = qualifiedCalleePath(for: request.receiverID, ast: ast),
+              !receiverPath.isEmpty,
+              locals[receiverPath[0]] == nil
+        else {
+            return nil
+        }
+
+        let qualifiedPath = receiverPath + [request.calleeName]
+        let propertyCandidates = sema.symbols.lookupAll(fqName: qualifiedPath).filter { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate),
+                  symbol.kind == .property,
+                  sema.symbols.extensionPropertyReceiverType(for: candidate) == nil
+            else {
+                return false
+            }
+            let parentKind = sema.symbols.parentSymbol(for: candidate)
+                .flatMap { sema.symbols.symbol($0) }?.kind
+            return parentKind == nil || parentKind == .package
+        }
+        if !propertyCandidates.isEmpty {
+            let visibility = ctx.filterByVisibility(propertyCandidates)
+            guard let property = visibility.visible.first else {
+                if let inaccessible = visibility.invisible.first {
+                    driver.helpers.emitVisibilityError(
+                        for: inaccessible,
+                        name: interner.resolve(request.calleeName),
+                        range: request.range,
+                        diagnostics: ctx.semaCtx.diagnostics
+                    )
+                    return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+                }
+                return nil
+            }
+            guard let propertyType = sema.symbols.propertyType(for: property) else {
+                return nil
+            }
+            driver.helpers.checkDeprecation(
+                for: property,
+                sema: sema,
+                interner: interner,
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            driver.helpers.checkOptIn(
+                for: property,
+                ctx: ctx,
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            sema.bindings.bindIdentifier(id, symbol: property)
+            if let propertySymbol = sema.symbols.symbol(property),
+               propertySymbol.flags.contains(.constValue),
+               let constant = sema.symbols.constValueExprKind(for: property)
+            {
+                sema.bindings.bindConstExprValue(id, value: constant)
+            }
+            sema.bindings.markFQNQualifiedValueExpr(id)
+            sema.bindings.bindExprType(id, type: propertyType)
+            return propertyType
+        }
+
+        guard let classifier = sema.symbols.lookupAll(fqName: qualifiedPath).first(where: { candidate in
+            guard let symbol = ctx.cachedSymbol(candidate) else { return false }
+            switch symbol.kind {
+            case .object, .annotationClass:
+                return true
+            case .class, .interface, .enumClass:
+                return sema.symbols.companionObjectSymbol(for: candidate) != nil
+            default:
+                return false
+            }
+        }),
+            let classifierSymbol = ctx.cachedSymbol(classifier)
+        else {
+            return nil
+        }
+        guard ctx.visibilityChecker.isAccessible(
+            classifierSymbol,
+            fromFile: ctx.currentFileID,
+            enclosingClass: ctx.enclosingClassSymbol
+        ) else {
+            driver.helpers.emitVisibilityError(
+                for: classifierSymbol,
+                name: interner.resolve(request.calleeName),
+                range: request.range,
+                diagnostics: ctx.semaCtx.diagnostics
+            )
+            return driver.helpers.bindAndReturnErrorType(id, sema: sema)
+        }
+        driver.helpers.checkDeprecation(
+            for: classifier,
+            sema: sema,
+            interner: interner,
+            range: request.range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        driver.helpers.checkOptIn(
+            for: classifier,
+            ctx: ctx,
+            range: request.range,
+            diagnostics: ctx.semaCtx.diagnostics
+        )
+        let classifierType = sema.types.make(.classType(ClassType(
+            classSymbol: classifier,
+            args: [],
+            nullability: .nonNull
+        )))
+        sema.bindings.bindIdentifier(id, symbol: classifier)
+        sema.bindings.markFQNQualifiedValueExpr(id)
+        sema.bindings.bindExprType(id, type: classifierType)
+        return classifierType
+    }
+
     /// FQN package-qualified top-level function call: e.g. kotlin.math.abs(x).
     /// Fires before receiver inference to avoid SEMA-0022 on unresolvable package identifiers.
     func tryInferFQNPackageTopLevelCall(
