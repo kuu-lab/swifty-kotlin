@@ -273,6 +273,14 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     if runtimeIsUnitBox(value) {
         return 0
     }
+    // Result is represented by a runtime box while the source-backed stdlib
+    // still models it as a class. Preserve Kotlin's public value-class
+    // contract by delegating to the wrapped success value, or to the wrapped
+    // exception for a failure.
+    if let resultBox = tryCast(pointer, to: RuntimeResultBox.self) {
+        let wrappedValue = resultBox.isSuccess ? resultBox.value : resultBox.exception
+        return kk_any_hashCode(wrappedValue, 0)
+    }
     if let localeBox = tryCast(pointer, to: RuntimeLocaleBox.self) {
         let value = [localeBox.language, localeBox.country, localeBox.variant]
             .filter { !$0.isEmpty }
@@ -435,7 +443,10 @@ private func runtimeAnyKind(_ value: Int, _ tag: Int32) -> Int32 {
 /// Any.hashCode() — uses runtime-aware hashing for boxed values and raw primitives.
 @_cdecl("kk_any_hashCode")
 public func kk_any_hashCode(_ value: Int, _ tag: Int) -> Int {
-    runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))
+    // Swift's Int is pointer-sized, while Kotlin Int and hashCode() are always
+    // signed 32-bit. Normalize at the public dispatch boundary so an identity
+    // or nominal-class hash can never round-trip as a live object pointer.
+    Int(Int32(truncatingIfNeeded: runtimeAnyHashCode(value, Int32(truncatingIfNeeded: tag))))
 }
 
 /// Hashes an opaque runtime value with the same value-level semantics used by
