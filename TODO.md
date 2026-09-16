@@ -3316,8 +3316,9 @@
   - 未実装シンボル一覧:
     - `kotlin.text.iterator` — fun CharSequence.iterator(): CharIterator  -- `final fun (kotlin/CharSequence).kotlin.text/iterator(): kotlin.collections/CharIterator`
 
-- [~] KSP-1384: kotlin.text.CharSequence.last-family の未実装 stdlib API を実装する（5 件）
-  - 実装中: CharSequence の last / lastOrNull（predicate を含む）と lastIndex を Kotlin source に追加。#6698（#6690 系列）の source-backed inline/member return 配線を基点とし、全体 G はこの PR head で未完了。
+- [x] KSP-1384: kotlin.text.CharSequence.last-family の未実装 stdlib API を実装する（5 件）
+  - 完了根拠（2026-09-16 再確認）: 5 API の source-backed 実装は PR #6698（`429027e71`、KSP-1378 の KSP-1384 変更 `7afb87a1e`）で `StringQuery.kt` に着地済み。Sema golden（`stdlib_kotlin_text_CharSequence_last.{kt,golden}`）と kotlinc diff ケースも同 PR に含まれ、String / StringBuilder / custom CharSequence、UTF-16 code unit、空文字列、predicate、captured / safe-call / non-local return を固定している。今回の HEAD で artifact 指定の単一 Sema worker と `DIFF_COMPILE_TIMEOUT=600` の専用 diff を再実行し、いずれも reference parity（diff `total=1 failed=0 passed=1`）を確認した（既定 120 秒では共有環境の candidate compile timeout）。
+  - bridge/stub 監査: CharSequence receiver の 5 API に対応する専用 `__kk_*` / `kk_*` bridge・synthetic stub・RuntimeABI entry は存在しない。`String` 固有の `kk_string_last_flat` / `kk_string_lastOrNull_flat` と synthetic wrapper は KSP-402 の生きた実装として維持する。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `last`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringQuery.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
