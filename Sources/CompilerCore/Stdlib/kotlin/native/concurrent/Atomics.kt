@@ -6,6 +6,7 @@
  */
 
 @file:OptIn(ExperimentalForeignApi::class)
+@file:Suppress("DEPRECATION_ERROR")
 
 package kotlin.native.concurrent
 
@@ -13,6 +14,80 @@ import kotlin.concurrent.Volatile
 import kotlin.internal.KsSymbolName
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.NativePtr
+
+// KSP-1221: The legacy native AtomicInt receiver surface is source-backed
+// while its storage remains owned by the shared runtime atomic box. Keep the
+// ABI-only operations private and expose the Kotlin/Native API as extensions
+// on the KSP-1220 synthetic nominal anchor.
+@KsSymbolName("__kk_atomic_int_load")
+private external fun AtomicInt.__kkAtomicIntLoad(): Int
+
+@KsSymbolName("__kk_atomic_int_store")
+private external fun AtomicInt.__kkAtomicIntStore(value: Int): Unit
+
+@KsSymbolName("__kk_atomic_int_compareAndExchange")
+private external fun AtomicInt.__kkAtomicIntCompareAndExchange(expected: Int, newValue: Int): Int
+
+@KsSymbolName("__kk_atomic_int_fetchAndAdd")
+private external fun AtomicInt.__kkAtomicIntFetchAndAdd(delta: Int): Int
+
+@KsSymbolName("__kk_atomic_int_fetchAndIncrement")
+private external fun AtomicInt.__kkAtomicIntFetchAndIncrement(): Int
+
+@KsSymbolName("__kk_atomic_int_fetchAndDecrement")
+private external fun AtomicInt.__kkAtomicIntFetchAndDecrement(): Int
+
+@KsSymbolName("__kk_atomic_int_incrementAndFetch")
+private external fun AtomicInt.__kkAtomicIntIncrementAndFetch(): Int
+
+@KsSymbolName("__kk_atomic_int_decrementAndFetch")
+private external fun AtomicInt.__kkAtomicIntDecrementAndFetch(): Int
+
+/** The atomically stored value of the legacy native atomic wrapper. */
+public var AtomicInt.value: Int
+    get() = __kkAtomicIntLoad()
+    set(value) {
+        __kkAtomicIntStore(value)
+    }
+
+/** Atomically swaps [expected] for [newValue] and returns the old value. */
+public fun AtomicInt.compareAndSwap(expected: Int, newValue: Int): Int =
+    __kkAtomicIntCompareAndExchange(expected, newValue)
+
+/** Atomically adds [delta] and returns the value before the update. */
+public fun AtomicInt.getAndAdd(delta: Int): Int =
+    __kkAtomicIntFetchAndAdd(delta)
+
+/** Atomically decrements and returns the value before the update. */
+public fun AtomicInt.getAndDecrement(): Int =
+    __kkAtomicIntFetchAndDecrement()
+
+/** Atomically increments and returns the value before the update. */
+public fun AtomicInt.getAndIncrement(): Int =
+    __kkAtomicIntFetchAndIncrement()
+
+/** Atomically increments the value by one. */
+@Deprecated(
+    "Use incrementAndGet() or getAndIncrement() instead.",
+    ReplaceWith("this.incrementAndGet()"),
+    DeprecationLevel.ERROR
+)
+public fun AtomicInt.increment(): Unit {
+    __kkAtomicIntIncrementAndFetch()
+}
+
+/** Atomically decrements the value by one. */
+@Deprecated(
+    "Use decrementAndGet() or getAndDecrement() instead.",
+    ReplaceWith("this.decrementAndGet()"),
+    DeprecationLevel.ERROR
+)
+public fun AtomicInt.decrement(): Unit {
+    __kkAtomicIntDecrementAndFetch()
+}
+
+/** Returns the string representation of the current atomic value. */
+public fun AtomicInt.toString(): String = value.toString()
 
 /**
  * A [Long] value that is always updated atomically.
