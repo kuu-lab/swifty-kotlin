@@ -89,6 +89,27 @@ public fun AtomicInt.decrement(): Unit {
 /** Returns the string representation of the current atomic value. */
 public fun AtomicInt.toString(): String = value.toString()
 
+@KsSymbolName("__kk_atomic_long_load")
+private external fun AtomicLong.__kkLoad(): Long
+
+@KsSymbolName("__kk_atomic_long_store")
+private external fun AtomicLong.__kkStore(value: Long): Long
+
+@KsSymbolName("__kk_atomic_long_compareAndExchange")
+private external fun AtomicLong.__kkCompareAndExchange(expected: Long, update: Long): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndAdd")
+private external fun AtomicLong.__kkFetchAndAdd(delta: Long): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndIncrement")
+private external fun AtomicLong.__kkFetchAndIncrement(): Long
+
+@KsSymbolName("__kk_atomic_long_fetchAndDecrement")
+private external fun AtomicLong.__kkFetchAndDecrement(): Long
+
+@KsSymbolName("__kk_atomic_long_addAndFetch")
+private external fun AtomicLong.__kkAddAndFetch(delta: Long): Long
+
 /**
  * A [Long] value that is always updated atomically.
  *
@@ -103,6 +124,37 @@ public fun AtomicInt.toString(): String = value.toString()
 public class AtomicLong {
     @KsSymbolName("kk_atomic_long_create")
     public constructor(value: Long = 0L)
+
+    @Volatile
+    public var value: Long
+        get() = __kkLoad()
+        set(value) {
+            __kkStore(value)
+        }
+
+    @Deprecated(message = "Use addAndGet(delta: Long) instead.", level = DeprecationLevel.ERROR)
+    public fun addAndGet(delta: Int): Long = __kkAddAndFetch(delta.toLong())
+
+    public fun compareAndSwap(expected: Long, update: Long): Long =
+        __kkCompareAndExchange(expected, update)
+
+    @Deprecated("Use decrementAndGet() or getAndDecrement() instead.", ReplaceWith("this.decrementAndGet()"), DeprecationLevel.ERROR)
+    public fun decrement(): Unit {
+        __kkAddAndFetch(-1L)
+    }
+
+    public fun getAndAdd(delta: Long): Long = __kkFetchAndAdd(delta)
+
+    public fun getAndDecrement(): Long = __kkFetchAndDecrement()
+
+    public fun getAndIncrement(): Long = __kkFetchAndIncrement()
+
+    @Deprecated("Use incrementAndGet() or getAndIncrement() instead.", ReplaceWith("this.incrementAndGet()"), DeprecationLevel.ERROR)
+    public fun increment(): Unit {
+        __kkAddAndFetch(1L)
+    }
+
+    public override fun toString(): String = value.toString()
 }
 
 /**
