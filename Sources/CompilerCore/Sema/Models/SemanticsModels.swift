@@ -1343,6 +1343,10 @@ public final class BindingTable {
     /// chain is a bare namespace path, not a real value, so it is never type
     /// -checked and must not be lowered as one.
     public private(set) var fqnTopLevelCallExprIDs: Set<ExprID> = []
+    /// Tracks `.memberCall` expressions resolved as constructors of a static
+    /// nested class (for example, `Outer.Inner()`): the type qualifier is not
+    /// an instance receiver and must not be passed to the constructor ABI.
+    public private(set) var typeQualifiedConstructorCallExprIDs: Set<ExprID> = []
     /// Tracks lambda literals passed to a KIR-level coroutine launcher
     /// (`runBlocking`/`launch`/`async`/`produce`) whose captures are forwarded
     /// via CoroutineLoweringPass's dedicated launcher-continuation rewrite
@@ -1821,6 +1825,18 @@ public final class BindingTable {
     /// no type binding and must not be lowered as a value.
     public func isFQNTopLevelCallExpr(_ expr: ExprID) -> Bool {
         fqnTopLevelCallExprIDs.contains(expr)
+    }
+
+    /// Mark a `.memberCall` expression as a constructor call through a type
+    /// qualifier rather than an instance receiver (`Outer.Inner()`).
+    public func markTypeQualifiedConstructorCallExpr(_ expr: ExprID) {
+        typeQualifiedConstructorCallExprIDs.insert(expr)
+    }
+
+    /// Whether the call expression must lower its constructor without lowering
+    /// the type qualifier as a runtime receiver.
+    public func isTypeQualifiedConstructorCallExpr(_ expr: ExprID) -> Bool {
+        typeQualifiedConstructorCallExprIDs.contains(expr)
     }
 
     /// Mark a lambda literal as a KIR-level coroutine launcher's block argument.
