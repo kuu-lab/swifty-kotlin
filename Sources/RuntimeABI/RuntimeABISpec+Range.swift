@@ -75,6 +75,36 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
+            name: "__kk_long_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_char_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
+            name: "__kk_uint_rangeUntil",
+            parameters: [
+                RuntimeABIParameter(name: "a", type: .intptr),
+                RuntimeABIParameter(name: "b", type: .intptr),
+            ],
+            returnType: .intptr,
+            section: "Range",
+            isThrowing: false
+        ),
+        RuntimeABIFunctionSpec(
             name: "__kk_op_downTo",
             parameters: [
                 RuntimeABIParameter(name: "a", type: .intptr),

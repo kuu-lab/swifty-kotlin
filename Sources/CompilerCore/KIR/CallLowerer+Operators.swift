@@ -103,6 +103,24 @@ extension CallLowerer {
             ))
             return result
         }
+        let isRangeEquality = (op == .equal || op == .notEqual)
+            && (sema.bindings.isRangeExpr(lhs) || sema.bindings.isRangeExpr(rhs))
+        if isRangeEquality {
+            // Range expressions are duck-typed as their scalar element type
+            // during semantic analysis. Their raw values are still heap
+            // handles, so the scalar kk_op_eq path would unbox the handle and
+            // compare pointer bits. Preserve Kotlin's nominal range value
+            // equality through the runtime structural bridge instead.
+            instructions.append(.call(
+                symbol: nil,
+                callee: interner.intern(op == .equal ? "kk_structural_eq" : "kk_structural_ne"),
+                arguments: [lhsID, rhsID],
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return result
+        }
         // Detect whether this is a compareTo-desugared comparison operator.
         // If so, the call binding targets compareTo (returns Int) and we must
         // wrap the result with a comparison against 0 to produce Bool.
@@ -640,12 +658,20 @@ extension CallLowerer {
         case .elvis:
             preconditionFailure("?: must be lowered through lowerShortCircuitElvisExpr")
         case .rangeTo:
-            // kk_op_rangeTo / __kk_uint_rangeTo / __kk_ulong_rangeTo are residual
-            // operator-core helpers.
+            // Range expressions are duck-typed to their scalar element type,
+            // but the runtime needs the exact nominal range class for equality
+            // and hashCode semantics.
             let rangeToCallee: InternedString
-            if sema.bindings.isFloatingPointRangeExpr(exprID) {
-                let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
-                let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeToCallee = interner.intern("__kk_char_rangeTo")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeToCallee = interner.intern("__kk_long_rangeTo")
+            } else if sema.bindings.isFloatingPointRangeExpr(exprID) {
                 if lhsType == sema.types.floatType || rhsType == sema.types.floatType {
                     rangeToCallee = interner.intern("__kk_float_rangeTo")
                 } else {
@@ -668,10 +694,22 @@ extension CallLowerer {
             ))
             return result
         case .rangeUntil:
-            let rangeUntilCallee = if sema.bindings.isULongRangeExpr(exprID) {
-                interner.intern("__kk_op_ulong_rangeUntil")
+            let lhsType = sema.bindings.exprTypes[lhs] ?? sema.types.anyType
+            let rhsType = sema.bindings.exprTypes[rhs] ?? sema.types.anyType
+            let rangeUntilCallee: InternedString
+            if sema.bindings.isCharRangeExpr(exprID)
+                || lhsType == sema.types.charType
+                || rhsType == sema.types.charType
+            {
+                rangeUntilCallee = interner.intern("__kk_char_rangeUntil")
+            } else if lhsType == sema.types.longType || rhsType == sema.types.longType {
+                rangeUntilCallee = interner.intern("__kk_long_rangeUntil")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_op_ulong_rangeUntil")
+            } else if sema.bindings.isUIntRangeExpr(exprID) {
+                rangeUntilCallee = interner.intern("__kk_uint_rangeUntil")
             } else {
-                interner.intern("__kk_op_rangeUntil")
+                rangeUntilCallee = interner.intern("__kk_op_rangeUntil")
             }
             instructions.append(.call(
                 symbol: nil,
@@ -702,7 +740,9 @@ extension CallLowerer {
             return result
         case .step:
             let stepCallee: InternedString
-            if sema.bindings.isULongRangeExpr(exprID) {
+            if sema.bindings.isCharRangeExpr(exprID) {
+                stepCallee = interner.intern("__kk_char_range_step")
+            } else if sema.bindings.isULongRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_ulong_step")
             } else if sema.bindings.isUIntRangeExpr(exprID) {
                 stepCallee = interner.intern("__kk_uint_step")

@@ -3,11 +3,13 @@ final class RuntimeRangeBox {
     let first: Int
     let last: Int
     let step: Int
+    let kind: RuntimeRangeKind
 
-    init(first: Int, last: Int, step: Int) {
+    init(first: Int, last: Int, step: Int, kind: RuntimeRangeKind = .intRange) {
         self.first = first
         self.last = last
         self.step = step
+        self.kind = kind
     }
 }
 
@@ -557,15 +559,15 @@ public func kk_op_elvis(_ lhs: Int, _ rhs: Int) -> Int {
 
 @_cdecl("kk_op_rangeTo")
 public func kk_op_rangeTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: 1, kind: .intRange))
 }
 
 @_cdecl("__kk_op_rangeUntil")
 public func __kk_op_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
     if rhs <= lhs {
-        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0))
+        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0, kind: .intRange))
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1))
+    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1, kind: .intRange))
 }
 
 @_cdecl("__kk_op_ulong_rangeUntil")
@@ -573,14 +575,14 @@ public func __kk_op_ulong_rangeUntil(_ lhs: Int, _ rhs: Int) -> Int {
     let lhsUnsigned = UInt(bitPattern: lhs)
     let rhsUnsigned = UInt(bitPattern: rhs)
     if rhsUnsigned <= lhsUnsigned {
-        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0))
+        return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 0, kind: .ulongRange))
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1))
+    return registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs &- 1, step: 1, kind: .ulongRange))
 }
 
 @_cdecl("__kk_op_downTo")
 public func __kk_op_downTo(_ lhs: Int, _ rhs: Int) -> Int {
-    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1))
+    registerRuntimeObject(RuntimeRangeBox(first: lhs, last: rhs, step: -1, kind: .intProgression))
 }
 
 @_cdecl("__kk_op_step")
@@ -604,7 +606,12 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
         return rangeRaw
     }
     if range.step == 0 {
-        return rangeRaw
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: range.first,
+            last: range.last,
+            step: range.step,
+            kind: range.kind.progressionKind
+        ))
     }
     let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
     // Align 'last' to the step like Kotlin's getProgressionLastElement:
@@ -615,20 +622,35 @@ public func __kk_op_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown: UnsafeM
     let alignedLast: Int
     if nextStep > 0 {
         guard range.first <= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                kind: range.kind.progressionKind
+            ))
         }
         let diff = range.last &- range.first
         let remainder = diff % nextStep
         alignedLast = range.last &- remainder
     } else {
         guard range.first >= range.last else {
-            return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: range.last, step: nextStep))
+            return registerRuntimeObject(RuntimeRangeBox(
+                first: range.first,
+                last: range.last,
+                step: nextStep,
+                kind: range.kind.progressionKind
+            ))
         }
         let diff = range.first &- range.last
         let remainder = diff % (0 &- nextStep)
         alignedLast = range.last &+ remainder
     }
-    return registerRuntimeObject(RuntimeRangeBox(first: range.first, last: alignedLast, step: nextStep))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: range.first,
+        last: alignedLast,
+        step: nextStep,
+        kind: range.kind.progressionKind
+    ))
 }
 
 private let runtimeIterableInterfaceTypeID: Int64 = runtimeStableNominalTypeID(
@@ -1188,13 +1210,23 @@ public func __kk_char_range_step(_ rangeRaw: Int, _ stepValue: Int, _ outThrown:
         return rangeRaw
     }
     if range.step == 0 {
-        return rangeRaw
+        return registerRuntimeObject(RuntimeRangeBox(
+            first: range.first,
+            last: range.last,
+            step: range.step,
+            kind: .charProgression
+        ))
     }
     let first = kk_unbox_char(range.first)
     let last = kk_unbox_char(range.last)
     let nextStep = range.step < 0 ? (0 &- stepValue) : stepValue
     let alignedLast = runtimeSignedProgressionLast(start: first, end: last, step: nextStep)
-    return registerRuntimeObject(RuntimeRangeBox(first: first, last: alignedLast, step: nextStep))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: first,
+        last: alignedLast,
+        step: nextStep,
+        kind: .charProgression
+    ))
 }
 
 @_cdecl("__kk_char_range_toList")
@@ -1417,7 +1449,12 @@ public func __kk_int_progression_fromClosedRange(_ receiverRaw: Int, _ rangeStar
         return 0
     }
     let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: rangeStart,
+        last: alignedLast,
+        step: step,
+        kind: .intProgression
+    ))
 }
 
 @_cdecl("__kk_long_progression_fromClosedRange")
@@ -1435,7 +1472,12 @@ public func __kk_long_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
         return 0
     }
     let alignedLast = runtimeSignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: rangeStart,
+        last: alignedLast,
+        step: step,
+        kind: .longProgression
+    ))
 }
 
 @_cdecl("__kk_uint_progression_fromClosedRange")
@@ -1452,7 +1494,12 @@ public func __kk_uint_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
         return 0
     }
     let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: rangeStart,
+        last: alignedLast,
+        step: step,
+        kind: .uintProgression
+    ))
 }
 
 @_cdecl("__kk_ulong_progression_fromClosedRange")
@@ -1469,7 +1516,12 @@ public func __kk_ulong_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSt
         return 0
     }
     let alignedLast = runtimeUnsignedProgressionLast(start: rangeStart, end: rangeEnd, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: rangeStart, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: rangeStart,
+        last: alignedLast,
+        step: step,
+        kind: .ulongProgression
+    ))
 }
 
 @_cdecl("__kk_char_progression_fromClosedRange")
@@ -1487,7 +1539,12 @@ public func __kk_char_progression_fromClosedRange(_ receiverRaw: Int, _ rangeSta
     let startChar = kk_unbox_char(rangeStart)
     let endChar = kk_unbox_char(rangeEnd)
     let alignedLast = runtimeSignedProgressionLast(start: startChar, end: endChar, step: step)
-    return registerRuntimeObject(RuntimeRangeBox(first: startChar, last: alignedLast, step: step))
+    return registerRuntimeObject(RuntimeRangeBox(
+        first: startChar,
+        last: alignedLast,
+        step: step,
+        kind: .charProgression
+    ))
 }
 
 // MARK: - ULongRange properties (STDLIB-RANGE-037)

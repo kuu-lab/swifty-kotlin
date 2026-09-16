@@ -120,17 +120,20 @@ final class ABILoweringPass: LoweringPass, ParallelLoweringPass {
             ctx.interner.intern("kk_array_is_empty"),
         ]
 
-        // __kk_op_rangeUntil backs the `until` infix function (registered in
+        // The typed rangeUntil bridges back the `until` infix function (registered in
         // HeaderHelpers+SyntheticRangeProgressionStubs.swift with a scalar
         // Int/Long return type, matching the isRangeExpr duck-typing convention
-        // used for range operators) but always returns a boxed RuntimeRangeBox
-        // reference at runtime (see __kk_op_rangeUntil in RuntimeRangeAndDispatch.swift).
+        // used for range operators) but always return boxed RuntimeRangeBox
+        // references at runtime (see the typed rangeUntil bridges in Runtime).
         // Unlike `..`/`downTo`/`step`, calls to the named `until` function carry a
         // resolved Sema symbol, so resolveUnboxForCall would otherwise see a
         // Long/Int-typed return and insert an erroneous kk_unbox_long/kk_unbox_int
         // on the range object itself.
         let boxedReturnRangeCallees: Set<InternedString> = [
             ctx.interner.intern("__kk_op_rangeUntil"),
+            ctx.interner.intern("__kk_long_rangeUntil"),
+            ctx.interner.intern("__kk_char_rangeUntil"),
+            ctx.interner.intern("__kk_uint_rangeUntil"),
         ]
 
         let unboxSkipCallees = boxedReturnRangeCallees.union(
