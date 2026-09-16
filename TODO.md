@@ -3234,7 +3234,7 @@
     - `kotlin.text.flatMapTo` — fun CharSequence.flatMapTo(, Function1): #B  -- `final inline fun <#A: kotlin/Any?, #B: kotlin.collections/MutableCollection<in #A>> (kotlin/CharSequence).kotlin.text/flatMapTo(#B, kotlin/Function1<kotlin/Char, kotlin.collections/Iterable<#A>>): #B`
   - 完了: PR #6718（2026-09-09 マージ、e176d62f）で4 API を `StringHOF.kt` に実装済み（indexed access + iterator/add 展開、bridge 追加なし）。non-local return Sema の共通前提は親 PR #6702（KSP-1374、同日マージ）で解消。`stdlib_kotlin_text_CharSequence_flat.kt` の Sema golden・diff ケース、`CharSequenceFlatSourceMigrationTests` を同 PR で追加済み。当時保留だった全体ゲートは #6718 の CI が全 shard green（kotlinc diff 4/4・全テスト shard・TODO ID チェック含む）で充足。
 
-- [ ] KSP-1376: kotlin.text.CharSequence.fold-family の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1376: kotlin.text.CharSequence.fold-family の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `fold`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -3246,6 +3246,8 @@
     - `kotlin.text.foldIndexed` — fun CharSequence.foldIndexed(, Function3): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldIndexed(#A, kotlin/Function3<kotlin/Int, #A, kotlin/Char, #A>): #A`
     - `kotlin.text.foldRight` — fun CharSequence.foldRight(, Function2): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRight(#A, kotlin/Function2<kotlin/Char, #A, #A>): #A`
     - `kotlin.text.foldRightIndexed` — fun CharSequence.foldRightIndexed(, Function3): #A  -- `final inline fun <#A: kotlin/Any?> (kotlin/CharSequence).kotlin.text/foldRightIndexed(#A, kotlin/Function3<kotlin/Int, kotlin/Char, #A, #A>): #A`
+  - 完了根拠（2026-09-16）: `StringHOF.kt` の4 APIを `public inline` の source-backed 実装として整備し、forward fold の反復中 `length` 再評価と right fold の初回長さスナップショットを Kotlin `CharSequence` 契約に合わせた。CharSequence receiver の fold-family に対応する `__kk_*` / `kk_*` runtime 関数、synthetic stub、`RuntimeABISpec` エントリ、専用 name-string 特例は存在せず、bridge 側の変更は不要。Sema source-migration テスト、golden と custom/mutable CharSequence、UTF-16、empty、全4 API、inline non-local return、例外伝播を `stdlib_kotlin_text_CharSequence_fold.{kt,golden}` / `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_fold.kt` で固定した。
+  - 検証（2026-09-16）: `swift build` PASS。`CharSequenceFoldSourceMigrationTests`（2 tests）PASS。`UPDATE_GOLDEN=1 KSWIFTK_GOLDEN_SHARD_INDEX=79 KSWIFTK_GOLDEN_SHARD_COUNT=93 swift test --build-system swiftbuild --skip-build --test-product CompilerCoreTests --filter CompilerCoreTests.GoldenSemaGoldenTests/matchesGolden --no-parallel -Xswiftc -swift-version -Xswiftc 6`（対象8ケース）PASS、専用 GoldenHarnessWorker の再生成結果も committed golden と完全一致。`DIFF_REQUIRE_JDK21=0 DIFF_PARALLEL=0 DIFF_COMPILE_TIMEOUT=600 DIFF_RUN_TIMEOUT=60 bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_fold.kt` PASS。全 Sema golden / 全 diff はローカル未実行、CI に委譲。
 
 - [x] KSP-1377: kotlin.text.CharSequence.for-family の未実装 stdlib API を実装する（2 件）
   - **2026-09-16 完了確認**: `StringHOF.kt` の source-backed inline `forEach` / `forEachIndexed`、Sema source-binding テスト、Golden fixture、diff ケースは PR #6701（2026-09-12 merge）で既に master に着地済み。diff ケースは UTF-16 code unit、動的 `CharSequence` の length/get と mutation、callback throw、direct/safe/captured/named inline non-local return を固定している。
