@@ -267,10 +267,10 @@ package struct KnownCompilerNames {
     let className: InternedString
     let isInitialized: InternedString
     // STDLIB-REFLECT-061: KClass member access (remains a compiler special
-    // case — see the NOTE in KClassMemberIntrospection.kt)
+    // case — see the NOTE in KClasses.kt)
     let propertiesName: InternedString
     // STDLIB-REFLECT-065: Annotation reflection (reified-type special cases
-    // that were not migrated to bundled Kotlin — see KClassMemberIntrospection.kt)
+    // that were not migrated to bundled Kotlin — see KClasses.kt)
     let findAnnotationName: InternedString
     let findAssociatedObjectName: InternedString
     let size: InternedString

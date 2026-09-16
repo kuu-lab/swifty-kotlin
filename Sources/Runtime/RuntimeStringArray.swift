@@ -1182,7 +1182,7 @@ public func __kk_kclass_create(_ typeToken: Int, _ nameHint: Int) -> Int {
 // Unlike `__kk_type_token_simple_name`/`__kk_type_token_qualified_name` (which take
 // a bare type token + name hint known at the `T::class` call site), these take
 // the KClass box handle itself so the Kotlin-source `simpleName`/`qualifiedName`
-// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClassBasicAPI.kt) can
+// properties (Sources/CompilerCore/Stdlib/kotlin/reflect/KClasses.kt) can
 // be ordinary extension properties dispatched on `this`, without requiring
 // reified static type information at the call site.
 
