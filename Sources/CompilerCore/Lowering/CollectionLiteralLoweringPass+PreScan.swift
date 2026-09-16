@@ -1,33 +1,5 @@
 
 extension CollectionLiteralLoweringSupport {
-    func isStdlibBuilderDSLCall(
-        symbol: SymbolID?,
-        callee: InternedString,
-        lookup: CollectionLiteralLookupTables,
-        ctx: KIRContext
-    ) -> Bool {
-        guard lookup.builderDSLNames.contains(callee) else {
-            return false
-        }
-        guard let symbol else {
-            return true
-        }
-        guard let sema = ctx.sema,
-              let semanticSymbol = sema.symbols.symbol(symbol)
-        else {
-            return false
-        }
-        if semanticSymbol.flags.contains(.synthetic) {
-            return true
-        }
-        if sema.symbols.externalLinkName(for: symbol)?.hasPrefix("kk_build_") == true {
-            return true
-        }
-        // Source-backed builders resolve to CollectionBuilders.kt
-        // (KSP-622, KSP-623), so the legacy rewrite never applies.
-        return false
-    }
-
     func collectInitialCollectionExprIDs(
         function: KIRFunction,
         lookup: CollectionLiteralLookupTables,
@@ -244,10 +216,7 @@ extension CollectionLiteralLoweringSupport {
         } else if callee == lookup.takeName || callee == lookup.dropName
             || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
             || callee == lookup.shuffledName
-            || callee == lookup.scanName || callee == lookup.runningFoldName
-            || callee == lookup.kkListSortedName
-            || callee == lookup.kkListShuffledName
-            || callee == lookup.kkListShuffledRandomName,
+            || callee == lookup.scanName || callee == lookup.runningFoldName,
             state.listExprIDs.contains(src)
         {
             state.listExprIDs.insert(result.rawValue)
@@ -330,9 +299,6 @@ extension CollectionLiteralLoweringSupport {
                 || callee == lookup.reversedName || callee == lookup.asReversedName || callee == lookup.sortedName || callee == lookup.distinctName
                 || callee == lookup.shuffledName
                 || callee == lookup.scanName || callee == lookup.runningFoldName
-                || callee == lookup.kkListSortedName
-                || callee == lookup.kkListShuffledName
-                || callee == lookup.kkListShuffledRandomName
             {
                 if let result { state.listExprIDs.insert(result.rawValue) }
             }

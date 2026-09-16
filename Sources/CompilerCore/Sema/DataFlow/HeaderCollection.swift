@@ -512,11 +512,11 @@ extension DataFlowSemaPhase {
         }
     }
 
-    /// KSP-717: forward-declares `java.util.Locale` from `Locale.kt` before the
-    /// still-synthetic `String.Companion.format(locale, ...)` overload is
-    /// registered. Its source symbol must be available so that registration
-    /// can build a `localeType`; `collectAllHeaders` later fills in the
-    /// complete header (the two bridged constructors).
+    /// KSP-717: forward-declares `java.util.Locale` from `Locale.kt` before
+    /// source-backed `String.Companion.format(locale, ...)` is collected. Its
+    /// nominal symbol must be available while the extension signature is
+    /// resolved; `collectAllHeaders` later fills in the complete header (the
+    /// two bridged constructors).
     func predeclareBundledJavaUtilLocaleHeaders(
         ast: ASTModule,
         fileScopes: [Int32: FileScope],

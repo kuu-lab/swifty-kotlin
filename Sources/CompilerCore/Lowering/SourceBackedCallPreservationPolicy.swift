@@ -1,36 +1,18 @@
 /// How a call site's callee resolved, as far as source-backed preservation is
 /// concerned.
-///
-/// The lowering passes used to spell this out inline as a chain of
-/// `guard let symbol, let sema = ctx.sema, sema.symbols.symbol(symbol) != nil`
-/// followed by a separate `isSourceBackedSymbol` check, which left the
-/// "no symbol at all" and "symbol id with no table entry" cases implicit.
-/// Naming the four states makes them testable and gives RF-LOWER-CALL-008
-/// onwards a vocabulary to narrow the preserved API sets against.
 enum SourceBackedCalleeResolution: Equatable {
-    /// The call carries no callee symbol — hand-built KIR, or a call the KIR
-    /// builder emitted directly against a `kk_*` entry point — or Sema
-    /// bindings are unavailable for this module.
+    /// No usable callee binding was available.
     case unresolved
-    /// A callee symbol id that is not present in the symbol table.
+    /// A callee symbol id was not present in the symbol table.
     case unknownSymbol
-    /// Resolved to a declaration backed by source: a bundled Kotlin stdlib
-    /// declaration, user code, or an imported library declaration.
+    /// The resolved declaration has a source-backed implementation.
     case sourceBacked
-    /// Resolved to a declaration with no source body — a synthetic stub whose
-    /// implementation is an external `kk_*` bridge. KSP-443 member aliases
-    /// land here too: they are nil-site synthetic siblings of a source
-    /// declaration, so `isSourceBackedSymbol` reports them as not source
-    /// backed even though a source implementation of the same signature
-    /// exists under the declaring package.
+    /// The resolved declaration is an external or synthetic runtime bridge.
     case externalBridge
 }
 
 extension SourceBackedCalleeResolution {
-    /// Classifies `symbol` without reinterpreting `isSourceBackedSymbol`:
-    /// that predicate stays the single authority on what "source backed"
-    /// means (RF-LOWER-CALL-007 must not change its meaning or the Sema
-    /// flags behind it).
+    /// Classify a callee without changing Sema's source-backed authority.
     init(symbol: SymbolID?, sema: SemaModule?) {
         guard let symbol, let sema else {
             self = .unresolved
@@ -44,296 +26,32 @@ extension SourceBackedCalleeResolution {
     }
 }
 
-/// The one place that decides whether a resolved collection-API call keeps the
-/// Kotlin declaration overload resolution selected, instead of being rewritten
-/// to a `kk_*` runtime entry point.
+/// Decides whether a resolved declaration should remain selected by lowering.
 ///
-/// RF-LOWER-CALL-007: `CollectionLiteralConstructionLoweringPass` (direct
-/// calls) and `CollectionVirtualCallRewriteLoweringPass` (virtual dispatch)
-/// each carried their own copy of this decision as a `||` chain of interned
-/// name comparisons. The copies agreed on 63 API names and diverged on nineteen
-/// more plus the shape of the array-conversion check, and nothing in either
-/// file said so. Here the agreement is one set, each divergence is its own
-/// named set, and the decision order of both original predicates is preserved
-/// exactly — this task is an extraction, not a narrowing. RF-LOWER-CALL-008
-/// onwards shrinks the sets one API family at a time.
-///
-/// The policy never reaches into `SemaModule` itself: callers hand it a
-/// `SourceBackedCalleeResolution` and closures for the receiver facts, so the
-/// original short-circuit order (cheap name test first, symbol-table and
-/// arena lookups only on a name hit) survives the move.
+/// Source-backed declarations are preserved by default. Runtime-backed
+/// Sequence values are the explicit exception: their source declarations may
+/// require a lowering bridge because the receiver is represented by an opaque
+/// runtime box. Unresolved, unknown, and external declarations remain eligible
+/// for the existing runtime rewrites.
 struct SourceBackedCallPreservationPolicy {
-    /// API names preserved by both the direct-call and the virtual-call entry
-    /// point. Comments record the migration each group came from.
-    let sharedAggregateNames: Set<InternedString>
+    /// The policy is deliberately data-free: lookup tables identify concrete
+    /// bridges, while this type only combines declaration resolution with
+    /// runtime representation evidence.
+    init() {}
 
-    /// API names preserved only on virtual dispatch. Range/progression members
-    /// reach lowering as virtual calls, so the direct-call predicate never
-    /// listed them; `toList` is the one name that the direct path handles
-    /// instead through `directArrayConversionNames`.
-    let virtualOnlyAggregateNames: Set<InternedString>
-
-    /// Array member names the direct-call path preserves when the first
-    /// argument is an array expression tracked by the pre-scan.
-    let directArrayConversionNames: Set<InternedString>
-
-    /// Receiver class names the virtual-call `size` branch accepts.
-    let arrayReceiverTypeNames: Set<String>
-
-    private let sizeName: InternedString
-    private let mapName: InternedString
-    private let filterName: InternedString
-
-    init(lookup: CollectionLiteralLookupTables, interner: StringInterner) {
-        sharedAggregateNames = [
-            lookup.scanName,
-            lookup.scanIndexedName,
-            lookup.runningFoldName,
-            lookup.runningFoldIndexedName,
-            lookup.runningReduceName,
-            lookup.runningReduceIndexedName,
-            lookup.reduceIndexedName,
-            lookup.reduceIndexedOrNullName,
-            // `filter` / `filterNot` / `filterIndexed` all stay for their
-            // `+VirtualCallRewrite+Range.swift` Range/progression rewrites
-            // (RF-LOWER-CALL-008; see the KSP-421 group below for `filter`'s
-            // sibling `map`). `filterNotNull` has no such consumer on any
-            // receiver kind and was dropped by that same task.
-            lookup.filterName,
-            lookup.filterNotName,
-            lookup.filterIndexedName,
-            lookup.associateName,
-            lookup.associateByName,
-            lookup.associateWithName,
-            lookup.associateToName,
-            lookup.associateByToName,
-            lookup.associateWithToName,
-            lookup.groupByName,
-            lookup.groupByToName,
-            lookup.partitionName,
-            lookup.unzipName,
-            lookup.withIndexName,
-            lookup.onEachName,
-            lookup.onEachIndexedName,
-            lookup.sumOfName,
-            // RF-LOWER-CALL-011 (#6763) removed the KSP-426 block of 23 List
-            // `sorted*` / `min*` / `max*` names from both chains. They were
-            // meant to keep the bundled declarations in ListSortingHOF.kt and
-            // ListExtremaHOF.kt off the legacy kk_list_* exports, but every
-            // rewrite reachable from here sits behind an outer member-name gate
-            // that never listed them, so they short-circuited nothing.
-            // `sorted` survives in `virtualOnlyAggregateNames` for its Range
-            // consumer.
-            //
-            // RF-LOWER-CALL-012 removed `maxByOrNull` / `minByOrNull`: their
-            // only downstream rewrite was the Map branch deleted from
-            // `+CallRewriteHOFCore.swift` (`kk_map_maxByOrNull` /
-            // `kk_map_minByOrNull`, neither of which has a `@_cdecl` in
-            // `Sources/Runtime` any more), and that branch's own outer gate
-            // never listed either name in the first place. With no rewrite
-            // left to short-circuit, either call now falls through every
-            // rewrite attempt unmatched and reaches the unconditional
-            // `loweredBody.append(instruction)` — the same outcome as
-            // preserving it here, just without a redundant guard.
-            // `MapHOFLoweringRoutingTests` pins the routing.
-            //
-            // KSP-421: List transform HOFs have Kotlin source implementations
-            // in Stdlib/kotlin/collections/ListHOF.kt, and RF-LOWER-CALL-008
-            // found no surviving `.list`-owner rewrite for any of them —
-            // `StdlibSurfaceSpec.listHOFMembers` carries no `map*` /
-            // `flatMap*` / `filter*` entry, so `collectionHOFRuntimeName`
-            // always answers nil for this family regardless of receiver.
-            // That task dropped the eight names whose only role here was
-            // shadowing that already-dead lookup (`mapTo`, `mapIndexedTo`,
-            // `mapNotNullTo`, `mapIndexedNotNullTo`, `flatMapTo`,
-            // `flatMapIndexedTo`, `mapIndexedNotNull`, and `filterNotNull`
-            // above): their resolved declaration now survives because
-            // nothing downstream claims it, not because its name is listed.
-            // The remaining six stay because the *same interned name* still
-            // gates a live rewrite on a different receiver kind — dropping
-            // them would hand that receiver's source-backed declaration to
-            // the rewrite it currently shadows. `map` used to share this
-            // reasoning with a Map receiver rewrite too, but RF-LOWER-CALL-012
-            // deleted that rewrite as equally unreachable, so the Range
-            // reason below is now the only one for `map` as well:
-            //   - `map` / `mapIndexed` / `mapNotNull` select the
-            //     Range/progression rewrite in `+VirtualCallRewrite+Range.swift`
-            //     (`kk_range_map` / `kk_range_mapIndexed` / `kk_range_mapNotNull`,
-            //     or the ULong variants); `filterNot` / `filterIndexed` in the
-            //     block above are the same story.
-            //   - `flatMap` / `flatMapIndexed` select the Sequence pipeline
-            //     rewrite in `+CallRewriteSequencePipeline.swift`.
-            //   - `flatten` selects the Sequence terminal rewrite in
-            //     `+CallRewriteSequenceTerminals.swift`.
-            // Sequence is RF-LOWER-CALL-014's territory; this task only
-            // narrows the List angle.
-            lookup.mapName,
-            lookup.mapIndexedName,
-            lookup.mapNotNullName,
-            lookup.flatMapName,
-            lookup.flatMapIndexedName,
-            lookup.flattenName,
-            // KSP-430: Map higher-order functions have Kotlin source implementations.
-            lookup.mapValuesName,
-            lookup.mapValuesToName,
-            lookup.mapKeysName,
-            lookup.mapKeysToName,
-            lookup.filterKeysName,
-            lookup.filterValuesName,
-            lookup.forEachName,
-            // STDLIB-pipeline §5: take/drop have real require() validation in
-            // SequenceWindowChunk.kt as of MIGRATION-SEQ-005. A resolved call
-            // to that source declaration must not be short-circuited to a
-            // runtime bridge.
-            lookup.takeName,
-            lookup.dropName,
-            // KSP-423: List search and predicate HOFs have Kotlin source implementations.
-            lookup.findName,
-            lookup.findLastName,
-            lookup.containsName,
-            lookup.countName,
-            lookup.anyName,
-            lookup.allName,
-            lookup.noneName,
-            lookup.firstName,
-            lookup.lastName,
-            lookup.firstOrNullName,
-            lookup.lastOrNullName,
-        ]
-
-        virtualOnlyAggregateNames = [
-            // RF-LOWER-CALL-009 (#6762) removed these eleven from the direct
-            // chain: nothing downstream of the direct path keys on them any
-            // more, since the List-side legacy bridges are gone. The virtual
-            // guard still lists them because the `sequenceExprIDs`-gated
-            // branches in +CallRewriteHOFAccumulations.swift remain reachable
-            // there, and whether those should fire for a source-backed
-            // declaration whose receiver is a RuntimeSequenceBox is the
-            // KSP-441 question RF-LOWER-CALL-014 owns. So they are virtual-only
-            // rather than gone.
-            lookup.foldName,
-            lookup.foldIndexedName,
-            lookup.foldRightName,
-            lookup.foldRightIndexedName,
-            lookup.reduceName,
-            lookup.reduceOrNullName,
-            lookup.reduceRightName,
-            lookup.reduceRightOrNullName,
-            lookup.reduceRightIndexedName,
-            lookup.reduceRightIndexedOrNullName,
-            lookup.scanReduceName,
-            // KSP-312: Range/progression contains/isEmpty/iterator are now source-backed.
-            lookup.isEmptyName,
-            lookup.iteratorName,
-            // KSP-453/454: Range/progression HOFs are now implemented in bundled Kotlin source.
-            lookup.toListName,
-            lookup.averageName,
-            // RF-LOWER-CALL-011 kept `sorted` on the virtual side alone: the
-            // Range/progression consumer here still keys on it.
-            lookup.sortedName,
-            lookup.chunkedName,
-            lookup.windowedName,
-            interner.intern("random"),
-            interner.intern("randomOrNull"),
-        ]
-
-        // KSP-1513: source-backed Array<T>/primitive-array `size`/`toList` on
-        // literal arrays must keep their selected Kotlin declaration. The
-        // source body may delegate to a typed private runtime bridge.
-        //
-        // RF-LOWER-CALL-013: `sliceArray`/`reversedArray`/`asList`/`toTypedArray`
-        // used to live here too, but no Lowering rewrite has checked those
-        // names since KSP-1516 (and generic `Array<T>.toTypedArray()` was
-        // never a real declaration to begin with — Sema rejects it,
-        // KSWIFTK-SEMA-0024). Protecting names nothing threatens is inert;
-        // removed with the two rewrite files whose branches they used to guard.
-        directArrayConversionNames = [
-            lookup.sizeName, lookup.toListName,
-        ]
-
-        arrayReceiverTypeNames = [
-            "IntArray", "LongArray", "ShortArray", "ByteArray",
-            "CharArray", "BooleanArray", "DoubleArray", "FloatArray",
-            "UByteArray", "UShortArray", "UIntArray", "ULongArray", "Array",
-        ]
-
-        sizeName = lookup.sizeName
-        mapName = lookup.mapName
-        filterName = lookup.filterName
-    }
-
-    /// Direct-call decision, in the order the inlined predicate used: array
-    /// conversion on a tracked array literal first, then the shared API set,
-    /// then the Sequence runtime-representation decision.
-    ///
-    /// `receiverIsTrackedArrayLiteral` folds in the original
-    /// `!arguments.isEmpty && state.arrayExprIDs.contains(arguments[0])`.
-    /// `sequenceRuntimeRepresentation` is evaluated only for `map` and
-    /// `filter`, after the source-backed name and resolution gates. A confirmed
-    /// runtime box is rewritable, a confirmed source object or known
-    /// non-Sequence receiver is preserved, and unknown provenance is never
-    /// guessed to be source-backed.
-    func preservesDirectCall(
-        callee: InternedString,
-        resolution: @autoclosure () -> SourceBackedCalleeResolution,
-        receiverIsTrackedArrayLiteral: @autoclosure () -> Bool,
-        sequenceRuntimeRepresentation: @autoclosure () -> CollectionLiteralLoweringSupport.SequenceRuntimeRepresentation
+    func preserves(
+        resolution: SourceBackedCalleeResolution,
+        sequenceRuntimeRepresentation: CollectionLiteralLoweringSupport.SequenceRuntimeRepresentation
     ) -> Bool {
-        if directArrayConversionNames.contains(callee),
-           receiverIsTrackedArrayLiteral(),
-           resolution() == .sourceBacked
-        {
+        guard resolution == .sourceBacked else {
+            return false
+        }
+
+        switch sequenceRuntimeRepresentation {
+        case .sourceObject, .notSequence:
             return true
-        }
-
-        guard sharedAggregateNames.contains(callee),
-              resolution() == .sourceBacked
-        else {
+        case .runtimeBox, .unknown:
             return false
         }
-
-        if callee == mapName || callee == filterName {
-            switch sequenceRuntimeRepresentation() {
-            case .runtimeBox, .unknown:
-                // An opaque runtime box cannot use the source implementation,
-                // and an unknown origin must not be treated as source-backed.
-                return false
-            case .sourceObject, .notSequence:
-                return true
-            }
-        }
-        return true
-    }
-
-    /// Virtual-dispatch decision, in the order the inlined predicate used:
-    /// `size`, then the shared plus virtual-only API sets. The `size` branch
-    /// answers with set membership once the receiver class resolves, and
-    /// falls through to the API sets when it does not — `receiverArrayClassName`
-    /// returns nil for that case.
-    ///
-    /// Unlike `preservesDirectCall` there is no Sequence exception here;
-    /// runtime-backed Sequence receivers are handled by
-    /// `rewriteSequenceVirtualCall`, which RF-LOWER-CALL-014 revisits.
-    func preservesVirtualCall(
-        callee: InternedString,
-        resolution: @autoclosure () -> SourceBackedCalleeResolution,
-        receiverArrayClassName: () -> String?
-    ) -> Bool {
-        // KSP-1513: array `size` is a bundled Kotlin declaration, so do not
-        // replace it with the generic runtime bridge when the receiver is an
-        // Array<T> or primitive array.
-        if callee == sizeName,
-           resolution() == .sourceBacked,
-           let className = receiverArrayClassName()
-        {
-            return arrayReceiverTypeNames.contains(className)
-        }
-
-        guard sharedAggregateNames.contains(callee)
-            || virtualOnlyAggregateNames.contains(callee)
-        else {
-            return false
-        }
-        return resolution() == .sourceBacked
     }
 }

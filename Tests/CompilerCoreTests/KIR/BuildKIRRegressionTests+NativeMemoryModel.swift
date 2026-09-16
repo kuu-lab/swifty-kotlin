@@ -86,7 +86,7 @@ extension BuildKIRRegressionTests {
 
         let valueOfFunction = try findKIRFunction(named: "valueOf", in: module, interner: interner)
         #expect(valueOfFunction.params.count == 1)
-        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains("kk_string_equals_flat"))
+        #expect(extractCallees(from: valueOfFunction.body, interner: interner).contains("__kk_string_equals_flat"))
     }
 }
 #endif

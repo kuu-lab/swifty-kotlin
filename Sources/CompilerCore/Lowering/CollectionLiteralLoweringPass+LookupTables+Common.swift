@@ -48,14 +48,10 @@ struct CommonLookupNames {
     let allName: InternedString
     // Additional higher-order collection member names (STDLIB-005)
     let foldName: InternedString
-    let foldRightName: InternedString
     let reduceName: InternedString
-    let reduceRightName: InternedString
-    let reduceOrNullName: InternedString
     let scanName: InternedString
     let runningFoldName: InternedString
     let runningReduceName: InternedString
-    let scanReduceName: InternedString
     let groupByName: InternedString
     let findName: InternedString
     let findLastName: InternedString
@@ -67,32 +63,24 @@ struct CommonLookupNames {
     let associateWithToName: InternedString
     let groupByToName: InternedString
     let mapValuesName: InternedString
-    let mapValuesToName: InternedString
     let mapKeysName: InternedString
-    let mapKeysToName: InternedString
     let filterKeysName: InternedString
     let filterValuesName: InternedString
     let zipName: InternedString
     let zipWithNextName: InternedString
     let unzipName: InternedString
-    let withIndexName: InternedString
     let forEachIndexedName: InternedString
     let onEachName: InternedString
     let onEachIndexedName: InternedString
     let mapIndexedName: InternedString
     let mapIndexedNotNullName: InternedString
     let foldIndexedName: InternedString
-    let foldRightIndexedName: InternedString
-    let reduceRightIndexedName: InternedString
-    let reduceRightIndexedOrNullName: InternedString
-    let reduceRightOrNullName: InternedString
     let reduceIndexedName: InternedString
     let filterIndexedName: InternedString
     let reduceIndexedOrNullName: InternedString
     let runningFoldIndexedName: InternedString
     let runningReduceIndexedName: InternedString
     let scanIndexedName: InternedString
-    let sumOfName: InternedString
     let sumByName: InternedString
     let sumByDoubleName: InternedString
     let maxName: InternedString
@@ -188,14 +176,10 @@ struct CommonLookupNames {
         noneName = interner.intern("none")
         allName = interner.intern("all")
         foldName = interner.intern("fold")
-        foldRightName = interner.intern("foldRight")
         reduceName = interner.intern("reduce")
-        reduceRightName = interner.intern("reduceRight")
-        reduceOrNullName = interner.intern("reduceOrNull")
         scanName = interner.intern("scan")
         runningFoldName = interner.intern("runningFold")
         runningReduceName = interner.intern("runningReduce")
-        scanReduceName = interner.intern("scanReduce")
         groupByName = interner.intern("groupBy")
         findName = interner.intern("find")
         findLastName = interner.intern("findLast")
@@ -207,32 +191,24 @@ struct CommonLookupNames {
         associateWithToName = interner.intern("associateWithTo")
         groupByToName = interner.intern("groupByTo")
         mapValuesName = interner.intern("mapValues")
-        mapValuesToName = interner.intern("mapValuesTo")
         mapKeysName = interner.intern("mapKeys")
-        mapKeysToName = interner.intern("mapKeysTo")
         filterKeysName = interner.intern("filterKeys")
         filterValuesName = interner.intern("filterValues")
         zipName = interner.intern("zip")
         zipWithNextName = interner.intern("zipWithNext")
         unzipName = interner.intern("unzip")
-        withIndexName = interner.intern("withIndex")
         forEachIndexedName = interner.intern("forEachIndexed")
         onEachName = interner.intern("onEach")
         onEachIndexedName = interner.intern("onEachIndexed")
         mapIndexedName = interner.intern("mapIndexed")
         mapIndexedNotNullName = interner.intern("mapIndexedNotNull")
         foldIndexedName = interner.intern("foldIndexed")
-        foldRightIndexedName = interner.intern("foldRightIndexed")
-        reduceRightIndexedName = interner.intern("reduceRightIndexed")
-        reduceRightIndexedOrNullName = interner.intern("reduceRightIndexedOrNull")
-        reduceRightOrNullName = interner.intern("reduceRightOrNull")
         reduceIndexedName = interner.intern("reduceIndexed")
         filterIndexedName = interner.intern("filterIndexed")
         reduceIndexedOrNullName = interner.intern("reduceIndexedOrNull")
         runningFoldIndexedName = interner.intern("runningFoldIndexed")
         runningReduceIndexedName = interner.intern("runningReduceIndexed")
         scanIndexedName = interner.intern("scanIndexed")
-        sumOfName = interner.intern("sumOf")
         sumByName = interner.intern("sumBy")
         sumByDoubleName = interner.intern("sumByDouble")
         maxName = interner.intern("max")

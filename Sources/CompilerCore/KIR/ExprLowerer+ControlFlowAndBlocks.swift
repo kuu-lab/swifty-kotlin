@@ -126,7 +126,7 @@ extension ExprLowerer {
                 let concatResult = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [accumulated, partIDs[i]],
                     result: concatResult,
                     canThrow: false,
@@ -457,7 +457,27 @@ extension ExprLowerer {
                     }
                 }
             }
-            if let symbol = sema.bindings.identifierSymbols[exprID] {
+            if let boundIdentifierSymbol = sema.bindings.identifierSymbols[exprID] {
+                // A bare `ClassName` value expression (not `ClassName.member()`,
+                // which resolves through ordinary member lookup) that names a
+                // class/interface/enum with a companion object is, per Kotlin's
+                // own semantics, a reference to that companion object's
+                // singleton instance -- the class symbol itself carries no
+                // runtime value. Sema types this expression as the class's
+                // nominal type (see ExprTypeChecker+NameLambdaAndCallableRefInference
+                // .resolveTypeForCandidate) precisely so `ClassName.member()`
+                // keeps resolving, but `identifierSymbols` still names the
+                // class; redirect to the companion here so the branches below
+                // (which key off `symbol.kind`) see the object, not the class.
+                let symbol: SymbolID = {
+                    if let symInfo = sema.symbols.symbol(boundIdentifierSymbol),
+                       symInfo.kind == .class || symInfo.kind == .interface || symInfo.kind == .enumClass,
+                       let companionSymbol = sema.symbols.companionObjectSymbol(for: boundIdentifierSymbol)
+                    {
+                        return companionSymbol
+                    }
+                    return boundIdentifierSymbol
+                }()
                 if driver.ctx.isMutableCaptureBoxed(symbol),
                    let loadedValue = loadMutableCaptureCellValue(
                        symbol: symbol,
@@ -1937,7 +1957,7 @@ extension ExprLowerer {
                 let resultID = arena.appendTemporary(type: stringType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: resultID,
                     canThrow: false,
@@ -1956,6 +1976,24 @@ extension ExprLowerer {
                       signature.receiverType != nil
                 else {
                     return nil
+                }
+
+                // `String?.plus(Any?)` is a bundled source wrapper around a
+                // runtime bridge. Compound assignment must use the builtin
+                // string conversion path so statically-known class/value-class
+                // receivers retain their own `toString()` implementation.
+                if driver.callLowerer.isBundledStringPlusCall(
+                    callBinding,
+                    op: op,
+                    sema: sema,
+                    interner: interner
+                ) {
+                    return appendBuiltinCompoundResult(
+                        lhs: lhs,
+                        lhsType: arena.exprType(lhs) ?? sema.types.anyType,
+                        rhs: rhs,
+                        rhsType: arena.exprType(rhs)
+                    )
                 }
 
                 let normalizedResult = driver.callSupportLowerer.normalizedCallArguments(

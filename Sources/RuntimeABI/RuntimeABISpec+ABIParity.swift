@@ -62,10 +62,6 @@ public extension RuntimeABISpec {
             p("index", .intptr),
             p("value", .intptr),
         ]),
-        abiParitySpec("kk_callable_ref_arity", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
         abiParitySpec("kk_callable_ref_call_0", parameters: [
             p("tagged", .intptr),
             p("outThrown", .nullableIntptrPointer),
@@ -88,14 +84,6 @@ public extension RuntimeABISpec {
             p("arg3", .intptr),
             p("outThrown", .nullableIntptrPointer),
         ]),
-        abiParitySpec("kk_callable_ref_is_suspend", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
-        abiParitySpec("kk_callable_ref_parameters", parameters: [
-            p("tagged", .intptr),
-        ],
-            isThrowing: false),
         // KSP-678: these Channel residuals are bridged from bundled Kotlin
         // (Channels.kt) and return a plain Int handle/flag; they do not use the
         // outThrown ABI lowering path.

@@ -30,10 +30,23 @@ final class LambdaLowerer {
         if isRawCallbackParameter, isNonNullableStringStruct(kind) {
             return exprID
         }
-        let unboxCallee = BoxingCalleeTable(interner: interner).unboxCallee(
-            for: kind,
-            requireNonNull: true
-        )
+        let unboxCallee: InternedString? = {
+            // Enum values use their raw ordinal in lambda bodies, while
+            // collection HOFs pass elements through Any-erased slots as
+            // RuntimeIntBox handles. Normalize both representations before
+            // lowering the body (e.g. `entries.find { it.rgb == rgb }`).
+            if case let .classType(classType) = kind,
+               classType.nullability == .nonNull,
+               let symbol = sema.symbols.symbol(classType.classSymbol),
+               symbol.kind == .enumClass
+            {
+                return ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
+            }
+            return BoxingCalleeTable(interner: interner).unboxCallee(
+                for: kind,
+                requireNonNull: true
+            )
+        }()
         guard let unboxCallee else {
             return exprID
         }

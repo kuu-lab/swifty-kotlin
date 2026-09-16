@@ -71,18 +71,6 @@ extension DataFlowSemaPhase {
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex
         )
-        registerListTransformMembers(
-            symbols: symbols,
-            types: types,
-            interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType,
-            collectionInterfaceSymbol: collectionInterfaceSymbol,
-            bundledIndex: bundledIndex,
-            skipStats: skipStats
-        )
         return listInterfaceSymbol
     }
 

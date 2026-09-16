@@ -420,7 +420,7 @@ struct CollectionLiteralLoweringTests {
         // unreachable in production (see MapHOFLoweringRoutingTests) and has
         // been deleted. With no symbol attached, `any` now simply survives as
         // a plain call — the same outcome a resolved, source-backed `any`
-        // gets from `shouldPreserveSourceBackedAggregateCall`.
+        // gets from the source-backed preservation gate.
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("mapOf"), "mapOf should be rewritten")
         #expect(callees.contains("any"), "map.any has no rewrite target left and must survive unchanged")
@@ -821,8 +821,8 @@ struct CollectionLiteralLoweringTests {
 
     // MARK: - buildList is served by CollectionBuilders.kt (RF-LOWER-CALL-004)
 
-    /// `symbol: nil` used to take the unconditional `return true` branch of
-    /// `isStdlibBuilderDSLCall` and rewrite to `__kk_build_list`.  Both
+    /// `symbol: nil` used to take the unconditional legacy-builder branch and
+    /// rewrite to `__kk_build_list`. Both
     /// overloads now come from `CollectionBuilders.kt`, so the legacy runtime
     /// entry point is gone and even a nil-symbol call must be left alone.
     @Test
@@ -949,7 +949,7 @@ struct CollectionLiteralLoweringTests {
     /// declaration and is left alone — `BuilderDSLLoweringRoutingTests` pins
     /// that from source.  RF-LOWER-CALL-005 removed the legacy
     /// `__kk_build_set` rewrite, so even this hand-built `symbol: nil` shape —
-    /// the branch that used to short-circuit `isStdlibBuilderDSLCall` to
+    /// the branch that used to short-circuit the legacy builder predicate to
     /// `true` — must now pass through untouched.
     @Test
     func testBuildSetIsNotRewritten() throws {
@@ -1012,12 +1012,12 @@ struct CollectionLiteralLoweringTests {
     // MARK: - buildMap is no longer rewritten (RF-LOWER-CALL-006)
 
     /// `buildMap` is supplied entirely by `CollectionBuilders.kt`, so the
-    /// legacy `__kk_build_map*` rewrite was removed.  These cases use the
-    /// `symbol: nil` hand-built shape that used to bypass every guard in
-    /// `isStdlibBuilderDSLCall` via `guard let symbol else { return true }` —
+    /// legacy `__kk_build_map*` rewrite was removed. These cases use the
+    /// `symbol: nil` hand-built shape that used to bypass every legacy-builder
+    /// guard via `guard let symbol else { return true }` —
     /// the strongest input the rewrite ever accepted.  It must now fall
     /// through untouched, which only holds while `buildMap` stays out of
-    /// `builderDSLNames`.
+    /// the retired Builder DSL lookup.
     @Test(arguments: [1, 2])
     func testBuildMapIsNotRewrittenToRuntimeBuilder(argumentCount: Int) throws {
         let interner = StringInterner()

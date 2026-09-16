@@ -57,7 +57,8 @@ extension CallLowerer {
 
         let valueParams: [KIRParameter] = allValueTypes.enumerated().map { index, type in
             let isErasedPrimitiveParam = erasedValueType(at: index) != nil
-                && isNonNullPrimitiveType(type, sema: sema)
+                && (isNonNullPrimitiveType(type, sema: sema)
+                    || isNonNullEnumType(type, sema: sema))
             return KIRParameter(
                 symbol: SymbolID(rawValue: Int32(clamping: symbolIDOffsetBase - Int64(argExprID.rawValue) * 16 - Int64(index))),
                 type: isErasedPrimitiveParam ? sema.types.anyType : type
@@ -82,10 +83,16 @@ extension CallLowerer {
             let paramExpr = arena.appendExpr(.symbolRef(param.symbol), type: param.type)
             body.append(.constValue(result: paramExpr, value: .symbolRef(param.symbol)))
             let lambdaParamType = allValueTypes[index]
+            let unboxCallee: InternedString? = {
+                if isNonNullEnumType(lambdaParamType, sema: sema) {
+                    return ABILoweringPass.primitiveUnboxingCallee(for: .int, interner: interner)
+                }
+                return boxingCalleeTable.unboxCallee(
+                    for: lambdaParamType, types: sema.types, requireNonNull: true
+                )
+            }()
             guard param.type != lambdaParamType,
-                  let unboxCallee = boxingCalleeTable.unboxCallee(
-                      for: lambdaParamType, types: sema.types, requireNonNull: true
-                  )
+                  let unboxCallee
             else {
                 callArguments.append(paramExpr)
                 continue
@@ -179,5 +186,15 @@ extension CallLowerer {
     private func isNonNullPrimitiveType(_ type: TypeID, sema: SemaModule) -> Bool {
         if case .primitive(_, .nonNull) = sema.types.kind(of: type) { return true }
         return false
+    }
+
+    private func isNonNullEnumType(_ type: TypeID, sema: SemaModule) -> Bool {
+        guard case let .classType(classType) = sema.types.kind(of: type),
+              classType.nullability == .nonNull,
+              let symbol = sema.symbols.symbol(classType.classSymbol)
+        else {
+            return false
+        }
+        return symbol.kind == .enumClass
     }
 }

@@ -9,33 +9,26 @@ extension CollectionVirtualCallRewriteLoweringPass {
         let interner: StringInterner
     }
 
-    /// Returns true when the callee resolves to a bundled Kotlin source declaration
-    /// that should not be rewritten to a runtime `kk_*` entry point.
-    ///
-    /// RF-LOWER-CALL-007 moved the decision into
-    /// `SourceBackedCallPreservationPolicy`, which the construction pass shares:
-    /// the 102 API names both paths preserved are one set there, and the names
-    /// only virtual dispatch preserves (Range/progression members, `random`)
-    /// are a second. What remains here is resolving the receiver's static type,
-    /// which the policy deliberately cannot do.
-    private func shouldPreserveSourceBackedVirtualCall(
+    /// Keep a resolved source declaration on the original virtual-call path
+    /// unless the receiver is a confirmed runtime Sequence box. Runtime
+    /// collection intrinsics are lowered to their ABI callee before this gate;
+    /// no collection API-name allowlist is needed here.
+    private func shouldPreserveSourceBackedCall(
         symbol: SymbolID?,
-        callee: InternedString,
         receiver: KIRExprID,
-        context: VirtualCallRewriteContext
+        context: VirtualCallRewriteContext,
+        state: CollectionRewriteState
     ) -> Bool {
-        sourceBackedPreservation.preservesVirtualCall(
-            callee: callee,
+        sourceBackedPreservation.preserves(
             resolution: SourceBackedCalleeResolution(symbol: symbol, sema: context.sema),
-            receiverArrayClassName: {
-                guard let sema = context.sema,
-                      let receiverType = context.module.arena.exprType(receiver),
-                      let (_, receiverSymbol) = resolveClassTypeSymbol(receiverType, sema: sema)
-                else {
-                    return nil
-                }
-                return context.interner.resolve(receiverSymbol.name)
-            }
+            sequenceRuntimeRepresentation: sequenceRuntimeRepresentationForCall(
+                symbol: symbol,
+                receiver: receiver,
+                state: state,
+                module: context.module,
+                sema: context.sema,
+                interner: context.interner
+            )
         )
     }
 
@@ -105,11 +98,11 @@ extension CollectionVirtualCallRewriteLoweringPass {
             }
         }
 
-        if shouldPreserveSourceBackedVirtualCall(
+        if shouldPreserveSourceBackedCall(
             symbol: symbol,
-            callee: callee,
             receiver: receiver,
-            context: context
+            context: context,
+            state: state
         ) {
             return false
         }
@@ -250,7 +243,7 @@ extension CollectionVirtualCallRewriteLoweringPass {
     // statically — CallLowerer never emits a `.virtualCall` for any of these
     // names, only `.call`, so no `.virtualCall` instruction ever reaches
     // `rewriteVirtualCallInstruction` (this file's entry point) with one of
-    // these callees in the first place; `shouldPreserveSourceBackedVirtualCall`
+    // these callees in the first place; the source-backed preservation gate
     // above is a separate, `.call`-independent reason these names are inert
     // here. `MapHOFLoweringRoutingTests` includes probes through an interface
     // property and an abstract-class method (both of which do force real

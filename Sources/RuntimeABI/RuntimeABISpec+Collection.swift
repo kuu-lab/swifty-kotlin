@@ -1290,16 +1290,6 @@ public extension RuntimeABISpec {
             isThrowing: false
         ),
         RuntimeABIFunctionSpec(
-            name: "kk_indexed_value_new",
-            parameters: [
-                RuntimeABIParameter(name: "index", type: .intptr),
-                RuntimeABIParameter(name: "value", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
             name: "__kk_pair_first",
             parameters: [
                 RuntimeABIParameter(name: "pairRaw", type: .intptr),
@@ -1497,16 +1487,6 @@ public extension RuntimeABISpec {
             parameters: [
                 RuntimeABIParameter(name: "listRaw", type: .intptr),
                 RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-            ],
-            returnType: .intptr,
-            section: "Collection",
-            isThrowing: false
-        ),
-        RuntimeABIFunctionSpec(
-            name: "__kk_mutable_collection_addAll_sequence",
-            parameters: [
-                RuntimeABIParameter(name: "collectionRaw", type: .intptr),
-                RuntimeABIParameter(name: "sequenceRaw", type: .intptr),
             ],
             returnType: .intptr,
             section: "Collection",

@@ -21,24 +21,24 @@ extension CollectionVirtualCallRewriteLoweringPass {
         state: inout CollectionRewriteState,
         loweredBody: inout KIRLoweringEmitContext
     ) -> Bool {
-        // STDLIB-pipeline §5 / KSP-441〜447: If the resolved callee is a bundled
-        // Kotlin source declaration, route through normal function resolution so
-        // the source implementation runs instead of a `kk_*` runtime shortcut.
-        func isSourceBackedSequenceCall() -> Bool {
-            guard let symbol,
-                  let sema = context.sema,
-                  sema.symbols.symbol(symbol) != nil
-            else {
+        // STDLIB-pipeline §5 / KSP-441〜447: source-backed Sequence calls stay
+        // on their Kotlin implementation unless the receiver is a confirmed
+        // RuntimeSequenceBox. The virtual `toMap` bridge remains the one
+        // representation-specific exception because its iterator failure must
+        // use the ABI outThrown channel.
+        let resolution = SourceBackedCalleeResolution(symbol: symbol, sema: context.sema)
+        if resolution == .sourceBacked {
+            let representation = sequenceRuntimeRepresentationForCall(
+                symbol: symbol,
+                receiver: receiver,
+                state: state,
+                module: module,
+                sema: context.sema,
+                interner: context.interner
+            )
+            if !(callee == lookup.toMapName && representation == .runtimeBox) {
                 return false
             }
-            return sema.symbols.isSourceBackedSymbol(symbol)
-        }
-        // Runtime-backed Sequence expressions need the toMap bridge so iterator
-        // exceptions can flow through the ABI outThrown channel.
-        if isSourceBackedSequenceCall(),
-           !(callee == lookup.toMapName && state.contains(.sequence, receiver))
-        {
-            return false
         }
 
         // requireNoNulls() on sequence -> kk_sequence_requireNoNulls
@@ -264,43 +264,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
                 thrownResult: nil
             ))
             state.tagResult(.sequence, result)
-            return true
-        }
-
-        if callee == lookup.shuffledName, arguments.isEmpty, state.contains(.list, receiver) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListShuffledName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.tagListResult(result, temporary: transformResult)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        // shuffled(random: Random) overload (STDLIB-531)
-        if callee == lookup.shuffledName, arguments.count == 1, state.contains(.list, receiver) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListShuffledRandomName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.tagListResult(result, temporary: transformResult)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
             return true
         }
 

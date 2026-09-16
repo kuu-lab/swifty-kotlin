@@ -1,4 +1,3 @@
-// SKIP-DIFF (DEBT-DIFF-007): enum instance from collection (entries.find) passes boxed RuntimeIntBox into lambda without unboxing, causing double boxing in $enumConstructorProperty and unreachable panic
 enum class Color(val rgb: Int) {
     RED(0xFF0000),
     GREEN(0x00FF00),

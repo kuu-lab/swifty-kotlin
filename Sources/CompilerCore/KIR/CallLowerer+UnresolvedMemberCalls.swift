@@ -159,7 +159,7 @@ extension CallLowerer {
             case "compareTo":
                 return interner.intern("kk_string_compareTo_flat")
             case "get":
-                return interner.intern("kk_string_get_flat")
+                return interner.intern("__kk_string_get_flat")
             case "toRegex":
                 return argumentCount == 0
                     ? interner.intern("__kk_string_toRegex_flat")

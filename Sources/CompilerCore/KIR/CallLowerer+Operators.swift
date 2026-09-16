@@ -308,7 +308,7 @@ extension CallLowerer {
         if case .add = op, sema.bindings.exprTypes[exprID] == stringType {
             // Kotlin String.plus(other: Any?) calls toString() on the RHS
             // when it is not already a String. Insert a kk_any_to_string
-            // coercion so that kk_string_concat_flat always receives two string
+            // coercion so that __kk_string_concat_flat always receives two string
             // aggregate values.
             let rhsExprType = sema.bindings.exprTypes[rhs]
             let nullableStringType = sema.types.makeNullable(sema.types.stringType)
@@ -343,7 +343,7 @@ extension CallLowerer {
             instructions.append(
                 .call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_concat_flat"),
+                    callee: interner.intern("__kk_string_concat_flat"),
                     arguments: [effectiveLHS, effectiveRHS],
                     result: result,
                     canThrow: false,
@@ -361,7 +361,7 @@ extension CallLowerer {
         let lhsIsString = lhsType == stringType || lhsType == nullableStringType
         let rhsIsString = rhsType == stringType || rhsType == nullableStringType
         // null literals get type nothing(.nullable), not stringStruct — detect them so
-        // we can pass a properly-typed null string aggregate to kk_string_equals_flat.
+        // we can pass a properly-typed null string aggregate to __kk_string_equals_flat.
         let lhsIsNullLiteral: Bool = {
             guard let t = lhsType, case .nothing = sema.types.kind(of: t) else { return false }
             return true
@@ -393,7 +393,7 @@ extension CallLowerer {
                 let actualRhsID = resolvedStringID(for: rhsID, isNull: rhsIsNullLiteral)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_equals_flat"),
+                    callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: result,
                     canThrow: false,
@@ -406,7 +406,7 @@ extension CallLowerer {
                 let eqResult = arena.appendTemporary(type: boolType)
                 instructions.append(.call(
                     symbol: nil,
-                    callee: interner.intern("kk_string_equals_flat"),
+                    callee: interner.intern("__kk_string_equals_flat"),
                     arguments: [actualLhsID, actualRhsID],
                     result: eqResult,
                     canThrow: false,
@@ -993,8 +993,14 @@ extension CallLowerer {
         let receiverType = sema.bindings.exprTypes[receiverExpr] ?? sema.types.anyType
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         let receiverUsesFlatStringABI = sema.types.isSubtype(nonNullReceiverType, sema.types.stringType)
+        let chosenGetIsSourceBacked = if let chosenGet = callBinding?.chosenCallee {
+            sema.symbols.isSourceBackedSymbol(chosenGet)
+        } else {
+            false
+        }
         if indices.count == 1,
-           receiverUsesFlatStringABI
+           receiverUsesFlatStringABI,
+           !chosenGetIsSourceBacked
         {
             let indexID = driver.lowerExpr(
                 indices[0],
@@ -1010,7 +1016,7 @@ extension CallLowerer {
             let result = arena.appendTemporary(type: boundType ?? sema.types.anyType)
             instructions.append(.call(
                 symbol: nil,
-                callee: interner.intern("kk_string_get_flat"),
+                callee: interner.intern("__kk_string_get_flat"),
                 arguments: [receiverID, indexID],
                 result: result,
                 canThrow: false,
@@ -1379,7 +1385,7 @@ extension CallLowerer {
             return unit
         }
         // Determine the runtime op stub.
-        // Use kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
+        // Use __kk_string_concat_flat for String += String (matching lowerBinaryExpr pattern),
         // otherwise use the appropriate numeric op stub.
         // Note: exprID's bound type is always unitType for compound assign, so we
         // derive the element type from the receiver's array type instead.
@@ -1399,7 +1405,7 @@ extension CallLowerer {
             nil
         }
         let opName = if op == .plusAssign, isStringElement {
-            "kk_string_concat_flat"
+            "__kk_string_concat_flat"
         } else if let floatingPointPrefix {
             // Compound assignment on Array<Double>/Array<Float> must use the
             // floating-point runtime ABI. The generic integer stubs reinterpret

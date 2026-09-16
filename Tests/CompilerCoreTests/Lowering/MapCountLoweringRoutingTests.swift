@@ -17,7 +17,7 @@ import Testing
 /// Map receiver can only ever be `.sourceBacked` — and the branch's own
 /// inline `isSourceBackedBundledFunction` guard existed for exactly that
 /// resolution, unlike the sibling Map HOF branches CALL-012 removed, which
-/// relied entirely on `shouldPreserveSourceBackedAggregateCall` running
+/// relied entirely on the source-backed preservation gate running
 /// first. This branch instead sits inside `rewriteFactoryAndBuilderCall`,
 /// which `lowerCallInstruction` calls *before* that later check, so it had
 /// to carry its own resolution test — one that was always false for a call

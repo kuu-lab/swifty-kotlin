@@ -190,8 +190,9 @@ struct ListSyntheticMemberLinkTests {
                 ("reversed", 0, nil as String?),
                 ("sorted", 0, nil as String?),
                 ("distinct", 0, nil as String?),
-                ("shuffled", 0, "kk_list_shuffled" as String?),
-                ("shuffled", 1, "kk_list_shuffled_random" as String?),
+                // KSP-1511: shuffled/shuffled(Random) are bundled Kotlin source.
+                ("shuffled", 0, nil as String?),
+                ("shuffled", 1, nil as String?),
             ]
 
             for (memberName, argumentCount, externalLinkName) in expectedExternalLinks {

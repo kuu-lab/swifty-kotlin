@@ -295,8 +295,8 @@ extension LoweringPassRegressionTests {
 
         // Verify valueOf body contains string comparison calls
         let valueOfCallees = extractCallees(from: valueOfFn.body, interner: interner)
-        #expect(valueOfCallees.contains("kk_string_equals_flat"), "valueOf should call kk_string_equals_flat")
-        #expect(valueOfCallees.contains("kk_string_concat_flat"), "valueOf should call kk_string_concat_flat to build 'ClassName.value' for error message")
+        #expect(valueOfCallees.contains("__kk_string_equals_flat"), "valueOf should call __kk_string_equals_flat")
+        #expect(valueOfCallees.contains("__kk_string_concat_flat"), "valueOf should call __kk_string_concat_flat to build 'ClassName.value' for error message")
         #expect(valueOfCallees.contains("kk_enum_valueOf_throw"), "valueOf should call kk_enum_valueOf_throw for no-match case")
 
         // Verify valueOf body contains the fully qualified class name prefix string "demo.Color."

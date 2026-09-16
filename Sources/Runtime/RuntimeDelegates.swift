@@ -56,40 +56,6 @@ public func kk_callable_ref_tag_kproperty(_ callable: Int, _ name: Int, _ return
     runtimeTagCallableRef(callable, name: name, returnType: returnType, arity: arity, kind: .property, isSuspend: false)
 }
 
-@_cdecl("kk_callable_ref_name")
-public func kk_callable_ref_name(_ tagged: Int) -> Int {
-    runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.nameRaw ?? runtimeNullSentinelInt
-    }
-}
-
-// STDLIB-REFLECT-063: KFunction reflection helpers for callable refs.
-
-@_cdecl("kk_callable_ref_arity")
-public func kk_callable_ref_arity(_ tagged: Int) -> Int {
-    runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity ?? 0
-    }
-}
-
-@_cdecl("kk_callable_ref_is_suspend")
-public func kk_callable_ref_is_suspend(_ tagged: Int) -> Int {
-    runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.isSuspend == true ? 1 : 0
-    }
-}
-
-@_cdecl("kk_callable_ref_parameters")
-public func kk_callable_ref_parameters(_ tagged: Int) -> Int {
-    let arity = runtimeStorage.withDelegateLock { state in
-        state.callableRefMetadataByValue[tagged]?.arity ?? 0
-    }
-    // Return a runtime List of placeholder ints (one element per parameter).
-    let placeholders = Array(repeating: 0, count: max(0, arity))
-    return registerRuntimeObject(RuntimeListBox(elements: placeholders))
-}
-
-
 @_cdecl("__kk_kproperty_stub_create")
 public func kk_kproperty_stub_create(_ nameStr: Int, _ returnTypeStr: Int) -> Int {
     let stub = RuntimeKPropertyStub(name: nameStr, returnType: returnTypeStr)
@@ -117,33 +83,6 @@ public func kk_kproperty_stub_create_full(
     )
     registerReflectionRuntimeTypeMetadata()
     return registerRuntimeObject(stub, typeID: kPropertyRuntimeTypeID)
-}
-
-@_cdecl("__kk_kproperty_stub_name")
-public func kk_kproperty_stub_name(_ handle: Int) -> Int {
-    if let taggedName = runtimeStorage.withDelegateLock({ state in
-        state.callableRefMetadataByValue[handle]?.nameRaw
-    }) {
-        return taggedName
-    }
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid KProperty handle in kk_kproperty_stub_name")
-    }
-    return stub.name
-}
-
-@_cdecl("__kk_kproperty_stub_return_type")
-public func kk_kproperty_stub_return_type(_ handle: Int) -> Int {
-    guard let ptr = UnsafeMutableRawPointer(bitPattern: handle),
-          runtimeStorage.withGCLock({ state in state.objectPointers.contains(UInt(bitPattern: ptr)) }),
-          let stub = tryCast(ptr, to: RuntimeKPropertyStub.self)
-    else {
-        fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: invalid KProperty handle in kk_kproperty_stub_return_type")
-    }
-    return stub.returnType
 }
 
 // STDLIB-REFLECT-062: visibility accessor
