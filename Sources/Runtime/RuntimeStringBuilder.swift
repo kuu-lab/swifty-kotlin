@@ -98,11 +98,11 @@ private func runtimeStringBuilderObjectStringFromFlat(
 }
 
 private func stringBuilderUTF16Units(_ value: String) -> [UInt16] {
-    Array(value.utf16)
+    runtimeKotlinStringUTF16CodeUnits(value)
 }
 
 private func stringBuilderString(from units: [UInt16]) -> String {
-    String(decoding: units, as: UTF16.self)
+    runtimeKotlinStringFromUTF16CodeUnits(units)
 }
 
 private func stringBuilderCharArrayUnits(
@@ -412,7 +412,7 @@ public func __kk_string_builder_to_char_array(
 @_cdecl("__kk_string_builder_length_utf16")
 public func __kk_string_builder_length_utf16(_ sbRaw: Int) -> Int {
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return sb.value.utf16.count
+    return runtimeKotlinStringUTF16Length(sb.value)
 }
 
 @_cdecl("__kk_string_builder_append_range")
@@ -428,7 +428,7 @@ public func __kk_string_builder_append_range(
     guard let source = runtimeStringFromRaw(stringRaw) else {
         fatalError("KSwiftK panic [\(runtimePanicDiagnosticCode)]: __kk_string_builder_append_range received invalid string handle")
     }
-    let utf16 = source.utf16
+    let utf16 = runtimeKotlinStringUTF16CodeUnits(source)
     let length = utf16.count
     guard startIndex >= 0, endIndex >= startIndex, endIndex <= length else {
         outThrown?.pointee = runtimeAllocateIndexOutOfBoundsException(
@@ -475,7 +475,7 @@ public func __kk_string_builder_length_prop(_ sbRaw: Int) -> Int {
     // KSP-817: StringBuilder.length must agree with String.length and with
     // CharSequence.length dispatch, all of which count UTF-16 code units.
     guard let sb = runtimeStringBuilderBox(from: sbRaw) else { return 0 }
-    return sb.value.utf16.count
+    return runtimeKotlinStringUTF16Length(sb.value)
 }
 
 @_cdecl("__kk_string_builder_clear")

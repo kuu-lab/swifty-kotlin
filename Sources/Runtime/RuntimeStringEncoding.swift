@@ -72,32 +72,32 @@ public func __kk_string_toByteArray_charset(_ strRaw: Int, _ charsetTag: Int) ->
         // ISO-8859-1: each UTF-16 code unit <= 0xFF maps 1:1; others replaced with '?'
         // Using utf16 (not unicodeScalars) to match Kotlin/JVM semantics where
         // non-BMP characters produce two surrogate code units, each replaced.
-        bytes = source.utf16.map { unit in
+        bytes = runtimeKotlinStringUTF16CodeUnits(source).map { unit in
             unit <= 0xFF ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .usASCII:
         // US-ASCII: each UTF-16 code unit <= 0x7F maps 1:1; others replaced with '?'
-        bytes = source.utf16.map { unit in
+        bytes = runtimeKotlinStringUTF16CodeUnits(source).map { unit in
             unit <= 0x7F ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .utf16:
         // UTF-16 with BOM (big-endian BOM then big-endian data, matching Kotlin/JVM)
         var result: [Int] = [0xFE, 0xFF] // BOM
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit >> 8))
             result.append(Int(unit & 0xFF))
         }
         bytes = result
     case .utf16be:
         var result: [Int] = []
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit >> 8))
             result.append(Int(unit & 0xFF))
         }
         bytes = result
     case .utf16le:
         var result: [Int] = []
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit & 0xFF))
             result.append(Int(unit >> 8))
         }
@@ -155,30 +155,30 @@ public func __kk_string_toByteArray_charset_flat(
     case .utf8:
         bytes = source.utf8.map(Int.init)
     case .iso8859_1:
-        bytes = source.utf16.map { unit in
+        bytes = runtimeKotlinStringUTF16CodeUnits(source).map { unit in
             unit <= 0xFF ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .usASCII:
-        bytes = source.utf16.map { unit in
+        bytes = runtimeKotlinStringUTF16CodeUnits(source).map { unit in
             unit <= 0x7F ? Int(unit) : Int(UInt8(ascii: "?"))
         }
     case .utf16:
         var result: [Int] = [0xFE, 0xFF]
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit >> 8))
             result.append(Int(unit & 0xFF))
         }
         bytes = result
     case .utf16be:
         var result: [Int] = []
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit >> 8))
             result.append(Int(unit & 0xFF))
         }
         bytes = result
     case .utf16le:
         var result: [Int] = []
-        for unit in source.utf16 {
+        for unit in runtimeKotlinStringUTF16CodeUnits(source) {
             result.append(Int(unit & 0xFF))
             result.append(Int(unit >> 8))
         }

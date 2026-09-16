@@ -533,7 +533,7 @@ private final class RuntimeFlatStringStorage: @unchecked Sendable {
         let bytes = Array(value.utf8)
         // `length` is the UTF-16 code-unit count used by Kotlin String/CharSequence;
         // `byteCount` is the UTF-8 byte count used by the flat ABI.
-        self.length = value.utf16.count
+        self.length = runtimeKotlinStringUTF16Length(value)
         self.byteCount = bytes.count
         self.hash = 0
         self.data = UnsafeMutablePointer<UInt8>.allocate(capacity: max(1, bytes.count))

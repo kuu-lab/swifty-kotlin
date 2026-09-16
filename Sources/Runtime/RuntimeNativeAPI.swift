@@ -110,7 +110,7 @@ public func kk_cpointer_toKStringFromUtf16(_ handle: Int) -> Int {
         units.append(utf16[index])
         index += 1
     }
-    return registerRuntimeObject(RuntimeStringBox(String(decoding: units, as: UTF16.self)))
+    return registerRuntimeObject(RuntimeStringBox(runtimeKotlinStringFromUTF16CodeUnits(units)))
 }
 
 @_cdecl("kk_copaque_pointer_new")
