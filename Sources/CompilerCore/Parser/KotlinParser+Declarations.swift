@@ -329,10 +329,23 @@ extension KotlinParser {
             insertMissingToken(expected: .identifier(.invalid), into: &children, range: &range, code: "KSWIFTK-PARSE-0002", message: "Expected enum name.")
         }
 
+        if canStartTypeArgumentsInternal(hasAnchorToken: lastConsumedToken != nil) {
+            children.append(.node(parseTypeArguments()))
+            if let last = children.last {
+                range.append(childRange(last))
+            }
+        }
+        if case .symbol(.lParen) = stream.peek().kind {
+            let params = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(params))
+            range.append(childRange(.node(params)))
+        }
         if case .symbol(.lBrace) = stream.peek().kind {
             let body = parseEnumBody()
             children.append(.node(body))
             range.append(childRange(.node(body)))
+        } else if parseEnumHeaderTail(into: &children, range: &range) {
+            // The helper has already appended the enum body.
         } else {
             parseTail(inBlock: false, into: &children, range: &range)
         }
@@ -404,14 +417,78 @@ extension KotlinParser {
             _ = consumeToken(into: &children, range: &range)
         }
         if case .symbol(.lParen) = stream.peek().kind {
-            children.append(.node(parseBalancedGroup(opening: .lParen, closing: .rParen)))
+            let args = parseBalancedGroup(opening: .lParen, closing: .rParen)
+            children.append(.node(args))
+            range.append(childRange(.node(args)))
         }
-        parseTail(inBlock: true, into: &children, range: &range)
+        if case .symbol(.lBrace) = stream.peek().kind {
+            let body = parseBlock()
+            children.append(.node(body))
+            range.append(childRange(.node(body)))
+        }
 
         return arena.appendNode(
             kind: .enumEntry,
             range: range.value ?? invalidRange, children
         )
+    }
+
+    /// Consumes an enum header such as ": Interface<T>" until its class body,
+    /// then parses that body with the enum-specific entry parser. A generic
+    /// declaration tail would otherwise parse the body as an ordinary block,
+    /// making entries with anonymous class bodies indistinguishable from calls.
+    @discardableResult
+    private func parseEnumHeaderTail(
+        into children: inout [SyntaxChild],
+        range: inout RangeAccumulator
+    ) -> Bool {
+        var parenDepth = 0
+        var bracketDepth = 0
+        var angleDepth = 0
+        var braceDepth = 0
+
+        while !stream.atEOF() {
+            let token = stream.peek()
+            let atTopLevel = parenDepth == 0 && bracketDepth == 0 && angleDepth == 0 && braceDepth == 0
+            if atTopLevel, case .symbol(.lBrace) = token.kind {
+                let body = parseEnumBody()
+                children.append(.node(body))
+                range.append(childRange(.node(body)))
+                return true
+            }
+            if atTopLevel, case .symbol(.rBrace) = token.kind {
+                return false
+            }
+            if atTopLevel,
+               hasLeadingNewline(token),
+               isDeclarationStart(token.kind)
+            {
+                return false
+            }
+
+            _ = consumeToken(into: &children, range: &range)
+            switch token.kind {
+            case .symbol(.lParen):
+                parenDepth += 1
+            case .symbol(.rParen):
+                parenDepth = max(0, parenDepth - 1)
+            case .symbol(.lBracket):
+                bracketDepth += 1
+            case .symbol(.rBracket):
+                bracketDepth = max(0, bracketDepth - 1)
+            case .symbol(.lessThan):
+                angleDepth += 1
+            case .symbol(.greaterThan):
+                angleDepth = max(0, angleDepth - 1)
+            case .symbol(.lBrace):
+                braceDepth += 1
+            case .symbol(.rBrace):
+                braceDepth = max(0, braceDepth - 1)
+            default:
+                break
+            }
+        }
+        return false
     }
 
     func parseConstructorDeclaration(

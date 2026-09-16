@@ -174,6 +174,16 @@ public struct FunctionSignature: Hashable, Sendable {
     }
 }
 
+public struct EnumEntryDispatchTarget: Hashable, Sendable {
+    public let entrySymbol: SymbolID
+    public let functionSymbol: SymbolID
+
+    public init(entrySymbol: SymbolID, functionSymbol: SymbolID) {
+        self.entrySymbol = entrySymbol
+        self.functionSymbol = functionSymbol
+    }
+}
+
 public struct ContractNonNullEffect: Equatable, Sendable {
     public let parameterSymbol: SymbolID
     public let appliesOnAnyReturn: Bool
@@ -449,6 +459,8 @@ public final class SymbolTable {
     private var objectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var companionObjectInitializerSymbols: [SymbolID: SymbolID] = [:]
     private var enumStaticInitSymbols: [SymbolID: SymbolID] = [:]
+    private var enumEntryDispatchSymbols: [SymbolID: SymbolID] = [:]
+    private var enumEntryDispatchTargets: [SymbolID: [EnumEntryDispatchTarget]] = [:]
     private var valueClassUnderlyingTypes: [SymbolID: TypeID] = [:]
     private var sealedSubclassesStorage: [SymbolID: [SymbolID]] = [:]
     private var constValueExprKinds: [SymbolID: KIRExprKind] = [:]
@@ -763,6 +775,25 @@ public final class SymbolTable {
 
     public func functionSignature(for symbol: SymbolID) -> FunctionSignature? {
         functionSignatures[symbol]
+    }
+
+    public func setEnumEntryDispatchSymbol(_ dispatchSymbol: SymbolID, for functionSymbol: SymbolID) {
+        enumEntryDispatchSymbols[functionSymbol] = dispatchSymbol
+    }
+
+    public func enumEntryDispatchSymbol(for functionSymbol: SymbolID) -> SymbolID? {
+        enumEntryDispatchSymbols[functionSymbol]
+    }
+
+    public func setEnumEntryDispatchTargets(
+        _ targets: [EnumEntryDispatchTarget],
+        for dispatchSymbol: SymbolID
+    ) {
+        enumEntryDispatchTargets[dispatchSymbol] = targets
+    }
+
+    public func enumEntryDispatchTargets(for dispatchSymbol: SymbolID) -> [EnumEntryDispatchTarget] {
+        enumEntryDispatchTargets[dispatchSymbol] ?? []
     }
 
     public func setPropertyType(_ type: TypeID, for symbol: SymbolID) {

@@ -194,6 +194,32 @@ extension CallLowerer {
         sourceArgLabels: [InternedString?] = []
     ) {
         var finalArguments = arguments
+        // Enum entry implementations are stored as ordinary functions whose
+        // first argument is the ordinal-backed enum value. Route the resolved
+        // enum member through the predeclared ordinal dispatcher before any
+        // runtime-name or virtual-dispatch rewriting can select the abstract
+        // declaration itself.
+        if normalized.defaultMask == 0,
+           !isSuperCall,
+           let chosenCallee,
+           let dispatchSymbol = sema.symbols.enumEntryDispatchSymbol(for: chosenCallee),
+           let dispatchInfo = sema.symbols.symbol(dispatchSymbol),
+           let dispatchSignature = sema.symbols.functionSignature(for: dispatchSymbol),
+           dispatchSignature.typeParameterSymbols.isEmpty,
+           dispatchSignature.reifiedTypeParameterIndices.isEmpty,
+           !dispatchSignature.isSuspend,
+           finalArguments.first == receiver.loweredID
+        {
+            instructions.append(.call(
+                symbol: dispatchSymbol,
+                callee: dispatchInfo.name,
+                arguments: finalArguments,
+                result: result,
+                canThrow: false,
+                thrownResult: nil
+            ))
+            return
+        }
         // Enum values are raw ordinals while they remain statically enum-typed.
         // Enum.equals(Any?) is an Any-boundary call, so box the receiver with
         // its nominal class ID before reaching the shared Any bridge. Without

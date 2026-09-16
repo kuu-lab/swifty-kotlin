@@ -900,6 +900,23 @@ extension DataFlowSemaPhase {
                     symbols.setPropertyType(nestedType, for: entrySymbol)
                     nestedScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: nestedClass.enumEntries,
+                    ownerFQName: nestedFQName,
+                    ownerSymbol: nestedSymbol,
+                    enumType: nestedType,
+                    sourceFileID: sourceFileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: nestedScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: nestedTypeParamSymbols,
+                    classLocalTypeParameters: nestedLocalTypeParameters
+                )
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: nestedSymbol,
                     ownerFQName: nestedFQName,

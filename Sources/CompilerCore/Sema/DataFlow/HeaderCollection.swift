@@ -1249,6 +1249,23 @@ extension DataFlowSemaPhase {
                     symbols.setPropertyType(classType, for: entrySymbol)
                     classScope.insert(entrySymbol)
                 }
+                collectEnumEntryMemberHeaders(
+                    entries: classDecl.enumEntries,
+                    ownerFQName: fqName,
+                    ownerSymbol: symbol,
+                    enumType: classType,
+                    sourceFileID: file.fileID,
+                    ctx: ctx,
+                    ast: ast,
+                    symbols: symbols,
+                    types: types,
+                    bindings: bindings,
+                    scope: classScope,
+                    diagnostics: diagnostics,
+                    interner: interner,
+                    classTypeParameterSymbols: classTypeParamSymbols,
+                    classLocalTypeParameters: classLocalTypeParameters
+                )
                 collectSyntheticEnumEntryProperties(
                     ownerSymbol: symbol,
                     ownerFQName: fqName,
