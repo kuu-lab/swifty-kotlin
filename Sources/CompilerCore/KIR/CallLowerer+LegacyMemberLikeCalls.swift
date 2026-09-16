@@ -742,7 +742,13 @@ extension CallLowerer {
         }
 
         // Primitive arithmetic/infix member functions on numeric receivers.
+        // Direct range expressions are typed with their scalar element type, but
+        // `plus`/`minus` must keep the selected Iterable extension at this stage.
+        let isRangePlusMinusReceiver = ["plus", "minus"].contains(interner.resolve(calleeName))
+            && (sema.bindings.isRangeExpr(receiverExpr)
+                || ControlFlowTypeChecker.isRangeExpression(receiverExpr, ast: ast))
         if args.count == 1,
+           !isRangePlusMinusReceiver,
            shouldLowerPrimitiveInv(receiverExpr: receiverExpr, sema: sema, nullableReceiverAllowed: requireNonNullableReceiverForConstFold)
         {
             let intType = sema.types.make(.primitive(.int, .nonNull))

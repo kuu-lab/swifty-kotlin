@@ -110,6 +110,8 @@ extension CallTypeChecker {
         let hasLeadingLocaleArgument = calleeName == interner.intern("format")
             && argTypes.first.map { isJavaUtilLocaleType($0, sema: sema, interner: interner) } == true
         let lookupReceiverType = safeCall ? sema.types.makeNonNullable(receiverType) : receiverType
+        let isSyntacticRangeCollectionMember = ["plus", "minus"].contains(interner.resolve(calleeName))
+            && ControlFlowTypeChecker.isRangeExpression(receiverID, ast: ast)
         // Primitive member function: Int/Long/UInt/ULong.inv() → same type (P5-103, TYPE-005)
         if let result = tryInferRegularMemberCallPrimitiveSpecials(
             request,
@@ -185,7 +187,8 @@ extension CallTypeChecker {
                 receiverExpr: receiverID,
                 receiverType: lookupReceiverType,
                 sema: sema,
-                interner: interner
+                interner: interner,
+                allowSyntacticRangeExpression: isSyntacticRangeCollectionMember
             )
         } else {
             nil
@@ -2446,7 +2449,7 @@ extension CallTypeChecker {
              "toList", "forEach", "map", "mapIndexed", "mapNotNull",
              "filter", "filterIndexed", "filterNot",
              "take", "drop", "chunked", "windowed", "sorted", "average",
-             "random", "randomOrNull", "step":
+             "random", "randomOrNull", "step", "plus", "minus":
             return true
         default:
             return false
@@ -2457,13 +2460,15 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> TypeID? {
         guard let rangeKind = sourceLevelRangeMemberReceiverKind(
             receiverExpr: receiverExpr,
             receiverType: receiverType,
             sema: sema,
-            interner: interner
+            interner: interner,
+            allowSyntacticRangeExpression: allowSyntacticRangeExpression
         ) else {
             return nil
         }
@@ -2512,7 +2517,8 @@ extension CallTypeChecker {
         receiverExpr: ExprID,
         receiverType: TypeID,
         sema: SemaModule,
-        interner: StringInterner
+        interner: StringInterner,
+        allowSyntacticRangeExpression: Bool = false
     ) -> MemberDispatchReceiverKind? {
         let nonNullReceiverType = sema.types.makeNonNullable(receiverType)
         if let (_, symbol) = resolveClassTypeSymbol(nonNullReceiverType, sema: sema) {
@@ -2542,7 +2548,7 @@ extension CallTypeChecker {
             }
         }
 
-        guard sema.bindings.isRangeExpr(receiverExpr) else {
+        guard sema.bindings.isRangeExpr(receiverExpr) || allowSyntacticRangeExpression else {
             return nil
         }
         if sema.bindings.isFloatingPointRangeExpr(receiverExpr) {

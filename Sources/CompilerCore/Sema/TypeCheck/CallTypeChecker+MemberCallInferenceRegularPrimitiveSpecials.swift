@@ -52,8 +52,21 @@ extension CallTypeChecker {
             let receiverForCheck = safeCall
                 ? sema.types.makeNonNullable(lookupReceiverType)
                 : lookupReceiverType
+            // Range expressions use their scalar element type as the lowering
+            // type. Keep them out of the numeric fast path so range extensions
+            // such as Iterable.plus/minus can be resolved from the source-level
+            // range receiver instead.
+            let isRangeReceiver = ["plus", "minus"].contains(interner.resolve(calleeName))
+                && (MemberRuntimeDispatch.rangeReceiverKind(
+                    receiverExpr: request.receiverID,
+                    receiverType: lookupReceiverType,
+                    sema: sema,
+                    interner: interner
+                ) != nil
+                    || ControlFlowTypeChecker.isRangeExpression(request.receiverID, ast: ctx.ast))
             let rawRhsType = argTypes[0]
-            let isPrimitiveReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType
+            let isPrimitiveReceiver = !isRangeReceiver
+                && (receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType || receiverForCheck == ubyteType || receiverForCheck == ushortType || receiverForCheck == byteType || receiverForCheck == shortType)
             let isShiftReceiver = receiverForCheck == intType || receiverForCheck == longType || receiverForCheck == uintType || receiverForCheck == ulongType
             // Helper: whether a type is a small unsigned type (UByte/UShort).
             // In Kotlin stdlib, small unsigned types promote to UInt for most
