@@ -219,7 +219,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testLinkedMapOfRewrittenToKkMapOf() throws {
+    func testLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let pair = arena.appendExpr(.temporary(0))
@@ -244,7 +244,10 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf should become __kk_map_of")
+        // KUU-556: linkedMapOf is declared to return LinkedHashMap<K, V>, now a
+        // real HashMap subclass, so it gets its own runtime tag instead of the
+        // generic __kk_map_of hashMapOf/mutableMapOf still share.
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf should become __kk_linked_hash_map_of")
     }
 
     @Test
@@ -702,7 +705,7 @@ struct CollectionLiteralLoweringTests {
     }
 
     @Test
-    func testZeroArgLinkedMapOfRewrittenToKkMapOf() throws {
+    func testZeroArgLinkedMapOfRewrittenToKkLinkedHashMapOf() throws {
         let interner = StringInterner()
         let arena = KIRArena()
         let callee = interner.intern("linkedMapOf")
@@ -713,7 +716,7 @@ struct CollectionLiteralLoweringTests {
 
         let callees = calleesInDecl(declID, module: module, interner: interner)
         #expect(!callees.contains("linkedMapOf"), "linkedMapOf() should be rewritten")
-        #expect(callees.contains("__kk_map_of"), "linkedMapOf() should become __kk_map_of (fresh mutable)")
+        #expect(callees.contains("__kk_linked_hash_map_of"), "linkedMapOf() should become __kk_linked_hash_map_of (fresh, own runtime tag)")
     }
 
     @Test

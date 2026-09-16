@@ -14,6 +14,7 @@ struct MapLookupNames {
     let kkEmptyMapName: InternedString
     let kkMapOfName: InternedString
     let kkHashMapOfName: InternedString
+    let kkLinkedHashMapOfName: InternedString
     let kkMapSizeName: InternedString
     let kkMapGetName: InternedString
     let kkMapIsEmptyName: InternedString
@@ -36,6 +37,7 @@ struct MapLookupNames {
         kkEmptyMapName = interner.intern("__kk_emptyMap")
         kkMapOfName = interner.intern("__kk_map_of")
         kkHashMapOfName = interner.intern("__kk_hash_map_of")
+        kkLinkedHashMapOfName = interner.intern("__kk_linked_hash_map_of")
         kkMapSizeName = interner.intern("__kk_map_size")
         kkMapGetName = interner.intern("__kk_map_get")
         kkMapIsEmptyName = interner.intern("__kk_map_is_empty")

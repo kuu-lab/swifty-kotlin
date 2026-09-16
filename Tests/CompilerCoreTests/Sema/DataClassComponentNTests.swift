@@ -97,6 +97,28 @@ struct DataClassComponentNTests {
         }
     }
 
+    @Test
+    func testForLoopDestructuringConcreteMapSubtype() throws {
+        let source = """
+        fun main() {
+            val values = linkedMapOf("a" to 1)
+            for ((key, value) in values) {
+                println("$key=$value")
+            }
+        }
+        """
+
+        try withTemporaryFiles(contents: [source]) { paths in
+            let ctx = makeCompilationContext(inputs: paths)
+            try runSema(ctx)
+            let errors = diagnosticsForPath(paths[0], in: ctx).filter { $0.severity == .error }
+            #expect(
+                errors.isEmpty,
+                "Concrete LinkedHashMap destructuring should type-check: \(errors.map { "\($0.code): \($0.message)" })"
+            )
+        }
+    }
+
 }
 
 #endif

@@ -74,4 +74,11 @@ fun main() {
     generic[1.5] = true
     generic[2.7] = false
     println(generic)
+
+    // Runtime identity: LinkedHashMap is a real HashMap subclass (KUU-556),
+    // matching kotlinc-jvm (java.util.LinkedHashMap extends java.util.HashMap).
+    val linkedInstance: LinkedHashMap<String, Int> = LinkedHashMap()
+    val hashInstance: HashMap<String, Int> = HashMap()
+    println(linkedInstance is HashMap<*, *>)
+    println(hashInstance is LinkedHashMap<*, *>)
 }

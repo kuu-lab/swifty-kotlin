@@ -355,8 +355,30 @@ extension CallLowerer {
         if case .superRef = ast.arena.expr(receiverExpr) {
             isSuperQualifiedReceiver = true
         }
+        // KUU-556: HashMap.kt is now `open` so LinkedHashMap can subclass it.
+        // That gives HashMap its first-ever direct subtype, which makes the
+        // condition below (KSP-928's abstract/open-property vtable dispatch)
+        // start matching HashMap's own materialized realization of the four
+        // Map interface properties it never overrides in source
+        // (size/keys/values/entries -- @KsSymbolName isn't wired for
+        // `.property` symbols yet, so only Map's original declaration carries
+        // the external link). LayoutSynthesis assigns the HashMap realization
+        // a vtable slot, but every Map-family value shares one RuntimeMapBox
+        // representation with no true per-class vtable. Dispatching through
+        // that slot therefore panics instead of reaching the Map bridge.
+        let isHashMapRealizedRuntimeBridgedMapProperty =
+            ownerInfo.fqName == [
+                interner.intern("kotlin"),
+                interner.intern("collections"),
+                interner.intern("HashMap"),
+            ]
+            && [
+                interner.intern("size"), interner.intern("keys"),
+                interner.intern("values"), interner.intern("entries"),
+            ].contains(sema.symbols.symbol(propertySymbol)?.name ?? interner.intern(""))
         if ownerInfo.kind == .class,
            !isSuperQualifiedReceiver,
+           !isHashMapRealizedRuntimeBridgedMapProperty,
            !sema.symbols.directSubtypes(of: ownerSymbol).isEmpty,
            let propertyInfo = sema.symbols.symbol(propertySymbol),
            let getterSlot = sema.symbols.nominalLayout(for: ownerSymbol)?.vtableSlots[
@@ -382,7 +404,12 @@ extension CallLowerer {
         }
 
         if memberPropertyUsesAccessor(propertySymbol, ast: ast, sema: sema) {
-            if let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
+            // `tryResolvePropertyAccessorVirtualDispatch` independently
+            // qualifies HashMap's materialized property realization for vtable
+            // dispatch once HashMap has a direct subtype. Keep the same
+            // RuntimeMapBox-backed properties on the bridge path instead.
+            if !isHashMapRealizedRuntimeBridgedMapProperty,
+               let (accessorSymbol, dispatch) = tryResolvePropertyAccessorVirtualDispatch(
                 propertySymbol: propertySymbol,
                 receiverExpr: receiverExpr,
                 accessorKind: .getter,
