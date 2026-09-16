@@ -1355,13 +1355,14 @@
     - `kotlin.concurrent.AtomicInt.toString` — fun AtomicInt.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.AtomicInt.value` — val AtomicInt.value: Int  -- `final var value`
 
-- [ ] KSP-1090: kotlin.concurrent.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（4 件）
+- [~] KSP-1090: kotlin.concurrent.AtomicIntArray.AtomicIntArray の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.concurrent.AtomicIntArray` / receiver `AtomicIntArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicIntArray/AtomicIntArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicIntArray_AtomicIntArray_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_AtomicIntArray_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicIntArray_AtomicIntArray_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 実装根拠: `AtomicIntArray/AtomicIntArray.kt` に `compareAndExchange` / `compareAndSet` / `length` / `toString` を source-backed class member として追加し、既存の `*At` / `size` Runtime bridge を再利用した。新規 Runtime / ABI / 合成 stub は不要で、`Any.toString()` への誤解決を避けるためクラス宣言を実装ファイルへ移した。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicIntArray.compareAndExchange` — fun AtomicIntArray.compareAndExchange(Int, Int, Int): Int  -- `final fun compareAndExchange(kotlin/Int, kotlin/Int, kotlin/Int): kotlin/Int`
     - `kotlin.concurrent.AtomicIntArray.compareAndSet` — fun AtomicIntArray.compareAndSet(Int, Int, Int): Boolean  -- `final fun compareAndSet(kotlin/Int, kotlin/Int, kotlin/Int): kotlin/Boolean`

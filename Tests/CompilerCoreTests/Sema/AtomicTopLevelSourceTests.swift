@@ -42,6 +42,9 @@ struct AtomicTopLevelSourceTests {
         let package = ["kotlin", "concurrent"]
         let defaultSourceFileID = ctx.sourceManager.fileID(forPath: "__bundled_kotlin/concurrent/Stdlib.kt")
         let sourceFileIDs = [
+            "AtomicIntArray": ctx.sourceManager.fileID(
+                forPath: "__bundled_kotlin/concurrent/AtomicIntArray/AtomicIntArray.kt"
+            ),
             "AtomicLongArray": ctx.sourceManager.fileID(
                 forPath: "__bundled_kotlin/concurrent/AtomicLongArray/AtomicLongArray.kt"
             )
