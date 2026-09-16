@@ -331,7 +331,7 @@ extension DataFlowSemaPhase {
         registerPropertyMember(
             name: "size",
             propertyType: types.intType,
-            externalLinkName: "kk_map_size"
+            externalLinkName: "__kk_map_size"
         )
         registerPropertyMember(
             name: "values",

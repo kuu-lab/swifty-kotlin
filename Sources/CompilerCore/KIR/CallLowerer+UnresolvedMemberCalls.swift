@@ -617,7 +617,7 @@ extension CallLowerer {
             var visitedTypeParams = Set<SymbolID>()
             switch (memberName, collectionKind(for: receiverType, visitedTypeParams: &visitedTypeParams)) {
             case ("size", .map?):
-                return interner.intern("kk_map_size")
+                return interner.intern("__kk_map_size")
             case ("size", .set?):
                 return interner.intern("__kk_set_size")
             case ("size", .array?):
@@ -627,7 +627,7 @@ extension CallLowerer {
             case ("size", .collection?):
                 return interner.intern("__kk_collection_size")
             case ("isEmpty", .map?):
-                return interner.intern("kk_map_is_empty")
+                return interner.intern("__kk_map_is_empty")
             case ("isEmpty", .set?):
                 return interner.intern("__kk_set_is_empty")
             case ("isEmpty", .array?):
@@ -649,7 +649,7 @@ extension CallLowerer {
         case "size":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .map?:
-                return interner.intern("kk_map_size")
+                return interner.intern("__kk_map_size")
             case .set?:
                 return interner.intern("__kk_set_size")
             case .array?:
@@ -666,7 +666,7 @@ extension CallLowerer {
         case "isEmpty":
             switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
             case .map?:
-                return interner.intern("kk_map_is_empty")
+                return interner.intern("__kk_map_is_empty")
             case .set?:
                 return interner.intern("__kk_set_is_empty")
             case .array?:
@@ -816,7 +816,7 @@ extension CallLowerer {
         }
         switch memberName {
         case "count":
-            return argumentCount == 0 ? interner.intern("kk_map_size") : nil
+            return argumentCount == 0 ? interner.intern("__kk_map_size") : nil
         case "putAll":
             guard knownNames.isMutableMapSymbol(symbol) else {
                 return nil
@@ -839,7 +839,7 @@ extension CallLowerer {
         let knownNames = KnownCompilerNames(interner: interner)
         switch collectionKindWithSupertypes(of: symbol, sema: sema, knownNames: knownNames) {
         case .map?:
-            return interner.intern("kk_map_is_empty")
+            return interner.intern("__kk_map_is_empty")
         case .set?:
             return interner.intern("__kk_set_is_empty")
         case .array?:

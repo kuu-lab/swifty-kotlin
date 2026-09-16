@@ -2142,7 +2142,8 @@ struct ListSyntheticMemberLinkTests {
         #expect(!collectionInfo.flags.contains(.synthetic))
         #expect(sema.types.nominalTypeParameterVariances(for: collectionSymbol) == [.out])
         let collectionFileID = try #require(sema.symbols.sourceFileID(for: collectionSymbol))
-        #expect(ctx.sourceManager.path(of: collectionFileID) == "__bundled_kotlin/collections/AbstractCollection.kt")
+        // KSP-700: the Collection interface moved to its own bundled file.
+        #expect(ctx.sourceManager.path(of: collectionFileID) == "__bundled_kotlin/collections/Collection.kt")
 
         let iterableSymbol = try #require(sema.symbols.lookup(
             fqName: collectionsPkg + [ctx.interner.intern("Iterable")]
@@ -2168,7 +2169,7 @@ struct ListSyntheticMemberLinkTests {
             #expect(!memberInfo.flags.contains(.synthetic))
             #expect(memberInfo.declSite != nil)
             let memberFileID = try #require(sema.symbols.sourceFileID(for: member))
-            #expect(ctx.sourceManager.path(of: memberFileID) == "__bundled_kotlin/collections/AbstractCollection.kt")
+            #expect(ctx.sourceManager.path(of: memberFileID) == "__bundled_kotlin/collections/Collection.kt")
             #expect(sema.symbols.externalLinkName(for: member) == expectedExternalLink)
         }
 
@@ -2367,7 +2368,7 @@ struct ListSyntheticMemberLinkTests {
             let expected: [(packagePath: [String], name: String, variances: [TypeVariance], sourcePath: String)] = [
                 (["kotlin"], "Comparable", [.in], "__bundled_kotlin/Comparable.kt"),
                 (["kotlin", "collections"], "Iterable", [.out], "__bundled_kotlin/collections/Iterable.kt"),
-                (["kotlin", "collections"], "Collection", [.out], "__bundled_kotlin/collections/AbstractCollection.kt"),
+                (["kotlin", "collections"], "Collection", [.out], "__bundled_kotlin/collections/Collection.kt"),
                 (["kotlin", "collections"], "List", [.out], "__bundled_kotlin/collections/List.kt"),
                 (["kotlin", "collections"], "MutableCollection", [.invariant], "__bundled_kotlin/collections/MutableCollection.kt"),
                 (["kotlin", "collections"], "AbstractList", [.out], "__bundled_kotlin/collections/AbstractList.kt"),

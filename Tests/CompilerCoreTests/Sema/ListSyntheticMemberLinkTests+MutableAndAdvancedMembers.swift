@@ -1769,7 +1769,7 @@ extension ListSyntheticMemberLinkTests {
             }
             return signature.parameterTypes.isEmpty
         }
-        #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic kk_map_size overload")
+        #expect(syntheticNoArg.isEmpty, "Map.count() must not retain a synthetic __kk_map_size overload")
     }
 
     @Test

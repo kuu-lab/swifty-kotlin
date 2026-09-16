@@ -8,7 +8,7 @@
 
 package kotlin.collections
 
-// KSP-703: split out of CollectionAliases.kt into its own 本家-named file
+// KSP-703: split out of CollectionAliases.kt into its own upstream-named file
 // (docs/stdlib-pipeline.md §6), matching HashSet.kt/LinkedHashSet.kt's
 // KSP-704 split.
 //

@@ -111,22 +111,6 @@ extension DataFlowSemaPhase {
         symbols.setSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
         types.setNominalSupertypeTypeArgs([.invariant(mlTypeParamType)], for: mutableListInterfaceSymbol, supertype: mutableIterableInterfaceSymbol)
 
-        registerMutableListIteratorMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
-        registerMutableListIteratorAtIndexMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            mutableListFQName: mutableListFQName,
-            mutableListInterfaceSymbol: mutableListInterfaceSymbol,
-            mlTypeParamSymbol: mlTypeParamSymbol,
-            mlTypeParamType: mlTypeParamType
-        )
         registerMutableListSetOperator(
             symbols: symbols, types: types, interner: interner,
             mutableListFQName: mutableListFQName,

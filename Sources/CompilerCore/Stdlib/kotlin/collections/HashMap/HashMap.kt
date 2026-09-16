@@ -34,10 +34,10 @@ public class HashMap<K, V> : MutableMap<K, V> {
     constructor(initialCapacity: Int, loadFactor: Float)
     constructor(original: Map<out K, V>)
 
-    @KsSymbolName("kk_map_size")
+    @KsSymbolName("__kk_map_size")
     private external fun __hashMapSize(): Int
 
-    @KsSymbolName("kk_map_is_empty")
+    @KsSymbolName("__kk_map_is_empty")
     private external fun __hashMapIsEmpty(): Boolean
 
     @KsSymbolName("__kk_map_get")

@@ -21,7 +21,7 @@ public interface Map<K, out V> {
     public val values: Collection<V>
     public val entries: Set<Map.Entry<K, V>>
 
-    @KsSymbolName("kk_map_is_empty")
+    @KsSymbolName("__kk_map_is_empty")
     public fun isEmpty(): Boolean
 
     @KsSymbolName("__kk_map_get")
