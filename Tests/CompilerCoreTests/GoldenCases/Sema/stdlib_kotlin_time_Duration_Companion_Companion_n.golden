@@ -1,0 +1,60 @@
+symbol fq=__local_0.values[kind=local] kind=local vis=private flags=_ type=kotlin.collections.List<out kotlin.time.Duration>
+symbol fq=main[kind=fun;params=] kind=function vis=public flags=_ sig=recv=_ params=[] ret=Unit
+file fstdlib_kotlin_time_Duration_Companion_Companion_n package=_
+  decl main[kind=fun;params=] fun main sym=main[kind=fun;params=]
+expr e@14:9 int(1) type=Int
+expr e@14:9#1 memberCall recv=e@14:9 callee=nanoseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.nanoseconds.$get[kind=fun;recv=Int;params=]
+expr e@14:24 long(1) type=Long
+expr e@14:24#1 memberCall recv=e@14:24 callee=nanoseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.nanoseconds.$get[kind=fun;recv=Long;params=]
+expr e@14:40 double(1.5) type=Double
+expr e@14:40#1 memberCall recv=e@14:40 callee=nanoseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.nanoseconds.$get[kind=fun;recv=Double;params=]
+expr e@15:9 int(1) type=Int
+expr e@15:9#1 memberCall recv=e@15:9 callee=microseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.microseconds.$get[kind=fun;recv=Int;params=]
+expr e@15:25 long(1) type=Long
+expr e@15:25#1 memberCall recv=e@15:25 callee=microseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.microseconds.$get[kind=fun;recv=Long;params=]
+expr e@15:42 double(1.5) type=Double
+expr e@15:42#1 memberCall recv=e@15:42 callee=microseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.microseconds.$get[kind=fun;recv=Double;params=]
+expr e@16:9 int(1) type=Int
+expr e@16:9#1 memberCall recv=e@16:9 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Int;params=]
+expr e@16:25 long(1) type=Long
+expr e@16:25#1 memberCall recv=e@16:25 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Long;params=]
+expr e@16:42 double(1.5) type=Double
+expr e@16:42#1 memberCall recv=e@16:42 callee=milliseconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.milliseconds.$get[kind=fun;recv=Double;params=]
+expr e@17:9 int(1) type=Int
+expr e@17:9#1 memberCall recv=e@17:9 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Int;params=]
+expr e@17:20 long(1) type=Long
+expr e@17:20#1 memberCall recv=e@17:20 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Long;params=]
+expr e@17:32 double(1.5) type=Double
+expr e@17:32#1 memberCall recv=e@17:32 callee=seconds args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.seconds.$get[kind=fun;recv=Double;params=]
+expr e@18:9 int(1) type=Int
+expr e@18:9#1 memberCall recv=e@18:9 callee=minutes args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.minutes.$get[kind=fun;recv=Int;params=]
+expr e@18:20 long(1) type=Long
+expr e@18:20#1 memberCall recv=e@18:20 callee=minutes args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.minutes.$get[kind=fun;recv=Long;params=]
+expr e@18:32 double(1.5) type=Double
+expr e@18:32#1 memberCall recv=e@18:32 callee=minutes args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.minutes.$get[kind=fun;recv=Double;params=]
+expr e@19:9 int(1) type=Int
+expr e@19:9#1 memberCall recv=e@19:9 callee=hours args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.hours.$get[kind=fun;recv=Int;params=]
+expr e@19:18 long(1) type=Long
+expr e@19:18#1 memberCall recv=e@19:18 callee=hours args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.hours.$get[kind=fun;recv=Long;params=]
+expr e@19:28 double(1.5) type=Double
+expr e@19:28#1 memberCall recv=e@19:28 callee=hours args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.hours.$get[kind=fun;recv=Double;params=]
+expr e@20:9 int(1) type=Int
+expr e@20:9#1 memberCall recv=e@20:9 callee=days args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.days.$get[kind=fun;recv=Int;params=]
+expr e@20:17 long(1) type=Long
+expr e@20:17#1 memberCall recv=e@20:17 callee=days args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.days.$get[kind=fun;recv=Long;params=]
+expr e@20:26 double(1.5) type=Double
+expr e@20:26#1 memberCall recv=e@20:26 callee=days args=[] type=kotlin.time.Duration call=kotlin.time.Duration.Companion.days.$get[kind=fun;recv=Double;params=]
+expr e@13:18 call callee=e@13:18#1 args=[_:e@14:9#1,_:e@14:24#1,_:e@14:40#1,_:e@15:9#1,_:e@15:25#1,_:e@15:42#1,_:e@16:9#1,_:e@16:25#1,_:e@16:42#1,_:e@17:9#1,_:e@17:20#1,_:e@17:32#1,_:e@18:9#1,_:e@18:20#1,_:e@18:32#1,_:e@19:9#1,_:e@19:18#1,_:e@19:28#1,_:e@20:9#1,_:e@20:17#1,_:e@20:26#1] type=kotlin.collections.List<out kotlin.time.Duration> call=kotlin.collections.listOf[kind=fun;params=T0;gen=1] targs=[kotlin.time.Duration]
+expr e@13:5 localDecl values mutable=0 type=_ init=e@13:18 type=Unit ref=__local_0.values[kind=local]
+expr e@23:13 name(values) type=kotlin.collections.List<out kotlin.time.Duration> ref=__local_0.values[kind=local]
+expr e@23:13#1 memberCall recv=e@23:13 callee=size args=[] type=Int ref=kotlin.collections.Collection.size[kind=prop]
+expr e@23:5 call callee=e@23:5#1 args=[_:e@23:13#1] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
+expr e@24:13 name(Duration) type=kotlin.time.Duration ref=kotlin.time.Duration[kind=class]
+expr e@24:13#1 memberCall recv=e@24:13 callee=Companion args=[] type=kotlin.time.Duration.Companion ref=kotlin.time.Duration.Companion[kind=obj]
+expr e@24:40 double(1.5) type=Double
+expr e@24:45 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@24:45#1 memberCall recv=e@24:45 callee=SECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.SECONDS[kind=field]
+expr e@24:67 name(DurationUnit) type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit[kind=enum]
+expr e@24:67#1 memberCall recv=e@24:67 callee=MILLISECONDS args=[] type=kotlin.time.DurationUnit ref=kotlin.time.DurationUnit.MILLISECONDS[kind=field]
+expr e@24:13#2 memberCall recv=e@24:13#1 callee=convert args=[_:e@24:40,_:e@24:45#1,_:e@24:67#1] type=Double call=kotlin.time.Duration.Companion.convert[kind=fun;recv=kotlin.time.Duration.Companion;params=Double,kotlin.time.DurationUnit,kotlin.time.DurationUnit]
+expr e@24:5 call callee=e@24:5#1 args=[_:e@24:13#2] type=Unit call=kotlin.io.println[kind=fun;params=Any?]
