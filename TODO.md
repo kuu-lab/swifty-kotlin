@@ -582,7 +582,7 @@
   - 注意: KSP-1523 で UInt 側の `average()`/`toUIntArray()` は実 kotlinc に存在しないことが判明した（`average()` は `Iterable<Byte/Short/Int/Long/Float/Double>` のみで `UInt` 無し、`toUIntArray()` は `Collection<UInt>` メンバーで `UIntRange`(`Iterable<UInt>`) には無い。`diff_kotlinc.sh` で確認済み）。`kk_ulong_range_average`/`_toULongArray` も同様に実在しない可能性が高いので、`RangeHOF.kt` に追記する前に `diff_kotlinc.sh` で `ULongRange.average()`/`.toULongArray()` を検証すること。実在しなければ 13 件ではなく 11 件の移行＋2 件の削除のみで完了とする
   - 前提: KSP-1523
 
-- [ ] KSP-1527: `ULongRange` の map / filter 系 HOF を Kotlin 化する
+- [x] KSP-1527: `ULongRange` の map / filter 系 HOF を Kotlin 化する
   - 対象スタブ: 同上（`kk_ulong_range_*`）
   - 実装先: `Sources/CompilerCore/Stdlib/kotlin/ranges/RangeHOF.kt` 追記
   - 削除/降格 kk_*: `kk_ulong_range_map`, `_mapIndexed`, `_mapNotNull`, `_filter`, `_filterIndexed`, `_filterNot`（6件）
