@@ -128,6 +128,15 @@ extension CallTypeChecker {
         let isSyntheticSequenceReceiver = receiverClassification.isSyntheticSequenceReceiver
         let isSequenceReceiver = receiverClassification.isSequenceReceiver
         let isSetReceiver = receiverClassification.isSetReceiver
+        let isEnumEntriesReceiver: Bool = {
+            guard let (_, symbol) = resolveClassTypeSymbol(
+                sema.types.makeNonNullable(receiverType),
+                sema: sema
+            ) else {
+                return false
+            }
+            return symbol.fqName == knownNames.kotlinEnumsEnumEntriesFQName
+        }()
         let isStringReceiver = sema.types.isSubtype(
             sema.types.makeNonNullable(receiverType),
             sema.types.stringType
@@ -462,12 +471,14 @@ extension CallTypeChecker {
             enforceTypeParameterCount: Bool = false,
             matchingReceiverElementType: TypeID? = nil,
             allowNominalIterableReceiver: Bool = false,
+            allowConcreteForEachReceiver: Bool = false,
             receiverElementType: TypeID? = nil
         ) -> Bool {
             // KSP-978: Generic Iterable group-family calls use the bundled
-            // source declarations; concrete List receivers keep the List path.
+            // source declarations; concrete collection receivers keep their
+            // owner-specific paths except for the inline forEach family.
             guard !isSequenceReceiver,
-                  (allowNominalIterableReceiver
+                  ((allowNominalIterableReceiver
                     ? (isIterableReceiver || !isCollectionReceiver)
                     : (isCollectionReceiver || (isIterableReceiver && (calleeStr == "none"
                         || calleeStr == "drop"
@@ -478,6 +489,8 @@ extension CallTypeChecker {
                         || calleeStr == "groupByTo"
                         || isIterableFilterFamilyHOF))
                         || (isIterableIndexReceiver && isIterableIndexFamilyHOF)))
+                    || (allowConcreteForEachReceiver
+                        && ((isListReceiver && !isEnumEntriesReceiver) || isSetReceiver)))
             else {
                 return false
             }
@@ -3079,7 +3092,9 @@ extension CallTypeChecker {
                     case "forEach":
                         resultType = sema.types.unitType
                         if bindBundledIterableSourceFunction(
-                            typeArguments: [collectionElementType]
+                            typeArguments: [collectionElementType],
+                            allowNominalIterableReceiver: true,
+                            allowConcreteForEachReceiver: true
                         ),
                            let lambdaExpr = ast.arena.expr(args[0].expr), lambdaExpr.isLambdaOrCallableRef
                         {
