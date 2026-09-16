@@ -13,12 +13,18 @@
 /// class, filtering out those that have been concretely overridden by
 /// intermediate classes. Ordered by symbol ID so callers emit diagnostics
 /// deterministically.
+///
+/// A concrete member satisfies an abstract requirement unless the abstract
+/// declaration's owner is a nominal subtype of the concrete member's owner.
+/// The latter is a re-abstraction: the more-specific interface intentionally
+/// requires an implementation again. This keeps the result independent of
+/// direct-supertype declaration order.
 func collectInheritedAbstractMembers(
     for classSymbol: SymbolID,
     symbols: SymbolTable
 ) -> [SymbolID] {
-    var abstractMembersByName: [InternedString: SymbolID] = [:]
-    var concreteOverrideNames: Set<InternedString> = []
+    var abstractMembersByName: [InternedString: [SymbolID]] = [:]
+    var concreteOwnersByName: [InternedString: [SymbolID]] = [:]
     var visited: Set<SymbolID> = [classSymbol]
     var queue = symbols.directSupertypes(for: classSymbol)
 
@@ -30,21 +36,11 @@ func collectInheritedAbstractMembers(
         let children = symbols.children(ofFQName: currentSym.fqName)
         for childID in children {
             guard let childSym = symbols.symbol(childID) else { continue }
-            if childSym.kind == .function || childSym.kind == .property {
-                if childSym.flags.contains(.abstractType) {
-                    // Only record the abstract member if we haven't seen
-                    // a concrete override for this name yet.
-                    if !concreteOverrideNames.contains(childSym.name) {
-                        abstractMembersByName[childSym.name] = childID
-                    }
-                } else {
-                    // This is a concrete member. Only treat it as satisfying
-                    // abstract requirements from higher supertypes if no closer
-                    // supertype has already (re-)abstracted this name.
-                    if abstractMembersByName[childSym.name] == nil {
-                        concreteOverrideNames.insert(childSym.name)
-                    }
-                }
+            guard childSym.kind == .function || childSym.kind == .property else { continue }
+            if childSym.flags.contains(.abstractType) {
+                abstractMembersByName[childSym.name, default: []].append(childID)
+            } else if let owner = symbols.parentSymbol(for: childID) {
+                concreteOwnersByName[childSym.name, default: []].append(owner)
             }
         }
 
@@ -52,7 +48,49 @@ func collectInheritedAbstractMembers(
         queue.append(contentsOf: symbols.directSupertypes(for: current))
     }
 
-    return abstractMembersByName.values.sorted(by: { $0.rawValue < $1.rawValue })
+    var result: [SymbolID] = []
+    for (name, abstractMembers) in abstractMembersByName {
+        let concreteOwners = concreteOwnersByName[name] ?? []
+        for abstractMember in abstractMembers {
+            let covered = concreteOwners.contains { concreteOwner in
+                guard let abstractOwner = symbols.parentSymbol(for: abstractMember) else {
+                    return true
+                }
+                return !isNominalSubtypeViaDirectSupertypes(
+                    abstractOwner,
+                    of: concreteOwner,
+                    symbols: symbols
+                )
+            }
+            if !covered {
+                result.append(abstractMember)
+            }
+        }
+    }
+    return result.sorted(by: { $0.rawValue < $1.rawValue })
+}
+
+/// Nominal (type-argument-insensitive) subtype check over direct supertypes.
+private func isNominalSubtypeViaDirectSupertypes(
+    _ candidate: SymbolID,
+    of base: SymbolID,
+    symbols: SymbolTable
+) -> Bool {
+    if candidate == base {
+        return true
+    }
+    var visited: Set<SymbolID> = [candidate]
+    var queue = symbols.directSupertypes(for: candidate)
+    while !queue.isEmpty {
+        let current = queue.removeFirst()
+        if current == base {
+            return true
+        }
+        if visited.insert(current).inserted {
+            queue.append(contentsOf: symbols.directSupertypes(for: current))
+        }
+    }
+    return false
 }
 
 /// The inherited abstract members `classSymbol` still owes an implementation

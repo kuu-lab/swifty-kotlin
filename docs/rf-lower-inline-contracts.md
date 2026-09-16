@@ -23,6 +23,7 @@
 | `rewriteInstruction` が call/virtualCallのsymbol・throw channel・dispatch・superを変更せず引数のみ解決する | 同ファイルの `testRewriteInstruction*` 3件。 |
 | `definedResult` が `.copy` の書き込み先を定義とみなさない | 同ファイルの `testDefinedResultIgnoresACopysDestination`。 |
 | `cloneOrReuseExpr` の初回複製・メモ化再利用・型置換クロージャの委譲・欠落sourceのfallback | `InlineExprCloningTests` 5件。 |
+| imported lambda ABI の erased invoke、primitive / nullable / erased generic の引数・戻り値の box / unbox | `InlineErasedLambdaABITests` と既存の `Inline` / imported-artifact 回帰。 |
 
 INLINE-001 の修正は、`expandInlineCall` / `expandLambdaBody` が `.call` を複製するときに落としていた `qualifiedSuperType` を引き継ぐもの。
 最小ソースは実行結果だけでは欠落を検出できないため、展開前後のKIRにもassertionを置いている。
@@ -56,5 +57,15 @@ mapに対して行われるため、mapの所有権自体は移していない�
 と見られる）。したがって同スコープでの `InlineExprAliasing.rewriteInstruction` /
 `resolveAlias` 呼び出しは現状すべて恒等写像になる。本PRは分離のみが目的で挙動を変えない
 ため削除しない。除去を検討する場合は同ループの走査制御を扱うRF-LOWER-INLINE-009側で行う。
+
+RF-LOWER-INLINE-005 以降、erased lambda / imported inline ABI の補正は
+`Sources/CompilerCore/Lowering/InlineErasedLambdaABI.swift` の
+`InlineErasedLambdaABI` が担う。`usesErasedLambdaABI`、erased function-value invoke の
+callee 集合、primitive 引数の box / unbox、lambda の引数・戻り値および imported inline
+結果の補正、浮動小数点演算前の erased invoke 結果の unbox をここへ移した。
+これらのABI補正について `InlineLoweringPass` は展開順序・引数位置・nullable / erased generic
+の判定を所有せず、このnamespaceを呼び出すだけにする。`ABILoweringPass` の実装と通常の ABI 規則は変更せず、
+既存の imported lambda ABI 契約（erased slot は boxed、具体的な primitive slot は raw）を
+維持する。
 
 全Swift・Golden・全Kotlin差分の結果はPRの検証欄に記録し、共通RFゲートが未完了ならTODOは `[~]` とする。

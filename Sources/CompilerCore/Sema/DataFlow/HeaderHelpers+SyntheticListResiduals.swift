@@ -1,26 +1,13 @@
 import RuntimeABI
 
-// KSP-697: List shell registration remains only as a compatibility fallback;
-// the bundled nominal declaration is now Kotlin source-backed.
-//
-// KSP-700: `get` moved to source (Stdlib/kotlin/collections/List.kt); this
-// file's `registerListGetOperator` is now a `--no-stdlib`/precompiled-metadata
-// fallback only, guarded by `bundledIndex`. `listIterator`/`listIterator(index)`
-// and `isEmpty` deliberately stay residual here — see List.kt's header comment
-// for why (a MutableList covariant-override pairing still pending KSP-1503/705,
-// and two KIR lowering tables hardcoding `kk_list_is_empty` independent of the
-// Sema member symbol, respectively). `intersect`/`union`/`subtract` (KSP-428),
-// `toMap` (KSP-429), `asSequence` (KSP-441~447), and a `contentEquals` member
-// with no real callers and no kotlin-stdlib equivalent were dead registration
-// functions with zero call sites; removed rather than left as unreachable code.
+// KSP-697: List and AbstractList nominal declarations are source-backed in the
+// bundled stdlib. KSP-700 moved the indexed/empty/list-iterator contracts to
+// collections/List.kt and collections/MutableList.kt; the Swift registrations
+// below retain only the no-stdlib/precompiled fallback for List.get and the
+// residual HOF registration delegated to the dedicated helper.
 
-/// Synthetic stdlib residuals retained after the KSP-697 nominal shell migration:
-/// List<E> interface and read-only member registrations (iterators, transform, aggregate, conversion).
-///
-/// Split out to isolate merge conflicts between parallel stdlib PRs adding new
-/// entries to this package.
+/// Synthetic List residuals retained after the KSP-700 source migration.
 extension DataFlowSemaPhase {
-
     func registerSyntheticListStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -45,7 +32,6 @@ extension DataFlowSemaPhase {
             )
         }
 
-        // Define type parameter E for List<E>
         let listTypeParamName = interner.intern("E")
         let listTypeParamFQName = listFQName + [listTypeParamName]
         let listTypeParamSymbol = symbols.define(
@@ -57,32 +43,38 @@ extension DataFlowSemaPhase {
             flags: []
         )
         let listTypeParamType = types.make(.typeParam(TypeParamType(
-            symbol: listTypeParamSymbol, nullability: .nonNull
+            symbol: listTypeParamSymbol,
+            nullability: .nonNull
         )))
         types.setNominalTypeParameterSymbols([listTypeParamSymbol], for: listInterfaceSymbol)
         types.setNominalTypeParameterVariances([.out], for: listInterfaceSymbol)
         symbols.setDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
         types.setNominalDirectSupertypes([collectionInterfaceSymbol], for: listInterfaceSymbol)
-        symbols.setSupertypeTypeArgs([.out(listTypeParamType)], for: listInterfaceSymbol, supertype: collectionInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.out(listTypeParamType)], for: listInterfaceSymbol, supertype: collectionInterfaceSymbol)
+        symbols.setSupertypeTypeArgs(
+            [.out(listTypeParamType)],
+            for: listInterfaceSymbol,
+            supertype: collectionInterfaceSymbol
+        )
+        types.setNominalSupertypeTypeArgs(
+            [.out(listTypeParamType)],
+            for: listInterfaceSymbol,
+            supertype: collectionInterfaceSymbol
+        )
 
         registerListGetOperator(
-            symbols: symbols, types: types, interner: interner,
+            symbols: symbols,
+            types: types,
+            interner: interner,
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
             listTypeParamType: listTypeParamType,
             bundledIndex: bundledIndex
         )
-        registerListContainsAndIsEmptyMembers(
-            symbols: symbols, types: types, interner: interner,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
-        )
         registerListTransformMembers(
-            symbols: symbols, types: types, interner: interner,
+            symbols: symbols,
+            types: types,
+            interner: interner,
             listFQName: listFQName,
             listInterfaceSymbol: listInterfaceSymbol,
             listTypeParamSymbol: listTypeParamSymbol,
@@ -91,26 +83,57 @@ extension DataFlowSemaPhase {
             bundledIndex: bundledIndex,
             skipStats: skipStats
         )
-        registerListIteratorMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
-        )
-        registerListIteratorAtIndexMember(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            listFQName: listFQName,
-            listInterfaceSymbol: listInterfaceSymbol,
-            listTypeParamSymbol: listTypeParamSymbol,
-            listTypeParamType: listTypeParamType
-        )
         return listInterfaceSymbol
     }
 
-    /// Register `kotlin.collections.AbstractList<E>` surface (STDLIB-COL-ABSTRACT-003).
+    /// Register the no-stdlib/precompiled fallback for `List.get`.
+    /// Bundled source owns the declaration whenever the index contains it.
+    private func registerListGetOperator(
+        symbols: SymbolTable,
+        types: TypeSystem,
+        interner: StringInterner,
+        listFQName: [InternedString],
+        listInterfaceSymbol: SymbolID,
+        listTypeParamSymbol: SymbolID,
+        listTypeParamType: TypeID,
+        bundledIndex: BundledDeclarationIndex
+    ) {
+        let listGetName = interner.intern("get")
+        let listGetFQName = listFQName + [listGetName]
+        guard symbols.lookup(fqName: listGetFQName) == nil,
+              !bundledIndex.contains(owner: listFQName, name: listGetName, arity: 1)
+        else {
+            return
+        }
+
+        let listReceiverType = types.make(.classType(ClassType(
+            classSymbol: listInterfaceSymbol,
+            args: [.out(listTypeParamType)],
+            nullability: .nonNull
+        )))
+        let listGetSymbol = symbols.define(
+            kind: .function,
+            name: listGetName,
+            fqName: listGetFQName,
+            declSite: nil,
+            visibility: .public,
+            flags: [.synthetic, .operatorFunction]
+        )
+        symbols.setParentSymbol(listInterfaceSymbol, for: listGetSymbol)
+        symbols.setExternalLinkName("__kk_list_get", for: listGetSymbol)
+        symbols.setFunctionSignature(
+            FunctionSignature(
+                receiverType: listReceiverType,
+                parameterTypes: [types.intType],
+                returnType: listTypeParamType,
+                typeParameterSymbols: [listTypeParamSymbol],
+                classTypeParameterCount: 1
+            ),
+            for: listGetSymbol
+        )
+    }
+
+    /// Register `kotlin.collections.AbstractList<E>` for fallback contexts.
     func registerSyntheticAbstractListStub(
         symbols: SymbolTable,
         types: TypeSystem,
@@ -165,10 +188,26 @@ extension DataFlowSemaPhase {
         let directSupertypes = [abstractCollectionSymbol, listInterfaceSymbol]
         symbols.setDirectSupertypes(directSupertypes, for: abstractListSymbol)
         types.setNominalDirectSupertypes(directSupertypes, for: abstractListSymbol)
-        symbols.setSupertypeTypeArgs([.out(typeParamType)], for: abstractListSymbol, supertype: abstractCollectionSymbol)
-        types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: abstractListSymbol, supertype: abstractCollectionSymbol)
-        symbols.setSupertypeTypeArgs([.out(typeParamType)], for: abstractListSymbol, supertype: listInterfaceSymbol)
-        types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: abstractListSymbol, supertype: listInterfaceSymbol)
+        symbols.setSupertypeTypeArgs(
+            [.out(typeParamType)],
+            for: abstractListSymbol,
+            supertype: abstractCollectionSymbol
+        )
+        types.setNominalSupertypeTypeArgs(
+            [.out(typeParamType)],
+            for: abstractListSymbol,
+            supertype: abstractCollectionSymbol
+        )
+        symbols.setSupertypeTypeArgs(
+            [.out(typeParamType)],
+            for: abstractListSymbol,
+            supertype: listInterfaceSymbol
+        )
+        types.setNominalSupertypeTypeArgs(
+            [.out(typeParamType)],
+            for: abstractListSymbol,
+            supertype: listInterfaceSymbol
+        )
 
         let initName = interner.intern("<init>")
         let initFQName = abstractListFQName + [initName]
@@ -199,706 +238,4 @@ extension DataFlowSemaPhase {
 
         return abstractListSymbol
     }
-
-    /// Register `operator fun get(index: Int): E` on the List interface.
-    ///
-    /// KSP-700: `get` is source-backed (Stdlib/kotlin/collections/List.kt), so
-    /// this is a `--no-stdlib`/precompiled-metadata fallback only, guarded by
-    /// `bundledIndex` (the plain `symbols.lookup` check alone would not
-    /// reliably observe a not-yet-header-collected bundled declaration).
-    private func registerListGetOperator(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listFQName: [InternedString],
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID,
-        bundledIndex: BundledDeclarationIndex
-    ) {
-        let listGetName = interner.intern("get")
-        let listGetFQName = listFQName + [listGetName]
-        guard symbols.lookup(fqName: listGetFQName) == nil,
-              !bundledIndex.contains(owner: listFQName, name: listGetName, arity: 1)
-        else { return }
-        let listReceiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let listGetSymbol = symbols.define(
-            kind: .function,
-            name: listGetName,
-            fqName: listGetFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic, .operatorFunction]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: listGetSymbol)
-        symbols.setExternalLinkName("__kk_list_get", for: listGetSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: listReceiverType,
-                parameterTypes: [types.intType],
-                returnType: listTypeParamType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: listGetSymbol
-        )
-    }
-
-    private func ensureSyntheticListIteratorStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        bundledIndex: BundledDeclarationIndex? = nil
-    ) -> SymbolID {
-        let listIteratorName = interner.intern("ListIterator")
-        let listIteratorFQName = kotlinCollectionsPkg + [listIteratorName]
-        let activeBundledIndex = bundledIndex ?? BundledSyntheticStubRegistration.bundledIndex
-        // STDLIB-SHARED-014: ListIterator may have been imported as a synthetic
-        // nominal anchor. In that case the interface exists but its members do
-        // not, so continue with the existing symbol and (re)define members.
-        var listIteratorSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: listIteratorFQName) {
-            listIteratorSymbol = existing
-        } else {
-            listIteratorSymbol = symbols.define(
-                kind: .interface,
-                name: listIteratorName,
-                fqName: listIteratorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        // Look up the parent Iterator<T> symbol.
-        let iteratorName = interner.intern("Iterator")
-        let iteratorFQName = kotlinCollectionsPkg + [iteratorName]
-        let iteratorSymbol = symbols.lookup(fqName: iteratorFQName)
-
-        // Type parameter T
-        let tpName = interner.intern("T")
-        let tpFQName = listIteratorFQName + [tpName]
-        let tpSymbol = symbols.define(
-            kind: .typeParameter,
-            name: tpName,
-            fqName: tpFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let tpType = types.make(.typeParam(TypeParamType(symbol: tpSymbol, nullability: .nonNull)))
-        types.setNominalTypeParameterSymbols([tpSymbol], for: listIteratorSymbol)
-        types.setNominalTypeParameterVariances([.out], for: listIteratorSymbol)
-
-        // Supertype: Iterator<T>
-        if let iteratorSymbol {
-            symbols.setDirectSupertypes([iteratorSymbol], for: listIteratorSymbol)
-            types.setNominalDirectSupertypes([iteratorSymbol], for: listIteratorSymbol)
-            symbols.setSupertypeTypeArgs([.out(tpType)], for: listIteratorSymbol, supertype: iteratorSymbol)
-            types.setNominalSupertypeTypeArgs([.out(tpType)], for: listIteratorSymbol, supertype: iteratorSymbol)
-        }
-
-        let listIteratorReceiverType = types.make(.classType(ClassType(
-            classSymbol: listIteratorSymbol,
-            args: [.out(tpType)],
-            nullability: .nonNull
-        )))
-
-        // hasNext(): Boolean (inherited from Iterator, registered for member resolution)
-        let hasNextName = interner.intern("hasNext")
-        let hasNextFQName = listIteratorFQName + [hasNextName]
-        if symbols.lookup(fqName: hasNextFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: hasNextName, arity: 0)
-        {
-            let hasNextSym = symbols.define(
-                kind: .function, name: hasNextName, fqName: hasNextFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: hasNextSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: types.booleanType, isSuspend: false, nullability: .nonNull
-            ))), for: hasNextSym)
-            symbols.setExternalLinkName("kk_list_iterator_hasNext", for: hasNextSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: hasNextSym
-            )
-        }
-
-        // next(): T (inherited from Iterator, registered for member resolution)
-        let nextName = interner.intern("next")
-        let nextFQName = listIteratorFQName + [nextName]
-        if symbols.lookup(fqName: nextFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: nextName, arity: 0)
-        {
-            let nextSym = symbols.define(
-                kind: .function, name: nextName, fqName: nextFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: nextSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: tpType, isSuspend: false, nullability: .nonNull
-            ))), for: nextSym)
-            symbols.setExternalLinkName("kk_list_iterator_next", for: nextSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: tpType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: nextSym
-            )
-        }
-
-        // hasPrevious(): Boolean
-        let hasPreviousName = interner.intern("hasPrevious")
-        let hasPreviousFQName = listIteratorFQName + [hasPreviousName]
-        if symbols.lookup(fqName: hasPreviousFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: hasPreviousName, arity: 0)
-        {
-            let hasPreviousSym = symbols.define(
-                kind: .function, name: hasPreviousName, fqName: hasPreviousFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: hasPreviousSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: types.booleanType, isSuspend: false, nullability: .nonNull
-            ))), for: hasPreviousSym)
-            symbols.setExternalLinkName("kk_list_iterator_hasPrevious", for: hasPreviousSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: hasPreviousSym
-            )
-        }
-
-        // previous(): T
-        let previousName = interner.intern("previous")
-        let previousFQName = listIteratorFQName + [previousName]
-        if symbols.lookup(fqName: previousFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: previousName, arity: 0)
-        {
-            let previousSym = symbols.define(
-                kind: .function, name: previousName, fqName: previousFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: previousSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: tpType, isSuspend: false, nullability: .nonNull
-            ))), for: previousSym)
-            symbols.setExternalLinkName("kk_list_iterator_previous", for: previousSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: tpType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: previousSym
-            )
-        }
-
-        // nextIndex(): Int
-        let nextIndexName = interner.intern("nextIndex")
-        let nextIndexFQName = listIteratorFQName + [nextIndexName]
-        if symbols.lookup(fqName: nextIndexFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: nextIndexName, arity: 0)
-        {
-            let nextIndexSym = symbols.define(
-                kind: .function, name: nextIndexName, fqName: nextIndexFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: nextIndexSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: types.intType, isSuspend: false, nullability: .nonNull
-            ))), for: nextIndexSym)
-            symbols.setExternalLinkName("kk_list_iterator_nextIndex", for: nextIndexSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: types.intType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: nextIndexSym
-            )
-        }
-
-        // previousIndex(): Int
-        let previousIndexName = interner.intern("previousIndex")
-        let previousIndexFQName = listIteratorFQName + [previousIndexName]
-        if symbols.lookup(fqName: previousIndexFQName) == nil,
-           !activeBundledIndex.contains(owner: listIteratorFQName, name: previousIndexName, arity: 0)
-        {
-            let previousIndexSym = symbols.define(
-                kind: .function, name: previousIndexName, fqName: previousIndexFQName,
-                declSite: nil, visibility: .public, flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listIteratorSymbol, for: previousIndexSym)
-            symbols.setPropertyType(types.make(.functionType(FunctionType(
-                params: [], returnType: types.intType, isSuspend: false, nullability: .nonNull
-            ))), for: previousIndexSym)
-            symbols.setExternalLinkName("kk_list_iterator_previousIndex", for: previousIndexSym)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listIteratorReceiverType,
-                    parameterTypes: [],
-                    returnType: types.intType,
-                    typeParameterSymbols: [tpSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: previousIndexSym
-            )
-        }
-
-        return listIteratorSymbol
-    }
-
-    /// Register `MutableListIterator<T>` extending `ListIterator<T>` and `MutableIterator<T>` (STDLIB-COL-TYPE-006).
-    private func ensureSyntheticMutableListIteratorStub(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        bundledIndex: BundledDeclarationIndex? = nil
-    ) -> SymbolID {
-        let mutableListIteratorName = interner.intern("MutableListIterator")
-        let mutableListIteratorFQName = kotlinCollectionsPkg + [mutableListIteratorName]
-        let activeBundledIndex = bundledIndex ?? BundledSyntheticStubRegistration.bundledIndex
-        // STDLIB-SHARED-014: MutableListIterator may have been imported as a
-        // synthetic nominal anchor with missing members.
-        var mutableListIteratorSymbol: SymbolID
-        if let existing = symbols.lookup(fqName: mutableListIteratorFQName) {
-            mutableListIteratorSymbol = existing
-        } else {
-            mutableListIteratorSymbol = symbols.define(
-                kind: .interface,
-                name: mutableListIteratorName,
-                fqName: mutableListIteratorFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-        }
-
-        let listIteratorSymbol = ensureSyntheticListIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-        let mutableIteratorSymbol = symbols.lookup(
-            fqName: kotlinCollectionsPkg + [interner.intern("MutableIterator")]
-        )
-
-        let typeParamName = interner.intern("T")
-        let typeParamFQName = mutableListIteratorFQName + [typeParamName]
-        let typeParamSymbol = symbols.define(
-            kind: .typeParameter,
-            name: typeParamName,
-            fqName: typeParamFQName,
-            declSite: nil,
-            visibility: .private,
-            flags: []
-        )
-        let typeParamType = types.make(.typeParam(TypeParamType(
-            symbol: typeParamSymbol,
-            nullability: .nonNull
-        )))
-        types.setNominalTypeParameterSymbols([typeParamSymbol], for: mutableListIteratorSymbol)
-        types.setNominalTypeParameterVariances([.invariant], for: mutableListIteratorSymbol)
-
-        var directSupertypes = [listIteratorSymbol]
-        if let mutableIteratorSymbol {
-            directSupertypes.append(mutableIteratorSymbol)
-        }
-        symbols.setDirectSupertypes(directSupertypes, for: mutableListIteratorSymbol)
-        types.setNominalDirectSupertypes(directSupertypes, for: mutableListIteratorSymbol)
-        symbols.setSupertypeTypeArgs([.out(typeParamType)], for: mutableListIteratorSymbol, supertype: listIteratorSymbol)
-        types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: mutableListIteratorSymbol, supertype: listIteratorSymbol)
-        if let mutableIteratorSymbol {
-            symbols.setSupertypeTypeArgs([.out(typeParamType)], for: mutableListIteratorSymbol, supertype: mutableIteratorSymbol)
-            types.setNominalSupertypeTypeArgs([.out(typeParamType)], for: mutableListIteratorSymbol, supertype: mutableIteratorSymbol)
-        }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListIteratorSymbol,
-            args: [.invariant(typeParamType)],
-            nullability: .nonNull
-        )))
-
-        func registerMutationMember(name: String) {
-            let memberName = interner.intern(name)
-            let memberFQName = mutableListIteratorFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil,
-                  !activeBundledIndex.contains(owner: mutableListIteratorFQName, name: memberName, arity: 1)
-            else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(mutableListIteratorSymbol, for: memberSymbol)
-            let valueName = interner.intern("element")
-            let valueSymbol = symbols.define(
-                kind: .valueParameter,
-                name: valueName,
-                fqName: memberFQName + [valueName],
-                declSite: nil,
-                visibility: .private,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(memberSymbol, for: valueSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [typeParamType],
-                    returnType: types.unitType,
-                    valueParameterSymbols: [valueSymbol],
-                    valueParameterHasDefaultValues: [false],
-                    valueParameterIsVararg: [false],
-                    typeParameterSymbols: [typeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        func registerRemoveMember() {
-            // BUG-232: `MutableIterator.remove` is already declared (and, for a
-            // native RuntimeListIteratorBox, itable-wired) on
-            // kotlin.collections.MutableIterator, one of MutableListIterator's
-            // direct supertypes set above. Redeclaring it here a second time,
-            // directly on MutableListIterator, shadowed that inherited member
-            // for any MutableListIterator-typed call site (member lookup
-            // prefers the closer declaration): the call resolved to this
-            // synthetic duplicate instead, which never round-trips through a
-            // stdlib-only build (nothing exercises it while compiling just the
-            // bundled sources, so it is missing from imported kklib metadata)
-            // and so silently no-ops instead of invoking `remove()`. Only
-            // synthesize a stand-in when MutableIterator itself could not be
-            // resolved (no bundled/imported source at all), so `.remove()` is
-            // not left completely unresolvable in that narrow fallback case.
-            guard mutableIteratorSymbol == nil else { return }
-            let memberName = interner.intern("remove")
-            let memberFQName = mutableListIteratorFQName + [memberName]
-            guard symbols.lookup(fqName: memberFQName) == nil else { return }
-            let memberSymbol = symbols.define(
-                kind: .function,
-                name: memberName,
-                fqName: memberFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(mutableListIteratorSymbol, for: memberSymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: receiverType,
-                    parameterTypes: [],
-                    returnType: types.unitType,
-                    valueParameterSymbols: [],
-                    valueParameterHasDefaultValues: [],
-                    valueParameterIsVararg: [],
-                    typeParameterSymbols: [typeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: memberSymbol
-            )
-        }
-
-        registerMutationMember(name: "add")
-        registerMutationMember(name: "set")
-        registerRemoveMember()
-
-        return mutableListIteratorSymbol
-    }
-
-    /// STDLIB-538: Register `List<E>.listIterator(): ListIterator<E>`.
-    private func registerListIteratorMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        listFQName: [InternedString],
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
-    ) {
-        let listIteratorInterfaceSymbol = ensureSyntheticListIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg,
-            bundledIndex: BundledSyntheticStubRegistration.bundledIndex
-        )
-
-        let memberName = interner.intern("listIterator")
-        let memberFQName = listFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let listReceiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: listIteratorInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_iterator", for: memberSymbol)
-        symbols.setPropertyType(types.make(.functionType(FunctionType(
-            params: [], returnType: returnType, isSuspend: false, nullability: .nonNull
-        ))), for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: listReceiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register `List<E>.listIterator(index: Int): ListIterator<E>`.
-    private func registerListIteratorAtIndexMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        listFQName: [InternedString],
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
-    ) {
-        let listIteratorInterfaceSymbol = ensureSyntheticListIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-
-        let memberName = interner.intern("listIterator")
-        let memberFQName = listFQName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.functionSignature(for: symbolID)?.parameterTypes == [types.intType]
-        }) == nil else { return }
-
-        let listReceiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: listIteratorInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(listInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_iterator_at", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: listReceiverType,
-                parameterTypes: [types.intType],
-                returnType: returnType,
-                typeParameterSymbols: [listTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register `MutableList<E>.listIterator(): MutableListIterator<E>`.
-    func registerMutableListIteratorMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let mutableListIteratorSymbol = ensureSyntheticMutableListIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-
-        let memberName = interner.intern("listIterator")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookup(fqName: memberFQName) == nil else { return }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: mutableListIteratorSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_iterator", for: memberSymbol)
-        symbols.setPropertyType(types.make(.functionType(FunctionType(
-            params: [], returnType: returnType, isSuspend: false, nullability: .nonNull
-        ))), for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [],
-                returnType: returnType,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register `MutableList<E>.listIterator(index: Int): MutableListIterator<E>`.
-    func registerMutableListIteratorAtIndexMember(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        kotlinCollectionsPkg: [InternedString],
-        mutableListFQName: [InternedString],
-        mutableListInterfaceSymbol: SymbolID,
-        mlTypeParamSymbol: SymbolID,
-        mlTypeParamType: TypeID
-    ) {
-        let mutableListIteratorSymbol = ensureSyntheticMutableListIteratorStub(
-            symbols: symbols, types: types, interner: interner,
-            kotlinCollectionsPkg: kotlinCollectionsPkg
-        )
-
-        let memberName = interner.intern("listIterator")
-        let memberFQName = mutableListFQName + [memberName]
-        guard symbols.lookupAll(fqName: memberFQName).first(where: { symbolID in
-            symbols.functionSignature(for: symbolID)?.parameterTypes == [types.intType]
-        }) == nil else { return }
-
-        let receiverType = types.make(.classType(ClassType(
-            classSymbol: mutableListInterfaceSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-        let returnType = types.make(.classType(ClassType(
-            classSymbol: mutableListIteratorSymbol,
-            args: [.invariant(mlTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let memberSymbol = symbols.define(
-            kind: .function,
-            name: memberName,
-            fqName: memberFQName,
-            declSite: nil,
-            visibility: .public,
-            flags: [.synthetic]
-        )
-        symbols.setParentSymbol(mutableListInterfaceSymbol, for: memberSymbol)
-        symbols.setExternalLinkName("kk_list_iterator_at", for: memberSymbol)
-        symbols.setFunctionSignature(
-            FunctionSignature(
-                receiverType: receiverType,
-                parameterTypes: [types.intType],
-                returnType: returnType,
-                typeParameterSymbols: [mlTypeParamSymbol],
-                classTypeParameterCount: 1
-            ),
-            for: memberSymbol
-        )
-    }
-
-    /// Register the List-specific contains/isEmpty surface.
-    private func registerListContainsAndIsEmptyMembers(
-        symbols: SymbolTable,
-        types: TypeSystem,
-        interner: StringInterner,
-        listFQName: [InternedString],
-        listInterfaceSymbol: SymbolID,
-        listTypeParamSymbol: SymbolID,
-        listTypeParamType: TypeID
-    ) {
-        let listReceiverType = types.make(.classType(ClassType(
-            classSymbol: listInterfaceSymbol,
-            args: [.out(listTypeParamType)],
-            nullability: .nonNull
-        )))
-
-        let isEmptyName = interner.intern("isEmpty")
-        let isEmptyFQName = listFQName + [isEmptyName]
-        if symbols.lookup(fqName: isEmptyFQName) == nil {
-            let isEmptySymbol = symbols.define(
-                kind: .function,
-                name: isEmptyName,
-                fqName: isEmptyFQName,
-                declSite: nil,
-                visibility: .public,
-                flags: [.synthetic]
-            )
-            symbols.setParentSymbol(listInterfaceSymbol, for: isEmptySymbol)
-            symbols.setExternalLinkName("kk_list_is_empty", for: isEmptySymbol)
-            symbols.setFunctionSignature(
-                FunctionSignature(
-                    receiverType: listReceiverType,
-                    parameterTypes: [],
-                    returnType: types.booleanType,
-                    typeParameterSymbols: [listTypeParamSymbol],
-                    classTypeParameterCount: 1
-                ),
-                for: isEmptySymbol
-            )
-        }
-
-    }
-
 }

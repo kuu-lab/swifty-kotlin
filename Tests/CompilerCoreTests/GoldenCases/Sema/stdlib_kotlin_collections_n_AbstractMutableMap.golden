@@ -30,7 +30,7 @@ expr e@17:20 call callee=e@17:20#1 args=[] type=kotlin.collections.Map<String, o
 expr e@17:5#1 memberCall recv=e@17:5 callee=putAll args=[_:e@17:20] type=Unit call=kotlin.collections.MutableMap.putAll[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=kotlin.collections.Map<out T0,out T1>;gen=2]
 expr e@18:5 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local]
 expr e@18:20 name(missing) type=String ref=golden.sema.inheritedMapSurface.$2.missing[kind=vparam]
-expr e@18:5#1 memberCall recv=e@18:5 callee=remove args=[_:e@18:20] type=Int? call=kotlin.collections.remove[kind=fun;recv=kotlin.collections.MutableMap<out T0,T1>;params=T0;gen=2] targs=[String,Int]
+expr e@18:5#1 memberCall recv=e@18:5 callee=remove args=[_:e@18:20] type=Int? call=kotlin.collections.MutableMap.remove[kind=fun;recv=kotlin.collections.MutableMap<T0,T1>;params=T0;gen=2] targs=[String,Int]
 expr e@19:19 name(mutable) type=kotlin.collections.MutableMap<String, Int> ref=__local_1.mutable[kind=local]
 expr e@19:19#1 memberCall recv=e@19:19 callee=keys args=[] type=kotlin.collections.Set<String> ref=kotlin.collections.Map.keys[kind=prop]
 expr e@19:5 localDecl keyView mutable=0 type=_ init=e@19:19#1 type=Unit ref=__local_3.keyView[kind=local]

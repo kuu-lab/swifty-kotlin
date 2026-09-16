@@ -556,8 +556,7 @@ extension CallTypeChecker {
             {
                 let calleeStr = interner.resolve(calleeName)
                 let resultType: TypeID? = switch calleeStr {
-                case "repeat", "drop", "take", "takeLast", "dropLast",
-                     "padStart", "padEnd":
+                case "repeat", "drop", "take", "takeLast", "dropLast":
                     sema.types.stringType
                 case "toInt":
                     sema.types.intType
@@ -1059,10 +1058,6 @@ extension CallTypeChecker {
                 case "indexOf" where sema.types.isSubtype(arg1Type, sema.types.intType):
                     sema.types.intType
                 case "substring" where sema.types.isSubtype(arg1Type, sema.types.intType):
-                    sema.types.stringType
-                case "padStart" where arg1Type == sema.types.charType:
-                    sema.types.stringType
-                case "padEnd" where arg1Type == sema.types.charType:
                     sema.types.stringType
                 default:
                     nil

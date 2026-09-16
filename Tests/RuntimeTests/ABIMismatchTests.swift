@@ -606,57 +606,22 @@ struct ABIMismatchTests {
     }
 
     @Test
-    func kkStringPadPointerABIRemoved() {
+    func kkStringPadABIRemoved() {
         let legacyNames = [
             "kk_string_padStart_default",
             "kk_string_padEnd_default",
             "kk_string_padStart",
             "kk_string_padEnd",
+            "kk_string_padStart_default_flat",
+            "kk_string_padEnd_default_flat",
+            "kk_string_padStart_flat",
+            "kk_string_padEnd_flat",
         ]
         for legacyName in legacyNames {
             #expect(
                 !(RuntimeABISpec.allFunctions.contains { $0.name == legacyName }),
-                "\(legacyName) should use the flattened string ABI instead of the legacy pointer ABI"
+                "\(legacyName) should be removed because String pad APIs are source-backed"
             )
-        }
-    }
-
-    @Test
-    func kkStringPadDefaultFlatSignatures() throws {
-        for name in ["kk_string_padStart_default_flat", "kk_string_padEnd_default_flat"] {
-            let spec = try requireSpec(name)
-            #expect(spec.returnType == .nullableUInt8Pointer)
-            #expect(spec.parameters.count == 8)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
-        }
-    }
-
-    @Test
-    func kkStringPadExplicitFlatSignatures() throws {
-        for name in ["kk_string_padStart_flat", "kk_string_padEnd_flat"] {
-            let spec = try requireSpec(name)
-            #expect(spec.returnType == .nullableUInt8Pointer)
-            #expect(spec.parameters.count == 9)
-            #expect(spec.parameters.map(\.type) == [
-                .nullableConstUInt8Pointer,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .intptr,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-                .nullableIntptrPointer,
-            ])
         }
     }
 

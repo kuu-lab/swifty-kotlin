@@ -139,7 +139,7 @@ struct MapAsSourceMigrationTests {
             #expect(!mapInfo.flags.contains(.synthetic))
 
             let propertyCases: [(name: String, link: String)] = [
-                ("size", "kk_map_size"),
+                ("size", "__kk_map_size"),
                 ("keys", "__kk_map_keys"),
                 ("values", "__kk_map_values"),
                 ("entries", "__kk_map_entries"),
@@ -169,7 +169,7 @@ struct MapAsSourceMigrationTests {
             }
 
             let functionCases: [(name: String, arity: Int, link: String)] = [
-                ("isEmpty", 0, "kk_map_is_empty"),
+                ("isEmpty", 0, "__kk_map_is_empty"),
                 ("get", 1, "__kk_map_get"),
             ]
             for testCase in functionCases {
