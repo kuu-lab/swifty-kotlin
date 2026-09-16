@@ -1,0 +1,123 @@
+symbol fq=golden.sema.charSequenceMin.$0.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinBy.$1.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinByOrNull.$2.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinByOrNull[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char?
+symbol fq=golden.sema.charSequenceMinBy[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char
+symbol fq=golden.sema.charSequenceMinOfComparable.$3.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfComparable[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Int
+symbol fq=golden.sema.charSequenceMinOfDouble.$4.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfDouble[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Double
+symbol fq=golden.sema.charSequenceMinOfFloat.$5.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfFloat[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Float
+symbol fq=golden.sema.charSequenceMinOfOrNullComparable.$6.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfOrNullComparable[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Int?
+symbol fq=golden.sema.charSequenceMinOfOrNullDouble.$7.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfOrNullDouble[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Double?
+symbol fq=golden.sema.charSequenceMinOfOrNullFloat.$8.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfOrNullFloat[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Float?
+symbol fq=golden.sema.charSequenceMinOfWith.$9.comparator[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfWith.$9.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfWithOrNull.$10.comparator[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfWithOrNull.$10.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOfWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.Comparator<Int>] ret=Int?
+symbol fq=golden.sema.charSequenceMinOfWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.Comparator<Int>] ret=Int
+symbol fq=golden.sema.charSequenceMinOrNull.$11.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinOrNull[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char?
+symbol fq=golden.sema.charSequenceMinWith.$12.comparator[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinWith.$12.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinWithOrNull.$13.comparator[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinWithOrNull.$13.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.charSequenceMinWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.Comparator<Char>] ret=Char?
+symbol fq=golden.sema.charSequenceMinWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence,kotlin.Comparator<Char>] ret=Char
+symbol fq=golden.sema.charSequenceMin[kind=fun;params=kotlin.CharSequence] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.CharSequence] ret=Char
+symbol fq=golden.sema.stringBuilderMinOrNull.$14.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.stringBuilderMinOrNull[kind=fun;params=kotlin.text.StringBuilder] kind=function vis=public flags=_ sig=recv=_ params=[kotlin.text.StringBuilder] ret=Char?
+symbol fq=golden.sema.stringMin.$15.source[kind=vparam] kind=valueParameter vis=private flags=_
+symbol fq=golden.sema.stringMin[kind=fun;params=String] kind=function vis=public flags=_ sig=recv=_ params=[String] ret=Char
+file fstdlib_kotlin_text_CharSequence_min package=golden.sema
+  decl golden.sema.charSequenceMin[kind=fun;params=kotlin.CharSequence] fun charSequenceMin sym=golden.sema.charSequenceMin[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinBy[kind=fun;params=kotlin.CharSequence] fun charSequenceMinBy sym=golden.sema.charSequenceMinBy[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinByOrNull[kind=fun;params=kotlin.CharSequence] fun charSequenceMinByOrNull sym=golden.sema.charSequenceMinByOrNull[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfDouble[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfDouble sym=golden.sema.charSequenceMinOfDouble[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfFloat[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfFloat sym=golden.sema.charSequenceMinOfFloat[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfComparable[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfComparable sym=golden.sema.charSequenceMinOfComparable[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfOrNullDouble[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfOrNullDouble sym=golden.sema.charSequenceMinOfOrNullDouble[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfOrNullFloat[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfOrNullFloat sym=golden.sema.charSequenceMinOfOrNullFloat[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfOrNullComparable[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOfOrNullComparable sym=golden.sema.charSequenceMinOfOrNullComparable[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinOfWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>] fun charSequenceMinOfWith sym=golden.sema.charSequenceMinOfWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>]
+  decl golden.sema.charSequenceMinOfWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>] fun charSequenceMinOfWithOrNull sym=golden.sema.charSequenceMinOfWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Int>]
+  decl golden.sema.charSequenceMinOrNull[kind=fun;params=kotlin.CharSequence] fun charSequenceMinOrNull sym=golden.sema.charSequenceMinOrNull[kind=fun;params=kotlin.CharSequence]
+  decl golden.sema.charSequenceMinWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>] fun charSequenceMinWith sym=golden.sema.charSequenceMinWith[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>]
+  decl golden.sema.charSequenceMinWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>] fun charSequenceMinWithOrNull sym=golden.sema.charSequenceMinWithOrNull[kind=fun;params=kotlin.CharSequence,kotlin.Comparator<Char>]
+  decl golden.sema.stringMin[kind=fun;params=String] fun stringMin sym=golden.sema.stringMin[kind=fun;params=String]
+  decl golden.sema.stringBuilderMinOrNull[kind=fun;params=kotlin.text.StringBuilder] fun stringBuilderMinOrNull sym=golden.sema.stringBuilderMinOrNull[kind=fun;params=kotlin.text.StringBuilder]
+expr e@3:51 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMin.$0.source[kind=vparam]
+expr e@3:51#1 memberCall recv=e@3:51 callee=min args=[] type=Char call=kotlin.text.min[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@5:53 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinBy.$1.source[kind=vparam]
+expr e@5:68 name(it) type=Char ref=s-0
+expr e@5:68#1 memberCall recv=e@5:68 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@5:66 lambda params=[] body=e@5:68#1 label=minBy type=(Char) -> Int
+expr e@5:53#1 memberCall recv=e@5:53 callee=minBy args=[_:e@5:66] type=Char call=kotlin.text.minBy[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@8:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinByOrNull.$2.source[kind=vparam]
+expr e@8:26 name(it) type=Char ref=s-1
+expr e@8:26#1 memberCall recv=e@8:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@8:24 lambda params=[] body=e@8:26#1 label=minByOrNull type=(Char) -> Int
+expr e@8:5#1 memberCall recv=e@8:5 callee=minByOrNull args=[_:e@8:24] type=Char? call=kotlin.text.minByOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@11:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfDouble.$4.source[kind=vparam]
+expr e@11:20 name(it) type=Char ref=s-2
+expr e@11:20#1 memberCall recv=e@11:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@11:20#2 memberCall recv=e@11:20#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=]
+expr e@11:18 lambda params=[] body=e@11:20#2 label=minOf type=(Char) -> Any
+expr e@11:5#1 memberCall recv=e@11:5 callee=minOf args=[_:e@11:18] type=Double call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double}]
+expr e@14:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfFloat.$5.source[kind=vparam]
+expr e@14:20 name(it) type=Char ref=s-3
+expr e@14:20#1 memberCall recv=e@14:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@14:20#2 memberCall recv=e@14:20#1 callee=toFloat args=[] type=Float
+expr e@14:18 lambda params=[] body=e@14:20#2 label=minOf type=(Char) -> Any
+expr e@14:5#1 memberCall recv=e@14:5 callee=minOf args=[_:e@14:18] type=Float call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float}]
+expr e@17:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfComparable.$3.source[kind=vparam]
+expr e@17:20 name(it) type=Char ref=s-4
+expr e@17:20#1 memberCall recv=e@17:20 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@17:18 lambda params=[] body=e@17:20#1 label=minOf type=(Char) -> Any
+expr e@17:5#1 memberCall recv=e@17:5 callee=minOf args=[_:e@17:18] type=Int call=kotlin.text.minOf[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@20:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullDouble.$7.source[kind=vparam]
+expr e@20:26 name(it) type=Char ref=s-5
+expr e@20:26#1 memberCall recv=e@20:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@20:26#2 memberCall recv=e@20:26#1 callee=toDouble args=[] type=Double call=kotlin.toDouble[kind=fun;recv=Int;params=]
+expr e@20:24 lambda params=[] body=e@20:26#2 label=minOfOrNull type=(Char) -> Any
+expr e@20:5#1 memberCall recv=e@20:5 callee=minOfOrNull args=[_:e@20:24] type=Double? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Double}]
+expr e@23:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullFloat.$8.source[kind=vparam]
+expr e@23:26 name(it) type=Char ref=s-6
+expr e@23:26#1 memberCall recv=e@23:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@23:26#2 memberCall recv=e@23:26#1 callee=toFloat args=[] type=Float
+expr e@23:24 lambda params=[] body=e@23:26#2 label=minOfOrNull type=(Char) -> Any
+expr e@23:5#1 memberCall recv=e@23:5 callee=minOfOrNull args=[_:e@23:24] type=Float? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=Float}]
+expr e@26:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfOrNullComparable.$6.source[kind=vparam]
+expr e@26:26 name(it) type=Char ref=s-7
+expr e@26:26#1 memberCall recv=e@26:26 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@26:24 lambda params=[] body=e@26:26#1 label=minOfOrNull type=(Char) -> Any
+expr e@26:5#1 memberCall recv=e@26:5 callee=minOfOrNull args=[_:e@26:24] type=Int? call=kotlin.text.minOfOrNull[kind=fun;recv=kotlin.CharSequence;params=fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@29:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfWith.$9.source[kind=vparam]
+expr e@29:22 name(comparator) type=kotlin.Comparator<Int> ref=golden.sema.charSequenceMinOfWith.$9.comparator[kind=vparam]
+expr e@29:36 name(it) type=Char ref=s-8
+expr e@29:36#1 memberCall recv=e@29:36 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@29:34 lambda params=[] body=e@29:36#1 label=minOfWith type=(Char) -> Int
+expr e@29:5#1 memberCall recv=e@29:5 callee=minOfWith args=[_:e@29:22,_:e@29:34] type=Int call=kotlin.text.minOfWith[kind=fun;recv=kotlin.CharSequence;params=kotlin.Comparator<in T0>,fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@32:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOfWithOrNull.$10.source[kind=vparam]
+expr e@32:28 name(comparator) type=kotlin.Comparator<Int> ref=golden.sema.charSequenceMinOfWithOrNull.$10.comparator[kind=vparam]
+expr e@32:42 name(it) type=Char ref=s-9
+expr e@32:42#1 memberCall recv=e@32:42 callee=code args=[] type=Int call=kotlin.text.code[kind=fun;recv=Char;params=]
+expr e@32:40 lambda params=[] body=e@32:42#1 label=minOfWithOrNull type=(Char) -> Int
+expr e@32:5#1 memberCall recv=e@32:5 callee=minOfWithOrNull args=[_:e@32:28,_:e@32:40] type=Int? call=kotlin.text.minOfWithOrNull[kind=fun;recv=kotlin.CharSequence;params=kotlin.Comparator<in T0>,fn{p=Char;ret=T0};gen=1] targs=[Int]
+expr e@34:58 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinOrNull.$11.source[kind=vparam]
+expr e@34:58#1 memberCall recv=e@34:58 callee=minOrNull args=[] type=Char? call=kotlin.text.minOrNull[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@37:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinWith.$12.source[kind=vparam]
+expr e@37:20 name(comparator) type=kotlin.Comparator<Char> ref=golden.sema.charSequenceMinWith.$12.comparator[kind=vparam]
+expr e@37:5#1 memberCall recv=e@37:5 callee=minWith args=[_:e@37:20] type=Char call=kotlin.text.minWith[kind=fun;recv=kotlin.CharSequence;params=kotlin.Comparator<in Char>]
+expr e@40:5 name(source) type=kotlin.CharSequence ref=golden.sema.charSequenceMinWithOrNull.$13.source[kind=vparam]
+expr e@40:26 name(comparator) type=kotlin.Comparator<Char> ref=golden.sema.charSequenceMinWithOrNull.$13.comparator[kind=vparam]
+expr e@40:5#1 memberCall recv=e@40:5 callee=minWithOrNull args=[_:e@40:26] type=Char? call=kotlin.text.minWithOrNull[kind=fun;recv=kotlin.CharSequence;params=kotlin.Comparator<in Char>]
+expr e@42:39 name(source) type=String ref=golden.sema.stringMin.$15.source[kind=vparam]
+expr e@42:39#1 memberCall recv=e@42:39 callee=min args=[] type=Char call=kotlin.text.min[kind=fun;recv=kotlin.CharSequence;params=]
+expr e@44:60 name(source) type=kotlin.text.StringBuilder ref=golden.sema.stringBuilderMinOrNull.$14.source[kind=vparam]
+expr e@44:60#1 memberCall recv=e@44:60 callee=minOrNull args=[] type=Char? call=kotlin.text.minOrNull[kind=fun;recv=kotlin.CharSequence;params=]

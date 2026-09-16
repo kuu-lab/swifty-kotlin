@@ -3390,7 +3390,11 @@
     - `kotlin.text.maxWith` — fun CharSequence.maxWith(Comparator): Char  -- `final fun (kotlin/CharSequence).kotlin.text/maxWith(kotlin/Comparator<in kotlin/Char>): kotlin/Char`
     - `kotlin.text.maxWithOrNull` — fun CharSequence.maxWithOrNull(Comparator): Char  -- `final fun (kotlin/CharSequence).kotlin.text/maxWithOrNull(kotlin/Comparator<in kotlin/Char>): kotlin/Char?`
 
-- [ ] KSP-1388: kotlin.text.CharSequence.min-family の未実装 stdlib API を実装する（14 件）
+- [~] KSP-1388: kotlin.text.CharSequence.min-family の未実装 stdlib API を実装する（14 件）
+  - 実装済み（共通ゲート保留）: `StringHOF.kt` に `CharSequence` receiver の min/minBy/minByOrNull、minOf/minOfOrNull の Double/Float/Comparable overload、minOfWith/minOfWithOrNull、minOrNull/minWith/minWithOrNull の14 APIを Kotlin source-backed 実装として追加。空文字列の throw/null、先頭要素の tie、selector の singleton short-circuit、Comparator の比較方向と `CharSequence` の indexed `get` 契約を固定した。
+  - bridge/stub 監査: 対象 CharSequence API に対応する `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリは存在せず、削除対象なし。既存の collection/list/sequence min runtime routing は別 receiver のため維持した。`minWith` / `minWithOrNull` は top-level `kotlin.comparisons` との名前衝突と `Comparator<in Char>` variance のため通常候補解決が失敗するので、既存の source-backed String member direct-bind helper を対象名・receiverに限定して再利用した。
+  - 検証（2026-09-16）: `swift build` PASS。要求の artifact-based Sema Golden 更新コマンド（94 cases）PASS、生成 Golden に error 診断なし。`DIFF_STDLIB_LIBRARY=/tmp/kuu405-current-stdlib.kklib bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_min.kt` PASS。`bash Scripts/check_todo_ids.sh` PASS、`bash Scripts/validate_runtime_abi_links.sh` 4/4 PASS、`git diff --check` PASS。
+  - 保留ゲート: 全 Golden / 全 diff はローカル未実行のため、TODO は `[~]` として記録する。
   - 対象: `kotlin.text` / receiver `CharSequence` / family `min`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。

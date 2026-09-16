@@ -1421,6 +1421,40 @@ extension CallTypeChecker {
             return boundType
         }
 
+        let stringMemberName = interner.resolve(calleeName)
+        if ["minWith", "minWithOrNull"].contains(stringMemberName),
+           isSyntheticStringLikeType(lookupReceiverType, sema: sema),
+           args.count == 1,
+           let comparatorElementType = resolvedComparatorElementType(
+               of: argTypes[0],
+               sema: sema,
+               interner: interner
+           ),
+           sema.types.nullability(of: argTypes[0]) != .nullable,
+           sema.types.isSubtype(sema.types.charType, comparatorElementType)
+        {
+            // The source-backed Comparator<in Char> parameter is valid for a
+            // Comparator<Char> argument, but the regular resolver currently
+            // rejects that variance. Bind the uniquely named CharSequence
+            // declaration after the normal candidates have been considered.
+            bindSyntheticStringMemberDirectlyIfAvailable(
+                id,
+                calleeName: calleeName,
+                argumentCount: args.count,
+                receiverType: lookupReceiverType,
+                sema: sema,
+                interner: interner
+            )
+            if sema.bindings.callBindings[id] != nil {
+                let resultType = stringMemberName == "minWithOrNull"
+                    ? sema.types.make(.primitive(.char, .nullable))
+                    : sema.types.make(.primitive(.char, .nonNull))
+                let finalType = safeCall ? sema.types.makeNullable(resultType) : resultType
+                sema.bindings.bindExprType(id, type: finalType)
+                return finalType
+            }
+        }
+
         let (visible, invisible) = ctx.filterByVisibility(allCandidates)
         var candidates = preferMostSpecificMemberReceiverCandidates(
             visible,
