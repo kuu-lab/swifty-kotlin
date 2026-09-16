@@ -1398,13 +1398,14 @@
     - `kotlin.concurrent.AtomicLongArray.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
     - `kotlin.concurrent.AtomicLongArray.<init>` — constructor (LongArray)  -- `constructor <init>(kotlin/LongArray)`
 
-- [ ] KSP-1094: kotlin.concurrent.AtomicLongArray.AtomicLongArray の未実装 stdlib API を実装する（4 件）
+- [x] KSP-1094: kotlin.concurrent.AtomicLongArray.AtomicLongArray の未実装 stdlib API を実装する（4 件）
   - 対象: `kotlin.concurrent.AtomicLongArray` / receiver `AtomicLongArray`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/AtomicLongArray/AtomicLongArray.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_concurrent_AtomicLongArray_AtomicLongArray_n.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicLongArray_AtomicLongArray_n.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_concurrent_AtomicLongArray_AtomicLongArray_n.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
+  - 完了根拠: `AtomicLongArray/AtomicLongArray.kt` に `compareAndExchange` / `compareAndSet` / `length` / `toString` を source-backed class member として追加し、既存の `*At` / `size` Runtime bridge を再利用した。新規 Runtime / ABI / 合成 stub は不要で、`Any.toString()` への誤解決を避けるためクラス宣言を実装ファイルへ移した。
   - 未実装シンボル一覧:
     - `kotlin.concurrent.AtomicLongArray.compareAndExchange` — fun AtomicLongArray.compareAndExchange(Int, Long, Long): Long  -- `final fun compareAndExchange(kotlin/Int, kotlin/Long, kotlin/Long): kotlin/Long`
     - `kotlin.concurrent.AtomicLongArray.compareAndSet` — fun AtomicLongArray.compareAndSet(Int, Long, Long): Boolean  -- `final fun compareAndSet(kotlin/Int, kotlin/Long, kotlin/Long): kotlin/Boolean`
