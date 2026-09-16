@@ -790,10 +790,10 @@ public func kk_op_is(_ value: Int, _ typeToken: Int) -> Int {
         // ABILoweringPass's typeCheckValueCallees); see also the follow-up
         // tracking sequenceOf's missing element boxing.
         //
-        // Even when boxed, Int/UInt/UByte/UShort all box via kk_box_int into
-        // the same RuntimeIntBox (see BoxingCalleeTable), so they remain
-        // indistinguishable from each other here — a separate, pre-existing
-        // limitation of the box representation itself, not fixed by this check.
+        // Even when boxed, Int/UInt/UByte/UShort use the same RuntimeIntBox
+        // representation (through distinct boxing entry points that preserve
+        // hashCode metadata), so they remain indistinguishable from each other
+        // here — a separate, pre-existing limitation of runtime type checks.
         guard let ptr = UnsafeMutableRawPointer(bitPattern: value) else {
             return 1
         }

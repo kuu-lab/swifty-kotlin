@@ -319,6 +319,11 @@ final class RuntimeTripleBox {
 final class RuntimeIntBox {
     let value: Int
 
+    /// Static Any-fallback tag captured at the boxing boundary. UInt, UByte,
+    /// and UShort share this physical box with Int, but their hashCode() must
+    /// reinterpret the zero-extended payload as the signed backing type.
+    let anyFallbackTag: Int32
+
     /// Set when this box represents a Kotlin enum ordinal (an element of
     /// `values()`/`entries`) round-tripped through an Any-erased array slot.
     /// Generic Any-printing paths (__kk_print_raw, runtimeRenderAnyForPrint,
@@ -331,8 +336,14 @@ final class RuntimeIntBox {
     /// enum classes unequal even when their ordinals match.
     let enumClassID: Int64?
 
-    init(_ value: Int, enumEntryName: String? = nil, enumClassID: Int64? = nil) {
+    init(
+        _ value: Int,
+        anyFallbackTag: Int32 = 1,
+        enumEntryName: String? = nil,
+        enumClassID: Int64? = nil
+    ) {
         self.value = value
+        self.anyFallbackTag = anyFallbackTag
         self.enumEntryName = enumEntryName
         self.enumClassID = enumClassID
     }

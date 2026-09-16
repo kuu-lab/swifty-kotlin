@@ -41,6 +41,14 @@ struct RuntimeNumericHashCodeTests {
         #expect(kk_any_hashCode(Int(bitPattern: UInt.max), 7) == 0) // ULong.MAX_VALUE
     }
 
+    @Test
+    func testUnboxedUnsignedHashCodeUsesSignedStorageRepresentation() {
+        #expect(kk_any_hashCode(Int(UInt32.max), 9) == -1)
+        #expect(kk_any_hashCode(2_147_483_648, 9) == -2_147_483_648)
+        #expect(kk_any_hashCode(200, 10) == -56)
+        #expect(kk_any_hashCode(40_000, 11) == -25_536)
+    }
+
     // MARK: - Boxed (Any-erased receiver) dispatch
 
     @Test
@@ -62,6 +70,20 @@ struct RuntimeNumericHashCodeTests {
 
         let signBit = registerRuntimeObject(RuntimeULongBox(Int(Int64.min))) // 2^63
         #expect(kk_any_hashCode(signBit, 0) == -2_147_483_648)
+    }
+
+    @Test
+    func testBoxedUnsignedHashCodePreservesStaticStorageType() {
+        let uint = kk_box_uint(Int(UInt32.max))
+        let ubyte = kk_box_ubyte(200)
+        let ushort = kk_box_ushort(40_000)
+
+        #expect(kk_unbox_int(uint) == Int(UInt32.max))
+        #expect(kk_unbox_int(ubyte) == 200)
+        #expect(kk_unbox_int(ushort) == 40_000)
+        #expect(kk_any_hashCode(uint, 0) == -1)
+        #expect(kk_any_hashCode(ubyte, 0) == -56)
+        #expect(kk_any_hashCode(ushort, 0) == -25_536)
     }
 
     @Test

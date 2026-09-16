@@ -210,9 +210,11 @@ private func runtimeFloatHashCode(_ value: Float) -> Int {
 }
 
 /// Unboxed (raw, non-pointer) `Any.hashCode()` fallback. Tags 5/6/7/8
-/// (Float/Double/ULong/Long) need their raw slot value reinterpreted per
-/// Kotlin's formula; every other tag's raw slot value already equals its
-/// hashCode as-is (Int, Char), or is handled here directly (Boolean).
+/// (Float/Double/ULong/Long) apply Kotlin's bit-level formulas. Tags 9/10/11
+/// (UInt/UByte/UShort) reinterpret the zero-extended payload as the signed
+/// primitive backing each Kotlin value class. Every other tag's raw slot value
+/// already equals its hashCode as-is (Int, Char), or is handled here directly
+/// (Boolean).
 private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
     switch tag {
     case 2:
@@ -221,6 +223,12 @@ private func runtimeUnboxedAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return runtimeFloatHashCode(kk_bits_to_float(value))
     case 6, 7, 8:
         return runtimeXorFoldHashCode(Int64(value))
+    case 9:
+        return Int(Int32(truncatingIfNeeded: value))
+    case 10:
+        return Int(Int8(truncatingIfNeeded: value))
+    case 11:
+        return Int(Int16(truncatingIfNeeded: value))
     default:
         return value
     }
@@ -250,7 +258,7 @@ private func runtimeAnyHashCode(_ value: Int, _ tag: Int32) -> Int {
         return boolBox.value ? 1231 : 1237
     }
     if let intBox = tryCast(pointer, to: RuntimeIntBox.self) {
-        return intBox.value
+        return runtimeUnboxedAnyHashCode(intBox.value, intBox.anyFallbackTag)
     }
     if let longBox = tryCast(pointer, to: RuntimeLongBox.self) {
         return runtimeXorFoldHashCode(Int64(longBox.value))
