@@ -733,29 +733,27 @@ public fun CharSequence.reduceRightIndexedOrNull(operation: (index: Int, Char, a
     return accumulator
 }
 
-public fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.fold(initial: R, operation: (acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
+public inline fun <R> CharSequence.foldIndexed(initial: R, operation: (index: Int, acc: R, Char) -> R): R {
     var accumulator = initial
     var i = 0
-    val sz = this.length
-    while (i < sz) {
+    while (i < this.length) {
         accumulator = operation(i, accumulator, this[i])
         i++
     }
     return accumulator
 }
 
-public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {
@@ -765,7 +763,7 @@ public fun <R> CharSequence.foldRight(initial: R, operation: (Char, acc: R) -> R
     return accumulator
 }
 
-public fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
+public inline fun <R> CharSequence.foldRightIndexed(initial: R, operation: (index: Int, Char, acc: R) -> R): R {
     var accumulator = initial
     var i = this.length - 1
     while (i >= 0) {
