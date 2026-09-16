@@ -33,9 +33,13 @@ struct CodegenBackendListSortExtremaTests {
         "@kk_list_maxByOrNull(", "@kk_list_maxOfOrNull(",
         "@kk_list_min(", "@kk_list_minOrNull(", "@kk_list_minBy(",
         "@kk_list_minByOrNull(", "@kk_list_minOfOrNull(",
+        // KSP-1511
+        "@kk_list_shuffled(", "@kk_list_shuffled_random(",
     ]
 
     private static let allFamiliesSource = """
+    import kotlin.random.Random
+
     fun main() {
         val nums = listOf(3, 1, 4, 1, 5)
         println(nums.sorted())
@@ -43,6 +47,8 @@ struct CodegenBackendListSortExtremaTests {
         println(nums.sortedBy { it })
         println(nums.sortedByDescending { it })
         println(nums.sortedWith { a, b -> a - b })
+        println(nums.shuffled())
+        println(nums.shuffled(Random))
         println(nums.max())
         println(nums.min())
         println(nums.maxOrNull())

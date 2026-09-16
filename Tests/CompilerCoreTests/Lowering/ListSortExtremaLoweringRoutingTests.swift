@@ -10,8 +10,10 @@ import Testing
 /// `ListExtremaHOF.kt` and emptied
 /// `CollectionLiteralLoweringPass+CallRewriteHOFExtrema.swift`, but the
 /// matching `kk_list_*` ABI entries in `RuntimeABISpec+CollectionHOF.swift`
-/// were left behind as spec-only registrations: of the 19 names below only
-/// `kk_list_sortedBy` still has a `@_cdecl` in `Sources/Runtime`.  A lowering
+/// were left behind as spec-only registrations: of the 21 names below only
+/// `kk_list_sortedBy` still has a `@_cdecl` in `Sources/Runtime`. KSP-1511
+/// later retired the `shuffled`/`shuffled(Random)` runtime bridge the same
+/// way. A lowering
 /// rewrite that redirected one of the resolved Kotlin declarations to those
 /// names would therefore not fail a Core test — it would fail at link time, or
 /// silently bind to an unrelated symbol.  Nothing pinned that.
@@ -38,6 +40,8 @@ struct ListSortExtremaLoweringRoutingTests {
         "kk_list_maxByOrNull", "kk_list_maxOfOrNull",
         "kk_list_min", "kk_list_minOrNull", "kk_list_minBy",
         "kk_list_minByOrNull", "kk_list_minOfOrNull",
+        // KSP-1511
+        "kk_list_shuffled", "kk_list_shuffled_random",
     ]
 
     /// Every callee name the removed KSP-426 block used to enumerate in the two
@@ -46,6 +50,7 @@ struct ListSortExtremaLoweringRoutingTests {
     /// `+VirtualCallRewrite.swift`), exercised on a `List` receiver.
     static let expectedSourceCallees: Set<String> = [
         "sorted", "sortedDescending", "sortedBy", "sortedByDescending", "sortedWith",
+        "shuffled",
         "max", "min", "maxOrNull", "minOrNull",
         "maxBy", "minBy", "maxByOrNull", "minByOrNull",
         "maxOf", "minOf", "maxOfOrNull", "minOfOrNull",
@@ -54,6 +59,8 @@ struct ListSortExtremaLoweringRoutingTests {
     ]
 
     static let listSortExtremaSource = """
+    import kotlin.random.Random
+
     fun main() {
         val nums = listOf(3, 1, 4, 1, 5)
         println(nums.sorted())
@@ -61,6 +68,8 @@ struct ListSortExtremaLoweringRoutingTests {
         println(nums.sortedBy { it })
         println(nums.sortedByDescending { it })
         println(nums.sortedWith { a, b -> a - b })
+        println(nums.shuffled())
+        println(nums.shuffled(Random))
         println(nums.max())
         println(nums.min())
         println(nums.maxOrNull())
@@ -181,7 +190,7 @@ struct ListSortExtremaLoweringRoutingTests {
             let module = try #require(ctx.kir)
             let body = try findKIRFunctionBody(named: "main", in: module, interner: ctx.interner)
             let calls = Self.sortExtremaCalls(in: body, interner: ctx.interner)
-            #expect(calls.count == 25, "expected 25 sorting/extrema calls; got \(calls.count)")
+            #expect(calls.count == 27, "expected 27 sorting/extrema calls; got \(calls.count)")
 
             let sema = try #require(ctx.sema)
             for call in calls {

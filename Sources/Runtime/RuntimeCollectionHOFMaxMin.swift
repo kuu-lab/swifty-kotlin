@@ -59,10 +59,3 @@ public func kk_list_dropLast(_ listRaw: Int, _ count: Int) -> Int {
 
 
 
-@_cdecl("kk_list_shuffled")
-public func kk_list_shuffled(_ listRaw: Int) -> Int {
-    guard let _listBox = runtimeListBox(from: listRaw) else { invalidContainerPanic(#function, "list") }
-    let elements = _listBox.elements
-    let shuffled = elements.shuffled()
-    return registerRuntimeObject(RuntimeListBox(elements: shuffled))
-}

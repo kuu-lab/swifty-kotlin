@@ -267,43 +267,6 @@ extension CollectionVirtualCallRewriteLoweringPass {
             return true
         }
 
-        if callee == lookup.shuffledName, arguments.isEmpty, state.contains(.list, receiver) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListShuffledName,
-                arguments: [receiver],
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.tagListResult(result, temporary: transformResult)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
-        // shuffled(random: Random) overload (STDLIB-531)
-        if callee == lookup.shuffledName, arguments.count == 1, state.contains(.list, receiver) {
-            let transformResult = module.arena.appendTemporary(type: nil
-            )
-            loweredBody.append(.call(
-                symbol: nil,
-                callee: lookup.kkListShuffledRandomName,
-                arguments: [receiver] + arguments,
-                result: transformResult,
-                canThrow: false,
-                thrownResult: nil
-            ))
-            if let result {
-                state.tagListResult(result, temporary: transformResult)
-                loweredBody.append(.copy(from: transformResult, to: result))
-            }
-            return true
-        }
-
         if callee == lookup.toListName, arguments.isEmpty {
             if state.contains(.sequence, receiver) {
                 if let result {
