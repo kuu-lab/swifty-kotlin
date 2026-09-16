@@ -786,9 +786,11 @@
 
 ### 第1群: 変更集中点（001〜005）
 
-- [ ] RF-FIXTURE-005: `unsigned_array_as_list.kt` を view / copy / size の型検証に分離する（31行 / 10回）
+- [x] RF-FIXTURE-005: `unsigned_array_as_list.kt` を view / copy / size の型検証に分離する（31行 / 10回）
   - unsigned 4型の `asList`、`toList` / `size`、generic `Array<T>` の `toList` / `size` を区別する。unsigned 配列を型付き引数等で受け、ULongRange → 配列生成や出力への不要な依存を除く。
   - `List<UByte>` / `List<UShort>` / `List<UInt>` / `List<ULong>` の型を固定する。view が元配列の更新を反映し copy は反映しない挙動は、既存 `unsigned_array_conversions.kt` に寄せる。
+  - **完了確認（2026-09-16）**: PR #6652（`ae1fb9a76`）で master に取り込み済み。`unsigned_array_as_list.{kt,golden}` は unsigned 4型の `asList()` view 型、`unsigned_array_to_list.{kt,golden}` は unsigned 4型の `toList()` copy と `size: Int`、`array_to_list.{kt,golden}` は generic `Array<Int>` の `toList()` / `size` に分割し、各 `List<U*>` / `Int` を代入で固定した。配列は typed parameter で受け、factory・`ULongRange.toULongArray()`・`println` 依存を除去した。view/copy の更新追従と generic Array の copy/size 実行挙動は既存 `Scripts/diff_cases/unsigned_array_conversions.kt` に移管済み。
+  - **検証**: `swift build` PASS。対象 Sema golden shard（`array_to_list`、unsigned 2組）と `bash Scripts/validate_runtime_abi_links.sh`（4/4）が PASS。`bash Scripts/diff_kotlinc.sh --compile-timeout 600 --script-timeout 660 Scripts/diff_cases/unsigned_array_conversions.kt` は `total=1 failed=0 passed=1`。PR #6652 の CI でも CompilerCore/Golden・Backend/Runtime・Repository・kotlinc Diff（全 shard）を含む全 verification が PASS。ローカルの Sema 全体は共有ホストの長時間 product 再ビルド中断により未完走のため、CI 結果を全体ゲートの根拠とする。
 
 ### 第2群: 関連コレクションと I/O の依存削減（006〜015）
 
