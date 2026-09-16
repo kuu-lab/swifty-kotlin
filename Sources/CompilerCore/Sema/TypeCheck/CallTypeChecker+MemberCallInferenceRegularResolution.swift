@@ -2243,6 +2243,7 @@ extension CallTypeChecker {
              "kotlin.concurrent.atomics.AtomicLong",
              "kotlin.concurrent.atomics.AtomicBoolean",
              "kotlin.concurrent.atomics.AtomicReference",
+             "kotlin.concurrent.atomics.AtomicNativePtr",
              "kotlin.concurrent.atomics.AtomicIntArray",
              "kotlin.concurrent.atomics.AtomicLongArray",
              "kotlin.concurrent.AtomicInt",
