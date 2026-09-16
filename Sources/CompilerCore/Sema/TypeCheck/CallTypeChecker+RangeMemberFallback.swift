@@ -208,7 +208,7 @@ extension CallTypeChecker {
         // bit-pattern reinterpretation and may produce incorrect iteration order
         // or comparison results. This is a known limitation; full ULong support
         // would require unsigned comparison helpers in the runtime.
-        // Only CharRange needs separate helpers (kk_char_range_*) due to box/unbox.
+        // Only CharRange needs separate helpers (__kk_char_range_*) due to box/unbox.
         let isUIntRange = rangeKind.isUIntRangeLike
         let isULongRange = rangeKind.isULongRangeLike
 

@@ -2623,7 +2623,7 @@ final class CallTypeChecker {
                     "__kk_op_rangeUntil",
                     "__kk_uint_rangeTo",
                     "__kk_ulong_rangeTo",
-                    "kk_char_rangeTo",
+                    "__kk_char_rangeTo",
                     "__kk_int_progression_fromClosedRange",
                     "__kk_long_progression_fromClosedRange",
                     "__kk_uint_progression_fromClosedRange",

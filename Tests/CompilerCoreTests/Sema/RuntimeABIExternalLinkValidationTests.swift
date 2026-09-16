@@ -287,6 +287,38 @@ struct RuntimeABIExternalLinkValidationTests {
                     pendingScope = scopeStack.last
                 }
                 pendingLinkNames.append(linkName)
+
+                // Primary constructors may put @KsSymbolName on the same
+                // class-header line as `constructor(`. Consume that
+                // annotation here so it does not attach to the first `fun`
+                // in the class body, while still checking the constructor's
+                // source-parameter arity against the runtime ABI.
+                if line.contains("constructor(") {
+                    if let constructorHeader = functionHeader(startingAt: index, in: lines),
+                       let signature = functionSignatureInfo(in: constructorHeader)
+                    {
+                        for constructorLinkName in pendingLinkNames {
+                            declarations.append(
+                                BundledKsSymbolNameDeclaration(
+                                    linkName: constructorLinkName,
+                                    arity: signature.valueParameterTypes.count,
+                                    functionTypedParameterCount: signature.functionTypedParameterCount,
+                                    hasReceiver: false,
+                                    isInObjectScope: false,
+                                    isSuspend: false,
+                                    receiverType: nil,
+                                    valueParameterTypes: signature.valueParameterTypes,
+                                    valueParameterIsVararg: signature.valueParameterIsVararg,
+                                    returnType: nil,
+                                    isConstructor: true,
+                                    relativePath: relativePath
+                                )
+                            )
+                        }
+                    }
+                    pendingLinkNames.removeAll()
+                    pendingScope = nil
+                }
                 continue
             }
 

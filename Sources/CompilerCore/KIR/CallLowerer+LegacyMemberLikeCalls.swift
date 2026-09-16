@@ -524,7 +524,7 @@ extension CallLowerer {
                         ? "kk_ulong_range_step"
                         : (sema.bindings.isUIntRangeExpr(receiverExpr) || nonNullReceiverType == sema.types.uintType
                             ? "kk_uint_range_step"
-                            : (isLongRange ? "kk_long_range_step" : "kk_range_step")))
+                            : (isLongRange ? "__kk_long_range_step" : "kk_range_step")))
                 default:
                     nil
                 }

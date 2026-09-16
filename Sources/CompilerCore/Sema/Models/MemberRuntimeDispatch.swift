@@ -396,7 +396,7 @@ enum MemberRuntimeDispatch {
         charProgressionUsesChar: Bool = false
     ) -> String? {
         if kind == .charRange || (kind == .charProgression && charProgressionUsesChar), let charMember {
-            return "kk_char_range_\(charMember)"
+            return "__kk_char_range_\(charMember)"
         }
         if kind == .ulongRange {
             let sourceBacked: Set<String> = [
@@ -501,7 +501,7 @@ enum MemberRuntimeDispatch {
             return "__kk_range_\(member)"
         }
         if kind.isLongRangeLike, let longMember {
-            return "kk_long_range_\(longMember)"
+            return "__kk_long_range_\(longMember)"
         }
         return "kk_range_\(member)"
     }
