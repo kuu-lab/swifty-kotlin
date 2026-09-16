@@ -75,6 +75,7 @@ extension LocalDeclTypeChecker {
                 named: getName,
                 receiverType: receiverType,
                 requireOperator: true,
+                sourceFile: ctx.currentASTFile,
                 sema: sema,
                 interner: interner
             )
@@ -276,6 +277,7 @@ extension LocalDeclTypeChecker {
                 named: setName,
                 receiverType: receiverType,
                 requireOperator: true,
+                sourceFile: ctx.currentASTFile,
                 sema: sema,
                 interner: interner
             )

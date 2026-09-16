@@ -1630,7 +1630,7 @@
   - 未実装シンボル一覧:
     - `kotlin.concurrent.atomics.AtomicInt.<init>` — constructor (Int)  -- `constructor <init>(kotlin/Int)`
 
-- [ ] KSP-1113: kotlin.concurrent.atomics.AtomicInt.AtomicInt の未実装 stdlib API を実装する（10 件）
+- [x] KSP-1113: kotlin.concurrent.atomics.AtomicInt.AtomicInt の未実装 stdlib API を実装する（10 件）
   - 対象: `kotlin.concurrent.atomics.AtomicInt` / receiver `AtomicInt`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/concurrent/atomics/AtomicInt/AtomicInt.kt`（該当ファイルが無ければ新規作成）
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
@@ -1648,6 +1648,7 @@
     - `kotlin.concurrent.atomics.AtomicInt.store` — fun AtomicInt.store(Int): Unit  -- `final fun store(kotlin/Int)`
     - `kotlin.concurrent.atomics.AtomicInt.toString` — fun AtomicInt.toString(): String  -- `final fun toString(): kotlin/String`
     - `kotlin.concurrent.atomics.AtomicInt.value` — val AtomicInt.value: Int  -- `final var value`
+  - 完了根拠（2026-09-16）: `AtomicInt/AtomicInt.kt` に10 receiver APIをsource-backed実装し、既存のInt atomic bridgeへ委譲。bundled source extension の一般解決と import/package provenance を用いて、canonical alias の呼び出しを source-backed 実装へ接続した。legacy `compareAndExchange` wrapper と `value` synthetic property は互換性のため保持し、同一実装との重複警告だけを抑制している。
 
 - [ ] KSP-1114: kotlin.concurrent.atomics.AtomicIntArray top-level の未実装 stdlib API を実装する（2 件）
   - 対象: `kotlin.concurrent.atomics.AtomicIntArray` / top-level
