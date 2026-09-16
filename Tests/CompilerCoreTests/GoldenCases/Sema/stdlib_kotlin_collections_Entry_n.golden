@@ -43,7 +43,7 @@ expr e@17:26 name(values) type=kotlin.collections.Map<String, Int> ref=golden.se
 expr e@18:21 name(key) type=String ref=__for_destructuring_0.key[kind=local]
 expr e@18:26 name(value) type=Int ref=__for_destructuring_0.value[kind=local]
 expr e@18:19 stringTemplate[expr(e@18:21),lit(=),expr(e@18:26),lit(;)] type=String
-expr e@18:9 compoundAssign(plusAssign) name=result value=e@18:19 type=Unit ref=__local_3.result[kind=local]
+expr e@18:9 compoundAssign(plusAssign) name=result value=e@18:19 type=Unit ref=__local_3.result[kind=local] call=kotlin.text.plus[kind=fun;recv=String?;params=Any?]
 expr e@17:34 blockExpr stmts=[e@18:9] trailing=_ type=Unit
 expr e@17:5 forDestructuring names=[key,value] iterable=e@17:26 body=e@17:34 type=Unit
 expr e@20:12 name(result) type=String ref=__local_3.result[kind=local]
