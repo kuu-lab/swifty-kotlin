@@ -3417,14 +3417,15 @@
   - 対象: `kotlin.text` / receiver `CharSequence` / family `pad`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringHOF.kt`（#6697 で追加済み）
 
-- [~] KSP-1392: kotlin.text.CharSequence.region-family の未実装 stdlib API を実装する（1 件）
+- [x] KSP-1392: kotlin.text.CharSequence.region-family の未実装 stdlib API を実装する（1 件）
   - 対象: `kotlin.text` / receiver `CharSequence` / family `region`
   - 実装先 .kt: `Sources/CompilerCore/Stdlib/kotlin/text/StringComparison.kt`
   - bridge/stub 整理: 対象シンボルの `__kk_*` / `kk_*` Runtime 関数、`HeaderHelpers+Synthetic*Stubs.swift` 登録、`RuntimeABISpec` エントリ、`CallTypeChecker+*` / `CallLowerer+*` の name-string 特例があれば同 PR で削除。無ければ新規 Kotlin 実装のみ。
   - golden テスト: `Tests/CompilerCoreTests/GoldenCases/Sema/stdlib_kotlin_text_CharSequence_region.kt` を追加し、`UPDATE_GOLDEN=1 bash Scripts/swift_test.sh --filter matchesGolden -Xswiftc -swift-version -Xswiftc 6` で更新。差分が機械的であることを確認。
   - diff ケース: `Scripts/diff_cases/stdlib_kotlin_text_CharSequence_region.kt` を追加し、`bash Scripts/diff_kotlinc.sh Scripts/diff_cases/stdlib_kotlin_text_CharSequence_region.kt` green（JDK17 環境では `DIFF_REQUIRE_JDK21=0` を付与）。
   - 完了ゲート: `bash Scripts/swift_test.sh --filter Golden` / `bash Scripts/diff_kotlinc.sh Scripts/diff_cases` green / `bash Scripts/check_todo_ids.sh` pass / `bash Scripts/validate_runtime_abi_links.sh`（存在すれば）
-  - 実装状況: `CharSequence.regionMatches(Int, CharSequence, Int, Int, Boolean)` を `StringComparison.kt` に source-backed 実装し、`length`/indexed `get` の短絡順序と `ignoreCase` を Kotlin 2.3.10 に合わせた。focused Sema/Golden/diff/ABI は完了したが、共通 G は未完了のため完了根拠にしない。
+  - 実装状況: `CharSequence.regionMatches(Int, CharSequence, Int, Int, Boolean)` を `StringComparison.kt` に source-backed 実装し、`length`/indexed `get` の短絡順序と `ignoreCase` を Kotlin 2.3.10 に合わせた。focused Sema/Golden/diff/ABI は完了。共通 G はローカルで実行せず、PR #6694 の CI green で確認済み。
+  - 完了確認（2026-09-16）: 実装コミット `719ce8acb`（PR #6694）は master に取り込み済み。ローカルの `swift build --disable-sandbox`、CharSequenceRegionMatchesSourceMigrationTests（2/2）、対象 Sema Golden shard（UPDATE_GOLDEN=1、1/93）、Kotlin 2.3.10 diff、TODO ID、Runtime ABI（4/4）が PASS。PR #6694 の CI も全ジョブ green（kotlinc Diff 4/4 を含む）を確認した。
   - 未実装シンボル一覧:
     - `kotlin.text.regionMatches` — fun CharSequence.regionMatches(Int, CharSequence, Int, Int, Boolean): Boolean  -- `final fun (kotlin/CharSequence).kotlin.text/regionMatches(kotlin/Int, kotlin/CharSequence, kotlin/Int, kotlin/Int, kotlin/Boolean = ...): kotlin/Boolean`
 
