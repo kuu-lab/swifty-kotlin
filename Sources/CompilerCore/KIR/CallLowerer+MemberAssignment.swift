@@ -433,6 +433,31 @@ extension CallLowerer {
         // already mutated the loaded value in place, so no store is needed —
         // mirrors bare-name compound assign's handling in ExprLowerer.
         let newValue: KIRExprID? = {
+            if ast.arena.isIncrementDecrement(exprID),
+               let callBinding = sema.bindings.callBindings[exprID],
+               let signature = sema.symbols.functionSignature(for: callBinding.chosenCallee),
+               signature.receiverType != nil
+            {
+                let operatorName = op == .plusAssign ? "inc" : "dec"
+                let loweredCalleeName: InternedString = if let externalLinkName = sema.symbols.externalLinkName(for: callBinding.chosenCallee),
+                                                            !externalLinkName.isEmpty
+                {
+                    interner.intern(externalLinkName)
+                } else {
+                    sema.symbols.symbol(callBinding.chosenCallee)?.name ?? interner.intern(operatorName)
+                }
+                let callResult = arena.appendTemporary(type: signature.returnType)
+                instructions.append(.call(
+                    symbol: callBinding.chosenCallee,
+                    callee: loweredCalleeName,
+                    arguments: [currentValue],
+                    result: callResult,
+                    canThrow: false,
+                    thrownResult: nil
+                ))
+                return callResult
+            }
+
             let bundledStringPlus = isBundledStringPlusCall(
                 sema.bindings.callBindings[exprID],
                 op: op,

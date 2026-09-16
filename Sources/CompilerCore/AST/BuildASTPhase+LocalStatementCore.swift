@@ -330,12 +330,14 @@ extension BuildASTPhase {
                         return nil
                     }
                 }
-                return context.astArena.appendExpr(.compoundAssign(
+                let assignment = context.astArena.appendExpr(.compoundAssign(
                     op: op,
                     name: name,
                     value: oneExpr,
                     range: range
                 ))
+                context.astArena.markIncrementDecrement(assignment)
+                return assignment
 
             case let .indexedAccess(receiver, indices, _):
                 return context.astArena.appendExpr(.indexedCompoundAssign(
@@ -353,13 +355,15 @@ extension BuildASTPhase {
                 else {
                     return nil
                 }
-                return context.astArena.appendExpr(.memberCompoundAssign(
+                let assignment = context.astArena.appendExpr(.memberCompoundAssign(
                     op: op,
                     receiver: receiver,
                     callee: callee,
                     value: oneExpr,
                     range: range
                 ))
+                context.astArena.markIncrementDecrement(assignment)
+                return assignment
 
             default:
                 return nil
