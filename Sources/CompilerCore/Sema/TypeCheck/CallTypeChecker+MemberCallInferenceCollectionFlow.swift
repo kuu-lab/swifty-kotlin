@@ -1439,7 +1439,8 @@ extension CallTypeChecker {
             return mapIteratorType
         }
 
-        // KSP-432: Set members are source-backed in Stdlib/kotlin/collections/SetHOF.kt.
+        // KSP-432/KSP-704: Set members are source-backed in
+        // Stdlib/kotlin/collections/Set.kt and SetHOF.kt.
         @discardableResult
         func bindBundledSetSourceFunction() -> Bool {
             guard isSetReceiver, !isSequenceReceiver, !isMapReceiver else {

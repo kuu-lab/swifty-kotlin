@@ -333,6 +333,7 @@ extension CallLowerer {
         let runtimeSetMemberCallee = runtimeBackedSetMemberCallee(
             memberName: interner.resolve(calleeName),
             receiverType: sema.bindings.exprTypes[receiver.expr] ?? sema.types.anyType,
+            chosenCallee: chosenCallee,
             sema: sema,
             interner: interner
         )

@@ -70,10 +70,10 @@ let hashSetRuntimeTypeID: Int64 = {
 /// their box with this ID, so it needs parent edges the way
 /// `hashSetRuntimeTypeID` has them -- without them `is MutableSet<*>` and
 /// `is Set<*>` would answer false on a box carrying this tag.
-/// `CollectionAliases.kt` declares `LinkedHashSet<E> : MutableSet<E>`, which
-/// extends neither HashSet nor AbstractMutableSet, so only those two edges are
-/// registered. Aligning the runtime hierarchy with Kotlin/Native's
-/// `LinkedHashSet : HashSet` needs the declaration change KSP-704 owns.
+/// `LinkedHashSet.kt` declares `LinkedHashSet<E> : MutableSet<E>`. The runtime
+/// identity follows that source-backed public hierarchy; the concrete class
+/// remains separate from `HashSet` because the factory/runtime representation
+/// does not expose a nominal HashSet superclass edge.
 let linkedHashSetRuntimeTypeID: Int64 = {
     let id = runtimeStableNominalTypeID(fqName: "kotlin.collections.LinkedHashSet")
     runtimeRegisterTypeEdge(

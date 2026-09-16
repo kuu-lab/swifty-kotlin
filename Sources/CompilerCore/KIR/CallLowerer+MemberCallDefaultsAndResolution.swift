@@ -383,6 +383,7 @@ extension CallLowerer {
             if let setMember = runtimeBackedSetMemberCallee(
                 memberName: fallbackName,
                 receiverType: receiverType,
+                chosenCallee: chosenCallee,
                 sema: sema,
                 interner: interner
             ) {
